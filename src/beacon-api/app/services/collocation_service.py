@@ -7,8 +7,31 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 from app.models.sync import SyncDevice
 from app.services import cohort_service
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 logger = logging.getLogger(__name__)
+
+def _sanitize_url_for_logging(url: str) -> str:
+    """
+    Remove or mask sensitive query parameters (e.g. tokens) from URLs before logging.
+    """
+    try:
+        parsed = urlparse(url)
+        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        sanitized_params = []
+        for key, value in query_params:
+            if key.lower() in {"token", "access_token", "auth", "apikey", "api_key"}:
+                sanitized_params.append((key, "***redacted***"))
+            else:
+                sanitized_params.append((key, value))
+        sanitized_query = urlencode(sanitized_params)
+        sanitized_url = urlunparse(
+            (parsed.scheme, parsed.netloc, parsed.path, parsed.params, sanitized_query, parsed.fragment)
+        )
+        return sanitized_url
+    except Exception:
+        # In case of any parsing issues, avoid logging the original URL
+        return "<redacted-url>"
 
 async def _make_request_with_retry(
     client: httpx.AsyncClient,
@@ -33,7 +56,11 @@ async def _make_request_with_retry(
             
             if response.status_code >= 500 and attempt < max_retries:
                 delay = 2 ** attempt
-                logger.warning(f"Platform API {method} {url} returned {response.status_code} (attempt {attempt}/{max_retries}). Retrying in {delay}s...")
+                safe_url = _sanitize_url_for_logging(url)
+                logger.warning(
+                    f"Platform API {method} {safe_url} returned {response.status_code} "
+                    f"(attempt {attempt}/{max_retries}). Retrying in {delay}s..."
+                )
                 await asyncio.sleep(delay)
                 continue
             return response
@@ -41,7 +68,11 @@ async def _make_request_with_retry(
             last_exception = e
             if attempt < max_retries:
                 delay = 2 ** attempt
-                logger.warning(f"Platform API {method} {url} connection error {e} (attempt {attempt}/{max_retries}). Retrying in {delay}s...")
+                safe_url = _sanitize_url_for_logging(url)
+                logger.warning(
+                    f"Platform API {method} {safe_url} connection error {e} "
+                    f"(attempt {attempt}/{max_retries}). Retrying in {delay}s..."
+                )
                 await asyncio.sleep(delay)
                 continue
             break
