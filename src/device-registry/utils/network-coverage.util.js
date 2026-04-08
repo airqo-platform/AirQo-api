@@ -187,6 +187,18 @@ const DEVICE_CATEGORY_TO_TYPE = {
   gas: "LCS",
 };
 
+// Reusable $switch expression for MongoDB aggregation pipelines that need to
+// sort or group devices by equipment grade. bam=2 > gas=1 > lowcost=0.
+const CATEGORY_PRIORITY_SWITCH = {
+  $switch: {
+    branches: [
+      { case: { $eq: ["$category", "bam"] }, then: 2 },
+      { case: { $eq: ["$category", "gas"] }, then: 1 },
+    ],
+    default: 0,
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -424,19 +436,7 @@ async function fetchAllSources(tenant) {
   try {
     siteDevices = await DeviceModel(tenant).aggregate([
       { $match: { isActive: true, site_id: { $ne: null } } },
-      {
-        $addFields: {
-          _categoryPriority: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$category", "bam"] }, then: 2 },
-                { case: { $eq: ["$category", "gas"] }, then: 1 },
-              ],
-              default: 0,
-            },
-          },
-        },
-      },
+      { $addFields: { _categoryPriority: CATEGORY_PRIORITY_SWITCH } },
       { $sort: { _categoryPriority: -1 } },
       {
         $group: {
@@ -588,19 +588,7 @@ const networkCoverageUtil = {
         // matches what the list endpoints return.
         const [primaryDevice] = await DeviceModel(tenant).aggregate([
           { $match: { site_id: site._id, isActive: true } },
-          {
-            $addFields: {
-              _categoryPriority: {
-                $switch: {
-                  branches: [
-                    { case: { $eq: ["$category", "bam"] }, then: 2 },
-                    { case: { $eq: ["$category", "gas"] }, then: 1 },
-                  ],
-                  default: 0,
-                },
-              },
-            },
-          },
+          { $addFields: { _categoryPriority: CATEGORY_PRIORITY_SWITCH } },
           { $sort: { _categoryPriority: -1 } },
           { $limit: 1 },
           { $project: { category: 1 } },
