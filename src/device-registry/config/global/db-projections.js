@@ -869,7 +869,31 @@ class ProjectionFactory {
         exclusion: { nothing: 0 },
       },
       network: {
-        inclusion: { description: 1, name: 1, _id: 1 },
+        inclusion: {
+          _id: 1,
+          // New canonical fields
+          net_name: 1,
+          net_acronym: 1,
+          net_status: 1,
+          net_email: 1,
+          net_website: 1,
+          net_category: 1,
+          net_description: 1,
+          net_profile_picture: 1,
+          net_manager: 1,
+          net_manager_username: 1,
+          net_manager_firstname: 1,
+          net_manager_lastname: 1,
+          net_data_source: 1,
+          auth_service_id: 1,
+          adapter: 1,
+          // Legacy fields kept for backward compatibility
+          name: 1,
+          description: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          // net_api_key intentionally excluded — encrypted credential
+        },
         exclusion: { nothing: 0 },
       },
       siteActivities: {
