@@ -2346,20 +2346,23 @@ const generateFilter = {
       };
       let filter = {};
 
-      // Identity filters — ID takes precedence, then net_id alias, then name/net_name
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      } else if (net_id) {
+      // Identity filters — route param net_id is authoritative for single-resource
+      // endpoints (/networks/:net_id); query param id is the legacy fallback.
+      if (net_id) {
         filter["_id"] = ObjectId(net_id);
-      }
-
-      // net_name: query both fields so legacy docs (name-only) and new docs
-      // (net_name + name synced) are both matched for backward compatibility.
-      if (net_name) {
-        filter["$or"] = [{ net_name }, { name: net_name }];
-      } else if (name) {
-        // Legacy callers using ?name= still work unchanged.
-        filter["name"] = name;
+      } else if (id) {
+        filter["_id"] = ObjectId(id);
+      } else {
+        // Name filters only apply when no _id is present — combining _id with
+        // net_name/name would AND them in MongoDB and could return no results.
+        // net_name: query both fields so legacy docs (name-only) and new docs
+        // (net_name + name synced) are both matched for backward compatibility.
+        if (net_name) {
+          filter["$or"] = [{ net_name }, { name: net_name }];
+        } else if (name) {
+          // Legacy callers using ?name= still work unchanged.
+          filter["name"] = name;
+        }
       }
 
       if (net_acronym) {

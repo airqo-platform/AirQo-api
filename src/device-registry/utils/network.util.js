@@ -169,7 +169,7 @@ const updateNetwork = async (request, next) => {
     const responseFromUpdateNetwork = await NetworkModel(tenant).findByIdAndUpdate(
       ObjectId(networkId),
       updateBody,
-      { new: true, lean: true }
+      { new: true, lean: true, runValidators: true, context: "query" }
     );
 
     logObject("responseFromUpdateNetwork in Util", responseFromUpdateNetwork);
