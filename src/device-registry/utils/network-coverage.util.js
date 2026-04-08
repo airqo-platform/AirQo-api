@@ -173,6 +173,21 @@ const COUNTRY_ISO2 = {
 };
 
 // ---------------------------------------------------------------------------
+// Device category → network coverage type mapping
+//
+// DeviceModel.category is the canonical source of truth for what kind of
+// equipment a device is. This map translates it to the NetworkCoverageRegistry
+// type enum ("Reference" | "LCS") used by the coverage map and CSV export.
+// bam (Beta Attenuation Monitor) = reference-grade → "Reference"
+// lowcost / gas = low-cost sensor class → "LCS"
+// ---------------------------------------------------------------------------
+const DEVICE_CATEGORY_TO_TYPE = {
+  bam: "Reference",
+  lowcost: "LCS",
+  gas: "LCS",
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -210,10 +225,18 @@ function buildRegistryBySiteId(registryRecords) {
  * Maps an AirQo Site document + optional registry enrichment record to
  * a MonitorListItem. Base location/status fields come from the live Site doc;
  * extended metadata is layered from the registry entry when present.
+ *
+ * deviceCategory — the dominant category of active devices at this site
+ * (bam | lowcost | gas). This is the authoritative source for `type`;
+ * the registry entry never overrides it for AirQo pipeline monitors.
  */
-function buildAirQoMonitorItem(siteDoc, registryDoc) {
+function buildAirQoMonitorItem(siteDoc, registryDoc, deviceCategory) {
   const reg = registryDoc || {};
   const country = siteDoc.country || "";
+
+  // Derive type directly from the device's own category — the canonical,
+  // validated source of truth in DeviceModel. No manual curation needed.
+  const type = DEVICE_CATEGORY_TO_TYPE[deviceCategory] || "LCS";
 
   return {
     id: String(siteDoc._id),
@@ -225,8 +248,7 @@ function buildAirQoMonitorItem(siteDoc, registryDoc) {
     // Null when both values are absent — avoids false (0,0) map points.
     latitude: siteDoc.approximate_latitude ?? siteDoc.latitude ?? null,
     longitude: siteDoc.approximate_longitude ?? siteDoc.longitude ?? null,
-    // type comes from registry; default LCS (most AirQo sensors are low-cost)
-    type: reg.type || "LCS",
+    type,
     // status driven by live Site.isOnline flag
     status: siteDoc.isOnline ? "active" : "inactive",
     lastActive: siteDoc.lastActive
@@ -387,21 +409,52 @@ const SITE_PROJECTION = {
 /**
  * Core data fetch used by list, getCountryMonitors, and exportCsv.
  *
- * Returns { airqoSites, standaloneEntries, registryBySiteId } so callers
- * can build monitor items in whatever way they need.
+ * Returns { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId }
+ * so callers can build monitor items in whatever way they need.
+ *
+ * categoryBySiteId — Map<String(site_id), category> where category is the
+ * dominant equipment category of active devices at that site.
+ * Priority: bam (2) > gas (1) > lowcost (0). This ensures a site hosting
+ * both a reference monitor and a low-cost sensor is classified as "Reference".
  */
 async function fetchAllSources(tenant) {
-  // 1. Determine which sites have at least one deployed (isActive) device
-  let activeSiteIds = [];
+  // 1. Aggregate active devices to get both the site_id list AND the dominant
+  //    category per site in a single DB round-trip. Priority: bam > gas > lowcost.
+  let siteDevices = [];
   try {
-    activeSiteIds = await DeviceModel(tenant).distinct("site_id", {
-      isActive: true,
-      site_id: { $ne: null },
-    });
+    siteDevices = await DeviceModel(tenant).aggregate([
+      { $match: { isActive: true, site_id: { $ne: null } } },
+      {
+        $addFields: {
+          _categoryPriority: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$category", "bam"] }, then: 2 },
+                { case: { $eq: ["$category", "gas"] }, then: 1 },
+              ],
+              default: 0,
+            },
+          },
+        },
+      },
+      { $sort: { _categoryPriority: -1 } },
+      {
+        $group: {
+          _id: "$site_id",
+          category: { $first: "$category" },
+        },
+      },
+    ]);
   } catch (err) {
-    logger.error(`Failed to fetch active site IDs: ${err.message}`);
+    logger.error(`Failed to fetch active site categories: ${err.message}`);
     throw err;
   }
+
+  // Build category lookup and extract site_id list from the aggregate result
+  const categoryBySiteId = new Map(
+    siteDevices.map(({ _id, category }) => [String(_id), category || "lowcost"])
+  );
+  const activeSiteIds = siteDevices.map(({ _id }) => _id);
 
   // 2. Fetch those Site documents (must have country for grouping)
   let airqoSites = [];
@@ -420,9 +473,10 @@ async function fetchAllSources(tenant) {
   }
 
   // 3. Fetch only the registry records we actually need:
-  //    a) enrichment docs keyed to the active sites
-  //    b) standalone docs (no site_id at all, or site_id explicitly null for
-  //       legacy records created before the default:null was removed)
+  //    a) enrichment docs keyed to the active sites (supplementary metadata only —
+  //       type is now derived from DeviceModel.category, not the registry)
+  //    b) standalone docs (no site_id — external monitors with no device record;
+  //       type remains manual for these since there is no device to reference)
   let enrichmentDocs = [];
   let standaloneEntries = [];
   try {
@@ -444,7 +498,7 @@ async function fetchAllSources(tenant) {
   // 4. Build enrichment map
   const registryBySiteId = buildRegistryBySiteId(enrichmentDocs);
 
-  return { airqoSites, standaloneEntries, registryBySiteId };
+  return { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId };
 }
 
 // ---------------------------------------------------------------------------
@@ -461,12 +515,16 @@ const networkCoverageUtil = {
     try {
       const { tenant, search, activeOnly, types } = request.query;
 
-      const { airqoSites, standaloneEntries, registryBySiteId } =
+      const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
 
       // Build monitor items from both sources
       const airqoMonitors = airqoSites.map((site) =>
-        buildAirQoMonitorItem(site, registryBySiteId.get(String(site._id)))
+        buildAirQoMonitorItem(
+          site,
+          registryBySiteId.get(String(site._id)),
+          categoryBySiteId.get(String(site._id))
+        )
       );
       const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
 
@@ -524,13 +582,31 @@ const networkCoverageUtil = {
       }
 
       if (site) {
-        // Verify it has an active device attached
-        const hasActive = await DeviceModel(tenant).exists({
-          site_id: site._id,
-          isActive: true,
-        });
+        // Fetch the dominant active device for this site to resolve category.
+        // Priority: bam (2) > gas (1) > lowcost (0) — consistent with the
+        // bulk fetchAllSources aggregate so a single monitor detail view
+        // matches what the list endpoints return.
+        const [primaryDevice] = await DeviceModel(tenant).aggregate([
+          { $match: { site_id: site._id, isActive: true } },
+          {
+            $addFields: {
+              _categoryPriority: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$category", "bam"] }, then: 2 },
+                    { case: { $eq: ["$category", "gas"] }, then: 1 },
+                  ],
+                  default: 0,
+                },
+              },
+            },
+          },
+          { $sort: { _categoryPriority: -1 } },
+          { $limit: 1 },
+          { $project: { category: 1 } },
+        ]);
 
-        if (!hasActive) {
+        if (!primaryDevice) {
           return {
             success: false,
             message: "Monitor not found",
@@ -555,7 +631,7 @@ const networkCoverageUtil = {
         return {
           success: true,
           message: "Monitor retrieved successfully",
-          data: buildAirQoMonitorItem(site, registryDoc),
+          data: buildAirQoMonitorItem(site, registryDoc, primaryDevice.category),
           status: httpStatus.OK,
         };
       }
@@ -605,13 +681,17 @@ const networkCoverageUtil = {
       const { tenant, activeOnly, types } = request.query;
       const { countryId } = request.params;
 
-      const { airqoSites, standaloneEntries, registryBySiteId } =
+      const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
 
       const airqoMonitors = airqoSites
         .filter((s) => slugify(s.country) === countryId)
         .map((site) =>
-          buildAirQoMonitorItem(site, registryBySiteId.get(String(site._id)))
+          buildAirQoMonitorItem(
+            site,
+            registryBySiteId.get(String(site._id)),
+            categoryBySiteId.get(String(site._id))
+          )
         );
 
       const externalMonitors = standaloneEntries
@@ -668,11 +748,15 @@ const networkCoverageUtil = {
     try {
       const { tenant, search, activeOnly, types, countryId } = request.query;
 
-      const { airqoSites, standaloneEntries, registryBySiteId } =
+      const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
 
       const airqoMonitors = airqoSites.map((site) =>
-        buildAirQoMonitorItem(site, registryBySiteId.get(String(site._id)))
+        buildAirQoMonitorItem(
+          site,
+          registryBySiteId.get(String(site._id)),
+          categoryBySiteId.get(String(site._id))
+        )
       );
       const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
 
