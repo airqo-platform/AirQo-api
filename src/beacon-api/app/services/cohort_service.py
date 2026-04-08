@@ -1,7 +1,7 @@
 import httpx
 import logging
 import asyncio
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Set
 from datetime import datetime, timedelta
 from app.core.config import settings
 from app.utils.performance import PerformanceAnalysis
@@ -18,7 +18,7 @@ async def get_cohorts(token: str, params: Dict[str, Any] = None) -> Dict[str, An
     frequency = params.get("frequency", "hourly")
     
     headers = {"Authorization": f"JWT {token}"}
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         url = f"{settings.PLATFORM_BASE_URL}/devices/cohorts"
         response = await client.get(
             url,
@@ -72,7 +72,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
     headers = {"Authorization": f"JWT {token}"}
     url = f"{settings.PLATFORM_BASE_URL}/devices/cohorts"
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         # Page 1 — learn totalPages
         response = await client.get(url, headers=headers, params=params)
         if response.status_code != 200:
@@ -151,6 +151,7 @@ def _split_date_range(startDateTime: str, endDateTime: str, segment_days: int) -
 
 async def _fetch_raw_data_for_devices(
     device_names: List[str], startDateTime: str, endDateTime: str, frequency: str,
+    device_category: str = "lowcost",
     semaphore: asyncio.Semaphore = None, max_retries: int = 3
 ) -> List[Dict[str, Any]]:
     """
@@ -163,24 +164,35 @@ async def _fetch_raw_data_for_devices(
     except AttributeError:
         platform_token = ""
 
-    base_payload = {
-        "network": "airqo",
-        "device_category": "lowcost",
-        "device_names": device_names,
-        "pollutants": ["pm2_5", "pm10"],
-        "metaDataFields": ["latitude", "longitude", "battery"],
-        "weatherFields": ["temperature", "humidity"],
-        "startDateTime": startDateTime,
-        "endDateTime": endDateTime,
-        "frequency": frequency
-    }
+    if device_category == "bam":
+        base_payload = {
+            "network": "airqo",
+            "device_category": "bam",
+            "device_names": device_names,
+            "pollutants": ["pm2_5"],
+            "startDateTime": startDateTime,
+            "endDateTime": endDateTime,
+            "frequency": frequency
+        }
+    else:
+        base_payload = {
+            "network": "airqo",
+            "device_category": "lowcost",
+            "device_names": device_names,
+            "pollutants": ["pm2_5", "pm10"],
+            "metaDataFields": ["latitude", "longitude", "battery"],
+            "weatherFields": ["temperature", "humidity"],
+            "startDateTime": startDateTime,
+            "endDateTime": endDateTime,
+            "frequency": frequency
+        }
 
     raw_data = []
 
     async def _do_fetch():
         nonlocal raw_data
         payload = base_payload.copy()
-        async with httpx.AsyncClient(timeout=120.0) as data_client:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as data_client:
             data_url = f"{settings.PLATFORM_BASE_URL}/analytics/raw-data?token={platform_token}"
 
             has_more = True
@@ -239,35 +251,43 @@ async def _fetch_raw_data_for_devices(
 
 
 async def _process_performance_data(cohorts: List[Dict[str, Any]], startDateTime: str, endDateTime: str, frequency: str, include_device_data: bool = True) -> None:
-    active_devices = set()
+    # Group devices by category to fetch raw data correctly
+    devices_by_category: Dict[str, Set[str]] = {}
+    device_to_category: Dict[str, str] = {}
+    
     for cohort in cohorts:
         for device in cohort.get("devices", []):
             if device.get("isActive") is True:
-                active_devices.add(device.get("name"))
+                name = device.get("name")
+                # Default to lowcost if category is missing
+                cat = device.get("category", "lowcost")
+                devices_by_category.setdefault(cat, set()).add(name)
+                device_to_category[name] = cat
 
-    if not active_devices:
+    if not devices_by_category:
         return
-
-    # Split devices into chunks (larger chunks = fewer requests = less API pressure)
-    CHUNK_SIZE = 50
-    device_list = list(active_devices)
-    device_chunks = [device_list[i:i + CHUNK_SIZE] for i in range(0, len(device_list), CHUNK_SIZE)]
 
     # Split date range into segments
     DATE_SEGMENT_DAYS = 7
     date_segments = _split_date_range(startDateTime, endDateTime, DATE_SEGMENT_DAYS)
+    CHUNK_SIZE = 50
 
-    # Create tasks for every (device_chunk × date_segment) combination
-    # Semaphore created here (inside the running event loop) to avoid Python 3.9 loop binding issues
     semaphore = asyncio.Semaphore(2)
     tasks = []
-    for chunk in device_chunks:
-        for seg_start, seg_end in date_segments:
-            tasks.append(_fetch_raw_data_for_devices(chunk, seg_start, seg_end, frequency, semaphore=semaphore))
+    
+    for cat, names in devices_by_category.items():
+        name_list = list(names)
+        for i in range(0, len(name_list), CHUNK_SIZE):
+            chunk = name_list[i : i + CHUNK_SIZE]
+            for seg_start, seg_end in date_segments:
+                tasks.append(_fetch_raw_data_for_devices(
+                    chunk, seg_start, seg_end, frequency, 
+                    device_category=cat, semaphore=semaphore
+                ))
 
     logger.info(
-        f"Fetching raw data for {len(device_list)} devices: "
-        f"{len(device_chunks)} device chunks × {len(date_segments)} date segments = {len(tasks)} parallel tasks"
+        f"Fetching raw data for {len(device_to_category)} devices across {len(devices_by_category)} categories: "
+        f"{len(tasks)} parallel tasks"
     )
 
     all_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -280,7 +300,7 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], startDateTime
         elif isinstance(chunk_data, list):
             raw_data.extend(chunk_data)
 
-    logger.info(f"Raw data fetched: {len(raw_data)} total records for {len(device_list)} devices")
+    logger.info(f"Raw data fetched: {len(raw_data)} total records for {len(device_to_category)} devices")
 
     analysis = PerformanceAnalysis(raw_data)
     # Adjust expected frequency based on requested frequency
@@ -291,7 +311,15 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], startDateTime
     }
     analysis.expected_frequency_minutes = freq_map.get(frequency, 2)
     
-    metrics_map = analysis.compute_device_metrics(startDateTime, endDateTime)
+    # We need to compute metrics per category because the metrics themselves differ
+    metrics_map = {}
+    for cat, names in devices_by_category.items():
+        # Filter raw data for this category
+        cat_raw_data = [r for r in raw_data if r.get("device_name") in names]
+        cat_analysis = PerformanceAnalysis(cat_raw_data)
+        cat_analysis.expected_frequency_minutes = analysis.expected_frequency_minutes
+        cat_metrics = cat_analysis.compute_device_metrics(startDateTime, endDateTime, device_category=cat)
+        metrics_map.update(cat_metrics)
     
     # Group raw data by device for the "data" field
     device_raw_data = {}
@@ -318,15 +346,23 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], startDateTime
                     cohort_device_metrics[d_name] = dev_metrics
                     if include_device_data:
                         # Add metrics to device level
+                        cat = device_to_category.get(d_name, "lowcost")
                         dev["uptime"] = dev_metrics.get("uptime", 0.0)
                         dev["data_completeness"] = dev_metrics.get("data_completeness", 0.0)
-                        dev["sensor_error_margin"] = dev_metrics.get("sensor_error_margin", 0.0)
+                        if cat == "bam":
+                            dev["realtime_conc_average"] = dev_metrics.get("realtime_conc_average")
+                            dev["short_time_conc_average"] = dev_metrics.get("short_time_conc_average")
+                            dev["hourly_conc_average"] = dev_metrics.get("hourly_conc_average")
+                        else:
+                            dev["sensor_error_margin"] = dev_metrics.get("sensor_error_margin", 0.0)
         
-        # Calculate cohort average metrics
+        # Calculate cohort average metrics (this might be tricky if mixed)
+        # For now, we'll just use the existing compute_cohort_metrics which averages whatever is in the dict
         cohort_metrics = analysis.compute_cohort_metrics(cohort_device_metrics)
         cohort["uptime"] = cohort_metrics.get("uptime", 0.0)
         cohort["data_completeness"] = cohort_metrics.get("data_completeness", 0.0)
         cohort["sensor_error_margin"] = cohort_metrics.get("sensor_error_margin", 0.0)
+        # BAM metrics are not usually averaged at cohort level in the same way, but we could add them if needed
 
         # Aggregate data from all devices in the cohort to get "cohort data"
         cohort_data_map = {}
@@ -387,8 +423,7 @@ async def get_cohort(token: str, cohort_id: str, params: Dict[str, Any] = None) 
     frequency = params.get("frequency", "daily")
     
     headers = {"Authorization": f"JWT {token}"}
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # First try the specific cohort ID path
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         url = f"{settings.PLATFORM_BASE_URL}/devices/cohorts/{cohort_id}"
         logger.debug(f"Fetching cohort from platform: {url}")
         response = await client.get(
