@@ -309,4 +309,4 @@ Proprietary - AirQo Hardware
 
 ## Support
 
-Internal service - Contact the hardware team for support.
+Internal service - Contact the hardware team for support. or stuff
