@@ -36,16 +36,12 @@ const handleError = (error, next) => {
 
 function handleResponse({ res, result, key = "data" }) {
   if (!result || res.headersSent) return;
-  const { success, status, data, message, errors, meta, ...rest } = result;
+  const { success, status, data, message, errors, meta } = result;
   const responseStatus =
     status || (success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
 
   if (success) {
-    const body = {
-      success: true,
-      message: message || "Operation successful",
-      ...rest,
-    };
+    const body = { success: true, message: message || "Operation successful" };
     if (meta !== undefined) body.meta = meta;
     if (data !== undefined) body[key] = data;
     return res.status(responseStatus).json(body);

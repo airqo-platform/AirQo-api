@@ -24,6 +24,10 @@ const POD_ID = process.env.HOSTNAME || os.hostname();
 const LOCK_TTL_SECONDS = 30 * 60; // 30 minutes — generous for large fleets
 const INTER_BATCH_DELAY_MS = 200; // breathing room between batches
 
+// Tracks every tenant for which this pod has acquired at least one lock so
+// the shutdown handler can release locks across all of them, not just "airqo".
+const acquiredTenants = new Set();
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ── Lock helpers ──────────────────────────────────────────────────────────────
@@ -32,22 +36,23 @@ const acquireJobLock = async (tenant, lockName) => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LOCK_TTL_SECONDS * 1000);
   try {
+    // $set overwrites acquiredBy/acquiredAt/expiresAt on both insert AND on
+    // an expired-lock match, so this pod atomically reclaims expired locks.
+    // $setOnInsert is reserved for jobName (immutable after creation).
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
         jobName: lockName,
         $or: [{ jobName: { $exists: false } }, { expiresAt: { $lte: now } }],
       },
       {
-        $setOnInsert: {
-          jobName: lockName,
-          acquiredBy: POD_ID,
-          acquiredAt: now,
-          expiresAt,
-        },
+        $set: { acquiredBy: POD_ID, acquiredAt: now, expiresAt },
+        $setOnInsert: { jobName: lockName },
       },
       { upsert: true, new: true, rawResult: false }
     );
-    return result && result.acquiredBy === POD_ID;
+    const acquired = result && result.acquiredBy === POD_ID;
+    if (acquired) acquiredTenants.add(tenant);
+    return acquired;
   } catch (error) {
     if (error.code === 11000) return false; // Another pod beat us to it
     logger.error(`🐛🐛 Lock acquisition error [${lockName}]: ${error.message}`);
@@ -273,14 +278,17 @@ const runPendingBulkUpdateJobs = async (tenant = "airqo") => {
   }
 };
 
-// Graceful shutdown — release any locks held by this pod on SIGTERM / SIGINT.
+// Graceful shutdown — release locks across every tenant this pod has touched.
 const shutdown = async (signal) => {
   logger.warn(`[${POD_ID}] ${signal} received — device-bulk-update-job shutting down.`);
-  try {
-    await JobLockModel("airqo").deleteMany({ acquiredBy: POD_ID });
-  } catch (_) {
-    // Best-effort
+  for (const tenant of acquiredTenants) {
+    try {
+      await JobLockModel(tenant).deleteMany({ acquiredBy: POD_ID });
+    } catch (_) {
+      // Best-effort — do not block shutdown on a single tenant failure
+    }
   }
+  acquiredTenants.clear();
 };
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));

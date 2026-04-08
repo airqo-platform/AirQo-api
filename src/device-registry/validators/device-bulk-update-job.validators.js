@@ -3,7 +3,7 @@ const { body, param, query } = require("express-validator");
 const mongoose = require("mongoose");
 const DeviceBulkUpdateJobModel = require("@models/DeviceBulkUpdateJob");
 
-const { ALLOWED_UPDATE_FIELDS, ALLOWED_FILTER_FIELDS } =
+const { ALLOWED_UPDATE_FIELDS, ALLOWED_FILTER_FIELDS, ALLOWED_CATEGORIES } =
   DeviceBulkUpdateJobModel().schema.statics;
 
 // ── Shared ────────────────────────────────────────────────────────────────────
@@ -90,12 +90,12 @@ const validateUpdateData = body("updateData")
       );
     }
 
-    // Validate category value if present.
+    // Validate category value if present — sourced from DeviceBulkUpdateJob
+    // statics which mirrors DEVICE_CONFIG.ALLOWED_CATEGORIES in Device.js.
     if (value.category !== undefined) {
-      const VALID_CATEGORIES = ["bam", "lowcost", "gas"];
-      if (!VALID_CATEGORIES.includes(value.category)) {
+      if (!ALLOWED_CATEGORIES.includes(value.category)) {
         throw new Error(
-          `category must be one of: ${VALID_CATEGORIES.join(", ")}`
+          `category must be one of: ${ALLOWED_CATEGORIES.join(", ")}`
         );
       }
     }

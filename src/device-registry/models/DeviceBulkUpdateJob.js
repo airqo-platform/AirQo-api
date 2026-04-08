@@ -117,9 +117,18 @@ const DeviceBulkUpdateJobSchema = new Schema(
 
 DeviceBulkUpdateJobSchema.index({ status: 1, tenant: 1 });
 
+// Valid category values — mirrors DEVICE_CONFIG.ALLOWED_CATEGORIES in Device.js.
+// Kept here so validators import from one place rather than duplicating the list.
+const ALLOWED_CATEGORIES = ["bam", "lowcost", "gas"];
+
 // Expose allowlists as statics so validators and the job runner share one source of truth.
+// NOTE: processedIds and failedIds are stored as ObjectId arrays on the job document.
+// For typical fleet sizes (up to ~50 000 devices) this is well within MongoDB's 16 MB
+// document limit (~12 bytes × 50 000 = ~600 KB). For larger scopes, split the job
+// into multiple smaller jobs or migrate to a separate tracking collection.
 DeviceBulkUpdateJobSchema.statics.ALLOWED_UPDATE_FIELDS = ALLOWED_UPDATE_FIELDS;
 DeviceBulkUpdateJobSchema.statics.ALLOWED_FILTER_FIELDS = ALLOWED_FILTER_FIELDS;
+DeviceBulkUpdateJobSchema.statics.ALLOWED_CATEGORIES = ALLOWED_CATEGORIES;
 
 const DeviceBulkUpdateJobModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";

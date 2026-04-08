@@ -1,6 +1,5 @@
 "use strict";
 const httpStatus = require("http-status");
-const mongoose = require("mongoose");
 const { HttpError } = require("@utils/shared");
 const DeviceBulkUpdateJobModel = require("@models/DeviceBulkUpdateJob");
 const DeviceModel = require("@models/Device");
@@ -204,8 +203,9 @@ const deviceBulkUpdateJobUtil = {
         );
       }
 
-      // Completed / cancelled jobs cannot be mutated (create a new one instead).
-      if (["completed", "cancelled"].includes(job.status) && status) {
+      // Completed / cancelled jobs are immutable — no field can be changed.
+      // Create a new job instead.
+      if (["completed", "cancelled"].includes(job.status)) {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: `A ${job.status} job cannot be modified. Create a new job instead.`,
