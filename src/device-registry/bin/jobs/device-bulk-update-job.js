@@ -42,7 +42,7 @@ const acquireJobLock = async (tenant, lockName) => {
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
         jobName: lockName,
-        $or: [{ jobName: { $exists: false } }, { expiresAt: { $lte: now } }],
+        $or: [{ expiresAt: { $lte: now } }, { expiresAt: { $exists: false } }],
       },
       {
         $set: { acquiredBy: POD_ID, acquiredAt: now, expiresAt },
@@ -113,10 +113,10 @@ const runSingleJob = async (job) => {
 
     while (true) {
       // Re-fetch fresh state each iteration to pick up pause/cancel signals
-      // written by the management API, and to get the latest processedIds.
+      // written by the management API, and to get the current cursor position.
       const currentJob = await DeviceBulkUpdateJobModel(tenant)
         .findById(jobId)
-        .select("processedIds failedIds status")
+        .select("lastSeenId status")
         .lean();
 
       if (!currentJob) {
@@ -131,16 +131,23 @@ const runSingleJob = async (job) => {
         break;
       }
 
-      // Fetch the next batch of devices that have NOT yet been processed.
+      // Cursor-based batch: fetch devices with _id > lastSeenId in stable
+      // ascending order. O(1) storage — no unbounded $nin array in the query.
+      const cursorFilter = currentJob.lastSeenId
+        ? { ...filter, _id: { $gt: currentJob.lastSeenId } }
+        : filter;
+
       const devices = await DeviceModel(tenant)
-        .find({ ...filter, _id: { $nin: currentJob.processedIds } })
+        .find(cursorFilter)
         .select("_id")
+        .sort({ _id: 1 })
         .limit(batchSize)
         .lean();
 
       if (devices.length === 0) break; // All done
 
       const deviceIds = devices.map((d) => d._id);
+      const newLastSeenId = deviceIds[deviceIds.length - 1];
 
       if (dryRun) {
         logger.info(
@@ -148,9 +155,8 @@ const runSingleJob = async (job) => {
             updateData
           )} to ${deviceIds.length} device(s).`
         );
-        // Still mark as processed so the loop terminates naturally.
         await DeviceBulkUpdateJobModel(tenant).findByIdAndUpdate(jobId, {
-          $addToSet: { processedIds: { $each: deviceIds } },
+          $set: { lastSeenId: newLastSeenId },
           $inc: { processedCount: deviceIds.length },
         });
         batchSuccesses += deviceIds.length;
@@ -166,7 +172,7 @@ const runSingleJob = async (job) => {
         );
 
         await DeviceBulkUpdateJobModel(tenant).findByIdAndUpdate(jobId, {
-          $addToSet: { processedIds: { $each: deviceIds } },
+          $set: { lastSeenId: newLastSeenId },
           $inc: { processedCount: deviceIds.length },
         });
 
@@ -176,18 +182,15 @@ const runSingleJob = async (job) => {
             `Running total: ${batchSuccesses}.`
         );
       } catch (batchError) {
-        // Record failures but keep moving — other batches may succeed.
+        // Record failures but advance the cursor so we don't retry the same
+        // batch indefinitely — failed device IDs are preserved in failedIds.
         await DeviceBulkUpdateJobModel(tenant).findByIdAndUpdate(jobId, {
-          $addToSet: {
-            failedIds: { $each: deviceIds },
-            // Also mark as "seen" so we don't loop on the same failing batch.
-            processedIds: { $each: deviceIds },
-          },
+          $set: { lastSeenId: newLastSeenId, lastError: batchError.message },
+          $addToSet: { failedIds: { $each: deviceIds } },
           $inc: {
             failedCount: deviceIds.length,
             processedCount: deviceIds.length,
           },
-          $set: { lastError: batchError.message },
         });
         batchFailures += deviceIds.length;
         logger.error(
@@ -201,21 +204,24 @@ const runSingleJob = async (job) => {
     // Determine final status
     const finalJob = await DeviceBulkUpdateJobModel(tenant)
       .findById(jobId)
-      .select("processedIds totalDevices status")
+      .select("processedCount totalDevices status")
       .lean();
 
     if (finalJob && !["paused", "cancelled"].includes(finalJob.status)) {
       const allDone =
         finalJob.totalDevices !== null &&
-        finalJob.processedIds.length >= finalJob.totalDevices;
+        finalJob.processedCount >= finalJob.totalDevices;
 
       await DeviceBulkUpdateJobModel(tenant).findByIdAndUpdate(jobId, {
         $set: {
-          status: batchFailures > 0 && batchSuccesses === 0
-            ? "failed"
-            : allDone
-            ? "completed"
-            : "pending", // More devices appeared or filter mismatch — re-queue
+          status:
+            batchFailures > 0 && batchSuccesses === 0
+              ? "failed"
+              : allDone && batchFailures > 0
+              ? "completed_with_errors"
+              : allDone
+              ? "completed"
+              : "pending", // More devices appeared or filter mismatch — re-queue
           ...(allDone && { completedAt: new Date() }),
         },
       });

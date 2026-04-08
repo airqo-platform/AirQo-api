@@ -57,7 +57,7 @@ const deviceBulkUpdateJobUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 deviceBulkUpdateJobUtil.create: ${error.message}`);
-      next(
+      return next(
         new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
         })
@@ -137,7 +137,7 @@ const deviceBulkUpdateJobUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 deviceBulkUpdateJobUtil.list: ${error.message}`);
-      next(
+      return next(
         new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
         })
@@ -178,7 +178,7 @@ const deviceBulkUpdateJobUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 deviceBulkUpdateJobUtil.get: ${error.message}`);
-      next(
+      return next(
         new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
         })
@@ -231,7 +231,7 @@ const deviceBulkUpdateJobUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 deviceBulkUpdateJobUtil.update: ${error.message}`);
-      next(
+      return next(
         new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
         })
@@ -274,7 +274,7 @@ const deviceBulkUpdateJobUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 deviceBulkUpdateJobUtil.delete: ${error.message}`);
-      next(
+      return next(
         new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
         })
@@ -337,7 +337,7 @@ const deviceBulkUpdateJobUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 deviceBulkUpdateJobUtil.trigger: ${error.message}`);
-      next(
+      return next(
         new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
         })

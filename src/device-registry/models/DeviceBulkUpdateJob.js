@@ -52,7 +52,7 @@ const DeviceBulkUpdateJobSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "running", "completed", "failed", "paused", "cancelled"],
+      enum: ["pending", "running", "completed", "completed_with_errors", "failed", "paused", "cancelled"],
       default: "pending",
       index: true,
     },
@@ -78,13 +78,17 @@ const DeviceBulkUpdateJobSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    // Device ObjectIds that have already been successfully updated.
-    // Used to skip them on subsequent runs — the core idempotency mechanism.
-    processedIds: {
-      type: [Schema.Types.ObjectId],
-      default: [],
+    // Cursor for resumable, idempotent processing.
+    // Devices are fetched in ascending _id order; after each batch this is
+    // advanced to the last device _id seen. On resume the runner queries
+    // { ...filter, _id: { $gt: lastSeenId } } — O(1) storage regardless of
+    // fleet size, and no unbounded $nin array in the query payload.
+    lastSeenId: {
+      type: Schema.Types.ObjectId,
+      default: null,
     },
-    // Device ObjectIds whose last update attempt failed.
+    // ObjectIds of devices whose last update attempt failed.
+    // Bounded — only grows with genuinely failed batches, not total fleet size.
     failedIds: {
       type: [Schema.Types.ObjectId],
       default: [],
@@ -117,8 +121,10 @@ const DeviceBulkUpdateJobSchema = new Schema(
 
 DeviceBulkUpdateJobSchema.index({ status: 1, tenant: 1 });
 
-// Valid category values — mirrors DEVICE_CONFIG.ALLOWED_CATEGORIES in Device.js.
-// Kept here so validators import from one place rather than duplicating the list.
+// Valid category values — must stay in sync with DEVICE_CONFIG.ALLOWED_CATEGORIES
+// in Device.js. A direct import is not possible because Device.js only exports
+// DeviceModel; if Device.js ever exports DEVICE_CONFIG, replace this constant
+// with: const { DEVICE_CONFIG } = require("@models/Device");
 const ALLOWED_CATEGORIES = ["bam", "lowcost", "gas"];
 
 // Expose allowlists as statics so validators and the job runner share one source of truth.

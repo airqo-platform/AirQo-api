@@ -135,7 +135,7 @@ const listBulkUpdateJobs = [
   validTenant,
   query("status")
     .optional()
-    .isIn(["pending", "running", "completed", "failed", "paused", "cancelled"])
+    .isIn(["pending", "running", "completed", "completed_with_errors", "failed", "paused", "cancelled"])
     .withMessage("invalid status value"),
   query("limit")
     .optional()

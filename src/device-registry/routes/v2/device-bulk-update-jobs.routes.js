@@ -4,7 +4,7 @@
  *
  * Base path (mounted at): /api/v2/devices/bulk-update-jobs
  *
- * POST   /                  — create a new job (persists to DB, job runner picks it up)
+ * POST   /                  — create a job (saved as "pending"; runs on startup or via /trigger)
  * GET    /                  — list all jobs with pagination + status filter
  * GET    /:jobId             — get a single job with live progress %
  * PUT    /:jobId             — patch job settings (pause / resume / cancel / batchSize)
@@ -19,12 +19,13 @@ const router = express.Router();
 
 const controller = require("@controllers/device-bulk-update-job.controller");
 const validators = require("@validators/device-bulk-update-job.validators");
+const { pagination } = require("@validators/common");
 
 // Collection routes — exact match, evaluated first
 router
   .route("/")
   .post(validators.createBulkUpdateJob, controller.createBulkUpdateJob)
-  .get(validators.listBulkUpdateJobs, controller.listBulkUpdateJobs);
+  .get(pagination(), validators.listBulkUpdateJobs, controller.listBulkUpdateJobs);
 
 // Sub-resource action — MUST be before /:jobId so Express does not
 // swallow "trigger" as a jobId value on POST requests.
