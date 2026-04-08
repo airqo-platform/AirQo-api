@@ -82,7 +82,7 @@ async def _make_request_with_retry(
     return None
 
 def _ensure_timezone(dt_str: Optional[str]) -> Optional[str]:
-    """Ensures that the date string is timezone-aware as required by Platform API."""
+                "message": "Connection error to Platform API",
     if not dt_str:
         return dt_str
     if "Z" not in dt_str and "+" not in dt_str:
@@ -91,7 +91,7 @@ def _ensure_timezone(dt_str: Optional[str]) -> Optional[str]:
             return f"{dt_str}T00:00:00Z"
         return f"{dt_str}Z"
     return dt_str
-
+                "message": "Platform API error",
 async def get_collocation_sites(token: str, db: Session, params: Dict[str, Any] = None) -> Dict[str, Any]:
     if params is None:
         params = {}
