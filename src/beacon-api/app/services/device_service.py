@@ -998,7 +998,11 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
                             all_devices.extend(resp.json().get("devices", []))
         except Exception as e:
             logger.exception(f"Unexpected error fetching devices for sync: {e}")
-            return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
+            return {
+                "success": False,
+                "message": "Network or parsing error while fetching devices for sync.",
+                "status_code": 500,
+            }
 
     # 2. Update local database
     updates_count = 0
