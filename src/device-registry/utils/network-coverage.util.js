@@ -176,8 +176,13 @@ const COUNTRY_ISO2 = {
 // Device category → network coverage type mapping
 //
 // DeviceModel.category is the canonical source of truth for what kind of
-// equipment a device is. This map translates it to the NetworkCoverageRegistry
-// type enum ("Reference" | "LCS") used by the coverage map and CSV export.
+// equipment an AirQo pipeline monitor is. This map translates device categories
+// to NetworkCoverageRegistry type enum values used by the coverage map and CSV
+// export. The full registry enum is ("Reference" | "LCS" | "Inactive"), but
+// this mapping only produces "Reference" or "LCS" — AirQo pipeline monitors
+// are always active by definition (filtered to isActive:true). Standalone
+// external registry entries are authored directly in the registry and may still
+// carry any enum value including "Inactive".
 // bam (Beta Attenuation Monitor) = reference-grade → "Reference"
 // lowcost / gas = low-cost sensor class → "LCS"
 // ---------------------------------------------------------------------------
@@ -436,12 +441,22 @@ async function fetchAllSources(tenant) {
   try {
     siteDevices = await DeviceModel(tenant).aggregate([
       { $match: { isActive: true, site_id: { $ne: null } } },
+      // Avoid a collection-wide $sort (memory-bound, may hit Mongo's 100 MB
+      // sort limit on large fleets). Instead compute the max priority per site
+      // with $group, then reverse-map the integer back to a category name.
       { $addFields: { _categoryPriority: CATEGORY_PRIORITY_SWITCH } },
-      { $sort: { _categoryPriority: -1 } },
+      { $group: { _id: "$site_id", maxPriority: { $max: "$_categoryPriority" } } },
       {
-        $group: {
-          _id: "$site_id",
-          category: { $first: "$category" },
+        $project: {
+          category: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$maxPriority", 2] }, then: "bam" },
+                { case: { $eq: ["$maxPriority", 1] }, then: "gas" },
+              ],
+              default: "lowcost",
+            },
+          },
         },
       },
     ]);
