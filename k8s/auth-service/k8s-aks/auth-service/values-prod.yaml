@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-auth-api
-  tag: prod-de4204aa-1775661081
+  tag: prod-335c55c8-1775675949
 resources:
   limits:
     cpu: 400m
