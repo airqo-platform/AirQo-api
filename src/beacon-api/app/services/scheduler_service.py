@@ -7,7 +7,8 @@ from typing import Dict, Any, List, Optional
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.services import cohort_service
+from app.services import cohort_service, device_service
+from app.services.device_service import extract_device_category, fetch_feeds_for_device
 from app.utils.performance import PerformanceAnalysis
 from app.crud import crud_device_performance
 
@@ -32,79 +33,16 @@ def _sanitize_metric(value, ndigits=4) -> float:
     import math
     if value is None:
         return 0.0
-    if math.isnan(value) or math.isinf(value):
+    try:
+        if math.isnan(value) or math.isinf(value):
+            return 0.0
+    except TypeError:
+        # Handle complex numbers by taking the real part
+        if isinstance(value, complex):
+            return _sanitize_metric(value.real, ndigits)
         return 0.0
     return round(value, ndigits)
 
-
-def _parse_thingspeak_field(value) -> "float | None":
-    """Safely parse a ThingSpeak field value to float."""
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return None
-
-
-async def _fetch_feeds_for_device(
-    device_number: int, device_name: str, token: str
-) -> List[Dict[str, Any]]:
-    """
-    Fetch recent feeds from ThingSpeak for a single device and convert
-    each entry into the format PerformanceAnalysis expects:
-      {device_name, datetime, pm2_5, s1_pm2_5, s2_pm2_5}
-
-    ThingSpeak field mapping (AirQo convention):
-      field1 → s1_pm2_5  (sensor 1 PM2.5)
-      field3 → s2_pm2_5  (sensor 2 PM2.5)
-      pm2_5  → average of s1 and s2
-    """
-    url = f"{settings.PLATFORM_BASE_URL}/devices/feeds/recent/{device_number}"
-    headers = {"Authorization": f"JWT {token}"}
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            body = resp.json()
-    except Exception as exc:
-        logger.warning(
-            f"[Feeds Fallback] Failed to fetch feeds for {device_name} "
-            f"(device_number={device_number}): {exc}"
-        )
-        return []
-
-    # The response can be a single object or a list of feed entries
-    entries = body if isinstance(body, list) else [body]
-
-    records: List[Dict[str, Any]] = []
-    for entry in entries:
-        created_at = entry.get("created_at")
-        if not created_at:
-            continue
-
-        s1_pm2_5 = _parse_thingspeak_field(entry.get("field1"))
-        s2_pm2_5 = _parse_thingspeak_field(entry.get("field3"))
-
-        # Compute average pm2_5 from the two sensors
-        pm2_5 = None
-        if s1_pm2_5 is not None and s2_pm2_5 is not None:
-            pm2_5 = (s1_pm2_5 + s2_pm2_5) / 2.0
-        elif s1_pm2_5 is not None:
-            pm2_5 = s1_pm2_5
-        elif s2_pm2_5 is not None:
-            pm2_5 = s2_pm2_5
-
-        records.append({
-            "device_name": device_name,
-            "datetime": created_at,
-            "pm2_5": pm2_5,
-            "s1_pm2_5": s1_pm2_5,
-            "s2_pm2_5": s2_pm2_5,
-        })
-
-    return records
 
 
 async def compute_and_store_performance(
@@ -114,6 +52,7 @@ async def compute_and_store_performance(
     tags: Optional[List[str]] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    use_platform: bool = False,
 ) -> Dict[str, Any]:
     """
     Fetch all cohorts, retrieve raw data for the last `days` days (or from start_date to end_date),
@@ -122,6 +61,9 @@ async def compute_and_store_performance(
     For devices that return NO data from the analytics API, we fall back
     to the ThingSpeak feeds endpoint using their device_number.
     Even if NO data is found for a device on a given day, it will get a 0 record.
+
+    If use_platform is True, we only use the Platform Analytics data and
+    skip ThingSpeak fetching.
 
     Args:
         days: Lookback period (each day gets its own row per device).
@@ -133,6 +75,7 @@ async def compute_and_store_performance(
         tags: Optional cohort tags to filter by.
         start_date: Optional custom start date for computation.
         end_date: Optional custom end date for computation.
+        use_platform: If True, only use Platform data and skip ThingSpeak.
 
     Returns a summary dict.
     """
@@ -164,8 +107,28 @@ async def compute_and_store_performance(
             logger.warning("[Performance Sync] No cohorts found.")
             return {"success": True, "message": "No cohorts found", "devices_synced": 0}
 
-        # --- 2. Collect active device metadata (including device_number) ---
+        # --- 2. Collect active device metadata (including device_number and category) ---
         device_info: Dict[str, Dict[str, Any]] = {}
+        all_cohort_devices = []
+        for cohort in cohorts:
+            for dev in cohort.get("devices", []):
+                if dev.get("isActive"):
+                    all_cohort_devices.append(dev)
+
+        # Pre-decrypt read keys in bulk
+        decryption_items = []
+        for dev in all_cohort_devices:
+            rk = dev.get("readKey")
+            dn = dev.get("device_number")
+            if rk and dn:
+                decryption_items.append({"encrypted_key": rk, "device_number": dn})
+        
+        decrypted_keys_map = {}
+        if decryption_items:
+            # We need to import decrypt_read_keys here or make it available
+            from app.services.device_service import decrypt_read_keys
+            decrypted_keys_map = await decrypt_read_keys(token, decryption_items)
+
         for cohort in cohorts:
             cohort_name = cohort.get("name", "")
             for dev in cohort.get("devices", []):
@@ -174,13 +137,33 @@ async def compute_and_store_performance(
                 d_name = dev.get("name")
                 if not d_name:
                     continue
+                
+                dn = dev.get("device_number")
+                raw_read_key = dev.get("readKey")
+                read_key_to_store = decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
+
                 if d_name not in device_info:
+                    device_id = dev.get("_id", "")
+
+                    # Fetch device from sync_device table; DO NOT update it here.
+                    # Updates to sync_device are only allowed from /devices/sync.
+                    from app.models.sync import SyncDevice
+                    db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
+
+                    if db_device:
+                        category = db_device.category or "lowcost"
+                    else:
+                        # Use heuristic for brand-new devices not yet in sync_device
+                        category = extract_device_category(dev)
+
                     device_info[d_name] = {
-                        "device_id": dev.get("_id", ""),
+                        "device_id": device_id,
                         "device_number": dev.get("device_number"),
                         "latitude": dev.get("latitude"),
                         "longitude": dev.get("longitude"),
                         "last_active": dev.get("lastActive"),
+                        "category": category,
+                        "read_key": read_key_to_store,
                         "cohorts": set(),
                     }
                 device_info[d_name]["cohorts"].add(cohort_name)
@@ -227,111 +210,126 @@ async def compute_and_store_performance(
             f"{len(device_names)} devices"
         )
 
-        # --- 4. Fetch raw data for the full window (one batch) ---
+        # --- 4. Fetch raw data for the full window (one batch per category) ---
         start_dt_str = start_of_range_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
         end_dt_str = end_of_range_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        frequency = "hourly"
+
+        # BAM devices always use raw frequency; lowcost uses hourly
+        FREQUENCY_BY_CAT = {
+            "bam": "raw",
+            "lowcost": "hourly",
+        }
+        # Expected polling interval in minutes per category (used for uptime calculation)
+        EXPECTED_FREQ_BY_CAT = {
+            "bam": 2,    # BAM raw: ~1 record every 2 min (varies by logger)
+            "lowcost": 60,  # Lowcost hourly
+        }
+
+        # Group devices by category
+        devices_by_category: Dict[str, List[str]] = defaultdict(list)
+        for d_name, info in device_info.items():
+            devices_by_category[info["category"]].append(d_name)
 
         CHUNK_SIZE = 50
-        chunks = [device_names[i:i + CHUNK_SIZE] for i in range(0, len(device_names), CHUNK_SIZE)]
-
         DATE_SEGMENT_DAYS = 7
         date_segments = cohort_service._split_date_range(start_dt_str, end_dt_str, DATE_SEGMENT_DAYS)
 
         semaphore = asyncio.Semaphore(2)
         tasks = []
-        for chunk in chunks:
-            for seg_start, seg_end in date_segments:
-                tasks.append(
-                    cohort_service._fetch_raw_data_for_devices(
-                        chunk, seg_start, seg_end, frequency, semaphore=semaphore
+        for cat, cat_device_names in devices_by_category.items():
+            frequency = FREQUENCY_BY_CAT.get(cat, "hourly")
+            chunks = [cat_device_names[i:i + CHUNK_SIZE] for i in range(0, len(cat_device_names), CHUNK_SIZE)]
+            for chunk in chunks:
+                for seg_start, seg_end in date_segments:
+                    tasks.append(
+                        cohort_service._fetch_raw_data_for_devices(
+                            chunk, seg_start, seg_end, frequency, 
+                            device_category=cat, semaphore=semaphore
+                        )
                     )
-                )
 
         logger.info(
-            f"[Performance Sync] Fetching raw data: "
-            f"{len(chunks)} device chunks × {len(date_segments)} date segments = {len(tasks)} tasks"
+            f"[Performance Sync] Fetching raw data for {len(devices_by_category)} categories: "
+            f"{len(tasks)} parallel tasks"
         )
 
         all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        raw_data = []
+        analytics_raw_data = []
         for i, chunk_data in enumerate(all_results):
             if isinstance(chunk_data, Exception):
                 logger.error(f"[Performance Sync] Chunk {i} failed: {chunk_data}")
             elif isinstance(chunk_data, list):
-                raw_data.extend(chunk_data)
+                analytics_raw_data.extend(chunk_data)
 
-        logger.info(f"[Performance Sync] Fetched {len(raw_data)} total raw records")
+        logger.info(f"[Performance Sync] Fetched {len(analytics_raw_data)} total raw records from Analytics")
 
-        # --- 5. Group raw data by device_name + date ---
-        device_date_data: Dict[str, Dict[date, List]] = defaultdict(lambda: defaultdict(list))
-        for record in raw_data:
-            d_name = record.get("device_name")
-            dt_str = record.get("datetime")
-            if d_name and dt_str:
-                try:
-                    record_date = datetime.fromisoformat(
-                        dt_str.replace("Z", "+00:00")
-                    ).date()
-                    device_date_data[d_name][record_date].append(record)
-                except (ValueError, TypeError):
-                    pass
+        # --- 5. ThingSpeak Feeds Sync (Primary) ---
+        # Identify devices that have a device_number and fetch data from ThingSpeak directly.
+        # Fallback to the bulk Analytics data if ThingSpeak has nothing.
+        ts_data_by_device: Dict[str, List[Dict[str, Any]]] = {}
+        ts_total_records = 0
+        
+        if not use_platform:
+            logger.info(f"[Performance Sync] Fetching data from ThingSpeak (Primary) for all active devices...")
 
-        # --- 5b. ThingSpeak Feeds Fallback ---
-        # Identify devices that have ZERO raw data across all days to compute.
-        # For these "missing" devices, fetch data from the feeds endpoint.
-        devices_with_data = set(device_date_data.keys())
-        missing_devices = [
-            d_name for d_name in device_names
-            if d_name not in devices_with_data
-            and device_info[d_name].get("device_number") is not None
-        ]
-
-        if missing_devices:
-            logger.info(
-                f"[Feeds Fallback] {len(missing_devices)} devices have no analytics data. "
-                f"Fetching from ThingSpeak feeds..."
-            )
-
-            feeds_semaphore = asyncio.Semaphore(5)
-
-            async def _fetch_with_semaphore(d_name: str) -> List[Dict[str, Any]]:
-                async with feeds_semaphore:
-                    return await _fetch_feeds_for_device(
-                        device_info[d_name]["device_number"], d_name, token
+            ts_semaphore = asyncio.Semaphore(5)
+            async def _fetch_ts_with_semaphore(d_name: str) -> List[Dict[str, Any]]:
+                info = device_info[d_name]
+                async with ts_semaphore:
+                    return await fetch_feeds_for_device(
+                        info["device_number"], 
+                        d_name, 
+                        token, 
+                        read_key=info.get("read_key"), 
+                        category=info.get("category", "lowcost"),
+                        start_date=start_dt_str,
+                        end_date=end_dt_str
                     )
 
-            feeds_tasks = [_fetch_with_semaphore(d_name) for d_name in missing_devices]
-            feeds_results = await asyncio.gather(*feeds_tasks, return_exceptions=True)
+            ts_devices = [d_name for d_name in device_names if device_info[d_name].get("device_number") is not None]
+            ts_tasks = [_fetch_ts_with_semaphore(d_name) for d_name in ts_devices]
+            ts_results = await asyncio.gather(*ts_tasks, return_exceptions=True)
 
-            feeds_record_count = 0
-            for d_name, feed_result in zip(missing_devices, feeds_results):
-                if isinstance(feed_result, Exception):
-                    logger.error(f"[Feeds Fallback] {d_name} failed: {feed_result}")
+            for d_name, result in zip(ts_devices, ts_results):
+                if isinstance(result, Exception):
+                    logger.error(f"[Performance Sync] ThingSpeak fetch for {d_name} failed: {result}")
                     continue
-                if not feed_result:
-                    continue
+                if result:
+                    ts_data_by_device[d_name] = result
+                    ts_total_records += len(result)
 
-                for record in feed_result:
-                    dt_str = record.get("datetime")
-                    if dt_str:
-                        try:
-                            record_date = datetime.fromisoformat(
-                                dt_str.replace("Z", "+00:00")
-                            ).date()
-                            device_date_data[d_name][record_date].append(record)
-                            feeds_record_count += 1
-                        except (ValueError, TypeError):
-                            pass
+            logger.info(f"[Performance Sync] Fetched {ts_total_records} total raw records from ThingSpeak")
+        else:
+            logger.info(f"[Performance Sync] Skipping ThingSpeak as use_platform=True")
 
-            logger.info(
-                f"[Feeds Fallback] Added {feeds_record_count} records "
-                f"from ThingSpeak for {len(missing_devices)} devices"
-            )
+        # --- 5b. Merge and group raw data by device_name + date ---
+        device_date_data: Dict[str, Dict[date, List]] = defaultdict(lambda: defaultdict(list))
+        
+        for d_name in device_names:
+            # Prefer ThingSpeak data only if NOT use_platform and data exists
+            final_dev_data = []
+            if not use_platform and d_name in ts_data_by_device:
+                final_dev_data = ts_data_by_device[d_name]
+            else:
+                # Use Analytics data
+                final_dev_data = [r for r in analytics_raw_data if r.get("device_name") == d_name]
+            
+            for record in final_dev_data:
+                dt_str = record.get("datetime")
+                if dt_str:
+                    try:
+                        record_date = datetime.fromisoformat(
+                            dt_str.replace("Z", "+00:00")
+                        ).date()
+                        device_date_data[d_name][record_date].append(record)
+                    except (ValueError, TypeError):
+                        pass
 
         # --- 6. Compute per-day metrics and build records ---
-        all_records = []
+        lowcost_records = []
+        bam_records = []
+        
         for target_date in days_to_compute:
             # Past days are always complete; today depends on caller
             day_is_complete = True if target_date < today else complete
@@ -344,63 +342,82 @@ async def compute_and_store_performance(
             day_start_str = day_start.strftime("%Y-%m-%dT%H:%M:%S.000Z")
             day_end_str = day_end.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
-            # Collect all raw records for this specific date
-            day_raw_data = []
-            for d_name in device_names:
-                recs = device_date_data[d_name].get(target_date, [])
-                day_raw_data.extend(recs)
-                if recs:
-                    logger.debug(f"Device {d_name} has {len(recs)} records for {target_date}")
+            # Compute metrics per category
+            for cat, cat_device_names in devices_by_category.items():
+                # Filter raw data for this category and date
+                day_cat_raw_data = []
+                for d_name in cat_device_names:
+                    day_cat_raw_data.extend(device_date_data[d_name].get(target_date, []))
 
-            # Even if there is no data for the day, we still want to compute records for each device.
-            # PerformanceAnalysis handles the logic, but we need to ensure every active device is processed.
-            if not day_raw_data:
-                logger.warning(f"No raw data found for ANY device on {target_date}")
+                analysis = PerformanceAnalysis(day_cat_raw_data)
+                analysis.expected_frequency_minutes = EXPECTED_FREQ_BY_CAT.get(cat, 60)
+                metrics_map = analysis.compute_device_metrics(day_start_str, day_end_str, device_category=cat)
 
-            analysis = PerformanceAnalysis(day_raw_data)
-            analysis.expected_frequency_minutes = 60  # hourly frequency
-            metrics_map = analysis.compute_device_metrics(day_start_str, day_end_str)
-
-            # Ensure every active device has a record for this day (with 0s if no data)
-            for d_name in device_names:
-                metrics = metrics_map.get(d_name)
-                if metrics:
-                    # logger.info(f"Metrics for {d_name}: {metrics}")
-                    pass
-                
-                metrics = metrics or {
-                    "uptime": 0.0,
-                    "data_completeness": 0.0,
-                    "sensor_error_margin": 0.0
-                }
-                
-                info = device_info[d_name]
-                all_records.append({
-                    "device_id": info["device_id"],
-                    "device_name": d_name,
-                    "latitude": info["latitude"],
-                    "longitude": info["longitude"],
-                    "last_active": info["last_active"],
-                    "uptime": _sanitize_metric(metrics.get("uptime")),
-                    "data_completeness": _sanitize_metric(metrics.get("data_completeness")),
-                    "error_margin": _sanitize_metric(metrics.get("sensor_error_margin")),
-                    "cohorts": list(info["cohorts"]),
-                    "complete_performance": day_is_complete,
-                    "computed_for_date": target_date,
-                })
+                for d_name in cat_device_names:
+                    metrics = metrics_map.get(d_name)
+                    info = device_info[d_name]
+                    
+                    if cat == "bam":
+                        metrics = metrics or {
+                            "uptime": 0.0,
+                            "data_completeness": 0.0,
+                            "realtime_conc_average": None,
+                            "short_time_conc_average": None,
+                            "hourly_conc_average": None,
+                        }
+                        bam_records.append({
+                            "device_id": info["device_id"],
+                            "device_name": d_name,
+                            "latitude": info["latitude"],
+                            "longitude": info["longitude"],
+                            "uptime": _sanitize_metric(metrics.get("uptime")),
+                            "data_completeness": _sanitize_metric(metrics.get("data_completeness")),
+                            "realtime_conc_average": metrics.get("realtime_conc_average"),
+                            "short_time_conc_average": metrics.get("short_time_conc_average"),
+                            "hourly_conc_average": metrics.get("hourly_conc_average"),
+                            "computed_for_date": target_date,
+                        })
+                    else:
+                        metrics = metrics or {
+                            "uptime": 0.0,
+                            "data_completeness": 0.0,
+                            "sensor_error_margin": 0.0,
+                            "s1_pm2_5_average": 0.0,
+                            "s2_pm2_5_average": 0.0,
+                            "correlation": 0.0
+                        }
+                        lowcost_records.append({
+                            "device_id": info["device_id"],
+                            "device_name": d_name,
+                            "latitude": info["latitude"],
+                            "longitude": info["longitude"],
+                            "last_active": info["last_active"],
+                            "uptime": _sanitize_metric(metrics.get("uptime")),
+                            "data_completeness": _sanitize_metric(metrics.get("data_completeness")),
+                            "error_margin": _sanitize_metric(metrics.get("sensor_error_margin")),
+                            "s1_pm2_5_average": _sanitize_metric(metrics.get("s1_pm2_5_average")),
+                            "s2_pm2_5_average": _sanitize_metric(metrics.get("s2_pm2_5_average")),
+                            "correlation": _sanitize_metric(metrics.get("correlation")),
+                            "cohorts": list(info["cohorts"]),
+                            "complete_performance": day_is_complete,
+                            "computed_for_date": target_date,
+                        })
 
         # --- 7. Upsert all records ---
-        count = crud_device_performance.upsert_device_performance(db, all_records)
+        lowcost_count = crud_device_performance.upsert_device_performance(db, lowcost_records)
+        bam_count = crud_device_performance.upsert_bam_performance(db, bam_records)
+        
         logger.info(
-            f"[Performance Sync] Synced {count} records across "
+            f"[Performance Sync] Synced {lowcost_count} lowcost and {bam_count} BAM records across "
             f"{len(days_to_compute)} days for {len(device_names)} devices"
         )
 
         return {
             "success": True,
             "skipped": False,
-            "message": f"Synced {count} records across {len(days_to_compute)} days",
-            "records_synced": count,
+            "message": f"Synced {lowcost_count} lowcost and {bam_count} BAM records",
+            "lowcost_synced": lowcost_count,
+            "bam_synced": bam_count,
             "days_computed": len(days_to_compute),
         }
 
@@ -416,12 +433,47 @@ def _run_sync_job():
     logger.info("[Performance Sync] Daily cron job triggered")
     loop = asyncio.new_event_loop()
     try:
-        result = loop.run_until_complete(compute_and_store_performance(days=14, force=True, complete=True))
+        result = loop.run_until_complete(compute_and_store_performance(days=14, force=True, complete=True, use_platform=True))
         logger.info(f"[Performance Sync] Cron result: {result}")
     except Exception as e:
         logger.exception(f"[Performance Sync] Cron job failed: {e}")
     finally:
         loop.close()
+
+
+async def run_startup_sync_tasks():
+    """
+    Background task to run initial synchronization on startup:
+    1. http://localhost:8000/devices/sync
+    2. http://localhost:8000/maintenance/sync-performance?force=false&platform=true
+    """
+    logger.info("[Startup Sync] Starting initial background sync tasks...")
+    db = SessionLocal()
+    try:
+        token = _extract_jwt_token()
+
+        # 1. Sync Devices
+        logger.info("[Startup Sync] Running device sync...")
+        device_result = await device_service.sync_devices(db, token)
+        logger.info(f"[Startup Sync] Device sync result: {device_result}")
+
+        # 2. Sync Performance
+        logger.info("[Startup Sync] Running performance sync...")
+        if crud_device_performance.is_performance_table_empty(db):
+            perf_result = await compute_and_store_performance(
+                days=14,
+                force=False,
+                use_platform=True
+            )
+            logger.info(f"[Startup Sync] Performance sync result: {perf_result}")
+        else:
+            logger.info("[Startup Sync] Performance tables are not empty. Skipping initial sync.")
+
+        logger.info("[Startup Sync] Initial background sync tasks completed successfully.")
+    except Exception as e:
+        logger.exception(f"[Startup Sync] Initial background sync tasks failed: {e}")
+    finally:
+        db.close()
 
 
 def start_scheduler():
