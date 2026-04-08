@@ -1241,6 +1241,7 @@ const authLocal = passport.authenticate("user-local", {
  */
 const authGoogle = passport.authenticate("google", {
   scope: ["profile", "email"],
+  prompt: "select_account",
 });
 
 /**
@@ -1256,7 +1257,7 @@ const authGoogleCallback = passport.authenticate("google", {
  * Used by the generic GET /auth/:provider route.
  */
 const authOAuth = (req, res, next) => {
-  const provider = req.params.provider || req.oauthProvider || "google";
+  const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
 
   // Provider-specific scopes. Twitter uses OAuth 1.0a and does not accept
   // a scope option. All other providers use OAuth 2.0 with scopes tailored
@@ -1271,7 +1272,10 @@ const authOAuth = (req, res, next) => {
   const options =
     provider === "twitter"
       ? {}
-      : { scope: providerScopes[provider] || ["profile", "email"] };
+      : {
+          scope: providerScopes[provider] || ["profile", "email"],
+          ...(provider === "google" ? { prompt: "select_account" } : {}),
+        };
 
   passport.authenticate(provider, options)(req, res, next);
 };
@@ -1281,7 +1285,7 @@ const authOAuth = (req, res, next) => {
  * Used by the generic GET /auth/callback/:provider route.
  */
 const authOAuthCallback = (req, res, next) => {
-  const provider = req.params.provider || req.oauthProvider || "google";
+  const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
   passport.authenticate(provider, {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
