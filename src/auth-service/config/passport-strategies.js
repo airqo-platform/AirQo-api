@@ -271,7 +271,7 @@ function configureStrategies(passport, tenant) {
 
   // ── Twitter / X ──────────────────────────────────────────────────────────
   // CVE-2021-21366 (xmldom): mitigated via the "overrides.xmldom" entry in
-  // package.json which forces xmldom >= 0.5.0 across the entire dependency
+  // package.json which pins xmldom to 0.6.0 across the entire dependency
   // tree, including passport-twitter → xtraverse → xmldom.
   if (constants.TWITTER_CONSUMER_KEY && constants.TWITTER_CONSUMER_SECRET) {
     try {
