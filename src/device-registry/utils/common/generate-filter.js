@@ -2340,28 +2340,44 @@ const generateFilter = {
 
   networks: (req, next) => {
     try {
-      const { id, name, network_codes, net_id } = {
+      const { id, name, net_id, net_name, net_acronym, net_status, network_codes } = {
         ...req.query,
         ...req.params,
       };
       let filter = {};
-      if (name) {
-        filter["name"] = name;
-      }
 
+      // Identity filters — route param net_id is authoritative for single-resource
+      // endpoints (/networks/:net_id); query param id is the legacy fallback.
       if (net_id) {
         filter["_id"] = ObjectId(net_id);
+      } else if (id) {
+        filter["_id"] = ObjectId(id);
+      } else {
+        // Name filters only apply when no _id is present — combining _id with
+        // net_name/name would AND them in MongoDB and could return no results.
+        // net_name: query both fields so legacy docs (name-only) and new docs
+        // (net_name + name synced) are both matched for backward compatibility.
+        if (net_name) {
+          filter["$or"] = [{ net_name }, { name: net_name }];
+        } else if (name) {
+          // Legacy callers using ?name= still work unchanged.
+          filter["name"] = name;
+        }
+      }
+
+      if (net_acronym) {
+        filter["net_acronym"] = net_acronym;
+      }
+
+      if (net_status) {
+        filter["net_status"] = net_status;
       }
 
       if (network_codes) {
         let networkCodesArray = network_codes.toString().split(",");
-        filter["network_codes"] = {};
-        filter["network_codes"]["$in"] = networkCodesArray;
+        filter["network_codes"] = { $in: networkCodesArray };
       }
 
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
