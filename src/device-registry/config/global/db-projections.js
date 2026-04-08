@@ -871,14 +871,16 @@ class ProjectionFactory {
       network: {
         inclusion: {
           _id: 1,
-          // New canonical fields
-          net_name: 1,
+          // New canonical fields — fall back to legacy equivalents for documents
+          // created before the schema migration so both old and new records
+          // return the same response shape from the aggregation pipeline.
+          net_name: { $ifNull: ["$net_name", "$name"] },
           net_acronym: 1,
           net_status: 1,
           net_email: 1,
           net_website: 1,
           net_category: 1,
-          net_description: 1,
+          net_description: { $ifNull: ["$net_description", "$description"] },
           net_profile_picture: 1,
           net_manager: 1,
           net_manager_username: 1,
