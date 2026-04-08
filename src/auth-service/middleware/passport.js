@@ -1241,6 +1241,7 @@ const authLocal = passport.authenticate("user-local", {
  */
 const authGoogle = passport.authenticate("google", {
   scope: ["profile", "email"],
+  prompt: "select_account",
 });
 
 /**
@@ -1271,7 +1272,10 @@ const authOAuth = (req, res, next) => {
   const options =
     provider === "twitter"
       ? {}
-      : { scope: providerScopes[provider] || ["profile", "email"] };
+      : {
+          scope: providerScopes[provider] || ["profile", "email"],
+          ...(provider === "google" ? { prompt: "select_account" } : {}),
+        };
 
   passport.authenticate(provider, options)(req, res, next);
 };
