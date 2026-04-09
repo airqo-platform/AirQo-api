@@ -1,6 +1,6 @@
 # Air Quality Spatial Analysis API
 
-Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps, and satellite-derived PM2.5.
+Flask service for spatial air-quality analytics used by the AirQo platform. It exposes site categorization, sensor placement, heatmaps, source metadata, and satellite-derived PM2.5.
 
 ## Prerequisites
 - Python 3.11 and `pip`.
@@ -87,9 +87,6 @@ All routes are prefixed with `/api/v2/spatial`.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/getisord` | POST | Getis-Ord hotspot/coldspot analysis for a grid and time window. |
-| `/getisord_confidence` | POST | Getis-Ord with confidence reporting. |
-| `/localmoran` | POST | Local Moran's I cluster/outlier analysis. |
 | `/site_location` | POST | ML-driven sensor placement inside a polygon. |
 | `/categorize_site` | GET | Classify a site by latitude/longitude. |
 | `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
@@ -101,28 +98,6 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
 
 ## Example requests
-Hotspot analysis (Getis-Ord):
-```sh
-curl -X POST http://127.0.0.1:5000/api/v2/spatial/getisord \
-  -H "Content-Type: application/json" \
-  -d '{
-    "grid_id": "64b7f325d7249f0029fed743",
-    "start_time": "2024-01-01T00:00:00",
-    "end_time": "2024-01-27T00:00:00"
-  }'
-```
-
-Local Moran's I:
-```sh
-curl -X POST http://127.0.0.1:5000/api/v2/spatial/localmoran \
-  -H "Content-Type: application/json" \
-  -d '{
-    "grid_id": "64b7f325d7249f0029fed743",
-    "start_time": "2024-01-01T00:00:00",
-    "end_time": "2024-01-27T00:00:00"
-  }'
-```
-
 Sensor placement inside a polygon:
 ```sh
 curl -X POST http://127.0.0.1:5000/api/v2/spatial/site_location \
@@ -181,7 +156,6 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 ```
 
 ## Notes and troubleshooting
-- Timestamps must be ISO 8601 (`YYYY-MM-DDTHH:MM:SS`); the analysis endpoints reject identical start/end times and ranges longer than 12 months.
 - `must_have_locations` must fall inside the supplied polygon for site selection.
 - BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
 - Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
