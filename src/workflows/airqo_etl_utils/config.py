@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -37,6 +38,11 @@ class Config:
     CPU_COUNT = os.cpu_count() or 2
     MAX_WORKERS = min(20, CPU_COUNT * 10)
     SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
+    # In-memory cache settings (seconds)
+    CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
+    CACHE_CLEANUP_INTERVAL_SECONDS = int(
+        os.getenv("CACHE_CLEANUP_INTERVAL_SECONDS", "60")
+    )
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
@@ -78,6 +84,9 @@ class Config:
     BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE = os.getenv(
         "BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE"
     )
+    BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE = os.getenv(
+        "BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE"
+    )
     BIGQUERY_LATEST_EVENTS_TABLE = os.getenv("BIGQUERY_LATEST_EVENTS_TABLE")
     BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE = os.getenv(
         "BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE"
@@ -96,6 +105,9 @@ class Config:
     BIGQUERY_SITES_TABLE = os.getenv("BIGQUERY_SITES_TABLE")
     BIGQUERY_SITES_SITES_TABLE = os.getenv("BIGQUERY_SITES_SITES_TABLE")
     BIGQUERY_SITES_META_DATA_TABLE = os.getenv("BIGQUERY_SITES_META_DATA_TABLE")
+    BIGQUERY_GEO_CONTINENT_META_DATA_TABLE = os.getenv(
+        "BIGQUERY_GEO_CONTINENT_META_DATA_TABLE"
+    )
     BIGQUERY_AIRQLOUDS_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_TABLE")
     BIGQUERY_AIRQLOUDS_SITES_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_SITES_TABLE")
     BIGQUERY_GRIDS_TABLE = os.getenv("BIGQUERY_GRIDS_TABLE")
@@ -230,7 +242,7 @@ class Config:
             "url": AIR_GRADIENT_BASE_URL,
             "headers": {"accept": "application/json"},
             "secret": {"token": AIR_GRADIENT_API_KEY},
-            "endpoints": {"raw": "measures/raw"},
+            "endpoints": {"raw": "measures/raw", "current": "measures/current"},
         },
     }
 
@@ -389,7 +401,7 @@ class Config:
         "rhum_corrected": "humidity",
         "rco2_corrected": "co2",
         "tvoc": "tvoc_",
-        "tvocIndex": "tvov",
+        "tvocIndex": "tvoc",
         "noxIndex": "no",
         "timestamp": "timestamp",
         "longitude": "longitude",
@@ -547,6 +559,7 @@ class Config:
         BIGQUERY_GX_MEASUREMENTS_BASELINE: "measurements_baseline.json",
         BIGQUERY_GX_DEVICE_COMPUTED_METADATA: "device_computed_metadata.json",
         BIGQUERY_GX_SITE_COMPUTED_METADATA: "site_computed_metadata.json",
+        BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE: "satellite_airquality_cleaned_merged.json",
         "all": None,
     }
     DataSource = {
@@ -575,6 +588,9 @@ class Config:
             },
             DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
             DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},
+            DeviceCategory.SATELLITE: {
+                Frequency.HOURLY: BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE,
+            },
         },
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {
@@ -828,6 +844,9 @@ class Config:
     # Forecast job
     HOURLY_FORECAST_TRAINING_JOB_SCOPE = os.getenv("HOURLY_FORECAST_TRAINING_JOB_SCOPE")
     DAILY_FORECAST_TRAINING_JOB_SCOPE = os.getenv("DAILY_FORECAST_TRAINING_JOB_SCOPE")
+    SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS = os.getenv(
+        "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS", "12"
+    )
     HOURLY_FORECAST_PREDICTION_JOB_SCOPE = os.getenv(
         "HOURLY_FORECAST_PREDICTION_JOB_SCOPE"
     )
@@ -838,7 +857,27 @@ class Config:
     DAILY_FORECAST_HORIZON = os.getenv("DAILY_FORECAST_HORIZON")
     SATELLITE_TRAINING_SCOPE = os.getenv("SATELLITE_TRAINING_SCOPE")
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+    MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
+    MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")
+    MLFLOW_CALIBRATION_EXPERIMENT_NAME = os.getenv("MLFLOW_CALIBRATION_EXPERIMENT_NAME")
+    MLFLOW_ENABLE_MODEL_GATING = (
+        str(os.getenv("MLFLOW_ENABLE_MODEL_GATING", "false")).lower() == "true"
+    )
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
+
+    # Calibration model training
+    CALIBRATION_MODELS_BUCKET = os.getenv("CALIBRATION_MODELS_BUCKET") or os.getenv(
+        "FORECAST_MODELS_BUCKET"
+    )
+    CALIBRATION_MLFLOW_EXPERIMENT = os.getenv(
+        "CALIBRATION_MLFLOW_EXPERIMENT", "calibration_training"
+    )
+    CALIBRATION_TRAINING_MONTHS = int(os.getenv("CALIBRATION_TRAINING_MONTHS", "3"))
+    # JSON: {"uganda": {"primary_lcs": "AQ_DEVICE1", "lcs_devices": [...], "reference_device": "BAM_DEVICE1", "tz_offset_hours": 1}}
+    CALIBRATION_COLLOCATED_DEVICES: dict = json.loads(
+        os.getenv("CALIBRATION_COLLOCATED_DEVICES", "{}")
+    )
+
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")

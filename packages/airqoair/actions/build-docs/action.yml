@@ -1,0 +1,28 @@
+name: Build airqoair docs
+description: Package-local build action for the airqoair MkDocs site.
+
+inputs:
+  python-version:
+    description: Python version to use for the docs build
+    required: false
+    default: "3.11"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install package and docs dependencies
+      shell: bash
+      working-directory: packages/airqoair
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[docs]"
+
+    - name: Build site
+      shell: bash
+      working-directory: packages/airqoair
+      run: python scripts/deploy_docs.py --build-only

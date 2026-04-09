@@ -10,158 +10,172 @@ router.use(headers);
 router.delete(
   "/:cohort_id",
   cohortValidations.deleteCohort,
-  createCohortController.delete
+  createCohortController.delete,
 );
 
 router.put(
   "/:cohort_id/name",
   cohortValidations.updateCohortName,
-  createCohortController.updateName
+  createCohortController.updateName,
 );
 
 router.put(
   "/:cohort_id",
   cohortValidations.updateCohort,
-  createCohortController.update
+  createCohortController.update,
 );
 
 router.post("/", cohortValidations.createCohort, createCohortController.create);
 
 router.get(
   "/",
-  cohortValidations.listCohorts,
   pagination(),
-  createCohortController.list
+  cohortValidations.listCohorts,
+  createCohortController.list,
+);
+
+router.get(
+  "/:cohort_id/original",
+  cohortValidations.findOriginal,
+  // No pagination needed, it returns a single document or null
+  createCohortController.findOriginal,
 );
 
 router.get(
   "/summary",
   cohortValidations.listCohortsSummary,
   pagination(),
-  createCohortController.listSummary
+  createCohortController.listSummary,
 );
 
 router.get(
   "/dashboard",
   cohortValidations.listCohortsDashboard,
   pagination(),
-  createCohortController.listDashboard
+  createCohortController.listDashboard,
+);
+
+router.get(
+  "/users",
+  pagination(),
+  cohortValidations.listUserCohorts,
+  createCohortController.listUserCohorts,
 );
 
 router.put(
   "/:cohort_id/assign-device/:device_id",
   cohortValidations.assignOneDeviceToCohort,
-  createCohortController.assignOneDeviceToCohort
+  createCohortController.assignOneDeviceToCohort,
 );
 
 router.get(
   "/:cohort_id/assigned-devices",
   cohortValidations.listAssignedDevices,
   pagination(),
-  createCohortController.listAssignedDevices
+  createCohortController.listAssignedDevices,
 );
 
 router.get(
   "/:cohort_id/available-devices",
   cohortValidations.listAvailableDevices,
   pagination(),
-  createCohortController.listAvailableDevices
+  createCohortController.listAvailableDevices,
 );
 
 router.post(
   "/:cohort_id/assign-devices",
   cohortValidations.assignManyDevicesToCohort,
-  createCohortController.assignManyDevicesToCohort
+  createCohortController.assignManyDevicesToCohort,
 );
 
 router.delete(
   "/:cohort_id/unassign-many-devices",
   cohortValidations.unAssignManyDevicesFromCohort,
-  createCohortController.unAssignManyDevicesFromCohort
+  createCohortController.unAssignManyDevicesFromCohort,
 );
 
 router.delete(
   "/:cohort_id/unassign-device/:device_id",
   cohortValidations.unAssignOneDeviceFromCohort,
-  createCohortController.unAssignOneDeviceFromCohort
+  createCohortController.unAssignOneDeviceFromCohort,
 );
 
 router.post(
   "/filterNonPrivateDevices",
   cohortValidations.filterNonPrivateDevices,
-  createCohortController.filterOutPrivateDevices
+  createCohortController.filterOutPrivateDevices,
 );
 
 router.get(
   "/:cohort_id/generate",
   cohortValidations.getSiteAndDeviceIds,
   pagination(),
-  createCohortController.getSiteAndDeviceIds
+  createCohortController.getSiteAndDeviceIds,
 );
 
 router.post(
   "/networks",
   cohortValidations.createNetwork,
-  createCohortController.createNetwork
+  createCohortController.createNetwork,
 );
 
 router.put(
   "/networks/:net_id",
   cohortValidations.updateNetwork,
-  createCohortController.updateNetwork
+  createCohortController.updateNetwork,
 );
 
 router.delete(
   "/networks/:net_id",
   cohortValidations.deleteNetwork,
-  createCohortController.deleteNetwork
+  createCohortController.deleteNetwork,
 );
 
 router.get(
   "/networks",
   cohortValidations.listNetworks,
   pagination(),
-  createCohortController.listNetworks
+  createCohortController.listNetworks,
 );
 
 router.get(
   "/networks/:net_id",
   cohortValidations.getNetwork,
   pagination(),
-  createCohortController.listNetworks
+  createCohortController.listNetworks,
 );
 
 router.get(
   "/verify/:cohort_id",
   cohortValidations.verifyCohort,
   pagination(),
-  createCohortController.verify
+  createCohortController.verify,
 );
 router.post(
   "/from-cohorts",
   cohortValidations.createFromCohorts,
-  createCohortController.createFromCohorts
+  createCohortController.createFromCohorts,
 );
 
 router.post(
   "/sites",
   cohortValidations.listSites,
   pagination(),
-  createCohortController.listSitesByCohort
+  createCohortController.listSitesByCohort,
 );
 
 router.post(
   "/devices",
   cohortValidations.listDevices,
   pagination(),
-  createCohortController.listDevicesByCohort
+  createCohortController.listDevicesByCohort,
 );
 
 router.get(
   "/:cohort_id",
   cohortValidations.getCohort,
   pagination(),
-  createCohortController.list
+  createCohortController.list,
 );
 
 module.exports = router;

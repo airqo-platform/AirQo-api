@@ -12,7 +12,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(constants.NETWORKS)
+    .isIn(constants.TENANTS)
     .withMessage("The tenant value is not among the expected ones"),
 ]);
 
@@ -86,7 +86,7 @@ const validateUserIdParam = oneOf([
   param("user_id")
     .exists()
     .withMessage(
-      "the record's identifier is missing in request, consider using the user_id"
+      "the record's identifier is missing in request, consider using the user_id",
     )
     .bail()
     .notEmpty()

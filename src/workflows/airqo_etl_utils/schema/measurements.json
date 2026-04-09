@@ -138,6 +138,12 @@
     "description": " μg/m3.\npm 1 calibrated value. "
   },
   {
+    "name": "tvoc",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " ppb.\nTotal Volatile Organic Compounds Concentration"
+  },
+  {
     "name": "hdop",
     "type": "FLOAT",
     "mode": "NULLABLE"
@@ -166,6 +172,12 @@
     "name": "vapor_pressure",
     "type": "FLOAT",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "atmospheric_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "hPa."
   },
   {
     "name": "satellites",

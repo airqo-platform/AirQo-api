@@ -1,5 +1,7 @@
 const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
+const ClientModel = require("@models/Client");
+const AccessTokenModel = require("@models/AccessToken");
 const { mailer, stringify, generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -9,7 +11,83 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transactions-util`
 );
 const { logObject, logText, HttpError } = require("@utils/shared");
-const paddleClient = require("@config/paddle");
+const {
+  paddleClient,
+  isPaddleConfigured,
+} = require("@config/paddle");
+
+// Standard response returned by any function that calls Paddle when credentials
+// are not configured. Lets the service start and all non-Paddle endpoints work.
+const PADDLE_NOT_CONFIGURED = {
+  success: false,
+  message: "Payment provider not configured",
+  errors: {
+    message:
+      "Paddle credentials have not been set up on this environment. " +
+      "Contact the system administrator.",
+  },
+  status: httpStatus.SERVICE_UNAVAILABLE,
+};
+
+// Canonical mapping of subscription tier → granted scopes (cumulative)
+const TIER_SCOPE_MAP = {
+  Free: [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+  ],
+  Standard: [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+    "read:historical_measurements",
+  ],
+  Premium: [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+    "read:historical_measurements",
+    "read:forecasts",
+    "read:insights",
+  ],
+};
+
+// Rate limits per tier (stored on User.apiRateLimits)
+const TIER_RATE_LIMITS = {
+  Free:     { hourlyLimit: 100,  dailyLimit: 1000,  monthlyLimit: 10000 },
+  Standard: { hourlyLimit: 500,  dailyLimit: 5000,  monthlyLimit: 50000 },
+  Premium:  { hourlyLimit: 2000, dailyLimit: 20000, monthlyLimit: 200000 },
+};
+
+/**
+ * Determine subscription tier from a completed Paddle transaction.
+ * Priority: customData.tier (set at checkout) > Paddle price ID > amount fallback.
+ */
+const resolveTierFromEvent = (eventData) => {
+  // 1. Dashboard sets customData.tier at checkout time — most reliable
+  const customTier = eventData?.customData?.tier;
+  if (customTier && TIER_SCOPE_MAP[customTier]) return customTier;
+
+  // 2. Match against known Paddle price IDs from env
+  const priceId = eventData?.items?.[0]?.price?.id;
+  if (priceId) {
+    if (constants.PADDLE_STANDARD_PRICE_ID && priceId === constants.PADDLE_STANDARD_PRICE_ID) return "Standard";
+    if (constants.PADDLE_PREMIUM_PRICE_ID && priceId === constants.PADDLE_PREMIUM_PRICE_ID) return "Premium";
+  }
+
+  // 3. Amount-based fallback (amounts in smallest currency unit, e.g. cents)
+  const amount = eventData?.details?.totals?.total || eventData?.total || 0;
+  const numericAmount = parseFloat(amount);
+  if (numericAmount >= 15000) return "Premium";  // $150.00
+  if (numericAmount >= 5000)  return "Standard";  // $50.00
+  return "Free";
+};
 
 const transactions = {
   /**
@@ -180,9 +258,13 @@ const transactions = {
       // Retrieve transaction statistics
       const statsResponse = await TransactionModel(tenant).getStats(filter);
 
+      if (!statsResponse.success) {
+        return statsResponse;
+      }
+
       return {
         success: true,
-        data: statsResponse[0] || {
+        data: statsResponse.data || {
           totalAmount: 0,
           totalTransactions: 0,
           uniqueUsers: [],
@@ -265,6 +347,7 @@ const transactions = {
    * @returns {Promise<Object>} Checkout session result
    */
   createCheckoutSession: async (request, sessionData) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const user = request.user;
       const customerIdentification = sessionData.customer_id;
@@ -338,6 +421,7 @@ const transactions = {
    * @returns {Promise<string>} Price ID
    */
   getDynamicPriceId: async (amount, currency) => {
+    if (!isPaddleConfigured) throw new Error("Payment provider not configured");
     try {
       const price = await paddleClient.prices.create({
         product_id: constants.PADDLE_PRODUCT_ID,
@@ -353,21 +437,49 @@ const transactions = {
 
   performAdditionalBusinessLogic: async (transactionMetadata) => {
     try {
-      // Example: Update user account, grant access, etc.
-      if (transactionMetadata.is_new_user) {
-        // Perform actions for new user
-        await UserModel.findByIdAndUpdate(transactionMetadata.user_id, {
-          first_transaction_completed_at: new Date(),
-        });
+      const { user_id, full_event_data, is_new_user } = transactionMetadata;
+      if (!user_id) return;
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+
+      // Determine which tier this payment corresponds to
+      const tier = resolveTierFromEvent(full_event_data);
+      const grantedScopes = TIER_SCOPE_MAP[tier] || TIER_SCOPE_MAP.Free;
+      const rateLimits = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free;
+
+      // 1. Update User subscription tier and rate limits
+      await UserModel(defaultTenant).findByIdAndUpdate(
+        user_id,
+        {
+          $set: {
+            subscriptionTier: tier,
+            apiRateLimits: rateLimits,
+            ...(is_new_user && { first_transaction_completed_at: new Date() }),
+          },
+        },
+        { new: false } // We don't need the updated doc
+      );
+
+      // 2. Update all active AccessTokens for this user.
+      //    AccessToken.client_id references Client._id (not User._id), so we
+      //    must first resolve the user's client IDs before updating tokens.
+      const userClients = await ClientModel(defaultTenant)
+        .find({ user_id }, { _id: 1 })
+        .lean();
+      if (userClients.length > 0) {
+        const clientIds = userClients.map((c) => c._id);
+        await AccessTokenModel(defaultTenant).updateMany(
+          { client_id: { $in: clientIds } },
+          { $set: { tier, scopes: grantedScopes } }
+        );
       }
 
-      // Example: Credit system or apply transaction-specific logic
-      if (transactionMetadata.amount >= 100) {
-        // Special handling for significant transactions
-        await grantPremiumFeatures(transactionMetadata.user_id);
-      }
+      logger.info(
+        `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`
+      );
     } catch (error) {
-      logger.error("Additional business logic failed", error);
+      logger.error(`performAdditionalBusinessLogic failed: ${error.message}`);
+      // Non-fatal — transaction is already recorded; log and continue
     }
   },
 
@@ -458,6 +570,7 @@ const transactions = {
    * @returns {Promise<Object>} Webhook processing result
    */
   processWebhook: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const signature = request.headers["paddle-signature"];
       const { body, query } = request;
@@ -547,6 +660,7 @@ const transactions = {
    * @param {Object} subscriptionData - Subscription details
    */
   createSubscriptionTransaction: async (request, subscriptionData) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const user = request.user;
 
@@ -696,6 +810,7 @@ const transactions = {
    * @param {Object} user - User object
    */
   cancelSubscription: async (subscriptionId, user) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       // Cancel subscription in Paddle
       const cancellationResult = await paddleClient.subscriptions.cancel(
@@ -721,6 +836,274 @@ const transactions = {
       return {
         success: false,
         message: "Failed to cancel subscription",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Manually renew a user's subscription
+   * @param {Object} request - Express request object
+   * @param {Function} next - Error handling middleware
+   */
+  manualSubscriptionRenewal: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    try {
+      const user = request.user;
+      const { tenant } = request.query;
+
+      if (!user.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found to renew",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "User has no subscription ID" },
+        };
+      }
+
+      // Fetch current subscription details from Paddle to populate the local renewal record
+      const renewalTransaction = await paddleClient.subscriptions.get(
+        user.currentSubscriptionId
+      );
+
+      // Prefer Paddle's authoritative period end date; fall back to a
+      // calendar offset from now if the subscription doesn't have one yet.
+      const paddleEndsAt = renewalTransaction?.currentBillingPeriod?.endsAt;
+      const newExpiryDate = paddleEndsAt
+        ? new Date(paddleEndsAt)
+        : (() => {
+            const d = new Date();
+            const billingCycle = user.currentPlanDetails?.billingCycle || "monthly";
+            d.setDate(d.getDate() + (billingCycle === "annual" ? 365 : 30));
+            return d;
+          })();
+
+      const transactionRecord = await TransactionModel(tenant).register({
+        paddle_transaction_id: `manual_renewal_${Date.now()}_${user._id}`,
+        paddle_event_type: "transaction.completed",
+        user_id: user._id,
+        paddle_customer_id: renewalTransaction.customerId || "unknown",
+        amount: renewalTransaction.items?.[0]?.price?.unitPrice?.amount || 0,
+        currency:
+          renewalTransaction.items?.[0]?.price?.unitPrice?.currencyCode ||
+          "USD",
+        status: "completed",
+        description: "Manual subscription renewal",
+        transaction_type: "subscription_renewal",
+      });
+
+      if (!transactionRecord.success || !transactionRecord.data) {
+        return {
+          success: false,
+          message: "Failed to record renewal transaction",
+          errors: transactionRecord.errors || {
+            message: "Transaction registration returned no data",
+          },
+          status: transactionRecord.status || httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      await UserModel("airqo").findByIdAndUpdate(user._id, {
+        $set: {
+          subscriptionStatus: "active",
+          lastRenewalDate: new Date(),
+          nextBillingDate: newExpiryDate,
+          lastSubscriptionCheck: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: "Subscription renewed successfully",
+        data: {
+          newExpiryDate,
+          transactionId: transactionRecord.data.paddle_transaction_id,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Manual renewal error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to renew subscription",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Get detailed transaction history with date/status filtering
+   * @param {Object} request - Express request object
+   * @param {Function} next - Error handling middleware
+   */
+  getTransactionHistory: async (request, next) => {
+    try {
+      const {
+        query: { tenant, start_date, end_date, status, limit, skip },
+      } = request;
+
+      if (!request.user || !request.user._id) {
+        return {
+          success: false,
+          message: "Unauthorized",
+          status: httpStatus.UNAUTHORIZED,
+          errors: { message: "Valid user session is required" },
+        };
+      }
+
+      const filter = { user_id: request.user._id };
+
+      if (start_date || end_date) {
+        filter.createdAt = {};
+        if (start_date) {
+          const sd = new Date(start_date);
+          if (isNaN(sd.getTime())) {
+            return {
+              success: false,
+              message: "Invalid start_date value",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: `start_date '${start_date}' is not a valid date` },
+            };
+          }
+          filter.createdAt.$gte = sd;
+        }
+        if (end_date) {
+          const ed = new Date(end_date);
+          if (isNaN(ed.getTime())) {
+            return {
+              success: false,
+              message: "Invalid end_date value",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: `end_date '${end_date}' is not a valid date` },
+            };
+          }
+          ed.setHours(23, 59, 59, 999); // include the full end date
+          filter.createdAt.$lte = ed;
+        }
+      }
+
+      if (status) {
+        filter.status = status;
+      }
+
+      const listResponse = await TransactionModel(tenant).list(
+        {
+          filter,
+          limit: limit ? parseInt(limit) : 100,
+          skip: skip ? parseInt(skip) : 0,
+        },
+        next
+      );
+
+      if (!listResponse.success) {
+        return listResponse;
+      }
+
+      const transactions = listResponse.data || [];
+
+      const summary = transactions.reduce(
+        (acc, txn) => {
+          acc.total_amount += txn.amount || 0;
+          acc.transaction_count += 1;
+          return acc;
+        },
+        { total_amount: 0, transaction_count: 0 }
+      );
+
+      return {
+        success: true,
+        data: {
+          transactions,
+          summary,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Transaction history error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve transaction history",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Generate a financial report for a date range
+   * @param {Object} request - Express request object
+   * @param {Function} next - Error handling middleware
+   */
+  generateFinancialReport: async (request, next) => {
+    try {
+      const {
+        query: { tenant, start_date, end_date },
+      } = request;
+
+      const filter = { status: "completed" };
+      const period = { start: null, end: null };
+
+      if (start_date) {
+        const sd = new Date(start_date);
+        if (isNaN(sd.getTime())) {
+          return {
+            success: false,
+            message: "Invalid start_date value",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `start_date '${start_date}' is not a valid date` },
+          };
+        }
+        filter.createdAt = filter.createdAt || {};
+        filter.createdAt.$gte = sd;
+        period.start = sd.toISOString();
+      }
+      if (end_date) {
+        const ed = new Date(end_date);
+        if (isNaN(ed.getTime())) {
+          return {
+            success: false,
+            message: "Invalid end_date value",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `end_date '${end_date}' is not a valid date` },
+          };
+        }
+        ed.setHours(23, 59, 59, 999); // include the full end date
+        filter.createdAt = filter.createdAt || {};
+        filter.createdAt.$lte = ed;
+        period.end = ed.toISOString();
+      }
+
+      if (!period.start) period.start = new Date(0).toISOString();
+      if (!period.end) period.end = new Date().toISOString();
+
+      const statsResponse = await TransactionModel(tenant).getStats(filter);
+
+      if (!statsResponse.success) {
+        return statsResponse;
+      }
+
+      const stats = statsResponse.data || {
+        totalAmount: 0,
+        totalTransactions: 0,
+      };
+
+      return {
+        success: true,
+        data: {
+          total_revenue: stats.totalAmount,
+          transaction_count: stats.totalTransactions,
+          average_transaction_value: stats.averageTransactionAmount || 0,
+          period,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Financial report generation error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to generate financial report",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -827,6 +1210,48 @@ const transactions = {
       return {
         success: false,
         message: "Failed to set up automatic renewal",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Disable automatic renewal for a user's subscription.
+   * Updates the user record only — no Paddle subscription update is required
+   * because we simply stop scheduling renewals rather than cancelling the plan.
+   * @param {Object} request - Express request object (user populated by auth middleware)
+   * @returns {Promise<Object>}
+   */
+  disableAutoRenewal: async (request) => {
+    try {
+      const user = request.user;
+
+      if (!user.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedUser = await UserModel("airqo").findByIdAndUpdate(
+        user._id,
+        { $set: { automaticRenewal: false } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Automatic renewal disabled successfully",
+        data: { automaticRenewal: updatedUser.automaticRenewal },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error("Disable automatic renewal failed", error);
+      return {
+        success: false,
+        message: "Failed to disable automatic renewal",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };

@@ -26,11 +26,13 @@ const {
   validateGetUserOrganizations,
   validatePrepareDeviceShipping,
   validateBulkPrepareDeviceShipping,
+  validateCreateShippingBatch,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
   validateGetShippingBatchDetails,
   validateGetDeviceCountSummary,
   validateTransferDevice,
+  validateRemoveDevicesFromBatch,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
 
@@ -158,6 +160,43 @@ router.get(
   deviceController.getDeviceCountSummary
 );
 
+// NEW STATUS-BASED LISTING ENDPOINTS
+router.get(
+  "/status/operational",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listOperationalDevices
+);
+
+router.get(
+  "/status/transmitting",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listTransmittingDevices
+);
+
+router.get(
+  "/status/data-available",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listDataAvailableDevices
+);
+
+router.get(
+  "/status/not-transmitting",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  validate,
+  deviceController.listNotTransmittingDevices
+);
+
 router.get(
   "/orphaned",
   validateTenant,
@@ -188,6 +227,7 @@ router.post(
   "/soft",
   validateTenant,
   validateCreateDevice,
+  validate,
   deviceController.createOnPlatform
 );
 
@@ -319,6 +359,15 @@ router.post(
   deviceController.prepareBulkDevicesForShipping
 );
 
+// shipping batch and prepare devices
+router.post(
+  "/shipping-batches",
+  validateTenant,
+  validateCreateShippingBatch,
+  validate,
+  deviceController.createShippingBatch
+);
+
 // Get shipping preparation status
 router.get(
   "/shipping-status",
@@ -353,6 +402,15 @@ router.get(
   validateGetShippingBatchDetails,
   validate,
   deviceController.getShippingBatchDetails
+);
+
+// Remove devices from a shipping batch
+router.delete(
+  "/shipping-batches/:id/devices",
+  validateTenant,
+  validateRemoveDevicesFromBatch,
+  validate,
+  deviceController.removeDevicesFromShippingBatch
 );
 
 // =============================================================================

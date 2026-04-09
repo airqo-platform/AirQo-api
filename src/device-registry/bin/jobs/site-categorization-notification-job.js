@@ -2,7 +2,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/site-categorization-notification-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/site-categorization-notification-job`,
 );
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
@@ -93,7 +93,7 @@ async function getUncategorizedSitesDetails() {
           created_at: 1,
           network: 1,
           site_category: 1,
-        }
+        },
       )
       .lean();
 
@@ -196,7 +196,7 @@ function generateNotificationMessage(data) {
       message += `   📍 Coordinates: ${site.latitude}, ${site.longitude}\n`;
       if (site.created_at) {
         message += `   📅 Created: ${moment(site.created_at).format(
-          "YYYY-MM-DD"
+          "YYYY-MM-DD",
         )}\n`;
       }
     });
@@ -315,8 +315,8 @@ const performSiteCategorizationNotification = async () => {
 
     logText(
       `🔔 Starting site categorization notification job at ${startTime.format(
-        "YYYY-MM-DD HH:mm:ss"
-      )} EAT`
+        "YYYY-MM-DD HH:mm:ss",
+      )} EAT`,
     );
 
     // Get uncategorized sites details
@@ -386,10 +386,10 @@ const performSiteCategorizationNotification = async () => {
     } else {
       // Below thresholds - just log status
       logText(
-        `ℹ️ Site categorization status: ${stats.uncategorizedSites} sites (${stats.uncategorizedPercentage}%) need categorization (below alert threshold)`
+        `ℹ️ Site categorization status: ${stats.uncategorizedSites} sites (${stats.uncategorizedPercentage}%) need categorization (below alert threshold)`,
       );
-      logger.info(
-        `Site categorization status: ${stats.uncategorizedSites} uncategorized sites (${stats.uncategorizedPercentage}%)`
+      logger.warn(
+        `Site categorization status: ${stats.uncategorizedSites} uncategorized sites (${stats.uncategorizedPercentage}%)`,
       );
 
       // Still log some details for monitoring even if below threshold
@@ -412,14 +412,14 @@ const performSiteCategorizationNotification = async () => {
     logObject("notificationSent", shouldSendNotification(stats));
     logObject(
       "processingEfficiency",
-      `${((stats.categorizedSites / stats.totalSites) * 100).toFixed(1)}%`
+      `${((stats.categorizedSites / stats.totalSites) * 100).toFixed(1)}%`,
     );
 
     const endTime = moment().tz(TIMEZONE);
     const duration = moment.duration(endTime.diff(startTime));
 
     logText(
-      `✅ Site categorization notification job completed in ${duration.humanize()}`
+      `✅ Site categorization notification job completed in ${duration.humanize()}`,
     );
 
     // Log performance metrics
@@ -427,7 +427,7 @@ const performSiteCategorizationNotification = async () => {
       duration: duration.asMilliseconds(),
       sitesAnalyzed: stats.totalSites,
       throughput: `${(stats.totalSites / duration.asSeconds()).toFixed(
-        1
+        1,
       )} sites/sec`,
     });
   } catch (error) {
@@ -449,7 +449,7 @@ const performSiteCategorizationNotification = async () => {
         .duration(
           moment()
             .tz(TIMEZONE)
-            .diff(startTime)
+            .diff(startTime),
         )
         .asSeconds(),
     });
@@ -495,7 +495,7 @@ const startSiteCategorizationNotificationJob = () => {
           // Wait for current execution to finish if running
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed`);
@@ -516,10 +516,10 @@ const startSiteCategorizationNotificationJob = () => {
     };
 
     logText(
-      `✅ ${JOB_NAME} registered and started (${JOB_SCHEDULE} ${TIMEZONE})`
+      `✅ ${JOB_NAME} registered and started (${JOB_SCHEDULE} ${TIMEZONE})`,
     );
     logText(
-      "Site categorization notification job is now running every 5 hours..."
+      "Site categorization notification job is now running every 5 hours...",
     );
 
     return global.cronJobs[JOB_NAME];
@@ -558,7 +558,7 @@ process.on("unhandledRejection", (reason, promise) => {
     `🚫 Unhandled Rejection in ${JOB_NAME} at:`,
     promise,
     "reason:",
-    reason
+    reason,
   );
 });
 

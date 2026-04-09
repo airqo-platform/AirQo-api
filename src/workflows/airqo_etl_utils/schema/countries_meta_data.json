@@ -1,0 +1,50 @@
+[
+  {
+    "name": "continent",
+    "type": "string",
+    "description": "Continent name (e.g. Africa)",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "country",
+    "type": "string",
+    "description": "Country name (e.g. Nigeria)",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "city",
+    "type": "string",
+    "description": "City or locality name",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "latitude",
+    "type": "number",
+    "description": "Latitude in decimal degrees",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "longitude",
+    "type": "number",
+    "description": "Longitude in decimal degrees",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "iso2",
+    "type": "string",
+    "description": "ISO Alpha-2 country code (may be empty)",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "iso3",
+    "type": "string",
+    "description": "ISO Alpha-3 country code",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "capital",
+    "type": "string",
+    "description": "Capital indicator/type (primary/admin/minor or empty)",
+    "mode": "NULLABLE"
+  }
+]

@@ -2,23 +2,23 @@ const mongoose = require("mongoose");
 
 const numericals = {
   JWT_EXPIRES_IN_SECONDS: Number.isFinite(
-    Number(process.env.JWT_EXPIRES_IN_SECONDS)
+    Number(process.env.JWT_EXPIRES_IN_SECONDS),
   )
     ? Number(process.env.JWT_EXPIRES_IN_SECONDS)
     : 24 * 60 * 60, // 24 hours
   JWT_REFRESH_WINDOW_SECONDS: Number.isFinite(
-    Number(process.env.JWT_REFRESH_WINDOW_SECONDS)
+    Number(process.env.JWT_REFRESH_WINDOW_SECONDS),
   )
     ? Number(process.env.JWT_REFRESH_WINDOW_SECONDS)
     : 15 * 60, // 15 minutes
   JWT_GRACE_PERIOD_SECONDS: Number.isFinite(
-    Number(process.env.JWT_GRACE_PERIOD_SECONDS)
+    Number(process.env.JWT_GRACE_PERIOD_SECONDS),
   )
     ? Number(process.env.JWT_GRACE_PERIOD_SECONDS)
     : 5 * 60, // 5 mins
   SALT_ROUNDS: 10,
   BCRYPT_SALT_ROUNDS: 12,
-  SLUG_MAX_LENGTH: 20,
+  SLUG_MAX_LENGTH: 60,
   TOKEN_LENGTH: 16,
   EMAIL_VERIFICATION_HOURS: 1,
   EMAIL_VERIFICATION_MIN: 0,
@@ -28,5 +28,7 @@ const numericals = {
   INACTIVE_THRESHOLD: 2592000000, //30 days ==> 30 (days) * 24 (hours per day) * 60 (minutes per hour) * 60 (seconds per minute) * 1000 (milliseconds per second)
   TOKEN_CLOCK_TOLERANCE: 30, // 30 seconds, Grace period for clock skew
   EMAIL_QUEUE_INTERVAL_MS: 3000, // 3 seconds
+  UNKNOWN_IP_RETENTION_DAYS: 90, // Documents not updated within this window are expired/deleted
+  UNKNOWN_IP_COUNTS_MAX_ENTRIES: 30, // Max daily ipCounts entries kept per document
 };
 module.exports = numericals;

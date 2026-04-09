@@ -118,7 +118,7 @@ global.jobMetrics = {
 
     if (isDev && currentConcurrent > 3) {
       console.warn(
-        `⚠️  High job concurrency: ${currentConcurrent} jobs running simultaneously`
+        `⚠️  High job concurrency: ${currentConcurrent} jobs running simultaneously`,
       );
     }
   },
@@ -133,7 +133,7 @@ global.jobMetrics = {
       if (isDev && duration > 30000) {
         // Alert if job takes longer than 30 seconds
         console.warn(
-          `⚠️  Long-running job detected: ${jobName} took ${duration}ms`
+          `⚠️  Long-running job detected: ${jobName} took ${duration}ms`,
         );
       }
     }
@@ -154,7 +154,7 @@ try {
   require("@bin/jobs/update-raw-online-status-job");
 } catch (err) {
   global.dedupLogger.error(
-    `update-raw-online-status-job failed to start: ${err.message}`
+    `update-raw-online-status-job failed to start: ${err.message}`,
   );
 }
 require("@bin/jobs/update-grid-flags-job");
@@ -162,7 +162,7 @@ try {
   require("@bin/jobs/update-online-status-job");
 } catch (err) {
   global.dedupLogger.error(
-    `update-online-status-job failed to start: ${err.message}`
+    `update-online-status-job failed to start: ${err.message}`,
   );
 }
 require("@bin/jobs/check-network-status-job");
@@ -171,11 +171,46 @@ require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
+require("@bin/jobs/backfill-site-metadata-job");
+const runPendingBulkUpdateJobs = require("@bin/jobs/device-bulk-update-job");
+// Run after a short delay to ensure DB connection is stable.
+setTimeout(() => runPendingBulkUpdateJobs("airqo"), 5000);
+
+try {
+  const clearDeploymentTypeJob = require("@bin/jobs/clear-deployment-type-job");
+  // Runs on every startup but self-skips immediately when no dirty records exist.
+  setTimeout(() => clearDeploymentTypeJob("airqo"), 8000);
+} catch (err) {
+  global.dedupLogger.error(
+    `clear-deployment-type-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
 require("@bin/jobs/refresh-grids-job");
+try {
+  require("@bin/jobs/find-duplicate-cohorts-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `find-duplicate-cohorts-job failed to start: ${err.message}`,
+  );
+}
+try {
+  const syncNetworksJob = require("@bin/jobs/sync-networks-job");
+  syncNetworksJob.start();
+} catch (err) {
+  global.dedupLogger.error(`sync-networks-job failed to start: ${err.message}`);
+}
+try {
+  const backfillApiCodeJob = require("@bin/jobs/backfill-api-code-job");
+  backfillApiCodeJob.startJob();
+} catch (err) {
+  global.dedupLogger.error(
+    `backfill-api-code-job failed to start: ${err.message}`,
+  );
+}
 
 // Defensively load precompute activities job
 // Default behavior: ENABLED (runs unless explicitly disabled)
@@ -196,7 +231,7 @@ try {
     isEnabled = normalizeFlag(constants.PRECOMPUTE_ACTIVITIES_JOB_ENABLED);
   } else {
     isEnabled = normalizeFlag(
-      process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ?? true
+      process.env.PRECOMPUTE_ACTIVITIES_JOB_ENABLED ?? true,
     );
   }
 
@@ -205,7 +240,7 @@ try {
       require("@bin/jobs/precompute-activities-job");
     } catch (jobError) {
       global.dedupLogger.error(
-        `❌ precompute-activities-job failed: ${jobError.message}`
+        `❌ precompute-activities-job failed: ${jobError.message}`,
       );
       // Continue - don't crash the server
     }
@@ -235,7 +270,7 @@ app.use(
     store: new MongoStore(options),
     resave: false,
     saveUninitialized: false,
-  })
+  }),
 ); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
@@ -258,13 +293,25 @@ try {
   console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
 }
 
+// Normalise the request URL by stripping trailing literal spaces and
+// URL-encoded spaces (%20) from the path segment. HTTP clients such as
+// Postman may encode a trailing space as %20 before sending, so a plain
+// trimEnd() is insufficient — the regex handles both forms.
+app.use((req, _res, next) => {
+  const [path, ...queryParts] = req.url.split("?");
+  const cleanPath = path.replace(/(%20|\s)+$/gi, "");
+  req.url =
+    queryParts.length > 0 ? `${cleanPath}?${queryParts.join("?")}` : cleanPath;
+  next();
+});
+
 app.use(express.json());
 app.use(
   bodyParser.urlencoded({
     extended: true,
     limit: "50mb",
     parameterLimit: 50000,
-  })
+  }),
 );
 
 // Static file serving
@@ -330,7 +377,7 @@ app.use(function(err, req, res, next) {
     } else if (err.status === 500) {
       // Use deduplicated logger for internal server errors to prevent Slack spam
       global.dedupLogger.error(
-        `🐛🐛 Internal Server Error --- ${stringify(err)}`
+        `🐛🐛 Internal Server Error --- ${stringify(err)}`,
       );
       logObject("the error", err);
       res.status(err.status).json({
@@ -348,7 +395,7 @@ app.use(function(err, req, res, next) {
     } else {
       // Use deduplicated logger for unexpected errors
       global.dedupLogger.error(
-        `🐛🐛 Internal Server Error --- ${stringify(err)}`
+        `🐛🐛 Internal Server Error --- ${stringify(err)}`,
       );
       logObject("Internal Server Error", err);
       global.dedupLogger.error(`Stack Trace: ${err.stack}`);
@@ -360,7 +407,7 @@ app.use(function(err, req, res, next) {
     }
   } else {
     logger.info(
-      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`
+      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`,
     );
   }
 });
@@ -448,12 +495,12 @@ const createServer = () => {
       console.log(
         `⏳ Waiting for ${
           activeJobs.length
-        } active jobs to complete: [${activeJobs.join(", ")}]`
+        } active jobs to complete: [${activeJobs.join(", ")}]`,
       );
       logger.info(
         `⏳ Waiting for ${
           activeJobs.length
-        } active jobs to complete: [${activeJobs.join(", ")}]`
+        } active jobs to complete: [${activeJobs.join(", ")}]`,
       );
     }
 
@@ -466,10 +513,10 @@ const createServer = () => {
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
         const jobNames = Object.keys(global.cronJobs);
         console.log(
-          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`
+          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`,
         );
         logger.info(
-          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`
+          `Stopping ${jobNames.length} cron jobs: [${jobNames.join(", ")}]`,
         );
 
         const stopPromises = Object.entries(global.cronJobs).map(
@@ -480,20 +527,20 @@ const createServer = () => {
                 console.log(`✅ Successfully stopped cron job: ${jobName}`);
               } else {
                 console.warn(
-                  `⚠️ Job ${jobName} does not have a 'stop' method.`
+                  `⚠️ Job ${jobName} does not have a 'stop' method.`,
                 );
                 logger.warn(`⚠️ Job ${jobName} does not have a 'stop' method.`);
               }
             } catch (error) {
               console.error(
                 `❌ Error stopping cron job ${jobName}:`,
-                error.message
+                error.message,
               );
               logger.error(
-                `❌ Error stopping cron job ${jobName}: ${error.message}`
+                `❌ Error stopping cron job ${jobName}: ${error.message}`,
               );
             }
-          }
+          },
         );
 
         await Promise.all(stopPromises);
@@ -517,7 +564,7 @@ const createServer = () => {
         console.warn(
           `⚠️ Force stopping with ${
             remainingJobs.length
-          } jobs still active: [${remainingJobs.join(", ")}]`
+          } jobs still active: [${remainingJobs.join(", ")}]`,
         );
       }
 
@@ -547,10 +594,10 @@ const createServer = () => {
         } catch (error) {
           console.error(
             "❌ Error closing Firebase connections:",
-            error.message
+            error.message,
           );
           logger.error(
-            `❌ Error closing Firebase connections: ${error.message}`
+            `❌ Error closing Firebase connections: ${error.message}`,
           );
         }
       }
@@ -602,10 +649,10 @@ const createServer = () => {
     // Force exit after timeout if graceful shutdown fails
     setTimeout(() => {
       console.error(
-        "Could not close connections in time, forcefully shutting down"
+        "Could not close connections in time, forcefully shutting down",
       );
       logger.error(
-        "Could not close connections in time, forcefully shutting down"
+        "Could not close connections in time, forcefully shutting down",
       );
       process.exit(1);
     }, 45000); // Allow up to 45s to cover job wait (30s) + cleanup headroom
@@ -630,7 +677,7 @@ const createServer = () => {
       `🚫 Unhandled Rejection at:`,
       promise,
       "reason:",
-      reason
+      reason,
     );
     gracefulShutdown("UNHANDLED_REJECTION");
   });

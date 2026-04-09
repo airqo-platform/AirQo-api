@@ -1,7 +1,7 @@
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
 from django.db import models
 from utils.models import BaseModel, SlugBaseModel
+from utils.cloudinary import safe_destroy
 
 
 class Publication(SlugBaseModel):
@@ -54,7 +54,6 @@ class Publication(SlugBaseModel):
         """
         Override the delete method to remove the associated Cloudinary file before deletion.
         """
-        if self.resource_file:
-            destroy(self.resource_file.public_id, invalidate=True)
+        safe_destroy(self.resource_file, invalidate=True, resource_type="raw")
         result = super().delete(*args, **kwargs)
         return result

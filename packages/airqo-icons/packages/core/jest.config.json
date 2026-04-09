@@ -1,0 +1,18 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "testMatch": [
+    "<rootDir>/src/**/__tests__/**/*.test.{ts,tsx}",
+    "<rootDir>/src/**/*.test.{ts,tsx}",
+    "<rootDir>/src/**/*.spec.{ts,tsx}"
+  ],
+  "testPathIgnorePatterns": ["<rootDir>/node_modules/", "<rootDir>/dist/"],
+  "collectCoverageFrom": [
+    "src/**/*.{ts}",
+    "!src/**/*.d.ts",
+    "!src/**/__tests__/**",
+    "!src/index.ts"
+  ],
+  "coverageDirectory": "coverage",
+  "coverageReporters": ["text", "lcov", "html"]
+}

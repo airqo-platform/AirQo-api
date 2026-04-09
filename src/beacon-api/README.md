@@ -1,4 +1,4 @@
-# Beacon Service
+# Beacon Service.
 
 > High-performance device management and performance analytics microservice for AirQo's air quality monitoring network.
 
@@ -309,4 +309,4 @@ Proprietary - AirQo Hardware
 
 ## Support
 
-Internal service - Contact the hardware team for support.
+Internal service - Contact the hardware team for support. or stuff

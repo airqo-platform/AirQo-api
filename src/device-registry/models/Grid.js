@@ -8,7 +8,7 @@ const httpStatus = require("http-status");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- grid-model`
+  `${constants.ENVIRONMENT} -- grid-model`,
 );
 const { getModelByTenant } = require("@config/database");
 
@@ -30,7 +30,7 @@ const shapeSchema = new Schema(
       required: true,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const centerPointSchema = new Schema(
@@ -40,7 +40,7 @@ const centerPointSchema = new Schema(
   },
   {
     _id: false,
-  }
+  },
 );
 
 const gridSchema = new Schema(
@@ -143,7 +143,7 @@ const gridSchema = new Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 gridSchema.index({ "activeMobileDevices.device_id": 1 });
@@ -177,8 +177,8 @@ gridSchema.pre("save", function(next) {
     } catch (error) {
       return next(
         new Error(
-          `Invalid polygon detected at model level - route validation may have been bypassed: ${error.message}`
-        )
+          `Invalid polygon detected at model level - route validation may have been bypassed: ${error.message}`,
+        ),
       );
     }
   }
@@ -204,7 +204,7 @@ gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
       update.shape = fixed;
     } catch (error) {
       return next(
-        new Error(`Invalid polygon in update operation: ${error.message}`)
+        new Error(`Invalid polygon in update operation: ${error.message}`),
       );
     }
   }
@@ -217,7 +217,7 @@ gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
       update.$set.shape = fixed;
     } catch (error) {
       return next(
-        new Error(`Invalid polygon in $set update operation: ${error.message}`)
+        new Error(`Invalid polygon in $set update operation: ${error.message}`),
       );
     }
   }
@@ -280,7 +280,11 @@ gridSchema.statics.register = async function(args, next) {
       modifiedArgs.network = constants.DEFAULT_NETWORK;
     }
 
-    if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
+    // FIX: && operator was incorrectly placed inside isEmpty(), causing
+    // the condition to evaluate isEmpty(boolean) instead of two separate
+    // isEmpty() checks. This meant name/long_name derivation was silently
+    // skipped whenever only one of the two fields was provided.
+    if (!isEmpty(modifiedArgs.long_name) && isEmpty(modifiedArgs.name)) {
       modifiedArgs.name = modifiedArgs.long_name
         .replace(/[^a-zA-Z0-9]/g, "_")
         .slice(0, 41)
@@ -288,7 +292,7 @@ gridSchema.statics.register = async function(args, next) {
         .toLowerCase();
     }
 
-    if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
+    if (isEmpty(modifiedArgs.long_name) && !isEmpty(modifiedArgs.name)) {
       modifiedArgs.long_name = modifiedArgs.name;
     }
 
@@ -316,8 +320,8 @@ gridSchema.statics.register = async function(args, next) {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: "grid not created despite successful operation",
-          }
-        )
+          },
+        ),
       );
     }
   } catch (error) {
@@ -345,13 +349,13 @@ gridSchema.statics.register = async function(args, next) {
 
 gridSchema.statics.list = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
-  next
+  next,
 ) {
   try {
     logText("we are inside model's list....");
     const inclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
-      filter.path ? filter.path : "none"
+      filter.path ? filter.path : "none",
     );
 
     if (!isEmpty(filter.path)) {
@@ -417,7 +421,7 @@ gridSchema.statics.list = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -425,7 +429,7 @@ gridSchema.statics.list = async function(
 
 gridSchema.statics.modify = async function(
   { filter = {}, update = {} } = {},
-  next
+  next,
 ) {
   try {
     const options = {
@@ -446,7 +450,7 @@ gridSchema.statics.modify = async function(
     const updatedGrid = await this.findOneAndUpdate(
       filter,
       modifiedUpdateBody,
-      options
+      options,
     ).exec();
 
     if (!isEmpty(updatedGrid)) {
@@ -461,7 +465,7 @@ gridSchema.statics.modify = async function(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           ...filter,
           message: "grid does not exist, please crosscheck",
-        })
+        }),
       );
     }
   } catch (error) {
@@ -469,7 +473,7 @@ gridSchema.statics.modify = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -498,7 +502,7 @@ gridSchema.statics.remove = async function({ filter = {} } = {}, next) {
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           ...filter,
           message: "grid does not exist, please crosscheck",
-        })
+        }),
       );
     }
   } catch (error) {
@@ -506,7 +510,7 @@ gridSchema.statics.remove = async function({ filter = {} } = {}, next) {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -516,7 +520,7 @@ gridSchema.statics.remove = async function({ filter = {} } = {}, next) {
 gridSchema.statics.updateMobileDeviceActivity = async function(
   gridId,
   deviceId,
-  next
+  next,
 ) {
   try {
     if (!gridId || !deviceId) {
@@ -541,7 +545,7 @@ gridSchema.statics.updateMobileDeviceActivity = async function(
         arrayFilters: [{ "elem.device_id": deviceId }],
         new: true,
         upsert: false,
-      }
+      },
     );
 
     // Update mobile device count
@@ -559,7 +563,7 @@ gridSchema.statics.updateMobileDeviceActivity = async function(
     };
   } catch (error) {
     logger.error(
-      `🐛🐛 Error updating mobile device activity: ${error.message}`
+      `🐛🐛 Error updating mobile device activity: ${error.message}`,
     );
     return {
       success: false,
@@ -572,11 +576,11 @@ gridSchema.statics.updateMobileDeviceActivity = async function(
 
 gridSchema.statics.cleanupInactiveDevices = async function(
   inactiveThresholdHours = 5,
-  next
+  next,
 ) {
   try {
     const thresholdTime = new Date(
-      Date.now() - inactiveThresholdHours * 60 * 60 * 1000
+      Date.now() - inactiveThresholdHours * 60 * 60 * 1000,
     );
 
     const result = await this.updateMany(
@@ -587,7 +591,7 @@ gridSchema.statics.cleanupInactiveDevices = async function(
             lastSeen: { $lt: thresholdTime },
           },
         },
-      }
+      },
     );
     try {
       await this.updateMany({}, [
@@ -620,7 +624,7 @@ gridSchema.statics.cleanupInactiveDevices = async function(
       ]);
     } catch (error) {
       logger.error(
-        `🐛🐛 Error updating counts and online status: ${error.message}`
+        `🐛🐛 Error updating counts and online status: ${error.message}`,
       );
     }
 
@@ -686,7 +690,7 @@ gridSchema.statics.getMobileDeviceStats = async function(filter = {}, next) {
 
 gridSchema.statics.modifyShape = async function(
   { filter = {}, update = {} } = {},
-  next
+  next,
 ) {
   try {
     const options = {
@@ -708,7 +712,7 @@ gridSchema.statics.modifyShape = async function(
     const updatedGrid = await this.findOneAndUpdate(
       filter,
       modifiedUpdateBody,
-      options
+      options,
     ).exec();
 
     if (!isEmpty(updatedGrid)) {
@@ -723,7 +727,7 @@ gridSchema.statics.modifyShape = async function(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           ...filter,
           message: "Grid does not exist, please crosscheck",
-        })
+        }),
       );
     }
   } catch (error) {
@@ -731,7 +735,7 @@ gridSchema.statics.modifyShape = async function(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };

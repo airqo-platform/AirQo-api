@@ -68,7 +68,6 @@ class AirQoDataDriftCompute:
         cls,
         data_type: DataType,
         data: pd.DataFrame,
-        device_metadata: Dict[str, Any],
         pollutants: List[str],
         data_resolution: Frequency,
         baseline_type: Frequency,
@@ -78,6 +77,8 @@ class AirQoDataDriftCompute:
         region_max: Optional[float] = 1000,
         ecdf_bins_count: Optional[int] = 100,
         reference_data_id: Optional[str] = None,
+        device_metadata: Optional[Dict[str, Any]] = None,
+        device: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Compute baseline statistics and ECDF bins for a device and one or more pollutants.
@@ -101,12 +102,16 @@ class AirQoDataDriftCompute:
         Raises:
             ValueError: If insufficient data for baseline or if data overlaps with the maintenance cooldown period.
         """
+        # Backwards-compatibility: accept `device` kwarg used in older callers/tests
+        if device_metadata is None and device is not None:
+            device_metadata = device
+
         if data.empty:
             return None
 
         if (
             DateUtils.str_to_date(window_start) + timedelta(hours=cls.COOLDOWN_HOURS)
-        ) < device_metadata["recent_maintenance_date"]:
+        ) < DateUtils.str_to_date(device_metadata["recent_maintenance_date"]):
             raise ValueError(
                 "All data should be before or after maintenance cooldown period"
             )

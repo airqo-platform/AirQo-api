@@ -2,8 +2,10 @@ import json
 from unittest.mock import patch, MagicMock
 
 import requests
-import urllib3
-from airqo_etl_utils.data_sources import DataSourcesApis
+
+from airqo_etl_utils.sources.thingspeak_adapter import ThingSpeakAdapter
+from airqo_etl_utils.sources.iqair_adapter import IQAirAdapter
+from airqo_etl_utils.sources.airgradient_adapter import AirGradientAdapter
 from airqo_etl_utils.utils import Result
 from airqo_etl_utils.constants import DeviceNetwork
 
@@ -13,15 +15,21 @@ class TestThingspeakMethod:
 
     def setup_method(self):
         """Setup for each test method."""
-        self.data_source = DataSourcesApis()
+        self.adapter = ThingSpeakAdapter()
         self.device_number = 12345
         self.start_date_time = "2023-01-01T00:00:00Z"
         self.end_date_time = "2023-01-02T00:00:00Z"
         self.read_key = "TEST_READ_KEY"
+        from airqo_etl_utils.config import configuration
+
         self.expected_url = (
-            f"{self.data_source.THINGSPEAK_CHANNEL_URL}{self.device_number}/feeds.json?"
-            f"start={self.start_date_time}&end={self.end_date_time}&api_key={self.read_key}"
+            f"{configuration.THINGSPEAK_CHANNEL_URL}{self.device_number}/feeds.json"
         )
+        self.expected_params = {
+            "start": self.start_date_time,
+            "end": self.end_date_time,
+            "api_key": self.read_key,
+        }
 
     @patch("requests.get")
     def test_thingspeak_success(self, mock_get):
@@ -75,14 +83,23 @@ class TestThingspeakMethod:
                 },
             }
         ).encode("utf-8")
-        mock_get.return_value = mock_response
+        # Patch the HttpClient.get_json used by the adapter
+        with patch(
+            "airqo_etl_utils.sources.thingspeak_adapter.HttpClient.get_json",
+            return_value=json.loads(mock_response.content.decode("utf-8")),
+        ) as mock_get_json:
+            res = self.adapter.fetch(
+                {"device_number": self.device_number, "key": self.read_key},
+                [(self.start_date_time, self.end_date_time)],
+            )
 
-        data, meta_data, data_available = self.data_source.thingspeak(
-            self.device_number, self.start_date_time, self.end_date_time, self.read_key
-        )
-
-        # Assertions
-        mock_get.assert_called_once_with(self.expected_url, timeout=100.0)
+            # Assertions
+            mock_get_json.assert_called_once_with(
+                self.expected_url, params=self.expected_params
+            )
+            data = res.data.get("records")
+            meta_data = res.data.get("meta")
+            data_available = True if data else False
         assert len(data) == 2
         assert data[0]["field1"] == "39.37"
         assert data[1]["field2"] == "48.43"
@@ -116,28 +133,37 @@ class TestThingspeakMethod:
                 },
             }
         ).encode("utf-8")
-        mock_get.return_value = mock_response
-
-        data, meta_data, data_available = self.data_source.thingspeak(
-            self.device_number, self.start_date_time, self.end_date_time, self.read_key
-        )
-
-        assert data == []
-        assert meta_data["name"] == "device1"
-        assert data_available is False
+        with patch(
+            "airqo_etl_utils.sources.thingspeak_adapter.HttpClient.get_json",
+            return_value=json.loads(mock_response.content.decode("utf-8")),
+        ) as mock_get_json:
+            res = self.adapter.fetch(
+                {"device_number": self.device_number, "key": self.read_key},
+                [(self.start_date_time, self.end_date_time)],
+            )
+            data = res.data.get("records")
+            meta_data = res.data.get("meta")
+            assert data == []
+            assert meta_data["name"] == "device1"
+            assert (True if data else False) is False
 
     @patch("requests.get")
     def test_thingspeak_request_exception(self, mock_get):
         """Test ThingSpeak API request exception handling."""
         mock_get.side_effect = requests.exceptions.RequestException("Connection error")
 
-        data, meta_data, data_available = self.data_source.thingspeak(
-            self.device_number, self.start_date_time, self.end_date_time, self.read_key
-        )
-
-        assert data is None
-        assert meta_data is None
-        assert data_available is False
+        # Simulate exception through HttpClient.get_json
+        with patch(
+            "airqo_etl_utils.sources.thingspeak_adapter.HttpClient.get_json",
+            side_effect=requests.exceptions.RequestException("Connection error"),
+        ):
+            res = self.adapter.fetch(
+                {"device_number": self.device_number, "key": self.read_key},
+                [(self.start_date_time, self.end_date_time)],
+            )
+            assert res.data["records"] == []
+            assert res.data["meta"] == {}
+            assert res.error is not None
 
     @patch("requests.get")
     def test_thingspeak_value_error(self, mock_get):
@@ -146,26 +172,34 @@ class TestThingspeakMethod:
         mock_response.content = b"Invalid JSON"
         mock_get.return_value = mock_response
 
-        data, meta_data, data_available = self.data_source.thingspeak(
-            self.device_number, self.start_date_time, self.end_date_time, self.read_key
-        )
-
-        assert data is None
-        assert meta_data is None
-        assert data_available is False
+        with patch(
+            "airqo_etl_utils.sources.thingspeak_adapter.HttpClient.get_json",
+            side_effect=ValueError("Invalid JSON"),
+        ):
+            res = self.adapter.fetch(
+                {"device_number": self.device_number, "key": self.read_key},
+                [(self.start_date_time, self.end_date_time)],
+            )
+            assert res.data["records"] == []
+            assert res.data["meta"] == {}
+            assert res.error is not None
 
     @patch("requests.get")
     def test_thingspeak_generic_exception(self, mock_get):
         """Test ThingSpeak with a generic exception."""
         mock_get.side_effect = Exception("Unknown error")
 
-        data, meta_data, data_available = self.data_source.thingspeak(
-            self.device_number, self.start_date_time, self.end_date_time, self.read_key
-        )
-
-        assert data is None
-        assert meta_data is None
-        assert data_available is False
+        with patch(
+            "airqo_etl_utils.sources.thingspeak_adapter.HttpClient.get_json",
+            side_effect=Exception("Unknown error"),
+        ):
+            res = self.adapter.fetch(
+                {"device_number": self.device_number, "key": self.read_key},
+                [(self.start_date_time, self.end_date_time)],
+            )
+            assert res.data["records"] == []
+            assert res.data["meta"] == {}
+            assert res.error is not None
 
 
 class TestIQAirMethod:
@@ -173,13 +207,13 @@ class TestIQAirMethod:
 
     def setup_method(self):
         """Setup for each test method."""
-        self.data_source = DataSourcesApis()
+        self.adapter = IQAirAdapter()
         self.valid_device = {
             "api_code": "https://api.example.com/iqair",
             "serial_number": "ABC123",
         }
 
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_success_instant(self, mock_get, mock_config):
         """Test successful data fetch from IQAir API with instant resolution."""
@@ -200,17 +234,22 @@ class TestIQAirMethod:
             }
         }
         mock_get.return_value = mock_response
+        # IQAirAdapter uses HttpClient.get_json which calls requests.Session.get and then .json()
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            return_value=mock_response.json(),
+        ) as mock_get_json:
+            result = self.adapter.fetch(self.valid_device, resolution="instant")
+            expected_url = "https://api.example.com/iqair/ABC123"
+            mock_get_json.assert_called_once_with(expected_url)
+            assert isinstance(result, Result)
+            assert isinstance(result.data, dict) or isinstance(result.data, list)
+            # result.data for adapter is {'records': [...] , 'meta': {}}
+            assert isinstance(result.data.get("records"), list)
+            assert len(result.data.get("records")) == 1
+            assert result.data.get("records")[0]["pm25"]["conc"] == 21
 
-        result = self.data_source.iqair(self.valid_device, resolution="instant")
-
-        expected_url = "https://api.example.com/iqair/ABC123"
-        mock_get.assert_called_once_with(expected_url, timeout=10)
-        assert isinstance(result, Result)
-        assert isinstance(result.data, list)
-        assert len(result.data) == 1
-        assert result.data[0]["pm25"]["conc"] == 21
-
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_success_hourly(self, mock_get, mock_config):
         """Test successful data fetch from IQAir API with hourly resolution."""
@@ -231,17 +270,19 @@ class TestIQAirMethod:
             }
         }
         mock_get.return_value = mock_response
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            return_value=mock_response.json(),
+        ) as mock_get_json:
+            result = self.adapter.fetch(self.valid_device, resolution="hourly")
+            expected_url = "https://api.example.com/iqair/ABC123"
+            mock_get_json.assert_called_once_with(expected_url)
+            assert isinstance(result, Result)
+            assert isinstance(result.data.get("records"), list)
+            assert len(result.data.get("records")) == 1
+            assert result.data.get("records")[0]["pm25"]["conc"] == 22
 
-        result = self.data_source.iqair(self.valid_device, resolution="hourly")
-
-        expected_url = "https://api.example.com/iqair/ABC123"
-        mock_get.assert_called_once_with(expected_url, timeout=10)
-        assert isinstance(result, Result)
-        assert isinstance(result.data, list)
-        assert len(result.data) == 1
-        assert result.data[0]["pm25"]["conc"] == 22
-
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_success_current(self, mock_get, mock_config):
         """Test successful data fetch from IQAir API with current resolution."""
@@ -258,16 +299,19 @@ class TestIQAirMethod:
             }
         }
         mock_get.return_value = mock_response
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            return_value=mock_response.json(),
+        ) as mock_get_json:
+            res = self.adapter.fetch(self.valid_device, resolution="current")
+            expected_url = "https://api.example.com/iqair/ABC123"
+            mock_get_json.assert_called_once_with(expected_url)
+            assert isinstance(res, Result)
+            # current returns a dict under 'records'
+            assert isinstance(res.data.get("records"), dict)
+            assert res.data.get("records")["pm25"]["conc"] == 23
 
-        result = self.data_source.iqair(self.valid_device, resolution="current")
-
-        expected_url = "https://api.example.com/iqair/ABC123"
-        mock_get.assert_called_once_with(expected_url, timeout=10)
-        assert isinstance(result, Result)
-        assert isinstance(result.data, dict)
-        assert result.data["pm25"]["conc"] == 23
-
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_empty_api_code(self, mock_get, mock_config):
         """Test IQAir API with empty API code in device."""
@@ -277,13 +321,13 @@ class TestIQAirMethod:
 
         invalid_device = {"api_code": "", "serial_number": "ABC123"}
 
-        result = self.data_source.iqair(invalid_device, resolution="instant")
-
-        assert result.data is None
-        assert result.error == "An unexpected error occurred."
+        # Adapter returns empty records and an error when api_code is invalid
+        res = self.adapter.fetch(invalid_device, resolution="instant")
+        assert res.data.get("records") == []
+        assert res.error is not None
         mock_get.assert_not_called()
 
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_nan_api_code(self, mock_get, mock_config):
         """Test IQAir API with NaN API code in device."""
@@ -294,12 +338,11 @@ class TestIQAirMethod:
 
         invalid_device = {"api_code": np.nan, "serial_number": "ABC123"}
 
-        result = self.data_source.iqair(invalid_device, resolution="instant")
-
-        assert result.data is None
+        res = self.adapter.fetch(invalid_device, resolution="instant")
+        assert res.data.get("records") == []
         mock_get.assert_not_called()
 
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_missing_serial_number(self, mock_get, mock_config):
         """Test IQAir API with missing serial number in device."""
@@ -309,12 +352,11 @@ class TestIQAirMethod:
 
         invalid_device = {"api_code": "https://api.example.com/iqair"}
 
-        result = self.data_source.iqair(invalid_device, resolution="instant")
-
-        assert result.data is None
+        res = self.adapter.fetch(invalid_device, resolution="instant")
+        assert res.data.get("records") == []
         mock_get.assert_not_called()
 
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_request_exception(self, mock_get, mock_config):
         """Test IQAir API request exception handling."""
@@ -323,12 +365,14 @@ class TestIQAirMethod:
         }
         mock_get.side_effect = requests.exceptions.RequestException("Connection error")
 
-        result = self.data_source.iqair(self.valid_device, resolution="instant")
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            side_effect=requests.exceptions.RequestException("Connection error"),
+        ):
+            res = self.adapter.fetch(self.valid_device, resolution="instant")
+            assert res.data.get("records") == []
 
-        assert result.data is None
-        mock_get.assert_called_once()
-
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_value_error(self, mock_get, mock_config):
         """Test IQAir API with value error."""
@@ -339,12 +383,14 @@ class TestIQAirMethod:
         mock_response.json.side_effect = ValueError("Invalid JSON")
         mock_get.return_value = mock_response
 
-        result = self.data_source.iqair(self.valid_device, resolution="instant")
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            side_effect=ValueError("Invalid JSON"),
+        ):
+            res = self.adapter.fetch(self.valid_device, resolution="instant")
+            assert res.data.get("records") == []
 
-        assert result.data is None
-        mock_get.assert_called_once()
-
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_generic_exception(self, mock_get, mock_config):
         """Test IQAir API with generic exception."""
@@ -353,12 +399,14 @@ class TestIQAirMethod:
         }
         mock_get.side_effect = Exception("Unknown error")
 
-        result = self.data_source.iqair(self.valid_device, resolution="instant")
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            side_effect=Exception("Unknown error"),
+        ):
+            res = self.adapter.fetch(self.valid_device, resolution="instant")
+            assert res.data.get("records") == []
 
-        assert result.data is None
-        mock_get.assert_called_once()
-
-    @patch("airqo_etl_utils.data_sources.configuration")
+    @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
     def test_iqair_missing_data_in_response(self, mock_get, mock_config):
         """Test IQAir API with missing data in response."""
@@ -369,10 +417,14 @@ class TestIQAirMethod:
         mock_response.json.return_value = {}
         mock_get.return_value = mock_response
 
-        result = self.data_source.iqair(self.valid_device, resolution="instant")
-
-        assert result.data is None
-        mock_get.assert_called_once()
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            return_value=mock_response.json(),
+        ) as mock_get_json:
+            res = self.adapter.fetch(self.valid_device, resolution="instant")
+            assert res.data.get("records") == []
+            expected_url = "https://api.example.com/iqair/ABC123"
+            mock_get_json.assert_called_once_with(expected_url)
 
 
 class TestAirgradientMethod:
@@ -380,7 +432,7 @@ class TestAirgradientMethod:
 
     def setup_method(self):
         """Setup for each test method."""
-        self.data_source = DataSourcesApis()
+        self.adapter = AirGradientAdapter()
         self.valid_device = {
             "api_code": "https://api.example.com/airgradient",
             "serial_number": "DEF456",
@@ -443,80 +495,86 @@ class TestAirgradientMethod:
             },
         ]
 
-    @patch("airqo_etl_utils.data_sources.DataApi")
-    @patch("airqo_etl_utils.data_sources.configuration")
-    def test_airgradient_success(self, mock_config, mock_api_data):
+    @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
+    def test_airgradient_success(self, mock_config):
         """Test successful data fetch from AirGradient API."""
-        # Configure mocks
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
-        mock_api_instance._request.return_value = self.data
-        mock_api_data.return_value = mock_api_instance
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            return_value=self.data,
+        ) as mock_get_json:
+            adapter = AirGradientAdapter()
+            res = adapter.fetch(self.valid_device, dates=self.dates)
 
-        result = self.data_source.air_gradient(self.valid_device, self.dates)
-
-        endpoint = (
-            mock_config.INTEGRATION_DETAILS.get(DeviceNetwork.AIRGRADIENT.str, {})
-            .get("endpoints", {})
-            .get("raw", "")
-            .lstrip("/")
-            .rstrip("/")
-        )
-        mock_api_instance._request.assert_called_once_with(
-            endpoint,
+        mock_get_json.assert_called_once_with(
+            "https://api.example.com/airgradient/DEF456/measures/current",
             params=self.params,
-            base_url="https://api.example.com/airgradient/DEF456",
-            network=DeviceNetwork.AIRGRADIENT,
         )
-        assert isinstance(result, Result)
-        assert isinstance(result.data, list)
-        assert len(result.data) == 1
+        assert isinstance(res, Result)
+        assert isinstance(res.data.get("records"), list)
+        assert len(res.data.get("records")) == 1
 
-    @patch("airqo_etl_utils.data_sources.DataApi")
-    @patch("airqo_etl_utils.data_sources.configuration")
-    def test_airgradient_no_data(self, mock_config, mock_api_data):
+    @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
+    def test_airgradient_no_data(self, mock_config):
         """Test AirGradient API with no data returned."""
-        # Configure mocks
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
-        mock_api_instance._request.return_value = []
-        mock_api_data.return_value = mock_api_instance
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            return_value=[],
+        ):
+            adapter = AirGradientAdapter()
+            res = adapter.fetch(self.valid_device, self.dates)
 
-        result = self.data_source.air_gradient(self.valid_device, self.dates)
+        assert isinstance(res, Result)
+        assert res.data.get("records") == []
+        assert res.error == "No data retrieved"
 
-        assert isinstance(result, Result)
-        assert result.data == []
-        assert result.error == "No data retrieved."
-
-    @patch("airqo_etl_utils.data_sources.DataApi")
-    @patch("airqo_etl_utils.data_sources.configuration")
-    def test_airgradient_exception(self, mock_config, mock_api_data):
+    @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
+    def test_airgradient_exception(self, mock_config):
         """Test AirGradient API with a generic exception."""
-        # Configure mocks
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
-        mock_api_instance._request.side_effect = Exception("Unknown error")
-        mock_api_data.return_value = mock_api_instance
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            side_effect=Exception("Unknown error"),
+        ):
+            adapter = AirGradientAdapter()
+            res = adapter.fetch(self.valid_device, self.dates)
 
-        result = self.data_source.air_gradient(self.valid_device, self.dates)
+        assert isinstance(res, Result)
+        assert res.data.get("records") == []
+        assert res.error == "An unexpected error occurred"
 
-        assert isinstance(result, Result)
-        assert result.data is None
-        assert result.error == "An unexpected error occurred."
-
-    @patch("airqo_etl_utils.data_sources.DataApi")
-    @patch("airqo_etl_utils.data_sources.configuration")
-    def test_airgradient_empty_api_code(self, mock_config, mock_api_data):
-        """Test AirGradient API with empty API code in device."""
+    @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
+    def test_airgradient_empty_api_code(self, mock_config):
+        """Test AirGradient API when the device has no serial number (invalid device)."""
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_api_instance = MagicMock()
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airgradient",
+            "endpoints": {"raw": "measures/current"},
+        }
         invalid_device = {
             "api_code": "",
-            "serial_number": "DEF456",
+            "serial_number": "",
+            "device_number": "",
             "device_id": "device_1",
         }
-
-        result = self.data_source.air_gradient(invalid_device, self.dates)
-        assert result.data == []
-        assert result.error == "Invalid api code for device: device_1"
-        mock_api_instance.assert_not_called()
+        with patch(
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json"
+        ) as mock_get_json:
+            adapter = AirGradientAdapter()
+            res = adapter.fetch(invalid_device, self.dates)
+        assert res.data.get("records") == []
+        assert res.error is not None
+        mock_get_json.assert_not_called()

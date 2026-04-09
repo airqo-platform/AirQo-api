@@ -1,6 +1,10 @@
 node_modules
 controllers/rsa_private.pem
 .env
+.env.old
+.env.development
+.env.production
+.env.staging
 device-reg-secret.yaml
 log
 airqo-250220-*

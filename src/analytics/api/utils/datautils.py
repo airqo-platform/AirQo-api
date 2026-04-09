@@ -107,13 +107,14 @@ class DataUtils:
         raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
             raw_data, datatype, main_columns
         )
-
-        raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
+        if all(col in raw_data.columns.tolist() for col in sorting_cols):
+            raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
         raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
             raw_data, extra_columns, device_category
         )
-        raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
+        if all(col in raw_data.columns.tolist() for col in drop_columns):
+            raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
 
         raw_data["frequency"] = frequency.value
         raw_data = raw_data.replace(np.nan, None)
@@ -157,7 +158,6 @@ class DataUtils:
         missing = [col for col in required_columns if col not in data.columns]
         if missing:
             raise ValueError(f"Missing required numeric columns: {missing}")
-
         # Ensure all relevant columns are numeric (coerce bad values to NaN)
         data[list(required_columns)] = data[list(required_columns)].apply(
             pd.to_numeric, errors="coerce"

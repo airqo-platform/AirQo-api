@@ -16,6 +16,7 @@ class DeviceCategory(Enum):
     GAS -> Gaseous sensors
     WEATHER -> Weather sensors
     GENERAL -> All the sensors
+    SATELLITE -> Satellite data
     """
 
     LOWCOST = "lowcost"
@@ -23,6 +24,7 @@ class DeviceCategory(Enum):
     GAS = "gas"
     GENERAL = "general"
     MOBILE = "mobile"
+    SATELLITE = "satellite"
 
     def __str__(self) -> str:
         return self.value

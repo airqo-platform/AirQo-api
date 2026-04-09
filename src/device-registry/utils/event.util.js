@@ -29,7 +29,9 @@ const {
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- event-util -- ops-alerts`,
+);
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
@@ -111,7 +113,7 @@ const listDevices = async (request, next) => {
         limit,
         skip,
       },
-      next
+      next,
     );
     if (responseFromListDevice.success === false) {
       let errors = responseFromListDevice.errors
@@ -120,7 +122,7 @@ const listDevices = async (request, next) => {
       try {
         let errorsString = errors ? stringify(errors) : "";
         logger.error(
-          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`,
         );
       } catch (error) {
         logger.error(`internal server error -- ${error.message}`);
@@ -136,7 +138,7 @@ const listDevices = async (request, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
@@ -144,7 +146,7 @@ const decryptKey = async (encryptedKey, next) => {
   try {
     let bytes = cryptoJS.AES.decrypt(
       encryptedKey,
-      constants.KEY_ENCRYPTION_KEY
+      constants.KEY_ENCRYPTION_KEY,
     );
     let originalText = bytes.toString(cryptoJS.enc.Utf8);
     let isKeyUnknown = isEmpty(originalText);
@@ -167,13 +169,13 @@ const decryptKey = async (encryptedKey, next) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
 async function transformOneReading(
   { data = {}, map = {}, context = {} } = {},
-  next
+  next,
 ) {
   try {
     const transformedEvent = transform(data, map, context);
@@ -210,7 +212,7 @@ async function transformOneReading(
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -226,7 +228,7 @@ async function transformManyReadings(request, next) {
           data,
           map,
         },
-        next
+        next,
       );
       if (responseFromTransformEvent.success === true) {
         logger.info(`Transformed event: ${JSON.stringify(event)}`);
@@ -265,7 +267,7 @@ async function transformManyReadings(request, next) {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
     return;
   }
@@ -342,8 +344,8 @@ async function processEvent(event, next) {
     if (validValues.length === 0) {
       logger.warn(
         `Discarding event with all zero/negative values: ${JSON.stringify(
-          value
-        )}`
+          value,
+        )}`,
       );
 
       // Log the rejected event
@@ -376,7 +378,7 @@ async function processEvent(event, next) {
     const addedEvents = await EventModel(event.tenant).updateOne(
       filter,
       update,
-      options
+      options,
     );
 
     if (addedEvents) {
@@ -547,7 +549,7 @@ class AirQualityService {
         this.EventModel,
         site_id,
         next,
-        { isHistorical }
+        { isHistorical },
       );
 
       // Handle translation only for current measurements or v1
@@ -572,8 +574,8 @@ class AirQualityService {
 
       logger.error(
         `Unable to retrieve events --- ${JSON.stringify(
-          responseFromListEvents.errors
-        )}`
+          responseFromListEvents.errors,
+        )}`,
       );
       return {
         success: false,
@@ -588,8 +590,8 @@ class AirQualityService {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   }
@@ -605,7 +607,7 @@ class AirQualityService {
       for (const event of data) {
         const translatedHealthTips = await translate.translateTips(
           { healthTips: event.health_tips, targetLanguage: language },
-          next
+          next,
         );
         if (translatedHealthTips.success === true) {
           event.health_tips = translatedHealthTips.data;
@@ -636,8 +638,8 @@ class AirQualityService {
       if (!result.success) {
         logger.error(
           `🐛🐛 Cache Set Error -- ${JSON.stringify(
-            result.errors || "Unknown error"
-          )}`
+            result.errors || "Unknown error",
+          )}`,
         );
       }
     } catch (error) {
@@ -652,7 +654,7 @@ class AirQualityService {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: "Cache timeout" },
-      })
+      }),
     );
   }
 }
@@ -665,7 +667,7 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
 
     if (!airQloud) {
       logger.error(
-        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `
+        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `,
       );
       return {
         success: false,
@@ -831,13 +833,13 @@ const processGridIds = async (grid_ids, request) => {
       if (responseFromGetSitesOfGrid.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfGrid
-          )}`
+            responseFromGetSitesOfGrid,
+          )}`,
         );
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
+          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -847,12 +849,12 @@ const processGridIds = async (grid_ids, request) => {
 
       logObject(
         "responseFromGetSitesOfGrid.data",
-        responseFromGetSitesOfGrid.data
+        responseFromGetSitesOfGrid.data,
       );
 
       logObject(
         "responseFromGetSitesOfGrid.data.split",
-        responseFromGetSitesOfGrid.data.split(",")
+        responseFromGetSitesOfGrid.data.split(","),
       );
 
       const arrayOfSites = responseFromGetSitesOfGrid.data.split(",");
@@ -864,18 +866,18 @@ const processGridIds = async (grid_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false
+    (result) => result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
     logger.error(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false)
+    (result) => !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -898,20 +900,20 @@ const processCohortIds = async (cohort_ids, request) => {
 
       logObject(
         "responseFromGetDevicesOfCohort",
-        responseFromGetDevicesOfCohort
+        responseFromGetDevicesOfCohort,
       );
 
       if (responseFromGetDevicesOfCohort.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetDevicesOfCohort
-          )}`
+            responseFromGetDevicesOfCohort,
+          )}`,
         );
         // Return the error response to the caller
         return responseFromGetDevicesOfCohort;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
-          `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
+          `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
         );
         return {
           success: false,
@@ -930,19 +932,19 @@ const processCohortIds = async (cohort_ids, request) => {
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
   const invalidDeviceIdResults = deviceIdsResults.filter(
-    (result) => result.success === false
+    (result) => result.success === false,
   );
 
   // Return the first error found to the controller
   if (!isEmpty(invalidDeviceIdResults)) {
     logger.error(
-      `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`,
     );
     return invalidDeviceIdResults[0];
   }
 
   const validDeviceIdResults = deviceIdsResults.filter(
-    (result) => !(result.success === false)
+    (result) => !(result.success === false),
   );
 
   const flattened = [].concat(...validDeviceIdResults);
@@ -979,19 +981,19 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
       logObject(
         "responseFromGetSitesOfAirQloud",
-        responseFromGetSitesOfAirQloud
+        responseFromGetSitesOfAirQloud,
       );
 
       if (responseFromGetSitesOfAirQloud.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfAirQloud
-          )}`
+            responseFromGetSitesOfAirQloud,
+          )}`,
         );
         return responseFromGetSitesOfAirQloud;
       } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
         logger.error(
-          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`
+          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -1001,12 +1003,12 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
       logObject(
         "responseFromGetSitesOfAirQloud.data",
-        responseFromGetSitesOfAirQloud.data
+        responseFromGetSitesOfAirQloud.data,
       );
 
       logObject(
         "responseFromGetSitesOfAirQloud.data.split",
-        responseFromGetSitesOfAirQloud.data.split(",")
+        responseFromGetSitesOfAirQloud.data.split(","),
       );
 
       const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
@@ -1018,18 +1020,18 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false
+    (result) => result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
     logger.error(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false)
+    (result) => !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -1042,7 +1044,7 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
 const isEventTimestampValid = (
   timestamp,
-  maxAgeMs = constants.MAX_EVENT_AGE_MS
+  maxAgeMs = constants.MAX_EVENT_AGE_MS,
 ) => {
   try {
     if (!timestamp) {
@@ -1145,7 +1147,7 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
           // Only log first 10 to avoid spam
           logger.debug(
             `Rejected measurement: timestamp ${timestamp}, ` +
-              `age ${validation.ageHours}h, reason: ${validation.reason}`
+              `age ${validation.ageHours}h, reason: ${validation.reason}`,
           );
         }
       }
@@ -1156,8 +1158,8 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
       logTextWithTimestamp(
         `Timestamp filtering: ${valid.length} accepted, ${rejected.length} rejected ` +
           `(${((rejected.length / measurements.length) * 100).toFixed(
-            1
-          )}% rejection rate)`
+            1,
+          )}% rejection rate)`,
       );
       logObject("Rejection reasons summary", rejectionReasons);
     }
@@ -1197,9 +1199,9 @@ const filterMeasurementsByTimestamp = async (measurements, next) => {
 
 // 🚨 EMERGENCY RATE LIMITER - Added Oct 21, 2025 for DDoS mitigation
 const historicalQueryTracker = new Map();
-const MAX_HISTORICAL_PER_MINUTE = 5;
-const BLOCK_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAX_AGE_DAYS = 60; // 2 months
+const MAX_HISTORICAL_PER_MINUTE = 3;
+const BLOCK_DURATION = 15 * 60 * 1000; // 15 minutes
+const MAX_AGE_DAYS = 31; // Approximately 1 month
 
 const generateClientFingerprint = (request) => {
   const rawId =
@@ -1239,6 +1241,136 @@ const createEvent = {
   processGridIds,
   processCohortIds,
   processAirQloudIds,
+  listForMap: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const DEFAULT_LIMIT = 1000;
+      const MAX_LIMIT = 5000;
+
+      const parsedLimit = parseInt(query.limit);
+      const parsedSkip = parseInt(query.skip);
+
+      const limit =
+        isNaN(parsedLimit) || !isFinite(parsedLimit) || parsedLimit < 1
+          ? DEFAULT_LIMIT
+          : Math.min(parsedLimit, MAX_LIMIT);
+
+      const skip =
+        isNaN(parsedSkip) || !isFinite(parsedSkip) || parsedSkip < 0
+          ? 0
+          : parsedSkip;
+
+      const filter = generateFilter.readingsMap(request, next);
+
+      // DIAGNOSTIC WARN — non-fatal: log the effective filter before it reaches
+      // MongoDB so any stray tenant/ObjectId contamination is immediately visible
+      // in Slack without waiting for a zero-result symptom.
+      logger.warn(
+        `[listForMap] tenant=${tenant} limit=${limit} skip=${skip} ` +
+          `filter=${JSON.stringify(filter, (_, v) =>
+            v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
+          )}`,
+      );
+
+      const responseFromListReadings = await ReadingModel(tenant).listForMap(
+        { filter, limit, skip },
+        next,
+      );
+
+      if (
+        !responseFromListReadings ||
+        typeof responseFromListReadings !== "object"
+      ) {
+        logger.error(
+          `🐛🐛 Internal Server Error in listForMap util: model returned null/undefined for tenant=${tenant}`,
+        );
+        return {
+          success: false,
+          message: "No response from model",
+          errors: { message: "Database operation failed" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      if (responseFromListReadings.success === true) {
+        const raw = responseFromListReadings.data;
+
+        let data;
+        let meta;
+
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          data = Array.isArray(raw.measurements) ? raw.measurements : [];
+          meta =
+            raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
+              ? raw.meta
+              : {};
+        } else if (Array.isArray(raw)) {
+          data = raw;
+          meta = {};
+        } else {
+          data = [];
+          meta = {};
+        }
+
+        // DIAGNOSTIC WARN — non-fatal: pipeline ran but matched zero documents.
+        // Use meta.total as the single source of truth — data.length can be 0
+        // on a paginated request where skip >= total (pagination miss, not empty).
+        if (meta.total === 0) {
+          logger.warn(
+            `[listForMap] ⚠️  pipeline succeeded but returned 0 measurements. ` +
+              `tenant=${tenant} meta=${JSON.stringify(meta)} ` +
+              `filter=${JSON.stringify(filter, (_, v) =>
+                v && typeof v === "object" && v._bsontype
+                  ? `ObjectId(${v})`
+                  : v,
+              )}`,
+          );
+        }
+
+        return {
+          success: true,
+          // Use meta.total === 0 as the single source of truth for the message,
+          // not data.length — a pagination miss (skip >= total) gives data=[] but
+          // total > 0 and should not produce "no measurements for this search".
+          message:
+            meta.total === 0
+              ? "no measurements for this search"
+              : responseFromListReadings.message,
+          data,
+          meta,
+          status: responseFromListReadings.status || httpStatus.OK,
+        };
+      } else {
+        logger.error(
+          `🐛🐛 Internal Server Error in listForMap util: model returned success=false. ` +
+            `tenant=${tenant} status=${responseFromListReadings.status} ` +
+            `message=${responseFromListReadings.message}`,
+        );
+        return {
+          success: false,
+          message: responseFromListReadings.message,
+          errors: responseFromListReadings.errors || {
+            message: "Database operation failed",
+          },
+          status:
+            responseFromListReadings.status || httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      // Genuine exception — must remain logger.error, not warn.
+      logger.error(
+        `🐛🐛 Internal Server Error in listForMap util: ${error.message}`,
+      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   getMeasurementsFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
@@ -1279,8 +1411,8 @@ const createEvent = {
         try {
           logger.error(
             `unable to retrieve device details --- ${stringify(
-              responseFromGetDeviceDetails.errors
-            )}`
+              responseFromGetDeviceDetails.errors,
+            )}`,
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -1302,7 +1434,7 @@ const createEvent = {
       const currentDate = formatDate(new Date());
 
       const twoMonthsBack = formatDate(
-        addMonthsToProvideDateTime(currentDate, -2)
+        addMonthsToProvideDateTime(currentDate, -2),
       );
 
       const start = startTime ? startTime : twoMonthsBack;
@@ -1501,8 +1633,168 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  getRepresentativeAirQuality: async (request, next) => {
+    try {
+      const { tenant, grid_id, cohort_id } = request.query;
+
+      if ((grid_id && cohort_id) || (!grid_id && !cohort_id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message: "Provide either grid_id or cohort_id, but not both.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let site_ids = [];
+
+      if (grid_id) {
+        const sitesResponse = await createEvent.processGridIds(
+          grid_id,
+          request,
+          next,
+        );
+        if (sitesResponse && sitesResponse.success === false) {
+          return sitesResponse;
+        }
+        if (request.query.site_id) {
+          site_ids = request.query.site_id.split(",");
+        }
+      } else if (cohort_id) {
+        const devicesResponse = await createEvent.processCohortIds(
+          cohort_id,
+          request,
+          next,
+        );
+        if (devicesResponse && devicesResponse.success === false) {
+          return devicesResponse;
+        }
+        if (request.query.device_id) {
+          const deviceIds = request.query.device_id.split(",");
+          try {
+            const devices = await DeviceModel(tenant)
+              .find({ _id: { $in: deviceIds } })
+              .select("site_id")
+              .lean();
+            site_ids = devices
+              .map((d) => d.site_id)
+              .filter((id) => id)
+              .map((id) => id.toString());
+          } catch (error) {
+            logger.error(
+              `🐛🐛 DB error fetching devices for cohort: ${error.message}`,
+            );
+            // Re-throw the error to be caught by the main handler
+            throw error;
+          }
+        }
+      }
+
+      if (site_ids.length === 0) {
+        return {
+          success: true,
+          message: "No sites found for the provided Grid or Cohort ID.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      // Optimization: Use aggregation to fetch only the latest reading per site
+      // from the last 3 days, instead of all historical data.
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const latestReadings = await ReadingModel(tenant).aggregate([
+        {
+          $match: {
+            site_id: { $in: site_ids },
+            time: { $gte: threeDaysAgo },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+      ]);
+
+      if (isEmpty(latestReadings)) {
+        return {
+          success: true,
+          message: "No recent readings available for the specified group.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+
+      const backgroundSitesReadings = latestReadings.filter(
+        (reading) =>
+          reading.siteDetails &&
+          reading.siteDetails.site_category &&
+          typeof reading.siteDetails.site_category.category === "string" &&
+          reading.siteDetails.site_category.category
+            .toLowerCase()
+            .includes("background"),
+      );
+
+      // Helper to ensure we only process readings with a valid pm2_5 value
+      const hasValidPm25 = (reading) =>
+        reading && reading.pm2_5 && typeof reading.pm2_5.value === "number";
+
+      let representativeReading;
+
+      const validBackgroundReadings = backgroundSitesReadings.filter(
+        hasValidPm25,
+      );
+
+      if (validBackgroundReadings.length > 0) {
+        representativeReading = validBackgroundReadings.reduce((max, curr) =>
+          max.pm2_5.value > curr.pm2_5.value ? max : curr,
+        );
+      } else {
+        const validLatestReadings = latestReadings.filter(hasValidPm25);
+        if (validLatestReadings.length > 0) {
+          representativeReading = validLatestReadings.reduce((max, curr) =>
+            max.pm2_5.value > curr.pm2_5.value ? max : curr,
+          );
+        } else {
+          // No valid readings found at all
+          return {
+            success: true,
+            message:
+              "No valid PM2.5 readings available for the specified group.",
+            data: {},
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: representativeReading,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getRepresentativeAirQuality -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1524,11 +1816,11 @@ const createEvent = {
       const currentDate = generateDateFormatWithoutHrs(new Date());
 
       const twoMonthsBack = generateDateFormatWithoutHrs(
-        addMonthsToProvideDateTime(currentDate, -2)
+        addMonthsToProvideDateTime(currentDate, -2),
       );
 
       const start = generateDateFormatWithoutHrs(
-        startTime ? startTime : twoMonthsBack
+        startTime ? startTime : twoMonthsBack,
       );
       const end = generateDateFormatWithoutHrs(endTime ? endTime : currentDate);
 
@@ -1587,8 +1879,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1611,7 +1903,7 @@ const createEvent = {
 
         if (earliest && !Number.isNaN(earliest.getTime())) {
           const ageInDays = Math.floor(
-            (Date.now() - earliest.getTime()) / (1000 * 60 * 60 * 24)
+            (Date.now() - earliest.getTime()) / (1000 * 60 * 60 * 24),
           );
 
           if (ageInDays > MAX_AGE_DAYS) {
@@ -1619,20 +1911,20 @@ const createEvent = {
             const clientFingerprint = generateClientFingerprint(request);
             const earliestDateString = earliest.toISOString().split("T")[0];
             const cutoffDateString = new Date(
-              Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+              Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
             )
               .toISOString()
               .split("T")[0];
 
             const shouldLog = await throttleUtil.shouldLogAncientQuery(
               clientFingerprint,
-              tenant
+              tenant,
             );
 
             if (shouldLog) {
               logger.error(
                 `🚫 ANCIENT DATA BLOCKED | client=${clientFingerprint} | ` +
-                  `Earliest date: ${earliestDateString} (${ageInYears}y ago, ${ageInDays}d)`
+                  `Earliest date: ${earliestDateString} (${ageInYears}y ago, ${ageInDays}d)`,
               );
             }
 
@@ -1662,28 +1954,28 @@ const createEvent = {
         const now = Date.now();
         const tracker = await throttleUtil.getRateLimitTracker(
           clientId,
-          tenant
+          tenant,
         );
 
         if (tracker.count < MAX_HISTORICAL_PER_MINUTE) {
           const currentCount = tracker.count + 1;
           logger.info(
-            `📊 Historical query ${currentCount}/${MAX_HISTORICAL_PER_MINUTE} | client=${clientId}`
+            `📊 Historical query ${currentCount}/${MAX_HISTORICAL_PER_MINUTE} | client=${clientId}`,
           );
         }
 
         if (tracker.blockedUntil > now) {
           const remainingSeconds = Math.ceil(
-            (tracker.blockedUntil - now) / 1000
+            (tracker.blockedUntil - now) / 1000,
           );
           const shouldLog = await throttleUtil.shouldLogBlockAttempt(
             clientId,
-            tenant
+            tenant,
           );
 
           if (shouldLog) {
             logger.error(
-              `🚫 RATE LIMITED | client=${clientId} | ${remainingSeconds}s remaining`
+              `🚫 RATE LIMITED | client=${clientId} | ${remainingSeconds}s remaining`,
             );
           }
 
@@ -1714,7 +2006,7 @@ const createEvent = {
           await throttleUtil.setRateLimitTracker(clientId, tracker, tenant);
 
           logger.error(
-            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=5m`
+            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=5m`,
           );
 
           return {
@@ -1752,7 +2044,7 @@ const createEvent = {
       logText(
         isHistorical
           ? "Using optimized historical data query"
-          : "Using standard data query"
+          : "Using standard data query",
       );
 
       const filter = generateFilter.events(request, next);
@@ -1763,7 +2055,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -1784,7 +2076,7 @@ const createEvent = {
           filter,
           page,
         },
-        next
+        next,
       );
 
       if (!responseFromListEvents) {
@@ -1810,7 +2102,7 @@ const createEvent = {
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
-            next
+            next,
           );
           if (translatedHealthTips.success === true) {
             event.health_tips = translatedHealthTips.data;
@@ -1846,8 +2138,8 @@ const createEvent = {
       } else {
         logger.error(
           `Unable to retrieve events --- ${stringify(
-            responseFromListEvents.errors
-          )}`
+            responseFromListEvents.errors,
+          )}`,
         );
 
         return {
@@ -1887,7 +2179,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result from readings");
@@ -1908,7 +2200,7 @@ const createEvent = {
           limit,
           page,
         },
-        next
+        next,
       );
 
       if (!responseFromListReadings) {
@@ -1933,7 +2225,7 @@ const createEvent = {
           try {
             const translatedHealthTips = await translate.translateTips(
               { healthTips: event.health_tips, targetLanguage: language },
-              next
+              next,
             );
             if (translatedHealthTips.success === true) {
               event.health_tips = translatedHealthTips.data;
@@ -1952,7 +2244,7 @@ const createEvent = {
             "set",
             responseFromListReadings,
             request,
-            next
+            next,
           );
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
@@ -1973,8 +2265,8 @@ const createEvent = {
       } else {
         logger.error(
           `Unable to retrieve readings --- ${stringify(
-            responseFromListReadings.errors
-          )}`
+            responseFromListReadings.errors,
+          )}`,
         );
 
         return {
@@ -1990,7 +2282,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in listFromReadings: ${error.message}`
+        `🐛🐛 Internal Server Error in listFromReadings: ${error.message}`,
       );
       next(
         new HttpError(
@@ -1998,8 +2290,8 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2016,7 +2308,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -2027,7 +2319,7 @@ const createEvent = {
       }
 
       const responseFromListEvents = await EventModel(
-        tenant
+        tenant,
       ).getAirQualityAverages(site_id, next);
 
       if (
@@ -2040,7 +2332,7 @@ const createEvent = {
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
-            next
+            next,
           );
           if (translatedHealthTips.success === true) {
             event.health_tips = translatedHealthTips.data;
@@ -2077,8 +2369,8 @@ const createEvent = {
       } else {
         logger.error(
           `Unable to retrieve events --- ${stringify(
-            responseFromListEvents.errors
-          )}`
+            responseFromListEvents.errors,
+          )}`,
         );
 
         return {
@@ -2095,8 +2387,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2162,7 +2454,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached view result");
@@ -2184,7 +2476,7 @@ const createEvent = {
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
-            next
+            next,
           );
           if (translatedHealthTips.success === true) {
             event.health_tips = translatedHealthTips.data;
@@ -2220,8 +2512,8 @@ const createEvent = {
       } else {
         logger.error(
           `Unable to retrieve events --- ${stringify(
-            viewEventsResponse.errors
-          )}`
+            viewEventsResponse.errors,
+          )}`,
         );
 
         return {
@@ -2239,8 +2531,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2259,7 +2551,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached view result from readings");
@@ -2271,7 +2563,7 @@ const createEvent = {
 
       const viewReadingsResponse = await ReadingModel(tenant).viewRecent(
         filter,
-        next
+        next,
       );
 
       // Handle language translation
@@ -2285,7 +2577,7 @@ const createEvent = {
           try {
             const translatedHealthTips = await translate.translateTips(
               { healthTips: event.health_tips, targetLanguage: language },
-              next
+              next,
             );
             if (translatedHealthTips.success === true) {
               event.health_tips = translatedHealthTips.data;
@@ -2305,7 +2597,7 @@ const createEvent = {
             "set",
             viewReadingsResponse,
             request,
-            next
+            next,
           );
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
@@ -2326,8 +2618,8 @@ const createEvent = {
       } else {
         logger.error(
           `Unable to retrieve readings view --- ${stringify(
-            viewReadingsResponse.errors
-          )}`
+            viewReadingsResponse.errors,
+          )}`,
         );
 
         return {
@@ -2343,7 +2635,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(
-        `🐛🐛 Internal Server Error in viewFromReadings: ${error.message}`
+        `🐛🐛 Internal Server Error in viewFromReadings: ${error.message}`,
       );
       next(
         new HttpError(
@@ -2351,8 +2643,8 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2397,14 +2689,14 @@ const createEvent = {
                   if (error.name === "MongoError" && error.code !== 11000) {
                     logger.error(
                       `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
-                        error
-                      )}`
+                        error,
+                      )}`,
                     );
                     throw error; // Retry the operation
                   } else if (error.code === 11000) {
                     // Ignore duplicate key errors
                     console.warn(
-                      `Duplicate key error for document: ${stringify(doc)}`
+                      `Duplicate key error for document: ${stringify(doc)}`,
                     );
                   }
                 }
@@ -2413,7 +2705,7 @@ const createEvent = {
                 retries: 5, // Number of retry attempts
                 minTimeout: 1000, // Initial delay between retries (in milliseconds)
                 factor: 2, // Exponential factor for increasing delay between retries
-              }
+              },
             );
           }
         }
@@ -2425,13 +2717,13 @@ const createEvent = {
       } else {
         logObject(
           `🐛🐛 Unable to retrieve Events to insert into Readings`,
-          viewEventsResponse
+          viewEventsResponse,
         );
 
         logger.error(
           `🐛🐛 Unable to retrieve Events to insert into Readings -- ${stringify(
-            viewEventsResponse
-          )}`
+            viewEventsResponse,
+          )}`,
         );
         return {
           success: true,
@@ -2446,8 +2738,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2464,7 +2756,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -2480,7 +2772,7 @@ const createEvent = {
           skip: skip || 0,
           limit: limit || 1000,
         },
-        next
+        next,
       );
 
       // **STEP 3: Handle language translation (UNCHANGED - preserving existing functionality)**
@@ -2496,7 +2788,7 @@ const createEvent = {
             try {
               const translatedHealthTips = await translate.translateTips(
                 { healthTips: event.health_tips, targetLanguage: language },
-                next
+                next,
               );
               if (translatedHealthTips.success === true) {
                 event.health_tips = translatedHealthTips.data;
@@ -2536,8 +2828,8 @@ const createEvent = {
       } else {
         logger.error(
           `Unable to retrieve readings --- ${stringify(
-            readingsResponse.errors
-          )}`
+            readingsResponse.errors,
+          )}`,
         );
 
         return {
@@ -2555,8 +2847,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2574,7 +2866,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -2593,7 +2885,7 @@ const createEvent = {
 
       if (!readingsResponse) {
         logger.error(
-          `🐛🐛 ReadingModel.recent returned null/undefined for tenant: ${tenant}`
+          `🐛🐛 ReadingModel.recent returned null/undefined for tenant: ${tenant}`,
         );
         return {
           success: false,
@@ -2619,7 +2911,7 @@ const createEvent = {
           try {
             const translatedHealthTips = await translate.translateTips(
               { healthTips: event.health_tips, targetLanguage: language },
-              next
+              next,
             );
             if (translatedHealthTips.success === true) {
               event.health_tips = translatedHealthTips.data;
@@ -2657,7 +2949,7 @@ const createEvent = {
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
+          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`,
         );
 
         return {
@@ -2677,8 +2969,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2709,7 +3001,7 @@ const createEvent = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "deviceIds array is required",
-          })
+          }),
         );
         return;
       }
@@ -2727,7 +3019,7 @@ const createEvent = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "deviceIds must be an array of strings",
-          })
+          }),
         );
         return;
       }
@@ -2789,8 +3081,8 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -2808,7 +3100,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -2819,7 +3111,7 @@ const createEvent = {
       }
 
       const readingsResponse = await ReadingModel(
-        tenant
+        tenant,
       ).getAirQualityAnalytics(site_id, next);
 
       if (
@@ -2832,7 +3124,7 @@ const createEvent = {
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
-            next
+            next,
           );
           if (translatedHealthTips.success === true) {
             event.health_tips = translatedHealthTips.data;
@@ -2866,7 +3158,7 @@ const createEvent = {
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
+          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`,
         );
 
         return {
@@ -2884,8 +3176,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2901,7 +3193,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -2912,7 +3204,7 @@ const createEvent = {
       }
 
       const readingsResponse = await ReadingModel(
-        tenant
+        tenant,
       ).getBestAirQualityLocations({ threshold, pollutant, limit, skip }, next);
       const data = readingsResponse.data;
 
@@ -2925,7 +3217,7 @@ const createEvent = {
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
-            next
+            next,
           );
           if (translatedHealthTips.success === true) {
             event.health_tips = translatedHealthTips.data;
@@ -2955,8 +3247,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2973,7 +3265,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
@@ -2988,7 +3280,7 @@ const createEvent = {
           skip,
           limit,
         },
-        next
+        next,
       );
 
       if (
@@ -3001,7 +3293,7 @@ const createEvent = {
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
-            next
+            next,
           );
           if (translatedHealthTips.success === true) {
             event.health_tips = translatedHealthTips.data;
@@ -3035,7 +3327,7 @@ const createEvent = {
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
+          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`,
         );
 
         return {
@@ -3053,8 +3345,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3063,7 +3355,7 @@ const createEvent = {
     try {
       const transformEventsResponse = await createEvent.transformManyEvents(
         request,
-        next
+        next,
       );
       // logObject("transformEventsResponse man", transformEventsResponse);
       if (transformEventsResponse.success === true) {
@@ -3092,7 +3384,7 @@ const createEvent = {
             const addedEvents = await EventModel(event.tenant).updateOne(
               filter,
               update,
-              options
+              options,
             );
             // logObject("addedEvents", addedEvents);
             if (addedEvents) {
@@ -3174,8 +3466,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3186,7 +3478,7 @@ const createEvent = {
     device,
     site,
     next,
-    limit = 1000
+    limit = 1000,
   ) => {
     try {
       let filter = {
@@ -3240,11 +3532,11 @@ const createEvent = {
               ...eventsToDelete.map((event) => {
                 if (event.values && Array.isArray(event.values)) {
                   return Math.min(
-                    ...event.values.map((val) => new Date(val.time))
+                    ...event.values.map((val) => new Date(val.time)),
                   );
                 }
                 return new Date(); // Return current time if no values to avoid affecting Math.min
-              })
+              }),
             );
 
             filter["values.time"]["$lte"] = lastDeletedEventTime; // Adjust $lte
@@ -3270,8 +3562,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3279,7 +3571,7 @@ const createEvent = {
     try {
       const transformReadingsResponse = await transformManyReadings(
         request,
-        next
+        next,
       );
       logObject("transformReadingsResponse man", transformReadingsResponse);
       if (transformReadingsResponse.success === true) {
@@ -3296,8 +3588,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -3359,7 +3651,7 @@ const createEvent = {
 
       const otherDataString = createEvent.generateOtherDataString(
         stringPositionsAndValues,
-        next
+        next,
       );
       let requestBody = {};
       const lowCostRequestBody = {
@@ -3411,8 +3703,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3463,7 +3755,7 @@ const createEvent = {
 
       const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
         requestBodyForCreateThingsSpeakBody,
-        next
+        next,
       );
 
       if (responseFromCreateRequestBody.success === true) {
@@ -3513,8 +3805,8 @@ const createEvent = {
           try {
             logger.error(
               `internal server error -- ${stringify(
-                error.response.data.error.details
-              )}`
+                error.response.data.error.details,
+              )}`,
             );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
@@ -3538,8 +3830,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3592,7 +3884,7 @@ const createEvent = {
 
       let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
         enrichedBody,
-        next
+        next,
       );
 
       let transformedUpdates = {};
@@ -3630,7 +3922,9 @@ const createEvent = {
         .catch(function(error) {
           try {
             logger.error(
-              `internal server error -- ${stringify(error.response.data.error)}`
+              `internal server error -- ${stringify(
+                error.response.data.error,
+              )}`,
             );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
@@ -3654,8 +3948,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3738,8 +4032,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3755,10 +4049,50 @@ const createEvent = {
         };
       }
 
+      // Extract the real measurement payload from `data`.
+      // `data` may be any of:
+      //   (a) a bare array                          → from read(), readingsForMap
+      //   (b) [{ meta:{}, data:[...] }]             → from list() list shape
+      //   (c) { success, message, data:[...] }      → model response wrapper
+      //   (d) null / undefined                      → error / no data
+      //
+      // We check against `payload` for emptiness so wrapper objects with keys
+      // are not misclassified as non-empty when their inner data array is [].
+      // cacheData.data still stores the original `data` so cache-hit callers
+      // receive the same shape the non-cache path would have returned.
+      const payload =
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(data) &&
+        data.data !== undefined
+          ? data.data // unwrap model response wrapper or similar
+          : data; // bare array, null, or undefined — use as-is
+
+      const isEmpty_data =
+        payload === null ||
+        payload === undefined ||
+        (Array.isArray(payload) && payload.length === 0) ||
+        (typeof payload === "object" &&
+          !Array.isArray(payload) &&
+          Object.keys(payload).length === 0);
+
+      // list() shape: [{ meta:{}, data:[] }]
+      const isEmptyListShape =
+        Array.isArray(payload) &&
+        payload.length === 1 &&
+        payload[0] &&
+        Array.isArray(payload[0].data) &&
+        payload[0].data.length === 0;
+
+      const accurateMessage =
+        isEmpty_data || isEmptyListShape
+          ? "no measurements for this search"
+          : "Successfully retrieved the measurements";
+
       const cacheData = {
         isCache: true,
         success: true,
-        message: "Successfully retrieved the measurements",
+        message: accurateMessage,
         data,
       };
 
@@ -3774,8 +4108,7 @@ const createEvent = {
         };
       }
 
-      // Simple timeout for cache operations
-      const cacheTimeout = 5000; // 5 seconds
+      const cacheTimeout = 5000;
       const expirationTime = parseInt(constants.EVENTS_CACHE_LIMIT) || 300;
 
       try {
@@ -3787,8 +4120,8 @@ const createEvent = {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Cache operation timeout")),
-              cacheTimeout
-            )
+              cacheTimeout,
+            ),
           ),
         ]);
 
@@ -3836,8 +4169,8 @@ const createEvent = {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Cache get timeout")),
-              cacheTimeout
-            )
+              cacheTimeout,
+            ),
           ),
         ]);
       } catch (timeoutError) {
@@ -3901,7 +4234,7 @@ const createEvent = {
   },
   transformOneEvent: async (
     { data = {}, map = {}, context = {} } = {},
-    next
+    next,
   ) => {
     try {
       let dot = new Dot(".");
@@ -3918,7 +4251,7 @@ const createEvent = {
 
       const responseFromEnrichOneEvent = await createEvent.enrichOneEvent(
         transformedEvent,
-        next
+        next,
       );
 
       logObject("responseFromEnrichOneEvent", responseFromEnrichOneEvent);
@@ -3936,7 +4269,7 @@ const createEvent = {
           };
         } else {
           logger.warn(
-            `the request body for the external system is empty after transformation`
+            `the request body for the external system is empty after transformation`,
           );
           return {
             success: false,
@@ -3946,7 +4279,7 @@ const createEvent = {
         }
       } else if (responseFromEnrichOneEvent.success === false) {
         logger.error(
-          `responseFromEnrichOneEvent , not a success -- ${responseFromEnrichOneEvent.message}`
+          `responseFromEnrichOneEvent , not a success -- ${responseFromEnrichOneEvent.message}`,
         );
         return {
           success: false,
@@ -3961,8 +4294,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3974,7 +4307,7 @@ const createEvent = {
       logObject("transformed event received for enrichment", transformedEvent);
       logObject(
         "transformedEvent[filter][$or]",
-        transformedEvent["filter"]["$or"]
+        transformedEvent["filter"]["$or"],
       );
       request["query"] = {};
       request["query"]["device"] = transformedEvent.filter.device;
@@ -4010,7 +4343,7 @@ const createEvent = {
           logger.error(
             `responseFromGetDeviceDetails was not a success -- ${
               responseFromGetDeviceDetails.message
-            } -- ${stringify(errors)}`
+            } -- ${stringify(errors)}`,
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -4027,8 +4360,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4045,7 +4378,7 @@ const createEvent = {
             data,
             map,
           },
-          next
+          next,
         );
 
         if (transformEventsResponse.success === true) {
@@ -4057,8 +4390,8 @@ const createEvent = {
           try {
             logger.error(
               `transformEventsResponse is not a success -- unable to transform -- ${stringify(
-                errors
-              )}`
+                errors,
+              )}`,
             );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
@@ -4108,8 +4441,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4124,7 +4457,7 @@ const createEvent = {
       const { tenant } = request.query;
       const transformEventsResponses = await createEvent.transformManyEvents(
         request,
-        next
+        next,
       );
 
       if (transformEventsResponses.success === false) {
@@ -4135,7 +4468,7 @@ const createEvent = {
         const responseFromInsertEvents = await createEvent.insertTransformedEvents(
           tenant,
           transformedMeasurements,
-          next
+          next,
         );
         return responseFromInsertEvents;
       }
@@ -4145,8 +4478,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4173,7 +4506,7 @@ const createEvent = {
 
           dot.delete(
             ["filter", "update", "options", "modifiedFilter", "tenant", "day"],
-            value
+            value,
           );
 
           update["$push"] = { values: value };
@@ -4181,7 +4514,7 @@ const createEvent = {
           const addedEvents = await EventModel(tenant).updateOne(
             modifiedFilter,
             update,
-            options
+            options,
           );
 
           dot.delete("nValues", filter);
@@ -4215,7 +4548,7 @@ const createEvent = {
 
       if (errors.length > 0 && isEmpty(data)) {
         logger.error(
-          `finished the operation with some errors -- ${stringify(errors)}`
+          `finished the operation with some errors -- ${stringify(errors)}`,
         );
         return {
           success: false,
@@ -4236,8 +4569,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4254,7 +4587,7 @@ const createEvent = {
       const responseFromInsertMeasurements = await createEvent.insert(
         "airqo",
         measurements,
-        next
+        next,
       );
       return responseFromInsertMeasurements;
     } catch (error) {
@@ -4263,8 +4596,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4338,8 +4671,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4383,7 +4716,7 @@ const createEvent = {
         request["body"] = measurement;
         const responseFromCreateThingSpeakBody = createEvent.createThingSpeakRequestBody(
           request,
-          next
+          next,
         );
 
         if (responseFromCreateThingSpeakBody.success === true) {
@@ -4391,7 +4724,7 @@ const createEvent = {
         } else {
           logObject(
             "responseFromCreateThingSpeakBody",
-            responseFromCreateThingSpeakBody
+            responseFromCreateThingSpeakBody,
           );
         }
       }
@@ -4406,8 +4739,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4432,7 +4765,7 @@ const createEvent = {
       } else if (responseFromListDevice.success === false) {
         logObject(
           "responseFromListDevice has an error",
-          responseFromListDevice
+          responseFromListDevice,
         );
       }
 
@@ -4443,7 +4776,7 @@ const createEvent = {
           req,
           res,
           device,
-          tenant.toLowerCase()
+          tenant.toLowerCase(),
         );
         logText("...................................");
         logText("clearing the Thing....");
@@ -4483,8 +4816,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4518,7 +4851,7 @@ const createEvent = {
               latitude2: site.latitude,
               longitude2: site.longitude,
             },
-            next
+            next,
           );
 
           return {
@@ -4536,7 +4869,7 @@ const createEvent = {
           latitude,
           longitude,
           tenant,
-          next
+          next,
         );
 
         if (nearestCityReading.success) {
@@ -4570,7 +4903,7 @@ const createEvent = {
 
       const readings = await ReadingModel(tenant).recent(
         { filter, limit: 100 },
-        next
+        next,
       );
 
       if (!readings.success || isEmpty(readings.data)) {
@@ -4586,7 +4919,7 @@ const createEvent = {
       const readingsWithDistance = readings.data
         .map((reading) => {
           const site = sitesWithDistance.find(
-            (site) => site._id.toString() === reading.site_id.toString()
+            (site) => site._id.toString() === reading.site_id.toString(),
           );
 
           return {
@@ -4611,8 +4944,8 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -4652,7 +4985,7 @@ const createEvent = {
                 latitude2: center.latitude,
                 longitude2: center.longitude,
               },
-              next
+              next,
             );
 
             if (distanceToCenter < minDistance) {
@@ -4698,7 +5031,7 @@ const createEvent = {
 
       const readings = await ReadingModel(tenant).recent(
         { filter, limit: 5 },
-        next
+        next,
       );
 
       if (!readings.success || isEmpty(readings.data)) {
@@ -4757,7 +5090,7 @@ const createEvent = {
           {
             message:
               "Device identifier required: device_id, device name, or device_number",
-          }
+          },
         );
       }
 
@@ -4784,7 +5117,7 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: `Failed to query device: ${dbError.message}`,
-          }
+          },
         );
       }
 
@@ -4815,7 +5148,7 @@ const createEvent = {
         }
         if (grid_id) {
           logger.warn(
-            `Static device ${deviceRecord.name} has grid_id, which may be unnecessary`
+            `Static device ${deviceRecord.name} has grid_id, which may be unnecessary`,
           );
         }
       } else if (actualDeploymentType === "mobile") {
@@ -4825,7 +5158,7 @@ const createEvent = {
           !measurement.location?.longitude?.value
         ) {
           logger.warn(
-            `Mobile device measurement missing location data: ${deviceRecord.name}`
+            `Mobile device measurement missing location data: ${deviceRecord.name}`,
           );
           logObject(
             "Warning: Mobile device measurement without location data",
@@ -4833,7 +5166,7 @@ const createEvent = {
               device: deviceRecord.name,
               device_id: deviceRecord._id,
               timestamp: measurement.time,
-            }
+            },
           );
         }
       }
@@ -4854,7 +5187,7 @@ const createEvent = {
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        { message: error.message },
       );
     }
   },
@@ -4877,7 +5210,7 @@ const createEvent = {
             const deploymentContext = await createEvent.resolveDeviceDeploymentContext(
               measurement,
               measurement.tenant || "airqo",
-              next
+              next,
             );
 
             transformedMeasurement.deployment_type =
@@ -4900,7 +5233,7 @@ const createEvent = {
               throw new Error(
                 contextError.errors?.message ||
                   contextError.message ||
-                  "Device validation failed"
+                  "Device validation failed",
               );
             }
             throw contextError;
@@ -4910,7 +5243,7 @@ const createEvent = {
         } catch (e) {
           // CHANGED: Include more context in the error
           logger.warn(
-            `Measurement transformation failed: ${e.message} for device ${measurement.device_id}`
+            `Measurement transformation failed: ${e.message} for device ${measurement.device_id}`,
           );
 
           return {
@@ -4949,8 +5282,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4963,14 +5296,14 @@ const createEvent = {
 
       const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
         measurements,
-        next
+        next,
       );
 
       if (!responseFromTransformMeasurements.success) {
         logger.error(
           `internal server error -- unable to transform measurements -- ${
             responseFromTransformMeasurements.message
-          }, ${stringify(measurements)}`
+          }, ${stringify(measurements)}`,
         );
       }
 
@@ -5012,7 +5345,7 @@ const createEvent = {
             eventsUpdate,
             {
               upsert: true,
-            }
+            },
           );
           // logObject("addedEvents", addedEvents);
           if (addedEvents) {
@@ -5082,7 +5415,7 @@ const createEvent = {
 
       if (errors.length > 0 && isEmpty(eventsAdded)) {
         logTextWithTimestamp(
-          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+          "API: failed to store measurements, most likely DB cast errors or duplicate records",
         );
         return {
           success: false,
@@ -5106,8 +5439,8 @@ const createEvent = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -5137,7 +5470,7 @@ const createEvent = {
           }
           return acc;
         },
-        []
+        [],
       );
 
       let deviceContexts = new Map();
@@ -5146,7 +5479,7 @@ const createEvent = {
           const devices = await DeviceModel(tenant)
             .find({ $or: uniqueDeviceIdentifiers })
             .select(
-              "_id name device_number deployment_type site_id grid_id mobility isActive"
+              "_id name device_number deployment_type site_id grid_id mobility isActive",
             )
             .lean();
 
@@ -5159,20 +5492,20 @@ const createEvent = {
           });
         } catch (dbError) {
           logger.error(
-            `Database error pre-fetching devices: ${dbError.message}`
+            `Database error pre-fetching devices: ${dbError.message}`,
           );
         }
       }
 
       const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
         measurements,
-        next
+        next,
       );
 
       if (!responseFromTransformMeasurements.success) {
         logObject(
           "Failed to transform measurements",
-          responseFromTransformMeasurements
+          responseFromTransformMeasurements,
         );
         return responseFromTransformMeasurements;
       }
@@ -5184,7 +5517,7 @@ const createEvent = {
             message: failure.message || "Measurement transformation failed",
             details: failure.errors,
             device_id: failure.original_measurement?.device_id,
-          })
+          }),
         );
         errors.push(...transformationErrors);
       }
@@ -5199,7 +5532,7 @@ const createEvent = {
             return { ...m, ...context };
           }
           return m;
-        }
+        },
       );
 
       for (const measurement of measurementsWithContext) {
@@ -5265,7 +5598,7 @@ const createEvent = {
           const addedEvents = await EventModel(tenant).updateOne(
             eventsFilter,
             eventsUpdate,
-            { upsert: true }
+            { upsert: true },
           );
 
           if (addedEvents) {
@@ -5330,7 +5663,7 @@ const createEvent = {
 
       if (errors.length > 0 && nAdded === 0) {
         logTextWithTimestamp(
-          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+          "API: failed to store measurements, most likely DB cast errors or duplicate records",
         );
         return {
           success: false,
@@ -5358,14 +5691,14 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
   validateDeviceContext: async (
     { device_id, device, device_number, tenant },
-    next
+    next,
   ) => {
     try {
       if (!device_id && !device && !device_number) {
@@ -5383,7 +5716,7 @@ const createEvent = {
         const context = await createEvent.resolveDeviceDeploymentContext(
           { device_id, device, device_number },
           tenant,
-          next
+          next,
         );
 
         return {
@@ -5490,7 +5823,7 @@ const createEvent = {
       // Filter measurements by timestamp BEFORE processing
       const filterResult = await filterMeasurementsByTimestamp(
         measurements,
-        next
+        next,
       );
       const validMeasurements = filterResult.data.valid;
       const timestampFilterStats = filterResult.data.stats;
@@ -5529,21 +5862,13 @@ const createEvent = {
         };
       }
 
-      // Log if some measurements were filtered
-      if (timestampFilterStats.rejected > 0) {
-        logger.info(
-          `Filtered ${timestampFilterStats.rejected} out of ${timestampFilterStats.total} ` +
-            `measurements (age > ${constants.MAX_EVENT_AGE_HOURS} hours). Processing ${validMeasurements.length} valid measurements.`
-        );
-      }
-
       return await ActivityLogger.trackOperation(
         async () => {
           // Process only valid measurements
           const result = await createEvent.insertMeasurements_v3(
             tenant,
             validMeasurements, // Use filtered measurements
-            next
+            next,
           );
 
           // Guard against undefined result
@@ -5594,7 +5919,7 @@ const createEvent = {
             processing_mode: "direct",
             timestamp_filter_stats: timestampFilterStats,
           },
-        }
+        },
       );
     } catch (error) {
       logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
@@ -5630,7 +5955,7 @@ const createEvent = {
       const result = await createEvent.insertMeasurements_v3(
         tenant,
         measurements,
-        next
+        next,
       );
 
       // Guard against undefined result from insertMeasurements_v3 catch block
@@ -5664,7 +5989,7 @@ const createEvent = {
   processLocationIds: async (
     { grid_ids, cohort_ids, airqloud_ids, type },
     request,
-    next
+    next,
   ) => {
     try {
       let locationErrors = 0;
@@ -5749,7 +6074,7 @@ const createEvent = {
                 success: false,
                 message: "Cache timeout",
                 isCacheTimeout: true,
-              })
+              }),
             ),
           ]);
         } catch (error) {
@@ -5763,7 +6088,7 @@ const createEvent = {
               setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
                 success: false,
                 message: "Cache set timeout",
-              })
+              }),
             ),
           ]);
         } catch (error) {
@@ -5797,7 +6122,7 @@ const createEvent = {
           "get",
           null,
           request,
-          next
+          next,
         );
         if (cacheResult.success === true) {
           logText("Cache hit - returning ultra-optimized cached result");
@@ -5812,7 +6137,7 @@ const createEvent = {
 
       // **Use ultra-fast method with no aggregations**
       const responseFromListReadings = await ReadingModel(
-        tenant
+        tenant,
       ).listRecentOptimized(
         {
           filter,
@@ -5820,7 +6145,7 @@ const createEvent = {
           limit,
           page,
         },
-        next
+        next,
       );
 
       if (!responseFromListReadings.success) {
@@ -5841,7 +6166,7 @@ const createEvent = {
             if (event.health_tips) {
               const translatedHealthTips = await translate.translateTips(
                 { healthTips: event.health_tips, targetLanguage: language },
-                next
+                next,
               );
               if (translatedHealthTips.success === true) {
                 event.health_tips = translatedHealthTips.data;
@@ -5859,7 +6184,7 @@ const createEvent = {
           "set",
           responseFromListReadings,
           request,
-          next
+          next,
         );
       } catch (error) {
         logger.warn(`Cache set failed: ${stringify(error)}`);
@@ -5877,7 +6202,7 @@ const createEvent = {
       };
     } catch (error) {
       logger.error(
-        `🐛🐛 Ultra-optimized listFromReadings error: ${error.message}`
+        `🐛🐛 Ultra-optimized listFromReadings error: ${error.message}`,
       );
       next(
         new HttpError(
@@ -5885,8 +6210,8 @@ const createEvent = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },

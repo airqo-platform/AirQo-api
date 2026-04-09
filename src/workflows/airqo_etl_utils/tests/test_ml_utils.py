@@ -11,20 +11,20 @@ class TestsForecasts(ForecastFixtures):
     # Preprocess data tests
     def test_preprocess_data_typical_case(self, preprocessing_sample_df):
         result = FUtils.preprocess_data(
-            preprocessing_sample_df, Frequency.DAILY, "training"
+            preprocessing_sample_df, Frequency.DAILY, "train"
         )
         assert "pm2_5" in result.columns
 
     def test_preprocess_data_invalid_input(self, preprocessing_sample_df):
         df = preprocessing_sample_df.drop(columns=["device_id"])
         with pytest.raises(ValueError):
-            FUtils.preprocess_data(df, Frequency.DAILY, "training")
+            FUtils.preprocess_data(df, Frequency.DAILY, "train")
 
     def test_preprocess_data_invalid_timestamp(self, preprocessing_sample_df):
         df = preprocessing_sample_df.copy()
         df["timestamp"] = "invalid"
         with pytest.raises(ValueError):
-            FUtils.preprocess_data(df, Frequency.DAILY, "training")
+            FUtils.preprocess_data(df, Frequency.DAILY, "train")
 
     # Feature engineering tests
     # get_lag_and_rolling_features tests

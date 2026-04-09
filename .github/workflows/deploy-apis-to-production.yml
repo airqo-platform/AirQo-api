@@ -1,11 +1,80 @@
 name: deploy-apis-to-production
 
 on:
-  pull_request_target:
-    branches:
-      - master
-    types:
-      - closed
+  workflow_dispatch:
+    inputs:
+      auth_service:
+        description: "Deploy Auth service"
+        required: false
+        type: boolean
+      workflows:
+        description: "Deploy workflows"
+        required: false
+        type: boolean
+      device_registry:
+        description: "Deploy Device Registry"
+        required: false
+        type: boolean
+      beacon_api:
+        description: "Deploy Beacon api"
+        required: false
+        type: boolean
+      analytics:
+        description: "Deploy analytics"
+        required: false
+        type: boolean
+      kafka_cluster_operator:
+        description: "Deploy kafka cluster operator"
+        required: false
+        type: boolean
+      kafka_cluster:
+        description: "Deploy kafka cluster"
+        required: false
+        type: boolean
+      kafka_topics:
+        description: "Deploy kafka topics"
+        required: false
+        type: boolean
+      meta_data:
+        description: "Deploy meta data"
+        required: false
+        type: boolean
+      view:
+        description: "Deploy view"
+        required: false
+        type: boolean
+      calibrate:
+        description: "Deploy calibrate"
+        required: false
+        type: boolean
+      predict_service:
+        description: "Deploy predict service"
+        required: false
+        type: boolean
+      superset:
+        description: "Deploy superset"
+        required: false
+        type: boolean
+      nginx:
+        description: "Deploy nginx"
+        required: false
+        type: boolean
+      spatial:
+        description: "Deploy spatial"
+        required: false
+        type: boolean
+      website:
+        description: "Deploy website"
+        required: false
+        type: boolean
+      redis:
+        description: "redis"
+        required: false
+        type: boolean
+      kafka_connectors:
+        description: "Deploy kafka connectors"
+        required: false
+        type: boolean        
 
 env:
   REGISTRY_URL: eu.gcr.io
@@ -14,12 +83,13 @@ env:
 
 jobs:
   image-tag:
-    if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
       build_id: ${{ steps.prep.outputs.build_id }} # build id
       datetime: ${{ steps.prep.outputs.datetime }} # build date
+    # This job will only run if triggered by Baalmart
+    if: github.triggering_actor == 'Baalmart'
     steps:
       - name: generate build ID
         id: prep
@@ -30,213 +100,12 @@ jobs:
           echo "build_id=prod-${sha}-${timestamp}" >>$GITHUB_OUTPUT
           echo "datetime=${datetime}" >>$GITHUB_OUTPUT
 
-  check:
-    if: github.event.pull_request.merged == true
-    name: check changed microservice(s)
-    outputs:
-      run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
-      run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
-      run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon api
-      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
-      run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
-      run_superset: ${{ steps.check_files.outputs.run_superset }} # superset
-      run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
-      run_view: ${{ steps.check_files.outputs.run_view }} # view
-      run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
-      run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
-      run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
-      run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
-      run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
-      run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
-      run_website: ${{ steps.check_files.outputs.run_website }} # website
-      run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
-      run_redis: ${{ steps.check_files.outputs.run_redis }} # redis
-      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx
-
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout code
-        uses: actions/checkout@v3.5.3
-        with:
-          fetch-depth: 2
-
-        #### all microservices ######
-      - name: check modified microserivce
-        id: check_files
-        run: |
-          echo "=============== list modified files ==============="
-          git diff --name-only HEAD^ HEAD
-
-          echo "========== check paths of modified files =========="
-          git diff --name-only HEAD^ HEAD > files.txt
-
-          echo "run_auth_service=false" >>$GITHUB_OUTPUT
-          echo "run_device_registry=false" >>$GITHUB_OUTPUT
-          echo "run_beacon_api=false" >>$GITHUB_OUTPUT
-          echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_predict=false" >>$GITHUB_OUTPUT
-          echo "run_superset=false" >>$GITHUB_OUTPUT
-          echo "run_meta_data=false" >>$GITHUB_OUTPUT
-          echo "run_view=false" >>$GITHUB_OUTPUT
-          echo "run_calibrate=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
-          echo "run_workflows=false" >>$GITHUB_OUTPUT
-          echo "run_spatial=false" >>$GITHUB_OUTPUT
-          echo "run_website=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
-          echo "run_nginx=false" >>$GITHUB_OUTPUT
-          echo "run_redis=false" >>$GITHUB_OUTPUT
-
-          while IFS= read -r file
-          do
-            echo $file
-
-            if [[ $file == src/auth-service/* ]]; then
-              echo "run_auth_service=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/auth-service/* ]]; then
-              echo "run_auth_service=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/device-registry/* ]]; then
-              echo "run_device_registry=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/device-registry/* ]]; then
-              echo "run_device_registry=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/beacon-api/* ]]; then
-              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-            fi
-            if [[ $file == k8s/beacon-api/* ]]; then
-              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/analytics/* ]]; then
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/analytics/* ]]; then
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/predict/* ]]; then
-              echo "run_predict=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/predict/* ]]; then
-              echo "run_predict=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/superset/* ]]; then
-              echo "run_superset=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/superset/* ]]; then
-              echo "run_superset=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/meta-data/* ]]; then
-              echo "run_meta_data=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/meta-data/* ]]; then
-              echo "run_meta_data=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/view/* ]]; then
-              echo "run_view=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/view/* ]]; then
-              echo "run_view=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/calibrate/* ]]; then
-              echo "run_calibrate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/calibrate/* ]]; then
-              echo "run_calibrate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/kafka/clusters/* ]]; then
-              echo "run_kafka_cluster=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/kafka/operator/* ]]; then
-              echo "run_kafka_cluster_operator=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/kafka/topics/* ]]; then
-              echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/kafka-connectors/* ]]; then
-              echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/workflows/* ]]; then
-              echo "run_workflows=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/workflows/* ]]; then
-              echo "run_workflows=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/spatial/* ]]; then
-              echo "run_spatial=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/spatial/* ]]; then
-              echo "run_spatial=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/website/* ]]; then
-              echo "run_website=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/website/* ]]; then
-              echo "run_website=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/nginx/production/* ]]; then
-              echo "run_nginx=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/redis/* ]]; then
-              echo "run_redis=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == workflow-trigger ]]; then
-              echo "run_calibrate=true" >>$GITHUB_OUTPUT
-              echo "run_meta_data=true" >>$GITHUB_OUTPUT
-              echo "run_predict=true" >>$GITHUB_OUTPUT
-              echo "run_superset=true" >>$GITHUB_OUTPUT
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
-              echo "run_device_registry=true" >>$GITHUB_OUTPUT
-              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-              echo "run_auth_service=true" >>$GITHUB_OUTPUT
-              echo "run_workflows=true" >>$GITHUB_OUTPUT
-              echo "run_spatial=true" >>$GITHUB_OUTPUT
-              echo "run_website=true" >>$GITHUB_OUTPUT
-              echo "run_view=true" >>$GITHUB_OUTPUT
-              echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
-              echo "run_nginx=true" >>$GITHUB_OUTPUT
-              echo "run_redis=true" >>$GITHUB_OUTPUT
-            fi
-
-          done < files.txt
-
+          
   #### Kafka Connectors ######
   kafka-connectors:
     name: build-push-deploy-kafka-connectors
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_kafka_connectors == 'true'
+    needs: [image-tag]
+    if: inputs.kafka_connectors == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -304,8 +173,8 @@ jobs:
   ### auth service ###
   auth-service:
     name: build-push-deploy-auth
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_auth_service == 'true'
+    needs: [image-tag]
+    if: inputs.auth_service == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -369,8 +238,8 @@ jobs:
   ### workflows ###
   workflows:
     name: build-push-deploy-workflows
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_workflows == 'true'
+    needs: [image-tag]
+    if: inputs.workflows == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -448,8 +317,8 @@ jobs:
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_device_registry == 'true'
+    needs: [image-tag]
+    if: inputs.device_registry == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -513,8 +382,8 @@ jobs:
   #### Beacon API ######
   beacon-api:
     name: build-push-deploy-beacon-api
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_beacon_api == 'true'
+    needs: [image-tag]
+    if: inputs.beacon_api == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -576,8 +445,8 @@ jobs:
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_analytics == 'true'
+    needs: [image-tag]
+    if: inputs.analytics == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -677,8 +546,7 @@ jobs:
   ### kafka cluster operator ###
   kafka-cluster-operator:
     name: build-push-deploy-kafka-cluster-operator
-    needs: [check]
-    if: needs.check.outputs.run_kafka_cluster_operator == 'true'
+    if: inputs.kafka_cluster_operator == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -698,8 +566,7 @@ jobs:
   ### kafka cluster ###
   kafka-cluster:
     name: build-push-deploy-kafka-cluster
-    needs: [check]
-    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_cluster_operator == 'true') }}
+    if: ${{ (inputs.kafka_cluster == true) || (inputs.kafka_cluster_operator == true) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -726,8 +593,7 @@ jobs:
   ### kafka topics ###
   kafka-topics:
     name: build-push-deploy-kafka-topics
-    needs: [check]
-    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_topics == 'true') }}
+    if: ${{ (inputs.kafka_cluster == true) || (inputs.kafka_topics == true) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -746,8 +612,8 @@ jobs:
   ### meta-data ###
   meta-data:
     name: build-push-deploy-meta-data
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_meta_data == 'true'
+    needs: [image-tag]
+    if: inputs.meta_data == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -821,8 +687,8 @@ jobs:
   ### view ###
   view:
     name: build-push-deploy-view
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_view == 'true'
+    needs: [image-tag]
+    if: inputs.view == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -892,8 +758,8 @@ jobs:
   #### Calibrate ######
   calibrate:
     name: build-push-deploy-calibrate
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_calibrate == 'true'
+    needs: [image-tag]
+    if: inputs.calibrate == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -974,8 +840,8 @@ jobs:
   ### predict api and jobs ###
   predict-service:
     name: build-push-deploy-predict-service
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_predict == 'true'
+    needs: [image-tag]
+    if: inputs.predict_service == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1057,8 +923,8 @@ jobs:
   ### Superset ###
   superset:
     name: build-push-deploy-superset
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_superset == 'true'
+    needs: [image-tag]
+    if: inputs.superset == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1141,8 +1007,7 @@ jobs:
   ### apply nginx ###
   nginx:
     name: apply-nginx
-    needs: [check]
-    if: needs.check.outputs.run_nginx == 'true'
+    if: inputs.nginx == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1160,8 +1025,8 @@ jobs:
   ### spatial ###
   spatial:
     name: build-push-deploy-spatial
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_spatial == 'true'
+    needs: [image-tag]
+    if: inputs.spatial == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1248,8 +1113,8 @@ jobs:
   ### website ###
   website:
     name: build-push-deploy-website
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_website == 'true'
+    needs: [image-tag]
+    if: inputs.website == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1313,8 +1178,7 @@ jobs:
   ### Redis Production ###
   redis:
     name: build-push-deploy-redis
-    needs: [check]
-    if: needs.check.outputs.run_redis == 'true'
+    if: inputs.redis == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

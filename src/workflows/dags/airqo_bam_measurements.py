@@ -4,10 +4,12 @@ from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from airflow.utils.dates import days_ago
+
 import pandas as pd
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.date import DateUtils
+from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from datetime import timedelta
 from airflow.exceptions import AirflowFailException
@@ -131,6 +133,12 @@ def airqo_bam_realtime_measurements():
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_hourly_measurements_to_api(data: pd.DataFrame):
+        data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
+        data_api = DataApi()
+        data_api.save_events(measurements=data)
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
@@ -156,6 +164,7 @@ def airqo_bam_realtime_measurements():
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
+    send_hourly_measurements_to_api(measurements)
     update_latest_data_topic(measurements)
 
 

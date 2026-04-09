@@ -4,17 +4,21 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
 
-const validateTenant = oneOf([
-  query("tenant")
-    .optional()
-    .notEmpty()
-    .withMessage("tenant should not be empty IF provided")
-    .bail()
-    .trim()
-    .toLowerCase()
-    .isIn(["kcca", "airqo", "airqount"])
-    .withMessage("the tenant value is not among the expected ones"),
-]);
+const validateTenant = query("tenant")
+  .optional()
+  .trim()
+  .toLowerCase()
+  .custom((value) => {
+    if (constants.TENANTS.length === 0) {
+      throw new Error("Server configuration error: TENANTS are not set.");
+    }
+    if (!constants.TENANTS.includes(value)) {
+      throw new Error(
+        `Invalid tenant. Must be one of: ${constants.TENANTS.join(", ")}`,
+      );
+    }
+    return true;
+  });
 
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -78,15 +82,11 @@ const requestAccessToGroupByEmail = [
 const acceptInvitation = [
   validateTenant,
   [
-    body("email")
-      .exists()
-      .withMessage("the email should be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the email should not be empty")
-      .bail()
-      .isEmail()
-      .withMessage("the email is not valid"),
+    body("token")
+      .optional()
+      .isHexadecimal()
+      .withMessage("Invalid token format")
+      .isLength({ min: 64, max: 64 }),
     body("target_id")
       .exists()
       .withMessage("the target_id is missing in request")
@@ -115,7 +115,7 @@ const acceptInvitation = [
       .withMessage("password must be at least 6 characters")
       .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
       .withMessage(
-        "password must contain at least one letter and one number, and only allowed special characters: @#?!$%^&*,."
+        "password must contain at least one letter and one number, and only allowed special characters: @#?!$%^&*.",
       ),
   ],
 ];
@@ -153,6 +153,14 @@ const approveAccessRequest = [
       .isMongoId()
       .withMessage("the request_id should be an object ID")
       .trim(),
+    param("invitation_id")
+      .optional()
+      .notEmpty()
+      .withMessage("invitation_id should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("the invitation_id should be an object ID")
+      .trim(),
   ],
   [
     body("status")
@@ -162,7 +170,7 @@ const approveAccessRequest = [
       .toLowerCase()
       .isIn(["pending", "rejected", "approved"])
       .withMessage(
-        "the status value is not among the expected ones which include: rejected, approved and pending"
+        "the status value is not among the expected ones which include: rejected, approved and pending",
       ),
   ],
 ];
@@ -180,6 +188,14 @@ const rejectAccessRequest = [
       .isMongoId()
       .withMessage("the request_id should be an object ID")
       .trim(),
+    param("invitation_id")
+      .optional()
+      .notEmpty()
+      .withMessage("invitation_id should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("the invitation_id should be an object ID")
+      .trim(),
   ],
   [
     body("status")
@@ -189,7 +205,7 @@ const rejectAccessRequest = [
       .toLowerCase()
       .isIn(["pending", "rejected", "approved"])
       .withMessage(
-        "the status value is not among the expected ones which include: rejected, approved and pending"
+        "the status value is not among the expected ones which include: rejected, approved and pending",
       ),
   ],
 ];
@@ -203,7 +219,7 @@ const deleteRequest = [
     param("request_id")
       .exists()
       .withMessage(
-        "the request identifier is missing in request, consider using the request_id"
+        "the request identifier is missing in request, consider using the request_id",
       )
       .bail()
       .trim()
@@ -222,7 +238,7 @@ const updateRequest = [
     param("request_id")
       .exists()
       .withMessage(
-        "the request identifier is missing in request, consider using the request_id"
+        "the request identifier is missing in request, consider using the request_id",
       )
       .bail()
       .trim()
@@ -241,7 +257,7 @@ const updateRequest = [
       .toLowerCase()
       .isIn(["pending", "rejected", "approved"])
       .withMessage(
-        "the status value is not among the expected ones which include: rejected, approved and pending"
+        "the status value is not among the expected ones which include: rejected, approved and pending",
       ),
   ],
 ];
@@ -284,7 +300,7 @@ const getRequestId = [
     param("request_id")
       .exists()
       .withMessage(
-        "the request identifier is missing in request, consider using the request_id"
+        "the request identifier is missing in request, consider using the request_id",
       )
       .bail()
       .trim()

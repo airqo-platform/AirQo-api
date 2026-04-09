@@ -36,10 +36,10 @@ class ExternalTeamMemberBiographyInline(admin.TabularInline):
 class MemberAdmin(NestedModelAdmin):
     """Enhanced Team Member Admin with improved organization"""
 
-    list_display = ("name_with_title", "role_badge",
+    list_display = ("name_with_title", "category_badge", "role_badge",
                     "social_links", "image_preview", "order")
-    list_filter = ("title", "created", "modified")
-    search_fields = ("name", "title", "about")
+    list_filter = ("category", "title", "created", "modified")
+    search_fields = ("name", "title", "about", "category")
     list_per_page = 20
     list_editable = ("order",)
     ordering = ["order", "name"]
@@ -52,7 +52,7 @@ class MemberAdmin(NestedModelAdmin):
 
     fieldsets = (
         ("Team Member Information", {
-            "fields": ("name", "title", "about", "order"),
+            "fields": ("name", "title", "category", "about", "order"),
             "classes": ("wide",)
         }),
         ("Profile Picture", {
@@ -103,6 +103,21 @@ class MemberAdmin(NestedModelAdmin):
         return format_html(
             '<span class="badge" style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">{}</span>',
             color, title
+        )
+
+    @admin.display(description="Category")
+    def category_badge(self, obj):
+        category_display = obj.get_category_display() if hasattr(
+            obj, "get_category_display") else obj.category
+        color_map = {
+            "staff": "#007cba",
+            "fellow": "#28a745",
+            "ex-fellow": "#6c757d",
+        }
+        color = color_map.get(obj.category, "#6c757d")
+        return format_html(
+            '<span class="badge" style="background: {}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">{}</span>',
+            color, category_display
         )
 
     @admin.display(description="Social")

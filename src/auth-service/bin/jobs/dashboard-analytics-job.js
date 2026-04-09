@@ -3,7 +3,7 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/jobs/dashboard-analytics-job script`
+  `${constants.ENVIRONMENT} -- bin/jobs/dashboard-analytics-job script -- ops-alerts`,
 );
 const { stringify } = require("@utils/common");
 const DashboardAnalyticsModel = require("@models/DashboardAnalytics");
@@ -11,9 +11,6 @@ const DashboardAnalyticsModel = require("@models/DashboardAnalytics");
 const calculateAndCacheAnalytics = async () => {
   try {
     const tenant = constants.DEFAULT_TENANT || "airqo";
-    logger.info(
-      `Starting dashboard analytics calculation for tenant: ${tenant}`
-    );
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const twoMonthsAgo = new Date();
@@ -21,12 +18,12 @@ const calculateAndCacheAnalytics = async () => {
     const startOfTwoMonthsAgo = new Date(
       twoMonthsAgo.getFullYear(),
       twoMonthsAgo.getMonth(),
-      1
+      1,
     );
     const endOfTwoMonthsAgo = new Date(
       twoMonthsAgo.getFullYear(),
       twoMonthsAgo.getMonth() + 1,
-      0
+      0,
     );
 
     const aggregationPipeline = [
@@ -134,8 +131,8 @@ const calculateAndCacheAnalytics = async () => {
       dauTwoMonthsAgo > 0
         ? ((dau - dauTwoMonthsAgo) / dauTwoMonthsAgo) * 100
         : dau > 0
-        ? 100
-        : 0;
+          ? 100
+          : 0;
 
     const response = {
       userSatisfaction: null, // Placeholder
@@ -168,13 +165,9 @@ const calculateAndCacheAnalytics = async () => {
     };
 
     await DashboardAnalyticsModel(tenant).findOneOrCreate(tenant, response);
-
-    logger.info(
-      `Successfully calculated and cached dashboard analytics for tenant: ${tenant}`
-    );
   } catch (error) {
     logger.error(
-      `Error in calculateAndCacheAnalytics job: ${stringify(error)}`
+      `Error in calculateAndCacheAnalytics job: ${stringify(error)}`,
     );
   }
 };

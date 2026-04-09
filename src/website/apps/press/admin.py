@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import Press
-import cloudinary.uploader
+from utils.cloudinary import safe_destroy
 
 
 @admin.register(Press)
@@ -56,7 +56,5 @@ class PressAdmin(admin.ModelAdmin):
         Handle bulk deletion of objects, ensuring that associated Cloudinary files are removed.
         """
         for obj in queryset:
-            if obj.publisher_logo:
-                cloudinary.uploader.destroy(
-                    obj.publisher_logo.public_id, invalidate=True)
+            safe_destroy(obj.publisher_logo, invalidate=True)
             obj.delete()

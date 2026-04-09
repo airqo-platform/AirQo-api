@@ -8,19 +8,12 @@ In this guide you will get an overview of the contribution workflow from opening
 
 To get an overview of each microservice, read the respective microservice READMEs:
 
-- [Airflow](/src/workflows/README.md)
+- [workflows](/src/workflows/README.md)
 - [Analytics](/src/analytics/README.md)
 - [Auth-service](/src/auth-service/README.md)
 - [Calibrate](/src/calibrate/readme.md)
-- [Data-mgt](/src/data-mgt/README.md)
-- [Device-monitoring](/src/device-monitoring/README.md)
 - [Device-registry](/src/device-registry/README.md)
-- [Device-status](/src/device-status/README.md)
-- [Device-uptime](/src/device-uptime/README.md)
-- [Exceedances](/src/exceedances/README.md)
 - [Firebase](/src/firebase/backup/README.md)
-- [GP-Model](/src/gp-model/README.md)
-- [incentives](/src/incentives/README.md)
 - [kafka-connectors(bigquery-connector)](/src/kafka-connectors/bigquery-connector/README.md)
 - [kafka-connectors(measurement-source-connector)](/src/kafka-connectors/measurements-source-connector/Readme.md)
 - [locate](/src/locate/README.md)

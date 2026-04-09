@@ -15,10 +15,10 @@ if (isDevelopment()) {
     },
   };
 } else {
-  // SAFE production configuration - back to basic Slack (NO custom appenders)
-  console.log("📝 [AUTH-SERVICE] Log4js configured with basic Slack alerts");
+  console.log(
+    "📝 [AUTH-SERVICE] Log4js configured (Slack alerts for ERROR only when configured)",
+  );
 
-  // Validate Slack configuration before using it
   const hasSlackConfig =
     constants.SLACK_TOKEN &&
     constants.SLACK_CHANNEL &&
@@ -26,7 +26,7 @@ if (isDevelopment()) {
 
   if (!hasSlackConfig) {
     console.warn(
-      "⚠️  Slack configuration incomplete - some alerts may be disabled"
+      "⚠️  Slack configuration incomplete - some alerts may be disabled",
     );
   }
 
@@ -53,22 +53,27 @@ if (isDevelopment()) {
         level: "ERROR",
         appender: "errorFile",
       },
-      // Add a log level filter for Slack alerts
-      slackAlerts: {
-        type: "logLevelFilter",
-        appender: "slack",
-        level: "WARN", // Only send WARN, ERROR, FATAL to Slack
-      },
     },
     categories: {
-      default: { appenders: [], level: "info" },
+      // "app" is always present so INFO and WARN logs are written to file
+      // regardless of whether the Slack appender is configured. Previously
+      // default only received slackErrors (filtered at ERROR), meaning all
+      // INFO and WARN logs were silently discarded.
+      default: { appenders: ["app"], level: "info" },
       error: { appenders: ["errors"], level: "error" },
       http: { appenders: ["access"], level: "DEBUG" },
       "api-usage-logger": { appenders: [], level: "info" },
+
+      // Dedicated category for operational jobs that need WARN visibility
+      // in Slack. Unlike the default category which is restricted to ERROR
+      // only for Slack, ops-alerts forwards WARN and above to Slack so
+      // actionable operational messages reach the team without opening up
+      // the entire codebase to warn-level Slack noise.
+      // Usage: const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- <job-name> -- ops-alerts`);
+      "ops-alerts": { appenders: ["app"], level: "info" },
     },
   };
 
-  // Only add Slack appender if configuration is complete
   if (hasSlackConfig) {
     try {
       config.appenders.slack = {
@@ -78,10 +83,30 @@ if (isDevelopment()) {
         username: constants.SLACK_USERNAME,
       };
 
-      // Add the filtered alerts to the default category. It will catch all levels.
-      config.categories.default.appenders.push("slackAlerts");
+      // slackErrors — ERROR and above only. Used by default and error categories.
+      // Keeps routine INFO/WARN logs out of Slack for the general codebase.
+      config.appenders.slackErrors = {
+        type: "logLevelFilter",
+        level: "ERROR",
+        appender: "slack",
+      };
 
-      console.log("✅ Slack appender configured successfully");
+      // slackWarn — WARN and above. Used only by the ops-alerts category so
+      // specific operational jobs can send WARNING and higher to Slack without
+      // opening up the entire codebase to warn-level Slack noise.
+      config.appenders.slackWarn = {
+        type: "logLevelFilter",
+        level: "WARN",
+        appender: "slack",
+      };
+
+      config.categories.default.appenders.push("slackErrors");
+      config.categories.error.appenders.push("slackErrors");
+      config.categories["ops-alerts"].appenders.push("slackWarn");
+
+      console.log(
+        "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",
+      );
     } catch (error) {
       console.error("❌ Failed to configure Slack appender:", error.message);
       console.log("📝 Continuing without Slack notifications");

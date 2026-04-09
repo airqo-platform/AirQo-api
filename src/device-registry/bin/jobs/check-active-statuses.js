@@ -1,10 +1,9 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job -- ops-alerts`,
 );
 const DeviceModel = require("@models/Device");
-const LogThrottleModel = require("@models/LogThrottle");
 const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
 const { getSchedule, LogThrottleManager } = require("@utils/common");
@@ -16,21 +15,18 @@ const JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At m
 const TIMEZONE = moment.tz.guess();
 const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 
-let isJobRunning = false;
 let currentJobPromise = null;
 
-const logThrottleManager = new LogThrottleManager(TIMEZONE);
+const logThrottleManager = new LogThrottleManager();
 
 const checkActiveStatuses = async () => {
-  // Prevent overlapping executions
-  if (isJobRunning) {
-    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
-    return;
-  }
-
-  isJobRunning = true;
-
   try {
+    const shouldRun = await logThrottleManager.shouldAllowLog(LOG_TYPE);
+    if (!shouldRun) {
+      logText(`Skipping ${JOB_NAME} execution to prevent duplicates.`);
+      return;
+    }
+
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
       return;
@@ -38,7 +34,7 @@ const checkActiveStatuses = async () => {
 
     // Check for Deployed devices with incorrect statuses
     const activeIncorrectStatusCount = await DeviceModel(
-      "airqo"
+      "airqo",
     ).countDocuments({
       isActive: true,
       status: { $ne: "deployed" },
@@ -83,10 +79,10 @@ const checkActiveStatuses = async () => {
     ]);
 
     const activeIncorrectStatusUniqueNames = activeIncorrectStatusResult.map(
-      (doc) => doc._id
+      (doc) => doc._id,
     );
     const activeMissingStatusUniqueNames = activeMissingStatusResult.map(
-      (doc) => doc._id
+      (doc) => doc._id,
     );
 
     logObject("activeIncorrectStatusCount", activeIncorrectStatusCount);
@@ -103,7 +99,7 @@ const checkActiveStatuses = async () => {
 
     logObject(
       "percentageActiveIncorrectStatus",
-      percentageActiveIncorrectStatus
+      percentageActiveIncorrectStatus,
     );
     logObject("percentageActiveMissingStatus", percentageActiveMissingStatus);
 
@@ -111,47 +107,25 @@ const checkActiveStatuses = async () => {
       percentageActiveIncorrectStatus > ACTIVE_STATUS_THRESHOLD ||
       percentageActiveMissingStatus > ACTIVE_STATUS_THRESHOLD
     ) {
-      logText(
-        `⁉️ Issues found with active device statuses. Checking log throttle...`
+      logger.warn(
+        `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+          ", ",
+        )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`,
       );
 
-      const shouldLog = await logThrottleManager.shouldAllowLog(LOG_TYPE);
-
-      if (shouldLog) {
-        logText(
-          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
-        );
-        logger.info(
-          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
-        );
-
-        logText(
-          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-        );
-        logger.info(
-          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
-            ", "
-          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
-        );
-      } else {
-        logger.debug(`Log throttled for ${LOG_TYPE}: Daily limit reached.`);
-      }
+      logger.warn(
+        `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+          ", ",
+        )}) - ${percentageActiveMissingStatus.toFixed(2)}%`,
+      );
     }
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);
     logger.error(
-      `🐛🐛 ${JOB_NAME} Error checking active statuses: ${error.message}`
+      `🐛🐛 ${JOB_NAME} Error checking active statuses: ${error.message}`,
     );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   } finally {
-    isJobRunning = false;
-    currentJobPromise = null;
   }
 };
 
@@ -188,7 +162,7 @@ const startCheckActiveStatusesJob = () => {
           // Wait for current execution to finish if running
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed`);
@@ -241,7 +215,7 @@ process.on("unhandledRejection", (reason, promise) => {
     `🚫 Unhandled Rejection in ${JOB_NAME} at:`,
     promise,
     "reason:",
-    reason
+    reason,
   );
 });
 

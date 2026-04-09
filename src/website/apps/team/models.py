@@ -1,10 +1,7 @@
 from django.db import models
 from cloudinary.models import CloudinaryField
-from cloudinary.uploader import destroy
 from utils.models import BaseModel, SlugBaseModel
-import logging
-
-logger = logging.getLogger(__name__)
+from utils.cloudinary import safe_destroy
 
 
 class Member(SlugBaseModel):
@@ -17,6 +14,17 @@ class Member(SlugBaseModel):
     name = models.CharField(max_length=100)
     title = models.CharField(max_length=100)
     about = models.TextField(blank=True)
+    class MemberCategory(models.TextChoices):
+        STAFF = "staff", "Staff"
+        FELLOW = "fellow", "Fellow"
+        EX_FELLOW = "ex-fellow", "Ex-fellow"
+
+    category = models.CharField(
+        max_length=20,
+        choices=MemberCategory.choices,
+        default=MemberCategory.STAFF,
+        db_index=True,
+    )
 
     picture = CloudinaryField(
         folder="website/uploads/team/members",
@@ -46,13 +54,7 @@ class Member(SlugBaseModel):
         """
         Remove associated Cloudinary image before DB deletion; fail-open on errors.
         """
-        pic_id = getattr(self.picture, "public_id", None)
-        if pic_id:
-            try:
-                destroy(pic_id, invalidate=True)
-            except Exception:
-                logger.warning(
-                    "Cloudinary destroy failed for Member %s (public_id=%s)", self.pk, pic_id)
+        safe_destroy(self.picture, invalidate=True)
         return super().delete(*args, **kwargs)
 
 

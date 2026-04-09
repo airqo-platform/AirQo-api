@@ -64,6 +64,7 @@ const PERMISSION_DEFINITIONS = [
   { name: "MEMBER_VIEW", description: "View group members" },
   { name: "MEMBER_INVITE", description: "Invite new members to group" },
   { name: "MEMBER_REMOVE", description: "Remove members from group" },
+  { name: "MEMBER_EDIT", description: "Edit member information" },
   { name: "MEMBER_SEARCH", description: "Search group members" },
   { name: "MEMBER_EXPORT", description: "Export member data" },
 
@@ -130,7 +131,7 @@ const PERMISSION_DEFINITIONS = [
   {
     name: "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
     description: generateDescription(
-      "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES"
+      "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
     ),
   },
   {
@@ -207,7 +208,7 @@ const DEFAULT_ROLE_DEFINITIONS = {
     role_description:
       "AirQo Super Administrator with system-wide privileges across all groups and networks",
     permissions: ALL_PERMISSIONS.filter(
-      (p) => !["ACCESS_PLATFORM"].includes(p)
+      (p) => !["ACCESS_PLATFORM"].includes(p),
     ),
     isSystemWide: true,
     grantedIn: "AIRQO_GROUP",
@@ -244,7 +245,7 @@ const DEFAULT_ROLE_DEFINITIONS = {
           "ANALYTICS_",
           "DATA_",
           "SETTINGS_",
-        ].some((prefix) => p.startsWith(prefix))
+        ].some((prefix) => p.startsWith(prefix)),
       ),
     ].filter((value, index, self) => self.indexOf(value) === index),
   },
@@ -474,12 +475,12 @@ module.exports = {
     },
     isSystemAdminGroup: (groupId) => {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_GROUPS.includes(
-        groupId?.toString()
+        groupId?.toString(),
       );
     },
     isSystemAdminPermission: (permission) => {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_PERMISSIONS.includes(
-        permission
+        permission,
       );
     },
     isSystemWideBypass: ({
@@ -493,13 +494,13 @@ module.exports = {
         module.exports.HELPERS.isSystemAdminRole(roleName) ||
         module.exports.HELPERS.isSystemAdminRole(roleCode);
       const hasPerm = permissions.some((p) =>
-        module.exports.HELPERS.isSystemAdminPermission(p)
+        module.exports.HELPERS.isSystemAdminPermission(p),
       );
       const groupIds = Array.isArray(groupId)
         ? groupId.filter(Boolean)
         : [groupId].filter(Boolean);
       const inAirQo = groupIds.some((id) =>
-        module.exports.HELPERS.isSystemAdminGroup(id)
+        module.exports.HELPERS.isSystemAdminGroup(id),
       );
       const isSu = module.exports.HELPERS.isSystemAdminUserType(userType);
       return inAirQo && isSu && (hasRole || hasPerm);

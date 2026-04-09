@@ -2,6 +2,7 @@ import uuid
 import numpy as np
 import pandas as pd
 import json
+import os
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from confluent_kafka import KafkaException
@@ -10,10 +11,10 @@ import ast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs, drop_rows_with_bad_data
+from airqo_etl_utils.storage import GCSFileStorage, FileStorage
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
-from .data_sources import DataSourcesApis
+from airqo_etl_utils.sources import get_adapter
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
     DeviceCategory,
@@ -26,15 +27,35 @@ from .constants import (
 )
 from .message_broker_utils import MessageBrokerUtils
 
-from .utils import Utils
+from airqo_etl_utils.utils import Utils, drop_rows_with_bad_data
 from .date import DateUtils
 from .data_validator import DataValidationUtils
+from .cache import TTLCache
+from .config import configuration
+import os
+import time
 
 import logging
 
 logger = logging.getLogger("airflow.task")
 
 max_workers = Config.MAX_WORKERS
+
+# Module-level handle for in-memory cache (lazy-init to avoid test cross-contamination)
+_mem_cache = None
+
+
+def _get_mem_cache() -> TTLCache:
+    global _mem_cache
+    if _mem_cache is None:
+        try:
+            _mem_cache = TTLCache(
+                default_ttl=configuration.CACHE_TTL_SECONDS,
+                cleanup_interval=configuration.CACHE_CLEANUP_INTERVAL_SECONDS,
+            )
+        except Exception:
+            _mem_cache = TTLCache(default_ttl=0, cleanup_interval=60)
+    return _mem_cache
 
 
 class DataUtils:
@@ -73,23 +94,77 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
 
+        # If caller explicitly requests API, skip cache and fetch directly
+        if preferred_source == "api":
+            try:
+                devices = DataUtils.fetch_devices_from_api()
+                if devices is None or devices.empty:
+                    raise RuntimeError(
+                        "Failed to retrieve devices data from both cache and API."
+                    )
+            except Exception:
+                raise RuntimeError(
+                    "Failed to retrieve devices data from both cache and API."
+                )
+            # apply filters and return
+            if Config.ENVIRONMENT == "production":
+                devices = devices[devices.deployed == True]
+
+            if device_category:
+                devices = devices.loc[devices.device_category == device_category.str]
+
+            if device_network:
+                devices = devices.loc[devices.network == device_network.str]
+
+            return devices
+
+        # When preferred_source is cache, always attempt to load on-disk cache first
+        disk_devices = pd.DataFrame()
         if preferred_source == "cache":
             try:
-                devices = DataUtils._load_devices_from_cache(local_file_path)
-                if preferred_source == "cache" and not devices.empty:
-                    devices = DataUtils._process_cached_devices(
-                        devices, device_category, device_network
-                    )
+                disk_devices = DataUtils.load_cached_data(
+                    local_file_path, MetaDataType.DEVICES.str
+                )
             except Exception as e:
                 logger.exception(f"Failed to load cached devices: {e}")
 
-        if devices.empty:
+        # When preferred_source is cache, prefer disk cache first. If disk cache is empty
+        # then try API; do not fall back to in-memory cache when disk cache was explicitly
+        # requested but empty (helps test determinism where disk cache is mocked).
+        if not disk_devices.empty:
+            devices = disk_devices
+            _get_mem_cache().set("devices_all", devices)
+            devices = DataUtils._process_cached_devices(
+                devices, device_category, device_network
+            )
+        else:
+            # disk empty -> try API
             try:
                 devices = DataUtils.fetch_devices_from_api()
+                if not devices.empty:
+                    _get_mem_cache().set("devices_all", devices)
             except Exception as e:
                 logger.exception(f"Failed to fetch devices from API: {e}")
 
-        if devices.empty:
+            # If still empty, do NOT fall back to in-memory cache when the caller explicitly
+            # requested disk cache (keeps behavior deterministic for tests that mock disk and API)
+            if preferred_source == "cache":
+                if devices is None or devices.empty:
+                    raise RuntimeError(
+                        "Failed to retrieve devices data from both cache and API."
+                    )
+            else:
+                # fallback to in-memory cache as a last resort
+                if devices is None or devices.empty:
+                    try:
+                        cache = _get_mem_cache()
+                        cached = cache.get("devices_all")
+                        if cached is not None and not cached.empty:
+                            devices = cached.copy()
+                    except Exception:
+                        devices = pd.DataFrame()
+
+        if devices is None or devices.empty:
             raise RuntimeError(
                 "Failed to retrieve devices data from both cache and API."
             )
@@ -225,28 +300,68 @@ class DataUtils:
         Note:
             Uses local cache at /tmp/sites.csv for performance optimization.
         """
+
         local_file_path = "/tmp/sites.csv"
         sites: pd.DataFrame = pd.DataFrame()
 
+        # If caller explicitly requests API, skip cache and fetch directly
+        if preferred_source == "api":
+            try:
+                datautils = DataUtils()
+                sites = datautils.fetch_sites_from_api()
+                if sites is None or sites.empty:
+                    raise RuntimeError("Failed to retrieve cached/api sites data.")
+            except Exception:
+                raise RuntimeError("Failed to retrieve cached/api sites data.")
+
+            if network:
+                sites = sites.loc[sites.network == network.str]
+
+            return sites
+
+        # When preferred_source is cache, always attempt to load on-disk cache first
+        disk_sites = pd.DataFrame()
         if preferred_source == "cache":
             try:
-                sites = DataUtils.load_cached_data(
+                disk_sites = DataUtils.load_cached_data(
                     local_file_path, MetaDataType.SITES.str
                 )
             except Exception as e:
                 logger.exception(f"Failed to load cached: {e}")
 
-        if sites.empty:
+        # Prefer disk cache if available
+        if not disk_sites.empty:
+            sites = disk_sites
+            _get_mem_cache().set("sites_all", sites)
+        else:
+            # disk empty -> try API
             try:
                 datautils = DataUtils()
                 sites = datautils.fetch_sites_from_api()
+                if not sites.empty:
+                    _get_mem_cache().set("sites_all", sites)
             except Exception as e:
                 logger.exception(f"Failed to fetch sites from API: {e}")
 
-        if network:
+            # If still empty, and caller requested disk cache, raise immediately.
+            if preferred_source == "cache":
+                if sites is None or sites.empty:
+                    raise RuntimeError("Failed to retrieve cached/api sites data.")
+            else:
+                # fallback to in-memory cache as a last resort
+                if sites is None or sites.empty:
+                    try:
+                        cache = _get_mem_cache()
+                        cached = cache.get("sites_all")
+                        if cached is not None and not cached.empty:
+                            sites = cached.copy()
+                    except Exception:
+                        sites = pd.DataFrame()
+
+        if network and sites is not None and not sites.empty:
             sites = sites.loc[sites.network == network.str]
 
-        if sites.empty:
+        if sites is None or sites.empty:
             raise RuntimeError("Failed to retrieve cached/api sites data.")
         return sites
 
@@ -320,7 +435,7 @@ class DataUtils:
             device_category = DeviceCategory.LOWCOST
 
         devices = DataUtils.get_devices(device_category, device_network)
-
+        devices.sort_values(by="network", inplace=True)
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
         if is_mobile_category:
             # Device registry metadata has multiple devices tagged as mobile and yet aren't
@@ -333,7 +448,6 @@ class DataUtils:
 
         if device_ids:
             devices = devices.loc[devices.device_id.isin(device_ids)]
-
         config = Config.device_config_mapping.get(device_category.str, None)
         if not config:
             logger.warning("Missing device category configuration.")
@@ -347,6 +461,10 @@ class DataUtils:
 
         data_store: List[pd.DataFrame] = []
 
+        # TODO: Consider using a more robust parallel processing approach if the number of devices is very large, such as multiprocessing or distributed processing frameworks.
+        # ThreadPoolExecutor may not be optimal for CPU-bound tasks or when dealing with a very high number of devices due to Python's GIL and potential memory constraints.
+        # Poor performance might be realized when device numbers exceed a couple of thousands but also depends on the amount of data per device dependant on the date range and resolution.
+        # In such cases, batching devices or using multiprocessing could be considered to improve performance.
         with ThreadPoolExecutor(
             max_workers=max_workers
         ) as executor:  # Adjust worker count to your CPU
@@ -356,7 +474,6 @@ class DataUtils:
                 )
                 for _, device in devices.iterrows()
             ]
-
             for future in as_completed(futures):
                 result = future.result()
                 if result is not None:
@@ -397,9 +514,26 @@ class DataUtils:
             This is a private method used internally for parallel device processing.
             Handles data extraction, processing, and metadata enrichment in sequence.
         """
-        data, meta_data = DataUtils._extract_device_api_data(
-            device, dates, config, resolution
-        )
+        try:
+            res = DataUtils._extract_device_api_data(device, dates, config, resolution)
+            if res is None:
+                return None
+            # Support multiple return shapes defensively
+            if isinstance(res, (list, tuple)):
+                if len(res) >= 2:
+                    data, meta_data = res[0], res[1]
+                elif len(res) == 1:
+                    data, meta_data = res[0], {}
+                else:
+                    return None
+            else:
+                # single object returned (e.g., DataFrame), treat as data
+                data, meta_data = res, {}
+        except Exception as e:
+            logger.exception(
+                f"Error extracting data for device {device.get('device_id')}: {e}"
+            )
+            return None
 
         if isinstance(data, pd.DataFrame) and not data.empty:
             data = DataUtils._process_and_append_device_data(
@@ -552,15 +686,15 @@ class DataUtils:
 
         Note:
             Downloads from GCS only if local cache file is not available.
-            Uses download_file_from_gcs() utility for GCS operations.
+            Uses GCSFileStorage() utility for GCS operations.
         """
+        storage: FileStorage = GCSFileStorage()
+
         try:
             file = Path(local_file_path)
             if not file.exists() or file.stat().st_size == 0:
-                download_file_from_gcs(
-                    bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                    source_file=f"{file_name}.csv",
-                    destination_file=local_file_path,
+                storage.download_file(
+                    Config.AIRFLOW_XCOM_BUCKET, f"{file_name}.csv", local_file_path
                 )
             data = pd.read_csv(local_file_path)
             if not data.empty:
@@ -720,7 +854,12 @@ class DataUtils:
         key = device.get("key")
         network = device.get("network")
         api_data = []
-        data_source_api = DataSourcesApis()
+
+        # Use adapter registry when available (phase 1: ThingSpeak)
+        try:
+            adapter = get_adapter(DeviceNetwork.AIRQO)
+        except Exception:
+            adapter = None
 
         if (
             device_number
@@ -731,38 +870,58 @@ class DataUtils:
             key = (
                 Utils.decrypt_key(bytes(key, "utf-8")) if isinstance(key, str) else None
             )
-
-            for start, end in dates:
-                data_, meta_data, data_available = data_source_api.thingspeak(
-                    device_number=int(device_number),
-                    start_date_time=start,
-                    end_date_time=end,
-                    read_key=key,
-                )
-                if data_available:
-                    api_data.extend(data_)
-            if api_data:
-                mapping = config["mapping"][network]
-                return DataUtils.map_and_extract_data(mapping, api_data), meta_data
+            if adapter is not None:
+                try:
+                    res = adapter.fetch(
+                        device.to_dict() if hasattr(device, "to_dict") else device,
+                        dates,
+                    )
+                    if res and res.data and isinstance(res.data, dict):
+                        records = res.data.get("records", [])
+                        meta_tmp = res.data.get("meta", {})
+                        if records:
+                            api_data.extend(records)
+                            meta_data = meta_tmp or meta_data
+                            mapping = config["mapping"][network]
+                            return (
+                                DataUtils.map_and_extract_data(mapping, api_data),
+                                meta_data,
+                            )
+                except Exception as e:
+                    logger.exception(
+                        f"An error occurred fetching data from adapter: {e} - device {device.get('name')}"
+                    )
         else:
             try:
-                match network:
-                    case DeviceNetwork.IQAIR.str:
-                        mapping = config["mapping"][network]
-                        result = data_source_api.iqair(device, resolution=resolution)
-                    case DeviceNetwork.AIRGRADIENT.str:
-                        mapping = config["mapping"][network]
-                        result = data_source_api.air_gradient(device, dates)
+                adapter = None
+                try:
+                    network_ = DeviceNetwork[network.upper()]
+                    adapter = get_adapter(network_)
+                except Exception:
+                    adapter = None
 
-                if result.data:
-                    return DataUtils.map_and_extract_data(mapping, result.data), {}
-                else:
-                    logger.info(
-                        f"No data returned from {device.get('device_id')} for the given date range"
+                if adapter is not None:
+                    res = adapter.fetch(
+                        device.to_dict() if hasattr(device, "to_dict") else device,
+                        dates,
+                        resolution,
                     )
+                    if res and res.data and isinstance(res.data, dict):
+                        items = res.data.get("records", [])
+                        meta = res.data.get("meta", {})
+                        if items:
+                            mapping = config.get("mapping", {}).get(network, {})
+                            return (
+                                DataUtils.map_and_extract_data(mapping, items),
+                                meta or {},
+                            )
+
+                logger.info(
+                    f"No data returned from {device.get('device_id')} for the given date range or no adapter available"
+                )
             except Exception as e:
                 logger.exception(
-                    f"An error occurred: {e} - device {device.get('name')}"
+                    f"An error occurred fetching data from adapter: {e} - device {device.get('name')}"
                 )
         return pd.DataFrame(), {}
 
@@ -818,8 +977,23 @@ class DataUtils:
             lat_fallback = device.get("latitude")
             lon_fallback = device.get("longitude")
         else:
-            lat_fallback = meta_data.get("latitude") or device.get("latitude")
-            lon_fallback = meta_data.get("longitude") or device.get("longitude")
+            lat_fallback = device.get("latitude") or meta_data.get("latitude")
+            lon_fallback = device.get("longitude") or meta_data.get("longitude")
+
+        # Ensure latitude and longitude are numeric, coercing errors to NaN for consistent processing.
+        # Avoid stacking/unstacking (which drops all-NaN rows by default) as that can
+        # change the length/shape and trigger "Columns must be same length as key".
+        to_convert = [c for c in ("latitude", "longitude") if c in data.columns]
+        if to_convert:
+            try:
+                # apply(pd.to_numeric) preserves shape and is robust.
+                data[to_convert] = data[to_convert].apply(
+                    pd.to_numeric, errors="coerce"
+                )
+            except Exception:
+                # Fallback: coerce columns individually to be extra-safe.
+                for c in to_convert:
+                    data[c] = pd.to_numeric(data[c], errors="coerce")
 
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")
@@ -834,7 +1008,6 @@ class DataUtils:
         data["longitude"] = (
             data["longitude"].replace(0.0, lon_fallback).fillna(lon_fallback)
         )
-
         return data
 
     @staticmethod
@@ -1349,6 +1522,7 @@ class DataUtils:
                 (
                     average_pollutants,
                     calibrated_pollutants,
+                    uncalibrated_pollutants,
                 ) = DataUtils.__averaged_calibrated_data_structure(row)
 
                 device_details = devices.loc[device_id]
@@ -1365,6 +1539,7 @@ class DataUtils:
                     "time": row["timestamp"],
                     **average_pollutants,  # Can be empty
                     **calibrated_pollutants,  # Can be empty
+                    **uncalibrated_pollutants,  # Can be empty
                     # extra sensor metadata
                     **{
                         key: {"value": row.get(key, None)}
@@ -1412,7 +1587,10 @@ class DataUtils:
                         "calibratedValue": <calibrated_value>
                     }
                 - calibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` in the same structure.
+                - uncalibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` containing only the raw values if calibrated values are not present.
         """
+        uncalibrated_pollutants: Dict[str, Any] = {}
+
         pollutants = ["pm2_5", "pm10"]
 
         average_pollutants = {
@@ -1433,7 +1611,12 @@ class DataUtils:
             if key in row and f"{key}_calibrated_value" in row
         }
 
-        return average_pollutants, calibrated_pollutants
+        if not average_pollutants and not calibrated_pollutants:
+            uncalibrated_pollutants = {
+                key: {"value": row[key]} for key in pollutants if key in row
+            }
+
+        return average_pollutants, calibrated_pollutants, uncalibrated_pollutants
 
     @staticmethod
     def map_and_extract_data(
@@ -1515,7 +1698,6 @@ class DataUtils:
             )
 
         processed_rows = [process_single_entry(entry) for entry in data]
-
         return pd.DataFrame(processed_rows)
 
     def _extract_nested_value(data: Dict[str, Any], key: str) -> Any:
@@ -1645,6 +1827,7 @@ class DataUtils:
                 data_type,
                 data[data["network"] == DeviceNetwork.AIRQO.str].copy(),
                 frequency,
+                async_mode=False,
             )
 
         try:
@@ -1684,6 +1867,20 @@ class DataUtils:
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
+        # columns to drop rows from if all are NaN
+        lc_raw_cols = ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10", "pm2_5", "pm10"]
+        unique_networks = set(data.network.unique())
+        if unique_networks == {"airqo"}:  # Cleaner way to check "only airqo exists"
+            to_remove = {"pm2_5", "pm10"}
+            lc_raw_cols = [col for col in lc_raw_cols if col not in to_remove]
+
+        # If only airqo data is present, drop rows where all raw columns are NaN
+        data.dropna(
+            subset=lc_raw_cols,
+            how="all",
+            inplace=True,
+        )
+
         return data
 
     # ----------------------------------------------------------------------------------
@@ -1712,7 +1909,6 @@ class DataUtils:
             remove_outliers = False
         else:
             data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
-
         data = DataValidationUtils.remove_outliers_fix_types(
             data, remove_outliers=remove_outliers
         )
@@ -1727,6 +1923,9 @@ class DataUtils:
         data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
         data = data[required_cols]
 
+        if datatype == DataType.AVERAGED:
+            # This is so that averaged data is always cleaned of reference monitor device codes which are sometimes transmitted in the raw data but should not be included in the averaged data.
+            data.dropna(subset=["pm2_5", "pm10"], how="all", inplace=True)
         return drop_rows_with_bad_data("number", data, exclude=["device_number"])
 
     @staticmethod
@@ -1908,7 +2107,6 @@ class DataUtils:
         timestamp_columns = big_query_api.get_columns(
             table=table, column_type=[ColumnDataType.TIMESTAMP]
         )
-
         try:
             for col in timestamp_columns:
                 data[col] = pd.to_datetime(data[col], errors="coerce")
@@ -2288,33 +2486,153 @@ class DataUtils:
         data_type: DataType,
         data: pd.DataFrame = None,
         frequency: Frequency = None,
+        async_mode: bool = True,
     ) -> None:
         """
-        Execute data quality checks.
+        Execute data quality checks asynchronously using ThreadPoolExecutor.
 
-        Notes: If running locally, you might want to run this without async if you want to see the results
+        Args:
+            device_category: The category of the device (e.g., GAS, LOWCOST)
+            data_type: The type of data to work with (e.g., RAW, AVERAGE)
+            data: The sensor data to be validated (for RAW data types)
+            frequency: The frequency of the data processing (e.g., HOURLY)
+            async_mode: If False, runs synchronously for testing/debugging
+
+        Notes:
+            - Uses ThreadPoolExecutor for proper resource management in Airflow
+            - Comprehensive error handling prevents worker crashes
+            - Set async_mode=False for local testing to see immediate results
         """
-        Utils.execute_and_forget_async_task(
-            lambda: DataUtils.__perform_data_quality_checks(
+        if not async_mode:
+            # Synchronous execution for testing/debugging
+            DataUtils.__perform_data_quality_checks(
                 device_category, data_type, data=data, frequency=frequency
             )
-        )
+            return
 
-    async def __perform_data_quality_checks(
+        try:
+
+            def run_quality_checks():
+                try:
+                    DataUtils.__perform_data_quality_checks(
+                        device_category, data_type, data=data, frequency=frequency
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Data quality check failed for {device_category.value} {data_type.value}: {e}",
+                        exc_info=True,
+                    )
+
+            with ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="data_quality_"
+            ) as executor:
+                future = executor.submit(run_quality_checks)
+                # Don't wait for completion (fire-and-forget)
+                # ThreadPoolExecutor handles cleanup automatically
+
+        except Exception as e:
+
+            logger.error(
+                f"Data quality check failed for {device_category.value} {data_type.value}: {e}",
+                exc_info=True,
+            )
+
+    @staticmethod
+    def execute_data_quality_checks_bulk(
+        validation_requests: List[Dict[str, Any]], max_workers: Optional[int] = None
+    ) -> None:
+        """
+        Execute multiple data quality checks concurrently using multiprocessing.
+
+        Optimized for high-volume scenarios where multiple device categories
+        need validation simultaneously. Uses process-based parallelism for
+        CPU-intensive validation workloads.
+
+        Args:
+            validation_requests: List of dicts with keys: device_category, data_type, data, frequency
+            max_workers: Maximum number of processes (defaults to CPU count)
+
+        Example:
+            >>> requests = [
+            ...     {
+            ...         'device_category': DeviceCategory.LOWCOST,
+            ...         'data_type': DataType.RAW,
+            ...         'data': lowcost_df,
+            ...         'frequency': Frequency.HOURLY
+            ...     },
+            ...     {
+            ...         'device_category': DeviceCategory.BAM,
+            ...         'data_type': DataType.AVERAGED,
+            ...         'data': None,
+            ...         'frequency': Frequency.HOURLY
+            ...     }
+            ... ]
+            >>> DataUtils.execute_data_quality_checks_bulk(requests)
+        """
+        if not validation_requests:
+            return
+
+        try:
+
+            def process_validation_request(request: Dict[str, Any]) -> Dict[str, Any]:
+                """Process a single validation request in separate process."""
+                try:
+                    DataUtils.__perform_data_quality_checks(
+                        device_category=request["device_category"],
+                        data_type=request["data_type"],
+                        data=request.get("data"),
+                        frequency=request.get("frequency", Frequency.HOURLY),
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Data quality check failed for {request['device_category'].value} {request['data_type'].value}: {e}",
+                        exc_info=True,
+                    )
+
+            # Use process pool for CPU-intensive validation work
+            max_workers = max_workers or min(
+                len(validation_requests), os.cpu_count() or 2
+            )
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all validation requests
+                futures = [
+                    executor.submit(process_validation_request, request)
+                    for request in validation_requests
+                ]
+
+                # Fire-and-forget: don't wait for results in production
+                # Results could be collected if needed for monitoring
+                logger.info(
+                    f"Submitted {len(futures)} data quality validation jobs to process pool"
+                )
+
+        except Exception as e:
+            logger.exception(f"Bulk data quality check failed: {e}", exc_info=True)
+
+    @staticmethod
+    def __perform_data_quality_checks(
         device_category: DeviceCategory,
         data_type: DataType,
         data: pd.DataFrame = None,
         frequency: Frequency = Frequency.HOURLY,
     ) -> None:
         """
-        Perform data quality checks on the provided DataFrame based on the device category.
+        Perform synchronous data quality checks on the provided DataFrame based on the device category.
 
-        This function routes the data quality check to the appropriate Great Expectations validation suite depending on the type of device. It does not modify the original DataFrame or return any results. Intended to run as a fire-and-forget task.
+        This function routes the data quality check to the appropriate Great Expectations validation suite
+        depending on the type of device. It runs synchronously since Great Expectations validation is
+        inherently synchronous. Designed to be called from background threads for non-blocking execution.
 
         Args:
-            device_category(DeviceCategory): The category of the device(e.g., GAS, LOWCOST).
-            data(pd.DataFrame): The raw sensor data to be validated.
-            data_type(DataType): The type of data to work with(e.g., RAW, AVERAGE).
+            device_category: The category of the device (e.g., GAS, LOWCOST)
+            data_type: The type of data to work with (e.g., RAW, AVERAGE)
+            data: The raw sensor data to be validated (required for RAW data types)
+            frequency: The frequency of data processing for determining table names
+
+        Raises:
+            ValueError: If device_category or data_type is unsupported
+            Exception: If validation execution fails
         """
         data_asset_name: str = None
         RAW_METHODS = {
@@ -2328,26 +2646,49 @@ class DataUtils:
             DeviceCategory.LOWCOST: "pm2_5_low_cost_sensor_average_data",
             DeviceCategory.BAM: "bam_sensors_averaged_data",
         }
-        if data_type == DataType.RAW:
-            # RAW → Pandas-based validation
-            source = AirQoGxExpectations.from_pandas()
-            method_name = RAW_METHODS.get(device_category)
-        elif data_type in (DataType.AVERAGED, DataType.CONSOLIDATED):
-            # SQL → override data_asset_name with project + table name
-            source = AirQoGxExpectations.from_sql()
-            method_name = SQL_METHODS.get(device_category)
-            # TODO SQL using the general tables for now - This needs to be more dynamic
-            data_asset_name, _ = DataUtils._get_table(
-                data_type, DeviceCategory.GENERAL, frequency
+
+        try:
+            if data_type == DataType.RAW:
+                # RAW → Pandas-based validation
+                source = AirQoGxExpectations.from_pandas()
+                method_name = RAW_METHODS.get(device_category)
+                if data is None:
+                    logger.warning(
+                        f"No data provided for RAW validation of {device_category.value}"
+                    )
+                    return
+            elif data_type in (DataType.AVERAGED, DataType.CONSOLIDATED):
+                # SQL → override data_asset_name with project + table name
+                source = AirQoGxExpectations.from_sql()
+                method_name = SQL_METHODS.get(device_category)
+                # TODO SQL using the general tables for now - This needs to be more dynamic
+                data_asset_name, _ = DataUtils._get_table(
+                    data_type, DeviceCategory.GENERAL, frequency
+                )
+            else:
+                raise ValueError(f"Unsupported data_type: {data_type}")
+
+            if not method_name:
+                raise ValueError(f"Unsupported device_category: {device_category}")
+
+            func = getattr(source, method_name)
+
+            if data_asset_name:
+                logger.info(
+                    f"Running SQL-based validation for {device_category.value} on {data_asset_name}"
+                )
+                func(data_asset_name)
+            else:
+                logger.info(
+                    f"Running DataFrame-based validation for {device_category.value} with {len(data)} records"
+                )
+                func(data)
+
+            logger.info(
+                f"Data quality validation completed successfully for {device_category.value} {data_type.value}"
             )
-        else:
-            raise ValueError(f"Unsupported data_type: {data_type}")
 
-        if not method_name:
-            raise ValueError(f"Unsupported device_category: {device_category}")
-        func = getattr(source, method_name)
-
-        if data_asset_name:
-            func(data_asset_name)
-        else:
-            func(data)
+        except Exception as e:
+            logger.exception(
+                f"Data quality validation failed for {device_category.value} {data_type.value}: {str(e)}"
+            )

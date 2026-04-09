@@ -1,4 +1,3 @@
-// /Users/balmart/Documents/github/AirQo-api/src/auth-service/models/EmailQueue.js
 const mongoose = require("mongoose");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
@@ -33,7 +32,7 @@ const EmailQueueSchema = new mongoose.Schema(
       type: String,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 EmailQueueSchema.index({ status: 1, lastAttemptAt: 1 });

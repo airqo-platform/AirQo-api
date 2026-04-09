@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+const { getNetworkAdapter } = require("@utils/network.util");
 const {
   generateFilter,
   claimTokenUtil,
@@ -57,37 +58,321 @@ const kafka = new Kafka({
 // Add this helper function near the top of device.util.js, after the imports
 
 /**
- * Builds the MongoDB aggregation stage for computing device_categories
- * Single source of truth for category computation logic
- * @returns {Object} MongoDB $addFields stage
+ * Builds the MongoDB $addFields stage for computing device_categories.
+ * Single source of truth — used by device.util.js list() and
+ * event.util.js fetchData() / signalData() pipelines.
+ *
+ * Source fields expected on the document at execution time:
+ *   $category          String  e.g. "lowcost" | "bam" | "gas"
+ *   $deployment_type   String  "static" | "mobile"
+ *   $mobility          Boolean
+ *   $network           String  e.g. "airqo" | "usembassy" | "iqair" …
+ *   $mobility_metadata Object  { route_id, coverage_area, operational_hours,
+ *                                movement_pattern, max_speed, typical_locations }
  */
+const buildRecallUpdateOperation = (recallDate) => ({
+  $set: {
+    status: "recalled",
+    isActive: false,
+    recall_date: recallDate,
+    mobility: false,
+  },
+  $unset: {
+    deployment_type: "",
+    height: "",
+    mountType: "",
+    powerType: "",
+    isPrimaryInLocation: "",
+    latitude: "",
+    longitude: "",
+    deployment_date: "",
+    site_id: null,
+    grid_id: null,
+  },
+});
+
 const getDeviceCategoriesAddFieldsStage = () => {
   return {
     $addFields: {
       device_categories: {
         primary_category: { $ifNull: ["$category", "lowcost"] },
-        deployment_category: { $ifNull: ["$deployment_type", "static"] },
+        // Un-deployed devices have no deployment_type — use the field directly
+        // so they surface as null rather than a misleading "static" default.
+        deployment_category: "$deployment_type",
+
+        // Returns the raw network value so the frontend can display it directly.
+        // null when network is missing or empty string.
+        // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+        ownership_category: {
+          $cond: {
+            if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+            then: "$network",
+            else: null,
+          },
+        },
+
+        // Only meaningful for mobile devices — null for static.
+        // Priority: movement_pattern (most descriptive) → route_id → coverage_area → "mobile".
+        // Note: when called from Event.js pipelines, ensure mobility_metadata is
+        // promoted to the root document after the device_details $lookup, otherwise
+        // this will always fall back to the default "mobile".
+        // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
+        mobile_category: {
+          $cond: {
+            if: {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
+            then: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        {
+                          $gt: [
+                            {
+                              $ifNull: [
+                                "$mobility_metadata.movement_pattern",
+                                null,
+                              ],
+                            },
+                            null,
+                          ],
+                        },
+                        {
+                          $ne: [
+                            {
+                              $ifNull: [
+                                "$mobility_metadata.movement_pattern",
+                                "",
+                              ],
+                            },
+                            "",
+                          ],
+                        },
+                      ],
+                    },
+                    then: "$mobility_metadata.movement_pattern",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        {
+                          $gt: [
+                            { $ifNull: ["$mobility_metadata.route_id", null] },
+                            null,
+                          ],
+                        },
+                        {
+                          $ne: [
+                            { $ifNull: ["$mobility_metadata.route_id", ""] },
+                            "",
+                          ],
+                        },
+                      ],
+                    },
+                    then: "fixed-route",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        {
+                          $gt: [
+                            {
+                              $ifNull: [
+                                "$mobility_metadata.coverage_area",
+                                null,
+                              ],
+                            },
+                            null,
+                          ],
+                        },
+                        {
+                          $ne: [
+                            {
+                              $ifNull: ["$mobility_metadata.coverage_area", ""],
+                            },
+                            "",
+                          ],
+                        },
+                      ],
+                    },
+                    then: "area-coverage",
+                  },
+                ],
+                default: "mobile",
+              },
+            },
+            else: null,
+          },
+        },
+
         is_mobile: {
           $or: [
             { $eq: ["$mobility", true] },
             { $eq: ["$deployment_type", "mobile"] },
           ],
         },
+        // Strict negation of is_mobile — $not requires array form in aggregation expressions
         is_static: {
-          $or: [
-            { $eq: ["$mobility", false] },
-            { $eq: ["$deployment_type", "static"] },
+          $not: [
+            {
+              $or: [
+                { $eq: ["$mobility", true] },
+                { $eq: ["$deployment_type", "mobile"] },
+              ],
+            },
           ],
         },
-        is_lowcost: { $eq: ["$category", "lowcost"] },
-        is_bam: { $eq: ["$category", "bam"] },
-        is_gas: { $eq: ["$category", "gas"] },
+        // Compare against resolved primary_category (via $ifNull) not raw $category,
+        // so a device with no category correctly gets is_lowcost: true
+        is_lowcost: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"] },
+        is_bam: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "bam"] },
+        is_gas: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "gas"] },
+
+        // $setUnion guarantees uniqueness — prevents duplicates when
+        // deployment_category and mobile_category resolve to the same value (e.g. "mobile")
         all_categories: {
-          $concatArrays: [
-            [{ $ifNull: ["$category", "lowcost"] }],
-            [{ $ifNull: ["$deployment_type", "static"] }],
+          $setUnion: [
+            [],
+            {
+              $filter: {
+                input: {
+                  $concatArrays: [
+                    [{ $ifNull: ["$category", "lowcost"] }],
+                    // Only include deployment_type when it is set — the $filter
+                    // below removes nulls, so un-deployed devices contribute nothing here.
+                    ["$deployment_type"],
+                    // Include network value when present
+                    {
+                      $cond: {
+                        if: { $ne: [{ $ifNull: ["$network", ""] }, ""] },
+                        then: ["$network"],
+                        else: [],
+                      },
+                    },
+                    // Include mobile_category when device is mobile
+                    {
+                      $cond: {
+                        if: {
+                          $or: [
+                            { $eq: ["$mobility", true] },
+                            { $eq: ["$deployment_type", "mobile"] },
+                          ],
+                        },
+                        then: [
+                          {
+                            $switch: {
+                              branches: [
+                                {
+                                  case: {
+                                    $and: [
+                                      {
+                                        $gt: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.movement_pattern",
+                                              null,
+                                            ],
+                                          },
+                                          null,
+                                        ],
+                                      },
+                                      {
+                                        $ne: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.movement_pattern",
+                                              "",
+                                            ],
+                                          },
+                                          "",
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                  then: "$mobility_metadata.movement_pattern",
+                                },
+                                {
+                                  case: {
+                                    $and: [
+                                      {
+                                        $gt: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.route_id",
+                                              null,
+                                            ],
+                                          },
+                                          null,
+                                        ],
+                                      },
+                                      {
+                                        $ne: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.route_id",
+                                              "",
+                                            ],
+                                          },
+                                          "",
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                  then: "fixed-route",
+                                },
+                                {
+                                  case: {
+                                    $and: [
+                                      {
+                                        $gt: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.coverage_area",
+                                              null,
+                                            ],
+                                          },
+                                          null,
+                                        ],
+                                      },
+                                      {
+                                        $ne: [
+                                          {
+                                            $ifNull: [
+                                              "$mobility_metadata.coverage_area",
+                                              "",
+                                            ],
+                                          },
+                                          "",
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                  then: "area-coverage",
+                                },
+                              ],
+                              default: "mobile",
+                            },
+                          },
+                        ],
+                        else: [],
+                      },
+                    },
+                  ],
+                },
+                as: "cat",
+                cond: {
+                  $and: [{ $gt: ["$$cat", null] }, { $ne: ["$$cat", ""] }],
+                },
+              },
+            },
           ],
         },
+
         category_hierarchy: [
           {
             level: "equipment",
@@ -114,7 +399,8 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
           {
             level: "deployment",
-            category: { $ifNull: ["$deployment_type", "static"] },
+            // null for un-deployed devices — no deployment type assigned yet.
+            category: "$deployment_type",
             description: {
               $switch: {
                 branches: [
@@ -127,48 +413,27 @@ const getDeviceCategoriesAddFieldsStage = () => {
                     then: "Static deployment (fixed location, site-based)",
                   },
                 ],
-                default: "Static deployment (fixed location, site-based)",
+                default: null,
               },
             },
           },
         ],
+
         category_relationships: {
-          $cond: [
-            {
-              $or: [
-                { $eq: ["$mobility", true] },
-                { $eq: ["$deployment_type", "mobile"] },
-              ],
-            },
-            {
-              type: "mobile",
-              note: {
-                $concat: [
-                  "This is a mobile ",
-                  { $ifNull: ["$category", "lowcost"] },
-                  " device. Mobile devices can belong to any equipment category (lowcost, bam, or gas) and use grid-based deployment.",
+          note:
+            "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
+          mobile_is_subcategory_of: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ["$mobility", true] },
+                  { $eq: ["$deployment_type", "mobile"] },
                 ],
               },
-              belongs_to_equipment_category: {
-                $ifNull: ["$category", "lowcost"],
-              },
-              deployment_method: "grid-based",
-            },
-            {
-              type: "static",
-              note: {
-                $concat: [
-                  "This is a static ",
-                  { $ifNull: ["$category", "lowcost"] },
-                  " device deployed at a fixed location using site-based deployment.",
-                ],
-              },
-              belongs_to_equipment_category: {
-                $ifNull: ["$category", "lowcost"],
-              },
-              deployment_method: "site-based",
-            },
-          ],
+              { $ifNull: ["$category", "lowcost"] },
+              null,
+            ],
+          },
         },
       },
     },
@@ -178,64 +443,66 @@ const getDeviceCategoriesAddFieldsStage = () => {
 const deviceUtil = {
   getDeviceCountSummary: async (request, next) => {
     try {
-      const { tenant, group_id, cohort_id } = request.query;
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
 
-      // 1. Build the initial filter based on group or cohort
-      const filter = {};
-      if (group_id) {
-        const groupIds = group_id.split(",").map((id) => id.trim());
-        filter.groups = { $in: groupIds };
-      }
-      if (cohort_id) {
-        const cohortIds = cohort_id.split(",").map((id) => ObjectId(id.trim()));
-        filter.cohorts = { $in: cohortIds };
-      }
-
-      // 2. Create the aggregation pipeline with $facet
       const pipeline = [
         { $match: filter },
         {
           $facet: {
-            deployed: [{ $match: { status: "deployed" } }, { $count: "count" }],
-            recalled: [{ $match: { status: "recalled" } }, { $count: "count" }],
-            undeployed: [
-              { $match: { status: "not deployed" } },
+            total_monitors: [{ $count: "count" }],
+            operational: [
+              { $match: { isOnline: true, rawOnlineStatus: true } },
               { $count: "count" },
             ],
-            online: [{ $match: { isOnline: true } }, { $count: "count" }],
-            offline: [{ $match: { isOnline: false } }, { $count: "count" }],
-            maintenance_overdue: [
-              {
-                $match: {
-                  nextMaintenance: { $lt: new Date() },
-                  status: "deployed",
-                },
-              },
+            transmitting: [
+              { $match: { isOnline: false, rawOnlineStatus: true } },
+              { $count: "count" },
+            ],
+            data_available: [
+              { $match: { isOnline: true, rawOnlineStatus: false } },
+              { $count: "count" },
+            ],
+            not_transmitting: [
+              { $match: { isOnline: false, rawOnlineStatus: false } },
               { $count: "count" },
             ],
           },
         },
+        {
+          $project: {
+            total_monitors: {
+              $ifNull: [{ $arrayElemAt: ["$total_monitors.count", 0] }, 0],
+            },
+            operational: {
+              $ifNull: [{ $arrayElemAt: ["$operational.count", 0] }, 0],
+            },
+            transmitting: {
+              $ifNull: [{ $arrayElemAt: ["$transmitting.count", 0] }, 0],
+            },
+            not_transmitting: {
+              $ifNull: [{ $arrayElemAt: ["$not_transmitting.count", 0] }, 0],
+            },
+            data_available: {
+              $ifNull: [{ $arrayElemAt: ["$data_available.count", 0] }, 0],
+            },
+          },
+        },
       ];
 
-      // 3. Execute the aggregation
       const results = await DeviceModel(tenant).aggregate(pipeline);
 
-      // 4. Format the response
-      const counts = results[0];
-      const summary = {
-        deployed: counts.deployed[0] ? counts.deployed[0].count : 0,
-        recalled: counts.recalled[0] ? counts.recalled[0].count : 0,
-        undeployed: counts.undeployed[0] ? counts.undeployed[0].count : 0,
-        online: counts.online[0] ? counts.online[0].count : 0,
-        offline: counts.offline[0] ? counts.offline[0].count : 0,
-        maintenance_overdue: counts.maintenance_overdue[0]
-          ? counts.maintenance_overdue[0].count
-          : 0,
+      const summary = results[0] || {
+        total_monitors: 0,
+        operational: 0,
+        transmitting: 0,
+        not_transmitting: 0,
+        data_available: 0,
       };
 
       return {
         success: true,
-        message: "Successfully retrieved device count summary.",
+        message: "Successfully retrieved network health summary.",
         data: summary,
         status: httpStatus.OK,
       };
@@ -245,8 +512,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -291,8 +558,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -320,8 +587,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -352,8 +619,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -395,8 +662,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -487,8 +754,8 @@ const deviceUtil = {
         new HttpError(
           "QR Code Generation Failed",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -516,7 +783,7 @@ const deviceUtil = {
 
       let responseFromCreateOnThingspeak = await deviceUtil.createOnThingSpeak(
         request,
-        next
+        next,
       );
 
       let enrichmentDataForDeviceCreation = responseFromCreateOnThingspeak.data
@@ -532,11 +799,11 @@ const deviceUtil = {
 
         let responseFromCreateDeviceOnPlatform = await deviceUtil.createOnPlatform(
           modifiedRequest,
-          next
+          next,
         );
         logObject(
           "responseFromCreateDeviceOnPlatform",
-          responseFromCreateDeviceOnPlatform
+          responseFromCreateDeviceOnPlatform,
         );
         if (responseFromCreateDeviceOnPlatform.success === true) {
           return responseFromCreateDeviceOnPlatform;
@@ -548,7 +815,7 @@ const deviceUtil = {
 
           let responseFromDeleteDeviceFromThingspeak = await deviceUtil.deleteOnThingspeak(
             deleteRequest,
-            next
+            next,
           );
 
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
@@ -557,7 +824,7 @@ const deviceUtil = {
               : "";
             try {
               logger.error(
-                `creation operation failed -- successfully undid the successfull operations -- ${errorsString}`
+                `creation operation failed -- successfully undid the successfull operations -- ${errorsString}`,
               );
             } catch (error) {
               logger.error(`internal server error ${error.message}`);
@@ -582,7 +849,7 @@ const deviceUtil = {
                 ? JSON.stringify(responseFromDeleteDeviceFromThingspeak.errors)
                 : "";
               logger.error(
-                `creation operation failed -- also failed to undo the successfull operations --${errorsString}`
+                `creation operation failed -- also failed to undo the successfull operations --${errorsString}`,
               );
             } catch (error) {
               logger.error(`internal server error ${error.message}`);
@@ -604,7 +871,7 @@ const deviceUtil = {
             ? JSON.stringify(responseFromCreateOnThingspeak.errors)
             : "";
           logger.error(
-            `unable to generate enrichment data for the device -- ${errorsString}`
+            `unable to generate enrichment data for the device -- ${errorsString}`,
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -627,8 +894,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -670,18 +937,18 @@ const deviceUtil = {
       if (isEmpty(device_number)) {
         const responseFromUpdateDeviceOnPlatform = await deviceUtil.updateOnPlatform(
           request,
-          next
+          next,
         );
         return responseFromUpdateDeviceOnPlatform;
       } else if (!isEmpty(device_number)) {
         const responseFromUpdateDeviceOnThingspeak = await deviceUtil.updateOnThingspeak(
           modifiedRequest,
-          next
+          next,
         );
         if (responseFromUpdateDeviceOnThingspeak.success === true) {
           const responseFromUpdateDeviceOnPlatform = await deviceUtil.updateOnPlatform(
             request,
-            next
+            next,
           );
           return responseFromUpdateDeviceOnPlatform;
         } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
@@ -694,8 +961,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -716,8 +983,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -746,7 +1013,7 @@ const deviceUtil = {
 
       let responseFromDeleteDeviceFromThingspeak = await deviceUtil.deleteOnThingspeak(
         modifiedRequest,
-        next
+        next,
       );
 
       // logger.info(
@@ -755,7 +1022,7 @@ const deviceUtil = {
       if (responseFromDeleteDeviceFromThingspeak.success === true) {
         let responseFromDeleteDeviceOnPlatform = await deviceUtil.deleteOnPlatform(
           modifiedRequest,
-          next
+          next,
         );
 
         // logger.info(
@@ -779,7 +1046,7 @@ const deviceUtil = {
               responseFromDeleteDeviceFromThingspeak.status
                 ? responseFromDeleteDeviceFromThingspeak.status
                 : ""
-            }`
+            }`,
           ),
         };
       }
@@ -789,8 +1056,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -812,7 +1079,7 @@ const deviceUtil = {
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.min(
         MAX_LIMIT,
-        Math.max(1, parseInt(limit, 10) || MAX_LIMIT)
+        Math.max(1, parseInt(limit, 10) || MAX_LIMIT),
       );
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
@@ -879,7 +1146,7 @@ const deviceUtil = {
             },
           },
           { $project: constants.DEVICES_INCLUSION_PROJECTION },
-          { $project: constants.DEVICES_EXCLUSION_PROJECTION("summary") }
+          { $project: constants.DEVICES_EXCLUSION_PROJECTION("summary") },
         );
       } else {
         // Full detail level (existing complex aggregation)
@@ -939,7 +1206,7 @@ const deviceUtil = {
               foreignField: "_id",
               as: "assigned_grid",
             },
-          }
+          },
         );
 
         if (useCache === "true") {
@@ -1108,7 +1375,7 @@ const deviceUtil = {
                   },
                 },
               },
-            }
+            },
           );
         }
 
@@ -1141,7 +1408,7 @@ const deviceUtil = {
         ? results[0].totalCount[0].count
         : 0;
 
-      // **CRITICAL FIX: Post-process for BOTH cached and non-cached results**
+      // Post-process for BOTH cached and non-cached results**
       if (!isEmpty(paginatedResults) && detailLevel === "full") {
         paginatedResults.forEach((device) => {
           // Process activities for non-cached (real-time) results
@@ -1171,7 +1438,7 @@ const deviceUtil = {
             }
           }
 
-          // **FIX: Ensure total_activities is set correctly for cached results**
+          // Ensure total_activities is set correctly for cached results**
           // This handles cases where projection might have modified the field
           if (useCache === "true") {
             // Ensure the field exists and has the right value
@@ -1198,7 +1465,7 @@ const deviceUtil = {
             }
           }
 
-          // **FIX: Process assigned_grid for BOTH cached and non-cached**
+          // Process assigned_grid for BOTH cached and non-cached**
           if (device.assigned_grid && device.assigned_grid.length > 0) {
             const grid = device.assigned_grid[0];
             device.assigned_grid = {
@@ -1260,8 +1527,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1288,41 +1555,181 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
+      // ── Auto-populate api_code and serial_number for external devices ───────
+      // Runs only for non-AirQo networks. Three steps in priority order:
+      //   1. Extract api_code from a URL embedded in description (e.g. IQAir
+      //      devices where the connection URL is pasted into description).
+      //   2. Build api_code from adapter template + serial_number (e.g. IQAir
+      //      where only serial_number is known at registration time).
+      //   3. Derive serial_number from api_code via regex if still missing.
+      // All steps are non-fatal — failures are logged and device creation
+      // continues without the field rather than blocking the caller.
+      if (body.network && body.network !== "airqo") {
+        // DB-first adapter resolution via shared helper (DB wins, static fills gaps).
+        const adapterConfig = await getNetworkAdapter(body.network, tenant);
+
+        // Step 1: extract api_code from description URL, validated against adapter
+        // Require adapterConfig.api_base_url to be set before trusting any URL
+        // found in description — without a known base URL to validate against,
+        // any arbitrary outbound URL could be injected via this field.
+        if (!body.api_code && body.description && adapterConfig?.api_base_url) {
+          const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
+          if (urlMatch) {
+            const extractedUrl = urlMatch[0].replace(/[.,;]+$/, "");
+            if (extractedUrl.startsWith(adapterConfig.api_base_url)) {
+              body.api_code = extractedUrl;
+              logText(
+                `createOnPlatform: extracted api_code from description for network "${body.network}"`
+              );
+            } else {
+              logger.warn(
+                `createOnPlatform: URL in description does not match expected base ` +
+                  `for network "${body.network}" — ignoring`
+              );
+            }
+          }
+        }
+
+        // Step 2: build api_code from adapter template + serial_number
+        if (
+          !body.api_code &&
+          body.serial_number &&
+          adapterConfig?.api_base_url &&
+          adapterConfig?.api_url_template
+        ) {
+          body.api_code =
+            adapterConfig.api_base_url +
+            adapterConfig.api_url_template.replace(
+              "{serial_number}",
+              body.serial_number
+            );
+          logText(
+            `createOnPlatform: built api_code from adapter template for network "${body.network}"`
+          );
+        }
+
+        // Step 3: derive serial_number from api_code via regex
+        if (body.api_code && !body.serial_number && adapterConfig?.serial_number_regex) {
+          try {
+            const match = body.api_code.match(
+              new RegExp(adapterConfig.serial_number_regex)
+            );
+            if (match && match[1]) {
+              body.serial_number = match[1];
+              logText(
+                `createOnPlatform: auto-populated serial_number from api_code for network "${body.network}"`
+              );
+            }
+          } catch (regexError) {
+            logger.warn(
+              `createOnPlatform: serial_number regex failed for network "${body.network}": ` +
+                regexError.message
+            );
+          }
+        }
+      }
+
+      // Initialize cohorts array if it doesn't exist to prevent runtime errors
+      if (!body.cohorts) {
+        body.cohorts = [];
+      }
+
+      // user_id is optional — when provided it sets ownership and personal cohort
+      if (body.user_id && !isValidObjectId(body.user_id)) {
+        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      }
+
+      // Automatically assign the user who is importing the device as the owner
+      if (body.user_id) {
+        body.owner_id = body.user_id;
+      }
+
       try {
+        // --- START: Cohort assignment ---
+        const { user_id, cohort_id } = body;
+        let targetCohort;
+
+        if (cohort_id) {
+          // Case A: A specific cohort is provided during import
+          if (!isValidObjectId(cohort_id)) {
+            throw new HttpError(
+              `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
+              httpStatus.BAD_REQUEST,
+            );
+          }
+          targetCohort = await CohortModel(tenant)
+            .findById(cohort_id)
+            .lean();
+          if (!targetCohort) {
+            throw new HttpError(
+              `Specified cohort with ID ${cohort_id} not found.`,
+              httpStatus.NOT_FOUND,
+            );
+          }
+          if (targetCohort) {
+            body.cohorts.push(targetCohort._id);
+          }
+        } else if (user_id) {
+          // Case B: No cohort provided but user_id given — use/create personal cohort
+          const personalCohortName = `coh_user_${user_id.toString()}`;
+          targetCohort = await CohortModel(tenant).findOneAndUpdate(
+            { name: personalCohortName },
+            {
+              $setOnInsert: {
+                name: personalCohortName,
+                description: `Personal cohort for user ${user_id.toString()}`,
+                network: body.network || "airqo",
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true },
+          );
+          if (targetCohort) {
+            body.cohorts.push(targetCohort._id);
+          }
+        }
+        // Case C: no user_id and no cohort_id — only default cohort assigned below
+        // --- END: Cohort assignment ---
+
+        // Add device to the main default cohort as well
         const defaultCohort = await CohortModel(tenant)
           .findOne({ name: constants.DEFAULT_COHORT_NAME })
           .select("_id")
           .lean();
+
         if (defaultCohort) {
-          // Initialize cohorts array if it doesn't exist
-          if (!body.cohorts) {
-            body.cohorts = [];
-          }
-
-          // Add airqo cohort if not already present
-          const airqoCohortId = defaultCohort._id.toString();
-          const existingCohortIds = body.cohorts.map((id) => String(id));
-
-          if (!existingCohortIds.includes(airqoCohortId)) {
-            body.cohorts.push(defaultCohort._id);
-            logText(`Added device to default 'airqo' cohort: ${airqoCohortId}`);
-          }
+          body.cohorts.push(defaultCohort._id);
         } else {
-          logText("💔 No default 'airqo' cohort found.");
           logger.warn(
-            `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`
+            `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`,
           );
         }
       } catch (cohortError) {
+        // Rethrow intentional errors (e.g. cohort not found) so the caller
+        // receives the correct status code instead of a generic 500.
+        if (cohortError instanceof HttpError) {
+          throw cohortError;
+        }
         logger.error(
-          `🪲🪲 Error finding default cohort: ${cohortError.message}. Continuing with device creation.`
+          `🪲🪲 Error during cohort assignment: ${cohortError.message}. Continuing with device creation.`,
         );
-        // Don't fail device creation if cohort lookup fails
+        // Unexpected DB errors are non-fatal — device is still created.
+      }
+
+      // Ensure cohorts array has unique values before saving
+      // and gracefully handle any invalid ObjectIDs that might be present.
+      try {
+        body.cohorts = [...new Set(body.cohorts.map(String))]
+          .filter((id) => isValidObjectId(id))
+          .map((id) => ObjectId(id));
+      } catch (cohortNormalizationError) {
+        logger.error(
+          `🪲 Error normalizing cohorts array: ${cohortNormalizationError.message}`,
+        );
       }
 
       const responseFromRegisterDevice = await DeviceModel(tenant).register(
         body,
-        next
+        next,
       );
 
       if (responseFromRegisterDevice.success === true) {
@@ -1353,13 +1760,19 @@ const deviceUtil = {
         return responseFromRegisterDevice;
       }
     } catch (error) {
+      // Preserve intentional HttpErrors (e.g. 400 invalid user_id, 404 cohort
+      // not found) so they reach the client with the correct status code.
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      }
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1389,7 +1802,7 @@ const deviceUtil = {
           map,
           context,
         },
-        next
+        next,
       );
       // logger.info(
       //   `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
@@ -1457,8 +1870,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1482,7 +1895,7 @@ const deviceUtil = {
           data,
           map,
         },
-        next
+        next,
       );
       // logger.info(
       //   `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
@@ -1496,7 +1909,7 @@ const deviceUtil = {
       const response = await axios.put(
         constants.UPDATE_THING(device_number),
         qs.stringify(transformedBody),
-        config
+        config,
       );
 
       // logger.info(`successfully updated the device on thingspeak`);
@@ -1512,8 +1925,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1565,7 +1978,7 @@ const deviceUtil = {
             update,
             opts,
           },
-          next
+          next,
         );
         return responseFromModifyDevice;
       }, trackingParams);
@@ -1575,8 +1988,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1594,13 +2007,13 @@ const deviceUtil = {
 
       // Create sets for comparison
       const existingDeviceIds = new Set(
-        existingDevices.map((device) => device._id.toString())
+        existingDevices.map((device) => device._id.toString()),
       );
       const providedDeviceIds = new Set(deviceIds.map((id) => id.toString()));
 
       // Identify non-existent device IDs
       const nonExistentDeviceIds = deviceIds.filter(
-        (id) => !existingDeviceIds.has(id.toString())
+        (id) => !existingDeviceIds.has(id.toString()),
       );
 
       // If there are non-existent devices, prepare a detailed error
@@ -1612,7 +2025,7 @@ const deviceUtil = {
             existingDeviceIds: Array.from(existingDeviceIds),
             totalProvidedDeviceIds: deviceIds.length,
             existingDeviceCount: existingDevices.length,
-          })
+          }),
         );
       }
 
@@ -1635,14 +2048,14 @@ const deviceUtil = {
 
       // Perform bulk update
       const responseFromBulkModifyDevices = await DeviceModel(
-        tenant
+        tenant,
       ).bulkModify(
         {
           filter,
           update: updateData,
           opts,
         },
-        next
+        next,
       );
 
       // Attach additional metadata to the response
@@ -1660,8 +2073,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1680,7 +2093,7 @@ const deviceUtil = {
                 message:
                   "corresponding device_number does not exist on external system, consider SOFT delete",
                 error: e.response.data.error,
-              })
+              }),
             );
           }
         });
@@ -1690,7 +2103,7 @@ const deviceUtil = {
           new HttpError(`${response.message}`, `${response.status}`, {
             message: "unable to complete operation",
             error: `${response.error}`,
-          })
+          }),
         );
       } else if (!isEmpty(response.data)) {
         return {
@@ -1705,8 +2118,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1718,7 +2131,7 @@ const deviceUtil = {
         {
           filter,
         },
-        next
+        next,
       );
       return responseFromRemoveDevice;
     } catch (error) {
@@ -1727,8 +2140,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1749,7 +2162,7 @@ const deviceUtil = {
         }
         const bytes = cryptoJS.AES.decrypt(
           helperInput[0].encrypted_key,
-          constants.KEY_ENCRYPTION_KEY
+          constants.KEY_ENCRYPTION_KEY,
         );
         const originalText = bytes.toString(cryptoJS.enc.Utf8);
         helperInput[0].decrypted_key = originalText;
@@ -1769,8 +2182,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1778,7 +2191,7 @@ const deviceUtil = {
     try {
       let bytes = cryptoJS.AES.decrypt(
         encryptedKey,
-        constants.KEY_ENCRYPTION_KEY
+        constants.KEY_ENCRYPTION_KEY,
       );
       let originalText = bytes.toString(cryptoJS.enc.Utf8);
       let isKeyUnknown = isEmpty(originalText);
@@ -1803,8 +2216,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1819,7 +2232,7 @@ const deviceUtil = {
         };
       } else {
         logger.warn(
-          `the request body for the external system is empty after transformation`
+          `the request body for the external system is empty after transformation`,
         );
         return {
           success: true,
@@ -1834,8 +2247,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1858,7 +2271,7 @@ const deviceUtil = {
         {
           filter,
         },
-        next
+        next,
       );
 
       if (responseFromListDevice.success === true) {
@@ -1893,7 +2306,7 @@ const deviceUtil = {
           update,
           opts,
         },
-        next
+        next,
       );
 
       if (responseFromModifyDevice.success === true) {
@@ -1911,8 +2324,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -1948,26 +2361,12 @@ const deviceUtil = {
       // MODIFICATION: Instead of throwing an error, we will now automatically recall the device.
       if (device.status === "deployed") {
         logText(
-          `Device ${device_name} is currently deployed. Automatically recalling before claiming.`
+          `Device ${device_name} is currently deployed. Automatically recalling before claiming.`,
         );
 
         const recallDate = new Date();
 
-        const updateOperation = {
-          $set: {
-            status: "recalled",
-            isActive: false,
-            recall_date: recallDate,
-          },
-          $unset: {
-            height: "",
-            mountType: "",
-            powerType: "",
-            isPrimaryInLocation: "",
-            site_id: null,
-            grid_id: null,
-          },
-        };
+        const updateOperation = buildRecallUpdateOperation(recallDate);
 
         if (device.site_id) {
           updateOperation.$addToSet = { previous_sites: device.site_id };
@@ -1976,13 +2375,13 @@ const deviceUtil = {
         // Persist the recall state to the database atomically
         const recallResult = await DeviceModel(tenant).updateOne(
           { _id: device._id, status: "deployed" },
-          updateOperation
+          updateOperation,
         );
 
         if (recallResult.modifiedCount === 0) {
           throw new HttpError(
             "Device status may have changed during the operation. Please try again.",
-            httpStatus.CONFLICT
+            httpStatus.CONFLICT,
           );
         }
 
@@ -1998,7 +2397,7 @@ const deviceUtil = {
           });
         } catch (logError) {
           logger.error(
-            `Failed to log automatic recall activity for ${device.name}: ${logError.message}`
+            `Failed to log automatic recall activity for ${device.name}: ${logError.message}`,
           );
         }
 
@@ -2027,11 +2426,11 @@ const deviceUtil = {
           });
           await kafkaProducer.disconnect();
           logText(
-            `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`
+            `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
           );
         } catch (error) {
           logger.error(
-            `internal server error -- while publishing recall message to Kafka -- ${error.message}`
+            `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
           );
         }
 
@@ -2087,7 +2486,7 @@ const deviceUtil = {
               network: safeNetwork,
             },
           },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, new: true, setDefaultsOnInsert: true },
         );
       }
 
@@ -2106,7 +2505,7 @@ const deviceUtil = {
           },
           $addToSet: { cohorts: targetCohort._id },
         },
-        { new: true }
+        { new: true },
       );
 
       if (!updatedDevice) {
@@ -2138,14 +2537,15 @@ const deviceUtil = {
     } catch (error) {
       if (error instanceof HttpError) {
         next(error);
+        return;
       } else {
         logger.error(`🐛🐛 Claim Device Error ${error.message}`);
         next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
-            { message: error.message }
-          )
+            { message: error.message },
+          ),
         );
       }
     }
@@ -2198,7 +2598,7 @@ const deviceUtil = {
                 network: firstDevice ? firstDevice.network || "airqo" : "airqo",
               },
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, new: true, setDefaultsOnInsert: true },
           )
           .lean();
       }
@@ -2219,25 +2619,11 @@ const deviceUtil = {
 
           if (device.status === "deployed") {
             logText(
-              `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`
+              `Device ${device_name} is currently deployed. Automatically recalling before bulk claiming.`,
             );
             const recallDate = new Date();
 
-            const updateOperation = {
-              $set: {
-                status: "recalled",
-                isActive: false,
-                recall_date: recallDate,
-              },
-              $unset: {
-                height: "",
-                mountType: "",
-                powerType: "",
-                isPrimaryInLocation: "",
-                site_id: null,
-                grid_id: null,
-              },
-            };
+            const updateOperation = buildRecallUpdateOperation(recallDate);
 
             if (device.site_id) {
               updateOperation.$addToSet = { previous_sites: device.site_id };
@@ -2245,7 +2631,7 @@ const deviceUtil = {
 
             const recallResult = await DeviceModel(tenant).updateOne(
               { _id: device._id, status: "deployed" },
-              updateOperation
+              updateOperation,
             );
 
             if (recallResult.modifiedCount === 0) {
@@ -2264,7 +2650,7 @@ const deviceUtil = {
               });
             } catch (logError) {
               logger.error(
-                `Failed to log recall activity for ${device.name}: ${logError.message}`
+                `Failed to log recall activity for ${device.name}: ${logError.message}`,
               );
             }
 
@@ -2293,11 +2679,11 @@ const deviceUtil = {
               });
               await kafkaProducer.disconnect();
               logText(
-                `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`
+                `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
               );
             } catch (error) {
               logger.error(
-                `internal server error -- while publishing recall message to Kafka -- ${error.message}`
+                `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
               );
             }
 
@@ -2331,7 +2717,7 @@ const deviceUtil = {
               },
               $addToSet: { cohorts: targetCohort._id },
             },
-            { new: true }
+            { new: true },
           );
 
           if (!updatedDevice) {
@@ -2355,7 +2741,7 @@ const deviceUtil = {
             });
           } catch (logError) {
             logger.error(
-              `Failed to log bulk claim activity for device ${updatedDevice.name}: ${logError.message}`
+              `Failed to log bulk claim activity for device ${updatedDevice.name}: ${logError.message}`,
             );
             successEntry.logging_error = true;
           }
@@ -2381,8 +2767,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2420,7 +2806,7 @@ const deviceUtil = {
 
       const responseFromListDevice = await DeviceModel(tenant).list(
         { filter },
-        next
+        next,
       );
 
       return responseFromListDevice;
@@ -2430,8 +2816,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -2468,8 +2854,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2507,8 +2893,8 @@ const deviceUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2564,8 +2950,8 @@ const deviceUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -2655,7 +3041,7 @@ const deviceUtil = {
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id assigned_organization claimed_at"
+          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id assigned_organization claimed_at",
         )
         .sort({ claimed_at: -1 })
         .lean();
@@ -2687,8 +3073,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2732,8 +3118,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2797,7 +3183,7 @@ const deviceUtil = {
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
         { name: device_name, owner_id: new ObjectId(user_id) },
         { $set: updateData },
-        { new: true }
+        { new: true },
       );
 
       return {
@@ -2817,8 +3203,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2892,8 +3278,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -2906,7 +3292,7 @@ const deviceUtil = {
 
       if (dry_run) {
         const devicesNeedingMigration = await DeviceModel(
-          tenant
+          tenant,
         ).countDocuments({
           claim_status: { $exists: false },
         });
@@ -2938,7 +3324,7 @@ const deviceUtil = {
             assigned_organization: null,
             organization_assigned_at: null,
           },
-        }
+        },
       );
 
       // Rest of the migration logic remains the same...
@@ -2958,7 +3344,7 @@ const deviceUtil = {
           const claimToken = claimTokenUtil.generateClaimToken();
           await DeviceModel(tenant).updateOne(
             { _id: device._id },
-            { $set: { claim_token: claimToken } }
+            { $set: { claim_token: claimToken } },
           );
           tokensGenerated++;
         }
@@ -2970,7 +3356,7 @@ const deviceUtil = {
       }
 
       logger.info(
-        `Migration completed. Updated ${migrationResult.modifiedCount} devices.`
+        `Migration completed. Updated ${migrationResult.modifiedCount} devices.`,
       );
 
       return {
@@ -2990,7 +3376,7 @@ const deviceUtil = {
       next(
         new HttpError("Migration Failed", httpStatus.INTERNAL_SERVER_ERROR, {
           message: error.message,
-        })
+        }),
       );
     }
   },
@@ -3005,7 +3391,7 @@ const deviceUtil = {
           user_id,
           organization_id,
         },
-        next
+        next,
       );
 
       return result;
@@ -3015,8 +3401,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3046,8 +3432,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3101,14 +3487,14 @@ const deviceUtil = {
             shipping_prepared_at: new Date(),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       // Generate QR code data
       const qrCodeData = claimTokenUtil.generateQRCodeData(
         device_name,
         claimToken,
-        constants.DEPLOYMENT_URL
+        constants.DEPLOYMENT_URL,
       );
 
       // Generate QR code image
@@ -3126,7 +3512,7 @@ const deviceUtil = {
       const labelData = claimTokenUtil.generateDeviceLabelData(
         device_name,
         claimToken,
-        qrCodeData
+        qrCodeData,
       );
 
       return {
@@ -3150,8 +3536,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3172,6 +3558,7 @@ const deviceUtil = {
       const results = [];
       const successful = [];
       const failed = [];
+      let batchCreated = false;
 
       for (const deviceName of device_names) {
         try {
@@ -3183,7 +3570,7 @@ const deviceUtil = {
 
           const result = await deviceUtil.prepareDeviceForShipping(
             deviceRequest,
-            next
+            next,
           );
 
           if (result.success) {
@@ -3214,17 +3601,23 @@ const deviceUtil = {
             // created_by: request.user._id // Assuming user is available in request
           });
           logText(`📦 Shipping batch '${batch_name}' created successfully.`);
+          batchCreated = true;
         } catch (batchError) {
           logText(
-            `❗ Failed to create shipping batch '${batch_name}': ${batchError.message}`
+            `❗ Failed to create shipping batch '${batch_name}': ${batchError.message}`,
           );
           logObject("Batch creation error details", batchError);
         }
       }
 
+      const message =
+        `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed.` +
+        (batchCreated
+          ? ` Shipping batch '${batch_name}' was created.`
+          : " No shipping batch was created as 'batch_name' was not provided.");
       return {
         success: true,
-        message: `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed`,
+        message: message,
         data: {
           successful_preparations: successful,
           failed_preparations: failed,
@@ -3242,9 +3635,138 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
+    }
+  },
+  createShippingBatch: async (request, next) => {
+    try {
+      const { device_names, token_type = "hex", batch_name } = request.body;
+      const { tenant } = request.query;
+
+      // Check for duplicate batch name
+      const existingBatch = await ShippingBatchModel(tenant).findOne({
+        batch_name,
+      });
+      if (existingBatch) {
+        return {
+          success: false,
+          message: "Batch name already exists",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message: `A shipping batch with the name '${batch_name}' already exists.`,
+          },
+        };
+      }
+
+      const successful = [];
+      const failed = [];
+      const originalDeviceStates = [];
+
+      for (const deviceName of device_names) {
+        try {
+          const deviceRequest = {
+            body: { device_name: deviceName, token_type },
+            query: { tenant },
+          };
+
+          // Store original state before modification
+          const originalDevice = await DeviceModel(tenant)
+            .findOne({ name: deviceName })
+            .lean();
+          if (originalDevice) {
+            originalDeviceStates.push({
+              _id: originalDevice._id,
+              ...originalDevice,
+            });
+          }
+
+          const result = await deviceUtil.prepareDeviceForShipping(
+            deviceRequest,
+            next,
+          );
+
+          if (result.success) {
+            successful.push(result.data);
+          } else {
+            failed.push({
+              device_name: deviceName,
+              error: result.message || result.errors?.message,
+            });
+          }
+        } catch (error) {
+          failed.push({
+            device_name: deviceName,
+            error: error.message,
+          });
+        }
+      }
+
+      if (successful.length === 0) {
+        return {
+          success: false,
+          message: "No devices could be prepared for shipping.",
+          status: httpStatus.BAD_REQUEST,
+          errors: { failed_preparations: failed },
+        };
+      }
+
+      let newBatch;
+      try {
+        const successfulDeviceIds = successful.map((d) => d.device_id);
+        newBatch = await ShippingBatchModel(tenant).create({
+          batch_name,
+          devices: successfulDeviceIds,
+          device_names: successful.map((d) => d.device_name),
+          tenant,
+        });
+      } catch (batchError) {
+        logger.error(
+          `Failed to create shipping batch, rolling back device preparations: ${batchError.message}`,
+        );
+
+        // If batch creation fails, restore original device states
+        const rollbackPromises = originalDeviceStates.map((originalState) => {
+          const { _id, ...restoreData } = originalState;
+          return DeviceModel(tenant).updateOne({ _id }, { $set: restoreData });
+        });
+
+        await Promise.all(rollbackPromises)
+          .then(() => {
+            logText("📦 Rollback successful for all prepared devices.");
+          })
+          .catch((rollbackError) => {
+            logger.error(`CRITICAL: Rollback failed: ${rollbackError.message}`);
+          });
+
+        return {
+          success: false,
+          message:
+            "Batch creation failed; device preparations have been rolled back.",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: batchError.message },
+        };
+      }
+
+      return {
+        success: true,
+        message: `Shipping batch '${batch_name}' created successfully. ${successful.length} devices prepared, ${failed.length} failed.`,
+        data: {
+          batch: newBatch,
+          successful_preparations: successful,
+          failed_preparations: failed,
+          summary: {
+            total_requested: device_names.length,
+            successful_count: successful.length,
+            failed_count: failed.length,
+          },
+        },
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      next(error);
+      return;
     }
   },
   listShippingBatches: async (request, next) => {
@@ -3255,7 +3777,7 @@ const deviceUtil = {
       const _skip = Math.max(0, parseInt(request.query.skip, 10) || 0);
       const _limit = Math.min(
         MAX_LIMIT,
-        Math.max(1, parseInt(request.query.limit, 10) || MAX_LIMIT)
+        Math.max(1, parseInt(request.query.limit, 10) || MAX_LIMIT),
       );
 
       const batches = await ShippingBatchModel(tenant)
@@ -3314,8 +3836,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3326,7 +3848,7 @@ const deviceUtil = {
 
       if (!isValidObjectId(id)) {
         return next(
-          new HttpError("Invalid batch ID format", httpStatus.BAD_REQUEST)
+          new HttpError("Invalid batch ID format", httpStatus.BAD_REQUEST),
         );
       }
 
@@ -3337,7 +3859,7 @@ const deviceUtil = {
 
       if (!batch) {
         return next(
-          new HttpError("Shipping batch not found", httpStatus.NOT_FOUND)
+          new HttpError("Shipping batch not found", httpStatus.NOT_FOUND),
         );
       }
 
@@ -3352,7 +3874,7 @@ const deviceUtil = {
 
         // Create a map for efficient, order-preserving lookup.
         const deviceMap = new Map(
-          deviceDetails.map((d) => [d._id.toString(), d])
+          deviceDetails.map((d) => [d._id.toString(), d]),
         );
 
         const orderedDevices = [];
@@ -3372,7 +3894,7 @@ const deviceUtil = {
 
         if (missingDeviceIds.length > 0) {
           logger.warn(
-            `⚠️ Batch ${id}: ${missingDeviceIds.length} device references were not found in the database.`
+            `⚠️ Batch ${id}: ${missingDeviceIds.length} device references were not found in the database.`,
           );
           batch.missing_device_count = missingDeviceIds.length;
           batch.missing_device_ids = missingDeviceIds;
@@ -3391,8 +3913,120 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  removeDevicesFromShippingBatch: async (request, next) => {
+    try {
+      const { id } = request.params;
+      const { device_names: requestedDeviceNames } = request.body;
+      const { tenant } = request.query;
+
+      // Validate batch exists
+      const batch = await ShippingBatchModel(tenant)
+        .findById(id)
+        .lean();
+      if (!batch) {
+        return {
+          success: false,
+          message: "Shipping batch not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Batch with ID '${id}' does not exist` },
+        };
+      }
+
+      const existingDeviceNamesInBatch = new Set(batch.device_names || []);
+      const devicesInBatchToRemove = [];
+      const devicesNotInBatch = [];
+
+      for (const name of requestedDeviceNames) {
+        if (existingDeviceNamesInBatch.has(name)) {
+          devicesInBatchToRemove.push(name);
+        } else {
+          devicesNotInBatch.push(name);
+        }
+      }
+
+      if (devicesInBatchToRemove.length === 0) {
+        return {
+          success: true,
+          status: httpStatus.OK,
+          message:
+            "No devices removed. None of the provided devices were found in the batch.",
+          data: {
+            batch,
+            summary: {
+              removed_count: 0,
+              not_found_in_batch_count: devicesNotInBatch.length,
+              devices_not_found_in_batch: devicesNotInBatch,
+            },
+          },
+        };
+      }
+
+      // Find which of the devices to remove actually exist in the DB
+      const foundDevices = await DeviceModel(tenant)
+        .find({ name: { $in: devicesInBatchToRemove } })
+        .select("_id")
+        .lean();
+
+      const foundDeviceIds = new Set(foundDevices.map((d) => d._id.toString()));
+      const foundDeviceNames = new Set(
+        (await DeviceModel(tenant)
+          .find({ _id: { $in: Array.from(foundDeviceIds) } })
+          .select("name")
+          .lean()).map((d) => d.name),
+      );
+
+      const successfullyRemovedNames = devicesInBatchToRemove.filter((name) =>
+        foundDeviceNames.has(name),
+      );
+      const cleanedUpNames = devicesInBatchToRemove.filter(
+        (name) => !foundDeviceNames.has(name),
+      );
+
+      // Update the batch using atomic operators to remove names and IDs
+      const updatedBatch = await ShippingBatchModel(tenant).findByIdAndUpdate(
+        id,
+        {
+          $pull: {
+            // Remove all requested names from the batch's name list
+            device_names: { $in: devicesInBatchToRemove },
+            // Only remove IDs of devices that were actually found
+            devices: { $in: Array.from(foundDeviceIds) },
+          },
+        },
+        { new: true },
+      );
+
+      const message = `Operation complete: ${successfullyRemovedNames.length} devices removed, ${cleanedUpNames.length} dangling references cleaned, ${devicesNotInBatch.length} not found in batch.`;
+
+      return {
+        success: true,
+        message,
+        data: {
+          batch: updatedBatch,
+          summary: {
+            successfully_removed_count: successfullyRemovedNames.length,
+            successfully_removed: successfullyRemovedNames,
+            cleaned_up_count: cleanedUpNames.length,
+            cleaned_up_dangling_references: cleanedUpNames,
+            not_found_in_batch_count: devicesNotInBatch.length,
+            devices_not_found_in_batch: devicesNotInBatch,
+          },
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Remove Devices From Batch Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
       );
     }
   },
@@ -3416,7 +4050,7 @@ const deviceUtil = {
       if (!deviceToTransfer) {
         throw new HttpError(
           "Device not found or you are not the owner",
-          httpStatus.FORBIDDEN
+          httpStatus.FORBIDDEN,
         );
       }
 
@@ -3424,7 +4058,7 @@ const deviceUtil = {
       if (deviceToTransfer.status === "deployed") {
         throw new HttpError(
           "Device must be recalled before transfer",
-          httpStatus.CONFLICT
+          httpStatus.CONFLICT,
         );
       }
 
@@ -3439,7 +4073,7 @@ const deviceUtil = {
             network: deviceToTransfer.network || "airqo",
           },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       const previousOwnerCohort = await CohortModel(tenant)
@@ -3497,7 +4131,7 @@ const deviceUtil = {
       const transferredDevice = await DeviceModel(tenant).findOneAndUpdate(
         { _id: deviceToTransfer._id, owner_id: from_user_id },
         updates,
-        { new: true }
+        { new: true },
       );
 
       // Step 7: Handle the outcome of the critical step.
@@ -3506,7 +4140,7 @@ const deviceUtil = {
         await ActivityModel(tenant).deleteOne({ _id: pendingActivity._id });
         throw new HttpError(
           "Device transfer failed. Ownership may have changed during the operation.",
-          httpStatus.CONFLICT
+          httpStatus.CONFLICT,
         );
       }
 
@@ -3521,7 +4155,7 @@ const deviceUtil = {
       } catch (logError) {
         // If this fails, the transfer is already done. Log this for manual review.
         logger.error(
-          `CRITICAL: Device ${device_name} was transferred, but failed to update activity log ${pendingActivity._id} to 'completed'. Error: ${logError.message}`
+          `CRITICAL: Device ${device_name} was transferred, but failed to update activity log ${pendingActivity._id} to 'completed'. Error: ${logError.message}`,
         );
       }
 
@@ -3540,7 +4174,7 @@ const deviceUtil = {
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        { message: error.message },
       );
     }
   },
@@ -3623,19 +4257,18 @@ const deviceUtil = {
         filter.name = { $in: deviceNameArray };
         logText(
           `🔍 [SHIPPING-STATUS] Querying specific devices: ${deviceNameArray.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
       } else {
         // When NO specific devices, use flexible preparation filters
-        // This is the KEY FIX - use $or to handle both legacy and new devices
 
         switch (queryMode) {
           case "strict":
             // Only devices with shipping_prepared_at (new method)
             filter.shipping_prepared_at = { $exists: true, $ne: null };
             logText(
-              "📦 [SHIPPING-STATUS] Query mode: STRICT - Only devices with shipping_prepared_at"
+              "📦 [SHIPPING-STATUS] Query mode: STRICT - Only devices with shipping_prepared_at",
             );
             break;
 
@@ -3644,7 +4277,7 @@ const deviceUtil = {
             filter.claim_token = { $exists: true, $ne: null };
             filter.claim_status = "unclaimed";
             logText(
-              "📦 [SHIPPING-STATUS] Query mode: LEGACY - Only devices with claim_token"
+              "📦 [SHIPPING-STATUS] Query mode: LEGACY - Only devices with claim_token",
             );
             break;
 
@@ -3661,7 +4294,7 @@ const deviceUtil = {
               },
             ];
             logText(
-              "📦 [SHIPPING-STATUS] Query mode: ALL - Devices prepared by any method (recommended)"
+              "📦 [SHIPPING-STATUS] Query mode: ALL - Devices prepared by any method (recommended)",
             );
             break;
         }
@@ -3674,13 +4307,13 @@ const deviceUtil = {
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status createdAt tenant"
+          "name long_name claim_status claim_token shipping_prepared_at owner_id claimed_at status createdAt tenant",
         )
         .lean()
         .exec();
 
       logText(
-        `📦 [SHIPPING-STATUS] Found ${devices.length} devices matching filter`
+        `📦 [SHIPPING-STATUS] Found ${devices.length} devices matching filter`,
       );
 
       // Early return if no devices found
@@ -3728,7 +4361,7 @@ const deviceUtil = {
           device.is_legacy_device = true; // Changed from _is_legacy_device (no underscore prefix)
           device.preparation_date_inferred = true; // Explicit flag that this is derived
           logText(
-            `ℹ️  [SHIPPING-STATUS] Legacy device detected: ${device.name} (inferred preparation date from createdAt)`
+            `ℹ️  [SHIPPING-STATUS] Legacy device detected: ${device.name} (inferred preparation date from createdAt)`,
           );
         }
       });
@@ -3760,7 +4393,7 @@ const deviceUtil = {
             shouldIncludeQR ? "QR codes" : ""
           } ${shouldIncludeLabels ? "labels" : ""} for ${
             devices.length
-          } devices...`
+          } devices...`,
         );
 
         // Native batch processing to control concurrency without external libraries
@@ -3778,7 +4411,7 @@ const deviceUtil = {
                   };
                   enhancementSkipped.push(skipInfo);
                   logText(
-                    `⚠️  [SHIPPING-STATUS] Device ${device.name} has no claim_token, skipping enhancement`
+                    `⚠️  [SHIPPING-STATUS] Device ${device.name} has no claim_token, skipping enhancement`,
                   );
                   return {
                     ...device,
@@ -3793,7 +4426,7 @@ const deviceUtil = {
                 const qrCodeData = claimTokenUtil.generateQRCodeData(
                   device.name,
                   device.claim_token,
-                  constants.DEPLOYMENT_URL
+                  constants.DEPLOYMENT_URL,
                 );
 
                 // Generate QR code image if requested
@@ -3809,7 +4442,7 @@ const deviceUtil = {
                         light: "#FFFFFF",
                       },
                       errorCorrectionLevel: "M",
-                    }
+                    },
                   );
                   enhancedDevice.qr_code_image = qrCodeImage;
                   enhancedDevice.qr_code_data = qrCodeData;
@@ -3820,7 +4453,7 @@ const deviceUtil = {
                   const labelData = claimTokenUtil.generateDeviceLabelData(
                     device.name,
                     device.claim_token,
-                    qrCodeData
+                    qrCodeData,
                   );
                   enhancedDevice.label_data = labelData;
                 }
@@ -3834,7 +4467,7 @@ const deviceUtil = {
                 };
                 enhancementErrors.push(errorInfo);
                 logger.error(
-                  `❌ [SHIPPING-STATUS] Error enhancing device ${device.name}: ${error.message}`
+                  `❌ [SHIPPING-STATUS] Error enhancing device ${device.name}: ${error.message}`,
                 );
                 return {
                   ...device,
@@ -3842,22 +4475,22 @@ const deviceUtil = {
                   qr_generation_error: error.message,
                 };
               }
-            })
+            }),
           );
           enhancedDevices.push(...processedBatch);
         }
 
         logText(
-          `✅ [SHIPPING-STATUS] Successfully processed ${enhancedDevices.length} devices`
+          `✅ [SHIPPING-STATUS] Successfully processed ${enhancedDevices.length} devices`,
         );
       }
 
       // Categorize devices by status
       const prepared = enhancedDevices.filter(
-        (d) => d.claim_status === "unclaimed" && d.claim_token
+        (d) => d.claim_status === "unclaimed" && d.claim_token,
       );
       const claimed = enhancedDevices.filter(
-        (d) => d.claim_status === "claimed"
+        (d) => d.claim_status === "claimed",
       );
       const deployed = enhancedDevices.filter((d) => d.status === "deployed");
       const legacy = enhancedDevices.filter((d) => d.is_legacy_device);
@@ -3886,14 +4519,14 @@ const deviceUtil = {
       if (enhancementErrors.length > 0) {
         responseMetadata.enhancement_errors = enhancementErrors;
         logText(
-          `⚠️  [SHIPPING-STATUS] ${enhancementErrors.length} devices failed QR/label generation`
+          `⚠️  [SHIPPING-STATUS] ${enhancementErrors.length} devices failed QR/label generation`,
         );
       }
 
       if (enhancementSkipped.length > 0) {
         responseMetadata.enhancement_skipped = enhancementSkipped;
         logText(
-          `ℹ️  [SHIPPING-STATUS] ${enhancementSkipped.length} devices skipped (no claim token)`
+          `ℹ️  [SHIPPING-STATUS] ${enhancementSkipped.length} devices skipped (no claim token)`,
         );
       }
 
@@ -3931,8 +4564,8 @@ const deviceUtil = {
             message: error.message,
             context: "getShippingPreparationStatus",
             timestamp: new Date().toISOString(),
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -3964,13 +4597,13 @@ const deviceUtil = {
         const qrCodeData = claimTokenUtil.generateQRCodeData(
           device.name,
           device.claim_token,
-          constants.DEPLOYMENT_URL
+          constants.DEPLOYMENT_URL,
         );
 
         const labelData = claimTokenUtil.generateDeviceLabelData(
           device.name,
           device.claim_token,
-          qrCodeData
+          qrCodeData,
         );
 
         // Generate QR code image for printing
@@ -4001,8 +4634,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4252,7 +4885,7 @@ const deviceUtil = {
                 "vehicle_mount_not_mobile",
                 "pole_mount_not_static",
                 "alternator_power_not_mobile",
-              ].includes(c.type)
+              ].includes(c.type),
             )
               ? "high"
               : "medium",
@@ -4273,52 +4906,52 @@ const deviceUtil = {
         valid_static_devices: validStaticDevices.length,
         conflicting_devices: conflictingDevices.length,
         high_severity_conflicts: conflictingDevices.filter(
-          (d) => d.severity === "high"
+          (d) => d.severity === "high",
         ).length,
 
         conflict_breakdown: {
           mobile_issues: {
             invalid_mount_type: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "mobile_mount_type_invalid")
+              d.conflicts.some((c) => c.type === "mobile_mount_type_invalid"),
             ).length,
             invalid_power_type: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "mobile_power_type_invalid")
+              d.conflicts.some((c) => c.type === "mobile_power_type_invalid"),
             ).length,
             has_site_not_grid: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "mobile_with_site_not_grid")
+              d.conflicts.some((c) => c.type === "mobile_with_site_not_grid"),
             ).length,
             mobility_false: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "mobile_mobility_false")
+              d.conflicts.some((c) => c.type === "mobile_mobility_false"),
             ).length,
           },
 
           static_issues: {
             vehicle_mount: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "static_vehicle_mount")
+              d.conflicts.some((c) => c.type === "static_vehicle_mount"),
             ).length,
             alternator_power: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "static_alternator_power")
+              d.conflicts.some((c) => c.type === "static_alternator_power"),
             ).length,
             has_grid_not_site: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "static_with_grid_not_site")
+              d.conflicts.some((c) => c.type === "static_with_grid_not_site"),
             ).length,
             mobility_true: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "static_mobility_true")
+              d.conflicts.some((c) => c.type === "static_mobility_true"),
             ).length,
           },
 
           cross_validation_issues: {
             vehicle_mount_not_mobile: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "vehicle_mount_not_mobile")
+              d.conflicts.some((c) => c.type === "vehicle_mount_not_mobile"),
             ).length,
             pole_mount_not_static: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "pole_mount_not_static")
+              d.conflicts.some((c) => c.type === "pole_mount_not_static"),
             ).length,
             alternator_power_not_mobile: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "alternator_power_not_mobile")
+              d.conflicts.some((c) => c.type === "alternator_power_not_mobile"),
             ).length,
             both_site_and_grid: conflictingDevices.filter((d) =>
-              d.conflicts.some((c) => c.type === "both_site_and_grid")
+              d.conflicts.some((c) => c.type === "both_site_and_grid"),
             ).length,
           },
         },
@@ -4356,8 +4989,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -4375,7 +5008,7 @@ const deviceUtil = {
       // Get conflicting devices first
       const analysisResult = await deviceUtil.getMobileDevicesMetadataAnalysis(
         request,
-        next
+        next,
       );
 
       if (!analysisResult.success) {
@@ -4395,7 +5028,6 @@ const deviceUtil = {
 
           device.conflicts.forEach((conflict) => {
             switch (conflict.type) {
-              // MOBILE DEVICE FIXES
               case "mobile_mount_type_invalid":
                 updateData.mountType = "vehicle";
                 fixes.push("Set mountType to 'vehicle' for mobile device");
@@ -4411,7 +5043,7 @@ const deviceUtil = {
                 if (!auto_assign_locations) {
                   requiresManualReview = true;
                   fixes.push(
-                    "Cleared site_id - MANUAL: Assign appropriate grid_id"
+                    "Cleared site_id - MANUAL: Assign appropriate grid_id",
                   );
                 }
                 break;
@@ -4421,19 +5053,18 @@ const deviceUtil = {
                 fixes.push("Set mobility to true for mobile device");
                 break;
 
-              // STATIC DEVICE FIXES
               case "static_vehicle_mount":
                 // This is ambiguous - could fix by making mobile OR changing mount
                 requiresManualReview = true;
                 fixes.push(
-                  "MANUAL REVIEW: Vehicle-mounted device marked as static"
+                  "MANUAL REVIEW: Vehicle-mounted device marked as static",
                 );
                 break;
 
               case "static_alternator_power":
                 updateData.powerType = "solar"; // Default to solar for static
                 fixes.push(
-                  "Changed powerType from 'alternator' to 'solar' for static device"
+                  "Changed powerType from 'alternator' to 'solar' for static device",
                 );
                 break;
 
@@ -4442,7 +5073,7 @@ const deviceUtil = {
                 if (!auto_assign_locations) {
                   requiresManualReview = true;
                   fixes.push(
-                    "Cleared grid_id - MANUAL: Assign appropriate site_id"
+                    "Cleared grid_id - MANUAL: Assign appropriate site_id",
                   );
                 }
                 break;
@@ -4452,7 +5083,6 @@ const deviceUtil = {
                 fixes.push("Set mobility to false for static device");
                 break;
 
-              // CROSS-VALIDATION FIXES
               case "vehicle_mount_not_mobile":
                 // Convert to mobile since vehicle mount strongly indicates mobile
                 updateData.deployment_type = "mobile";
@@ -4460,7 +5090,7 @@ const deviceUtil = {
                 updateData.powerType = "alternator";
                 updateData.site_id = null;
                 fixes.push(
-                  "Converted to mobile deployment (vehicle mount detected)"
+                  "Converted to mobile deployment (vehicle mount detected)",
                 );
                 if (!device.grid_id && !auto_assign_locations) {
                   requiresManualReview = true;
@@ -4477,7 +5107,7 @@ const deviceUtil = {
                   updateData.powerType = "solar";
                 }
                 fixes.push(
-                  "Converted to static deployment (pole mount detected)"
+                  "Converted to static deployment (pole mount detected)",
                 );
                 if (!device.site_id && !auto_assign_locations) {
                   requiresManualReview = true;
@@ -4492,7 +5122,7 @@ const deviceUtil = {
                 updateData.mountType = "vehicle";
                 updateData.site_id = null;
                 fixes.push(
-                  "Converted to mobile deployment (alternator power detected)"
+                  "Converted to mobile deployment (alternator power detected)",
                 );
                 if (!device.grid_id && !auto_assign_locations) {
                   requiresManualReview = true;
@@ -4508,12 +5138,12 @@ const deviceUtil = {
                 ) {
                   updateData.site_id = null;
                   fixes.push(
-                    "Removed site_id (kept grid_id for mobile device)"
+                    "Removed site_id (kept grid_id for mobile device)",
                   );
                 } else {
                   updateData.grid_id = null;
                   fixes.push(
-                    "Removed grid_id (kept site_id for static device)"
+                    "Removed grid_id (kept site_id for static device)",
                   );
                 }
                 break;
@@ -4534,7 +5164,7 @@ const deviceUtil = {
             if (!dry_run) {
               await DeviceModel(tenant).findOneAndUpdate(
                 { _id: device._id },
-                { $set: updateData }
+                { $set: updateData },
               );
             }
 
@@ -4590,8 +5220,8 @@ const deviceUtil = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },

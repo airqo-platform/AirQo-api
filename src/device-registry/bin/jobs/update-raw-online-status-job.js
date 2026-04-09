@@ -2,11 +2,13 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const createDeviceUtil = require("@utils/device.util");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`,
 );
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const createFeedUtil = require("@utils/feed.util");
+const { getNetworkAdapter } = require("@utils/network.util");
+const isEmpty = require("is-empty");
 const { logObject, logText } = require("@utils/shared");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
@@ -14,7 +16,7 @@ const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
-const RAW_INACTIVE_THRESHOLD = 1 * 60 * 60 * 1000; // 1 hour in milliseconds
+const RAW_INACTIVE_THRESHOLD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
@@ -24,7 +26,7 @@ const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
 
 // Statuses for which the primary `isOnline` field should be updated by this job
 const STATUSES_FOR_PRIMARY_UPDATE = constants.VALID_DEVICE_STATUSES.filter(
-  (status) => status !== "deployed"
+  (status) => status !== "deployed",
 );
 
 // Non-blocking job processor class
@@ -63,7 +65,7 @@ class NonBlockingJobProcessor {
 
     if (this.startTime && Date.now() - this.startTime > MAX_EXECUTION_TIME) {
       logger.warn(
-        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`
+        `${this.jobName} stopping due to timeout (${MAX_EXECUTION_TIME}ms)`,
       );
       return true;
     }
@@ -99,7 +101,7 @@ class NonBlockingJobProcessor {
       try {
         if (this.shouldStopExecution()) {
           logText(
-            `${this.jobName} batch processing stopped at item ${i}/${items.length}`
+            `${this.jobName} batch processing stopped at item ${i}/${items.length}`,
           );
           break;
         }
@@ -114,7 +116,7 @@ class NonBlockingJobProcessor {
           break;
         }
         logger.error(
-          `${this.jobName} error processing item ${i}: ${error.message}`
+          `${this.jobName} error processing item ${i}: ${error.message}`,
         );
         errors.push({ index: i, error: error.message });
       }
@@ -161,9 +163,6 @@ const mockNext = (error) => {
 
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
-  const siteUpdates = [];
-  const pm25Updates = []; // NEW: Separate array for PM2.5 updates
-  let totalUpdates = 0;
 
   // 1. Get all device numbers from the current batch
   const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
@@ -181,8 +180,8 @@ const processDeviceBatch = async (devices, processor) => {
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("Device details query timeout")),
-            QUERY_TIMEOUT
-          )
+            QUERY_TIMEOUT,
+          ),
         ),
       ]);
 
@@ -204,25 +203,44 @@ const processDeviceBatch = async (devices, processor) => {
 
     const chunk = devices.slice(i, i + CONCURRENCY_LIMIT);
 
+    // Pre-fetch site data for the entire chunk to avoid N+1 queries
+    const siteIdsInChunk = chunk
+      .filter((d) => d.site_id && d.isPrimaryInLocation)
+      .map((d) => d.site_id);
+
+    let siteDataMap = new Map();
+    if (siteIdsInChunk.length > 0) {
+      const sites = await SiteModel("airqo")
+        .find({ _id: { $in: siteIdsInChunk } })
+        .select("rawOnlineStatus onlineStatusAccuracy")
+        .lean();
+      sites.forEach((site) => {
+        siteDataMap.set(site._id.toString(), site);
+      });
+    }
+
+    const pm25Updates = [];
+    const siteUpdates = [];
+
     // Process chunk with yielding support
     const batchResult = await processor.processBatch(
       chunk,
       async (device, index) => {
-        const result = await processIndividualDevice(device, deviceDetailsMap);
+        const result = await processIndividualDevice(
+          device,
+          deviceDetailsMap,
+          siteDataMap,
+        );
         if (result) {
-          if (result.siteUpdate) {
-            siteUpdates.push(result.siteUpdate);
-          }
-          if (result.pm25Update) {
-            pm25Updates.push(result.pm25Update);
+          if (result.deviceUpdate) {
+            if (result.pm25Update) pm25Updates.push(result.pm25Update);
+            if (result.siteUpdates) siteUpdates.push(...result.siteUpdates);
+            return result.deviceUpdate;
           }
         }
-        return result ? result.deviceUpdate : null;
-      }
+        return null;
+      },
     );
-
-    totalUpdates += batchResult.results.filter((result) => result !== null)
-      .length;
 
     // Perform bulk write for STATUS updates (no conditional PM2.5 filter)
     const bulkOps = batchResult.results.filter(Boolean);
@@ -234,8 +252,8 @@ const processDeviceBatch = async (devices, processor) => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Bulk write timeout")),
-              BULK_TIMEOUT
-            )
+              BULK_TIMEOUT,
+            ),
           ),
         ]);
 
@@ -243,7 +261,7 @@ const processDeviceBatch = async (devices, processor) => {
         if (statusResult.matchedCount !== bulkOps.length) {
           logger.warn(
             `Status update: matched ${statusResult.matchedCount}/${bulkOps.length}, ` +
-              `modified ${statusResult.modifiedCount}`
+              `modified ${statusResult.modifiedCount}`,
           );
         }
       } catch (error) {
@@ -261,35 +279,49 @@ const processDeviceBatch = async (devices, processor) => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("PM2.5 bulk write timeout")),
-              BULK_TIMEOUT
-            )
+              BULK_TIMEOUT,
+            ),
           ),
         ]);
 
         logger.debug(
           `PM2.5 update: matched ${pm25Result.matchedCount}/${pm25Updates.length}, ` +
-            `modified ${pm25Result.modifiedCount}`
+            `modified ${pm25Result.modifiedCount}`,
         );
       } catch (error) {
         logger.error(`PM2.5 bulk write error: ${error.message}`);
       }
     }
 
+    // Perform site updates for the chunk
+    try {
+      if (siteUpdates.length > 0) {
+        const BULK_TIMEOUT = 15000;
+        await Promise.race([
+          SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Site bulk write timeout")),
+              BULK_TIMEOUT,
+            ),
+          ),
+        ]);
+      }
+    } catch (error) {
+      logger.error(`Site bulk write error: ${error.message}`);
+    }
+
     // Yield between chunks
     await processor.yieldControl();
   }
-
-  // After processing all device chunks, perform site updates
-  if (siteUpdates.length > 0) {
-    await SiteModel("airqo").bulkWrite(siteUpdates, { ordered: false });
-    logText(`Updated ${siteUpdates.length} sites with latest raw status.`);
-  }
-
-  return totalUpdates;
 };
 
 // Extracted individual device processing function - FIXED VERSION
-const processIndividualDevice = async (device, deviceDetailsMap) => {
+const processIndividualDevice = async (
+  device,
+  deviceDetailsMap,
+  siteDataMap,
+) => {
   // ============================================================================
   // PRE-CHECK: Evaluate existing lastRawData to detect stale data
   // This ensures we mark devices offline even if ThingSpeak fetch fails
@@ -307,14 +339,118 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     if (shouldMarkOfflineFromStaleData) {
       logger.debug(
         `Device ${device.name} has stale lastRawData (${Math.round(
-          existingDataAge / (60 * 60 * 1000)
-        )}h old)`
+          existingDataAge / (60 * 60 * 1000),
+        )}h old)`,
       );
     }
   }
 
   if (!device.device_number) {
-    // For devices without device_number, check if existing data is stale
+    // ── External device path ────────────────────────────────────────────────
+    // If the device has an api_code and its network adapter declares
+    // online_check_via_feed, call the external API to determine live status.
+    // This resolves the historic "no_device_number" skip for non-AirQo devices.
+    //
+    // Devices that still lack api_code (not yet migrated / unknown network)
+    // fall through to the unchanged stale-data fallback below.
+    // Resolve adapter: DB record takes precedence over static config so any
+    // operator-customised adapter config is honoured at runtime.
+    const externalAdapter =
+      device.api_code && device.network && device.network !== "airqo"
+        ? await getNetworkAdapter(device.network)
+        : null;
+
+    if (externalAdapter?.online_check_via_feed) {
+      try {
+        const externalResult = await Promise.race([
+          createFeedUtil.fetchExternalDeviceData({
+            device,
+            adapter: externalAdapter,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("External API timeout")),
+              20000,
+            ),
+          ),
+        ]);
+
+        let isRawOnline = false;
+        let lastFeedTime = null;
+
+        if (externalResult.success && !isEmpty(externalResult.data)) {
+          const data = externalResult.data;
+          // Attempt to find a timestamp in common field names.
+          // Falls back to treating any successful, non-empty response as online.
+          const tsValue =
+            data.timestamp ||
+            data.time ||
+            data.created_at ||
+            data.recordedAt ||
+            data.ts ||
+            null;
+
+          if (tsValue) {
+            lastFeedTime = tsValue;
+            isRawOnline = isDeviceRawActive(tsValue);
+          } else {
+            // No timestamp field — successful non-empty response means online
+            isRawOnline = true;
+            lastFeedTime = new Date().toISOString();
+          }
+        }
+
+        const updateFields = { rawOnlineStatus: isRawOnline };
+        if (lastFeedTime) {
+          updateFields.lastRawData = new Date(lastFeedTime);
+        }
+        if (
+          STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+          isDeviceActuallyMobile(device)
+        ) {
+          updateFields.isOnline = isRawOnline;
+          if (lastFeedTime) {
+            updateFields.lastActive = new Date(lastFeedTime);
+          }
+        }
+
+        const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+          isCurrentlyOnline: device.rawOnlineStatus,
+          isNowOnline: isRawOnline,
+          currentStats: device.onlineStatusAccuracy,
+          reason: isRawOnline
+            ? "online_external_api"
+            : "offline_external_api",
+        });
+
+        const finalSetUpdate = { ...updateFields, ...setUpdate };
+        const updateDoc = { $set: finalSetUpdate };
+        if (incUpdate) {
+          updateDoc.$inc = incUpdate;
+        }
+
+        return {
+          deviceUpdate: {
+            updateOne: {
+              filter: { _id: device._id },
+              update: updateDoc,
+            },
+          },
+        };
+      } catch (externalError) {
+        logger.error(
+          `External API check failed for device ${device.name} (network: ${device.network}): ${externalError.message}`,
+        );
+        return createFailureUpdate(
+          device,
+          "external_api_error",
+          shouldMarkOfflineFromStaleData,
+          hasExistingRawData,
+        );
+      }
+    }
+
+    // ── Fallback: no api_code or no adapter → stale-data logic (unchanged) ──
     const isCurrentlyRawOnline = device.rawOnlineStatus;
     const isNowRawOnline = hasExistingRawData
       ? !shouldMarkOfflineFromStaleData
@@ -401,36 +537,36 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     };
   }
 
+  // Skip devices that are in the exclusion list before decryption
+  if (constants.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.includes(device.name)) {
+    return null;
+  }
+
   let apiKey;
   try {
     const decryptResponse = await createDeviceUtil.decryptKey(
       detail.readKey,
-      mockNext
+      mockNext,
     );
     if (!decryptResponse.success) {
       return createFailureUpdate(
         device,
         "decryption_failed",
         shouldMarkOfflineFromStaleData,
-        hasExistingRawData
+        hasExistingRawData,
       );
     }
     apiKey = decryptResponse.data;
   } catch (error) {
     logger.error(
-      `Error decrypting key for device ${device.name}: ${error.message}`
+      `Error decrypting key for device ${device.name}: ${error.message}`,
     );
     return createFailureUpdate(
       device,
       "decryption_error",
       shouldMarkOfflineFromStaleData,
-      hasExistingRawData
+      hasExistingRawData,
     );
-  }
-
-  // Skip devices that are in the exclusion list
-  if (constants.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB.includes(device.name)) {
-    return null;
   }
 
   // Fetch data from ThingSpeak with timeout
@@ -444,7 +580,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     const thingspeakData = await Promise.race([
       createFeedUtil.fetchThingspeakData(request),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("ThingSpeak fetch timeout")), 30000)
+        setTimeout(() => reject(new Error("ThingSpeak fetch timeout")), 30000),
       ),
     ]);
 
@@ -460,7 +596,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
       // Use the centralized mapping utility to get the pm2_5 value
       const transformedMeasurement = createFeedUtil.transformMeasurement(
-        lastFeed
+        lastFeed,
       );
       const pm25Value = transformedMeasurement.pm2_5;
 
@@ -478,7 +614,7 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
       if (shouldMarkOfflineFromStaleData) {
         isRawOnline = false;
         logger.debug(
-          `No ThingSpeak data for ${device.name}, marking offline based on stale lastRawData`
+          `No ThingSpeak data for ${device.name}, marking offline based on stale lastRawData`,
         );
       }
     }
@@ -557,17 +693,14 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
     }
 
     // Prepare site update if PM2.5 is valid and device is primary for its site
-    let siteUpdate = null;
+    const siteUpdates = [];
     if (device.site_id && device.isPrimaryInLocation) {
       // Fetch current site to get its rawOnlineStatus for accuracy check
-      const currentSite = await SiteModel("airqo")
-        .findById(device.site_id)
-        .select("rawOnlineStatus onlineStatusAccuracy")
-        .lean();
+      const currentSite = siteDataMap.get(device.site_id.toString());
 
       if (!currentSite) {
         logger.warn(
-          `Site ${device.site_id} not found for device ${device.name}, skipping site update`
+          `Site ${device.site_id} not found for device ${device.name}, skipping site update`,
         );
       } else {
         const {
@@ -582,46 +715,56 @@ const processIndividualDevice = async (device, deviceDetailsMap) => {
 
         const siteUpdateFields = {
           rawOnlineStatus: isRawOnline,
-          lastRawData: lastFeedTime ? new Date(lastFeedTime) : null,
-          ...siteSetUpdate,
         };
-        if (latestRawPm25) {
-          siteUpdateFields["latest_pm2_5.raw"] = latestRawPm25;
+        if (lastFeedTime) {
+          siteUpdateFields.lastRawData = new Date(lastFeedTime);
         }
 
-        siteUpdate = {
+        // Unconditional status update for the site
+        siteUpdates.push({
           updateOne: {
-            filter: {
-              _id: device.site_id,
-              ...(latestRawPm25
-                ? {
-                    $or: [
-                      { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
-                      { "latest_pm2_5.raw.time": { $exists: false } },
-                    ],
-                  }
-                : {}),
+            filter: { _id: device.site_id },
+            update: {
+              $set: { ...siteUpdateFields, ...siteSetUpdate },
+              ...(siteIncUpdate && { $inc: siteIncUpdate }),
             },
-            update: { $set: siteUpdateFields, $inc: siteIncUpdate },
           },
-        };
+        });
+
+        // Conditional PM2.5 update for the site
+        if (latestRawPm25) {
+          siteUpdates.push({
+            updateOne: {
+              filter: {
+                _id: device.site_id,
+                $or: [
+                  { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                  { "latest_pm2_5.raw.time": { $exists: false } },
+                ],
+              },
+              update: {
+                $set: { "latest_pm2_5.raw": latestRawPm25 },
+              },
+            },
+          });
+        }
       }
     }
 
     return {
       deviceUpdate: statusUpdate,
       pm25Update: pm25Update,
-      siteUpdate: siteUpdate,
+      siteUpdates: siteUpdates,
     };
   } catch (error) {
     logger.error(
-      `Error processing raw status for device ${device.name}: ${error.message}`
+      `Error processing raw status for device ${device.name}: ${error.message}`,
     );
     return createFailureUpdate(
       device,
       "fetch_error",
       shouldMarkOfflineFromStaleData,
-      hasExistingRawData
+      hasExistingRawData,
     );
   }
 };
@@ -631,7 +774,7 @@ const createFailureUpdate = (
   device,
   reason,
   shouldMarkOfflineFromStaleData = false,
-  hasExistingRawData = false
+  hasExistingRawData = false,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -689,8 +832,8 @@ const updateRawOnlineStatus = async () => {
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("Device count timed out")),
-            COUNT_TIMEOUT
-          )
+            COUNT_TIMEOUT,
+          ),
         ),
       ]);
     } catch (error) {
@@ -705,7 +848,7 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation"
+        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation network api_code access_code authRequired",
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
@@ -727,11 +870,11 @@ const updateRawOnlineStatus = async () => {
 
         if (batch.length >= BATCH_SIZE) {
           try {
-            const updatedCount = await processDeviceBatch(batch, processor);
+            await processDeviceBatch(batch, processor);
             totalProcessed += batch.length;
 
             logText(
-              `Batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}/${totalDevices}`
+              `Batch processed. Total: ${totalProcessed}/${totalDevices}`,
             );
 
             // Reset error count on successful batch
@@ -739,7 +882,7 @@ const updateRawOnlineStatus = async () => {
           } catch (batchError) {
             errorCount++;
             logger.error(
-              `Batch processing error (${errorCount}/${MAX_ERRORS}): ${batchError.message}`
+              `Batch processing error (${errorCount}/${MAX_ERRORS}): ${batchError.message}`,
             );
 
             // Stop if too many consecutive errors
@@ -765,21 +908,19 @@ const updateRawOnlineStatus = async () => {
     // Process the final batch if it's not empty
     if (batch.length > 0 && !processor.shouldStopExecution()) {
       try {
-        const updatedCount = await processDeviceBatch(batch, processor);
+        await processDeviceBatch(batch, processor);
         totalProcessed += batch.length;
-        logText(
-          `Final batch processed: ${updatedCount}/${batch.length} updates. Total: ${totalProcessed}`
-        );
+        logText(`Final batch processed. Total: ${totalProcessed}`);
       } catch (finalBatchError) {
         logger.error(
-          `Final batch processing error: ${finalBatchError.message}`
+          `Final batch processing error: ${finalBatchError.message}`,
         );
       }
     }
 
     const duration = (Date.now() - startTime) / 1000;
     logText(
-      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`
+      `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`,
     );
   } catch (error) {
     if (error.message.includes("stopped execution")) {
@@ -813,7 +954,7 @@ const startJob = () => {
       async () => {
         if (isJobRunning) {
           logger.warn(
-            `${JOB_NAME} is already running, skipping this execution.`
+            `${JOB_NAME} is already running, skipping this execution.`,
           );
           return;
         }
@@ -825,7 +966,7 @@ const startJob = () => {
           await currentJobPromise;
         } catch (err) {
           logger.error(
-            `🐛🐛 Error executing ${JOB_NAME}: ${err.stack || err.message}`
+            `🐛🐛 Error executing ${JOB_NAME}: ${err.stack || err.message}`,
           );
         } finally {
           isJobRunning = false;
@@ -835,7 +976,7 @@ const startJob = () => {
       {
         scheduled: true,
         timezone: TIMEZONE,
-      }
+      },
     );
 
     if (!global.cronJobs) {
@@ -852,14 +993,14 @@ const startJob = () => {
         try {
           if (currentJobPromise) {
             logText(
-              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`,
             );
             await currentJobPromise;
             logText(`✅ Current ${JOB_NAME} execution completed.`);
           }
         } catch (error) {
           logger.error(
-            `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`
+            `🐛🐛 Error while awaiting in-flight ${JOB_NAME} during stop: ${error.message}`,
           );
         } finally {
           delete global.cronJobs[JOB_NAME];

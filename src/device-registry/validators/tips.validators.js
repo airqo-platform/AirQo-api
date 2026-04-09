@@ -22,7 +22,11 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(
-      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+      new HttpError(
+        "Validation error",
+        httpStatus.BAD_REQUEST,
+        errors.mapped(),
+      ),
     );
   }
   next();
@@ -37,7 +41,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -121,8 +125,8 @@ const healthTipValidations = {
               `Duplicate title "${
                 update.title
               }" and aqi_category "${JSON.stringify(
-                update.aqi_category
-              )}" found within the updates array`
+                update.aqi_category,
+              )}" found within the updates array`,
             );
           }
           seen.add(key);
@@ -145,12 +149,12 @@ const healthTipValidations = {
             ((range.max === null && max === null) ||
               (range.max !== null &&
                 max !== null &&
-                Math.abs(range.max - max) < 0.001))
+                Math.abs(range.max - max) < 0.001)),
         );
 
         if (!isValidRange) {
           throw new Error(
-            `Invalid AQI range: min=${min}, max=${max}. Must match one of the predefined ranges.`
+            `Invalid AQI range: min=${min}, max=${max}. Must match one of the predefined ranges.`,
           );
         }
         return true;
@@ -179,8 +183,8 @@ const healthTipValidations = {
           req.body.updates[
             req.body.updates.indexOf(
               req.body.updates.find(
-                (update) => update.aqi_category.max === value
-              )
+                (update) => update.aqi_category.max === value,
+              ),
             )
           ].aqi_category.min
         ) {
@@ -205,18 +209,18 @@ const healthTipValidations = {
           if (!tip.title) continue;
 
           const updateIndex = req.body.updates.indexOf(
-            req.body.updates.find((update) => update.tips === tips)
+            req.body.updates.find((update) => update.tips === tips),
           );
           const key = `${tip.title}-${JSON.stringify(
-            req.body.updates[updateIndex].aqi_category
+            req.body.updates[updateIndex].aqi_category,
           )}`;
           if (seen.has(key)) {
             throw new Error(
               `Duplicate title "${
                 tip.title
               }" and aqi_category "${JSON.stringify(
-                req.body.updates[updateIndex].aqi_category
-              )}" found within the tips array`
+                req.body.updates[updateIndex].aqi_category,
+              )}" found within the tips array`,
             );
           }
           seen.add(key);

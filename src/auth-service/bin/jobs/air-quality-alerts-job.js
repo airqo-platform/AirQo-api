@@ -18,7 +18,7 @@ const {
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/jobs/air-quality-alerts-job`
+  `${constants.ENVIRONMENT} -- bin/jobs/air-quality-alerts-job -- ops-alerts`,
 );
 
 // Configuration
@@ -49,7 +49,7 @@ async function fetchAirQualityReadings(siteIds) {
           site_id: siteIds.join(","),
           token: API_TOKEN,
         },
-      }
+      },
     );
 
     if (response.data && response.data.success) {
@@ -58,7 +58,7 @@ async function fetchAirQualityReadings(siteIds) {
     return [];
   } catch (error) {
     logger.error(
-      `🐛🐛 Error fetching air quality readings: ${stringify(error)}`
+      `🐛🐛 Error fetching air quality readings: ${stringify(error)}`,
     );
     return [];
   }
@@ -101,10 +101,10 @@ function generateAlertEmailContent(spikes, userName, preferences) {
                 t &&
                 t.site_id &&
                 spike.site_id &&
-                t.site_id.toString() === spike.site_id.toString()
+                t.site_id.toString() === spike.site_id.toString(),
             )
               ? preferences.thresholds.find(
-                  (t) => t.site_id.toString() === spike.site_id.toString()
+                  (t) => t.site_id.toString() === spike.site_id.toString(),
                 ).pm25_threshold
               : PM25_THRESHOLD
           } µg/m³<br>
@@ -116,7 +116,7 @@ function generateAlertEmailContent(spikes, userName, preferences) {
               : ""
           }
         </td>
-      </tr>`
+      </tr>`,
     )
     .join("");
 
@@ -150,10 +150,10 @@ async function sendEmailAlertsInBatches(alertsData, batchSize = 50) {
 
     try {
       await Promise.all(emailPromises);
-      logger.info(`Successfully sent ${batch.length} air quality alert emails`);
+      logger.warn(`Successfully sent ${batch.length} air quality alert emails`);
     } catch (error) {
       logger.error(
-        `🐛🐛 Error sending batch of alert emails: ${stringify(error)}`
+        `🐛🐛 Error sending batch of alert emails: ${stringify(error)}`,
       );
     }
   }
@@ -214,7 +214,7 @@ const checkAirQualityAndAlert = async () => {
           const isQuietHours = isTimeInRange(
             currentTime,
             notificationPrefs.air_quality_alerts.quiet_hours.start,
-            notificationPrefs.air_quality_alerts.quiet_hours.end
+            notificationPrefs.air_quality_alerts.quiet_hours.end,
           );
           if (isQuietHours) continue;
         }

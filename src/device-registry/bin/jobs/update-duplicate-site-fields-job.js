@@ -2,7 +2,7 @@ const constants = require("@config/constants");
 const cron = require("node-cron");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/update-duplicate-site-fields-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/update-duplicate-site-fields-job`,
 );
 const SitesModel = require("@models/Site");
 const { logObject, logText } = require("@utils/shared");
@@ -17,7 +17,7 @@ const WARNING_FREQUENCY_HOURS = 4; // Change this value to adjust frequency
 const JOB_NAME = "update-duplicate-site-fields-job";
 const JOB_SCHEDULE = getSchedule(
   `15 */${WARNING_FREQUENCY_HOURS} * * *`,
-  constants.ENVIRONMENT
+  constants.ENVIRONMENT,
 );
 
 // Helper function to extract site number from generated_name
@@ -40,17 +40,30 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
     const { sites, fieldValue } = group;
     if (sites && sites.length > 1) {
       // Sort sites by generated_name to ensure consistent numbering
-      sites.sort((a, b) => a.generated_name.localeCompare(b.generated_name));
+      // Guard against undefined generated_name values
+      sites.sort((a, b) => {
+        const nameA = a.generated_name ?? "";
+        const nameB = b.generated_name ?? "";
+        return nameA.localeCompare(nameB);
+      });
 
       // Update all sites except the first one (keep original for the first occurrence)
       for (let i = 1; i < sites.length; i++) {
         const site = sites[i];
+
+        if (!site.generated_name || typeof site.generated_name !== "string") {
+          logger.warn(
+            `Skipping site with missing or non-string generated_name: ${site._id}`,
+          );
+          continue;
+        }
+
         const siteNumber = extractSiteNumber(site.generated_name);
 
         if (siteNumber) {
           const newValue = generateUniqueFieldValue(
             group.fieldValue,
-            siteNumber
+            siteNumber,
           );
           bulkOps.push({
             updateOne: {
@@ -60,12 +73,13 @@ const updateDuplicatesForField = async (groupedSites, fieldName) => {
             },
           });
           updateLogs.add(
-            `${site.generated_name}: ${fieldValue} -> ${newValue}`
+            `${site.generated_name}: ${group.fieldValue} -> ${newValue}`,
           );
         }
       }
     }
   }
+
   if (bulkOps.length > 0) {
     try {
       const result = await SitesModel("airqo").bulkWrite(bulkOps, {
@@ -104,7 +118,15 @@ const updateDuplicateSiteFields = async () => {
         {
           $match: {
             isOnline: true,
-            [field]: { $nin: [null, ""] },
+            generated_name: {
+              $exists: true,
+              $nin: [null, ""],
+              $type: "string",
+            },
+            [field]: {
+              $nin: [null, ""],
+              $type: "string",
+            },
           },
         },
         {
@@ -126,7 +148,7 @@ const updateDuplicateSiteFields = async () => {
 
       const updateResult = await updateDuplicatesForField(
         duplicateGroups,
-        field
+        field,
       );
 
       if (updateResult) {

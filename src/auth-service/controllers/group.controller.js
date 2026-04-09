@@ -1,4 +1,3 @@
-//src/auth-service/controllers/group.controller.js
 const httpStatus = require("http-status");
 const {
   logObject,
@@ -12,7 +11,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-group-controller`
+  `${constants.ENVIRONMENT} -- create-group-controller`,
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const UserModel = require("@models/User");
@@ -69,10 +68,62 @@ const executeGroupAction = async (req, res, next, utilFunction) => {
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      })
+      }),
     );
   }
 };
+
+const handleRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return null;
+  }
+  const request = req;
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  request.query.tenant = isEmpty(req.query.tenant)
+    ? defaultTenant
+    : req.query.tenant;
+  return request;
+};
+
+const handleError = (error, next, defaultMessage) => {
+  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: defaultMessage || error.message,
+    }),
+  );
+};
+
+function handleResponse({ res, result, key = "data" }) {
+  if (!result || res.headersSent) {
+    return;
+  }
+
+  const { success, status, data, message, errors, ...rest } = result;
+
+  const responseStatus =
+    status || (success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
+
+  if (success) {
+    const responseBody = {
+      success: true,
+      message: message || "Operation Successful",
+      ...rest,
+    };
+    if (data !== undefined) {
+      responseBody[key] = data;
+    }
+    return res.status(responseStatus).json(responseBody);
+  } else {
+    return res.status(responseStatus).json({
+      success: false,
+      message: message || "An unexpected error occurred.",
+      errors: errors || { message: "An unexpected error occurred." },
+    });
+  }
+}
 
 const groupController = {
   // Dashboard
@@ -95,8 +146,8 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -122,7 +173,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -164,8 +215,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -176,7 +227,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -219,8 +270,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -237,8 +288,8 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
       return;
     }
@@ -249,7 +300,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -287,8 +338,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -299,7 +350,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -337,8 +388,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -346,6 +397,9 @@ const groupController = {
 
   update: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.update),
+
+  updateName: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateName),
 
   delete: async (req, res, next) => {
     try {
@@ -358,8 +412,8 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -378,8 +432,8 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -395,8 +449,8 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -412,14 +466,11 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
-
-  setManager: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.setManager),
 
   listAssignedUsers: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listAssignedUsers),
@@ -436,7 +487,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
         return;
       }
@@ -475,8 +526,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
       return;
     }
@@ -508,7 +559,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
       }
 
@@ -579,12 +630,12 @@ const groupController = {
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message:
                   "request_ids and decision are required for bulk decisions",
-              })
+              }),
             );
           }
 
           const updateResult = await AccessRequestModel(
-            actualTenant
+            actualTenant,
           ).updateMany(
             {
               _id: { $in: request_ids },
@@ -596,7 +647,7 @@ const groupController = {
               processedAt: new Date(),
               processorReason: reason,
               processedBy: user._id,
-            }
+            },
           );
 
           // If approved, add users to group
@@ -625,7 +676,7 @@ const groupController = {
           // Log the action
           logger.info(
             `User ${user.email} processed ${updateResult.nModified} access requests with decision: ${decision}`,
-            { grp_id, decision, reason }
+            { grp_id, decision, reason },
           );
 
           result = {
@@ -644,7 +695,7 @@ const groupController = {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid action specified",
-            })
+            }),
           );
       }
 
@@ -655,8 +706,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -678,8 +729,8 @@ const groupController = {
           httpStatus.INTERNAL_SERVER_ERROR,
           {
             message: error.message,
-          }
-        )
+          },
+        ),
       );
     }
   },
@@ -706,7 +757,7 @@ const groupController = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
         );
       }
 
@@ -740,24 +791,24 @@ const groupController = {
           res.setHeader("Content-Type", "application/json");
           res.setHeader(
             "Content-Disposition",
-            `attachment; filename="${filename}"`
+            `attachment; filename="${filename}"`,
           );
           return res.status(status).json(result.data);
         } else if (format === "csv") {
           res.setHeader("Content-Type", "text/csv");
           res.setHeader(
             "Content-Disposition",
-            `attachment; filename="${filename}"`
+            `attachment; filename="${filename}"`,
           );
           return res.status(status).send(result.data);
         } else if (format === "xlsx") {
           res.setHeader(
             "Content-Type",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           );
           res.setHeader(
             "Content-Disposition",
-            `attachment; filename="${filename}"`
+            `attachment; filename="${filename}"`,
           );
           return res.status(status).send(result.data);
         }
@@ -783,8 +834,8 @@ const groupController = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -800,6 +851,34 @@ const groupController = {
 
   listGroupCohorts: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listGroupCohorts),
+
+  leaveGroup: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await groupUtil.leaveGroup(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({
+        res,
+        result: {
+          ...result,
+          message: "You have successfully left the group.",
+        },
+        key: "left_group",
+      });
+    } catch (error) {
+      handleError(
+        error,
+        next,
+        "An error occurred while trying to leave the group.",
+      );
+    }
+  },
 };
 
 module.exports = groupController;

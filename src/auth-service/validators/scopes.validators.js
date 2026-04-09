@@ -2,6 +2,8 @@
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
+const { SCOPE_ENUMS } = require("@models/Scope");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -11,7 +13,7 @@ const validateTenant = oneOf([
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo", "airqount"])
+    .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
@@ -41,8 +43,9 @@ const create = [
         return value.replace(/ /g, "_").toUpperCase();
       }),
     body("network_id")
-      .exists()
-      .withMessage("network_id should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("network_id should not be empty if provided")
       .bail()
       .trim()
       .isMongoId()
@@ -56,6 +59,26 @@ const create = [
       .withMessage("description is missing in your request")
       .bail()
       .trim(),
+    body("tier")
+      .optional()
+      .isIn(SCOPE_ENUMS.TIER)
+      .withMessage(`tier must be one of: ${SCOPE_ENUMS.TIER.join(", ")}`),
+    body("resource_type")
+      .optional()
+      .isIn(SCOPE_ENUMS.RESOURCE_TYPE)
+      .withMessage(
+        `resource_type must be one of: ${SCOPE_ENUMS.RESOURCE_TYPE.join(", ")}`
+      ),
+    body("access_type")
+      .optional()
+      .isIn(SCOPE_ENUMS.ACCESS_TYPE)
+      .withMessage(`access_type must be one of: ${SCOPE_ENUMS.ACCESS_TYPE.join(", ")}`),
+    body("data_timeframe")
+      .optional()
+      .isIn(SCOPE_ENUMS.DATA_TIMEFRAME)
+      .withMessage(
+        `data_timeframe must be one of: ${SCOPE_ENUMS.DATA_TIMEFRAME.join(", ")}`
+      ),
   ],
 ];
 
@@ -121,6 +144,66 @@ const getById = [
   ],
 ];
 
+const bulkCreate = [
+  validateTenant,
+  [
+    body("scopes")
+      .exists()
+      .withMessage("scopes array is missing in your request")
+      .bail()
+      .isArray({ min: 1 })
+      .withMessage("scopes must be a non-empty array"),
+    body("scopes.*.scope")
+      .exists()
+      .withMessage("each scope item must have a scope field")
+      .bail()
+      .notEmpty()
+      .withMessage("scope field must not be empty")
+      .bail()
+      .trim()
+      .escape()
+      .customSanitizer((value) => value.replace(/ /g, "_").toUpperCase()),
+    body("scopes.*.description")
+      .exists()
+      .withMessage("each scope item must have a description field")
+      .bail()
+      .notEmpty()
+      .withMessage("description field must not be empty")
+      .bail()
+      .trim(),
+    body("scopes.*.network_id")
+      .optional()
+      .notEmpty()
+      .withMessage("network_id should not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("network_id must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => ObjectId(value)),
+    body("scopes.*.tier")
+      .optional()
+      .isIn(SCOPE_ENUMS.TIER)
+      .withMessage(`tier must be one of: ${SCOPE_ENUMS.TIER.join(", ")}`),
+    body("scopes.*.resource_type")
+      .optional()
+      .isIn(SCOPE_ENUMS.RESOURCE_TYPE)
+      .withMessage(
+        `resource_type must be one of: ${SCOPE_ENUMS.RESOURCE_TYPE.join(", ")}`
+      ),
+    body("scopes.*.access_type")
+      .optional()
+      .isIn(SCOPE_ENUMS.ACCESS_TYPE)
+      .withMessage(`access_type must be one of: ${SCOPE_ENUMS.ACCESS_TYPE.join(", ")}`),
+    body("scopes.*.data_timeframe")
+      .optional()
+      .isIn(SCOPE_ENUMS.DATA_TIMEFRAME)
+      .withMessage(
+        `data_timeframe must be one of: ${SCOPE_ENUMS.DATA_TIMEFRAME.join(", ")}`
+      ),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -129,4 +212,5 @@ module.exports = {
   update,
   deleteScope,
   getById,
+  bulkCreate,
 };

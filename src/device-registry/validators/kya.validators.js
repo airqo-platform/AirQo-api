@@ -21,7 +21,7 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -267,7 +267,7 @@ const commonValidations = {
       .bail()
       .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
       .withMessage(
-        "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE"
+        "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE",
       )
       .bail()
       .trim(),
@@ -282,7 +282,7 @@ const commonValidations = {
         return Array.isArray(value);
       })
       .withMessage(
-        "Invalid request body format. The kya_user_progress should be an array"
+        "Invalid request body format. The kya_user_progress should be an array",
       ),
     body("kya_user_progress.*")
       .optional()
@@ -302,7 +302,7 @@ const commonValidations = {
       .bail()
       .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
       .withMessage(
-        "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE"
+        "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE",
       )
       .bail()
       .trim(),
@@ -510,7 +510,7 @@ const commonValidations = {
         return Array.isArray(value);
       })
       .withMessage(
-        "Invalid request body format. The kya_quiz_user_progress should be an array"
+        "Invalid request body format. The kya_quiz_user_progress should be an array",
       ),
     body("kya_quiz_user_progress.*")
       .optional()
@@ -519,7 +519,7 @@ const commonValidations = {
     body("kya_quiz_user_progress.*.active_question")
       .exists()
       .withMessage(
-        "active_question is missing in the kya quiz user progress object"
+        "active_question is missing in the kya quiz user progress object",
       )
       .bail()
       .notEmpty()
@@ -532,7 +532,7 @@ const commonValidations = {
       .bail()
       .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
       .withMessage(
-        "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE"
+        "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE",
       )
       .bail()
       .trim(),
@@ -584,8 +584,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -603,8 +603,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -622,8 +622,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -644,8 +644,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -662,8 +662,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -681,8 +681,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -699,8 +699,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -717,8 +717,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -734,8 +734,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -753,8 +753,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -771,8 +771,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -794,8 +794,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -815,8 +815,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -834,8 +834,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -852,8 +852,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -869,8 +869,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -891,8 +891,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -914,8 +914,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -933,8 +933,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -952,8 +952,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -972,8 +972,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -991,8 +991,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1010,8 +1010,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1028,8 +1028,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1046,8 +1046,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1063,8 +1063,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1081,8 +1081,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1100,8 +1100,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1121,8 +1121,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1144,8 +1144,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1162,8 +1162,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1181,8 +1181,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1199,8 +1199,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1222,8 +1222,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1243,8 +1243,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1264,8 +1264,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1284,8 +1284,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1305,8 +1305,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1324,8 +1324,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1344,8 +1344,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1365,8 +1365,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1399,8 +1399,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1417,8 +1417,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1436,8 +1436,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1455,8 +1455,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1473,8 +1473,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1491,8 +1491,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();
@@ -1511,8 +1511,8 @@ const kyaValidations = {
           new HttpError(
             "Validation error",
             httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
+            errors.mapped(),
+          ),
         );
       }
       next();

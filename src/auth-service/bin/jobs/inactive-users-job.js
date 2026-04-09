@@ -4,7 +4,7 @@ const constants = require("@config/constants");
 const { mailer, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/jobs/inactive-users-job script`
+  `${constants.ENVIRONMENT} -- bin/jobs/inactive-users-job script -- ops-alerts`,
 );
 
 const inactiveThresholdInDays = 45;
@@ -14,27 +14,43 @@ const CONCURRENCY_LIMIT = 10; // Number of emails to send in parallel
 
 const sendInactivityReminders = async () => {
   try {
-    logger.info("Starting job: sendInactivityReminders");
     const tenant = (constants.DEFAULT_TENANT || "airqo").toLowerCase();
     const now = new Date();
 
     const inactiveThresholdDate = new Date();
     inactiveThresholdDate.setDate(
-      inactiveThresholdDate.getDate() - inactiveThresholdInDays
+      inactiveThresholdDate.getDate() - inactiveThresholdInDays,
     );
 
     const reminderCooldownDate = new Date();
     reminderCooldownDate.setDate(
-      reminderCooldownDate.getDate() - reminderCooldownInDays
+      reminderCooldownDate.getDate() - reminderCooldownInDays,
     );
 
     while (true) {
+      // A user is considered inactive when BOTH their explicit login signal
+      // (lastLogin) AND their API activity signal (lastActiveAt, written by
+      // the preferences endpoints) are older than the threshold. If either
+      // signal is recent the user is still engaging with the platform and
+      // should not receive an inactivity reminder.
       const inactiveUsers = await UserModel(tenant)
         .find({
-          lastLogin: { $lt: inactiveThresholdDate },
-          $or: [
-            { last_inactive_reminder_sent_at: { $exists: false } },
-            { last_inactive_reminder_sent_at: { $lt: reminderCooldownDate } },
+          $and: [
+            // Both activity signals must be stale (or absent).
+            { lastLogin: { $lt: inactiveThresholdDate } },
+            {
+              $or: [
+                { lastActiveAt: null },
+                { lastActiveAt: { $lt: inactiveThresholdDate } },
+              ],
+            },
+            // Reminder cooldown — don't re-send within the cooldown window.
+            {
+              $or: [
+                { last_inactive_reminder_sent_at: { $exists: false } },
+                { last_inactive_reminder_sent_at: { $lt: reminderCooldownDate } },
+              ],
+            },
           ],
         })
         .limit(BATCH_SIZE)
@@ -43,7 +59,6 @@ const sendInactivityReminders = async () => {
         .lean();
 
       if (inactiveUsers.length === 0) {
-        logger.info("No more inactive users to process for this batch.");
         break;
       }
 
@@ -59,23 +74,20 @@ const sendInactivityReminders = async () => {
             })
             .then(() => {
               successfulUserIds.push(user._id);
-              logger.info(
-                `Successfully queued inactivity reminder for ${user.email}`
-              );
               return { status: "fulfilled", email: user.email };
             })
             .catch((err) => {
               logger.warn(
                 `Failed to send inactivity reminder to ${
                   user.email
-                }: ${stringify(err)}`
+                }: ${stringify(err)}`,
               );
               return {
                 status: "rejected",
                 email: user.email,
                 reason: err.message,
               };
-            })
+            }),
         );
 
         // Process in chunks to limit concurrency
@@ -94,14 +106,10 @@ const sendInactivityReminders = async () => {
       if (successfulUserIds.length > 0) {
         await UserModel(tenant).updateMany(
           { _id: { $in: successfulUserIds } },
-          { $set: { last_inactive_reminder_sent_at: now } }
-        );
-        logger.info(
-          `Updated 'last_inactive_reminder_sent_at' for ${successfulUserIds.length} users.`
+          { $set: { last_inactive_reminder_sent_at: now } },
         );
       }
     }
-    logger.info("Finished job: sendInactivityReminders");
   } catch (error) {
     logger.error(`Error in sendInactivityReminders job: ${stringify(error)}`);
   }
