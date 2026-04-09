@@ -44,14 +44,14 @@ After completing setup and activating your virtual environment, run the service 
 ### 1. Development mode (recommended locally)
 - Linux/macOS:
 ```bash
-export FLASK_APP=app.py
+export FLASK_APP=app:app
 export APP_ENV=development
 export FLASK_DEBUG=1
 python -m flask run --host 0.0.0.0 --port 5000
 ```
 - Windows (PowerShell):
 ```powershell
-$env:FLASK_APP="app.py"
+$env:FLASK_APP="app:app"
 $env:APP_ENV="development"
 $env:FLASK_DEBUG="1"
 python -m flask run --host 0.0.0.0 --port 5000
@@ -73,11 +73,57 @@ gunicorn --bind 0.0.0.0:5000 app:app
 
 ### 4. Verify the service is running
 - Base URL: `http://127.0.0.1:5000/api/v2/spatial`
+- Health check: `http://127.0.0.1:5000/health`
 - Quick check:
 ```bash
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps
 ```
 If this returns JSON (or a validation error JSON), the microservice is running.
+
+## Run with Docker locally
+
+From `src/spatial`, build the image:
+
+```bash
+docker build -t airqo-spatial .
+```
+
+Run the container with your local `.env`:
+
+```bash
+docker run --rm -p 5000:5000 --env-file .env airqo-spatial
+```
+
+If your `.env` points to a Google service account file, mount it into the container and make sure `GOOGLE_APPLICATION_CREDENTIALS` resolves to `/app/google_application_credentials.json`:
+
+- Linux/macOS:
+```bash
+docker run --rm -p 5000:5000 \
+  --env-file .env \
+  -v "$(pwd)/google_application_credentials.json:/app/google_application_credentials.json" \
+  airqo-spatial
+```
+
+- Windows (PowerShell):
+```powershell
+docker run --rm -p 5000:5000 `
+  --env-file .env `
+  -v "${PWD}\google_application_credentials.json:/app/google_application_credentials.json" `
+  airqo-spatial
+```
+
+Verify the container is healthy:
+
+```bash
+curl http://127.0.0.1:5000/health
+```
+
+If you are running the build from the repository root instead of `src/spatial`, use:
+
+```bash
+docker build -t airqo-spatial ./src/spatial
+docker run --rm -p 5000:5000 --env-file ./src/spatial/.env airqo-spatial
+```
 
 ## API authentication
 Requests to this service are not authenticated by default, but the service itself uses `AIRQO_API_TOKEN` to pull upstream data. Protect deployments behind your API gateway or add middleware if you need request-level auth.
