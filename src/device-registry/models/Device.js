@@ -127,10 +127,14 @@ function computeDeviceCategories(deviceDoc) {
   }
 
   const primary_category = doc.category || "lowcost";
-  const deployment_category = doc.deployment_type || "static";
+  // Un-deployed devices have no deployment_type — keep it null rather than
+  // defaulting to "static", which would be semantically incorrect.
+  const deployment_category = doc.deployment_type || null;
 
-  // Use a Set to guarantee no duplicates in all_categories
-  const categorySet = new Set([primary_category, deployment_category]);
+  // Use a Set to guarantee no duplicates in all_categories.
+  // deployment_category is only added when it is actually set.
+  const categorySet = new Set([primary_category]);
+  if (deployment_category) categorySet.add(deployment_category);
   if (ownership_category) categorySet.add(ownership_category);
   if (mobile_category) categorySet.add(mobile_category);
   const all_categories = [...categorySet];
@@ -586,8 +590,16 @@ deviceSchema.pre(
       if (!doc) return next();
 
       // --- Mobility and Deployment Type Logic ---
-      // Rule 1: `mobility` is the source of truth.
-      if (typeof doc.mobility === "boolean") {
+      // Rule 1: `mobility` is the source of truth — but only when explicitly
+      // provided by the caller, not via a schema default.
+      // For query operations `doc` is a plain object so hasOwnProperty is exact.
+      // For save operations (new or existing) isDirectModified returns true only
+      // for user-set paths; schema defaults are applied with _skipMarkModified
+      // so they never appear as directly modified.
+      const mobilityExplicitlySet = isQuery
+        ? Object.prototype.hasOwnProperty.call(doc, "mobility")
+        : this.isDirectModified("mobility");
+      if (mobilityExplicitlySet) {
         if (doc.mobility === true) {
           if (isQuery) {
             update.$set = { ...(update.$set || {}), deployment_type: "mobile" };

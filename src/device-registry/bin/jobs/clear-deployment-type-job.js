@@ -34,11 +34,16 @@ const acquireLock = async (tenant) => {
         $or: [{ jobName: { $exists: false } }, { expiresAt: { $lte: now } }],
       },
       {
-        $setOnInsert: {
-          jobName: JOB_NAME,
+        // $set runs on both INSERT and UPDATE — ensures expired lock documents
+        // are overwritten with the current pod's ownership values.
+        $set: {
           acquiredBy: POD_ID,
           acquiredAt: now,
           expiresAt,
+        },
+        // $setOnInsert only runs on INSERT — keeps jobName immutable on updates.
+        $setOnInsert: {
+          jobName: JOB_NAME,
         },
       },
       { upsert: true, new: true, rawResult: false },

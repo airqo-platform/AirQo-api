@@ -176,15 +176,14 @@ const runPendingBulkUpdateJobs = require("@bin/jobs/device-bulk-update-job");
 // Run after a short delay to ensure DB connection is stable.
 setTimeout(() => runPendingBulkUpdateJobs("airqo"), 5000);
 
-if (constants.CLEAR_DEPLOYMENT_TYPE_JOB_ENABLED === true) {
-  try {
-    const clearDeploymentTypeJob = require("@bin/jobs/clear-deployment-type-job");
-    setTimeout(() => clearDeploymentTypeJob("airqo"), 8000);
-  } catch (err) {
-    global.dedupLogger.error(
-      `clear-deployment-type-job failed to start: ${err.message}`,
-    );
-  }
+try {
+  const clearDeploymentTypeJob = require("@bin/jobs/clear-deployment-type-job");
+  // Runs on every startup but self-skips immediately when no dirty records exist.
+  setTimeout(() => clearDeploymentTypeJob("airqo"), 8000);
+} catch (err) {
+  global.dedupLogger.error(
+    `clear-deployment-type-job failed to start: ${err.message}`,
+  );
 }
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
