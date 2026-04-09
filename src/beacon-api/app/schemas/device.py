@@ -25,7 +25,7 @@ class DeviceBeaconData(BaseModel):
 
 class DeviceCategory(BaseModel):
     level: str
-    category: str
+    category: Optional[str] = None
     description: Optional[str] = None
 
 class DeviceDetail(BaseModel):
