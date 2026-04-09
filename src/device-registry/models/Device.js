@@ -1198,7 +1198,7 @@ deviceSchema.statics = {
         .addFields({
           device_categories: {
             primary_category: { $ifNull: ["$category", "lowcost"] },
-            deployment_category: { $ifNull: ["$deployment_type", "static"] },
+            deployment_category: "$deployment_type",
 
             // Returns the raw network value so the frontend can display it directly.
             // null when network is missing or empty string.
@@ -1352,7 +1352,7 @@ deviceSchema.statics = {
                     input: {
                       $concatArrays: [
                         [{ $ifNull: ["$category", "lowcost"] }],
-                        [{ $ifNull: ["$deployment_type", "static"] }],
+                        ["$deployment_type"],
                         // Include network value when present
                         {
                           $cond: {
@@ -1507,7 +1507,7 @@ deviceSchema.statics = {
               },
               {
                 level: "deployment",
-                category: { $ifNull: ["$deployment_type", "static"] },
+                category: "$deployment_type",
                 description: {
                   $switch: {
                     branches: [
@@ -1520,7 +1520,7 @@ deviceSchema.statics = {
                         then: "Static deployment (fixed location, site-based)",
                       },
                     ],
-                    default: "Static deployment (fixed location, site-based)",
+                    default: null,
                   },
                 },
               },
