@@ -1,3 +1,22 @@
+"""Polygon-based sensor siting with bounded on-disk OSMnx caching.
+
+This module uses OSMnx to fetch OpenStreetMap features when generating
+candidate sensor locations. OSMnx caches HTTP responses as JSON files on disk.
+Without pruning, that cache can grow indefinitely in ``src/spatial/cache``.
+
+Maintenance notes:
+- ``OSMNX_CACHE_DIR`` keeps the cache local to the spatial service.
+- ``_prune_osmnx_cache`` applies a simple retention policy on startup.
+- The retention knobs are controlled through:
+  - ``OSMNX_CACHE_MAX_FILES``
+  - ``OSMNX_CACHE_MAX_AGE_HOURS``
+"""
+
+import os
+import time
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
+
 import numpy as np
 import geopandas as gpd
 import osmnx as ox
@@ -5,14 +24,63 @@ from shapely.geometry import Polygon, Point, MultiPolygon, box
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import KMeans
 from scipy.spatial import KDTree
-from typing import Dict, List, Tuple, Union
 import math
 import random
 import pandas as pd 
 
-# Configure OSMnx settings
+# Configure OSMnx to use a service-local cache directory instead of a global one.
+OSMNX_CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"
+OSMNX_CACHE_DIR.mkdir(exist_ok=True)
 ox.settings.use_cache = True
 ox.settings.log_console = True
+ox.settings.cache_folder = str(OSMNX_CACHE_DIR)
+
+
+def _prune_osmnx_cache() -> None:
+    """Delete stale OSMnx cache files so the cache directory stays bounded.
+
+    Files are removed in two passes:
+    1. Drop anything older than ``OSMNX_CACHE_MAX_AGE_HOURS``.
+    2. Keep only the newest ``OSMNX_CACHE_MAX_FILES`` JSON files.
+    """
+    max_files = int(os.getenv("OSMNX_CACHE_MAX_FILES", "100"))
+    max_age_hours = int(os.getenv("OSMNX_CACHE_MAX_AGE_HOURS", "168"))
+
+    try:
+        cache_files = sorted(
+            OSMNX_CACHE_DIR.glob("*.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return
+
+    if max_age_hours > 0:
+        expiry_seconds = max_age_hours * 3600
+        now = time.time()
+        for cache_file in list(cache_files):
+            try:
+                if now - cache_file.stat().st_mtime > expiry_seconds:
+                    cache_file.unlink(missing_ok=True)
+            except OSError:
+                continue
+
+    if max_files > 0:
+        try:
+            cache_files = sorted(
+                OSMNX_CACHE_DIR.glob("*.json"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        except OSError:
+            return
+
+        for cache_file in cache_files[max_files:]:
+            try:
+                cache_file.unlink(missing_ok=True)
+            except OSError:
+                continue
+
 
 class PolygonSensorOptimizer:
     """
@@ -31,6 +99,9 @@ class PolygonSensorOptimizer:
     """
 
     def __init__(self):
+        # Prune before new OSMnx requests are made so cache growth stays bounded
+        # during normal API traffic without requiring a separate cleanup job.
+        _prune_osmnx_cache()
         self.default_config = {
             'grid': {
                 'auto_size': True,

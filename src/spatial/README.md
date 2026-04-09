@@ -35,6 +35,8 @@ REDIS_URL=redis://localhost:6379/0
 REDIS_PASSWORD=
 REDIS_CACHE_TTL=3600
 MODEL_DIR_FILE=./models
+OSMNX_CACHE_MAX_FILES=100
+OSMNX_CACHE_MAX_AGE_HOURS=168
 ```
 
 ## Start the microservice
@@ -205,3 +207,4 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 - `must_have_locations` must fall inside the supplied polygon for site selection.
 - BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
 - Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
+- OSMnx request cache files are stored in `src/spatial/cache`. Old cache files are pruned automatically based on `OSMNX_CACHE_MAX_FILES` and `OSMNX_CACHE_MAX_AGE_HOURS`.
