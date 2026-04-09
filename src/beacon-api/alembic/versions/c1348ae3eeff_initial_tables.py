@@ -1,8 +1,8 @@
-"""initial create
+"""initial_tables
 
-Revision ID: 508f6b6bfc3a
+Revision ID: c1348ae3eeff
 Revises: 
-Create Date: 2026-03-30 16:06:59.388469
+Create Date: 2026-04-08 09:13:16.400571
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision: str = '508f6b6bfc3a'
+revision: str = 'c1348ae3eeff'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -98,6 +98,9 @@ def upgrade() -> None:
     sa.Column('target_firmware', sa.String(length=100), nullable=True),
     sa.Column('file_upload_state', sa.Boolean(), server_default='false', nullable=True),
     sa.Column('firmware_download_state', sa.String(length=100), nullable=True),
+    sa.Column('device_number', sa.Integer(), nullable=True),
+    sa.Column('writeKey', sa.String(length=100), nullable=True),
+    sa.Column('readKey', sa.String(length=100), nullable=True),
     sa.PrimaryKeyConstraint('device_id')
     )
     op.create_index(op.f('ix_sync_device_device_name'), 'sync_device', ['device_name'], unique=False)
@@ -112,6 +115,9 @@ def upgrade() -> None:
     sa.Column('uptime', sa.Float(), nullable=False),
     sa.Column('data_completeness', sa.Float(), nullable=False),
     sa.Column('error_margin', sa.Float(), nullable=False),
+    sa.Column('s1_pm2_5_average', sa.Float(), nullable=True),
+    sa.Column('s2_pm2_5_average', sa.Float(), nullable=True),
+    sa.Column('correlation', sa.Float(), nullable=True),
     sa.Column('cohorts_json', sa.Text(), nullable=True),
     sa.Column('complete_performance', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('computed_for_date', sa.Date(), nullable=False),

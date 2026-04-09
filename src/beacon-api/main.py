@@ -22,8 +22,7 @@ logging.basicConfig(
     level=log_level,
     format=log_format,
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("log.txt")
+        logging.StreamHandler()
     ],
     force=True
 )

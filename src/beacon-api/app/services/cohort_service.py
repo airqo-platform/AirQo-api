@@ -98,6 +98,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
         all_cohorts: List[Dict[str, Any]] = resp_json.get("cohorts", [])
         meta = resp_json.get("meta", {})
         total_pages = meta.get("totalPages", 1)
+        actual_limit = meta.get("limit", limit)
 
         if total_pages <= 1:
             logger.info(f"Fetched {len(all_cohorts)} cohorts (single page)")
@@ -105,7 +106,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
 
         # Fetch remaining pages in parallel
         async def _fetch_page(page_num: int) -> List[Dict[str, Any]]:
-            page_params = {**params, "skip": (page_num - 1) * limit}
+            page_params = {**params, "skip": (page_num - 1) * actual_limit, "limit": actual_limit}
             try:
                 page_response = await client.get(url, headers=headers, params=page_params)
                 if page_response.status_code != 200:

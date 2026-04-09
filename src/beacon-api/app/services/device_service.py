@@ -975,13 +975,15 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
             data = response.json()
             all_devices.extend(data.get("devices", []))
             
-            total_pages = data.get("meta", {}).get("totalPages", 1)
+            meta = data.get("meta", {})
+            total_pages = meta.get("totalPages", 1)
+            actual_limit = meta.get("limit", 100)
             
             # Fetch remaining pages in parallel
             if total_pages > 1:
                 fetch_tasks = []
                 for p in range(2, total_pages + 1):
-                    params = {"limit": 100, "skip": (p - 1) * 100}
+                    params = {"limit": actual_limit, "skip": (p - 1) * actual_limit}
                     fetch_tasks.append(client.get(url, headers=headers, params=params))
                 
                 paged_responses = await asyncio.gather(*fetch_tasks)
