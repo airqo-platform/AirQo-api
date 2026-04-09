@@ -31,7 +31,14 @@ const acquireLock = async (tenant) => {
     const result = await JobLockModel(tenant).findOneAndUpdate(
       {
         jobName: JOB_NAME,
-        $or: [{ jobName: { $exists: false } }, { expiresAt: { $lte: now } }],
+        $or: [
+          { jobName: { $exists: false } },
+          { expiresAt: { $lte: now } },
+          // Allow the same pod to reclaim its own lock after a restart within
+          // the TTL window — without this, the upsert hits a duplicate key and
+          // the pod can never re-acquire a lock it already held.
+          { acquiredBy: POD_ID },
+        ],
       },
       {
         // $set runs on both INSERT and UPDATE — ensures expired lock documents
