@@ -323,8 +323,36 @@ const createCohort = {
         {
           $lookup: {
             from: "devices",
-            localField: "_id",
-            foreignField: "cohorts",
+            let: { cohortId: "$_id" },
+            // Project only the fields consumed by COHORTS_INCLUSION_PROJECTION
+            // so MongoDB transfers minimal data per device document.
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $in: ["$$cohortId", { $ifNull: ["$cohorts", []] }] },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  name: 1,
+                  long_name: 1,
+                  description: 1,
+                  latitude: 1,
+                  longitude: 1,
+                  device_number: 1,
+                  isActive: 1,
+                  isOnline: 1,
+                  rawOnlineStatus: 1,
+                  lastRawData: 1,
+                  lastActive: 1,
+                  status: 1,
+                  network: 1,
+                  createdAt: 1,
+                  deployment_date: 1,
+                },
+              },
+            ],
             as: "devices",
           },
         },
@@ -1817,72 +1845,55 @@ const createCohort = {
             as: "activities",
           },
         },
+        // Derive typed-activity arrays from the already-fetched activities
+        // array rather than issuing 3 separate collection lookups per site.
+        // The activities array is already sorted by createdAt desc, so
+        // $slice after $filter gives us the most-recent item of each type.
+        // Shape: array of 0 or 1 elements — matches the post-processing
+        // expectations below (checks .length > 0 then takes [0]).
         {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      { $eq: ["$activityType", "deployment"] },
-                    ],
+          $addFields: {
+            latest_deployment_activity: {
+              $slice: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$activities", []] },
+                    as: "act",
+                    cond: { $eq: ["$$act.activityType", "deployment"] },
                   },
                 },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_deployment_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      { $eq: ["$activityType", "maintenance"] },
-                    ],
+                1,
+              ],
+            },
+            latest_maintenance_activity: {
+              $slice: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$activities", []] },
+                    as: "act",
+                    cond: { $eq: ["$$act.activityType", "maintenance"] },
                   },
                 },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_maintenance_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      {
-                        $or: [
-                          { $eq: ["$activityType", "recall"] },
-                          { $eq: ["$activityType", "recallment"] },
-                        ],
-                      },
-                    ],
+                1,
+              ],
+            },
+            latest_recall_activity: {
+              $slice: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$activities", []] },
+                    as: "act",
+                    cond: {
+                      $or: [
+                        { $eq: ["$$act.activityType", "recall"] },
+                        { $eq: ["$$act.activityType", "recallment"] },
+                      ],
+                    },
                   },
                 },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_recall_activity",
+                1,
+              ],
+            },
           },
         },
         {

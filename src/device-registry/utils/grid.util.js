@@ -1,6 +1,7 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
+const ComputedCacheModel = require("@models/ComputedCache");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -21,6 +22,97 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+
+// ---------------------------------------------------------------------------
+// Two-level cache for the private-site-IDs aggregation.
+//
+// Why two levels?
+//   L1 (in-memory): pod-local, sub-millisecond reads, lost on pod restart.
+//   L2 (MongoDB):   shared across all Kubernetes replicas, survives restarts.
+//
+// Flow on each request:
+//   1. L1 hit  → return immediately (nanoseconds).
+//   2. L1 miss → check MongoDB document (one indexed findOne, ~1 ms).
+//      2a. L2 hit  → populate L1, return.
+//      2b. L2 miss → run full Cohort→Device aggregation, write to both
+//                    L2 and L1, then return.
+//
+// This means only ONE pod pays the aggregation cost after each TTL expiry;
+// every other replica immediately benefits from the shared L2 document on
+// its next request — including brand-new pods that Kubernetes just started.
+// ---------------------------------------------------------------------------
+const _privateSiteIdsCache = {};
+const PRIVATE_SITE_IDS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const PRIVATE_SITE_IDS_CACHE_KEY = "private_site_ids";
+
+async function computePrivateSiteIds(tenant) {
+  const result = await CohortModel(tenant).aggregate([
+    { $match: { visibility: false } },
+    {
+      $lookup: {
+        from: "devices",
+        localField: "_id",
+        foreignField: "cohorts",
+        as: "devices",
+      },
+    },
+    { $unwind: "$devices" },
+    { $match: { "devices.site_id": { $ne: null } } },
+    { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+  ]);
+  return result.length > 0 ? result[0].site_ids : [];
+}
+
+async function getPrivateSiteIds(tenant) {
+  const now = Date.now();
+
+  // ── L1: in-memory (pod-local) ──────────────────────────────────────────
+  const l1 = _privateSiteIdsCache[tenant];
+  if (l1 && now - l1.timestamp < PRIVATE_SITE_IDS_TTL_MS) {
+    return l1.data;
+  }
+
+  // ── L2: MongoDB (shared across all pods) ──────────────────────────────
+  try {
+    const l2 = await ComputedCacheModel(tenant)
+      .findOne({ key: PRIVATE_SITE_IDS_CACHE_KEY, tenant })
+      .lean();
+
+    if (l2 && l2.expiresAt > new Date()) {
+      // Fresh L2 hit — warm L1 and return
+      _privateSiteIdsCache[tenant] = { data: l2.data, timestamp: now };
+      return l2.data;
+    }
+  } catch (err) {
+    // L2 read failure is non-fatal: fall through to full recompute
+    logger.warn(
+      `ComputedCache L2 read failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${tenant}: ${err.message}`
+    );
+  }
+
+  // ── Full recompute (both levels missed or L2 unavailable) ─────────────
+  const data = await computePrivateSiteIds(tenant);
+  const expiresAt = new Date(now + PRIVATE_SITE_IDS_TTL_MS);
+
+  // Write L1
+  _privateSiteIdsCache[tenant] = { data, timestamp: now };
+
+  // Write L2 — fire-and-forget so a cache write failure never blocks the
+  // actual API response. The next request will simply recompute again.
+  ComputedCacheModel(tenant)
+    .findOneAndUpdate(
+      { key: PRIVATE_SITE_IDS_CACHE_KEY, tenant },
+      { $set: { data, computedAt: new Date(now), expiresAt } },
+      { upsert: true, new: false }
+    )
+    .catch((err) =>
+      logger.warn(
+        `ComputedCache L2 write failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${tenant}: ${err.message}`
+      )
+    );
+
+  return data;
+}
 
 function filterOutPrivateIDs(privateIds, randomIds) {
   // Create a Set from the privateIds array
@@ -573,26 +665,9 @@ const createGrid = {
         };
       }
 
-      // Optimized query to get all private site IDs in one go
-      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
-        { $match: { visibility: false } },
-        {
-          $lookup: {
-            from: "devices",
-            localField: "_id",
-            foreignField: "cohorts",
-            as: "devices",
-          },
-        },
-        { $unwind: "$devices" },
-        { $match: { "devices.site_id": { $ne: null } } },
-        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
-      ]);
-
-      const privateSiteIds =
-        privateSiteIdsResponse.length > 0
-          ? privateSiteIdsResponse[0].site_ids
-          : [];
+      // Use cached helper — avoids a full Cohort→Device join on every request.
+      // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
+      const privateSiteIds = await getPrivateSiteIds(tenant);
 
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
@@ -1323,26 +1398,9 @@ const createGrid = {
   listCountries: async (request, next) => {
     try {
       const { tenant, cohort_id } = request.query;
-      // Optimized query to get all private site IDs in one go
-      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
-        { $match: { visibility: false } },
-        {
-          $lookup: {
-            from: "devices",
-            localField: "_id",
-            foreignField: "cohorts",
-            as: "devices",
-          },
-        },
-        { $unwind: "$devices" },
-        { $match: { "devices.site_id": { $ne: null } } },
-        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
-      ]);
-
-      const privateSiteIds =
-        privateSiteIdsResponse.length > 0
-          ? privateSiteIdsResponse[0].site_ids
-          : [];
+      // Use cached helper — avoids a full Cohort→Device join on every request.
+      // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
+      const privateSiteIds = await getPrivateSiteIds(tenant);
 
       let cohortSiteIds = [];
       if (cohort_id) {
@@ -1411,7 +1469,7 @@ const createGrid = {
         },
       ];
 
-      const results = await GridModel(tenant).aggregate(pipeline);
+      const results = await GridModel(tenant).aggregate(pipeline).allowDiskUse(true);
 
       const countriesWithFlags = results.map((countryData) => {
         // Safely handle null or undefined country names
