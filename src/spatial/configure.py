@@ -78,7 +78,9 @@ app_config = {
     "staging": TestingConfig,
 }
 
-environment = os.getenv("FLASK_ENV", "staging")
+# Flask 2.3 removed FLASK_ENV. Use an app-specific selector and keep a
+# fallback for older deployments that still export FLASK_ENV.
+environment = os.getenv("APP_ENV") or os.getenv("FLASK_ENV", "staging")
 print("ENVIRONMENT", environment or "staging")
 
 #configuration = app_config.get(environment, "staging")
