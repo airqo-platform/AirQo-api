@@ -26,6 +26,20 @@ const DEVICE_CONFIG = {
   ALLOWED_CATEGORIES: ["bam", "lowcost", "gas"],
 };
 
+// Statuses that mean a device is not actively deployed.
+// Derived from VALID_DEVICE_STATUSES so the list stays in sync automatically.
+const UN_DEPLOYED_STATUSES = constants.VALID_DEVICE_STATUSES
+  ? constants.VALID_DEVICE_STATUSES.filter((s) => s !== "deployed")
+  : [
+      "recalled",
+      "ready",
+      "undeployed",
+      "decommissioned",
+      "assembly",
+      "testing",
+      "not deployed",
+    ];
+
 const accessCodeGenerator = require("generate-password");
 
 function sanitizeObject(obj, invalidKeys) {
@@ -349,7 +363,6 @@ const deviceSchema = new mongoose.Schema(
     deployment_type: {
       type: String,
       enum: ["static", "mobile"],
-      default: "static",
       trim: true,
       lowercase: true,
     },
@@ -626,10 +639,22 @@ deviceSchema.pre(
         if (doc.grid_id) {
           doc.deployment_type = "mobile";
           doc.mobility = true;
-        } else {
+        } else if (!UN_DEPLOYED_STATUSES.includes(doc.status || "not deployed")) {
+          // Only assign a deployment_type when the device is actively being deployed
           doc.deployment_type = "static";
           doc.mobility = false;
+        } else {
+          // New un-deployed device — leave deployment_type unset
+          doc.mobility = false;
         }
+      }
+
+      // --- Un-deployed Status Enforcement (query operations) ---
+      // When status is explicitly transitioned to an un-deployed state,
+      // remove deployment_type regardless of what the mobility sync set above.
+      if (isQuery && doc.status && UN_DEPLOYED_STATUSES.includes(doc.status)) {
+        update.$unset = { ...(update.$unset || {}), deployment_type: "" };
+        if (update.$set) delete update.$set.deployment_type;
       }
 
       // --- Business Rule Enforcement ---

@@ -76,9 +76,9 @@ const buildRecallUpdateOperation = (recallDate) => ({
     isActive: false,
     recall_date: recallDate,
     mobility: false,
-    deployment_type: "static",
   },
   $unset: {
+    deployment_type: "",
     height: "",
     mountType: "",
     powerType: "",
