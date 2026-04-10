@@ -8,6 +8,7 @@ const gridUtil = require("@utils/grid.util");
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
+const ComputedCacheModel = require("@models/ComputedCache");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
 const { generateFilter } = require("@utils/common");
@@ -443,6 +444,143 @@ describe("Grid Util", () => {
       const result = await gridUtil.deleteAdminLevel({});
       expect(result.success).to.be.false;
       expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getPrivateSiteIds — two-level cache (L1 in-memory + L2 MongoDB)
+  // ---------------------------------------------------------------------------
+  describe("getPrivateSiteIds", () => {
+    const SITE_IDS = [
+      new mongoose.Types.ObjectId(),
+      new mongoose.Types.ObjectId(),
+    ];
+    const FUTURE_EXPIRES = new Date(Date.now() + 10 * 60 * 1000); // 10 min from now
+    const PAST_EXPIRES = new Date(Date.now() - 1000); // already expired
+
+    let cohortAggregateStub;
+    let computedCacheFindOneStub;
+    let computedCacheFindOneAndUpdateStub;
+    let computedCacheModelStub;
+
+    beforeEach(() => {
+      // Stub CohortModel aggregate (the full recompute path)
+      cohortAggregateStub = sandbox.stub().resolves([{ site_ids: SITE_IDS }]);
+      sandbox.stub(CohortModel, "default").returns({
+        aggregate: cohortAggregateStub,
+      });
+
+      // Stub ComputedCacheModel findOne and findOneAndUpdate
+      computedCacheFindOneStub = sandbox.stub();
+      computedCacheFindOneAndUpdateStub = sandbox.stub().resolves();
+      computedCacheModelStub = sandbox.stub(ComputedCacheModel, "default").returns({
+        findOne: computedCacheFindOneStub,
+        findOneAndUpdate: computedCacheFindOneAndUpdateStub,
+      });
+    });
+
+    it("L2 hit: warms L1 and returns cached data without triggering recompute", async () => {
+      // L2 returns a fresh cached document
+      computedCacheFindOneStub.returns({
+        lean: sandbox.stub().resolves({
+          data: SITE_IDS,
+          expiresAt: FUTURE_EXPIRES,
+        }),
+      });
+
+      const result = await gridUtil._getPrivateSiteIds("airqo");
+
+      expect(result).to.deep.equal(SITE_IDS);
+      // Full recompute (CohortModel aggregate) must NOT have been called
+      expect(cohortAggregateStub.called).to.be.false;
+      // L2 findOne must have been called with normalised tenant
+      expect(
+        computedCacheFindOneStub.calledWith({
+          key: "private_site_ids",
+          tenant: "airqo",
+        })
+      ).to.be.true;
+    });
+
+    it("L2 miss (expired document): triggers recompute and attempts upsert", async () => {
+      // L2 returns an expired document
+      computedCacheFindOneStub.returns({
+        lean: sandbox.stub().resolves({
+          data: SITE_IDS,
+          expiresAt: PAST_EXPIRES,
+        }),
+      });
+      computedCacheFindOneAndUpdateStub.resolves();
+
+      const result = await gridUtil._getPrivateSiteIds("airqo");
+
+      expect(result).to.deep.equal(SITE_IDS);
+      // Full recompute must have run
+      expect(cohortAggregateStub.calledOnce).to.be.true;
+      // Upsert must have been attempted with correct key and tenant
+      expect(computedCacheFindOneAndUpdateStub.calledOnce).to.be.true;
+      const [filter, update] = computedCacheFindOneAndUpdateStub.firstCall.args;
+      expect(filter).to.deep.equal({ key: "private_site_ids", tenant: "airqo" });
+      expect(update.$set.data).to.deep.equal(SITE_IDS);
+      expect(update.$setOnInsert.tenant).to.equal("airqo");
+      expect(update.$setOnInsert.key).to.equal("private_site_ids");
+    });
+
+    it("L2 miss (no document): triggers recompute and attempts upsert", async () => {
+      computedCacheFindOneStub.returns({
+        lean: sandbox.stub().resolves(null),
+      });
+      computedCacheFindOneAndUpdateStub.resolves();
+
+      const result = await gridUtil._getPrivateSiteIds("airqo");
+
+      expect(result).to.deep.equal(SITE_IDS);
+      expect(cohortAggregateStub.calledOnce).to.be.true;
+      expect(computedCacheFindOneAndUpdateStub.calledOnce).to.be.true;
+    });
+
+    it("missing tenant falls back to default and uses it consistently for L1 key, L2 filter, and upsert", async () => {
+      computedCacheFindOneStub.returns({
+        lean: sandbox.stub().resolves(null),
+      });
+      computedCacheFindOneAndUpdateStub.resolves();
+
+      // Call with no tenant / empty string
+      await gridUtil._getPrivateSiteIds(undefined);
+      await gridUtil._getPrivateSiteIds("");
+
+      // Both calls must query L2 with the default tenant, not undefined/""
+      computedCacheFindOneAndUpdateStub.args.forEach(([filter, update]) => {
+        expect(filter.tenant).to.be.a("string").and.not.be.empty;
+        expect(filter.tenant).to.not.equal("undefined");
+        expect(update.$setOnInsert.tenant).to.equal(filter.tenant);
+      });
+    });
+
+    it("L2 read failure is non-fatal: falls through to recompute and still returns data", async () => {
+      // L2 findOne throws
+      computedCacheFindOneStub.returns({
+        lean: sandbox.stub().rejects(new Error("MongoDB connection lost")),
+      });
+      computedCacheFindOneAndUpdateStub.resolves();
+
+      const result = await gridUtil._getPrivateSiteIds("airqo");
+
+      // Must still return freshly computed data
+      expect(result).to.deep.equal(SITE_IDS);
+      expect(cohortAggregateStub.calledOnce).to.be.true;
+    });
+
+    it("L2 write failure is non-fatal: result is still returned correctly", async () => {
+      computedCacheFindOneStub.returns({
+        lean: sandbox.stub().resolves(null),
+      });
+      // Upsert rejects
+      computedCacheFindOneAndUpdateStub.rejects(new Error("write timeout"));
+
+      // Should not throw
+      const result = await gridUtil._getPrivateSiteIds("airqo");
+      expect(result).to.deep.equal(SITE_IDS);
     });
   });
 });

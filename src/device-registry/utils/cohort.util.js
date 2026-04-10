@@ -1845,55 +1845,79 @@ const createCohort = {
             as: "activities",
           },
         },
-        // Derive typed-activity arrays from the already-fetched activities
-        // array rather than issuing 3 separate collection lookups per site.
-        // The activities array is already sorted by createdAt desc, so
-        // $slice after $filter gives us the most-recent item of each type.
-        // Shape: array of 0 or 1 elements — matches the post-processing
-        // expectations below (checks .length > 0 then takes [0]).
+        // Dedicated lookups for the most-recent activity of each type.
+        // These cannot be derived from the capped activities array above
+        // because that array is limited to the 100 most-recent activities
+        // overall — the latest deployment/maintenance/recall could be older
+        // than position 100.  The compound index on Activity
+        // { site_id, activityType, createdAt } makes each of these an
+        // index-range scan + limit 1, so the cost is negligible.
         {
-          $addFields: {
-            latest_deployment_activity: {
-              $slice: [
-                {
-                  $filter: {
-                    input: { $ifNull: ["$activities", []] },
-                    as: "act",
-                    cond: { $eq: ["$$act.activityType", "deployment"] },
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
                   },
                 },
-                1,
-              ],
-            },
-            latest_maintenance_activity: {
-              $slice: [
-                {
-                  $filter: {
-                    input: { $ifNull: ["$activities", []] },
-                    as: "act",
-                    cond: { $eq: ["$$act.activityType", "maintenance"] },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      { $eq: ["$activityType", "maintenance"] },
+                    ],
                   },
                 },
-                1,
-              ],
-            },
-            latest_recall_activity: {
-              $slice: [
-                {
-                  $filter: {
-                    input: { $ifNull: ["$activities", []] },
-                    as: "act",
-                    cond: {
-                      $or: [
-                        { $eq: ["$$act.activityType", "recall"] },
-                        { $eq: ["$$act.activityType", "recallment"] },
-                      ],
-                    },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_maintenance_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$site_id", "$$siteId"] },
+                      {
+                        $or: [
+                          { $eq: ["$activityType", "recall"] },
+                          { $eq: ["$activityType", "recallment"] },
+                        ],
+                      },
+                    ],
                   },
                 },
-                1,
-              ],
-            },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_recall_activity",
           },
         },
         {

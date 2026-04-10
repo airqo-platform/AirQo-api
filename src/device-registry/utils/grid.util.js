@@ -64,50 +64,66 @@ async function computePrivateSiteIds(tenant) {
 }
 
 async function getPrivateSiteIds(tenant) {
+  // Normalise to the same effective tenant the models use, so L1 keys,
+  // L2 filter values, and upsert documents are always consistent even when
+  // the caller omits or passes an empty tenant.
+  const normalizedTenant =
+    (tenant && tenant.toString().trim().toLowerCase()) ||
+    constants.DEFAULT_TENANT ||
+    "airqo";
+
   const now = Date.now();
 
   // ── L1: in-memory (pod-local) ──────────────────────────────────────────
-  const l1 = _privateSiteIdsCache[tenant];
+  const l1 = _privateSiteIdsCache[normalizedTenant];
   if (l1 && now - l1.timestamp < PRIVATE_SITE_IDS_TTL_MS) {
     return l1.data;
   }
 
   // ── L2: MongoDB (shared across all pods) ──────────────────────────────
   try {
-    const l2 = await ComputedCacheModel(tenant)
-      .findOne({ key: PRIVATE_SITE_IDS_CACHE_KEY, tenant })
+    const l2 = await ComputedCacheModel(normalizedTenant)
+      .findOne({ key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant })
       .lean();
 
     if (l2 && l2.expiresAt > new Date()) {
       // Fresh L2 hit — warm L1 and return
-      _privateSiteIdsCache[tenant] = { data: l2.data, timestamp: now };
+      _privateSiteIdsCache[normalizedTenant] = { data: l2.data, timestamp: now };
       return l2.data;
     }
   } catch (err) {
     // L2 read failure is non-fatal: fall through to full recompute
     logger.warn(
-      `ComputedCache L2 read failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${tenant}: ${err.message}`
+      `ComputedCache L2 read failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${normalizedTenant}: ${err.message}`
     );
   }
 
   // ── Full recompute (both levels missed or L2 unavailable) ─────────────
-  const data = await computePrivateSiteIds(tenant);
+  const data = await computePrivateSiteIds(normalizedTenant);
   const expiresAt = new Date(now + PRIVATE_SITE_IDS_TTL_MS);
 
   // Write L1
-  _privateSiteIdsCache[tenant] = { data, timestamp: now };
+  _privateSiteIdsCache[normalizedTenant] = { data, timestamp: now };
 
   // Write L2 — fire-and-forget so a cache write failure never blocks the
   // actual API response. The next request will simply recompute again.
-  ComputedCacheModel(tenant)
+  // $setOnInsert makes tenant and key explicit on document creation so the
+  // unique index filter is never the only source of those field values.
+  ComputedCacheModel(normalizedTenant)
     .findOneAndUpdate(
-      { key: PRIVATE_SITE_IDS_CACHE_KEY, tenant },
-      { $set: { data, computedAt: new Date(now), expiresAt } },
+      { key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant },
+      {
+        $set: { data, computedAt: new Date(now), expiresAt },
+        $setOnInsert: {
+          key: PRIVATE_SITE_IDS_CACHE_KEY,
+          tenant: normalizedTenant,
+        },
+      },
       { upsert: true, new: false }
     )
     .catch((err) =>
       logger.warn(
-        `ComputedCache L2 write failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${tenant}: ${err.message}`
+        `ComputedCache L2 write failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${normalizedTenant}: ${err.message}`
       )
     );
 
@@ -1518,5 +1534,10 @@ const createGrid = {
     }
   },
 };
+
+// Exported under a private-convention name so unit tests can exercise the
+// two-level cache logic directly without going through a full HTTP request.
+// Not intended for use outside of tests.
+createGrid._getPrivateSiteIds = getPrivateSiteIds;
 
 module.exports = createGrid;
