@@ -321,6 +321,10 @@ const createCohort = {
       const pipeline = [
         { $match: filter },
         {
+          // Simple array-membership join: MongoDB can use a multikey index on
+          // devices.cohorts with this form, unlike the correlated $expr/$in
+          // pipeline approach. Field trimming is handled downstream by the
+          // $map in COHORTS_INCLUSION_PROJECTION.
           $lookup: {
             from: "devices",
             localField: "_id",
@@ -1543,11 +1547,34 @@ const createCohort = {
           },
         },
         {
+          // Separate count lookup so total_activities reflects the true
+          // activity count, not the capped activitiesLimit window.
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$device_id", "$$deviceId"] },
+                    ],
+                  },
+                },
+              },
+              { $count: "count" },
+            ],
+            as: "activity_count",
+          },
+        },
+        {
           $addFields: {
+            // True total — not capped by activitiesLimit
             total_activities: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+              $ifNull: [{ $arrayElemAt: ["$activity_count.count", 0] }, 0],
             },
-            // explicit metric for the truncated activities array we actually returned
+            // How many activity documents were actually returned in this response
             activities_loaded: {
               $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
             },
@@ -1817,6 +1844,15 @@ const createCohort = {
             as: "activities",
           },
         },
+        // Dedicated lookups for the most-recent activity of each type.
+        // These cannot be derived from the capped activities array above
+        // because that array is limited to the 100 most-recent activities
+        // overall — the latest deployment/maintenance/recall could be older
+        // than position 100.  The compound index on Activity
+        // { site_id, activityType, createdAt } makes each of these an
+        // index-range scan + limit 1, so the cost is negligible.
+        // $project is placed after $match and before $sort/$limit to keep
+        // field parity with the main activities lookup and reduce sort memory.
         {
           $lookup: {
             from: "activities",
@@ -1830,6 +1866,22 @@ const createCohort = {
                       { $eq: ["$activityType", "deployment"] },
                     ],
                   },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
                 },
               },
               { $sort: { createdAt: -1 } },
@@ -1851,6 +1903,22 @@ const createCohort = {
                       { $eq: ["$activityType", "maintenance"] },
                     ],
                   },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
                 },
               },
               { $sort: { createdAt: -1 } },
@@ -1879,15 +1947,52 @@ const createCohort = {
                   },
                 },
               },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                },
+              },
               { $sort: { createdAt: -1 } },
               { $limit: 1 },
             ],
             as: "latest_recall_activity",
           },
         },
+        // Dedicated count lookup so total_activities reflects all activities
+        // for the site, not just the 100-document cap in the activities array.
+        // The { site_id, createdAt } index makes this an efficient count-scan.
+        // activity_count is an intermediate field; the inclusion $project
+        // below removes it from the final output automatically.
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+              { $count: "count" },
+            ],
+            as: "activity_count",
+          },
+        },
         {
           $addFields: {
+            // True total across all activities for this site
             total_activities: {
+              $ifNull: [{ $arrayElemAt: ["$activity_count.count", 0] }, 0],
+            },
+            // Count of activities returned in the capped array (max 100)
+            recent_activities_count: {
               $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
             },
           },
