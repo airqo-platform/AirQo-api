@@ -504,7 +504,9 @@ class PolygonSensorOptimizer:
                         industry_score += self.config['weights']['industry']['construction_sites']
             grid.at[idx, 'industry_score'] = min(industry_score, 1.0)
 
-            # Environment score
+            # Environment score is treated as a penalty signal. Higher values
+            # mean the cell is greener or closer to water and therefore less
+            # suitable for pollution-oriented sensor placement.
             environment_score = 0.0
             if not green_spaces.empty:
                 nearby_green = self._subset_intersections(
@@ -514,7 +516,9 @@ class PolygonSensorOptimizer:
                 )
                 if not nearby_green.empty:
                     green_area = sum(geom.intersection(cell_buffer).area for geom in nearby_green.geometry)
-                    environment_score += self.config['weights']['environment']['green_spaces'] * (green_area / cell_buffer.area)
+                    environment_score += abs(
+                        self.config['weights']['environment']['green_spaces']
+                    ) * (green_area / cell_buffer.area)
             if not water.empty:
                 nearby_water = self._subset_intersections(
                     water,
@@ -523,16 +527,21 @@ class PolygonSensorOptimizer:
                 )
                 if not nearby_water.empty:
                     water_area = sum(geom.intersection(cell_buffer).area for geom in nearby_water.geometry)
-                    environment_score += self.config['weights']['environment']['water_proximity'] * (water_area / cell_buffer.area)
-            grid.at[idx, 'environment_score'] = max(environment_score, 0.0)  # Negative weights, so ensure non-negative
+                    environment_score += abs(
+                        self.config['weights']['environment']['water_proximity']
+                    ) * (water_area / cell_buffer.area)
+            grid.at[idx, 'environment_score'] = min(max(environment_score, 0.0), 1.0)
 
-            # Calculate suitability score
-            suitability_score = (
-                0.4 * grid.at[idx, 'transport_score'] +
+            # Calculate suitability score from actual positive evidence, then
+            # reduce it using the environment penalty instead of adding a fixed
+            # baseline. This avoids every low-signal location collapsing to 0.1.
+            positive_signal = (
+                0.5 * grid.at[idx, 'transport_score'] +
                 0.3 * grid.at[idx, 'urban_score'] +
-                0.2 * grid.at[idx, 'industry_score'] +
-                0.1 * (1 - grid.at[idx, 'environment_score'])
+                0.2 * grid.at[idx, 'industry_score']
             )
+            environment_penalty = 1 - (0.6 * grid.at[idx, 'environment_score'])
+            suitability_score = positive_signal * max(environment_penalty, 0.0)
             grid.at[idx, 'suitability_score'] = min(max(suitability_score, 0.0), 1.0)
 
         score_columns = ['transport_score', 'urban_score', 'industry_score', 'environment_score', 'suitability_score']
@@ -706,7 +715,6 @@ class PolygonSensorOptimizer:
             results['locations'].append({
                 'latitude': point.y,
                 'longitude': point.x,
-                'suitability_score': round(float(loc['suitability_score']), 4),
                 'grid_cell': loc['geometry'].wkt,
                 'site_category': site_category,
                 'cluster_id': int(loc.get('cluster', -1)),
@@ -730,7 +738,6 @@ class PolygonSensorOptimizer:
                 results['candidate_sites'].append({
                     'latitude': point.y,
                     'longitude': point.x,
-                    'suitability_score': round(float(candidate['suitability_score']), 4),
                     'site_category': candidate['site_category'],
                     'cluster_id': int(candidate.get('cluster', -1))
                 })

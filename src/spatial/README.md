@@ -370,7 +370,7 @@ Successful responses include:
 - `sensor_counts`: maximum, minimum, recommended, and actual selected sensors
 - `candidate_site_count`: total number of scored candidate points considered by the optimizer
 - `site_category_counts`: counts for `Commercial`, `Urban Background`, `Background`, and `Rural`
-- `locations`: selected sensor locations with suitability score, reasons, and warnings
+- `locations`: selected sensor locations with reasons and warnings
 - `candidate_sites`: optional scored candidate points list, included only when requested
 - `config`: applied minimum-distance settings
 - `spatial_metrics`: nearest-neighbor distance summary when more than one sensor is selected
@@ -397,7 +397,6 @@ Representative response excerpt:
     {
       "latitude": 0.311234,
       "longitude": 32.587654,
-      "suitability_score": 0.8123,
       "site_category": "Urban Background",
       "cluster_id": 3,
       "primary_reason": "Strong urban influence with moderate transport exposure"
