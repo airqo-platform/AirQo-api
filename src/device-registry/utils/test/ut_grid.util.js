@@ -461,9 +461,13 @@ describe("Grid Util", () => {
     let cohortAggregateStub;
     let computedCacheFindOneStub;
     let computedCacheFindOneAndUpdateStub;
-    let computedCacheModelStub;
 
     beforeEach(() => {
+      // Reset the module-level L1 cache before every test so no state leaks
+      // between cases (e.g. an L2-hit test warming L1 would cause the next
+      // test to skip both L2 and recompute, producing false passes).
+      gridUtil._clearPrivateSiteIdsCache();
+
       // Stub CohortModel aggregate (the full recompute path)
       cohortAggregateStub = sandbox.stub().resolves([{ site_ids: SITE_IDS }]);
       sandbox.stub(CohortModel, "default").returns({
@@ -473,7 +477,7 @@ describe("Grid Util", () => {
       // Stub ComputedCacheModel findOne and findOneAndUpdate
       computedCacheFindOneStub = sandbox.stub();
       computedCacheFindOneAndUpdateStub = sandbox.stub().resolves();
-      computedCacheModelStub = sandbox.stub(ComputedCacheModel, "default").returns({
+      sandbox.stub(ComputedCacheModel, "default").returns({
         findOne: computedCacheFindOneStub,
         findOneAndUpdate: computedCacheFindOneAndUpdateStub,
       });
@@ -545,15 +549,27 @@ describe("Grid Util", () => {
       });
       computedCacheFindOneAndUpdateStub.resolves();
 
-      // Call with no tenant / empty string
+      // Clear L1 between calls so both are forced through L2, allowing us to
+      // verify that undefined and "" normalise to the same canonical tenant.
       await gridUtil._getPrivateSiteIds(undefined);
+      gridUtil._clearPrivateSiteIdsCache();
       await gridUtil._getPrivateSiteIds("");
 
-      // Both calls must query L2 with the default tenant, not undefined/""
-      computedCacheFindOneAndUpdateStub.args.forEach(([filter, update]) => {
-        expect(filter.tenant).to.be.a("string").and.not.be.empty;
-        expect(filter.tenant).to.not.equal("undefined");
-        expect(update.$setOnInsert.tenant).to.equal(filter.tenant);
+      // Both calls must have hit L2 (findOne called twice)
+      expect(computedCacheFindOneStub.callCount).to.equal(2);
+      expect(computedCacheFindOneAndUpdateStub.callCount).to.equal(2);
+
+      // For each invocation, the read tenant must be a valid non-empty string
+      // and must exactly match the tenant written in the upsert — ensuring
+      // the normalisation is applied consistently end-to-end.
+      computedCacheFindOneStub.args.forEach(([readFilter], i) => {
+        const [writeFilter, writeUpdate] =
+          computedCacheFindOneAndUpdateStub.args[i];
+
+        expect(readFilter.tenant).to.be.a("string").and.not.be.empty;
+        expect(readFilter.tenant).to.not.equal("undefined");
+        expect(readFilter.tenant).to.equal(writeFilter.tenant);
+        expect(writeUpdate.$setOnInsert.tenant).to.equal(readFilter.tenant);
       });
     });
 

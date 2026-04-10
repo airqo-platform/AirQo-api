@@ -1535,9 +1535,14 @@ const createGrid = {
   },
 };
 
-// Exported under a private-convention name so unit tests can exercise the
+// Exported under private-convention names so unit tests can exercise the
 // two-level cache logic directly without going through a full HTTP request.
 // Not intended for use outside of tests.
 createGrid._getPrivateSiteIds = getPrivateSiteIds;
+createGrid._clearPrivateSiteIdsCache = () => {
+  Object.keys(_privateSiteIdsCache).forEach(
+    (k) => delete _privateSiteIdsCache[k]
+  );
+};
 
 module.exports = createGrid;
