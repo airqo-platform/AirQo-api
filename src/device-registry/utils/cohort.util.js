@@ -1547,11 +1547,34 @@ const createCohort = {
           },
         },
         {
+          // Separate count lookup so total_activities reflects the true
+          // activity count, not the capped activitiesLimit window.
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$device_id", "$$deviceId"] },
+                    ],
+                  },
+                },
+              },
+              { $count: "count" },
+            ],
+            as: "activity_count",
+          },
+        },
+        {
           $addFields: {
+            // True total — not capped by activitiesLimit
             total_activities: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+              $ifNull: [{ $arrayElemAt: ["$activity_count.count", 0] }, 0],
             },
-            // explicit metric for the truncated activities array we actually returned
+            // How many activity documents were actually returned in this response
             activities_loaded: {
               $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
             },

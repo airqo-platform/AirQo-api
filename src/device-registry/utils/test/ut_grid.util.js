@@ -463,9 +463,8 @@ describe("Grid Util", () => {
     let computedCacheFindOneAndUpdateStub;
 
     beforeEach(() => {
-      // Reset the module-level L1 cache before every test so no state leaks
-      // between cases (e.g. an L2-hit test warming L1 would cause the next
-      // test to skip both L2 and recompute, producing false passes).
+      // Reset the module-level L1 cache and any in-flight promises before
+      // every test so no state leaks between cases.
       gridUtil._clearPrivateSiteIdsCache();
 
       // Stub CohortModel aggregate (the full recompute path)
@@ -474,12 +473,18 @@ describe("Grid Util", () => {
         aggregate: cohortAggregateStub,
       });
 
-      // Stub ComputedCacheModel findOne and findOneAndUpdate
+      // Stub ComputedCacheModel — all methods used by the two-level cache:
+      //   findOne            : L2 read
+      //   findOneAndUpdate   : L2 upsert (write)
+      //   create             : acquireComputeLease (insert lock document)
+      //   deleteOne          : releaseComputeLease (delete lock document)
       computedCacheFindOneStub = sandbox.stub();
       computedCacheFindOneAndUpdateStub = sandbox.stub().resolves();
       sandbox.stub(ComputedCacheModel, "default").returns({
         findOne: computedCacheFindOneStub,
         findOneAndUpdate: computedCacheFindOneAndUpdateStub,
+        create: sandbox.stub().resolves(), // lease acquired by default
+        deleteOne: sandbox.stub().resolves(), // lease released by default
       });
     });
 

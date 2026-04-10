@@ -33,17 +33,56 @@ const kafka = new Kafka({
 // Flow on each request:
 //   1. L1 hit  → return immediately (nanoseconds).
 //   2. L1 miss → check MongoDB document (one indexed findOne, ~1 ms).
-//      2a. L2 hit  → populate L1, return.
-//      2b. L2 miss → run full Cohort→Device aggregation, write to both
-//                    L2 and L1, then return.
+//      2a. L2 hit  → populate L1 (TTL aligned to L2's absolute expiresAt), return.
+//      2b. L2 miss → try to acquire a cross-pod lease.
+//          Lease acquired   → run aggregation, write L2 + L1, release lease.
+//          Lease not held   → back off 500 ms, re-read L2; if still empty,
+//                             fall through to a local recompute so the
+//                             request never stalls indefinitely.
 //
-// This means only ONE pod pays the aggregation cost after each TTL expiry;
-// every other replica immediately benefits from the shared L2 document on
-// its next request — including brand-new pods that Kubernetes just started.
+// Within-pod concurrency: concurrent callers share a single in-flight
+// Promise (_inflight map) so only one goroutine-equivalent pays the DB cost.
 // ---------------------------------------------------------------------------
-const _privateSiteIdsCache = {};
+const _privateSiteIdsCache = new Map(); // Map prevents prototype-pollution attacks
+const _inflight = new Map(); // per-tenant in-flight recompute promises
 const PRIVATE_SITE_IDS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const LOCK_TTL_MS = 30 * 1000; // 30-second lease; TTL index cleans stale locks
 const PRIVATE_SITE_IDS_CACHE_KEY = "private_site_ids";
+const PRIVATE_SITE_IDS_LOCK_KEY = "private_site_ids_lock";
+
+// Attempt to insert a lock document. Returns true when this pod holds the
+// lease, false when another pod already has it (duplicate-key error 11000).
+// Any other DB error is treated as "lease acquired" to avoid starvation.
+async function acquireComputeLease(tenant) {
+  try {
+    await ComputedCacheModel(tenant).create({
+      key: PRIVATE_SITE_IDS_LOCK_KEY,
+      tenant,
+      data: 1,
+      computedAt: new Date(),
+      expiresAt: new Date(Date.now() + LOCK_TTL_MS),
+    });
+    return true;
+  } catch (err) {
+    if (err.code === 11000) {
+      return false; // another pod holds the lease
+    }
+    return true; // allow recompute on unexpected errors to avoid starvation
+  }
+}
+
+// Delete the lock document so the next TTL cycle can start immediately.
+// Fire-and-forget; the TTL index on expiresAt is the safety net.
+async function releaseComputeLease(tenant) {
+  try {
+    await ComputedCacheModel(tenant).deleteOne({
+      key: PRIVATE_SITE_IDS_LOCK_KEY,
+      tenant,
+    });
+  } catch (_err) {
+    // best-effort; TTL index will clean it up within LOCK_TTL_MS
+  }
+}
 
 async function computePrivateSiteIds(tenant) {
   const result = await CohortModel(tenant).aggregate([
@@ -74,21 +113,26 @@ async function getPrivateSiteIds(tenant) {
 
   const now = Date.now();
 
-  // ── L1: in-memory (pod-local) ──────────────────────────────────────────
-  const l1 = _privateSiteIdsCache[normalizedTenant];
-  if (l1 && now - l1.timestamp < PRIVATE_SITE_IDS_TTL_MS) {
+  // ── L1: in-memory (pod-local, sub-millisecond) ────────────────────────
+  // L1 entry stores the absolute expiresAt (ms) taken from L2, so its
+  // effective lifetime tracks L2's expiry rather than resetting on warm.
+  const l1 = _privateSiteIdsCache.get(normalizedTenant);
+  if (l1 && now < l1.expiresAt) {
     return l1.data;
   }
 
-  // ── L2: MongoDB (shared across all pods) ──────────────────────────────
+  // ── L2: MongoDB (shared across all pods, ~1 ms) ───────────────────────
   try {
     const l2 = await ComputedCacheModel(normalizedTenant)
       .findOne({ key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant })
       .lean();
 
     if (l2 && l2.expiresAt > new Date()) {
-      // Fresh L2 hit — warm L1 and return
-      _privateSiteIdsCache[normalizedTenant] = { data: l2.data, timestamp: now };
+      // Fresh L2 hit — align L1 TTL to L2's absolute expiry timestamp
+      _privateSiteIdsCache.set(normalizedTenant, {
+        data: l2.data,
+        expiresAt: l2.expiresAt.getTime(),
+      });
       return l2.data;
     }
   } catch (err) {
@@ -98,36 +142,87 @@ async function getPrivateSiteIds(tenant) {
     );
   }
 
-  // ── Full recompute (both levels missed or L2 unavailable) ─────────────
-  const data = await computePrivateSiteIds(normalizedTenant);
-  const expiresAt = new Date(now + PRIVATE_SITE_IDS_TTL_MS);
+  // ── Within-pod deduplication ──────────────────────────────────────────
+  // If a recompute is already in-flight on this pod, piggyback on its
+  // promise rather than spawning a second concurrent aggregation.
+  const inflight = _inflight.get(normalizedTenant);
+  if (inflight) {
+    return inflight;
+  }
 
-  // Write L1
-  _privateSiteIdsCache[normalizedTenant] = { data, timestamp: now };
+  // ── Cross-pod deduplication (lease) + full recompute ─────────────────
+  // Store the promise BEFORE the first await so that any concurrent caller
+  // reaching this point on the same event-loop tick gets the same promise.
+  const promise = (async () => {
+    // hasLease is declared here so the finally block can see it.
+    let hasLease = false;
+    try {
+      hasLease = await acquireComputeLease(normalizedTenant);
 
-  // Write L2 — fire-and-forget so a cache write failure never blocks the
-  // actual API response. The next request will simply recompute again.
-  // $setOnInsert makes tenant and key explicit on document creation so the
-  // unique index filter is never the only source of those field values.
-  ComputedCacheModel(normalizedTenant)
-    .findOneAndUpdate(
-      { key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant },
-      {
-        $set: { data, computedAt: new Date(now), expiresAt },
-        $setOnInsert: {
-          key: PRIVATE_SITE_IDS_CACHE_KEY,
-          tenant: normalizedTenant,
-        },
-      },
-      { upsert: true, new: false }
-    )
-    .catch((err) =>
-      logger.warn(
-        `ComputedCache L2 write failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${normalizedTenant}: ${err.message}`
-      )
-    );
+      if (!hasLease) {
+        // Another pod is already computing. Back off and re-read L2.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        try {
+          const l2Retry = await ComputedCacheModel(normalizedTenant)
+            .findOne({
+              key: PRIVATE_SITE_IDS_CACHE_KEY,
+              tenant: normalizedTenant,
+            })
+            .lean();
+          if (l2Retry && l2Retry.expiresAt > new Date()) {
+            _privateSiteIdsCache.set(normalizedTenant, {
+              data: l2Retry.data,
+              expiresAt: l2Retry.expiresAt.getTime(),
+            });
+            return l2Retry.data;
+          }
+        } catch (_err) {
+          // fall through to local recompute so the request never stalls
+        }
+      }
 
-  return data;
+      // ── Full aggregation ─────────────────────────────────────────────
+      const data = await computePrivateSiteIds(normalizedTenant);
+      const expiresAt = new Date(now + PRIVATE_SITE_IDS_TTL_MS);
+
+      // Write L1 (aligned to L2's expiresAt)
+      _privateSiteIdsCache.set(normalizedTenant, {
+        data,
+        expiresAt: expiresAt.getTime(),
+      });
+
+      // Write L2 — fire-and-forget so a cache write failure never blocks
+      // the API response. $setOnInsert keeps key/tenant explicit on insert
+      // so the unique-index filter is never the sole source of those fields.
+      ComputedCacheModel(normalizedTenant)
+        .findOneAndUpdate(
+          { key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant },
+          {
+            $set: { data, computedAt: new Date(now), expiresAt },
+            $setOnInsert: {
+              key: PRIVATE_SITE_IDS_CACHE_KEY,
+              tenant: normalizedTenant,
+            },
+          },
+          { upsert: true, new: false }
+        )
+        .catch((err) =>
+          logger.warn(
+            `ComputedCache L2 write failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${normalizedTenant}: ${err.message}`
+          )
+        );
+
+      return data;
+    } finally {
+      _inflight.delete(normalizedTenant);
+      if (hasLease) {
+        releaseComputeLease(normalizedTenant); // fire-and-forget, TTL is safety net
+      }
+    }
+  })();
+
+  _inflight.set(normalizedTenant, promise);
+  return promise;
 }
 
 function filterOutPrivateIDs(privateIds, randomIds) {
@@ -1540,9 +1635,8 @@ const createGrid = {
 // Not intended for use outside of tests.
 createGrid._getPrivateSiteIds = getPrivateSiteIds;
 createGrid._clearPrivateSiteIdsCache = () => {
-  Object.keys(_privateSiteIdsCache).forEach(
-    (k) => delete _privateSiteIdsCache[k]
-  );
+  _privateSiteIdsCache.clear();
+  _inflight.clear();
 };
 
 module.exports = createGrid;
