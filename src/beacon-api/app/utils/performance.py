@@ -83,7 +83,7 @@ class PerformanceAnalysis:
                     if dt_str:
                         try:
                             dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-                            unique_hours.add((dt.date(), dt.hour))
+                            unique_hours.add(dt.hour)
                         except Exception:
                             pass
 
@@ -96,16 +96,7 @@ class PerformanceAnalysis:
                     if st is not None: short_time_concs.append(st)
                     if hc is not None: hourly_concs.append(hc)
 
-                try:
-                    start_dt = datetime.fromisoformat(startDateTime.replace("Z", "+00:00"))
-                    end_dt = datetime.fromisoformat(endDateTime.replace("Z", "+00:00"))
-                    total_hours = (end_dt - start_dt).total_seconds() / 3600.0
-                    if total_hours <= 0:
-                        total_hours = 24.0 # Fallback
-                except Exception:
-                    total_hours = 24.0
-
-                uptime = len(unique_hours) / total_hours
+                uptime = len(unique_hours) / 24.0
                 data_completeness = (complete_records / total_records) if total_records > 0 else 0.0
                 metrics[dev_name] = {
                     "uptime": uptime,

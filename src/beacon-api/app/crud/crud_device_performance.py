@@ -260,15 +260,6 @@ def has_complete_records_for_date(db: Session, target_date: date) -> bool:
     ) is not None
 
 
-def is_performance_table_empty(db: Session) -> bool:
-    """Check if both sync_device_performance and sync_bam_performance tables are empty."""
-    has_lowcost = db.query(SyncDevicePerformance.id).limit(1).scalar() is not None
-    if has_lowcost:
-        return False
-    has_bam = db.query(SyncBamPerformance.id).limit(1).scalar() is not None
-    return not has_bam
-
-
 def get_daily_performance_for_devices(
     db: Session, device_names: List[str]
 ) -> List[Dict[str, Any]]:

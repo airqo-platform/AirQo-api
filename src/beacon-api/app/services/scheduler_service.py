@@ -202,7 +202,7 @@ async def compute_and_store_performance(
             return {
                 "success": True,
                 "skipped": True,
-                "message": "All requested days already have complete data",
+                "message": f"All requested days already have complete data",
             }
 
         logger.info(
@@ -433,47 +433,12 @@ def _run_sync_job():
     logger.info("[Performance Sync] Daily cron job triggered")
     loop = asyncio.new_event_loop()
     try:
-        result = loop.run_until_complete(compute_and_store_performance(days=14, force=True, complete=True, use_platform=True))
+        result = loop.run_until_complete(compute_and_store_performance(days=14, force=True, complete=True))
         logger.info(f"[Performance Sync] Cron result: {result}")
     except Exception as e:
         logger.exception(f"[Performance Sync] Cron job failed: {e}")
     finally:
         loop.close()
-
-
-async def run_startup_sync_tasks():
-    """
-    Background task to run initial synchronization on startup:
-    1. http://localhost:8000/devices/sync
-    2. http://localhost:8000/maintenance/sync-performance?force=false&platform=true
-    """
-    logger.info("[Startup Sync] Starting initial background sync tasks...")
-    db = SessionLocal()
-    try:
-        token = _extract_jwt_token()
-
-        # 1. Sync Devices
-        logger.info("[Startup Sync] Running device sync...")
-        device_result = await device_service.sync_devices(db, token)
-        logger.info(f"[Startup Sync] Device sync result: {device_result}")
-
-        # 2. Sync Performance
-        logger.info("[Startup Sync] Running performance sync...")
-        if crud_device_performance.is_performance_table_empty(db):
-            perf_result = await compute_and_store_performance(
-                days=14,
-                force=False,
-                use_platform=True
-            )
-            logger.info(f"[Startup Sync] Performance sync result: {perf_result}")
-        else:
-            logger.info("[Startup Sync] Performance tables are not empty. Skipping initial sync.")
-
-        logger.info("[Startup Sync] Initial background sync tasks completed successfully.")
-    except Exception as e:
-        logger.exception(f"[Startup Sync] Initial background sync tasks failed: {e}")
-    finally:
-        db.close()
 
 
 def start_scheduler():

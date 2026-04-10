@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header
 import logging
 from sqlalchemy.orm import Session
 from typing import List
@@ -15,7 +15,6 @@ from app.schemas.device import (
     DeviceSyncResponse,
 )
 from app.services import device_service
-from typing import Optional
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -182,6 +181,9 @@ async def create_device_configdata(
     except Exception as e:
         logger.exception(f"Unexpected error creating config data for device {device_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from typing import Optional
 
 @router.get("/performance", response_model=DevicePerformanceResponse)
 async def get_device_performance(
