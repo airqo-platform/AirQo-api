@@ -1,4 +1,3 @@
-import asyncio
 import httpx
 import asyncio
 import logging
@@ -855,15 +854,11 @@ async def get_device_performance(db: Session, device_names: List[str], startDate
                 "raw_data": []
             })
 
-    result = {
+    return {
         "success": True,
         "message": "Performance data fetched successfully",
-        "data": data_list,
+        "data": data_list
     }
-    if pagination_incomplete:
-        result["partial"] = True
-        result["message"] = "Performance data fetched with incomplete pagination (some pages failed)"
-    return result
 
 async def get_device_files(device_id: str) -> Dict[str, Any]:
     # Blank list for now as requested
@@ -984,25 +979,20 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
             total_pages = meta.get("totalPages", 1)
             actual_limit = meta.get("limit", 100)
             
-            # Fetch remaining pages based on actual limit and total items
-            if total_items > actual_limit:
+            # Fetch remaining pages in parallel
+            if total_pages > 1:
                 fetch_tasks = []
                 for p in range(2, total_pages + 1):
                     params = {"limit": actual_limit, "skip": (p - 1) * actual_limit}
                     fetch_tasks.append(client.get(url, headers=headers, params=params))
                 
-                if fetch_tasks:
-                    paged_responses = await asyncio.gather(*fetch_tasks)
-                    for resp in paged_responses:
-                        if resp.status_code == 200:
-                            all_devices.extend(resp.json().get("devices", []))
+                paged_responses = await asyncio.gather(*fetch_tasks)
+                for resp in paged_responses:
+                    if resp.status_code == 200:
+                        all_devices.extend(resp.json().get("devices", []))
         except Exception as e:
             logger.exception(f"Unexpected error fetching devices for sync: {e}")
-            return {
-                "success": False,
-                "message": "Network or parsing error while fetching devices for sync.",
-                "status_code": 500,
-            }
+            return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
 
     # 2. Update local database
     updates_count = 0
@@ -1078,8 +1068,7 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
                 db.commit()
                 
         except Exception as e:
-            # logger.error(f"Error syncing device {dev.get('_id')}: {e}")
-            logger.error(f"Error syncing device {e}")
+            logger.error(f"Error syncing device {dev.get('_id')}: {e}")
             db.rollback()
 
     db.commit()
