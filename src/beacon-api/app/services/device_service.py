@@ -981,14 +981,14 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
             all_devices.extend(data.get("devices", []))
             
             meta = data.get("meta", {})
-            total_items = meta.get("total", 0)
+            total_pages = meta.get("totalPages", 1)
             actual_limit = meta.get("limit", 100)
             
             # Fetch remaining pages based on actual limit and total items
             if total_items > actual_limit:
                 fetch_tasks = []
-                for skip in range(actual_limit, total_items, actual_limit):
-                    params = {"limit": 100, "skip": skip}
+                for p in range(2, total_pages + 1):
+                    params = {"limit": actual_limit, "skip": (p - 1) * actual_limit}
                     fetch_tasks.append(client.get(url, headers=headers, params=params))
                 
                 if fetch_tasks:

@@ -3,7 +3,7 @@
 Flask service for spatial air-quality analytics used by the AirQo platform. It exposes hotspot detection (Getis-Ord and Local Moran's I), site categorization, sensor placement, heatmaps, and satellite-derived PM2.5.
 
 ## Prerequisites
-- Python 3.10+ and `pip`.
+- Python 3.11 and `pip`.
 - Google Cloud/Earth Engine service account JSON with access to BigQuery and Storage (`GOOGLE_APPLICATION_CREDENTIALS`).
 - AirQo API token for upstream data access.
 - Redis (optional but recommended) for caching heatmap responses.
@@ -11,8 +11,8 @@ Flask service for spatial air-quality analytics used by the AirQo platform. It e
 ## Setup
 1. From the repository root: `cd src/spatial`.
 2. Create and activate a virtual environment:
-   - Linux/macOS: `python -m venv venv && source venv/bin/activate`
-   - Windows: `python -m venv venv && venv\Scripts\activate`
+   - Linux/macOS: `python3.11 -m venv venv && source venv/bin/activate`
+   - Windows: `py -3.11 -m venv venv && venv\Scripts\activate`
 3. Install dependencies:  
    `python -m pip install --upgrade pip && pip install -r requirements.txt`
 4. Create a `.env` in `src/spatial` (example values below) and place your Google credentials JSON where `GOOGLE_APPLICATION_CREDENTIALS` points.
@@ -45,13 +45,15 @@ After completing setup and activating your virtual environment, run the service 
 - Linux/macOS:
 ```bash
 export FLASK_APP=app.py
-export FLASK_ENV=development
+export APP_ENV=development
+export FLASK_DEBUG=1
 python -m flask run --host 0.0.0.0 --port 5000
 ```
 - Windows (PowerShell):
 ```powershell
 $env:FLASK_APP="app.py"
-$env:FLASK_ENV="development"
+$env:APP_ENV="development"
+$env:FLASK_DEBUG="1"
 python -m flask run --host 0.0.0.0 --port 5000
 ```
 
