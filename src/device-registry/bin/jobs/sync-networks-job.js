@@ -150,7 +150,7 @@ const fetchAuthServiceNetworks = async () => {
       const cappedDelay = Math.min(exponentialDelay, MAX_RETRY_DELAY_MS);
       const jitteredDelay = Math.floor(Math.random() * cappedDelay);
       logger.warn(
-        `Attempt ${attempt} failed. Retrying in ${(jitteredDelay / 1000).toFixed(1)} seconds...`,
+        `Attempt ${attempt}/${MAX_RETRIES} failed. Retrying in ${(jitteredDelay / 1000).toFixed(1)} seconds...`,
       );
       await new Promise((res) => setTimeout(res, jitteredDelay));
     }
