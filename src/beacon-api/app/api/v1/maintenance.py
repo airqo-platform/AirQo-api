@@ -153,7 +153,7 @@ async def get_maintenance_stats(
 async def sync_performance(
     authorization: str = Header(...),
     force: bool = Query(default=False, description="Force recompute even if today's data exists"),
-    platform: bool = Query(default=True, description="If true, use Platform as primary data source"),
+    platform: bool = Query(default=False, description="If true, use Platform as primary data source"),
     days: int = Query(default=14, ge=1, le=90, description="Lookback period in days"),
     tags: Optional[str] = Query(default=None, description="Comma-separated cohort tags to filter by"),
     start_date: Optional[date] = Query(default=None, description="Start date for performance sync (YYYY-MM-DD)"),
