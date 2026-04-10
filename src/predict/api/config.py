@@ -27,9 +27,11 @@ class Config:
     BIGQUERY_PLACES_PREDICTIONS = os.getenv("BIGQUERY_PLACES_PREDICTIONS")
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL", "https://api.airqo.net")
     AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN", "test_token")
+    MONGO_GCE_URI = os.getenv("MONGO_GCE_URI", "mongodb://localhost:27017/test_airqo_db")
+    DB_NAME = os.getenv("DB_NAME", "test_airqo_db")
     MONGO_URI = _env_first(
-        "MONGO_GCE_URI",
         "MONGO_URI",
+        "MONGO_GCE_URI",
         default="mongodb://localhost:27017/test_airqo_db",
     )
     MONGO_DATABASE_NAME = _env_first(
@@ -37,8 +39,7 @@ class Config:
         "DB_NAME",
         default="test_airqo_db",
     )
-    DB_NAME = MONGO_DATABASE_NAME
-    MONGO_DBNAME = MONGO_DATABASE_NAME
+    MONGO_DBNAME = DB_NAME
     MONGO_SITE_DAILY_FORECAST_COLLECTION = _env_first(
         "MONGO_SITE_DAILY_FORECAST_COLLECTION",
         default="test_7_days_site_daily_forecast",
@@ -80,6 +81,12 @@ configuration = app_config.get(environment, app_config["staging"])
 
 
 def connect_mongo():
+    client = MongoClient(configuration.MONGO_GCE_URI)
+    db = client[configuration.DB_NAME]
+    return db
+
+
+def connect_site_forecast_mongo():
     client = MongoClient(configuration.MONGO_URI)
     db = client[configuration.MONGO_DATABASE_NAME]
     return db

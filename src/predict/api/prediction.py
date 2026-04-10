@@ -1,4 +1,5 @@
 import traceback
+import math
 
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
@@ -14,6 +15,7 @@ from helpers import (
     get_forecasts_2,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
+    site_daily_forecasts_cache_key,
     all_daily_forecasts_cache_key,
     all_hourly_forecasts_cache_key,
     get_predictions_by_geo_coordinates_v2,
@@ -25,6 +27,7 @@ from helpers import (
     read_faulty_devices,
     get_faults_cache_key,
     add_forecast_health_tips,
+    build_site_forecast_response,
 )
 
 load_dotenv()
@@ -81,28 +84,70 @@ AQI_RANGES = {
     }
 }
 
+COMPASS_DIRECTIONS = (
+    "N",
+    "NNE",
+    "NE",
+    "ENE",
+    "E",
+    "ESE",
+    "SE",
+    "SSE",
+    "S",
+    "SSW",
+    "SW",
+    "WSW",
+    "W",
+    "WNW",
+    "NW",
+    "NNW",
+)
+
+
 def get_aqi_category(value):
-    """
-    Determine the AQI category for a given value.
-    
-    Args:
-        value (float): The air quality value to categorize
-    
-    Returns:
-        dict: The AQI category that matches the value
-    """
+    if value is None:
+        return None
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if math.isnan(numeric_value):
+        return None
+
     for category, range_info in AQI_RANGES.items():
-        if range_info['max'] is None and value >= range_info['min']:
+        if range_info["max"] is None and numeric_value >= range_info["min"]:
             return {
-                'category': category,
+                "category": category,
                 **range_info
             }
-        elif range_info['max'] is not None and range_info['min'] <= value <= range_info['max']:
+        elif (
+            range_info["max"] is not None
+            and range_info["min"] <= numeric_value <= range_info["max"]
+        ):
             return {
-                'category': category,
+                "category": category,
                 **range_info
             }
     return None
+
+
+def wind_deg_to_compass(deg):
+    if deg is None:
+        return None
+
+    try:
+        normalized = float(deg) % 360
+    except (TypeError, ValueError):
+        return None
+
+    if math.isnan(normalized):
+        return None
+
+    index = round(normalized / 22.5) % len(COMPASS_DIRECTIONS)
+    return COMPASS_DIRECTIONS[index]
+
 
 def enhance_forecast_response(result, language=''):
     """
@@ -181,6 +226,17 @@ def fetch_faulty_devices():
             ),
             500,
         )
+
+@ml_app.get(routes.route["site_daily_forecasts"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_daily_forecasts_cache_key)
+def get_site_daily_forecasts_v2():
+    site_id = request.args.get("site_id", default=None, type=str)
+    response, status_code = build_site_forecast_response(
+        site_id=site_id,
+        aqi_category_getter=get_aqi_category,
+        wind_direction_formatter=wind_deg_to_compass,
+    )
+    return jsonify(response), status_code
 
 @ml_app.route(routes.route["next_24hr_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=hourly_forecasts_cache_key)
