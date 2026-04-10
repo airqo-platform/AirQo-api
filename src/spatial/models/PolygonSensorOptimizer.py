@@ -719,8 +719,6 @@ class PolygonSensorOptimizer:
                 'site_category': site_category,
                 'cluster_id': int(loc.get('cluster', -1)),
                 'primary_reason': reasons['primary'],
-                'detailed_reasons': reasons['detailed'],
-                'proximity_warnings': self.check_proximity_warnings(point),
             })
 
         if include_candidate_sites:
