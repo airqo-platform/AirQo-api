@@ -37,14 +37,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 FROM base AS dev
 ENV APP_ENV=development
 ENV FLASK_DEBUG=1
-CMD flask run --host=0.0.0.0 --port=5000
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
 
 FROM base AS staging
 ENV APP_ENV=staging
 ENV FLASK_DEBUG=0
-CMD gunicorn --bind=0.0.0.0:5000 app:app
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:app"]
 
 FROM base AS production
 ENV APP_ENV=production
 ENV FLASK_DEBUG=0
-CMD gunicorn --bind=0.0.0.0:5000 app:app
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:app"]
