@@ -1,22 +1,25 @@
 import random
 from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
-from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing
+
+from utils.reverse_geocoder import ReverseGeocoder
 
 random.seed(42)
 
 
 class SiteCategoryModel:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="sensor_deployment")
+        self.reverse_geocoder = ReverseGeocoder(user_agent="sensor_deployment")
 
     def categorize_site_osm(self, lat, lon):
         try:
-            location = self.geolocator.reverse((lat, lon), language="en")
-            address = location.raw.get("address", {})
+            location = self.reverse_geocoder.reverse(
+                latitude=lat, longitude=lon, retries=1, delay=1, language="en"
+            )
+            address = location.get("address", {}) if location else {}
         except Exception as e:
             address = {}
 

@@ -2,7 +2,7 @@ import ee
 import pandas as pd
 from configure import Config  # Assuming this is a configuration file or object
 from datetime import datetime, timedelta
-from google.oauth2 import service_account
+from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import concurrent.futures
 
@@ -26,6 +26,12 @@ class BasePM25Model:
         ee.Initialize(
             credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID
         )
+
+    @staticmethod
+    @lru_cache(maxsize=64)
+    def _cached_image_collection(dataset_id):
+        """Reuse Earth Engine image collections across calls within the process."""
+        return ee.ImageCollection(dataset_id)
 
 
 class PM25Model(BasePM25Model):
@@ -200,6 +206,8 @@ class PM25ModelDaily(BasePM25Model):
 
 
 class Sentinel5PModel(BasePM25Model):
+    DEFAULT_SCALE_METERS = 1000
+
     def get_pollutant_data(self, longitude, latitude, start_date, end_date, pollutants):
         """
         Fetches pollutant data from the Sentinel-5P satellite for each day in a given time period.
@@ -284,7 +292,7 @@ class Sentinel5PModel(BasePM25Model):
             "CH4": "COPERNICUS/S5P/OFFL/L3_CH4",  # Methane
             "TEMP": "MODIS/061/MOD21A1D",  # Land Surface Temperature
         }
-        return ee.ImageCollection(datasets[pollutant])
+        return self._cached_image_collection(datasets[pollutant])
 
     def get_band_name_for_pollutant(self, pollutant):
         """
@@ -298,7 +306,7 @@ class Sentinel5PModel(BasePM25Model):
         """
         band_names = {
             "SO2": "SO2_column_number_density",
-            "HCHO": "HCHO_column_number_density",
+            "HCHO": "tropospheric_HCHO_column_number_density",
             "CO": "CO_column_number_density",
             "NO2": "NO2_column_number_density",
             "O3": "O3_column_number_density",
@@ -307,6 +315,48 @@ class Sentinel5PModel(BasePM25Model):
             "TEMP": "LST_1KM",
         }
         return band_names[pollutant]
+
+    def get_aggregated_pollutant_means(
+        self,
+        longitude,
+        latitude,
+        start_date,
+        end_date,
+        pollutants,
+        scale_meters=None,
+    ):
+        """Fetch date-range mean values with one Earth Engine response.
+
+        This is materially faster than sampling each pollutant for every day in the
+        range because the aggregation stays server-side until the final `getInfo()`.
+        """
+        point = ee.Geometry.Point(longitude, latitude)
+        scale = scale_meters or self.DEFAULT_SCALE_METERS
+        end_date_exclusive = (
+            datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+
+        values = []
+        for pollutant in pollutants:
+            band_name = self.get_band_name_for_pollutant(pollutant)
+            dataset = (
+                self.get_dataset_for_pollutant(pollutant)
+                .filterDate(start_date, end_date_exclusive)
+                .filterBounds(point)
+                .select(band_name)
+            )
+            mean_image = dataset.mean()
+            reduced = mean_image.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=point,
+                scale=scale,
+                bestEffort=True,
+                maxPixels=1_000_000,
+            )
+            values.append(reduced.get(band_name))
+
+        result = ee.Dictionary.fromLists(pollutants, values).getInfo() or {}
+        return {pollutant: result.get(pollutant) for pollutant in pollutants}
 
 
 class SatelliteData(BasePM25Model):
