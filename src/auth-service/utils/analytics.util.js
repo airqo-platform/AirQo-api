@@ -409,6 +409,12 @@ const routesWithService = [
   },
   {
     method: "GET",
+    uriIncludes: ["/api/v2/predict/daily-forecasting"],
+    service: "predict",
+    action: "Retrieve Site Daily Forecasts",
+  },
+  {
+    method: "GET",
     uriIncludes: ["/api/v2/predict/hourly-forecast"],
     service: "predict",
     action: "Retrieve Hourly Forecasts",
