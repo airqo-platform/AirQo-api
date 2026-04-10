@@ -23,6 +23,7 @@ google_application_credentials.json
 .vscode/
 
 *.csv
+cache/
 
 .gitkeep
 .DS_Store
