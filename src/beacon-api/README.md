@@ -121,7 +121,9 @@ Configure via environment variables or `.env` file:
 
 ### Endpoints Overview
 
-#### Devices (`/api/v1/devices`)
+All API endpoints are available under the `/api/v1` prefix (recommended) but can also be accessed directly without it for backward compatibility or when the prefix is omitted.
+
+#### Devices (`/api/v1/devices` or `/devices`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/v1/devices/` | List devices with pagination, filtering, and search |
