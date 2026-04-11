@@ -321,6 +321,10 @@ const createCohort = {
       const pipeline = [
         { $match: filter },
         {
+          // Simple array-membership join: MongoDB can use a multikey index on
+          // devices.cohorts with this form, unlike the correlated $expr/$in
+          // pipeline approach. Field trimming is handled downstream by the
+          // $map in COHORTS_INCLUSION_PROJECTION.
           $lookup: {
             from: "devices",
             localField: "_id",
@@ -1422,137 +1426,268 @@ const createCohort = {
             as: "assigned_grid",
           },
         },
+        // ── Main activities — split by device_id / device-name to allow index use ─
+        // A single $expr/$or on two fields prevents MongoDB from using either
+        // { device_id, createdAt } or { device, createdAt } index. Two targeted
+        // single-field lookups let MongoDB use an index for each branch.
         {
           $lookup: {
             from: "activities",
-            let: { deviceName: "$name", deviceId: "$_id" },
+            let: { deviceId: "$_id" },
             pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $or: [
-                      { $eq: ["$device", "$$deviceName"] },
-                      { $eq: ["$device_id", "$$deviceId"] },
-                    ],
-                  },
-                },
-              },
+              { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
               { $sort: { createdAt: -1 } },
               {
                 $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
+                  _id: 1, site_id: 1, device_id: 1, device: 1,
+                  activityType: 1, maintenanceType: 1, recallType: 1,
+                  date: 1, description: 1, nextMaintenance: 1,
+                  createdAt: 1, tags: 1,
                 },
               },
               { $limit: activitiesLimit },
             ],
-            as: "activities",
+            as: "_activities_by_id",
           },
         },
         {
           $lookup: {
             from: "activities",
-            let: { deviceName: "$name", deviceId: "$_id" },
+            let: { deviceName: "$name" },
             pipeline: [
+              // device_id: null restricts to legacy name-only records, preventing
+              // overlap with the device_id branch and avoiding duplicate fetches.
+              { $match: { device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $sort: { createdAt: -1 } },
               {
-                $match: {
-                  $expr: {
-                    $and: [
-                      {
-                        $or: [
-                          { $eq: ["$device", "$$deviceName"] },
-                          { $eq: ["$device_id", "$$deviceId"] },
-                        ],
-                      },
-                      { $eq: ["$activityType", "deployment"] },
-                    ],
-                  },
+                $project: {
+                  _id: 1, site_id: 1, device_id: 1, device: 1,
+                  activityType: 1, maintenanceType: 1, recallType: 1,
+                  date: 1, description: 1, nextMaintenance: 1,
+                  createdAt: 1, tags: 1,
                 },
               },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
+              { $limit: activitiesLimit },
             ],
-            as: "latest_deployment_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name", deviceId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      {
-                        $or: [
-                          { $eq: ["$device", "$$deviceName"] },
-                          { $eq: ["$device_id", "$$deviceId"] },
-                        ],
-                      },
-                      { $eq: ["$activityType", "maintenance"] },
-                    ],
-                  },
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_maintenance_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name", deviceId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      {
-                        $or: [
-                          { $eq: ["$device", "$$deviceName"] },
-                          { $eq: ["$device_id", "$$deviceId"] },
-                        ],
-                      },
-                      {
-                        $or: [
-                          { $eq: ["$activityType", "recall"] },
-                          { $eq: ["$activityType", "recallment"] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_recall_activity",
+            as: "_activities_by_name",
           },
         },
         {
           $addFields: {
-            total_activities: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            // Both branches are disjoint after the device_id:null constraint above,
+            // so $concatArrays is safe (no duplicates). $sortArray requires MongoDB
+            // 5.2+ which cannot be guaranteed; JS post-processing sorts the merged
+            // array instead.
+            activities: {
+              $slice: [
+                { $concatArrays: ["$_activities_by_id", "$_activities_by_name"] },
+                activitiesLimit,
+              ],
             },
-            // explicit metric for the truncated activities array we actually returned
+          },
+        },
+        { $unset: ["_activities_by_id", "_activities_by_name"] },
+        // ── Latest deployment activity — indexed split lookups ─────────────────
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceId: "$_id" },
+            pipeline: [
+              { $match: { activityType: "deployment", $expr: { $eq: ["$device_id", "$$deviceId"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "_deploy_by_id",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              { $match: { activityType: "deployment", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "_deploy_by_name",
+          },
+        },
+        {
+          $addFields: {
+            // $sortArray requires MongoDB 5.2+. Since each branch returns ≤1 item,
+            // use nested $cond to pick the branch with the later createdAt instead.
+            latest_deployment_activity: {
+              $cond: [
+                { $eq: [{ $size: "$_deploy_by_id" }, 0] },
+                "$_deploy_by_name",
+                {
+                  $cond: [
+                    { $eq: [{ $size: "$_deploy_by_name" }, 0] },
+                    "$_deploy_by_id",
+                    {
+                      $cond: [
+                        { $gte: [
+                          { $arrayElemAt: ["$_deploy_by_id.createdAt", 0] },
+                          { $arrayElemAt: ["$_deploy_by_name.createdAt", 0] },
+                        ]},
+                        "$_deploy_by_id",
+                        "$_deploy_by_name",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        { $unset: ["_deploy_by_id", "_deploy_by_name"] },
+        // ── Latest maintenance activity — indexed split lookups ────────────────
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceId: "$_id" },
+            pipeline: [
+              { $match: { activityType: "maintenance", $expr: { $eq: ["$device_id", "$$deviceId"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "_maint_by_id",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              { $match: { activityType: "maintenance", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "_maint_by_name",
+          },
+        },
+        {
+          $addFields: {
+            latest_maintenance_activity: {
+              $cond: [
+                { $eq: [{ $size: "$_maint_by_id" }, 0] },
+                "$_maint_by_name",
+                {
+                  $cond: [
+                    { $eq: [{ $size: "$_maint_by_name" }, 0] },
+                    "$_maint_by_id",
+                    {
+                      $cond: [
+                        { $gte: [
+                          { $arrayElemAt: ["$_maint_by_id.createdAt", 0] },
+                          { $arrayElemAt: ["$_maint_by_name.createdAt", 0] },
+                        ]},
+                        "$_maint_by_id",
+                        "$_maint_by_name",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        { $unset: ["_maint_by_id", "_maint_by_name"] },
+        // ── Latest recall activity — indexed split lookups ─────────────────────
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceId: "$_id" },
+            pipeline: [
+              { $match: { activityType: { $in: ["recall", "recallment"] }, $expr: { $eq: ["$device_id", "$$deviceId"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "_recall_by_id",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              { $match: { activityType: { $in: ["recall", "recallment"] }, device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "_recall_by_name",
+          },
+        },
+        {
+          $addFields: {
+            latest_recall_activity: {
+              $cond: [
+                { $eq: [{ $size: "$_recall_by_id" }, 0] },
+                "$_recall_by_name",
+                {
+                  $cond: [
+                    { $eq: [{ $size: "$_recall_by_name" }, 0] },
+                    "$_recall_by_id",
+                    {
+                      $cond: [
+                        { $gte: [
+                          { $arrayElemAt: ["$_recall_by_id.createdAt", 0] },
+                          { $arrayElemAt: ["$_recall_by_name.createdAt", 0] },
+                        ]},
+                        "$_recall_by_id",
+                        "$_recall_by_name",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        { $unset: ["_recall_by_id", "_recall_by_name"] },
+        // ── True activity count — split to avoid double-counting ──────────────
+        // (a) All activities matched by ObjectId reference.
+        // (b) Legacy name-only activities (device_id absent) matched by device name.
+        // Summing (a) + (b) gives the true total with no overlap.
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
+              { $count: "count" },
+            ],
+            as: "_count_by_id",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              // Only legacy records where device_id is not set — prevents double-counting
+              { $match: { device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $count: "count" },
+            ],
+            as: "_count_by_name",
+          },
+        },
+        {
+          $addFields: {
+            // True total — not capped by activitiesLimit, no double-counting
+            total_activities: {
+              $add: [
+                { $ifNull: [{ $arrayElemAt: ["$_count_by_id.count", 0] }, 0] },
+                { $ifNull: [{ $arrayElemAt: ["$_count_by_name.count", 0] }, 0] },
+              ],
+            },
+            // How many activity documents were actually returned in this response
             activities_loaded: {
               $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
             },
           },
         },
+        { $unset: ["_count_by_id", "_count_by_name"] },
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
@@ -1581,6 +1716,15 @@ const createCohort = {
           device.latest_recall_activity.length > 0
             ? device.latest_recall_activity[0]
             : null;
+
+        // Sort the merged activities array by most recent first.
+        // $sortArray (MongoDB 5.2+) was removed for version compatibility;
+        // the two disjoint branches are sorted here in JS instead.
+        if (device.activities && device.activities.length > 1) {
+          device.activities.sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+          );
+        }
 
         // Create activities by type mapping
         if (device.activities && device.activities.length > 0) {
@@ -1817,6 +1961,15 @@ const createCohort = {
             as: "activities",
           },
         },
+        // Dedicated lookups for the most-recent activity of each type.
+        // These cannot be derived from the capped activities array above
+        // because that array is limited to the 100 most-recent activities
+        // overall — the latest deployment/maintenance/recall could be older
+        // than position 100.  The compound index on Activity
+        // { site_id, activityType, createdAt } makes each of these an
+        // index-range scan + limit 1, so the cost is negligible.
+        // $project is placed after $match and before $sort/$limit to keep
+        // field parity with the main activities lookup and reduce sort memory.
         {
           $lookup: {
             from: "activities",
@@ -1830,6 +1983,22 @@ const createCohort = {
                       { $eq: ["$activityType", "deployment"] },
                     ],
                   },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
                 },
               },
               { $sort: { createdAt: -1 } },
@@ -1851,6 +2020,22 @@ const createCohort = {
                       { $eq: ["$activityType", "maintenance"] },
                     ],
                   },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
                 },
               },
               { $sort: { createdAt: -1 } },
@@ -1879,15 +2064,52 @@ const createCohort = {
                   },
                 },
               },
+              {
+                $project: {
+                  _id: 1,
+                  site_id: 1,
+                  device_id: 1,
+                  device: 1,
+                  activityType: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  date: 1,
+                  description: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                },
+              },
               { $sort: { createdAt: -1 } },
               { $limit: 1 },
             ],
             as: "latest_recall_activity",
           },
         },
+        // Dedicated count lookup so total_activities reflects all activities
+        // for the site, not just the 100-document cap in the activities array.
+        // The { site_id, createdAt } index makes this an efficient count-scan.
+        // activity_count is an intermediate field; the inclusion $project
+        // below removes it from the final output automatically.
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+              { $count: "count" },
+            ],
+            as: "activity_count",
+          },
+        },
         {
           $addFields: {
+            // True total across all activities for this site
             total_activities: {
+              $ifNull: [{ $arrayElemAt: ["$activity_count.count", 0] }, 0],
+            },
+            // Count of activities returned in the capped array (max 100)
+            recent_activities_count: {
               $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
             },
           },

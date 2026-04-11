@@ -8,17 +8,24 @@ class DeviceBase(BaseModel):
     previous_firmware: Optional[str] = None
     file_upload_state: Optional[bool] = False
     firmware_download_state: Optional[str] = None
+    device_number: Optional[int] = None
+    writeKey: Optional[str] = None
+    readKey: Optional[str] = None
 
 class DeviceBeaconData(BaseModel):
     network_id: Optional[str] = None
+    site_id: Optional[str] = None
     current_firmware: Optional[str] = None
     previous_firmware: Optional[str] = None
     file_upload_state: Optional[bool] = False
     firmware_download_state: Optional[str] = None
+    device_number: Optional[int] = None
+    writeKey: Optional[str] = None
+    readKey: Optional[str] = None
 
 class DeviceCategory(BaseModel):
     level: str
-    category: str
+    category: Optional[str] = None
     description: Optional[str] = None
 
 class DeviceDetail(BaseModel):
@@ -55,7 +62,13 @@ class DevicePerformance(BaseModel):
     device_name: str
     uptime: float
     data_completeness: float
-    sensor_error_margin: float
+    sensor_error_margin: Optional[float] = 0.0
+    s1_pm2_5_average: Optional[float] = None
+    s2_pm2_5_average: Optional[float] = None
+    correlation: Optional[float] = None
+    realtime_conc_average: Optional[float] = None
+    short_time_conc_average: Optional[float] = None
+    hourly_conc_average: Optional[float] = None
     raw_data: List[Dict[str, Any]] = []
 
 class DevicePerformanceResponse(BaseModel):
@@ -86,3 +99,9 @@ class SingleDeviceResponse(BaseModel):
     success: bool
     message: str
     data: Optional[DeviceDetail] = None
+
+class DeviceSyncResponse(BaseModel):
+    success: bool
+    message: str
+    updates_count: Optional[int] = None
+    new_count: Optional[int] = None

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
 import logging
 from sqlalchemy.orm import Session
-from typing import List
-from app.db.session import get_db
+from typing import List, Optional
+from app.db.session import get_db, SessionLocal
 from app.schemas.device import (
     DeviceResponse, 
     SingleDeviceResponse, 
@@ -12,12 +12,99 @@ from app.schemas.device import (
     DeviceFilesResponse,
     DeviceUpsertResponse,
     KeyValuePayload,
+    DeviceSyncResponse,
 )
 from app.services import device_service
-from typing import Optional
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+async def _run_sync_devices(token: str):
+    """Background task to run device sync with its own DB session."""
+    db = SessionLocal()
+    try:
+        await device_service.sync_devices(db, token)
+    except Exception as e:
+        logger.exception(f"Background device sync failed: {e}")
+    finally:
+        db.close()
+
+@router.post("/sync", response_model=DeviceSyncResponse)
+async def sync_devices(
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(...),
+):
+    if not authorization.startswith("JWT "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
+    
+    parts = authorization.split(" ")
+    if len(parts) < 2:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
+    
+    token = parts[1]
+    
+    background_tasks.add_task(_run_sync_devices, token)
+    
+    return {
+        "success": True, 
+        "message": "Device sync process started in the background. It may take a few minutes to complete.",
+        "updates_count": 0,
+        "new_count": 0
+    }
+
+@router.post("/sites/sync", response_model=DeviceSyncResponse)
+async def sync_device_sites(
+    authorization: str = Header(...),
+    db: Session = Depends(get_db)
+):
+    if not authorization.startswith("JWT "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
+    
+    parts = authorization.split(" ")
+    if len(parts) < 2:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
+    
+    token = parts[1]
+    
+    try:
+        result = await device_service.sync_device_sites(db, token)
+        if not result.get("success", True):
+            status_code = result.get("status_code", 400)
+            message = result.get("message", "Error syncing device sites")
+            raise HTTPException(status_code=status_code, detail=message)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error syncing device sites: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.post("/category/sync", response_model=DeviceSyncResponse)
+async def sync_device_categories(
+    authorization: str = Header(...),
+    db: Session = Depends(get_db)
+):
+    if not authorization.startswith("JWT "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
+    
+    parts = authorization.split(" ")
+    if len(parts) < 2:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
+    
+    token = parts[1]
+    
+    try:
+        result = await device_service.sync_device_categories(db, token)
+        if not result.get("success", True):
+            status_code = result.get("status_code", 400)
+            message = result.get("message", "Error syncing device categories")
+            raise HTTPException(status_code=status_code, detail=message)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error syncing device categories: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.get("/{device_id}/metadata/{category_name}", response_model=DeviceMetadataResponse)
 async def get_device_metadata(
@@ -101,14 +188,18 @@ async def create_device_configdata(
         logger.exception(f"Unexpected error creating config data for device {device_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from typing import Optional
+
 @router.get("/performance", response_model=DevicePerformanceResponse)
 async def get_device_performance(
     device_name: List[str] = Query(...),
     startDateTime: str = Query(...),
-    endDateTime: str = Query(...)
+    endDateTime: str = Query(...),
+    db: Session = Depends(get_db)
 ):
     try:
-        return await device_service.get_device_performance(device_name, startDateTime, endDateTime)
+        return await device_service.get_device_performance(db, device_name, startDateTime, endDateTime)
     except Exception as e:
         logger.exception(f"Unexpected error fetching performance for devices {device_name}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

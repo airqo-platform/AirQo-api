@@ -66,6 +66,197 @@ const createValidTokenResponse = () => {
     status: httpStatus.OK,
   };
 };
+const createRateLimitResponse = (tier) => {
+  return {
+    success: false,
+    message: `Hourly request limit reached for ${tier} tier`,
+    status: httpStatus.TOO_MANY_REQUESTS,
+    errors: {
+      message:
+        tier === "Free"
+          ? "Upgrade to Standard or Premium for higher API limits"
+          : "You have exceeded your hourly request limit",
+    },
+  };
+};
+
+// Hourly limits per subscription tier
+const TOKEN_VERIFY_TIER_LIMITS = { Free: 100, Standard: 500, Premium: 2000 };
+
+// In-memory fallback store when Redis is unavailable
+// { key: { count: number, expiry: number } }
+const _rlMemoryStore = new Map();
+
+// Prune expired entries once per hour so the Map doesn't grow indefinitely
+// in long-running processes where Redis stays unavailable.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of _rlMemoryStore) {
+    if (entry.expiry < now) _rlMemoryStore.delete(key);
+  }
+}, 3600000).unref();
+
+/**
+ * Check and increment the hourly rate limit counter for a user.
+ * Uses Redis when available, in-memory Map as fallback.
+ * Never throws — fails open to avoid blocking legitimate requests.
+ * @returns {Promise<boolean>} true = within limit, false = limit exceeded
+ */
+const checkTokenVerifyRateLimit = async (userId, tier) => {
+  try {
+    const limit = TOKEN_VERIFY_TIER_LIMITS[tier] || TOKEN_VERIFY_TIER_LIMITS.Free;
+    const hourSlot = Math.floor(Date.now() / 3600000);
+    const key = `rl:tv:${userId}:${hourSlot}`;
+
+    try {
+      // Attempt Redis path (non-atomic GET+SET is acceptable for rate limiting)
+      const stored = await redisGetAsync(key);
+      const count = stored ? parseInt(stored, 10) : 0;
+      if (count >= limit) return false;
+      await redisSetAsync(key, count + 1, 3601); // TTL slightly over 1 hour
+      return true;
+    } catch (redisErr) {
+      // Redis unavailable — fall through to memory store
+    }
+
+    // Memory fallback
+    const now = Date.now();
+    const entry = _rlMemoryStore.get(key);
+    if (!entry || entry.expiry < now) {
+      _rlMemoryStore.set(key, { count: 1, expiry: now + 3600000 });
+      return true;
+    }
+    entry.count++;
+    return entry.count <= limit;
+  } catch (err) {
+    logger.error(`Non-critical: rate limit check failed for ${userId}: ${err.message}`);
+    return true; // Fail open — never block due to rate-limiter error
+  }
+};
+
+const ScopeRuleModel = require("@models/ScopeRule");
+
+/**
+ * Hardcoded fallback rules — used ONLY when the DB is unreachable
+ * or has no active rules yet (first boot / before seed-defaults is called).
+ * These mirror the defaults seeded by ScopeRuleModel.seedDefaults().
+ */
+const _FALLBACK_SCOPE_RULES = [
+  { pattern: "/devices/forecasts",    scope: "read:forecasts",               priority: 10 },
+  { pattern: "/forecasts",            scope: "read:forecasts",               priority: 11 },
+  { pattern: "/insights",             scope: "read:insights",                priority: 12 },
+  { pattern: "/devices/measurements", scope: "read:historical_measurements", priority: 20 },
+  { pattern: "/devices/events",       scope: "read:recent_measurements",     priority: 30 },
+  { pattern: "/devices/readings",     scope: "read:recent_measurements",     priority: 31 },
+  { pattern: "/devices/feeds",        scope: "read:recent_measurements",     priority: 32 },
+  { pattern: "/devices/sites",        scope: "read:sites",                   priority: 40 },
+  { pattern: "/devices/cohorts",      scope: "read:cohorts",                 priority: 41 },
+  { pattern: "/devices/grids",        scope: "read:grids",                   priority: 42 },
+  { pattern: "/devices",              scope: "read:devices",                 priority: 50 },
+];
+
+/**
+ * In-memory rule cache — refreshed from DB every SCOPE_RULE_CACHE_TTL_MS.
+ * This means rule changes made via the API take effect within one cache cycle
+ * without any code deployment or restart.
+ */
+const SCOPE_RULE_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+let _scopeRuleCache = null;     // { rules: Array, loadedAt: number }
+let _scopeRuleFetchPending = false;
+
+/**
+ * Load active scope rules from DB (Redis-cached at the app level).
+ * Falls back to hardcoded defaults if DB is unreachable.
+ * Never throws.
+ */
+const _loadScopeRules = async () => {
+  if (_scopeRuleFetchPending) return; // avoid concurrent fetches
+  _scopeRuleFetchPending = true;
+  try {
+    const tenant = constants.DEFAULT_TENANT || "airqo";
+    const response = await ScopeRuleModel(tenant).loadActive();
+    if (response.success && response.data && response.data.length > 0) {
+      _scopeRuleCache = { rules: response.data, loadedAt: Date.now() };
+    } else {
+      // DB returned empty — keep existing cache or fall back to hardcoded
+      if (!_scopeRuleCache) {
+        _scopeRuleCache = { rules: _FALLBACK_SCOPE_RULES, loadedAt: Date.now() };
+      }
+    }
+  } catch (err) {
+    logger.error(`Non-critical: failed to load scope rules from DB: ${err.message}`);
+    if (!_scopeRuleCache) {
+      _scopeRuleCache = { rules: _FALLBACK_SCOPE_RULES, loadedAt: Date.now() };
+    }
+  } finally {
+    _scopeRuleFetchPending = false;
+  }
+};
+
+/**
+ * Get active scope rules, refreshing the cache if stale.
+ * Returns synchronously from cache; triggers async refresh in background.
+ */
+const _getScopeRules = () => {
+  const now = Date.now();
+  if (!_scopeRuleCache || (now - _scopeRuleCache.loadedAt) > SCOPE_RULE_CACHE_TTL_MS) {
+    _loadScopeRules(); // fire-and-forget refresh
+  }
+  return _scopeRuleCache ? _scopeRuleCache.rules : _FALLBACK_SCOPE_RULES;
+};
+
+// Canonical tier → scope set (same as in transaction.util.js)
+const _TIER_SCOPE_MAP = {
+  Free:     ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids"],
+  Standard: ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids", "read:historical_measurements"],
+  Premium:  ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids", "read:historical_measurements", "read:forecasts", "read:insights"],
+};
+
+/**
+ * Check whether the given URI requires a scope and whether the token grants it.
+ * Returns { required: true/false, granted: true/false, scope: string|null }.
+ * Never throws.
+ */
+const checkUriScope = (uri, effectiveScopes) => {
+  if (!uri) return { required: false, granted: true, scope: null };
+  try {
+    const rules = _getScopeRules();
+    for (const rule of rules) {
+      const pattern = rule.pattern;
+      const matches =
+        pattern instanceof RegExp
+          ? pattern.test(uri)
+          : (() => {
+              const u = uri.toLowerCase();
+              const p = pattern.toLowerCase();
+              return u === p || u.startsWith(p + "/") || u.startsWith(p + "?");
+            })();
+      if (matches) {
+        return {
+          required: true,
+          granted: effectiveScopes.includes(rule.scope),
+          scope: rule.scope,
+        };
+      }
+    }
+  } catch (err) {
+    logger.error(`Non-critical: scope check failed for uri=${uri}: ${err.message}`);
+  }
+  // No matching rule — allow through (non-data endpoint)
+  return { required: false, granted: true, scope: null };
+};
+
+const createInsufficientScopeResponse = (requiredScope, tier) => ({
+  success: false,
+  message: "Insufficient scope for this resource",
+  status: httpStatus.FORBIDDEN,
+  errors: {
+    message:
+      tier === "Free"
+        ? `This resource requires the '${requiredScope}' scope. Upgrade your subscription to access it.`
+        : `Your subscription does not include the '${requiredScope}' scope.`,
+  },
+});
 
 const trampoline = (fn) => {
   while (typeof fn === "function") {
@@ -705,7 +896,7 @@ const token = {
       };
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
-        .select("client_id token");
+        .select("client_id token tier scopes");
 
       if (isEmpty(accessToken)) {
         return createUnauthorizedResponse();
@@ -716,7 +907,7 @@ const token = {
       } else {
         const client = await ClientModel("airqo")
           .findById(accessToken.client_id)
-          .select("isActive");
+          .select("isActive user_id");
 
         if (isEmpty(client) || (client && !client.isActive)) {
           logger.error(
@@ -732,6 +923,78 @@ const token = {
         if (isBlacklisted) {
           return createUnauthorizedResponse();
         } else {
+          const tier = accessToken.tier || "Free";
+
+          // Tier-based hourly rate limiting.
+          // Controlled by ENABLE_TOKEN_RATE_LIMITING (default: false).
+          // Set to true per-environment only when ready to enforce.
+          if (constants.ENABLE_TOKEN_RATE_LIMITING) {
+            try {
+              const withinLimit = await checkTokenVerifyRateLimit(
+                client.user_id || accessToken.client_id,
+                tier
+              );
+              if (!withinLimit) {
+                logger.warn(
+                  `Rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+                );
+                return createRateLimitResponse(tier);
+              }
+            } catch (rateLimitErr) {
+              // Fail open — never block a request due to rate limiter error
+              logger.error(
+                `Non-critical: rate limit check failed, allowing through: ${rateLimitErr.message}`
+              );
+            }
+          }
+
+          // Scope enforcement — only for tokens with explicit scopes AND only
+          // when ENABLE_SCOPE_ENFORCEMENT is true (default: false).
+          // Legacy tokens (empty scopes) are always allowed through regardless.
+          if (
+            constants.ENABLE_SCOPE_ENFORCEMENT &&
+            Array.isArray(accessToken.scopes) &&
+            accessToken.scopes.length > 0
+          ) {
+            try {
+              const scopeCheck = checkUriScope(endpoint, accessToken.scopes);
+              if (scopeCheck.required && !scopeCheck.granted) {
+                logger.warn(
+                  `Scope denied: client=${accessToken.client_id} tier=${tier} required=${scopeCheck.scope} uri=${endpoint}`
+                );
+                return createInsufficientScopeResponse(scopeCheck.scope, tier);
+              }
+            } catch (scopeErr) {
+              // Fail open — never block a request due to scope check error
+              logger.error(
+                `Non-critical: scope check failed, allowing through: ${scopeErr.message}`
+              );
+            }
+          }
+
+          // Fire-and-forget: record API token usage as user activity so that
+          // API-only users are not incorrectly flagged as inactive. Throttled
+          // to at most once per hour per user to avoid excessive writes.
+          if (client.user_id) {
+            const oneHourAgo = new Date(Date.now() - 3600000);
+            UserModel("airqo")
+              .updateOne(
+                {
+                  _id: client.user_id,
+                  verified: true,
+                  $or: [
+                    { lastActiveAt: { $exists: false } },
+                    { lastActiveAt: { $lt: oneHourAgo } },
+                  ],
+                },
+                { $set: { lastActiveAt: new Date(), isActive: true } },
+              )
+              .catch((err) =>
+                logger.error(
+                  `Non-critical: failed to touch user activity for client ${accessToken.client_id}: ${err.message}`,
+                ),
+              );
+          }
           winstonLogger.info("verify token", {
             token: token,
             service: "verify-token",
@@ -868,6 +1131,21 @@ const token = {
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
         )
         .toUpperCase();
+
+      // Remove any existing token for this client before creating a new one.
+      // The access_tokens collection enforces a unique index on client_id
+      // (one token per client). Without this, a second call for the same
+      // client hits E11000 from MongoDB. Deleting first makes the endpoint
+      // behave as a token refresh — the old token is immediately invalidated.
+      // Using deleteOne (Mongoose native) rather than the custom remove() static
+      // because remove() emits a logger.error when no document is found, which
+      // would fire on every first-time token creation (normal path).
+      // Note: delete-then-create is not fully atomic. In the unlikely event of
+      // two truly concurrent requests for the same client_id, one will win and
+      // the other will receive a 409 from the E11000 handler in register().
+      await AccessTokenModel(tenant.toLowerCase()).deleteOne({
+        client_id: ObjectId(client_id),
+      });
 
       let tokenCreationBody = Object.assign(
         { token, client_id: ObjectId(client_id) },

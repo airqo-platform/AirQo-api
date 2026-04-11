@@ -1,5 +1,8 @@
 #.gitignore
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
 
 # Environments 
 .env
@@ -23,8 +26,8 @@ google_application_credentials.json
 .vscode/
 
 *.csv
+tests/
+cache/
 
 .gitkeep
 .DS_Store
-
-*json

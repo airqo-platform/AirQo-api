@@ -13,6 +13,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-controller`
 );
 const transactionsUtil = require("@utils/transaction.util");
+const { paddleClient, isPaddleConfigured } = require("@config/paddle");
+const UserModel = require("@models/User");
 
 const transactions = {
   createCheckoutSession: async (req, res, next) => {
@@ -31,21 +33,62 @@ const transactions = {
         ? defaultTenant
         : req.query.tenant;
 
-      const { amount, currency, customerId, items } = request.body;
+      const { amount, currency, customerId, items, tier } = request.body;
+
+      // Resolve items: explicit items take priority; otherwise use the
+      // tier-based flow (frontend), then fall back to legacy amount/currency.
+      let resolvedItems = items;
+      if (!resolvedItems) {
+        if (tier) {
+          // Normalise to lowercase so "Standard", "standard", "STANDARD"
+          // all resolve correctly regardless of what the caller sends.
+          const TIER_PRICE_MAP = {
+            standard: constants.PADDLE_STANDARD_PRICE_ID,
+            premium: constants.PADDLE_PREMIUM_PRICE_ID,
+          };
+          const priceId =
+            TIER_PRICE_MAP[tier.toLowerCase()] ||
+            constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID;
+          if (!priceId) {
+            next(
+              new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
+                message: `No Paddle price ID configured for tier: ${tier}`,
+              })
+            );
+            return;
+          }
+          resolvedItems = [{ price: priceId, quantity: 1 }];
+        } else {
+          if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            next(
+              new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
+                message:
+                  "Either 'tier' or a valid 'amount' (with 'currency') is required for checkout",
+              })
+            );
+            return;
+          }
+          resolvedItems = [
+            {
+              price: await transactionsUtil.getDynamicPriceId(
+                amount,
+                currency
+              ),
+              quantity: 1,
+            },
+          ];
+        }
+      }
 
       const result = await transactionsUtil.createCheckoutSession(request, {
-        items: items || [
-          {
-            price: await transactionsUtil.getDynamicPriceId(amount, currency),
-            quantity: 1,
-          },
-        ],
+        items: resolvedItems,
         customer: {
           id: customerId,
         },
         custom_data: {
           source: "api_subscription_payment",
-          initial_amount: amount,
+          ...(tier && { subscription_tier: tier }),
+          ...(amount && { initial_amount: amount }),
         },
         settings: {
           mode: "transaction",
@@ -63,7 +106,10 @@ const transactions = {
         return res.status(status).json({
           success: true,
           message: "Checkout session created successfully",
+          // session_url kept for backward compatibility; checkoutUrl is the
+          // canonical field the frontend redirect flow consumes.
           session_url: result.data.url,
+          checkoutUrl: result.data.url,
           session_id: result.data.id,
         });
       } else if (result.success === false) {
@@ -94,12 +140,56 @@ const transactions = {
 
   optInForAutomaticRenewal: async (req, res, next) => {
     try {
+      // Use the price ID already stored on the user's current plan details.
+      // Fall back to the default subscription price ID if not set.
+      const user = req.user;
+      const priceId =
+        user?.currentPlanDetails?.priceId ||
+        constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID;
+
+      if (!priceId) {
+        next(
+          new HttpError(
+            "Service misconfiguration",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "No subscription price ID available. Ensure PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID is configured.",
+            }
+          )
+        );
+        return;
+      }
+
       const result = await transactionsUtil.optInForAutomaticRenewal(req, {
-        billingCycle: "monthly",
-        priceId: "custom_price_id",
+        billingCycle: user?.currentPlanDetails?.billingCycle || "monthly",
+        priceId,
       });
       res.status(result.status).json(result);
-    } catch (error) {}
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  disableAutoRenewal: async (req, res, next) => {
+    try {
+      const result = await transactionsUtil.disableAutoRenewal(req);
+      res.status(result.status).json(result);
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
   },
 
   handleWebhook: async (req, res, next) => {
@@ -396,7 +486,7 @@ const transactions = {
 
       const result = await transactionsUtil.createSubscriptionTransaction(
         request,
-        request.validatedSubscription
+        request.validatedSubscription || req.body
       );
 
       if (isEmpty(result) || res.headersSent) {
@@ -447,7 +537,14 @@ const transactions = {
         return;
       }
 
-      const { subscriptionId } = req.params;
+      const subscriptionId = req.user?.currentSubscriptionId;
+      if (!subscriptionId) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "No active subscription found",
+          errors: { message: "User has no subscription ID" },
+        });
+      }
       const result = await transactionsUtil.cancelSubscription(
         subscriptionId,
         req.user
@@ -535,6 +632,14 @@ const transactions = {
         return;
       }
 
+      if (!isPaddleConfigured) {
+        return res.status(httpStatus.SERVICE_UNAVAILABLE).json({
+          success: false,
+          message:
+            "Payment service is not configured. Please try again later.",
+        });
+      }
+
       if (!req.user || !req.user.currentSubscriptionId) {
         return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
@@ -577,9 +682,171 @@ const transactions = {
       return;
     }
   },
-  manualSubscriptionRenewal: async (req, res, next) => {},
-  getExtendedTransactionHistory: async (req, res, next) => {},
-  generateFinancialReport: async (req, res, next) => {},
+  manualSubscriptionRenewal: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await transactionsUtil.manualSubscriptionRenewal(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "Subscription renewed successfully",
+          data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors || { message: "Failed to renew subscription" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getExtendedTransactionHistory: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await transactionsUtil.getTransactionHistory(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "Transaction history retrieved successfully",
+          data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors || {
+            message: "Failed to retrieve transaction history",
+          },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  generateFinancialReport: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await transactionsUtil.generateFinancialReport(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "Financial report generated successfully",
+          data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors || {
+            message: "Failed to generate financial report",
+          },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = transactions;
