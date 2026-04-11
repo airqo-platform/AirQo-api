@@ -162,27 +162,80 @@ async def compute_and_store_performance(
             from app.services.device_service import decrypt_read_keys
             decrypted_keys_map = await decrypt_read_keys(token, decryption_items)
 
-        # --- 4. Process cohorts in batches ---
+        # --- 4. Build global device_info (full cohort memberships) ---
+        device_info: Dict[str, Dict[str, Any]] = {}
+        db_read = SessionLocal()
+        try:
+            for cohort in cohorts:
+                cohort_name = cohort.get("name", "")
+                for dev in cohort.get("devices", []):
+                    if not dev.get("isActive"):
+                        continue
+                    d_name = dev.get("name")
+                    if not d_name:
+                        continue
+
+                    dn = dev.get("device_number")
+                    raw_read_key = dev.get("readKey")
+                    read_key_to_store = decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
+
+                    if d_name not in device_info:
+                        device_id = dev.get("_id", "")
+
+                        from app.models.sync import SyncDevice
+                        db_device = db_read.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
+
+                        if db_device:
+                            category = db_device.category or "lowcost"
+                        else:
+                            category = extract_device_category(dev)
+
+                        device_info[d_name] = {
+                            "device_id": device_id,
+                            "device_number": dev.get("device_number"),
+                            "latitude": dev.get("latitude"),
+                            "longitude": dev.get("longitude"),
+                            "last_active": dev.get("lastActive"),
+                            "category": category,
+                            "read_key": read_key_to_store,
+                            "cohorts": set(),
+                        }
+                    device_info[d_name]["cohorts"].add(cohort_name)
+        finally:
+            db_read.close()
+
+        all_device_names = list(device_info.keys())
+        if not all_device_names:
+            logger.warning("[Performance Sync] No active devices found.")
+            return {"success": True, "message": "No active devices", "devices_synced": 0}
+
+        # --- 5. Process devices in batches ---
+        # ~7 devices per cohort on average, so cohort_batch_size*15 gives comparable batch sizing
+        device_batch_size = max(cohort_batch_size * 15, 30)
+        device_batches = [
+            all_device_names[i:i + device_batch_size]
+            for i in range(0, len(all_device_names), device_batch_size)
+        ]
+
         total_lowcost = 0
         total_bam = 0
-        total_devices = 0
-        cohort_batches = [cohorts[i:i + cohort_batch_size] for i in range(0, len(cohorts), cohort_batch_size)]
 
         logger.info(
-            f"[Performance Sync] Processing {len(cohorts)} cohorts in "
-            f"{len(cohort_batches)} batches of up to {cohort_batch_size}"
+            f"[Performance Sync] Processing {len(all_device_names)} unique devices in "
+            f"{len(device_batches)} batches of up to {device_batch_size}"
         )
 
-        for batch_idx, cohort_batch in enumerate(cohort_batches):
-            batch_cohort_names = [c.get("name", "?") for c in cohort_batch]
+        for batch_idx, device_name_batch in enumerate(device_batches):
             logger.info(
-                f"[Performance Sync] Batch {batch_idx + 1}/{len(cohort_batches)}: "
-                f"cohorts {batch_cohort_names}"
+                f"[Performance Sync] Batch {batch_idx + 1}/{len(device_batches)}: "
+                f"{len(device_name_batch)} devices"
             )
 
-            batch_result = await _process_cohort_batch(
-                cohort_batch=cohort_batch,
-                decrypted_keys_map=decrypted_keys_map,
+            # Slice device_info for this batch
+            batch_device_info = {d: device_info[d] for d in device_name_batch}
+
+            batch_result = await _process_device_batch(
+                device_info=batch_device_info,
                 token=token,
                 days_to_compute=days_to_compute,
                 start_of_range_dt=start_of_range_dt,
@@ -194,12 +247,11 @@ async def compute_and_store_performance(
 
             total_lowcost += batch_result["lowcost_synced"]
             total_bam += batch_result["bam_synced"]
-            total_devices += batch_result["device_count"]
 
         logger.info(
             f"[Performance Sync] Finished all batches — "
             f"{total_lowcost} lowcost, {total_bam} BAM records across "
-            f"{len(days_to_compute)} days for {total_devices} devices"
+            f"{len(days_to_compute)} days for {len(all_device_names)} devices"
         )
 
         return {
@@ -208,6 +260,7 @@ async def compute_and_store_performance(
             "message": f"Synced {total_lowcost} lowcost and {total_bam} BAM records",
             "lowcost_synced": total_lowcost,
             "bam_synced": total_bam,
+            "devices_synced": len(all_device_names),
             "days_computed": len(days_to_compute),
         }
 
@@ -216,10 +269,9 @@ async def compute_and_store_performance(
         return {"success": False, "message": str(e)}
 
 
-async def _process_cohort_batch(
+async def _process_device_batch(
     *,
-    cohort_batch: List[Dict[str, Any]],
-    decrypted_keys_map: Dict,
+    device_info: Dict[str, Dict[str, Any]],
     token: str,
     days_to_compute: List[date],
     start_of_range_dt: datetime,
@@ -229,61 +281,21 @@ async def _process_cohort_batch(
     use_platform: bool,
 ) -> Dict[str, Any]:
     """
-    Process a small batch of cohorts end-to-end:
-      • collect device metadata (short-lived DB read)
+    Process a batch of unique devices end-to-end:
       • fetch raw data from Analytics / ThingSpeak
       • compute metrics
       • write results (short-lived DB write)
 
-    Returns {"lowcost_synced": int, "bam_synced": int, "device_count": int}.
+    device_info is a pre-built dict keyed by device_name with full cohort
+    memberships already resolved.
+
+    Returns {"lowcost_synced": int, "bam_synced": int}.
     """
     from collections import defaultdict
 
-    # -- Collect device metadata for this batch (quick DB read) --
-    device_info: Dict[str, Dict[str, Any]] = {}
-    db_read = SessionLocal()
-    try:
-        for cohort in cohort_batch:
-            cohort_name = cohort.get("name", "")
-            for dev in cohort.get("devices", []):
-                if not dev.get("isActive"):
-                    continue
-                d_name = dev.get("name")
-                if not d_name:
-                    continue
-
-                dn = dev.get("device_number")
-                raw_read_key = dev.get("readKey")
-                read_key_to_store = decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
-
-                if d_name not in device_info:
-                    device_id = dev.get("_id", "")
-
-                    from app.models.sync import SyncDevice
-                    db_device = db_read.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
-
-                    if db_device:
-                        category = db_device.category or "lowcost"
-                    else:
-                        category = extract_device_category(dev)
-
-                    device_info[d_name] = {
-                        "device_id": device_id,
-                        "device_number": dev.get("device_number"),
-                        "latitude": dev.get("latitude"),
-                        "longitude": dev.get("longitude"),
-                        "last_active": dev.get("lastActive"),
-                        "category": category,
-                        "read_key": read_key_to_store,
-                        "cohorts": set(),
-                    }
-                device_info[d_name]["cohorts"].add(cohort_name)
-    finally:
-        db_read.close()
-
     device_names = list(device_info.keys())
     if not device_names:
-        return {"lowcost_synced": 0, "bam_synced": 0, "device_count": 0}
+        return {"lowcost_synced": 0, "bam_synced": 0}
 
     logger.info(
         f"[Performance Sync]   Batch has {len(device_names)} devices"
@@ -460,7 +472,7 @@ async def _process_cohort_batch(
     logger.info(
         f"[Performance Sync]   Batch done — {lowcost_count} lowcost, {bam_count} BAM"
     )
-    return {"lowcost_synced": lowcost_count, "bam_synced": bam_count, "device_count": len(device_names)}
+    return {"lowcost_synced": lowcost_count, "bam_synced": bam_count}
 
 
 def _run_sync_job():
