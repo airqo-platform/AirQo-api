@@ -825,6 +825,27 @@ function buildEarlyProjection(isHistorical) {
   };
 }
 
+/**
+ * Returns a MongoDB aggregation expression that resolves to the averaged/
+ * calibrated field when its nested `.value` is non-null, and falls back to the
+ * raw sensor field otherwise.  Used so BAM devices (which never populate
+ * average_pm2_5) surface their raw readings instead of being silently dropped
+ * by filterNullAndReportOffDevices.
+ *
+ * @param {string} averageFieldKey - e.g. "average_pm2_5"
+ * @param {string} rawFieldKey     - e.g. "pm2_5"
+ * @returns {object} MongoDB $cond aggregation expression
+ */
+function buildPreferredMeasurement(averageFieldKey, rawFieldKey) {
+  return {
+    $cond: {
+      if: { $ne: [{ $ifNull: [`$${averageFieldKey}.value`, null] }, null] },
+      then: `$${averageFieldKey}`,
+      else: `$${rawFieldKey}`,
+    },
+  };
+}
+
 function logSlowQuery(queryType, duration, metadata, isHistorical, limit) {
   if (duration > SLOW_QUERY_THRESHOLD_MS) {
     logger.warn(
@@ -959,20 +980,8 @@ async function fetchData(model, filter) {
     // fallback every BAM event is silently dropped by filterNullAndReportOffDevices.
     // Lowcost behavior is unchanged: average_pm2_5.value is always non-null for
     // them, so the $cond always resolves to "$average_pm2_5" as before.
-    pm2_5 = {
-      $cond: {
-        if: { $ne: [{ $ifNull: ["$average_pm2_5.value", null] }, null] },
-        then: "$average_pm2_5",
-        else: "$pm2_5",
-      },
-    };
-    pm10 = {
-      $cond: {
-        if: { $ne: [{ $ifNull: ["$average_pm10.value", null] }, null] },
-        then: "$average_pm10",
-        else: "$pm10",
-      },
-    };
+    pm2_5 = buildPreferredMeasurement("average_pm2_5", "pm2_5");
+    pm10 = buildPreferredMeasurement("average_pm10", "pm10");
   }
 
   // ── Projection setup (unchanged from original) ──────────────────────────
@@ -1735,20 +1744,8 @@ async function signalData(model, filter) {
   let as = "deviceDetails";
   // Prefer calibrated/averaged value; fall back to raw for BAM devices
   // that never populate average_pm2_5. Same rationale as fetchData.
-  let pm2_5 = {
-    $cond: {
-      if: { $ne: [{ $ifNull: ["$average_pm2_5.value", null] }, null] },
-      then: "$average_pm2_5",
-      else: "$pm2_5",
-    },
-  };
-  let pm10 = {
-    $cond: {
-      if: { $ne: [{ $ifNull: ["$average_pm10.value", null] }, null] },
-      then: "$average_pm10",
-      else: "$pm10",
-    },
-  };
+  let pm2_5 = buildPreferredMeasurement("average_pm2_5", "pm2_5");
+  let pm10 = buildPreferredMeasurement("average_pm10", "pm10");
   let s1_pm2_5 = "$pm2_5";
   let s1_pm10 = "$pm10";
   let elementAtIndex0 = elementAtIndexName(metadata, recent);
