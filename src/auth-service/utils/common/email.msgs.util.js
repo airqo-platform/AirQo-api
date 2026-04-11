@@ -1472,6 +1472,102 @@ module.exports = {
     return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
   },
 
+  // ── Sensor manufacturer (network) creation request emails ──────────────────
+  //
+  // Terminology: internally "networks"; in all user-facing copy "sensor manufacturers".
+  //
+  // Three emails in the workflow:
+  //   1. notifyAdminOfSensorManufacturerRequest  → sent to the AirQo admin
+  //   2. confirmSensorManufacturerRequestReceived → sent to the requester
+  //   3. notifySensorManufacturerRequestApproved  → sent to the requester on approval
+
+  notifyAdminOfSensorManufacturerRequest: ({
+    requester_name,
+    requester_email,
+    net_name,
+    net_email,
+    net_website,
+    net_category,
+    net_description,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A new sensor manufacturer onboarding request has been submitted and is awaiting your review.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; width: 40%;">Sensor Manufacturer Name:</td>
+            <td style="padding: 6px 0;">${escapeHtml(net_name)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600;">Contact Email:</td>
+            <td style="padding: 6px 0;">${escapeHtml(net_email)}</td>
+          </tr>
+          ${net_website ? `<tr><td style="padding: 6px 0; font-weight: 600;">Website:</td><td style="padding: 6px 0;">${escapeHtml(net_website)}</td></tr>` : ""}
+          ${net_category ? `<tr><td style="padding: 6px 0; font-weight: 600;">Category:</td><td style="padding: 6px 0;">${escapeHtml(net_category)}</td></tr>` : ""}
+          ${net_description ? `<tr><td style="padding: 6px 0; font-weight: 600;">Description:</td><td style="padding: 6px 0;">${escapeHtml(net_description)}</td></tr>` : ""}
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600;">Submitted By:</td>
+            <td style="padding: 6px 0;">${escapeHtml(requester_name)} (${escapeHtml(requester_email)})</td>
+          </tr>
+        </table>
+        <p>Please review and process this request in the admin dashboard.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL || "support@airqo.net",
+      content,
+    });
+  },
+
+  confirmSensorManufacturerRequestReceived: ({
+    requester_name,
+    requester_email,
+    net_name,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Thank you for submitting a request to onboard <strong>${escapeHtml(net_name)}</strong> as a sensor manufacturer on the AirQo platform.</p>
+        <p>We have received your request and our team will review it shortly. You will receive a follow-up email once your request has been processed.</p>
+        <p>If you have any questions in the meantime, please contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>Thank you for contributing to cleaner air across Africa.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: requester_email,
+      content,
+      name: requester_name,
+    });
+  },
+
+  notifySensorManufacturerRequestApproved: ({
+    requester_name,
+    requester_email,
+    net_name,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Great news! Your request to onboard <strong>${escapeHtml(net_name)}</strong> as a sensor manufacturer on the AirQo platform has been <strong>approved</strong>.</p>
+        <p>The sensor manufacturer profile has been created and is now available in the AirQo system. Our team will be in touch to guide you through the next steps of the integration process.</p>
+        <p>If you have any questions, please contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>Welcome to the AirQo network!</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: requester_email,
+      content,
+      name: requester_name,
+    });
+  },
+
   // Sent to all group members and the manager when an admin changes group status.
   // Deactivation (INACTIVE/SUSPENDED/ARCHIVED) always triggers this regardless
   // of the notify_members flag. Activation also sends to the manager.
