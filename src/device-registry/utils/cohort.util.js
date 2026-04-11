@@ -1455,7 +1455,9 @@ const createCohort = {
             from: "activities",
             let: { deviceName: "$name" },
             pipeline: [
-              { $match: { $expr: { $eq: ["$device", "$$deviceName"] } } },
+              // device_id: null restricts to legacy name-only records, preventing
+              // overlap with the device_id branch and avoiding duplicate fetches.
+              { $match: { device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
               { $sort: { createdAt: -1 } },
               {
                 $project: {
@@ -1472,14 +1474,13 @@ const createCohort = {
         },
         {
           $addFields: {
+            // Both branches are disjoint after the device_id:null constraint above,
+            // so $concatArrays is safe (no duplicates). $sortArray requires MongoDB
+            // 5.2+ which cannot be guaranteed; JS post-processing sorts the merged
+            // array instead.
             activities: {
               $slice: [
-                {
-                  $sortArray: {
-                    input: { $setUnion: ["$_activities_by_id", "$_activities_by_name"] },
-                    sortBy: { createdAt: -1 },
-                  },
-                },
+                { $concatArrays: ["$_activities_by_id", "$_activities_by_name"] },
                 activitiesLimit,
               ],
             },
@@ -1504,7 +1505,7 @@ const createCohort = {
             from: "activities",
             let: { deviceName: "$name" },
             pipeline: [
-              { $match: { activityType: "deployment", $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $match: { activityType: "deployment", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
               { $sort: { createdAt: -1 } },
               { $limit: 1 },
             ],
@@ -1513,11 +1514,29 @@ const createCohort = {
         },
         {
           $addFields: {
+            // $sortArray requires MongoDB 5.2+. Since each branch returns ≤1 item,
+            // use nested $cond to pick the branch with the later createdAt instead.
             latest_deployment_activity: {
-              $sortArray: {
-                input: { $setUnion: ["$_deploy_by_id", "$_deploy_by_name"] },
-                sortBy: { createdAt: -1 },
-              },
+              $cond: [
+                { $eq: [{ $size: "$_deploy_by_id" }, 0] },
+                "$_deploy_by_name",
+                {
+                  $cond: [
+                    { $eq: [{ $size: "$_deploy_by_name" }, 0] },
+                    "$_deploy_by_id",
+                    {
+                      $cond: [
+                        { $gte: [
+                          { $arrayElemAt: ["$_deploy_by_id.createdAt", 0] },
+                          { $arrayElemAt: ["$_deploy_by_name.createdAt", 0] },
+                        ]},
+                        "$_deploy_by_id",
+                        "$_deploy_by_name",
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -1540,7 +1559,7 @@ const createCohort = {
             from: "activities",
             let: { deviceName: "$name" },
             pipeline: [
-              { $match: { activityType: "maintenance", $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $match: { activityType: "maintenance", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
               { $sort: { createdAt: -1 } },
               { $limit: 1 },
             ],
@@ -1550,10 +1569,26 @@ const createCohort = {
         {
           $addFields: {
             latest_maintenance_activity: {
-              $sortArray: {
-                input: { $setUnion: ["$_maint_by_id", "$_maint_by_name"] },
-                sortBy: { createdAt: -1 },
-              },
+              $cond: [
+                { $eq: [{ $size: "$_maint_by_id" }, 0] },
+                "$_maint_by_name",
+                {
+                  $cond: [
+                    { $eq: [{ $size: "$_maint_by_name" }, 0] },
+                    "$_maint_by_id",
+                    {
+                      $cond: [
+                        { $gte: [
+                          { $arrayElemAt: ["$_maint_by_id.createdAt", 0] },
+                          { $arrayElemAt: ["$_maint_by_name.createdAt", 0] },
+                        ]},
+                        "$_maint_by_id",
+                        "$_maint_by_name",
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -1576,7 +1611,7 @@ const createCohort = {
             from: "activities",
             let: { deviceName: "$name" },
             pipeline: [
-              { $match: { activityType: { $in: ["recall", "recallment"] }, $expr: { $eq: ["$device", "$$deviceName"] } } },
+              { $match: { activityType: { $in: ["recall", "recallment"] }, device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
               { $sort: { createdAt: -1 } },
               { $limit: 1 },
             ],
@@ -1586,10 +1621,26 @@ const createCohort = {
         {
           $addFields: {
             latest_recall_activity: {
-              $sortArray: {
-                input: { $setUnion: ["$_recall_by_id", "$_recall_by_name"] },
-                sortBy: { createdAt: -1 },
-              },
+              $cond: [
+                { $eq: [{ $size: "$_recall_by_id" }, 0] },
+                "$_recall_by_name",
+                {
+                  $cond: [
+                    { $eq: [{ $size: "$_recall_by_name" }, 0] },
+                    "$_recall_by_id",
+                    {
+                      $cond: [
+                        { $gte: [
+                          { $arrayElemAt: ["$_recall_by_id.createdAt", 0] },
+                          { $arrayElemAt: ["$_recall_by_name.createdAt", 0] },
+                        ]},
+                        "$_recall_by_id",
+                        "$_recall_by_name",
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -1665,6 +1716,15 @@ const createCohort = {
           device.latest_recall_activity.length > 0
             ? device.latest_recall_activity[0]
             : null;
+
+        // Sort the merged activities array by most recent first.
+        // $sortArray (MongoDB 5.2+) was removed for version compatibility;
+        // the two disjoint branches are sorted here in JS instead.
+        if (device.activities && device.activities.length > 1) {
+          device.activities.sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+          );
+        }
 
         // Create activities by type mapping
         if (device.activities && device.activities.length > 0) {
