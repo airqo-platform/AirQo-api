@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
 import logging
 from sqlalchemy.orm import Session
-from typing import List
-from app.db.session import get_db
+from typing import List, Optional
+from app.db.session import get_db, SessionLocal
 from app.schemas.device import (
     DeviceResponse, 
     SingleDeviceResponse, 
@@ -19,10 +19,20 @@ from app.services import device_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+async def _run_sync_devices(token: str):
+    """Background task to run device sync with its own DB session."""
+    db = SessionLocal()
+    try:
+        await device_service.sync_devices(db, token)
+    except Exception as e:
+        logger.exception(f"Background device sync failed: {e}")
+    finally:
+        db.close()
+
 @router.post("/sync", response_model=DeviceSyncResponse)
 async def sync_devices(
+    background_tasks: BackgroundTasks,
     authorization: str = Header(...),
-    db: Session = Depends(get_db)
 ):
     if not authorization.startswith("JWT "):
         raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
@@ -33,18 +43,14 @@ async def sync_devices(
     
     token = parts[1]
     
-    try:
-        result = await device_service.sync_devices(db, token)
-        if not result.get("success", True):
-            status_code = result.get("status_code", 400)
-            message = result.get("message", "Error syncing devices")
-            raise HTTPException(status_code=status_code, detail=message)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Unexpected error syncing devices: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    background_tasks.add_task(_run_sync_devices, token)
+    
+    return {
+        "success": True, 
+        "message": "Device sync process started in the background. It may take a few minutes to complete.",
+        "updates_count": 0,
+        "new_count": 0
+    }
 
 @router.post("/sites/sync", response_model=DeviceSyncResponse)
 async def sync_device_sites(
