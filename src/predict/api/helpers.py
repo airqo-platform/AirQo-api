@@ -126,7 +126,7 @@ def build_site_forecast_response(
             "success": False,
             "message": "Site daily forecast database is unavailable.",
             "data": {
-                "site": None,
+                "site_details": None,
                 "units": SITE_FORECAST_UNITS,
                 "forecasts": [],
             },
@@ -139,7 +139,7 @@ def build_site_forecast_response(
             "success": False,
             "message": "Failed to fetch site daily forecasts.",
             "data": {
-                "site": None,
+                "site_details": None,
                 "units": SITE_FORECAST_UNITS,
                 "forecasts": [],
             },
@@ -150,7 +150,7 @@ def build_site_forecast_response(
         return {
             "success": False,
             "data": {
-                "site": None,
+                "site_details": None,
                 "start_date": start_date.isoformat() if site_id else None,
                 "end_date": (start_date + timedelta(days=6)).isoformat()
                 if site_id
@@ -181,95 +181,84 @@ def build_site_forecast_response(
                 "site_longitude": clean_response_value(
                     forecast_document.get("site_longitude")
                 ),
-            },
-            "forecast": {
-                "pm2_5_mean": pm2_5_mean,
-                "pm2_5_low": clean_response_value(forecast_document.get("pm2_5_low")),
-                "pm2_5_high": clean_response_value(
-                    forecast_document.get("pm2_5_high")
-                ),
-                "pm2_5_min": clean_response_value(forecast_document.get("pm2_5_min")),
-                "pm2_5_max": clean_response_value(forecast_document.get("pm2_5_max")),
-                "forecast_confidence": clean_response_value(
-                    forecast_document.get("forecast_confidence")
-                ),
-            },
-            "aqi": {
-                "aqi_value": pm2_5_mean,
-                "aqi_category": (
-                    aqi_category_details.get("aqi_category")
-                    if aqi_category_details
-                    else None
-                ),
-                "aqi_color_name": (
-                    aqi_category_details.get("aqi_color_name")
-                    if aqi_category_details
-                    else None
-                ),
-                "aqi_hex": (
-                    f"#{aqi_category_details['aqi_color'].upper()}"
-                    if aqi_category_details
-                    else None
-                ),
-            },
-            "met": {
-                "air_temperature": clean_response_value(
-                    forecast_document.get("air_temperature")
-                ),
-                "relative_humidity": clean_response_value(
-                    forecast_document.get("relative_humidity")
-                ),
-                "air_pressure_at_sea_level": clean_response_value(
-                    forecast_document.get("air_pressure_at_sea_level")
-                ),
-                "precipitation_amount": clean_response_value(
-                    forecast_document.get("precipitation_amount")
-                ),
-                "cloud_area_fraction": clean_response_value(
-                    forecast_document.get("cloud_area_fraction")
-                ),
-                "wind_speed": clean_response_value(forecast_document.get("wind_speed")),
-                "wind_from_direction": wind_direction_degrees,
-                "wind_direction_compass": wind_direction_formatter(
-                    wind_direction_degrees
-                ),
+                "forecast": {
+                    "pm2_5_mean": pm2_5_mean,
+                    "pm2_5_low": clean_response_value(
+                        forecast_document.get("pm2_5_low")
+                    ),
+                    "pm2_5_high": clean_response_value(
+                        forecast_document.get("pm2_5_high")
+                    ),
+                    "pm2_5_min": clean_response_value(
+                        forecast_document.get("pm2_5_min")
+                    ),
+                    "pm2_5_max": clean_response_value(
+                        forecast_document.get("pm2_5_max")
+                    ),
+                    "forecast_confidence": clean_response_value(
+                        forecast_document.get("forecast_confidence")
+                    ),
+                },
+                "aqi": {
+                    "aqi_value": pm2_5_mean,
+                    "aqi_category": (
+                        aqi_category_details.get("aqi_category")
+                        if aqi_category_details
+                        else None
+                    ),
+                    "aqi_color_name": (
+                        aqi_category_details.get("aqi_color_name")
+                        if aqi_category_details
+                        else None
+                    ),
+                    "aqi_hex": (
+                        f"#{aqi_category_details['aqi_color'].upper()}"
+                        if aqi_category_details
+                        else None
+                    ),
+                },
+                "met": {
+                    "air_temperature": clean_response_value(
+                        forecast_document.get("air_temperature")
+                    ),
+                    "relative_humidity": clean_response_value(
+                        forecast_document.get("relative_humidity")
+                    ),
+                    "air_pressure_at_sea_level": clean_response_value(
+                        forecast_document.get("air_pressure_at_sea_level")
+                    ),
+                    "precipitation_amount": clean_response_value(
+                        forecast_document.get("precipitation_amount")
+                    ),
+                    "cloud_area_fraction": clean_response_value(
+                        forecast_document.get("cloud_area_fraction")
+                    ),
+                    "wind_speed": clean_response_value(
+                        forecast_document.get("wind_speed")
+                    ),
+                    "wind_from_direction": wind_direction_degrees,
+                    "wind_direction_compass": wind_direction_formatter(
+                        wind_direction_degrees
+                    ),
+                },
             },
             "created_at": clean_response_value(forecast_document.get("created_at")),
         }
 
-    if site_id:
-        site = {
-            "site_id": clean_response_value(forecast_documents[0].get("site_id")),
-            "site_name": clean_response_value(forecast_documents[0].get("site_name")),
-            "site_latitude": clean_response_value(
-                forecast_documents[0].get("site_latitude")
-            ),
-            "site_longitude": clean_response_value(
-                forecast_documents[0].get("site_longitude")
-            ),
-        }
-        forecasts = [
-            {
-                key: value
-                for key, value in format_forecast_entry(forecast_document).items()
-                if key != "site"
-            }
-            for forecast_document in forecast_documents[:expected_days]
-        ]
+    def simplify_site_forecast(forecast):
         return {
-            "success": len(forecasts) == expected_days,
-            "data": {
-                "site": site,
-                "start_date": start_date.isoformat(),
-                "end_date": (start_date + timedelta(days=6)).isoformat(),
-                "days": expected_days,
-                "units": SITE_FORECAST_UNITS,
-                "forecasts": forecasts,
-            },
-        }, 200
+            "date": forecast.get("date"),
+            "forecast": forecast.get("site", {}).get("forecast"),
+            "aqi": forecast.get("site", {}).get("aqi"),
+            "met": forecast.get("site", {}).get("met"),
+            "created_at": forecast.get("created_at"),
+        }
 
     forecasts = [
-        format_forecast_entry(forecast_document) for forecast_document in forecast_documents
+        format_forecast_entry(forecast_document)
+        for forecast_document in (
+            forecast_documents[:expected_days] if site_id else forecast_documents
+        )
     ]
     distinct_dates = sorted(
         {
@@ -278,16 +267,50 @@ def build_site_forecast_response(
             if forecast.get("date") is not None
         }
     )
+    grouped_forecasts = {}
+
+    for forecast in forecasts:
+        site = forecast.get("site", {})
+        forecast_site_id = site.get("site_id")
+        if forecast_site_id not in grouped_forecasts:
+            grouped_forecasts[forecast_site_id] = {
+                "site_details": {
+                    "site_id": site.get("site_id"),
+                    "site_name": site.get("site_name"),
+                    "site_latitude": site.get("site_latitude"),
+                    "site_longitude": site.get("site_longitude"),
+                },
+                "start_date": forecast.get("date"),
+                "end_date": forecast.get("date"),
+                "days": 0,
+                "total": 0,
+                "forecasts": [],
+            }
+
+        grouped_forecasts[forecast_site_id]["forecasts"].append(
+            simplify_site_forecast(forecast)
+        )
+        grouped_forecasts[forecast_site_id]["end_date"] = forecast.get("date")
+
+    for grouped_site_forecast in grouped_forecasts.values():
+        grouped_site_forecast["days"] = len(
+            {
+                site_forecast.get("date")
+                for site_forecast in grouped_site_forecast["forecasts"]
+                if site_forecast.get("date") is not None
+            }
+        )
+        grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
 
     return {
-        "success": True,
+        "success": len(forecasts) == expected_days if site_id else True,
         "data": {
             "start_date": distinct_dates[0] if distinct_dates else None,
             "end_date": distinct_dates[-1] if distinct_dates else None,
             "days": len(distinct_dates),
-            "total": len(forecasts),
+            "total": len(grouped_forecasts),
             "units": SITE_FORECAST_UNITS,
-            "forecasts": forecasts,
+            "forecasts": list(grouped_forecasts.values()),
         },
     }, 200
 
@@ -330,7 +353,7 @@ def site_daily_forecasts_cache_key():
     cache_version = get_site_daily_forecast_cache_version(
         site_id=site_id, start_date=date.today()
     )
-    return f"site_daily_v4_{current_day}_{site_id}_{cache_version}"
+    return f"site_daily_v5_{current_day}_{site_id}_{cache_version}"
 
 
 def hourly_forecasts_cache_key():
