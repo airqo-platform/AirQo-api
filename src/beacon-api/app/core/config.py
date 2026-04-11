@@ -1,5 +1,4 @@
 from typing import List, Union, Any, Dict
-from urllib.parse import quote_plus
 from pydantic import AnyHttpUrl, field_validator, PostgresDsn, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,12 +20,10 @@ class Settings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         if self.DATABASE_URL:
             return str(self.DATABASE_URL)
-        user = quote_plus(self.POSTGRES_USER)
-        password = quote_plus(self.POSTGRES_PASSWORD)
-        return f"postgresql://{user}:{password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     # Security
-    SECRET_KEY: str = ""
+    SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # CORS

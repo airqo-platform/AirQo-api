@@ -49,6 +49,7 @@ const initializeApiClient = () => {
 
   const apiClient = axios.create({
     baseURL: constants.API_BASE_URL,
+    timeout: 15000, // 15s — prevents hung connections from exhausting auth-service DB pool
   });
 
   // Add response interceptor for better error handling
@@ -85,7 +86,8 @@ const apiClient = initializeApiClient();
  */
 const fetchAuthServiceNetworks = async () => {
   const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 5000; // 5 seconds
+  const BASE_RETRY_DELAY_MS = 5000; // 5 seconds base; grows exponentially
+  const MAX_RETRY_DELAY_MS = 60000; // cap at 60 seconds
   if (!apiClient) {
     logger.error("API client is not initialized; cannot fetch networks.");
     return [];
@@ -143,11 +145,14 @@ const fetchAuthServiceNetworks = async () => {
     }
 
     if (attempt < MAX_RETRIES) {
+      // Exponential backoff with full jitter to avoid thundering herd across pods
+      const exponentialDelay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+      const cappedDelay = Math.min(exponentialDelay, MAX_RETRY_DELAY_MS);
+      const jitteredDelay = Math.floor(Math.random() * cappedDelay);
       logger.warn(
-        `Attempt ${attempt} failed. Retrying in ${RETRY_DELAY_MS /
-          1000} seconds...`,
+        `Attempt ${attempt}/${MAX_RETRIES} failed. Retrying in ${(jitteredDelay / 1000).toFixed(1)} seconds...`,
       );
-      await new Promise((res) => setTimeout(res, RETRY_DELAY_MS));
+      await new Promise((res) => setTimeout(res, jitteredDelay));
     }
   }
 

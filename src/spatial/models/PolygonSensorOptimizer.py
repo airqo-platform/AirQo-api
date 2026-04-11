@@ -1,18 +1,157 @@
+"""Polygon-based sensor siting with bounded on-disk OSMnx caching.
+
+This module uses OSMnx to fetch OpenStreetMap features when generating
+candidate sensor locations. OSMnx caches HTTP responses as JSON files on disk.
+Without pruning, that cache can grow indefinitely in ``src/spatial/cache``.
+
+Maintenance notes:
+- ``OSMNX_CACHE_DIR`` keeps the cache local to the spatial service.
+- ``_prune_osmnx_cache`` applies a simple retention policy on startup.
+- The retention knobs are controlled through:
+  - ``OSMNX_CACHE_MAX_FILES``
+  - ``OSMNX_CACHE_MAX_AGE_HOURS``
+"""
+
+import logging
+import os
+import random
+import time
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
+
 import numpy as np
 import geopandas as gpd
 import osmnx as ox
-from shapely.geometry import Polygon, Point, MultiPolygon, box
+from shapely.geometry import Polygon, Point, box
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import KMeans
 from scipy.spatial import KDTree
-from typing import Dict, List, Tuple, Union
-import math
-import random
 import pandas as pd 
 
-# Configure OSMnx settings
+from models.polygon_sensor_labels import (
+    SITE_CATEGORIES,
+    classify_site_category,
+    compute_label_score,
+)
+
+logger = logging.getLogger(__name__)
+
+# Configure OSMnx to use a service-local cache directory instead of a global one.
+OSMNX_CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"
+try:
+    OSMNX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    print(f"Warning: Failed to create OSMnx cache directory at {OSMNX_CACHE_DIR}. Caching will be disabled.")
+    pass
 ox.settings.use_cache = True
 ox.settings.log_console = True
+ox.settings.cache_folder = str(OSMNX_CACHE_DIR)
+
+
+def _get_int_env(var_name: str, default: int) -> int:
+    """Return an integer env var value or fall back to the provided default."""
+    raw_value = os.getenv(var_name, default)
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid value for %s; using fallback %d.",
+            var_name,
+            default,
+        )
+        return default
+
+
+def _prune_osmnx_cache() -> None:
+    """Delete stale OSMnx cache files so the cache directory stays bounded.
+
+    Files are removed in two passes:
+    1. Drop anything older than ``OSMNX_CACHE_MAX_AGE_HOURS``.
+    2. Keep only the newest ``OSMNX_CACHE_MAX_FILES`` JSON files.
+    """
+    max_files = _get_int_env("OSMNX_CACHE_MAX_FILES", 100)
+    max_age_hours = _get_int_env("OSMNX_CACHE_MAX_AGE_HOURS", 168)
+
+    try:
+        cache_files = sorted(
+            OSMNX_CACHE_DIR.glob("*.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return
+
+    if max_age_hours > 0:
+        expiry_seconds = max_age_hours * 3600
+        now = time.time()
+        for cache_file in list(cache_files):
+            try:
+                if now - cache_file.stat().st_mtime > expiry_seconds:
+                    cache_file.unlink(missing_ok=True)
+            except OSError:
+                continue
+
+    if max_files > 0:
+        try:
+            cache_files = sorted(
+                OSMNX_CACHE_DIR.glob("*.json"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        except OSError:
+            return
+
+        for cache_file in cache_files[max_files:]:
+            try:
+                cache_file.unlink(missing_ok=True)
+            except OSError:
+                continue
+
+
+def _is_transient_osm_error(error: Exception) -> bool:
+    message = str(error).lower()
+    transient_markers = (
+        "server load too high",
+        "too many requests",
+        "rate limit",
+        "timed out",
+        "timeout",
+        "gateway timeout",
+        "temporarily unavailable",
+        "connection reset",
+        "remote end closed",
+        "429",
+        "502",
+        "503",
+        "504",
+    )
+    return any(marker in message for marker in transient_markers)
+
+
+def _fetch_osm_features_with_retries(*, bounds, tags, description: str, retries: int = 3, base_delay: int = 2):
+    last_error = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            return ox.features_from_bbox(*bounds, tags=tags)
+        except Exception as error:
+            last_error = error
+            if attempt == retries or not _is_transient_osm_error(error):
+                break
+
+            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+            logger.warning(
+                "Transient OSM error while fetching %s on attempt %d/%d: %s. Retrying in %.1f seconds.",
+                description,
+                attempt,
+                retries,
+                error,
+                delay,
+            )
+            time.sleep(delay)
+
+    raise last_error
+
 
 class PolygonSensorOptimizer:
     """
@@ -31,13 +170,17 @@ class PolygonSensorOptimizer:
     """
 
     def __init__(self):
+        # Prune before new OSMnx requests are made so cache growth stays bounded
+        # during normal API traffic without requiring a separate cleanup job.
+        _prune_osmnx_cache()
         self.default_config = {
             'grid': {
                 'auto_size': True,
                 'base_cell_area': 0.0001,
                 'min_cells': 50,
                 'max_cells': 5000,
-                'user_override': None
+                'user_override': None,
+                'exclude_water': True,
             },
             'distance': {
                 'min_sensor_distance': 0,
@@ -69,6 +212,10 @@ class PolygonSensorOptimizer:
         }
         self.config = self.default_config.copy()
         self.water_features = gpd.GeoDataFrame()  # Initialize as empty GeoDataFrame
+        self.response_options = {
+            'include_candidate_sites': False,
+            'candidate_site_limit': 0,
+        }
 
     def configure(self, **kwargs):
         for category, settings in kwargs.items():
@@ -81,20 +228,28 @@ class PolygonSensorOptimizer:
             self.config['distance']['min_sensor_distance_degrees'] = \
                 self.config['distance']['min_sensor_distance'] / 111320
 
+    def configure_response(self, **kwargs):
+        self.response_options.update(kwargs)
+
     def create_adaptive_grid(self, polygon: Polygon) -> gpd.GeoDataFrame:
         # Reset water_features to empty GeoDataFrame
         self.water_features = gpd.GeoDataFrame()
-        try:
-            features = ox.features_from_bbox(
-                *polygon.bounds,
-                tags={'natural': ['water', 'wetland'], 'waterway': True}
-            )
-            if isinstance(features, gpd.GeoDataFrame):
-                self.water_features = features
-        except Exception as e:
-#            print(f"Warning: Failed to fetch water features: {e}")
-            print(f"Warning: Failed to fetch water features: ")
-            self.water_features = gpd.GeoDataFrame()
+        if self.config['grid'].get('exclude_water', True):
+            try:
+                features = _fetch_osm_features_with_retries(
+                    bounds=polygon.bounds,
+                    tags={'natural': ['water', 'wetland'], 'waterway': True},
+                    description="water features",
+                )
+                if isinstance(features, gpd.GeoDataFrame):
+                    self.water_features = features
+            except Exception as e:
+                logger.warning(
+                    "Failed to fetch water features for polygon bounds %s; continuing without water exclusion: %s",
+                    polygon.bounds,
+                    e,
+                )
+                self.water_features = gpd.GeoDataFrame()
 
         if self.config['grid']['user_override']:
             grid_size = self.config['grid']['user_override']
@@ -113,6 +268,12 @@ class PolygonSensorOptimizer:
         n_rows = int(grid_size / n_cols)
         cell_width = (maxx - minx) / n_cols
         cell_height = (maxy - miny) / n_rows
+        water_sindex = (
+            self.water_features.sindex
+            if isinstance(self.water_features, gpd.GeoDataFrame)
+            and not self.water_features.empty
+            else None
+        )
 
         grid_cells = []
         for i in range(n_cols):
@@ -133,9 +294,11 @@ class PolygonSensorOptimizer:
                             }
                         })
                     else:
-                        intersects_water = any(
-                            valid_cell.intersects(geom) for geom in self.water_features.geometry
-                        )
+                        intersects_water = not self._subset_intersections(
+                            self.water_features,
+                            valid_cell,
+                            water_sindex,
+                        ).empty
                         if not intersects_water:
                             grid_cells.append({
                                 'geometry': valid_cell,
@@ -165,6 +328,49 @@ class PolygonSensorOptimizer:
                 if not in_water:
                     return point
         return geometry.centroid
+
+    @staticmethod
+    def _normalize_score_columns(
+        grid: gpd.GeoDataFrame, score_columns: List[str]
+    ) -> gpd.GeoDataFrame:
+        """Normalize score columns while preserving constant columns.
+
+        ``MinMaxScaler`` collapses constant columns to 0.0, which makes
+        otherwise valid raw scores such as a uniform suitability baseline
+        disappear from API output. For constant columns, keep the raw value.
+        """
+        for column in score_columns:
+            column_min = float(grid[column].min())
+            column_max = float(grid[column].max())
+
+            if np.isclose(column_min, column_max):
+                grid[column] = grid[column].clip(0.0, 1.0)
+                continue
+
+            grid[column] = (grid[column] - column_min) / (column_max - column_min)
+
+        return grid
+
+    @staticmethod
+    def _subset_intersections(
+        features: gpd.GeoDataFrame,
+        geometry,
+        spatial_index=None,
+    ) -> gpd.GeoDataFrame:
+        """Return intersecting rows using a spatial index when available."""
+        if features.empty:
+            return features
+
+        try:
+            if spatial_index is not None and not spatial_index.is_empty:
+                matches = spatial_index.query(geometry, predicate="intersects")
+                if len(matches) == 0:
+                    return features.iloc[0:0]
+                return features.iloc[matches]
+        except Exception:
+            pass
+
+        return features[features.intersects(geometry)]
 
     def calculate_features_and_scores(self, grid: gpd.GeoDataFrame, polygon: Polygon) -> gpd.GeoDataFrame:
         """
@@ -210,8 +416,7 @@ class PolygonSensorOptimizer:
             water = self.water_features if not self.water_features.empty else gpd.GeoDataFrame()
 
         except Exception as e:
-#            print(f"Warning: Failed to fetch OSM features: {e}")
-            print(f"Warning: Failed to fetch OSM features: ")
+            logger.warning("Failed to fetch OSM features for suitability scoring: %s", e)
             # Initialize empty GeoDataFrames on failure
             roads = gpd.GeoDataFrame()
             pois = gpd.GeoDataFrame()
@@ -219,6 +424,13 @@ class PolygonSensorOptimizer:
             industrial = gpd.GeoDataFrame()
             green_spaces = gpd.GeoDataFrame()
             water = gpd.GeoDataFrame()
+
+        road_sindex = roads.sindex if not roads.empty else None
+        poi_sindex = pois.sindex if not pois.empty else None
+        building_sindex = buildings.sindex if not buildings.empty else None
+        industrial_sindex = industrial.sindex if not industrial.empty else None
+        green_sindex = green_spaces.sindex if not green_spaces.empty else None
+        water_sindex = water.sindex if not water.empty else None
 
         # Calculate scores for each grid cell
         for idx, row in grid.iterrows():
@@ -228,7 +440,11 @@ class PolygonSensorOptimizer:
             # Transport score
             transport_score = 0.0
             if not roads.empty:
-                nearby_roads = roads[roads.intersects(cell_buffer)]
+                nearby_roads = self._subset_intersections(
+                    roads,
+                    cell_buffer,
+                    road_sindex,
+                )
                 for _, road in nearby_roads.iterrows():
                     road_type = road.get('highway', 'residential')
                     weight = self.config['weights']['transport'].get(road_type, 0.04)
@@ -236,19 +452,22 @@ class PolygonSensorOptimizer:
                     intersection = road.geometry.intersection(cell_buffer)
                     if intersection.length > 0:
                         transport_score += weight * (intersection.length / (buffer_dist * 2))
-                # Check for intersections (simplified as road junctions)
-                if not nearby_roads.empty:
-                    road_geoms = nearby_roads.geometry
-                    for i, geom1 in enumerate(road_geoms):
-                        for geom2 in road_geoms.iloc[i + 1:]:
-                            if geom1.intersects(geom2):
-                                transport_score += self.config['weights']['transport']['intersection']
+                # Approximate junction density without an O(n^2) geometry loop.
+                if len(nearby_roads) > 1:
+                    transport_score += min(
+                        len(nearby_roads) - 1,
+                        3,
+                    ) * self.config['weights']['transport']['intersection']
             grid.at[idx, 'transport_score'] = min(transport_score, 1.0)
 
             # Urban score
             urban_score = 0.0
             if not pois.empty:
-                nearby_pois = pois[pois.intersects(cell_buffer)]
+                nearby_pois = self._subset_intersections(
+                    pois,
+                    cell_buffer,
+                    poi_sindex,
+                )
                 for _, poi in nearby_pois.iterrows():
                     poi_type = poi.get('amenity', '')
                     if poi_type in ['hospital', 'clinic']:
@@ -258,7 +477,11 @@ class PolygonSensorOptimizer:
                     elif poi_type in ['marketplace', 'retail']:
                         urban_score += self.config['weights']['urban']['poi_commercial']
             if not buildings.empty:
-                nearby_buildings = buildings[buildings.intersects(cell_buffer)]
+                nearby_buildings = self._subset_intersections(
+                    buildings,
+                    cell_buffer,
+                    building_sindex,
+                )
                 # Building density: count of buildings scaled by cell area
                 building_count = len(nearby_buildings)
                 density = building_count / (cell.area * 111320 * 111320)  # Buildings per km²
@@ -268,7 +491,11 @@ class PolygonSensorOptimizer:
             # Industry score
             industry_score = 0.0
             if not industrial.empty:
-                nearby_industrial = industrial[industrial.intersects(cell_buffer)]
+                nearby_industrial = self._subset_intersections(
+                    industrial,
+                    cell_buffer,
+                    industrial_sindex,
+                )
                 for _, ind in nearby_industrial.iterrows():
                     ind_type = ind.get('landuse', '')
                     if ind_type == 'industrial':
@@ -277,48 +504,68 @@ class PolygonSensorOptimizer:
                         industry_score += self.config['weights']['industry']['construction_sites']
             grid.at[idx, 'industry_score'] = min(industry_score, 1.0)
 
-            # Environment score
+            # Environment score is treated as a penalty signal. Higher values
+            # mean the cell is greener or closer to water and therefore less
+            # suitable for pollution-oriented sensor placement.
             environment_score = 0.0
             if not green_spaces.empty:
-                nearby_green = green_spaces[green_spaces.intersects(cell_buffer)]
+                nearby_green = self._subset_intersections(
+                    green_spaces,
+                    cell_buffer,
+                    green_sindex,
+                )
                 if not nearby_green.empty:
                     green_area = sum(geom.intersection(cell_buffer).area for geom in nearby_green.geometry)
-                    environment_score += self.config['weights']['environment']['green_spaces'] * (green_area / cell_buffer.area)
+                    environment_score += abs(
+                        self.config['weights']['environment']['green_spaces']
+                    ) * (green_area / cell_buffer.area)
             if not water.empty:
-                nearby_water = water[water.intersects(cell_buffer)]
+                nearby_water = self._subset_intersections(
+                    water,
+                    cell_buffer,
+                    water_sindex,
+                )
                 if not nearby_water.empty:
                     water_area = sum(geom.intersection(cell_buffer).area for geom in nearby_water.geometry)
-                    environment_score += self.config['weights']['environment']['water_proximity'] * (water_area / cell_buffer.area)
-            grid.at[idx, 'environment_score'] = max(environment_score, 0.0)  # Negative weights, so ensure non-negative
+                    environment_score += abs(
+                        self.config['weights']['environment']['water_proximity']
+                    ) * (water_area / cell_buffer.area)
+            grid.at[idx, 'environment_score'] = min(max(environment_score, 0.0), 1.0)
 
-            # Calculate suitability score
-            suitability_score = (
-                0.4 * grid.at[idx, 'transport_score'] +
+            # Calculate suitability score from actual positive evidence, then
+            # reduce it using the environment penalty instead of adding a fixed
+            # baseline. This avoids every low-signal location collapsing to 0.1.
+            positive_signal = (
+                0.5 * grid.at[idx, 'transport_score'] +
                 0.3 * grid.at[idx, 'urban_score'] +
-                0.2 * grid.at[idx, 'industry_score'] +
-                0.1 * (1 - grid.at[idx, 'environment_score'])
+                0.2 * grid.at[idx, 'industry_score']
             )
+            environment_penalty = 1 - (0.6 * grid.at[idx, 'environment_score'])
+            suitability_score = positive_signal * max(environment_penalty, 0.0)
             grid.at[idx, 'suitability_score'] = min(max(suitability_score, 0.0), 1.0)
 
-        # Normalize scores to [0, 1] range
-        scaler = MinMaxScaler()
         score_columns = ['transport_score', 'urban_score', 'industry_score', 'environment_score', 'suitability_score']
-        grid[score_columns] = scaler.fit_transform(grid[score_columns])
+        grid = self._normalize_score_columns(grid, score_columns)
 
         return grid
+
+    @staticmethod
+    def _ranking_column(gdf: gpd.GeoDataFrame) -> str:
+        return 'label_score' if 'label_score' in gdf.columns else 'suitability_score'
 
     def enforce_min_distance(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         min_dist = self.config['distance'].get('min_sensor_distance_degrees', 0)
         if min_dist <= 0:
             return gdf
 
+        ranking_column = self._ranking_column(gdf)
         points = np.array([[p.x, p.y] for p in gdf['sensor_point']])
         tree = KDTree(points)
         too_close = tree.query_pairs(min_dist)
 
         indexes_to_drop = set()
         for i, j in too_close:
-            if gdf.iloc[i]['suitability_score'] >= gdf.iloc[j]['suitability_score']:
+            if gdf.iloc[i][ranking_column] >= gdf.iloc[j][ranking_column]:
                 indexes_to_drop.add(j)
             else:
                 indexes_to_drop.add(i)
@@ -329,8 +576,9 @@ class PolygonSensorOptimizer:
         min_dist = self.config['distance'].get('min_sensor_distance_degrees', 0)
         selected_points = []
         selected_indices = []
+        ranking_column = self._ranking_column(gdf)
 
-        sorted_gdf = gdf.sort_values('suitability_score', ascending=False)
+        sorted_gdf = gdf.sort_values(ranking_column, ascending=False)
 
         for idx, row in sorted_gdf.iterrows():
             point = row['sensor_point']
@@ -347,9 +595,10 @@ class PolygonSensorOptimizer:
         min_dist = self.config['distance'].get('min_sensor_distance_degrees', 0)
         selected_points = []
         selected_indices = []
+        ranking_column = self._ranking_column(gdf)
 
         # Start with the highest-scoring point
-        sorted_gdf = gdf.sort_values('suitability_score', ascending=False)
+        sorted_gdf = gdf.sort_values(ranking_column, ascending=False)
         selected_points.append(sorted_gdf.iloc[0]['sensor_point'])
         selected_indices.append(sorted_gdf.index[0])
 
@@ -368,7 +617,7 @@ class PolygonSensorOptimizer:
                     else:
                         dispersion_score = 1.0
                     # Combine suitability and dispersion
-                    combined_score = 0.7 * row['suitability_score'] + 0.3 * dispersion_score
+                    combined_score = 0.7 * row[ranking_column] + 0.3 * dispersion_score
                     if combined_score > best_score:
                         best_score = combined_score
                         best_idx = idx
@@ -398,52 +647,25 @@ class PolygonSensorOptimizer:
         if buffer_dist == 0:
             return warnings
 
-        try:
-            water_features = ox.features_from_bbox(
-                *point.buffer(buffer_dist).bounds,
-                tags={'natural': ['water', 'wetland'], 'waterway': True}
-            )
-            if not water_features.empty:
-                min_dist = min(point.distance(geom) for geom in water_features.geometry)
+        if isinstance(self.water_features, gpd.GeoDataFrame) and not self.water_features.empty:
+            min_dist = min(point.distance(geom) for geom in self.water_features.geometry)
+            if min_dist <= buffer_dist:
                 warnings.append(f"Water body {min_dist*111320:.1f}m away")
-        except Exception:
-            pass
 
         return warnings
 
-    def categorize_site(self, point: Point, row) -> str:
-        proximity_buffer = 50 / 111320
+    @staticmethod
+    def _grid_area_km2(grid: gpd.GeoDataFrame) -> float:
+        """Compute covered area in km^2 without planar operations on EPSG:4326."""
+        if grid.empty:
+            return 0.0
+
         try:
-            roads = ox.features_from_bbox(
-                *point.buffer(proximity_buffer).bounds,
-                tags={'highway': ['motorway', 'trunk', 'primary']}
-            )
-            if not roads.empty:
-                return "Commercial"
-            industrial = ox.features_from_bbox(
-                *point.buffer(proximity_buffer).bounds,
-                tags={'landuse': 'industrial'}
-            )
-            if not industrial.empty or row['industry_score'] > 0.7:
-                return "Commercial"
-            residential = ox.features_from_bbox(
-                *point.buffer(proximity_buffer).bounds,
-                tags={'landuse': 'residential', 'highway': 'residential'}
-            )
-            if not residential.empty or (row['urban_score'] > 0.5 and row['transport_score'] < 0.5):
-                return "Urban Background"
-            if row['environment_score'] > 0.7 and row['urban_score'] < 0.3 and row['industry_score'] < 0.3:
-                return "Rural"
-            return "Background"
+            projected_grid = grid.to_crs(grid.estimate_utm_crs())
         except Exception:
-            if row['industry_score'] > 0.7 or row['transport_score'] > 0.7:
-                return "Commercial"
-            elif row['urban_score'] > 0.5 and row['transport_score'] < 0.5:
-                return "Urban Background"
-            elif row['environment_score'] > 0.7 and row['urban_score'] < 0.3:
-                return "Rural"
-            else:
-                return "Background"
+            projected_grid = grid.to_crs("EPSG:3857")
+
+        return float(projected_grid.geometry.area.sum() / 1_000_000)
 
     def prepare_results(self, optimal_locations: gpd.GeoDataFrame, grid: gpd.GeoDataFrame, max_sensors: int, min_sensors: int, recommended_sensors: int, candidate_sites: gpd.GeoDataFrame) -> Dict:
         first_cell = grid.iloc[0]
@@ -460,7 +682,7 @@ class PolygonSensorOptimizer:
                 'cell_width': first_cell['grid_metrics']['cell_width'],
                 'cell_height': first_cell['grid_metrics']['cell_height'],
                 'total_cells': len(grid),
-                'area_covered': grid.geometry.area.sum() * 111 * 111
+                'area_covered': round(self._grid_area_km2(grid), 4)
             },
             'sensor_counts': {
                 'maximum_sensors': max_sensors,
@@ -468,14 +690,21 @@ class PolygonSensorOptimizer:
                 'recommended_sensors': recommended_sensors,
                 'actual_sensors': len(optimal_locations)
             },
+            'candidate_site_count': int(len(candidate_sites)),
             'site_category_counts': category_counts,
             'locations': [],
-            'candidate_sites': [],
             'config': {
                 'min_sensor_distance': self.config['distance']['min_sensor_distance'],
                 'applied_method': self.config['distance']['enforce_method']
             }
         }
+
+        include_candidate_sites = bool(
+            self.response_options.get('include_candidate_sites', False)
+        )
+        candidate_site_limit = int(self.response_options.get('candidate_site_limit', 0) or 0)
+        if include_candidate_sites:
+            results['candidate_sites'] = []
 
         # Store selected (optimal) locations 
         for _, loc in optimal_locations.iterrows():
@@ -486,31 +715,30 @@ class PolygonSensorOptimizer:
             results['locations'].append({
                 'latitude': point.y,
                 'longitude': point.x,
-                'suitability_score': round(float(loc['suitability_score']), 4),
                 'grid_cell': loc['geometry'].wkt,
                 'site_category': site_category,
                 'cluster_id': int(loc.get('cluster', -1)),
                 'primary_reason': reasons['primary'],
-                'detailed_reasons': reasons['detailed'],
-                'proximity_warnings': self.check_proximity_warnings(point),
-                'category_scores': {
-                    'transport': round(float(loc['transport_score']), 4),
-                    'urban': round(float(loc['urban_score']), 4),
-                    'industry': round(float(loc['industry_score']), 4),
-                    'environment': round(float(loc['environment_score']), 4)
-                }
             })
 
-        # Store candidate sites
-        for _, candidate in candidate_sites.iterrows():
-            point = candidate['sensor_point']
-            results['candidate_sites'].append({
-                'latitude': point.y,
-                'longitude': point.x,
-                'suitability_score': round(float(candidate['suitability_score']), 4),
-                'site_category': candidate['site_category'],
-                'cluster_id': int(candidate.get('cluster', -1))
-            })
+        if include_candidate_sites:
+            candidate_output = candidate_sites
+            ranking_column = self._ranking_column(candidate_sites)
+            if candidate_site_limit > 0:
+                candidate_output = candidate_sites.nlargest(
+                    min(candidate_site_limit, len(candidate_sites)),
+                    ranking_column,
+                )
+                results['candidate_sites_truncated'] = len(candidate_output) < len(candidate_sites)
+
+            for _, candidate in candidate_output.iterrows():
+                point = candidate['sensor_point']
+                results['candidate_sites'].append({
+                    'latitude': point.y,
+                    'longitude': point.x,
+                    'site_category': candidate['site_category'],
+                    'cluster_id': int(candidate.get('cluster', -1))
+                })
 
         # Validate spatial distribution
         if len(optimal_locations) > 1:
@@ -533,16 +761,13 @@ class PolygonSensorOptimizer:
 
         scored_gdf = self.calculate_features_and_scores(grid, polygon)
 
-        # Calculate sensor counts  
-        area_km2 = polygon.area * 111 * 111
-        base_count = max(1, int(area_km2 * self.config['sensor_density']['base_density']))
-        score_adjustment = scored_gdf['suitability_score'].mean() * self.config['sensor_density']['score_multiplier']
+        # Calculate sensor counts within feasible bounds for the generated grid.
         max_sensors = min(len(grid), self.config['sensor_density']['max_sensors'])
-        recommended_sensors = min(max_sensors, int(len(grid) * self.config['sensor_density']['recommended_fraction']))
-        recommended_sensors = max(4, recommended_sensors)
-        # Minimum sensors based on available categories or enforced minimum
-        available_categories = len(scored_gdf['site_category'].unique()) if 'site_category' in scored_gdf else 1
-        min_sensors = max(4, min(available_categories, len(grid)))
+        recommended_floor = min(4, max_sensors)
+        recommended_sensors = int(
+            len(grid) * self.config['sensor_density']['recommended_fraction']
+        )
+        recommended_sensors = max(recommended_floor, recommended_sensors)
 
         # Prepare features for K-Means
         centroids = np.array([[g.centroid.x, g.centroid.y] for g in scored_gdf['geometry']])
@@ -567,8 +792,17 @@ class PolygonSensorOptimizer:
         # Select random points and categorize (candidate sites)
         scored_gdf['sensor_point'] = [self.random_point_in_cell(row['geometry']) for _, row in scored_gdf.iterrows()]
         scored_gdf['site_category'] = [
-            self.categorize_site(row['sensor_point'], row) for _, row in scored_gdf.iterrows()
+            classify_site_category(row) for _, row in scored_gdf.iterrows()
         ]
+        scored_gdf['label_score'] = [
+            compute_label_score(row, row['site_category']) for _, row in scored_gdf.iterrows()
+        ]
+
+        # Minimum and recommended counts should reflect category coverage without
+        # exceeding the feasible number of grid cells.
+        available_categories = max(1, len(scored_gdf['site_category'].unique()))
+        min_sensors = min(max_sensors, max(1, available_categories))
+        recommended_sensors = min(max_sensors, max(min_sensors, recommended_sensors))
 
         # Ensure category diversity
         optimal_locations = gpd.GeoDataFrame()
@@ -584,12 +818,13 @@ class PolygonSensorOptimizer:
             'Rural': max(1, recommended_sensors // 4)
         }
 
-        for category in ['Commercial', 'Urban Background', 'Background', 'Rural']:
+        ranking_column = self._ranking_column(scored_gdf)
+        for category in SITE_CATEGORIES:
             if category in available_categories:
                 category_gdf = scored_gdf[scored_gdf['site_category'] == category]
                 if not category_gdf.empty:
                     n_select = min(target_category_counts[category], len(category_gdf))
-                    top_sites = category_gdf.nlargest(n_select, 'suitability_score')
+                    top_sites = category_gdf.nlargest(n_select, ranking_column)
                     optimal_locations = pd.concat([optimal_locations, top_sites])
                     selected_clusters.update(top_sites['cluster'].values)
 

@@ -1,15 +1,13 @@
-import os
 import uvicorn
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
-from app.db.session import Base
+from app.db.session import engine, Base
 from app.models import sync  # Import models to register them with Base
 from app.models import device_performance  # noqa: F401 — register with Alembic
-from app.services.scheduler_service import start_scheduler, stop_scheduler, run_startup_sync_tasks
-import asyncio
+from app.services.scheduler_service import start_scheduler, stop_scheduler
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import traceback
@@ -58,7 +56,6 @@ app = FastAPI(
 def on_startup():
     logger.info("Application starting up...")
     start_scheduler()
-    asyncio.create_task(run_startup_sync_tasks())
     logger.info("Application startup complete and ready to serve requests.")
 
 
@@ -111,16 +108,21 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
+@app.get("/ready")
+def readiness_check():
+    # In a real app, you'd check DB and Redis here
+    return {"status": "ready"}
+
+app.include_router(api_router, prefix="/api/v1")
 app.include_router(api_router, prefix="")
 
 @app.get("/")
 def root():
     return {"message": f"Welcome to {settings.APP_NAME}"}
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
