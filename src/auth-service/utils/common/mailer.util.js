@@ -720,6 +720,9 @@ const getEmailSubject = (functionName, params) => {
     notifySensorManufacturerRequestApproved: `Your Sensor Manufacturer Request Has Been Approved: ${sanitizeEmailString(
       params.net_name || "",
     )}`,
+    notifySensorManufacturerRequestDenied: `Update on Your Sensor Manufacturer Request: ${sanitizeEmailString(
+      params.net_name || "",
+    )}`,
 
     // ===== ORG MANAGEMENT FUNCTIONS =====
     notifyAdminsOfNewOrgRequest: `New Organization Request: ${sanitizeEmailString(
@@ -844,6 +847,7 @@ const EMAIL_CATEGORIES = {
     "notifyAdminOfSensorManufacturerRequest",
     "confirmSensorManufacturerRequestReceived",
     "notifySensorManufacturerRequestApproved",
+    "notifySensorManufacturerRequestDenied",
   ],
 
   ORG_MANAGEMENT: [
@@ -2586,6 +2590,18 @@ const mailer = {
         requester_name: params.requester_name,
         requester_email: params.requester_email,
         net_name: params.net_name,
+      }),
+  ),
+
+  notifySensorManufacturerRequestDenied: createMailerFunction(
+    "notifySensorManufacturerRequestDenied",
+    "SENSOR_MANUFACTURER_MANAGEMENT",
+    (params) =>
+      msgs.notifySensorManufacturerRequestDenied({
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        net_name: params.net_name,
+        reviewer_notes: params.reviewer_notes,
       }),
   ),
 

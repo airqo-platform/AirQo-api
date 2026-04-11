@@ -1,7 +1,6 @@
 "use strict";
 const httpStatus = require("http-status");
 const {
-  logObject,
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");

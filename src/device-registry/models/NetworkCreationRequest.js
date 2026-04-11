@@ -2,7 +2,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const isEmpty = require("is-empty");
-const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -79,10 +78,6 @@ const NetworkCreationRequestSchema = new Schema(
     timestamps: true,
   }
 );
-
-NetworkCreationRequestSchema.plugin(uniqueValidator, {
-  message: `{VALUE} is a duplicate value!`,
-});
 
 NetworkCreationRequestSchema.methods.toJSON = function() {
   const {

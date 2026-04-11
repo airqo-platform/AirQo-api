@@ -357,6 +357,23 @@ const emailsForRecalledDevices = async (messageData) => {
 //
 // Topic: network-creation-approved-topic
 //   action "approved"         → notify the requester that their request was approved
+//
+// Topic: network-creation-denied-topic
+//   action "denied"           → notify the requester that their request was denied
+
+/**
+ * Return a copy of the payload with PII fields redacted so it is safe to log.
+ * Only the fields introduced by the sensor manufacturer request workflow are
+ * masked here; add more fields as the payload schema evolves.
+ */
+const maskSensorManufacturerPayload = (obj) => {
+  if (!obj || typeof obj !== "object") return obj;
+  const masked = { ...obj };
+  if (masked.requester_email) masked.requester_email = "***@***.***";
+  if (masked.net_email) masked.net_email = "***@***.***";
+  if (masked.requester_name) masked.requester_name = "[REDACTED]";
+  return masked;
+};
 
 const operationForSensorManufacturerRequest = async (messageData) => {
   let parsed;
@@ -364,9 +381,7 @@ const operationForSensorManufacturerRequest = async (messageData) => {
     parsed = JSON.parse(messageData);
   } catch (error) {
     logger.error(
-      `🐛🐛 KAFKA: Invalid JSON in network-creation-requests-topic -- ${stringify(
-        error,
-      )}`,
+      `🐛🐛 KAFKA: Invalid JSON in network-creation-requests-topic -- ${error.message}`,
     );
     return;
   }
@@ -385,7 +400,7 @@ const operationForSensorManufacturerRequest = async (messageData) => {
   if (!action || !requester_email || !net_name) {
     logger.error(
       `🤦🤦 KAFKA: Missing required fields in network-creation-requests-topic payload -- ${stringify(
-        parsed,
+        maskSensorManufacturerPayload(parsed),
       )}`,
     );
     return;
@@ -408,16 +423,14 @@ const operationForSensorManufacturerRequest = async (messageData) => {
       );
 
       if (emailResponse && emailResponse.success === false) {
-        logger.error(
-          `🐛🐛 KAFKA: Failed to send admin sensor manufacturer request email -- ${stringify(
-            emailResponse,
-          )}`,
-        );
-      } else {
-        logger.info(
-          `📧 KAFKA: Admin notified of sensor manufacturer request for "${net_name}"`,
+        throw new Error(
+          `Admin notification email failed for sensor manufacturer request (net_name="${net_name}"): ${emailResponse.message}`,
         );
       }
+
+      logger.info(
+        `📧 KAFKA: Admin notified of sensor manufacturer request for "${net_name}"`,
+      );
     } else if (action === "request_received") {
       // Acknowledge to the requester that we received their request
       const emailResponse =
@@ -429,27 +442,26 @@ const operationForSensorManufacturerRequest = async (messageData) => {
         });
 
       if (emailResponse && emailResponse.success === false) {
-        logger.error(
-          `🐛🐛 KAFKA: Failed to send request-received email to ${requester_email} -- ${stringify(
-            emailResponse,
-          )}`,
-        );
-      } else {
-        logger.info(
-          `📧 KAFKA: Request-received acknowledgement sent to ${requester_email} for "${net_name}"`,
+        throw new Error(
+          `Requester acknowledgement email failed for sensor manufacturer request (net_name="${net_name}"): ${emailResponse.message}`,
         );
       }
+
+      logger.info(
+        `📧 KAFKA: Request-received acknowledgement sent for "${net_name}"`,
+      );
     } else {
       logger.warn(
         `KAFKA: Unknown action "${action}" on network-creation-requests-topic`,
       );
     }
   } catch (error) {
+    // Log without PII, then re-throw so eachMessage/Kafka sees the failure
+    // and can retry or route to a DLQ.
     logger.error(
-      `🐛🐛 KAFKA: Internal Server Error -- operationForSensorManufacturerRequest() -- ${stringify(
-        error,
-      )}`,
+      `🐛🐛 KAFKA: operationForSensorManufacturerRequest() failed -- ${error.message}`,
     );
+    throw error;
   }
 };
 
@@ -459,9 +471,7 @@ const operationForSensorManufacturerApproved = async (messageData) => {
     parsed = JSON.parse(messageData);
   } catch (error) {
     logger.error(
-      `🐛🐛 KAFKA: Invalid JSON in network-creation-approved-topic -- ${stringify(
-        error,
-      )}`,
+      `🐛🐛 KAFKA: Invalid JSON in network-creation-approved-topic -- ${error.message}`,
     );
     return;
   }
@@ -471,7 +481,7 @@ const operationForSensorManufacturerApproved = async (messageData) => {
   if (action !== "approved" || !requester_email || !net_name) {
     logger.error(
       `🤦🤦 KAFKA: Missing or unexpected fields in network-creation-approved-topic payload -- ${stringify(
-        parsed,
+        maskSensorManufacturerPayload(parsed),
       )}`,
     );
     return;
@@ -486,22 +496,68 @@ const operationForSensorManufacturerApproved = async (messageData) => {
     });
 
     if (emailResponse && emailResponse.success === false) {
-      logger.error(
-        `🐛🐛 KAFKA: Failed to send approval email to ${requester_email} -- ${stringify(
-          emailResponse,
-        )}`,
-      );
-    } else {
-      logger.info(
-        `📧 KAFKA: Approval email sent to ${requester_email} for "${net_name}"`,
+      throw new Error(
+        `Approval email failed for sensor manufacturer request (net_name="${net_name}"): ${emailResponse.message}`,
       );
     }
+
+    logger.info(
+      `📧 KAFKA: Approval email sent for "${net_name}"`,
+    );
   } catch (error) {
     logger.error(
-      `🐛🐛 KAFKA: Internal Server Error -- operationForSensorManufacturerApproved() -- ${stringify(
-        error,
+      `🐛🐛 KAFKA: operationForSensorManufacturerApproved() failed -- ${error.message}`,
+    );
+    throw error;
+  }
+};
+
+const operationForSensorManufacturerDenied = async (messageData) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(messageData);
+  } catch (error) {
+    logger.error(
+      `🐛🐛 KAFKA: Invalid JSON in network-creation-denied-topic -- ${error.message}`,
+    );
+    return;
+  }
+
+  const { action, requester_name, requester_email, net_name, reviewer_notes } =
+    parsed;
+
+  if (action !== "denied" || !requester_email || !net_name) {
+    logger.error(
+      `🤦🤦 KAFKA: Missing or unexpected fields in network-creation-denied-topic payload -- ${stringify(
+        maskSensorManufacturerPayload(parsed),
       )}`,
     );
+    return;
+  }
+
+  try {
+    const emailResponse = await mailer.notifySensorManufacturerRequestDenied({
+      email: requester_email,
+      requester_name,
+      requester_email,
+      net_name,
+      reviewer_notes,
+    });
+
+    if (emailResponse && emailResponse.success === false) {
+      throw new Error(
+        `Denial email failed for sensor manufacturer request (net_name="${net_name}"): ${emailResponse.message}`,
+      );
+    }
+
+    logger.info(
+      `📧 KAFKA: Denial email sent for "${net_name}"`,
+    );
+  } catch (error) {
+    logger.error(
+      `🐛🐛 KAFKA: operationForSensorManufacturerDenied() failed -- ${error.message}`,
+    );
+    throw error;
   }
 };
 
@@ -579,14 +635,31 @@ const kafkaConsumer = async () => {
       "network-creation-requests-topic"]: operationForSensorManufacturerRequest,
       [constants.NETWORK_CREATION_APPROVED_TOPIC ||
       "network-creation-approved-topic"]: operationForSensorManufacturerApproved,
+      [constants.NETWORK_CREATION_DENIED_TOPIC ||
+      "network-creation-denied-topic"]: operationForSensorManufacturerDenied,
     };
 
     await consumer.connect();
 
+    // Notification-only topics must start from the latest offset so a fresh
+    // deploy does not replay the entire history and re-send emails for requests
+    // that were already processed before this consumer group existed.
+    const latestOffsetTopics = new Set([
+      constants.NETWORK_CREATION_REQUESTS_TOPIC ||
+        "network-creation-requests-topic",
+      constants.NETWORK_CREATION_APPROVED_TOPIC ||
+        "network-creation-approved-topic",
+      constants.NETWORK_CREATION_DENIED_TOPIC ||
+        "network-creation-denied-topic",
+    ]);
+
     // First, subscribe to all topics
     await Promise.all(
       Object.keys(topicOperations).map((topic) =>
-        consumer.subscribe({ topic, fromBeginning: true })
+        consumer.subscribe({
+          topic,
+          fromBeginning: !latestOffsetTopics.has(topic),
+        })
       )
     );
 

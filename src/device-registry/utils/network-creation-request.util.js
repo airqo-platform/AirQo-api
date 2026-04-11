@@ -27,7 +27,7 @@ const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const { ObjectId } = mongoose.Types;
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- network-creation-request-util`
@@ -38,29 +38,36 @@ const { HttpError } = require("@utils/shared");
 // Internal Kafka helper
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Kafka client is created once at module scope and reused across calls to avoid
+// repeated TCP connection setup on every publish.
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
+
 /**
- * Publish a single message to a Kafka topic.
- * Creates a transient producer (connect → send → disconnect) to stay consistent
- * with the pattern already used elsewhere in device-registry.
+ * Publish one or more messages to a Kafka topic in a single producer.send()
+ * call.  Accepts an array of payloads so callers can batch multiple events
+ * without paying the connect/disconnect overhead more than once.
+ *
+ * Failures are non-fatal: they are logged but never bubble up to the caller so
+ * the HTTP response is unaffected.
  */
-const publishToKafka = async (topic, payload) => {
-  const kafka = new Kafka({
-    clientId: constants.KAFKA_CLIENT_ID,
-    brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-  });
+const publishToKafka = async (topic, payloads) => {
+  const messages = (Array.isArray(payloads) ? payloads : [payloads]).map(
+    (p) => ({ value: JSON.stringify(p) })
+  );
 
   const producer = kafka.producer();
   try {
     await producer.connect();
-    await producer.send({
-      topic,
-      messages: [{ value: JSON.stringify(payload) }],
-    });
-    logger.info(`Published Kafka event to topic "${topic}"`);
+    await producer.send({ topic, messages });
+    logger.info(
+      `Published ${messages.length} Kafka event(s) to topic "${topic}"`
+    );
   } catch (error) {
-    // Non-fatal: log and continue so the HTTP response still succeeds.
     logger.error(
-      `Failed to publish Kafka event to topic "${topic}": ${error.message}`
+      `Failed to publish Kafka event(s) to topic "${topic}": ${error.message}`
     );
   } finally {
     try {
@@ -104,17 +111,13 @@ const createNetworkCreationRequest = async (request, next) => {
       request_id: created.data._id,
     };
 
-    // Event consumed by auth-service to email the admin
-    await publishToKafka(requestTopic, {
-      action: "new_request",
-      ...eventPayload,
-    });
-
-    // Event consumed by auth-service to send acknowledgement to requester
-    await publishToKafka(requestTopic, {
-      action: "request_received",
-      ...eventPayload,
-    });
+    // Both events go to the same topic in one producer.send() call:
+    //   • "new_request"      → auth-service emails the admin
+    //   • "request_received" → auth-service sends acknowledgement to requester
+    await publishToKafka(requestTopic, [
+      { action: "new_request", ...eventPayload },
+      { action: "request_received", ...eventPayload },
+    ]);
 
     return created;
   } catch (error) {
@@ -159,7 +162,7 @@ const getNetworkCreationRequest = async (request, next) => {
     const { request_id } = params;
 
     const found = await NetworkCreationRequestModel(tenant)
-      .findById(ObjectId(request_id))
+      .findById(new ObjectId(request_id))
       .lean();
 
     if (!found) {
@@ -196,7 +199,7 @@ const approveNetworkCreationRequest = async (request, next) => {
 
     // 1. Load the pending request
     const pendingRequest = await NetworkCreationRequestModel(tenant)
-      .findById(ObjectId(request_id))
+      .findById(new ObjectId(request_id))
       .lean();
 
     if (!pendingRequest) {
@@ -208,11 +211,14 @@ const approveNetworkCreationRequest = async (request, next) => {
       };
     }
 
-    if (pendingRequest.status === "approved") {
+    const approvableStates = ["pending", "under_review"];
+    if (!approvableStates.includes(pendingRequest.status)) {
       return {
         success: false,
-        message: "Request has already been approved",
-        errors: { message: "This request was already approved" },
+        message: "Request cannot be approved",
+        errors: {
+          message: `Only requests in 'pending' or 'under_review' state can be approved. Current status: '${pendingRequest.status}'`,
+        },
         status: httpStatus.CONFLICT,
       };
     }
@@ -241,7 +247,7 @@ const approveNetworkCreationRequest = async (request, next) => {
     // 3. Mark request as approved
     const updatedRequest = await NetworkCreationRequestModel(tenant).modify(
       {
-        filter: { _id: ObjectId(request_id) },
+        filter: { _id: new ObjectId(request_id) },
         update: {
           status: "approved",
           reviewer_notes: reviewer_notes || null,
@@ -251,6 +257,25 @@ const approveNetworkCreationRequest = async (request, next) => {
       },
       next
     );
+
+    if (!updatedRequest || updatedRequest.success === false) {
+      // The network was created but the request record could not be marked
+      // approved. Log and surface the error so the caller can retry rather than
+      // leaving the system in an inconsistent state.
+      logger.error(
+        `approveNetworkCreationRequest: network created (id=${createdNetwork.data._id}) but request status update failed for request_id=${request_id}`
+      );
+      return {
+        success: false,
+        message: "Network created but failed to update request status to approved",
+        errors: {
+          message: updatedRequest
+            ? updatedRequest.errors?.message
+            : "Status update returned no result",
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
 
     // 4. Publish Kafka event for approval email
     const approvedTopic =
@@ -293,7 +318,7 @@ const denyNetworkCreationRequest = async (request, next) => {
     const { reviewer_notes, reviewed_by } = body;
 
     const existing = await NetworkCreationRequestModel(tenant)
-      .findById(ObjectId(request_id))
+      .findById(new ObjectId(request_id))
       .lean();
 
     if (!existing) {
@@ -305,18 +330,21 @@ const denyNetworkCreationRequest = async (request, next) => {
       };
     }
 
-    if (existing.status === "denied") {
+    const deniableStates = ["pending", "under_review"];
+    if (!deniableStates.includes(existing.status)) {
       return {
         success: false,
-        message: "Request has already been denied",
-        errors: { message: "This request was already denied" },
+        message: "Request cannot be denied",
+        errors: {
+          message: `Only requests in 'pending' or 'under_review' state can be denied. Current status: '${existing.status}'`,
+        },
         status: httpStatus.CONFLICT,
       };
     }
 
-    return await NetworkCreationRequestModel(tenant).modify(
+    const result = await NetworkCreationRequestModel(tenant).modify(
       {
-        filter: { _id: ObjectId(request_id) },
+        filter: { _id: new ObjectId(request_id) },
         update: {
           status: "denied",
           reviewer_notes: reviewer_notes || null,
@@ -326,6 +354,25 @@ const denyNetworkCreationRequest = async (request, next) => {
       },
       next
     );
+
+    if (!result || result.success === false) return result;
+
+    // Publish Kafka event so auth-service can send a denial email to the requester
+    const deniedTopic =
+      constants.NETWORK_CREATION_DENIED_TOPIC ||
+      "network-creation-denied-topic";
+
+    await publishToKafka(deniedTopic, {
+      action: "denied",
+      requester_name: existing.requester_name,
+      requester_email: existing.requester_email,
+      net_name: existing.net_name,
+      request_id: existing._id,
+      reviewer_notes: reviewer_notes || null,
+      reviewed_by: reviewed_by || null,
+    });
+
+    return result;
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
@@ -344,7 +391,7 @@ const reviewNetworkCreationRequest = async (request, next) => {
     const { reviewer_notes, reviewed_by } = body;
 
     const existing = await NetworkCreationRequestModel(tenant)
-      .findById(ObjectId(request_id))
+      .findById(new ObjectId(request_id))
       .lean();
 
     if (!existing) {
@@ -358,7 +405,7 @@ const reviewNetworkCreationRequest = async (request, next) => {
 
     return await NetworkCreationRequestModel(tenant).modify(
       {
-        filter: { _id: ObjectId(request_id) },
+        filter: { _id: new ObjectId(request_id) },
         update: {
           status: "under_review",
           reviewer_notes: reviewer_notes || null,

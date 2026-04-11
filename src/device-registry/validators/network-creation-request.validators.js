@@ -38,7 +38,7 @@ const paramObjectId = (field) =>
     .isMongoId()
     .withMessage(`${field} must be an object ID`)
     .bail()
-    .customSanitizer((value) => ObjectId(value));
+    .customSanitizer((value) => new ObjectId(value));
 
 // Middleware that validates the admin_secret in the request body using
 // constant-time comparison to prevent timing attacks.
@@ -51,7 +51,9 @@ const requireAdminSecret = (req, res, next) => {
     );
   }
 
-  const provided = Buffer.from(req.body.admin_secret || "");
+  const provided = Buffer.from(
+    req.body.admin_secret || req.query.admin_secret || ""
+  );
   const expected = Buffer.from(constants.ADMIN_SETUP_SECRET);
 
   if (
@@ -134,6 +136,15 @@ const createRequest = [
 // Admin: list all requests
 const listRequests = [
   ...tenant,
+  query("admin_secret")
+    .exists()
+    .withMessage("admin_secret is required")
+    .bail()
+    .isString()
+    .withMessage("admin_secret must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("admin_secret must not be empty"),
   query("status")
     .optional()
     .trim()
@@ -147,13 +158,24 @@ const listRequests = [
     .isEmail()
     .withMessage("requester_email must be a valid email address"),
   handleValidationErrors,
+  requireAdminSecret,
 ];
 
-// Anyone can view a single request by ID
+// Admin: get a single request by ID
 const getRequest = [
   ...tenant,
   paramObjectId("request_id"),
+  query("admin_secret")
+    .exists()
+    .withMessage("admin_secret is required")
+    .bail()
+    .isString()
+    .withMessage("admin_secret must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("admin_secret must not be empty"),
   handleValidationErrors,
+  requireAdminSecret,
 ];
 
 // Admin: approve a request

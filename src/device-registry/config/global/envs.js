@@ -74,6 +74,9 @@ const envs = {
   NETWORK_CREATION_APPROVED_TOPIC:
     process.env.NETWORK_CREATION_APPROVED_TOPIC ||
     "network-creation-approved-topic",
+  NETWORK_CREATION_DENIED_TOPIC:
+    process.env.NETWORK_CREATION_DENIED_TOPIC ||
+    "network-creation-denied-topic",
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
   TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,

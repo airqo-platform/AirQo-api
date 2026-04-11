@@ -363,6 +363,7 @@ spec:
   replicas: 2
   config:
     retention.ms: 86400000
+    min.insync.replicas: 2
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -377,3 +378,19 @@ spec:
   replicas: 2
   config:
     retention.ms: 86400000
+    min.insync.replicas: 2
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: network-creation-denied-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 2
+  replicas: 2
+  config:
+    retention.ms: 86400000
+    min.insync.replicas: 2

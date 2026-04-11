@@ -1476,10 +1476,11 @@ module.exports = {
   //
   // Terminology: internally "networks"; in all user-facing copy "sensor manufacturers".
   //
-  // Three emails in the workflow:
+  // Four emails in the workflow:
   //   1. notifyAdminOfSensorManufacturerRequest  → sent to the AirQo admin
   //   2. confirmSensorManufacturerRequestReceived → sent to the requester
   //   3. notifySensorManufacturerRequestApproved  → sent to the requester on approval
+  //   4. notifySensorManufacturerRequestDenied    → sent to the requester on denial
 
   notifyAdminOfSensorManufacturerRequest: ({
     requester_name,
@@ -1557,6 +1558,35 @@ module.exports = {
         <p>The sensor manufacturer profile has been created and is now available in the AirQo system. Our team will be in touch to guide you through the next steps of the integration process.</p>
         <p>If you have any questions, please contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
         <p>Welcome to the AirQo network!</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: requester_email,
+      content,
+      name: requester_name,
+    });
+  },
+
+  notifySensorManufacturerRequestDenied: ({
+    requester_name,
+    requester_email,
+    net_name,
+    reviewer_notes,
+  }) => {
+    const notesRow = reviewer_notes
+      ? `<p><strong>Reason:</strong> ${escapeHtml(reviewer_notes)}</p>`
+      : "";
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Thank you for your interest in partnering with AirQo as a sensor manufacturer.</p>
+        <p>After careful review, we regret to inform you that your request to onboard <strong>${escapeHtml(net_name)}</strong> has not been approved at this time.</p>
+        ${notesRow}
+        <p>If you believe this decision was made in error, or if you would like to provide additional information, please contact us at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>We appreciate your interest in the AirQo network and encourage you to reach out if your circumstances change.</p>
       </td>
     </tr>
   `;
