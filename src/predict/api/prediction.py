@@ -230,6 +230,17 @@ def fetch_faulty_devices():
 @ml_app.get(routes.route["site_daily_forecasts"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_daily_forecasts_cache_key)
 def get_site_daily_forecasts_v2():
+    """
+    Return site-grouped 7-day forecasts for all sites or a single site.
+
+    Query params:
+        site_id: Optional site identifier. When provided, the response keeps the
+            same outer shape and returns one grouped site entry in data.forecasts.
+
+    Response metadata:
+        units: Units for forecast and meteorology fields.
+        descriptions: Human-readable descriptions for PM forecast fields.
+    """
     site_id = request.args.get("site_id", default=None, type=str)
     response, status_code = build_site_forecast_response(
         site_id=site_id,

@@ -43,12 +43,22 @@ def clean_response_value(value: Any):
 
 
 def get_site_daily_forecast_collection_name():
+    """Return the Mongo collection that stores site daily forecast documents."""
     return Config.MONGO_SITE_DAILY_FORECAST_COLLECTION
 
 
 def get_site_daily_forecast_cache_version(
     site_id: str | None, start_date: date, days: int = 7
 ):
+    """
+    Return a version token for site daily forecast cache keys.
+
+    The token is derived from the latest matching document in the forecast
+    collection so cached responses are invalidated when forecast data changes.
+    If the collection is empty, return ``empty``. If Mongo is unavailable while
+    generating the key, return ``db-unavailable`` so cache-key generation does
+    not raise.
+    """
     end_date = start_date + timedelta(days=days - 1)
     query = {
         "date": {
@@ -59,13 +69,16 @@ def get_site_daily_forecast_cache_version(
     if site_id:
         query["site_id"] = site_id
 
-    latest_document = (
-        site_forecast_db[get_site_daily_forecast_collection_name()]
-        .find(query, {"created_at": 1, "date": 1, "site_id": 1})
-        .sort([("created_at", -1), ("date", -1), ("site_id", -1)])
-        .limit(1)
-    )
-    latest_document = next(iter(latest_document), None)
+    try:
+        latest_document = (
+            site_forecast_db[get_site_daily_forecast_collection_name()]
+            .find(query, {"created_at": 1, "date": 1, "site_id": 1})
+            .sort([("created_at", -1), ("date", -1), ("site_id", -1)])
+            .limit(1)
+        )
+        latest_document = next(iter(latest_document), None)
+    except (errors.ServerSelectionTimeoutError, errors.PyMongoError):
+        return "db-unavailable"
 
     if not latest_document:
         return "empty"
@@ -78,6 +91,13 @@ def get_site_daily_forecast_cache_version(
 
 
 def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 7):
+    """
+    Fetch raw site daily forecast documents for the requested date window.
+
+    When ``site_id`` is provided the result is limited to one site's forecast
+    horizon. Otherwise, the result contains documents for all sites in the
+    window, sorted by date then site.
+    """
     end_date = start_date + timedelta(days=days - 1)
     query = {
         "date": {
@@ -122,6 +142,13 @@ SITE_FORECAST_DESCRIPTIONS = {
 def build_site_forecast_response(
     site_id: str | None, aqi_category_getter, wind_direction_formatter
 ):
+    """
+    Build the API response payload for ``/api/v2/predict/daily-forecasting``.
+
+    The response is normalized so filtered and unfiltered requests share the
+    same outer structure. Each site entry contains ``site_details`` and a list
+    of daily forecast rows with forecast, AQI, and meteorology metadata.
+    """
     start_date = date.today()
     try:
         forecast_documents = get_site_daily_forecasts(
@@ -223,7 +250,7 @@ def build_site_forecast_response(
                         if aqi_category_details
                         else None
                     ),
-                    "aqi_hex": (
+                    "aqi_color": (
                         f"#{aqi_category_details['aqi_color'].upper()}"
                         if aqi_category_details
                         else None
@@ -361,6 +388,13 @@ def all_daily_forecasts_cache_key():
 
 
 def site_daily_forecasts_cache_key():
+    """
+    Generate the Redis cache key for the site daily forecasting endpoint.
+
+    The key varies by day, optional ``site_id``, and a data-derived cache
+    version so stale responses are dropped automatically when source forecast
+    documents change.
+    """
     current_day = date.today().isoformat()
     site_id = request.args.get("site_id")
     cache_version = get_site_daily_forecast_cache_version(
