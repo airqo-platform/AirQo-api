@@ -118,6 +118,7 @@ def readiness_check():
     return {"status": "ready"}
 
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix="")
 
 @app.get("/")
 def root():
