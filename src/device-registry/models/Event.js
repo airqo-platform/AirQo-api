@@ -950,6 +950,29 @@ async function fetchData(model, filter) {
   if (tenant !== "airqo") {
     pm2_5 = "$pm2_5";
     pm10 = "$pm10";
+  } else {
+    // For airqo tenant: prefer the calibrated/averaged value (populated by
+    // lowcost pipelines) but fall back to the raw sensor reading when the
+    // averaged field is absent or null.  BAM (Beta Attenuation Monitor)
+    // devices are reference-grade monitors that skip the ML calibration step,
+    // so their events never carry a non-null average_pm2_5.  Without this
+    // fallback every BAM event is silently dropped by filterNullAndReportOffDevices.
+    // Lowcost behavior is unchanged: average_pm2_5.value is always non-null for
+    // them, so the $cond always resolves to "$average_pm2_5" as before.
+    pm2_5 = {
+      $cond: {
+        if: { $ne: [{ $ifNull: ["$average_pm2_5.value", null] }, null] },
+        then: "$average_pm2_5",
+        else: "$pm2_5",
+      },
+    };
+    pm10 = {
+      $cond: {
+        if: { $ne: [{ $ifNull: ["$average_pm10.value", null] }, null] },
+        then: "$average_pm10",
+        else: "$pm10",
+      },
+    };
   }
 
   // ── Projection setup (unchanged from original) ──────────────────────────
@@ -1710,8 +1733,22 @@ async function signalData(model, filter) {
   let from = "devices";
   let _as = "_deviceDetails";
   let as = "deviceDetails";
-  let pm2_5 = "$average_pm2_5";
-  let pm10 = "$average_pm10";
+  // Prefer calibrated/averaged value; fall back to raw for BAM devices
+  // that never populate average_pm2_5. Same rationale as fetchData.
+  let pm2_5 = {
+    $cond: {
+      if: { $ne: [{ $ifNull: ["$average_pm2_5.value", null] }, null] },
+      then: "$average_pm2_5",
+      else: "$pm2_5",
+    },
+  };
+  let pm10 = {
+    $cond: {
+      if: { $ne: [{ $ifNull: ["$average_pm10.value", null] }, null] },
+      then: "$average_pm10",
+      else: "$pm10",
+    },
+  };
   let s1_pm2_5 = "$pm2_5";
   let s1_pm10 = "$pm10";
   let elementAtIndex0 = elementAtIndexName(metadata, recent);
