@@ -99,13 +99,13 @@ def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 
 
 SITE_FORECAST_UNITS = {
     "pm2_5": "ug/m3",
-    "temperature": "degC",
-    "humidity": "%",
-    "pressure": "hPa",
-    "precipitation": "mm",
-    "cloud_fraction": "%",
+    "air_temperature": "degC",
+    "relative_humidity": "%",
+    "air_pressure_at_sea_level": "hPa",
+    "precipitation_amount": "mm",
+    "cloud_area_fraction": "%",
     "wind_speed": "m/s",
-    "wind_direction": "degrees",
+    "wind_from_direction": "degrees",
     "forecast_confidence": "%",
 }
 
@@ -366,7 +366,7 @@ def site_daily_forecasts_cache_key():
     cache_version = get_site_daily_forecast_cache_version(
         site_id=site_id, start_date=date.today()
     )
-    return f"site_daily_v6_{current_day}_{site_id}_{cache_version}"
+    return f"site_daily_v7_{current_day}_{site_id}_{cache_version}"
 
 
 def hourly_forecasts_cache_key():
