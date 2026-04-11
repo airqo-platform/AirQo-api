@@ -109,6 +109,15 @@ SITE_FORECAST_UNITS = {
     "forecast_confidence": "%",
 }
 
+SITE_FORECAST_DESCRIPTIONS = {
+    "pm2_5_mean": "Predicted average PM2.5 concentration.",
+    "pm2_5_low": "Lower PM2.5 forecast estimate.",
+    "pm2_5_high": "Upper PM2.5 forecast estimate.",
+    "pm2_5_min": "Minimum predicted PM2.5.",
+    "pm2_5_max": "Maximum predicted PM2.5.",
+    "forecast_confidence": "Confidence level of the forecast.",
+}
+
 
 def build_site_forecast_response(
     site_id: str | None, aqi_category_getter, wind_direction_formatter
@@ -128,6 +137,7 @@ def build_site_forecast_response(
             "data": {
                 "site_details": None,
                 "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
             },
         }, 503
@@ -141,6 +151,7 @@ def build_site_forecast_response(
             "data": {
                 "site_details": None,
                 "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
             },
         }, 503
@@ -157,6 +168,7 @@ def build_site_forecast_response(
                 else None,
                 "days": expected_days if site_id else None,
                 "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
             },
         }, 404
@@ -310,6 +322,7 @@ def build_site_forecast_response(
             "days": len(distinct_dates),
             "total": len(grouped_forecasts),
             "units": SITE_FORECAST_UNITS,
+            "descriptions": SITE_FORECAST_DESCRIPTIONS,
             "forecasts": list(grouped_forecasts.values()),
         },
     }, 200
@@ -353,7 +366,7 @@ def site_daily_forecasts_cache_key():
     cache_version = get_site_daily_forecast_cache_version(
         site_id=site_id, start_date=date.today()
     )
-    return f"site_daily_v5_{current_day}_{site_id}_{cache_version}"
+    return f"site_daily_v6_{current_day}_{site_id}_{cache_version}"
 
 
 def hourly_forecasts_cache_key():
