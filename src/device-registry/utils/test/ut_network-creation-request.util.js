@@ -37,9 +37,6 @@ const fakeRequestDoc = {
 // ── Test suite ────────────────────────────────────────────────────────────────
 
 describe("network-creation-request.util", () => {
-  let modelStub;
-  let networkModelStub;
-
   afterEach(() => {
     sinon.restore();
   });
@@ -48,25 +45,6 @@ describe("network-creation-request.util", () => {
 
   describe("createNetworkCreationRequest", () => {
     it("returns the created record and publishes 2 batched Kafka events", async () => {
-      const registerStub = sinon.stub().resolves({
-        success: true,
-        status: httpStatus.CREATED,
-        message: "sensor manufacturer creation request submitted successfully",
-        data: fakeRequestDoc,
-      });
-
-      modelStub = sinon.stub(NetworkCreationRequestModel, "call").returns({
-        register: registerStub,
-      });
-      // Stub the function itself (it is called as NetworkCreationRequestModel(tenant))
-      // The module uses NetworkCreationRequestModel(tenant) which invokes the exported function.
-      // We need to replace the export with a stub that returns a model-like object.
-      // Since require caches the module, we stub the returned model object methods.
-
-      // Re-require with proxyquire is not available; instead we stub internal kafka
-      // publish by stubbing the producer at module level via a spy on the model.
-      // This test validates the success path returns the created record.
-
       const request = makeRequest({
         body: {
           requester_name: "Jane Doe",

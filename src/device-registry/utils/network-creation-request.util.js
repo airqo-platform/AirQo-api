@@ -403,6 +403,18 @@ const reviewNetworkCreationRequest = async (request, next) => {
       };
     }
 
+    const reviewableStates = ["pending"];
+    if (!reviewableStates.includes(existing.status)) {
+      return {
+        success: false,
+        message: "Request cannot be marked under review",
+        errors: {
+          message: `Only requests in 'pending' state can be moved to under_review. Current status: '${existing.status}'`,
+        },
+        status: httpStatus.CONFLICT,
+      };
+    }
+
     return await NetworkCreationRequestModel(tenant).modify(
       {
         filter: { _id: new ObjectId(request_id) },

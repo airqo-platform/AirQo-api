@@ -112,6 +112,9 @@ NetworkCreationRequestSchema.methods.toJSON = function() {
     reviewer_notes,
     reviewed_by,
     reviewed_at,
+    // Truncated to "YYYY-MM-DDTHH:mm:ss" (no trailing Z/timezone) intentionally:
+    // API consumers display these as local times; the raw UTC offset is dropped
+    // to avoid confusion in the dashboard UI.
     createdAt: createdAt ? new Date(createdAt).toISOString().slice(0, 19) : null,
     updatedAt: updatedAt ? new Date(updatedAt).toISOString().slice(0, 19) : null,
   };
@@ -130,7 +133,7 @@ NetworkCreationRequestSchema.statics.register = async function(args, next) {
       };
     }
 
-    next(
+    return next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message:
           "request not created despite successful operation",
