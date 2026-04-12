@@ -5,6 +5,7 @@ const { Kafka } = require("kafkajs");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const createEvent = require("@utils/create-event");
+const createEventUtil = require("@utils/event.util");
 const kafkaConsumer = require("@bin/jobs/kafka-consumer");
 
 describe("kafkaConsumer", () => {
@@ -181,6 +182,88 @@ describe("kafkaConsumer", () => {
 
       expect(console.log.calledWith("KAFKA: failed to store the measurements"))
         .to.be.true;
+    });
+  });
+
+  describe("normalisation logic in consumeHourlyMeasurements", () => {
+    let storeStub;
+    let validateDeviceContextStub;
+    let eachMessageHandler;
+
+    beforeEach(async () => {
+      // Capture the eachMessage handler passed to consumer.run
+      consumerMock.run.callsFake(async ({ eachMessage }) => {
+        eachMessageHandler = eachMessage;
+      });
+
+      storeStub = sinon.stub(createEventUtil, "store").resolves({
+        success: true,
+      });
+      validateDeviceContextStub = sinon
+        .stub(createEventUtil, "validateDeviceContext")
+        .resolves({ success: true });
+
+      await kafkaConsumer();
+    });
+
+    const sendMessage = async (data) => {
+      await eachMessageHandler({
+        topic: constants.HOURLY_MEASUREMENTS_TOPIC || "hourly-measurements-topic",
+        partition: 0,
+        message: {
+          value: Buffer.from(JSON.stringify({ data })),
+        },
+      });
+      return storeStub.firstCall?.args[0]?.body ?? null;
+    };
+
+    it("should map device_name to device_id when device_id is absent", async () => {
+      const body = await sendMessage([
+        {
+          device_name: "bam-device-001",
+          site_id: "site1",
+          timestamp: "2024-01-01T00:00:00.000Z",
+          pm2_5: 10,
+        },
+      ]);
+      expect(body).to.not.be.null;
+      expect(body[0].device_id).to.equal("bam-device-001");
+    });
+
+    it("should backfill _raw_value fields from flat pollutant fields when absent", async () => {
+      const body = await sendMessage([
+        {
+          device_id: "dev-001",
+          site_id: "site1",
+          timestamp: "2024-01-01T00:00:00.000Z",
+          pm2_5: 15,
+          pm10: 25,
+          no2: 5,
+          pm1: 8,
+        },
+      ]);
+      expect(body).to.not.be.null;
+      expect(body[0].pm2_5_raw_value).to.equal(15);
+      expect(body[0].pm10_raw_value).to.equal(25);
+      expect(body[0].no2_raw_value).to.equal(5);
+      expect(body[0].pm1_raw_value).to.equal(8);
+    });
+
+    it("should preserve existing _raw_value fields and not overwrite with flat pollutant values", async () => {
+      const body = await sendMessage([
+        {
+          device_id: "dev-001",
+          site_id: "site1",
+          timestamp: "2024-01-01T00:00:00.000Z",
+          pm2_5: 15,
+          pm2_5_raw_value: 14.5,
+          pm10: 25,
+          pm10_raw_value: 24,
+        },
+      ]);
+      expect(body).to.not.be.null;
+      expect(body[0].pm2_5_raw_value).to.equal(14.5);
+      expect(body[0].pm10_raw_value).to.equal(24);
     });
   });
 
