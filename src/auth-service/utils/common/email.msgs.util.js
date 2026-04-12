@@ -14,6 +14,51 @@ const processString = (inputString) => {
   return uppercasedString;
 };
 
+/**
+ * Builds the shared token-identification and security-tip HTML segments used
+ * in both token-expiry email templates. Centralises masking, HTML-escaping,
+ * date validation, and the security-tip callout so neither template diverges.
+ *
+ * @param {object} opts
+ * @param {string}  opts.token       - Raw or pre-masked token value
+ * @param {string}  opts.tokenName   - Human-readable token name (may contain HTML)
+ * @param {*}       opts.expires     - Expiry value (Date, ISO string, timestamp, …)
+ * @param {boolean} opts.expiredMode - true → past-tense copy; false → future-tense
+ * @returns {{ maskedToken: string, tokenLabel: string, expiryLine: string, securityTip: string }}
+ */
+const buildTokenEmailSegment = ({
+  token = "",
+  tokenName = "",
+  expires = null,
+  expiredMode = false,
+} = {}) => {
+  const maskedToken = escapeHtml(
+    token && token.length > 12
+      ? `${token.slice(0, 8)}...${token.slice(-4)}`
+      : token || "N/A",
+  );
+
+  const tokenLabel = tokenName
+    ? ` (<strong>${escapeHtml(tokenName)}</strong>)`
+    : "";
+
+  let expiryLine = expiredMode
+    ? ""
+    : "<p>This token will expire in less than 1 month from today.</p>";
+  if (expires !== null && expires !== undefined) {
+    const expiryDate = new Date(expires);
+    if (!isNaN(expiryDate.getTime())) {
+      expiryLine = expiredMode
+        ? `<p>This token expired on <strong>${expiryDate.toDateString()}</strong>.</p>`
+        : `<p>This token will expire on <strong>${expiryDate.toDateString()}</strong>.</p>`;
+    }
+  }
+
+  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this under <strong>Settings &rsaquo; API</strong> in <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>.</p>`;
+
+  return { maskedToken, tokenLabel, expiryLine, securityTip };
+};
+
 module.exports = {
   confirm: "Email sent, please check your inbox to confirm",
   confirmed: "Your email is confirmed!",
@@ -596,15 +641,20 @@ module.exports = {
     lastName = "",
     email = "",
     token = "",
+    tokenName = "",
+    expires = null,
   } = {}) => {
     const name = firstName + " " + lastName;
+    const { maskedToken, tokenLabel, expiryLine, securityTip } =
+      buildTokenEmailSegment({ token, tokenName, expires, expiredMode: true });
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Your AIRQO API token <strong>${token}</strong> has expired.</p>
-        <p>Please create a new token to continue accessing our services. You can do so by logging into your account and navigating to the API section under settings.</p>
-        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Click here</a> to log in to your AirQo account.</p>
+        <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} has expired.</p>
+        ${expiryLine}
+        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
+        ${securityTip}
       </td>
     </tr>
     `;
@@ -640,16 +690,26 @@ module.exports = {
     `;
     return constants.EMAIL_BODY({ email, content, name });
   },
-  tokenExpiringSoon: ({ firstName = "", lastName = "", email = "" }) => {
+  tokenExpiringSoon: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    expires = null,
+  } = {}) => {
     const name = firstName + " " + lastName;
-    let content = "";
-    content = `
+    const { maskedToken, tokenLabel, expiryLine, securityTip } =
+      buildTokenEmailSegment({ token, tokenName, expires, expiredMode: false });
+    const content = `
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <p>Your AIRQO API token is set to expire soon, in less than 1 month from today.</p>
-          <p>Please generate a new token to continue accessing our services.</p>
-          <p>If you have already done so, please ignore this message.</p>
-          <p>You can manage your API token settings through the AirQo web platform or directly within the mobile app.</p>
+          <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} is expiring soon.</p>
+          ${expiryLine}
+          <p>You can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
+          <p>If you have already refreshed your token, please ignore this message.</p>
+          <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
+          ${securityTip}
         </td>
       </tr>
     `;

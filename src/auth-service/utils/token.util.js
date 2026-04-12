@@ -502,6 +502,7 @@ const isIPBlacklistedHelper = async (
               user: { email, firstName, lastName },
               token,
               name,
+              expires,
               expiredEmailSent,
             } = tokenDetails;
 
@@ -515,6 +516,8 @@ const isIPBlacklistedHelper = async (
                   firstName,
                   lastName,
                   token,
+                  tokenName: name,
+                  expires,
                 },
                 next,
               );
