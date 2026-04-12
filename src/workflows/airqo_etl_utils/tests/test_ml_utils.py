@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from unittest.mock import MagicMock
 
-from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils
+from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 from airqo_etl_utils.constants import Frequency
 
@@ -149,25 +149,16 @@ class TestsForecasts(ForecastFixtures):
         for cord in ["x_cord", "y_cord", "z_cord"]:
             assert cord in df.columns
 
-    @pytest.mark.xfail
     @pytest.mark.parametrize(
         "frequency,collection_name",
         [
-            ("hourly", "hourly_forecasts"),
-            ("daily", "daily_forecasts"),
-            # ("invalid", None),
+            (Frequency.HOURLY, "hourly_forecasts_1"),
+            (Frequency.DAILY, "daily_forecasts_1"),
         ],
     )
     def test_save_forecasts_to_mongo_frequency(
         self, mock_db, frequency, collection_name, sample_dataframe_db
     ):
-        if frequency == "invalid":
-            # Expect a ValueError for an invalid frequency
-            with pytest.raises(ValueError) as e:
-                FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
-            assert str(e.value) == f"Invalid frequency argument: {frequency}"
-        else:
-            # Expect no exception for a valid frequency
-            FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
-            mock_collection = getattr(mock_db, collection_name)
-            assert mock_collection.update_one.call_count == 0
+        ForecastUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
+        mock_collection = getattr(mock_db, collection_name)
+        assert mock_collection.update_one.call_count >= 1

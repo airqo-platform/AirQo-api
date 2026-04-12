@@ -1505,35 +1505,49 @@ class DataUtils:
         Returns:
             list[dict]: Structured measurement dicts suitable for the API.
         """
+        known_mask = data["device_id"].isin(devices.index)
+        for dev_id in data.loc[~known_mask, "device_id"].unique():
+            logger.exception(f"Device number {dev_id} not found in device list")
+        data = data[known_mask]
+
+        merged = data.merge(
+            devices.rename(columns={"id": "_id", "network": "_network"}),
+            left_on="device_id",
+            right_index=True,
+            how="inner",
+        )
+
+        _SENSOR_KEYS = (
+            "s1_pm2_5",
+            "s1_pm10",
+            "s2_pm2_5",
+            "s2_pm10",
+            "battery",
+            "altitude",
+            "wind_speed",
+            "satellites",
+            "hdop",
+            "temperature",
+            "humidity",
+        )
+
         restructured_data = []
-        for _, row in data.iterrows():
+        for _, row in merged.iterrows():
             try:
-                device_number = row["device_number"]
-                device_id = row["device_id"]
-                device_details = None
-
-                if device_id not in devices.index:
-                    logger.exception(
-                        f"Device number {device_id} not found in device list"
-                    )
-                    continue
-
-                # only include pollutant if both keys exist - Use same structure to build raw data rows
                 (
                     average_pollutants,
                     calibrated_pollutants,
                     uncalibrated_pollutants,
                 ) = DataUtils.__averaged_calibrated_data_structure(row)
 
-                device_details = devices.loc[device_id]
                 row_data = {
-                    "device": device_id,
-                    "device_id": device_details["id"],
-                    "site_id": row.get("site_id", None),
-                    "device_number": device_number,
-                    "network": device_details["network"],
+                    "device": row["device_id"],
+                    "device_id": row["_id"],
+                    "site_id": row.get("site_id"),
+                    "device_number": row["device_number"],
+                    "network": row["_network"],
                     "location": {
-                        key: {"value": row[key]} for key in ["latitude", "longitude"]
+                        k: {"value": row[k]} for k in ("latitude", "longitude")
                     },
                     "frequency": frequency.str,
                     "time": row["timestamp"],
@@ -1541,22 +1555,7 @@ class DataUtils:
                     **calibrated_pollutants,  # Can be empty
                     **uncalibrated_pollutants,  # Can be empty
                     # extra sensor metadata
-                    **{
-                        key: {"value": row.get(key, None)}
-                        for key in [
-                            "s1_pm2_5",
-                            "s1_pm10",
-                            "s2_pm2_5",
-                            "s2_pm10",
-                            "battery",
-                            "altitude",
-                            "wind_speed",
-                            "satellites",
-                            "hdop",
-                            "temperature",
-                            "humidity",
-                        ]
-                    },
+                    **{k: {"value": row.get(k)} for k in _SENSOR_KEYS},
                 }
                 restructured_data.append(row_data)
             except Exception as e:
@@ -1589,31 +1588,22 @@ class DataUtils:
                 - calibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` in the same structure.
                 - uncalibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` containing only the raw values if calibrated values are not present.
         """
+        average_pollutants: Dict[str, Any] = {}
+        calibrated_pollutants: Dict[str, Any] = {}
         uncalibrated_pollutants: Dict[str, Any] = {}
 
-        pollutants = ["pm2_5", "pm10"]
+        for key in ("pm2_5", "pm10"):
+            cal_key = f"{key}_calibrated_value"
+            if key in row and cal_key in row:
+                entry = {"value": row[key], "calibratedValue": row[cal_key]}
+                average_pollutants[f"average_{key}"] = entry
+                calibrated_pollutants[key] = entry
 
-        average_pollutants = {
-            f"average_{key}": {
-                "value": row[key],
-                "calibratedValue": row[f"{key}_calibrated_value"],
-            }
-            for key in pollutants
-            if key in row and f"{key}_calibrated_value" in row
-        }
-
-        calibrated_pollutants = {
-            key: {
-                "value": row[key],
-                "calibratedValue": row[f"{key}_calibrated_value"],
-            }
-            for key in pollutants
-            if key in row and f"{key}_calibrated_value" in row
-        }
-
-        if not average_pollutants and not calibrated_pollutants:
+        if not average_pollutants:
             uncalibrated_pollutants = {
-                key: {"value": row[key]} for key in pollutants if key in row
+                f"average_{key}": {"value": row[key]}
+                for key in ("pm2_5", "pm10")
+                if key in row
             }
 
         return average_pollutants, calibrated_pollutants, uncalibrated_pollutants
