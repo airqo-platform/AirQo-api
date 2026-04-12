@@ -230,6 +230,20 @@ describe("kafkaConsumer", () => {
       expect(body[0].device_id).to.equal("bam-device-001");
     });
 
+    it("should preserve existing device_id when both device_id and device_name are present", async () => {
+      const body = await sendMessage([
+        {
+          device_id: "original-id",
+          device_name: "workflow-name",
+          site_id: "site1",
+          timestamp: "2024-01-01T00:00:00.000Z",
+          pm2_5: 10,
+        },
+      ]);
+      expect(body).to.not.be.null;
+      expect(body[0].device_id).to.equal("original-id");
+    });
+
     it("should backfill _raw_value fields from flat pollutant fields when absent", async () => {
       const body = await sendMessage([
         {
