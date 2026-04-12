@@ -6,6 +6,7 @@ const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
+const ClientModel = require("@models/Client");
 const constants = require("@config/constants");
 const PermissionModel = require("@models/Permission");
 const { mailer, stringify, winstonLogger } = require("@utils/common");
@@ -1015,28 +1016,56 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
           return done(null, false);
         }
 
-        UserModel(tenant.toLowerCase()).findOne(
-          { id: accessToken.user_id },
-          function (error, user) {
+        const proceedWithUserLookup = () => {
+          UserModel(tenant.toLowerCase()).findOne(
+            { id: accessToken.user_id },
+            function (error, user) {
+              if (error) {
+                return done(error);
+              }
+
+              if (!user) {
+                return done(null, false);
+              }
+
+              winstonLogger.info(
+                `successful login through ${
+                  service ? service : "unknown"
+                } service`,
+                {
+                  username: user.userName,
+                  email: user.email,
+                  service: service ? service : "unknown",
+                },
+              );
+              return done(null, user);
+            },
+          );
+        };
+
+        // If the client has opted into client-secret enforcement, validate the
+        // X-Client-Secret header before allowing the request through.
+        // This is user-triggered and opt-in — clients where requireClientSecret
+        // is false (the default) are completely unaffected.
+        if (!accessToken.client_id) {
+          return proceedWithUserLookup();
+        }
+
+        ClientModel(tenant.toLowerCase()).findOne(
+          { _id: accessToken.client_id },
+          function (error, client) {
             if (error) {
               return done(error);
             }
 
-            if (!user) {
-              return done(null, false);
+            if (client && client.requireClientSecret === true) {
+              const providedSecret = req.headers["x-client-secret"];
+              if (!providedSecret || providedSecret !== client.client_secret) {
+                return done(null, false);
+              }
             }
 
-            winstonLogger.info(
-              `successful login through ${
-                service ? service : "unknown"
-              } service`,
-              {
-                username: user.userName,
-                email: user.email,
-                service: service ? service : "unknown",
-              },
-            );
-            return done(null, user);
+            return proceedWithUserLookup();
           },
         );
       },

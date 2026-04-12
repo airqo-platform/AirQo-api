@@ -138,6 +138,11 @@ const update = [
       .isURL()
       .withMessage("the redirect_url is not a valid URL")
       .trim(),
+    body("requireClientSecret")
+      .optional()
+      .isBoolean()
+      .withMessage("requireClientSecret must be a boolean value")
+      .toBoolean(),
   ],
 ];
 
