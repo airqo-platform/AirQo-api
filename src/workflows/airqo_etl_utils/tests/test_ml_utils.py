@@ -5,11 +5,14 @@ from unittest.mock import MagicMock
 
 from airqo_etl_utils.tests._test_dependency_stubs import apply_ml_utils_import_stubs
 
+
 apply_ml_utils_import_stubs()
 
 import airqo_etl_utils.bigquery_api as bigquery_api_module
 import airqo_etl_utils.ml_utils as ml_utils_module
-from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer
+from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer, ForecastUtils
+
+
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 from airqo_etl_utils.tests.test_7days_forecast_pytest import (
