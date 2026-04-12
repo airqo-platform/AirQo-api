@@ -65,7 +65,8 @@ const envs = {
   DEPLOY_TOPIC: process.env.DEPLOY_TOPIC,
   RECALL_TOPIC: process.env.RECALL_TOPIC,
   COHORT_TOPIC: process.env.COHORT_TOPIC,
-  HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
+  HOURLY_MEASUREMENTS_TOPIC:
+    process.env.HOURLY_MEASUREMENTS_TOPIC || "hourly-measurements-topic",
   NETWORK_EVENTS_TOPIC:
     process.env.NETWORK_EVENTS_TOPIC || "network-events-topic",
   NETWORK_CREATION_REQUESTS_TOPIC:
