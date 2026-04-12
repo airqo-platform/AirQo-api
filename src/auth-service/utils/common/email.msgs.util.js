@@ -604,14 +604,16 @@ module.exports = {
       token && token.length > 12
         ? `${token.slice(0, 8)}...${token.slice(-4)}`
         : token || "N/A";
-    const tokenLabel = tokenName ? ` (<strong>${tokenName}</strong>)` : "";
+    const tokenLabel = tokenName
+      ? ` (<strong>${escapeHtml(tokenName)}</strong>)`
+      : "";
     const expiryLine = expires
       ? `<p>This token expired on <strong>${new Date(expires).toDateString()}</strong>.</p>`
       : "";
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Your AirQo API token ending in <strong>...${maskedToken.slice(-4)}</strong>${tokenLabel} has expired.</p>
+        <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} has expired.</p>
         ${expiryLine}
         <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
@@ -668,14 +670,16 @@ module.exports = {
       token && token.length > 12
         ? `${token.slice(0, 8)}...${token.slice(-4)}`
         : token || "N/A";
-    const tokenLabel = tokenName ? ` (<strong>${tokenName}</strong>)` : "";
+    const tokenLabel = tokenName
+      ? ` (<strong>${escapeHtml(tokenName)}</strong>)`
+      : "";
     const expiryLine = expires
       ? `<p>This token will expire on <strong>${new Date(expires).toDateString()}</strong>.</p>`
       : "<p>This token will expire in less than 1 month from today.</p>";
     const content = `
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <p>Your AirQo API token ending in <strong>...${maskedToken.slice(-4)}</strong>${tokenLabel} is expiring soon.</p>
+          <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} is expiring soon.</p>
           ${expiryLine}
           <p>You can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
           <p>If you have already refreshed your token, please ignore this message.</p>

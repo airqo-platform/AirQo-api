@@ -2304,15 +2304,20 @@ const mailer = {
   ),
   expiredToken: createSecurityEmailFunction(
     "expiredToken", //
-    (params) =>
-      msgs.tokenExpired({
+    (params) => {
+      const maskedToken =
+        params.token && params.token.length > 12
+          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
+          : params.token || "";
+      return msgs.tokenExpired({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-        token: params.token,
+        token: maskedToken,
         tokenName: params.tokenName,
         expires: params.expires,
-      }),
+      });
+    },
     {
       cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
@@ -2320,15 +2325,20 @@ const mailer = {
   ),
   expiringToken: createSecurityEmailFunction(
     "expiringToken", //
-    (params) =>
-      msgs.tokenExpiringSoon({
+    (params) => {
+      const maskedToken =
+        params.token && params.token.length > 12
+          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
+          : params.token || "";
+      return msgs.tokenExpiringSoon({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-        token: params.token,
+        token: maskedToken,
         tokenName: params.tokenName,
         expires: params.expires,
-      }),
+      });
+    },
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,

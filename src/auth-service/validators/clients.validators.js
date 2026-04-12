@@ -3,6 +3,7 @@ const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
+const ClientModel = require("@models/Client");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -142,7 +143,24 @@ const update = [
       .optional()
       .isBoolean()
       .withMessage("requireClientSecret must be a boolean value")
-      .toBoolean(),
+      .toBoolean()
+      .custom(async (value, { req }) => {
+        if (value !== true) return true;
+        const tenant =
+          (req.query && req.query.tenant) || constants.DEFAULT_TENANT;
+        const client_id = req.params && req.params.client_id;
+        if (!client_id) throw new Error("client_id param is required");
+        const client = await ClientModel(tenant).findOne(
+          { _id: client_id },
+          { client_secret: 1 },
+        );
+        if (!client || !client.client_secret) {
+          throw new Error(
+            "A client_secret must exist before enabling requireClientSecret — call PATCH /:client_id/secret first",
+          );
+        }
+        return true;
+      }),
   ],
 ];
 

@@ -250,6 +250,7 @@ ClientSchema.methods = {
       rateLimit: this.rateLimit,
       ip_address: this.ip_address,
       ip_addresses: this.ip_addresses,
+      requireClientSecret: this.requireClientSecret,
     };
   },
 };

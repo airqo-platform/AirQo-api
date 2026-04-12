@@ -1058,7 +1058,13 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
               return done(error);
             }
 
-            if (client && client.requireClientSecret === true) {
+            // Fail closed: if the token references a client that no longer exists,
+            // reject the request rather than silently proceeding.
+            if (!client) {
+              return done(null, false);
+            }
+
+            if (client.requireClientSecret === true) {
               const providedSecret = req.headers["x-client-secret"];
               if (!providedSecret || providedSecret !== client.client_secret) {
                 return done(null, false);
