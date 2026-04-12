@@ -112,11 +112,8 @@ NetworkCreationRequestSchema.methods.toJSON = function() {
     reviewer_notes,
     reviewed_by,
     reviewed_at,
-    // Truncated to "YYYY-MM-DDTHH:mm:ss" (no trailing Z/timezone) intentionally:
-    // API consumers display these as local times; the raw UTC offset is dropped
-    // to avoid confusion in the dashboard UI.
-    createdAt: createdAt ? new Date(createdAt).toISOString().slice(0, 19) : null,
-    updatedAt: updatedAt ? new Date(updatedAt).toISOString().slice(0, 19) : null,
+    createdAt: createdAt ? new Date(createdAt).toISOString() : null,
+    updatedAt: updatedAt ? new Date(updatedAt).toISOString() : null,
   };
 };
 
@@ -133,32 +130,35 @@ NetworkCreationRequestSchema.statics.register = async function(args, next) {
       };
     }
 
-    return next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message:
-          "request not created despite successful operation",
-      })
-    );
+    return {
+      success: false,
+      message: "request not created despite successful operation",
+      errors: { message: "request not created despite successful operation" },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
 
-    const response = {
-      message: "validation errors for some of the provided fields",
-      success: false,
-      status: httpStatus.CONFLICT,
-      errors: {},
-    };
-
     if (!isEmpty(error.errors)) {
+      const errors = {};
       Object.entries(error.errors).forEach(([key, value]) => {
-        response.errors.message = value.message;
-        response.errors[value.path] = value.message;
+        errors.message = value.message;
+        errors[value.path] = value.message;
       });
-    } else {
-      response.errors = { message: error.message };
+      return {
+        success: false,
+        message: "validation errors for some of the provided fields",
+        errors,
+        status: httpStatus.CONFLICT,
+      };
     }
 
-    next(new HttpError(response.message, response.status, response.errors));
+    return {
+      success: false,
+      message: error.message,
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 

@@ -5,12 +5,21 @@ const chai = require("chai");
 const httpStatus = require("http-status");
 const { expect } = chai;
 
-// ── Module under test ────────────────────────────────────────────────────────
-// We require the module once; individual model/Kafka internals are stubbed via
-// sinon.stub on the required modules before each test.
-const NetworkCreationRequestModel = require("@models/NetworkCreationRequest");
-const NetworkModel = require("@models/Network");
-const util = require("@utils/network-creation-request.util");
+// ── Paths (resolved once; used for require.cache patching) ────────────────────
+const utilPath = require.resolve("@utils/network-creation-request.util");
+const reqModelPath = require.resolve("@models/NetworkCreationRequest");
+const netModelPath = require.resolve("@models/Network");
+const kafkaJsPath = require.resolve("kafkajs");
+
+/**
+ * Re-require the util fresh so it captures whatever is currently in
+ * require.cache for its dependencies (models, kafkajs).
+ * Call this AFTER patching the relevant cache entries.
+ */
+const loadUtil = () => {
+  delete require.cache[utilPath];
+  return require("@utils/network-creation-request.util");
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -39,22 +48,14 @@ const fakeRequestDoc = {
 describe("network-creation-request.util", () => {
   afterEach(() => {
     sinon.restore();
+    // Evict the util from cache so each test group starts fresh
+    delete require.cache[utilPath];
   });
 
   // ── createNetworkCreationRequest ────────────────────────────────────────────
 
   describe("createNetworkCreationRequest", () => {
-    it("returns the created record and publishes 2 batched Kafka events", async () => {
-      const request = makeRequest({
-        body: {
-          requester_name: "Jane Doe",
-          requester_email: "jane@example.com",
-          net_name: "AirSense",
-          net_email: "contact@airsense.io",
-        },
-      });
-
-      // Build a fake model instance that register resolves successfully
+    it("returns the created record on success", async () => {
       const fakeModel = {
         register: sinon.stub().resolves({
           success: true,
@@ -62,27 +63,31 @@ describe("network-creation-request.util", () => {
           data: fakeRequestDoc,
         }),
       };
-      const modelFnStub = sinon
-        .stub()
-        .withArgs("airqo")
-        .returns(fakeModel);
+      const modelFnStub = sinon.stub().returns(fakeModel);
 
-      // Patch the require cache entry so the util uses our stub
-      const NetworkCreationRequestModelPath = require.resolve(
-        "@models/NetworkCreationRequest"
-      );
-      const original = require.cache[NetworkCreationRequestModelPath].exports;
-      require.cache[NetworkCreationRequestModelPath].exports = modelFnStub;
+      const origReqModel = require.cache[reqModelPath].exports;
+      require.cache[reqModelPath].exports = modelFnStub;
 
       try {
+        const util = loadUtil();
         const next = sinon.stub();
-        const result = await util.createNetworkCreationRequest(request, next);
+        const result = await util.createNetworkCreationRequest(
+          makeRequest({
+            body: {
+              requester_name: "Jane Doe",
+              requester_email: "jane@example.com",
+              net_name: "AirSense",
+              net_email: "contact@airsense.io",
+            },
+          }),
+          next
+        );
 
         expect(result.success).to.be.true;
         expect(fakeModel.register.calledOnce).to.be.true;
         expect(next.called).to.be.false;
       } finally {
-        require.cache[NetworkCreationRequestModelPath].exports = original;
+        require.cache[reqModelPath].exports = origReqModel;
       }
     });
 
@@ -96,23 +101,28 @@ describe("network-creation-request.util", () => {
       };
       const modelFnStub = sinon.stub().returns(fakeModel);
 
-      const NetworkCreationRequestModelPath = require.resolve(
-        "@models/NetworkCreationRequest"
-      );
-      const original = require.cache[NetworkCreationRequestModelPath].exports;
-      require.cache[NetworkCreationRequestModelPath].exports = modelFnStub;
+      const origReqModel = require.cache[reqModelPath].exports;
+      require.cache[reqModelPath].exports = modelFnStub;
 
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.createNetworkCreationRequest(
-          makeRequest({ body: { requester_name: "X", requester_email: "x@x.com", net_name: "Y", net_email: "y@y.com" } }),
+          makeRequest({
+            body: {
+              requester_name: "X",
+              requester_email: "x@x.com",
+              net_name: "Y",
+              net_email: "y@y.com",
+            },
+          }),
           next
         );
 
         expect(result.success).to.be.false;
         expect(next.called).to.be.false;
       } finally {
-        require.cache[NetworkCreationRequestModelPath].exports = original;
+        require.cache[reqModelPath].exports = origReqModel;
       }
     });
   });
@@ -121,24 +131,19 @@ describe("network-creation-request.util", () => {
 
   describe("approveNetworkCreationRequest", () => {
     const patchModels = (requestModelFn, networkModelFn) => {
-      const reqPath = require.resolve("@models/NetworkCreationRequest");
-      const netPath = require.resolve("@models/Network");
-      const origReq = require.cache[reqPath].exports;
-      const origNet = require.cache[netPath].exports;
-      require.cache[reqPath].exports = requestModelFn;
-      require.cache[netPath].exports = networkModelFn;
+      const origReq = require.cache[reqModelPath].exports;
+      const origNet = require.cache[netModelPath].exports;
+      require.cache[reqModelPath].exports = requestModelFn;
+      require.cache[netModelPath].exports = networkModelFn;
       return () => {
-        require.cache[reqPath].exports = origReq;
-        require.cache[netPath].exports = origNet;
+        require.cache[reqModelPath].exports = origReq;
+        require.cache[netModelPath].exports = origNet;
       };
     };
 
     it("creates the network, updates request status, and returns success", async () => {
       const pendingDoc = { ...fakeRequestDoc, status: "pending" };
-      const fakeNetwork = {
-        _id: "6642f1e2c3a4b5d6e7f80099",
-        net_name: "AirSense",
-      };
+      const fakeNetwork = { _id: "6642f1e2c3a4b5d6e7f80099", net_name: "AirSense" };
 
       const requestModel = {
         findById: sinon.stub().returns({
@@ -150,10 +155,7 @@ describe("network-creation-request.util", () => {
         }),
       };
       const networkModel = {
-        register: sinon.stub().resolves({
-          success: true,
-          data: fakeNetwork,
-        }),
+        register: sinon.stub().resolves({ success: true, data: fakeNetwork }),
       };
 
       const restore = patchModels(
@@ -162,6 +164,7 @@ describe("network-creation-request.util", () => {
       );
 
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.approveNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -193,6 +196,7 @@ describe("network-creation-request.util", () => {
       );
 
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.approveNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -223,6 +227,7 @@ describe("network-creation-request.util", () => {
       );
 
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.approveNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -250,10 +255,7 @@ describe("network-creation-request.util", () => {
         }),
       };
       const networkModel = {
-        register: sinon.stub().resolves({
-          success: true,
-          data: fakeNetwork,
-        }),
+        register: sinon.stub().resolves({ success: true, data: fakeNetwork }),
       };
 
       const restore = patchModels(
@@ -262,6 +264,7 @@ describe("network-creation-request.util", () => {
       );
 
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.approveNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -281,11 +284,10 @@ describe("network-creation-request.util", () => {
 
   describe("denyNetworkCreationRequest", () => {
     const patchRequestModel = (modelFn) => {
-      const reqPath = require.resolve("@models/NetworkCreationRequest");
-      const orig = require.cache[reqPath].exports;
-      require.cache[reqPath].exports = modelFn;
+      const orig = require.cache[reqModelPath].exports;
+      require.cache[reqModelPath].exports = modelFn;
       return () => {
-        require.cache[reqPath].exports = orig;
+        require.cache[reqModelPath].exports = orig;
       };
     };
 
@@ -303,6 +305,7 @@ describe("network-creation-request.util", () => {
 
       const restore = patchRequestModel(sinon.stub().returns(requestModel));
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.denyNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -328,6 +331,7 @@ describe("network-creation-request.util", () => {
 
       const restore = patchRequestModel(sinon.stub().returns(requestModel));
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.denyNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -353,6 +357,7 @@ describe("network-creation-request.util", () => {
 
       const restore = patchRequestModel(sinon.stub().returns(requestModel));
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.denyNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -376,6 +381,7 @@ describe("network-creation-request.util", () => {
 
       const restore = patchRequestModel(sinon.stub().returns(requestModel));
       try {
+        const util = loadUtil();
         const next = sinon.stub();
         const result = await util.denyNetworkCreationRequest(
           makeRequest({ params: { request_id: fakeRequestDoc._id }, body: {} }),
@@ -406,15 +412,14 @@ describe("network-creation-request.util", () => {
       };
       const modelFnStub = sinon.stub().returns(fakeModel);
 
-      // Patch the KafkaJS Kafka class so that producer.send always rejects
-      const kafkaJsPath = require.resolve("kafkajs");
-      const origKafkaJs = require.cache[kafkaJsPath].exports;
-
       const fakeProducer = {
         connect: sinon.stub().resolves(),
         send: sinon.stub().rejects(new Error("broker unavailable")),
         disconnect: sinon.stub().resolves(),
       };
+      const origKafkaJs = require.cache[kafkaJsPath].exports;
+      const origReqModel = require.cache[reqModelPath].exports;
+
       require.cache[kafkaJsPath].exports = {
         Kafka: class {
           producer() {
@@ -422,25 +427,12 @@ describe("network-creation-request.util", () => {
           }
         },
       };
-
-      const NetworkCreationRequestModelPath = require.resolve(
-        "@models/NetworkCreationRequest"
-      );
-      const origModel = require.cache[NetworkCreationRequestModelPath].exports;
-      require.cache[NetworkCreationRequestModelPath].exports = modelFnStub;
-
-      // Re-require the util so it picks up the patched KafkaJS
-      // (module cache holds the old instance, so we delete and re-require)
-      const utilPath = require.resolve(
-        "@utils/network-creation-request.util"
-      );
-      delete require.cache[utilPath];
+      require.cache[reqModelPath].exports = modelFnStub;
 
       try {
-        const freshUtil = require("@utils/network-creation-request.util");
+        const util = loadUtil();
         const next = sinon.stub();
-
-        const result = await freshUtil.createNetworkCreationRequest(
+        const result = await util.createNetworkCreationRequest(
           makeRequest({
             body: {
               requester_name: "Jane",
@@ -456,10 +448,7 @@ describe("network-creation-request.util", () => {
         expect(next.called).to.be.false;
       } finally {
         require.cache[kafkaJsPath].exports = origKafkaJs;
-        require.cache[NetworkCreationRequestModelPath].exports = origModel;
-        // Restore the util module to its original cached version
-        delete require.cache[utilPath];
-        require("@utils/network-creation-request.util");
+        require.cache[reqModelPath].exports = origReqModel;
       }
     });
   });
