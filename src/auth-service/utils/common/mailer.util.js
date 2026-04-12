@@ -707,8 +707,8 @@ const getEmailSubject = (functionName, params) => {
       "Urgent Security Alert - Potential Compromise of Your AIRQO API Token",
     newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
-    expiredToken: "Action Required: Your AirQo API Token is expired",
-    expiringToken: "AirQo API Token Expiry: Create New Token Urgently",
+    expiredToken: "Action Required: Your AirQo API Token Has Expired",
+    expiringToken: "Action Required: Your AirQo API Token is Expiring Soon",
 
     // ===== SENSOR MANUFACTURER (NETWORK) REQUEST FUNCTIONS =====
     notifyAdminOfSensorManufacturerRequest: `New Sensor Manufacturer Request: ${sanitizeEmailString(
@@ -2304,13 +2304,20 @@ const mailer = {
   ),
   expiredToken: createSecurityEmailFunction(
     "expiredToken", //
-    (params) =>
-      msgs.tokenExpired({
+    (params) => {
+      const maskedToken =
+        params.token && params.token.length > 12
+          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
+          : params.token || "";
+      return msgs.tokenExpired({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-        token: params.token,
-      }),
+        token: maskedToken,
+        tokenName: params.tokenName,
+        expires: params.expires,
+      });
+    },
     {
       cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
@@ -2318,12 +2325,20 @@ const mailer = {
   ),
   expiringToken: createSecurityEmailFunction(
     "expiringToken", //
-    (params) =>
-      msgs.tokenExpiringSoon({
+    (params) => {
+      const maskedToken =
+        params.token && params.token.length > 12
+          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
+          : params.token || "";
+      return msgs.tokenExpiringSoon({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-      }),
+        token: maskedToken,
+        tokenName: params.tokenName,
+        expires: params.expires,
+      });
+    },
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
