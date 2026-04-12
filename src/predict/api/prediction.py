@@ -134,6 +134,7 @@ def get_aqi_category(value):
 
 
 def wind_deg_to_compass(deg):
+    # Convert wind direction in degrees to compass direction (e.g., N, NE, E, etc.)
     if deg is None:
         return None
 
@@ -144,8 +145,8 @@ def wind_deg_to_compass(deg):
 
     if math.isnan(normalized):
         return None
-
-    index = round(normalized / 22.5) % len(COMPASS_DIRECTIONS)
+    # Each compass direction covers 22.5 degrees (360/16), so we add 11.25 to center the ranges
+    index = int((normalized + 11.25) // 22.5) % len(COMPASS_DIRECTIONS)
     return COMPASS_DIRECTIONS[index]
 
 
