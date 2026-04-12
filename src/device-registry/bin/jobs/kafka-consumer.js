@@ -40,12 +40,17 @@ const eventSchema = Joi.object({
   pm2_5: Joi.number().optional(),
   pm10_raw_value: Joi.number().optional(),
   pm10: Joi.number().optional(),
+  no2: Joi.number().optional(),
+  pm1: Joi.number().optional(),
   timestamp: Joi.date()
     .iso()
     .required(),
   device_id: Joi.string()
     .empty("")
     .required(),
+  device_name: Joi.string()
+    .empty("")
+    .optional(),
   site_id: Joi.string().optional(),
   device_number: Joi.number().optional(),
   atmospheric_pressure: Joi.number().optional(),
@@ -62,6 +67,10 @@ const eventSchema = Joi.object({
     .optional(),
   pm2_5_calibrated_value: Joi.number().optional(),
   pm10_calibrated_value: Joi.number().optional(),
+  no2_raw_value: Joi.number().optional(),
+  no2_calibrated_value: Joi.number().optional(),
+  pm1_raw_value: Joi.number().optional(),
+  pm1_calibrated_value: Joi.number().optional(),
   tvoc: Joi.number().optional(),
   hcho: Joi.number().optional(),
   co2: Joi.number().optional(),
@@ -185,6 +194,40 @@ const consumeHourlyMeasurements = async (messageData) => {
 
     // Normalize location data to ensure backward compatibility
     cleanedMeasurements = normalizeLocationData(cleanedMeasurements);
+
+    // Normalize device_name → device_id.
+    // process_data_for_message_broker in workflows renames device_id to
+    // device_name before publishing; map it back so Joi validation, device
+    // context checks, and EVENT_MAPPINGS all receive the expected field name.
+    cleanedMeasurements = cleanedMeasurements.map((m) =>
+      m.device_id || !m.device_name ? m : { ...m, device_id: m.device_name }
+    );
+
+    // Normalize raw pollutant fields.
+    // EVENT_MAPPINGS reads pm2_5_raw_value / pm10_raw_value / no2_raw_value /
+    // pm1_raw_value to populate the stored pm2_5.value etc. fields.
+    // Manufacturers that do not run a calibration pipeline (e.g. NASA/PurpleAir,
+    // Urban Better) only send the flat pm2_5 / pm10 / no2 / pm1 fields.
+    // Fall back to the flat field so their measurements are stored correctly.
+    // Manufacturers that already supply the _raw_value fields are unaffected.
+    cleanedMeasurements = cleanedMeasurements.map((m) => {
+      const patch = {};
+      if (m.pm2_5_raw_value === undefined && m.pm2_5 !== undefined)
+        patch.pm2_5_raw_value = m.pm2_5;
+      if (m.pm10_raw_value === undefined && m.pm10 !== undefined)
+        patch.pm10_raw_value = m.pm10;
+      if (m.no2_raw_value === undefined && m.no2 !== undefined)
+        patch.no2_raw_value = m.no2;
+      if (m.pm1_raw_value === undefined && m.pm1 !== undefined)
+        patch.pm1_raw_value = m.pm1;
+      if (Object.keys(patch).length) {
+        logger.debug(
+          `KAFKA: backfilled raw_value fields ${Object.keys(patch).join(", ")} for device ${m.device_id || m.device_name} (network: ${m.network || "unknown"})`
+        );
+        return { ...m, ...patch };
+      }
+      return m;
+    });
 
     const options = {
       abortEarly: false,
@@ -555,7 +598,7 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      "hourly-measurements-topic": consumeHourlyMeasurements,
+      [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements,
       "airqo.forecasts": consumeForecasts,
       [constants.GROUPS_TOPIC]: handleGroupCreated,
       [constants.NETWORK_EVENTS_TOPIC]: handleNetworkEvents,

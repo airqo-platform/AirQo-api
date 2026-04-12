@@ -76,9 +76,9 @@ const buildRecallUpdateOperation = (recallDate) => ({
     isActive: false,
     recall_date: recallDate,
     mobility: false,
-    deployment_type: "static",
   },
   $unset: {
+    deployment_type: "",
     height: "",
     mountType: "",
     powerType: "",
@@ -96,7 +96,9 @@ const getDeviceCategoriesAddFieldsStage = () => {
     $addFields: {
       device_categories: {
         primary_category: { $ifNull: ["$category", "lowcost"] },
-        deployment_category: { $ifNull: ["$deployment_type", "static"] },
+        // Un-deployed devices have no deployment_type — use the field directly
+        // so they surface as null rather than a misleading "static" default.
+        deployment_category: "$deployment_type",
 
         // Returns the raw network value so the frontend can display it directly.
         // null when network is missing or empty string.
@@ -241,7 +243,9 @@ const getDeviceCategoriesAddFieldsStage = () => {
                 input: {
                   $concatArrays: [
                     [{ $ifNull: ["$category", "lowcost"] }],
-                    [{ $ifNull: ["$deployment_type", "static"] }],
+                    // Only include deployment_type when it is set — the $filter
+                    // below removes nulls, so un-deployed devices contribute nothing here.
+                    ["$deployment_type"],
                     // Include network value when present
                     {
                       $cond: {
@@ -395,7 +399,8 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
           {
             level: "deployment",
-            category: { $ifNull: ["$deployment_type", "static"] },
+            // null for un-deployed devices — no deployment type assigned yet.
+            category: "$deployment_type",
             description: {
               $switch: {
                 branches: [
@@ -408,7 +413,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
                     then: "Static deployment (fixed location, site-based)",
                   },
                 ],
-                default: "Static deployment (fixed location, site-based)",
+                default: null,
               },
             },
           },

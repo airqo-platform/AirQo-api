@@ -601,15 +601,19 @@ const createFeed = {
 
       // ── Configure auth ─────────────────────────────────────────────────────
       const axiosConfig = { timeout: 15000, params };
-      const credential = device.access_code || null;
+      // Credential resolution: device-level access_code takes precedence (per-device
+      // override), falling back to the network-level net_api_key (per-account token
+      // e.g. AirGradient, IQAir). getNetworkAdapter already decrypts net_api_key.
+      const credential = device.access_code || adapter.net_api_key || null;
 
       // Auth is driven by the adapter config (adapter.auth_type), not by
       // device.authRequired. The device flag controls ThingSpeak/AirQo
       // visibility; for external adapters the adapter is the authority.
       if (adapter.auth_type && adapter.auth_type !== "none" && !credential) {
         logger.warn(
-          `fetchExternalDeviceData: auth expected but device.access_code is missing ` +
-            `for device "${device.serial_number || redactUrl(device.api_code) || device._id}" ` +
+          `fetchExternalDeviceData: auth expected but neither device.access_code nor ` +
+            `network.net_api_key is set for device ` +
+            `"${device.serial_number || redactUrl(device.api_code) || device._id}" ` +
             `on network "${device.network}" — proceeding unauthenticated`
         );
       }
@@ -658,13 +662,23 @@ const createFeed = {
       const logMsg =
         `fetchExternalDeviceData failed for device "${deviceRef}" ` +
         `(network: ${device.network}${url ? `, url: ${redactUrl(url)}` : ""}): ${error.message}`;
-      // 4xx responses are vendor-side issues (device not found, auth required, etc.)
-      // and map to "device is offline" — log at warn so Slack is not flooded.
-      // 5xx and network errors are infrastructure problems and stay at error.
-      if (status >= 400 && status < 500) {
-        logger.warn(logMsg);
-      } else {
+      // Actionable auth/rate-limit errors require operator attention and go to
+      // logger.error so Slack is notified:
+      //   401 — credentials rejected (token expired or wrong)
+      //   403 — permission denied (token lacks access)
+      //   429 — rate limited (polling too frequent)
+      // Non-actionable vendor errors (404 device not found, 422 transient,
+      // 5xx vendor outage) are outside our control and map to "device offline"
+      // — log at warn to avoid flooding Slack.
+      // Network-level failures (no HTTP response: ECONNREFUSED, ETIMEDOUT,
+      // DNS) may indicate problems on our side and stay at error.
+      const ACTIONABLE_STATUSES = [401, 403, 429];
+      if (!error.response) {
         logger.error(logMsg);
+      } else if (ACTIONABLE_STATUSES.includes(error.response.status)) {
+        logger.error(logMsg);
+      } else {
+        logger.warn(logMsg);
       }
       return {
         success: false,

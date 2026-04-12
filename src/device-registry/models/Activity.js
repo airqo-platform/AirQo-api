@@ -125,8 +125,11 @@ activitySchema.pre("save", function(next) {
 });
 
 activitySchema.index({ site_id: 1, createdAt: -1 });
+activitySchema.index({ site_id: 1, activityType: 1, createdAt: -1 });
 activitySchema.index({ device_id: 1, createdAt: -1 });
 activitySchema.index({ device: 1, createdAt: -1 });
+activitySchema.index({ device_id: 1, activityType: 1, createdAt: -1 });
+activitySchema.index({ device: 1, activityType: 1, createdAt: -1 });
 activitySchema.index({ status: 1 });
 
 activitySchema.methods = {

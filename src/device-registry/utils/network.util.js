@@ -22,6 +22,7 @@
  */
 
 const crypto = require("crypto");
+const cryptoJS = require("crypto-js");
 const constants = require("@config/constants");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
@@ -50,12 +51,40 @@ const getNetworkAdapter = async (networkName, tenant = "airqo") => {
   try {
     const record = await NetworkModel(tenant)
       .findOne({ name: networkName })
-      .select("adapter")
+      .select("adapter +net_api_key")
       .lean();
+
+    // Decrypt the network-level API key when present. This is the per-account
+    // credential (e.g. AirGradient token, IQAir Bearer token) that applies to
+    // all devices on the network. Stored encrypted at rest; decrypted here so
+    // fetchExternalDeviceData can use it as a fallback when device.access_code
+    // is not set.
+    let net_api_key = null;
+    if (record?.net_api_key) {
+      try {
+        const bytes = cryptoJS.AES.decrypt(
+          record.net_api_key,
+          constants.KEY_ENCRYPTION_KEY
+        );
+        net_api_key = bytes.toString(cryptoJS.enc.Utf8) || null;
+      } catch (decryptError) {
+        logger.warn(
+          `getNetworkAdapter: failed to decrypt net_api_key for network ` +
+            `"${networkName}": ${decryptError.message}`
+        );
+      }
+    }
 
     if (record?.adapter && Object.keys(record.adapter).length > 0) {
       // DB values win; static fills any gaps the DB record does not override.
-      return { ...(staticAdapter || {}), ...record.adapter };
+      // net_api_key is attached separately — it is not part of the adapter
+      // config shape and must not be persisted back to the adapter subdocument.
+      return { ...(staticAdapter || {}), ...record.adapter, net_api_key };
+    }
+
+    // No adapter config in DB but we may still have a net_api_key to return.
+    if (staticAdapter) {
+      return { ...staticAdapter, net_api_key };
     }
   } catch (dbError) {
     logger.warn(
@@ -65,7 +94,7 @@ const getNetworkAdapter = async (networkName, tenant = "airqo") => {
   }
 
   // Return a shallow copy so callers cannot mutate the global NETWORK_ADAPTERS constant.
-  return staticAdapter ? { ...staticAdapter } : null;
+  return staticAdapter ? { ...staticAdapter, net_api_key: null } : null;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,10 +150,26 @@ const updateNetwork = async (request, next) => {
     }
 
     const networkId = network._id;
+
+    // findByIdAndUpdate bypasses pre("save") hooks, so net_api_key would be
+    // written as plaintext if passed through directly. Encrypt it here to match
+    // what the pre("save") hook does on document.save().
+    const updateBody = { ...body };
+    if (updateBody.net_api_key) {
+      updateBody.net_api_key = cryptoJS.AES.encrypt(
+        updateBody.net_api_key,
+        constants.KEY_ENCRYPTION_KEY
+      ).toString();
+    }
+
+    // lean:true returns a plain object instead of a Mongoose Document,
+    // avoiding RangeError("Invalid time value") when serialising documents
+    // whose createdAt/updatedAt timestamps pre-date the { timestamps: true }
+    // schema option and are stored as invalid/missing values in MongoDB.
     const responseFromUpdateNetwork = await NetworkModel(tenant).findByIdAndUpdate(
       ObjectId(networkId),
-      body,
-      { new: true }
+      updateBody,
+      { new: true, lean: true, runValidators: true, context: "query" }
     );
 
     logObject("responseFromUpdateNetwork in Util", responseFromUpdateNetwork);

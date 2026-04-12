@@ -6,6 +6,7 @@ const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
+const ClientModel = require("@models/Client");
 const constants = require("@config/constants");
 const PermissionModel = require("@models/Permission");
 const { mailer, stringify, winstonLogger } = require("@utils/common");
@@ -1015,28 +1016,62 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
           return done(null, false);
         }
 
-        UserModel(tenant.toLowerCase()).findOne(
-          { id: accessToken.user_id },
-          function (error, user) {
+        const proceedWithUserLookup = () => {
+          UserModel(tenant.toLowerCase()).findOne(
+            { id: accessToken.user_id },
+            function (error, user) {
+              if (error) {
+                return done(error);
+              }
+
+              if (!user) {
+                return done(null, false);
+              }
+
+              winstonLogger.info(
+                `successful login through ${
+                  service ? service : "unknown"
+                } service`,
+                {
+                  username: user.userName,
+                  email: user.email,
+                  service: service ? service : "unknown",
+                },
+              );
+              return done(null, user);
+            },
+          );
+        };
+
+        // If the client has opted into client-secret enforcement, validate the
+        // X-Client-Secret header before allowing the request through.
+        // This is user-triggered and opt-in — clients where requireClientSecret
+        // is false (the default) are completely unaffected.
+        if (!accessToken.client_id) {
+          return proceedWithUserLookup();
+        }
+
+        ClientModel(tenant.toLowerCase()).findOne(
+          { _id: accessToken.client_id },
+          function (error, client) {
             if (error) {
               return done(error);
             }
 
-            if (!user) {
+            // Fail closed: if the token references a client that no longer exists,
+            // reject the request rather than silently proceeding.
+            if (!client) {
               return done(null, false);
             }
 
-            winstonLogger.info(
-              `successful login through ${
-                service ? service : "unknown"
-              } service`,
-              {
-                username: user.userName,
-                email: user.email,
-                service: service ? service : "unknown",
-              },
-            );
-            return done(null, user);
+            if (client.requireClientSecret === true) {
+              const providedSecret = req.headers["x-client-secret"];
+              if (!providedSecret || providedSecret !== client.client_secret) {
+                return done(null, false);
+              }
+            }
+
+            return proceedWithUserLookup();
           },
         );
       },
@@ -1241,6 +1276,7 @@ const authLocal = passport.authenticate("user-local", {
  */
 const authGoogle = passport.authenticate("google", {
   scope: ["profile", "email"],
+  prompt: "select_account",
 });
 
 /**
@@ -1256,7 +1292,7 @@ const authGoogleCallback = passport.authenticate("google", {
  * Used by the generic GET /auth/:provider route.
  */
 const authOAuth = (req, res, next) => {
-  const provider = req.params.provider || req.oauthProvider || "google";
+  const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
 
   // Provider-specific scopes. Twitter uses OAuth 1.0a and does not accept
   // a scope option. All other providers use OAuth 2.0 with scopes tailored
@@ -1271,7 +1307,10 @@ const authOAuth = (req, res, next) => {
   const options =
     provider === "twitter"
       ? {}
-      : { scope: providerScopes[provider] || ["profile", "email"] };
+      : {
+          scope: providerScopes[provider] || ["profile", "email"],
+          ...(provider === "google" ? { prompt: "select_account" } : {}),
+        };
 
   passport.authenticate(provider, options)(req, res, next);
 };
@@ -1281,7 +1320,7 @@ const authOAuth = (req, res, next) => {
  * Used by the generic GET /auth/callback/:provider route.
  */
 const authOAuthCallback = (req, res, next) => {
-  const provider = req.params.provider || req.oauthProvider || "google";
+  const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
   passport.authenticate(provider, {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
@@ -1366,75 +1405,90 @@ const enhancedJWTAuth = (req, res, next) => {
       constants.JWT_SECRET,
       { ignoreExpiration: true },
       async (err, decoded) => {
-        if (err) {
-          return next(
-            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-              message: `Invalid token: ${err.message}`,
-            }),
-          );
-        }
-
-        const now = Math.floor(Date.now() / 1000);
-
-        if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
-          return next(
-            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-              message: "Your session has expired. Please log in again.",
-            }),
-          );
-        }
-
-        const tenantRaw =
-          req.query.tenant ||
-          req.body.tenant ||
-          constants.DEFAULT_TENANT ||
-          "airqo";
-        const tenant = String(tenantRaw).toLowerCase();
-
-        if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
-          try {
-            const userIdForRefresh = decoded.id || decoded._id;
-            const userForRefresh = await UserModel(tenant)
-              .findById(userIdForRefresh)
-              .lean();
-            if (userForRefresh) {
-              const tokenFactory = new AbstractTokenFactory(tenant);
-              const strategy =
-                userUtil._getEffectiveTokenStrategy(userForRefresh);
-              const newToken = await tokenFactory.createToken(
-                userForRefresh,
-                strategy,
-                { expiresIn: `${TOKEN_LIFE_SECONDS}s` },
-              );
-              res.set("X-Access-Token", `JWT ${newToken}`);
-              res.set("Access-Control-Expose-Headers", "X-Access-Token");
-            }
-          } catch (refreshError) {
-            logger.error(
-              `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
+        try {
+          if (err) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: `Invalid token: ${err.message}`,
+              }),
             );
           }
-        }
 
-        const userId = decoded.userId || decoded.id || decoded._id;
-        const user = await UserModel(tenant).findById(userId).lean();
+          const now = Math.floor(Date.now() / 1000);
 
-        const analyticsId =
-          typeof userId === "string" ? userId : userId?.toString?.();
-        if (analyticsId) {
-          req.analyticsUserId = analyticsId;
-        }
+          if (decoded.exp + GRACE_PERIOD_SECONDS < now) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Your session has expired. Please log in again.",
+              }),
+            );
+          }
 
-        if (!user) {
-          return next(
-            new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-              message: "User from token no longer exists",
-            }),
+          const tenantRaw =
+            req.query.tenant ||
+            req.body.tenant ||
+            constants.DEFAULT_TENANT ||
+            "airqo";
+          const tenant = String(tenantRaw).toLowerCase();
+
+          if (decoded.exp < now + REFRESH_WINDOW_SECONDS) {
+            try {
+              const userIdForRefresh = decoded.id || decoded._id;
+              const userForRefresh = await UserModel(tenant)
+                .findById(userIdForRefresh)
+                .lean();
+              if (userForRefresh) {
+                const tokenFactory = new AbstractTokenFactory(tenant);
+                const strategy =
+                  userUtil._getEffectiveTokenStrategy(userForRefresh);
+                const newToken = await tokenFactory.createToken(
+                  userForRefresh,
+                  strategy,
+                  { expiresIn: `${TOKEN_LIFE_SECONDS}s` },
+                );
+                res.set("X-Access-Token", `JWT ${newToken}`);
+                res.set("Access-Control-Expose-Headers", "X-Access-Token");
+              }
+            } catch (refreshError) {
+              logger.error(
+                `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
+              );
+            }
+          }
+
+          const userId = decoded.userId || decoded.id || decoded._id;
+          const user = await UserModel(tenant).findById(userId).lean();
+
+          const analyticsId =
+            typeof userId === "string" ? userId : userId?.toString?.();
+          if (analyticsId) {
+            req.analyticsUserId = analyticsId;
+          }
+
+          if (!user) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "User from token no longer exists",
+              }),
+            );
+          }
+
+          req.user = { ...decoded, ...user };
+          next();
+        } catch (callbackError) {
+          const authLogger = global.dedupLogger || logger;
+          authLogger.warn(
+            `🐛🐛 Enhanced JWT Auth callback Error: ${callbackError.message}`,
+            callbackError.stack,
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Internal Server Error" },
+            ),
           );
         }
-
-        req.user = { ...decoded, ...user };
-        next();
       },
     );
   } catch (error) {

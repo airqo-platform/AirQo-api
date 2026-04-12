@@ -17,6 +17,9 @@ class SyncDevicePerformance(Base):
     uptime = Column(Float, nullable=False, default=0.0)
     data_completeness = Column(Float, nullable=False, default=0.0)
     error_margin = Column(Float, nullable=False, default=0.0)
+    s1_pm2_5_average = Column(Float, nullable=True)
+    s2_pm2_5_average = Column(Float, nullable=True)
+    correlation = Column(Float, nullable=True)
     cohorts_json = Column(Text, nullable=True)  # JSON-serialized list of cohort names
     complete_performance = Column(Boolean, nullable=False, server_default="false")  # True = full day computed
     computed_for_date = Column(Date, nullable=False)
@@ -51,5 +54,30 @@ class SyncDevicePerformance(Base):
             "uptime": self.uptime or 0.0,
             "data_completeness": self.data_completeness or 0.0,
             "error_margin": self.error_margin or 0.0,
+            "s1_pm2_5_average": self.s1_pm2_5_average,
+            "s2_pm2_5_average": self.s2_pm2_5_average,
+            "correlation": self.correlation,
             "cohorts": self.cohorts,
         }
+
+
+class SyncBamPerformance(Base):
+    __tablename__ = "sync_bam_performance"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    device_id = Column(String(100), nullable=False)
+    device_name = Column(String(200), nullable=False, index=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    uptime = Column(Float, nullable=False, default=0.0)
+    data_completeness = Column(Float, nullable=False, default=0.0)
+    realtime_conc_average = Column(Float, nullable=True)
+    short_time_conc_average = Column(Float, nullable=True)
+    hourly_conc_average = Column(Float, nullable=True)
+    computed_for_date = Column(Date, nullable=False)
+    computed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("device_name", "computed_for_date", name="uq_bam_device_name_date"),
+        Index("ix_bam_computed_for_date", "computed_for_date"),
+    )

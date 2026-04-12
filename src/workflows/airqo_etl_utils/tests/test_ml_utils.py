@@ -13,6 +13,7 @@ import airqo_etl_utils.ml_utils as ml_utils_module
 from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer, ForecastUtils
 
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 from airqo_etl_utils.tests.test_7days_forecast_pytest import (
     build_synthetic_site_forecast_history,
@@ -178,9 +179,8 @@ class TestsForecasts(ForecastFixtures):
     @pytest.mark.parametrize(
         "frequency,collection_name",
         [
-            ("hourly", "hourly_forecasts"),
-            ("daily", "daily_forecasts"),
-            # ("invalid", None),
+            (Frequency.HOURLY, "hourly_forecasts_1"),
+            (Frequency.DAILY, "daily_forecasts_1"),
         ],
     )
     def test_save_forecasts_to_mongo_frequency(
@@ -1046,3 +1046,6 @@ def test_aggregate_met_no_hourly_payload_to_daily():
     assert daily.loc[0, "met_no_query_longitude"] == 3.36
     assert daily.loc[0, "air_temperature"] == 27.6
     assert daily.loc[0, "precipitation_amount"] == 0.0
+        ForecastUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
+        mock_collection = getattr(mock_db, collection_name)
+        assert mock_collection.update_one.call_count >= 1

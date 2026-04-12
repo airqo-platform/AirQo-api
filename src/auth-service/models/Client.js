@@ -30,6 +30,7 @@ const ClientSchema = new Schema(
     ip_addresses: [{ type: String }],
     description: { type: String },
     rateLimit: { type: Number },
+    requireClientSecret: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -249,6 +250,7 @@ ClientSchema.methods = {
       rateLimit: this.rateLimit,
       ip_address: this.ip_address,
       ip_addresses: this.ip_addresses,
+      requireClientSecret: this.requireClientSecret,
     };
   },
 };
