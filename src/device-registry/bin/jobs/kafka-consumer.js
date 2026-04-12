@@ -40,6 +40,8 @@ const eventSchema = Joi.object({
   pm2_5: Joi.number().optional(),
   pm10_raw_value: Joi.number().optional(),
   pm10: Joi.number().optional(),
+  no2: Joi.number().optional(),
+  pm1: Joi.number().optional(),
   timestamp: Joi.date()
     .iso()
     .required(),
