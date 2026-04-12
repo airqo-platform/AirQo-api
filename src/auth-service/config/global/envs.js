@@ -63,6 +63,15 @@ const envs = {
   RECALL_TOPIC: process.env.RECALL_TOPIC,
   NETWORK_EVENTS_TOPIC:
     process.env.NETWORK_EVENTS_TOPIC || "network-events-topic",
+  NETWORK_CREATION_REQUESTS_TOPIC:
+    process.env.NETWORK_CREATION_REQUESTS_TOPIC ||
+    "network-creation-requests-topic",
+  NETWORK_CREATION_APPROVED_TOPIC:
+    process.env.NETWORK_CREATION_APPROVED_TOPIC ||
+    "network-creation-approved-topic",
+  NETWORK_CREATION_DENIED_TOPIC:
+    process.env.NETWORK_CREATION_DENIED_TOPIC ||
+    "network-creation-denied-topic",
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,

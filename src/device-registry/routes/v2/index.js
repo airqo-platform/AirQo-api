@@ -150,6 +150,12 @@ const routes = [
   // Canonical Network CRUD endpoints — /api/v2/devices/networks/...
   // The legacy /cohorts/networks/... paths remain fully operational.
   { path: "/networks", route: "@routes/v2/networks.routes", name: "networks" },
+  // Sensor manufacturer (network) creation request workflow
+  {
+    path: "/network-creation-requests",
+    route: "@routes/v2/network-creation-requests.routes",
+    name: "network-creation-requests",
+  },
   {
     path: "/network-coverage",
     route: "@routes/v2/network-coverage.routes",
