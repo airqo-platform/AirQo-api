@@ -12,7 +12,6 @@ import airqo_etl_utils.bigquery_api as bigquery_api_module
 import airqo_etl_utils.ml_utils as ml_utils_module
 from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer, ForecastUtils
 
-
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 from airqo_etl_utils.tests.test_7days_forecast_pytest import (
