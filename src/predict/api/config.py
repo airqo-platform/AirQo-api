@@ -41,8 +41,7 @@ class Config:
     )
     MONGO_DBNAME = DB_NAME
     MONGO_SITE_DAILY_FORECAST_COLLECTION = _env_first(
-        "MONGO_SITE_DAILY_FORECAST_COLLECTION",
-        default="test_7_days_site_daily_forecast",
+        "MONGO_SITE_DAILY_FORECAST_COLLECTION"
     )
     REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
     POSTGRES_CONNECTION_URL = os.getenv(
