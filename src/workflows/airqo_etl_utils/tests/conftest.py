@@ -499,12 +499,25 @@ class ForecastFixtures:
 
     @staticmethod
     @pytest.fixture
-    def mock_db():
-        mock_client = MagicMock()
-        mock_db = mock_client[configuration.MONGO_DATABASE_NAME]
-        mock_db.hourly_forecasts = MagicMock()
-        mock_db.daily_forecasts = MagicMock()
-        return mock_db
+    def sample_dataframe_db():
+        return pd.DataFrame(
+            {
+                "device_id": ["dev1", "dev1", "dev2"],
+                "site_id": ["site1", "site1", "site2"],
+                "device_number": [1, 1, 2],
+                "pm2_5": [10.0, 15.0, 20.0],
+                "timestamp": pd.date_range("2023-01-01", periods=3, freq="H").tolist(),
+            }
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def mock_db(monkeypatch):
+        mock_db_obj = MagicMock()
+        mock_db_obj.hourly_forecasts_1 = MagicMock()
+        mock_db_obj.daily_forecasts_1 = MagicMock()
+        monkeypatch.setattr("airqo_etl_utils.ml_utils.db", mock_db_obj)
+        return mock_db_obj
 
 
 class FaultDetectionFixtures:
