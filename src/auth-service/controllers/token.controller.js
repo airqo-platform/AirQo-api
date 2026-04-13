@@ -269,6 +269,7 @@ const createAccessToken = {
       const result = await tokenUtil.verifyToken(request, next);
 
       if (result == null) {
+        if (res.headersSent) return;
         next(
           new HttpError(
             "Internal Server Error",
