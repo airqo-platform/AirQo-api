@@ -80,6 +80,9 @@ class RBACService {
 
     // Register in the static registry so invalidateUserRBACCache can reach
     // this instance's L1 cache without a circular import.
+    // Note: do NOT destroy the existing registry entry here — external pools
+    // (e.g. middleware __rbacInstances) may still hold a reference to it.
+    // Lifecycle management is the responsibility of getInstance() and callers.
     RBACService._registry.set(tenant, this);
 
     // Set up periodic cache cleanup
@@ -1334,6 +1337,18 @@ class RBACService {
 // Populated by each constructor call and used by invalidateUserRBACCache
 // to clear L1 cache entries without needing a circular import.
 RBACService._registry = new Map();
+
+/**
+ * Return the live singleton for a tenant, creating one if none exists.
+ * Prefer this over `new RBACService(tenant)` in utils/services/controllers
+ * so the warm L1 cache is reused and orphaned intervals are avoided.
+ */
+RBACService.getInstance = (tenant = "airqo") => {
+  if (!RBACService._registry.has(tenant)) {
+    new RBACService(tenant); // constructor registers itself
+  }
+  return RBACService._registry.get(tenant);
+};
 
 module.exports = RBACService;
 module.exports.invalidateUserRBACCache = invalidateUserRBACCache;

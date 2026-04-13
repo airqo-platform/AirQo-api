@@ -761,23 +761,11 @@ const debugPermissions = () => {
 };
 
 /**
- * Get RBAC service instance, with per-tenant pooling to avoid timer leaks.
+ * Get RBAC service instance from the canonical registry singleton so all
+ * modules share the same instance and invalidateUserRBACCache() targets it.
  */
-const __rbacInstances = new Map();
-const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
-  if (!__rbacInstances.has(tenant)) {
-    const inst = new RBACService(tenant);
-    // Unref the timer so it doesn't hold the event loop open
-    if (
-      inst.cleanupInterval &&
-      typeof inst.cleanupInterval.unref === "function"
-    ) {
-      inst.cleanupInterval.unref();
-    }
-    __rbacInstances.set(tenant, inst);
-  }
-  return __rbacInstances.get(tenant);
-};
+const getRBACService = (tenant = constants.DEFAULT_TENANT) =>
+  RBACService.getInstance(tenant);
 
 module.exports = {
   // Permission checking middleware
