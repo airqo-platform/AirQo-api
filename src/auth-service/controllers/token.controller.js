@@ -269,7 +269,7 @@ const createAccessToken = {
       const result = await tokenUtil.verifyToken(request, next);
 
       if (result == null) {
-        // verifyToken threw and the error is being handled by the catch block
+        next(new Error("Token verification returned no result"));
         return;
       }
       const status = result.status;
