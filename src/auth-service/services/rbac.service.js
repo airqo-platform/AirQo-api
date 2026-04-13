@@ -78,18 +78,11 @@ class RBACService {
     this.cacheExpiry = new Map();
     this.CACHE_TTL = 10 * 60 * 1000; // 10 minutes (L1 in-process cache)
 
-    // Before registering, destroy any existing instance for this tenant so its
-    // setInterval is cleared. Without this, each new RBACService(tenant) call
-    // from utils/services/controllers orphans the old instance — the interval
-    // closure holds a reference to it, preventing GC for up to 5 minutes per
-    // instance, and under sustained load these accumulate in memory.
-    const existing = RBACService._registry.get(tenant);
-    if (existing && existing !== this) {
-      existing.destroy();
-    }
-
     // Register in the static registry so invalidateUserRBACCache can reach
     // this instance's L1 cache without a circular import.
+    // Note: do NOT destroy the existing registry entry here — external pools
+    // (e.g. middleware __rbacInstances) may still hold a reference to it.
+    // Lifecycle management is the responsibility of getInstance() and callers.
     RBACService._registry.set(tenant, this);
 
     // Set up periodic cache cleanup

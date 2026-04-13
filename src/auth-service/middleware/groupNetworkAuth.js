@@ -9,21 +9,8 @@ const logger = log4js.getLogger(
 );
 const { logText, logObject } = require("@utils/shared");
 
-const __rbacInstances = new Map();
-const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
-  if (!__rbacInstances.has(tenant)) {
-    const inst = new RBACService(tenant);
-    // Unref the timer so it doesn't hold the event loop open
-    if (
-      inst.cleanupInterval &&
-      typeof inst.cleanupInterval.unref === "function"
-    ) {
-      inst.cleanupInterval.unref();
-    }
-    __rbacInstances.set(tenant, inst);
-  }
-  return __rbacInstances.get(tenant);
-};
+const getRBACService = (tenant = constants.DEFAULT_TENANT) =>
+  RBACService.getInstance(tenant);
 
 /**
  * Middleware to check if user has group manager access
