@@ -541,7 +541,7 @@ const createCohort = {
               description: 1,
               createdAt: {
                 $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
+                  format: "%Y-%m-%dT%H:%M:%SZ",
                   date: "$createdAt",
                 },
               },
@@ -605,7 +605,7 @@ const createCohort = {
               description: 1,
               createdAt: {
                 $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
+                  format: "%Y-%m-%dT%H:%M:%SZ",
                   date: "$createdAt",
                 },
               },
@@ -707,6 +707,14 @@ const createCohort = {
         { $addToSet: { cohorts: cohort_id } },
       );
 
+      // Re-query after the update to confirm which devices were actually assigned,
+      // guarding against concurrent requests that may have already written the same cohort_id.
+      const confirmedDocs = await DeviceModel(tenant)
+        .find({ _id: { $in: toAssign }, cohorts: cohort_id })
+        .select("_id")
+        .lean();
+      const confirmedAssigned = confirmedDocs.map((d) => d._id);
+
       const partialMessage =
         alreadyAssigned.length > 0
           ? `${alreadyAssigned.length} device(s) were already assigned and skipped`
@@ -718,7 +726,7 @@ const createCohort = {
           ? `Partially successful: ${partialMessage}`
           : "Successfully assigned all provided devices to the cohort",
         status: httpStatus.OK,
-        data: { assigned: toAssign, already_assigned: alreadyAssigned },
+        data: { assigned: confirmedAssigned, already_assigned: alreadyAssigned },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -987,7 +995,7 @@ const createCohort = {
       const site_ids = devices.map((device) => device.site_id);
 
       logObject("device_ids:", device_ids);
-      logObject("device_ids:", site_ids);
+      logObject("site_ids:", site_ids);
 
       return {
         success: true,
