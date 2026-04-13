@@ -31,7 +31,12 @@ const options = {
   // Default 100 supports ~1000 concurrent logins (each login uses ~3-5 pool
   // slots across auth + session + stats queries).
   poolSize: parseInt(constants.MONGODB_POOL_SIZE || "100", 10),
-  bufferMaxEntries: 0,
+  // bufferMaxEntries: 0 was removed to allow brief connection-loss windows
+  // (e.g. replica-set elections, TCP keepalive resets) to recover without
+  // failing every in-flight request. Operations now buffer for up to 10s
+  // before surfacing an error, matching the typical reconnect window.
+  // Long outages still surface as errors — just not on the first 200ms blip.
+  bufferTimeoutMS: parseInt(constants.MONGODB_BUFFER_TIMEOUT_MS || "10000", 10),
   connectTimeoutMS: 30000,
   socketTimeoutMS: 60000,
   serverSelectionTimeoutMS: 30000,

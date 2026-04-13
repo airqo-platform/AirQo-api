@@ -268,6 +268,10 @@ const createAccessToken = {
       analyzeIP(request, res, () => {});
       const result = await tokenUtil.verifyToken(request, next);
 
+      if (result == null) {
+        // verifyToken threw and the error is being handled by the catch block
+        return;
+      }
       const status = result.status;
       if (!res.headersSent) {
         res.status(status).send(result.message);
