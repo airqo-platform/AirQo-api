@@ -153,8 +153,15 @@ const createDynamicLimiter = (options) => {
 
       const limiterKey = useRedis ? `redis_${cacheKey}` : `memory_${cacheKey}`;
 
-      // Create or get cached limiter
+      // Create or get cached limiter. Cap the cache at 100 entries — each
+      // unique limiter config produces at most 3 keys (redis/memory/fallback),
+      // so this supports ~33 distinct rate-limit configs before evicting the
+      // oldest. Prevents unbounded growth when Redis availability flips often.
       if (!limiterCache.has(limiterKey)) {
+        if (limiterCache.size >= 100) {
+          const oldestKey = limiterCache.keys().next().value;
+          limiterCache.delete(oldestKey);
+        }
         const config = createLimiterConfig(options, useRedis);
         const limiter = rateLimit(config);
 

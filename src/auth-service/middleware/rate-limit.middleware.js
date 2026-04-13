@@ -270,13 +270,18 @@ const onRateLimitError = (error, req, res, next) => {
  * Create a safe rate limiter with error handling
  */
 const createSafeRateLimiter = (config) => {
+  // Extract keyGenerator separately so callers can override the default
+  // IP-based key. Placing ...config last would let callers override store,
+  // skip, and handler too, which is undesirable — so we only allow
+  // keyGenerator to be customised.
+  const { keyGenerator: configKeyGenerator, ...restConfig } = config;
   try {
     return rateLimit({
-      ...config,
+      ...restConfig,
       store: rateStore,
       skip: skipFunction,
       handler: rateLimitHandler,
-      keyGenerator,
+      keyGenerator: configKeyGenerator || keyGenerator,
       // Suppress the trust-proxy validation error — we use custom x-client-ip
       // headers via keyGenerator so req.ip trustworthiness is irrelevant here.
       validate: { trustProxy: false },
