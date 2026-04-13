@@ -1119,7 +1119,26 @@ const deviceUtil = {
               foreignField: "_id",
               as: "site",
               pipeline: [
-                { $project: { _id: 1, name: 1, district: 1, country: 1 } },
+                {
+                  $lookup: {
+                    from: "devices",
+                    localField: "_id",
+                    foreignField: "site_id",
+                    as: "devices",
+                    pipeline: [
+                      { $project: { _id: 1, name: 1, long_name: 1 } },
+                    ],
+                  },
+                },
+                {
+                  $project: {
+                    _id: 1,
+                    name: 1,
+                    district: 1,
+                    country: 1,
+                    devices: 1,
+                  },
+                },
               ],
             },
           },
@@ -1167,6 +1186,27 @@ const deviceUtil = {
               preserveNullAndEmptyArrays: true,
             },
           },
+          {
+            $lookup: {
+              from: "devices",
+              let: { siteId: "$site_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$site_id", "$$siteId"] },
+                  },
+                },
+                { $project: { _id: 1, name: 1, long_name: 1 } },
+              ],
+              as: "_site_devices",
+            },
+          },
+          {
+            $addFields: {
+              "site.devices": "$_site_devices",
+            },
+          },
+          { $unset: "_site_devices" },
           {
             $lookup: {
               from: "hosts",
