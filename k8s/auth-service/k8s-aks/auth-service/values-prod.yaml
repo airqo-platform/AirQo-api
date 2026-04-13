@@ -10,10 +10,10 @@ image:
 resources:
   limits:
     cpu: 400m
-    memory: 600Mi
+    memory: 1000Mi
   requests:
     cpu: 50m
-    memory: 250Mi
+    memory: 500Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
