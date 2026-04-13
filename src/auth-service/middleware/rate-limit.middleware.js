@@ -1,5 +1,6 @@
 const constants = require("@config/constants");
 const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
 const { logObject, logText } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -270,13 +271,18 @@ const onRateLimitError = (error, req, res, next) => {
  * Create a safe rate limiter with error handling
  */
 const createSafeRateLimiter = (config) => {
+  // Extract keyGenerator separately so callers can override the default
+  // IP-based key. Placing ...config last would let callers override store,
+  // skip, and handler too, which is undesirable — so we only allow
+  // keyGenerator to be customised.
+  const { keyGenerator: configKeyGenerator, ...restConfig } = config;
   try {
     return rateLimit({
-      ...config,
+      ...restConfig,
       store: rateStore,
       skip: skipFunction,
       handler: rateLimitHandler,
-      keyGenerator,
+      keyGenerator: configKeyGenerator || keyGenerator,
       // Suppress the trust-proxy validation error — we use custom x-client-ip
       // headers via keyGenerator so req.ip trustworthiness is irrelevant here.
       validate: { trustProxy: false },
@@ -349,6 +355,59 @@ const readRateLimiter = createSafeRateLimiter({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+/**
+ * Coarse IP-based guard for the /:token/verify endpoint.
+ *
+ * Applied before the per-token limiter to prevent high-cardinality bypass
+ * attacks where an abuser rotates many unique (invalid) tokens from the same
+ * IP, each getting its own fresh per-token bucket. 5000 req/hr per IP allows
+ * a legitimate internal service running ~2-3 tokens at up to 2000 req/hr
+ * each, while blocking any single IP that hammers the endpoint indiscriminately.
+ */
+const tokenVerifyIpRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many verification requests from this IP. Please try again later.",
+});
+
+/**
+ * Token-keyed rate limiter for the /:token/verify endpoint.
+ *
+ * Keyed by the token value from req.params.token rather than IP so that:
+ * - Each API client gets its own independent bucket regardless of the IP they
+ *   call from (internal services sharing a cluster IP won't collide).
+ * - External abuse of a single token is still capped.
+ *
+ * Limit: 2000 requests per hour per token — generous enough for busy
+ * service-to-service callers (~33/min) but low enough to cap runaway callers.
+ * Falls back to IP key if the token param is absent for any reason.
+ */
+const tokenVerifyRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many verification requests for this token. Please try again later.",
+  keyGenerator: (req) => {
+    const token = req.params.token;
+    if (token) {
+      // Hash the token so raw credentials are never stored in Redis keys or
+      // visible in datastore inspection/metrics. A 16-char hex prefix of
+      // SHA-256 gives 64 bits of collision resistance — sufficient for a
+      // rate-limit key while keeping key size small.
+      const hashed = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex")
+        .slice(0, 16);
+      return `token_verify_rl:${hashed}`;
+    }
+    return `token_verify_rl:ip:${extractIp(req)}`;
+  },
 });
 
 /**
@@ -483,6 +542,8 @@ module.exports = {
   authRateLimiter,
   writeRateLimiter,
   readRateLimiter,
+  tokenVerifyIpRateLimiter,
+  tokenVerifyRateLimiter,
 
   // Subscription tier-aware limiter (apply after JWT auth)
   tierBasedRateLimiter,
