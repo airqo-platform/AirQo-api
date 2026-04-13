@@ -734,6 +734,16 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
       };
     }
 
+    // Privacy gate: private grids do not expose their sites
+    if (gridDetails.visibility === false) {
+      return {
+        success: true,
+        message: "Grid is private; site data is not publicly accessible",
+        data: "",
+        status: httpStatus.OK,
+      };
+    }
+
     const sites = gridDetails.sites || [];
 
     if (sites.length === 0) {
@@ -766,7 +776,11 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   }
 };
-const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
+const getDevicesFromCohort = async ({
+  tenant = "airqo",
+  cohort_id,
+  user_id,
+} = {}) => {
   try {
     const request = {
       query: {
@@ -796,6 +810,35 @@ const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
+    // Privacy gate: private cohorts restrict access to recent measurements
+    const isPrivate = cohortDetails.visibility === false;
+    if (isPrivate) {
+      if (!user_id) {
+        // No user context — suppress all devices from this private cohort
+        return {
+          success: true,
+          message:
+            "Cohort is private; device data is not publicly accessible",
+          data: "",
+          status: httpStatus.OK,
+        };
+      }
+      // User context present — return only devices owned by this user
+      const ownedDevices = await DeviceModel(tenant)
+        .find({ cohorts: cohort_id, owner_id: user_id })
+        .select("_id")
+        .lean();
+      const ownedIds = ownedDevices.map((d) => d._id.toString()).join(",");
+      return {
+        success: true,
+        message: ownedIds
+          ? "Successfully retrieved owned devices from private cohort"
+          : "No owned devices found in this private cohort",
+        data: ownedIds,
+        status: httpStatus.OK,
+      };
+    }
+
     const assignedDevices = cohortDetails.devices || [];
     const deviceIds = assignedDevices.map((device) => device._id.toString());
 
@@ -892,10 +935,14 @@ const processCohortIds = async (cohort_ids, request) => {
     ? cohort_ids
     : cohort_ids.toString().split(",");
 
+  // Pass through requester identity so private cohorts can apply owner bypass
+  const user_id = request.query.user_id;
+
   const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
     if (!isEmpty(cohort_id)) {
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
         cohort_id,
+        user_id,
       });
 
       logObject(

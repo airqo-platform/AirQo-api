@@ -1016,22 +1016,27 @@ const createCohort = {
   },
   filterOutPrivateDevices: async (request, next) => {
     try {
-      const { tenant, devices, device_ids, device_names } = {
+      const { tenant, devices, device_ids, device_names, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
       const privateCohorts = await CohortModel(tenant)
-        .find({
-          visibility: false,
-        })
+        .find({ visibility: false })
         .select("_id")
         .lean();
 
       const privateCohortIds = privateCohorts.map((cohort) => cohort._id);
-      const privateDevices = await DeviceModel(tenant).find({
-        cohorts: { $in: privateCohortIds },
-      });
+
+      // When a user_id is provided, exclude devices owned by that user from the
+      // "private" set so owners can always access their own device data.
+      const privateDevicesQuery = { cohorts: { $in: privateCohortIds } };
+      if (user_id) {
+        privateDevicesQuery.owner_id = { $ne: new ObjectId(user_id) };
+      }
+      const privateDevices = await DeviceModel(tenant).find(
+        privateDevicesQuery,
+      );
 
       const privateDeviceIds = privateDevices.map((device) =>
         device._id.toString(),
