@@ -1,6 +1,18 @@
 const IPRequestLogModel = require("@models/IPRequestLog");
 const tokenUtil = require("@utils/token.util");
 const { logObject } = require("@utils/shared");
+const log4js = require("log4js");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- ip-pattern-analysis.middleware`,
+);
+
+// Cap the number of concurrent background analysis operations.
+// When the DB is slow, fire-and-forget promises accumulate in the event loop
+// and drive up memory. Shedding work above this threshold prevents the OOM
+// spiral seen during DB reconnect windows.
+const MAX_CONCURRENT_ANALYSIS = 50;
+let _pendingAnalysis = 0;
 
 const analyzeIP = async (req, res, next) => {
   try {
@@ -14,17 +26,28 @@ const analyzeIP = async (req, res, next) => {
     const tenant = req.query.tenant || "airqo";
 
     if (ip) {
-      // Log the request without waiting for it to complete
-      IPRequestLogModel(tenant)
-        .recordRequest({ ip, endpoint, token })
-        .catch((err) => logObject("Error in background IP recording", err));
+      if (_pendingAnalysis >= MAX_CONCURRENT_ANALYSIS) {
+        logger.warn(
+          `analyzeIP: backpressure limit reached (${_pendingAnalysis} pending), skipping background analysis for ${ip}`,
+        );
+      } else {
+        _pendingAnalysis++;
 
-      // Asynchronously analyze the IP patterns
-      tokenUtil
-        .analyzeIPRequestPatterns({ ip, tenant, endpoint })
-        .catch((err) => {
-          logObject("Error in background IP analysis", err);
-        });
+        // Log the request without waiting for it to complete
+        IPRequestLogModel(tenant)
+          .recordRequest({ ip, endpoint, token })
+          .catch((err) => logObject("Error in background IP recording", err))
+          .finally(() => {
+            _pendingAnalysis--;
+          });
+
+        // Asynchronously analyze the IP patterns
+        tokenUtil
+          .analyzeIPRequestPatterns({ ip, tenant, endpoint })
+          .catch((err) => {
+            logObject("Error in background IP analysis", err);
+          });
+      }
     }
   } catch (error) {
     logObject("Error in IP analysis middleware", error);

@@ -352,6 +352,31 @@ const readRateLimiter = createSafeRateLimiter({
 });
 
 /**
+ * Token-keyed rate limiter for the /:token/verify endpoint.
+ *
+ * Keyed by the token value from req.params.token rather than IP so that:
+ * - Each API client gets its own independent bucket regardless of the IP they
+ *   call from (internal services sharing a cluster IP won't collide).
+ * - External abuse of a single token is still capped.
+ *
+ * Limit: 2000 requests per hour per token — generous enough for busy
+ * service-to-service callers (~33/min) but low enough to cap runaway callers.
+ * Falls back to IP key if the token param is absent for any reason.
+ */
+const tokenVerifyRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many verification requests for this token. Please try again later.",
+  keyGenerator: (req) => {
+    const token = req.params.token;
+    if (token) return `token_verify_rl:${token}`;
+    return `token_verify_rl:ip:${extractIp(req)}`;
+  },
+});
+
+/**
  * Custom rate limiter factory
  */
 const createCustomRateLimiter = ({ windowMs, max, message }) => {
@@ -483,6 +508,7 @@ module.exports = {
   authRateLimiter,
   writeRateLimiter,
   readRateLimiter,
+  tokenVerifyRateLimiter,
 
   // Subscription tier-aware limiter (apply after JWT auth)
   tierBasedRateLimiter,

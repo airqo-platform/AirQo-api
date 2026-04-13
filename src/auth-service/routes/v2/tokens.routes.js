@@ -25,7 +25,7 @@ const {
 
 const { validate, headers, pagination } = require("@validators/common");
 
-const { strictRateLimiter } = require("@middleware/rate-limit.middleware");
+const { strictRateLimiter, tokenVerifyRateLimiter } = require("@middleware/rate-limit.middleware");
 
 const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
 // Apply common middleware
@@ -105,7 +105,7 @@ router.get(
   validateTenant,
   // domainBlockingMiddleware, // Temporarily disabled for performance monitoring
   validateTokenParam,
-  // strictRateLimiter,
+  tokenVerifyRateLimiter,
   createTokenController.verify,
 );
 
