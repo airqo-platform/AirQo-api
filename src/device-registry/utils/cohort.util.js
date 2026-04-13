@@ -541,8 +541,8 @@ const createCohort = {
               description: 1,
               createdAt: {
                 $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
+                  format: "%Y-%m-%dT%H:%M:%SZ",
+                  date: "$createdAt",
                 },
               },
             },
@@ -605,8 +605,8 @@ const createCohort = {
               description: 1,
               createdAt: {
                 $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
+                  format: "%Y-%m-%dT%H:%M:%SZ",
+                  date: "$createdAt",
                 },
               },
             },
@@ -655,75 +655,78 @@ const createCohort = {
         };
       }
 
-      const alreadyAssignedDevices = [];
+      // Batch fetch all devices at once to avoid N+1 queries
+      const existingDevices = await DeviceModel(tenant)
+        .find({ _id: { $in: device_ids } })
+        .select("_id cohorts")
+        .lean();
 
-      for (const device_id of device_ids) {
-        const device = await DeviceModel(tenant)
-          .findById(ObjectId(device_id))
-          .lean();
+      const foundIds = new Set(existingDevices.map((d) => d._id.toString()));
+      const notFoundIds = device_ids.filter(
+        (id) => !foundIds.has(id.toString()),
+      );
 
-        if (!device) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Invalid Device ID ${device_id}, please crosscheck`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
-        if (
-          device.cohorts &&
-          device.cohorts.map(String).includes(cohort_id.toString())
-        ) {
-          alreadyAssignedDevices.push(device_id);
-        }
-      }
-
-      if (alreadyAssignedDevices.length > 0) {
+      if (notFoundIds.length > 0) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `The following devices are already assigned to the Cohort ${cohort_id}: ${alreadyAssignedDevices.join(
-              ", ",
-            )}`,
+            message: `The following Device IDs were not found: ${notFoundIds.join(", ")}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
-      //
-      const totalDevices = device_ids.length;
-      const { nModified, n } = await DeviceModel(tenant).updateMany(
-        { _id: { $in: device_ids } },
+
+      // Split into already-assigned and new-to-assign; proceed with new ones
+      const cohortIdStr = cohort_id.toString();
+      const alreadyAssigned = existingDevices
+        .filter(
+          (d) =>
+            d.cohorts && d.cohorts.map(String).includes(cohortIdStr),
+        )
+        .map((d) => d._id);
+
+      const toAssign = existingDevices
+        .filter(
+          (d) =>
+            !d.cohorts || !d.cohorts.map(String).includes(cohortIdStr),
+        )
+        .map((d) => d._id);
+
+      if (toAssign.length === 0) {
+        return {
+          success: true,
+          message: "All provided devices are already assigned to this cohort",
+          status: httpStatus.OK,
+          data: { assigned: [], already_assigned: alreadyAssigned },
+        };
+      }
+
+      await DeviceModel(tenant).updateMany(
+        { _id: { $in: toAssign } },
         { $addToSet: { cohorts: cohort_id } },
       );
 
-      const notFoundCount = totalDevices - nModified;
-      if (nModified === 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching Device found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      // Re-query after the update to confirm which devices were actually assigned,
+      // guarding against concurrent requests that may have already written the same cohort_id.
+      const confirmedDocs = await DeviceModel(tenant)
+        .find({ _id: { $in: toAssign }, cohorts: cohort_id })
+        .select("_id")
+        .lean();
+      const confirmedAssigned = confirmedDocs.map((d) => d._id);
 
-      if (notFoundCount > 0) {
-        return {
-          success: true,
-          message: `Operation partially successful some ${notFoundCount} of the provided devices were not found in the system`,
-          status: httpStatus.OK,
-          data: cohort,
-        };
-      }
+      const partialMessage =
+        alreadyAssigned.length > 0
+          ? `${alreadyAssigned.length} device(s) were already assigned and skipped`
+          : null;
 
       return {
         success: true,
-        message: "successfully assigned all the provided devices to the Cohort",
+        message: partialMessage
+          ? `Partially successful: ${partialMessage}`
+          : "Successfully assigned all provided devices to the cohort",
         status: httpStatus.OK,
-        data: cohort,
+        data: { assigned: confirmedAssigned, already_assigned: alreadyAssigned },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -982,21 +985,17 @@ const createCohort = {
         };
       }
       // Fetch devices based on the provided Cohort ID
-      const devices = await DeviceModel(tenant).find({ cohorts: cohort_id });
+      const devices = await DeviceModel(tenant)
+        .find({ cohorts: cohort_id })
+        .select("_id site_id")
+        .lean();
 
-      // Extract device IDs from the fetched devices
+      // Extract device and site IDs directly from the fetched documents
       const device_ids = devices.map((device) => device._id);
-
-      // Fetch sites for each device concurrently
-      const site_ids_promises = device_ids.map(async (deviceId) => {
-        const device = await DeviceModel(tenant).findOne({ _id: deviceId });
-        return device.site_id;
-      });
-
-      const site_ids = await Promise.all(site_ids_promises);
+      const site_ids = devices.map((device) => device.site_id);
 
       logObject("device_ids:", device_ids);
-      logObject("device_ids:", site_ids);
+      logObject("site_ids:", site_ids);
 
       return {
         success: true,

@@ -3075,11 +3075,11 @@ const deviceUtil = {
           return { success: false, ...groupObjectIdsResult };
         }
         groupObjectIds = groupObjectIdsResult.data;
-        const groups = await CohortModel(tenant)
-          .find({ groups: { $in: groupObjectIds } })
+        const groupLinkedCohorts = await CohortModel(tenant)
+          .find({ grp_id: { $in: groupObjectIds } })
           .select("_id")
           .lean();
-        groupCohorts = groups.map((g) => g._id);
+        groupCohorts = groupLinkedCohorts.map((g) => g._id);
       }
 
       // 2. Combine all cohort IDs: direct user cohorts and group cohorts
