@@ -1031,7 +1031,7 @@ const createCohort = {
       // When a user_id is provided, exclude devices owned by that user from the
       // "private" set so owners can always access their own device data.
       const privateDevicesQuery = { cohorts: { $in: privateCohortIds } };
-      if (user_id) {
+      if (user_id && ObjectId.isValid(user_id)) {
         privateDevicesQuery.owner_id = { $ne: new ObjectId(user_id) };
       }
       const privateDevices = await DeviceModel(tenant).find(
