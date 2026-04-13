@@ -1193,7 +1193,12 @@ const deviceUtil = {
               pipeline: [
                 {
                   $match: {
-                    $expr: { $eq: ["$site_id", "$$siteId"] },
+                    $expr: {
+                      $and: [
+                        { $ne: ["$$siteId", null] },
+                        { $eq: ["$site_id", "$$siteId"] },
+                      ],
+                    },
                   },
                 },
                 { $project: { _id: 1, name: 1, long_name: 1 } },
@@ -1203,7 +1208,13 @@ const deviceUtil = {
           },
           {
             $addFields: {
-              "site.devices": "$_site_devices",
+              "site.devices": {
+                $cond: {
+                  if: { $and: [{ $ne: ["$site", null] }, { $gt: [{ $size: "$_site_devices" }, 0] }] },
+                  then: "$_site_devices",
+                  else: "$$REMOVE",
+                },
+              },
             },
           },
           { $unset: "_site_devices" },
