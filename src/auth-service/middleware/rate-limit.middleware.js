@@ -1,5 +1,6 @@
 const constants = require("@config/constants");
 const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
 const { logObject, logText } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -376,7 +377,18 @@ const tokenVerifyRateLimiter = createSafeRateLimiter({
   message: "Too many verification requests for this token. Please try again later.",
   keyGenerator: (req) => {
     const token = req.params.token;
-    if (token) return `token_verify_rl:${token}`;
+    if (token) {
+      // Hash the token so raw credentials are never stored in Redis keys or
+      // visible in datastore inspection/metrics. A 16-char hex prefix of
+      // SHA-256 gives 64 bits of collision resistance — sufficient for a
+      // rate-limit key while keeping key size small.
+      const hashed = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex")
+        .slice(0, 16);
+      return `token_verify_rl:${hashed}`;
+    }
     return `token_verify_rl:ip:${extractIp(req)}`;
   },
 });

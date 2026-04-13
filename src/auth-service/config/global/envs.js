@@ -121,6 +121,10 @@ const envs = {
   // logins across 3 replicas (each login uses ~3-5 pool slots).
   // Tune via MONGODB_POOL_SIZE env var without a code change.
   MONGODB_POOL_SIZE: parseNumber(process.env.MONGODB_POOL_SIZE, 100),
+  // Maximum concurrent background IP analysis operations per pod.
+  // Shedding work above this threshold prevents OOM during DB slowness.
+  // Tune via IP_ANALYSIS_CONCURRENCY env var without a code change.
+  IP_ANALYSIS_CONCURRENCY: parseNumber(process.env.IP_ANALYSIS_CONCURRENCY, 50),
 
   // ── Feedback domain constants ──────────────────────────────────────────────
   // Single source of truth shared between the Feedback model and validators.

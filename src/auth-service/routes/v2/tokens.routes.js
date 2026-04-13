@@ -25,7 +25,7 @@ const {
 
 const { validate, headers, pagination } = require("@validators/common");
 
-const { strictRateLimiter, tokenVerifyRateLimiter } = require("@middleware/rate-limit.middleware");
+const { tokenVerifyRateLimiter } = require("@middleware/rate-limit.middleware");
 
 const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
 // Apply common middleware

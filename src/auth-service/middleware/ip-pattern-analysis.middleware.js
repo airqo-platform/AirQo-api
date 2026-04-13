@@ -7,12 +7,16 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- ip-pattern-analysis.middleware`,
 );
 
-// Cap the number of concurrent background analysis operations.
-// When the DB is slow, fire-and-forget promises accumulate in the event loop
-// and drive up memory. Shedding work above this threshold prevents the OOM
-// spiral seen during DB reconnect windows.
-const MAX_CONCURRENT_ANALYSIS = 50;
+// Read from constants so the limit can be tuned per deployment via
+// the IP_ANALYSIS_CONCURRENCY environment variable without a code change.
+const MAX_CONCURRENT_ANALYSIS =
+  constants.IP_ANALYSIS_CONCURRENCY || 50;
 let _pendingAnalysis = 0;
+
+// Only log the backpressure warning on the transition into the overloaded
+// state, not on every subsequent request. This avoids flooding logs with
+// warn-level noise right when the service is already degraded.
+let _atCapacity = false;
 
 const analyzeIP = async (req, res, next) => {
   try {
@@ -27,26 +31,34 @@ const analyzeIP = async (req, res, next) => {
 
     if (ip) {
       if (_pendingAnalysis >= MAX_CONCURRENT_ANALYSIS) {
-        logger.warn(
-          `analyzeIP: backpressure limit reached (${_pendingAnalysis} pending), skipping background analysis for ${ip}`,
-        );
+        if (!_atCapacity) {
+          _atCapacity = true;
+          logger.warn(
+            `analyzeIP: backpressure limit reached (${_pendingAnalysis} pending), shedding background analysis until load reduces`,
+          );
+        }
       } else {
+        if (_atCapacity) {
+          _atCapacity = false;
+          logger.info(
+            `analyzeIP: backpressure recovered (${_pendingAnalysis} pending), resuming background analysis`,
+          );
+        }
         _pendingAnalysis++;
 
-        // Log the request without waiting for it to complete
-        IPRequestLogModel(tenant)
-          .recordRequest({ ip, endpoint, token })
-          .catch((err) => logObject("Error in background IP recording", err))
-          .finally(() => {
-            _pendingAnalysis--;
-          });
-
-        // Asynchronously analyze the IP patterns
-        tokenUtil
-          .analyzeIPRequestPatterns({ ip, tenant, endpoint })
-          .catch((err) => {
-            logObject("Error in background IP analysis", err);
-          });
+        // Account for both background operations in the concurrency counter
+        // so that a slow analyzeIPRequestPatterns cannot accumulate unbounded
+        // promises independently of recordRequest.
+        Promise.allSettled([
+          IPRequestLogModel(tenant)
+            .recordRequest({ ip, endpoint, token })
+            .catch((err) => logObject("Error in background IP recording", err)),
+          tokenUtil
+            .analyzeIPRequestPatterns({ ip, tenant, endpoint })
+            .catch((err) => logObject("Error in background IP analysis", err)),
+        ]).finally(() => {
+          _pendingAnalysis--;
+        });
       }
     }
   } catch (error) {
