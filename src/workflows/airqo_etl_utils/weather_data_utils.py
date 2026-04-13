@@ -216,7 +216,7 @@ class WeatherDataUtils:
                 ValueError: If the `sites` DataFrame does not contain the required columns.
             """
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 results = executor.map(
                     OpenWeatherApi.get_current_weather_for_each_site,
                     batch_of_coordinates,
