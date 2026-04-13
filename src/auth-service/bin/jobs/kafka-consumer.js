@@ -158,7 +158,7 @@ const getBlacklistedRanges = async () => {
         if (ranges.length === 0) {
           break;
         }
-        allRanges = allRanges.concat(ranges.map((r) => r.range));
+        for (const r of ranges) allRanges.push(r.range);
         pageNumber++;
       }
       cachedBlacklistedRanges = allRanges;
