@@ -47,6 +47,8 @@ const {
   redisExpireAsync,
 } = require("@config/redis");
 const asyncRetry = require("async-retry");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
 let lastRedisWarning = 0;
 const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
@@ -739,7 +741,8 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
       return {
         success: true,
         message: "Grid is private; site data is not publicly accessible",
-        data: "",
+        data: null,
+        suppressed: true,
         status: httpStatus.OK,
       };
     }
@@ -819,13 +822,22 @@ const getDevicesFromCohort = async ({
           success: true,
           message:
             "Cohort is private; device data is not publicly accessible",
-          data: "",
+          data: null,
+          suppressed: true,
           status: httpStatus.OK,
         };
       }
       // User context present — return only devices owned by this user
+      if (!ObjectId.isValid(user_id)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Invalid user_id format" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       const ownedDevices = await DeviceModel(tenant)
-        .find({ cohorts: cohort_id, owner_id: user_id })
+        .find({ cohorts: cohort_id, owner_id: new ObjectId(user_id) })
         .select("_id")
         .lean();
       const ownedIds = ownedDevices.map((d) => d._id.toString()).join(",");
@@ -880,6 +892,9 @@ const processGridIds = async (grid_ids, request) => {
           )}`,
         );
         return responseFromGetSitesOfGrid;
+      } else if (responseFromGetSitesOfGrid.suppressed) {
+        // Grid is private — treat as empty site set, not an error
+        return [];
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
           `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
@@ -958,6 +973,9 @@ const processCohortIds = async (cohort_ids, request) => {
         );
         // Return the error response to the caller
         return responseFromGetDevicesOfCohort;
+      } else if (responseFromGetDevicesOfCohort.suppressed) {
+        // Cohort is private — treat as empty device set, not an error
+        return [];
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
           `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
