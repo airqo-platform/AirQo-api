@@ -1009,7 +1009,6 @@ const token = {
         }
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       throw error;
     }
   },

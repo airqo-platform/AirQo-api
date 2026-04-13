@@ -269,7 +269,13 @@ const createAccessToken = {
       const result = await tokenUtil.verifyToken(request, next);
 
       if (result == null) {
-        next(new Error("Token verification returned no result"));
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Token verification returned no result" },
+          ),
+        );
         return;
       }
       const status = result.status;

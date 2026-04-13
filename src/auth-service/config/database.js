@@ -36,7 +36,10 @@ const options = {
   // failing every in-flight request. Operations now buffer for up to 10s
   // before surfacing an error, matching the typical reconnect window.
   // Long outages still surface as errors — just not on the first 200ms blip.
-  bufferTimeoutMS: parseInt(constants.MONGODB_BUFFER_TIMEOUT_MS || "10000", 10),
+  bufferTimeoutMS: (() => {
+    const val = parseInt(constants.MONGODB_BUFFER_TIMEOUT_MS, 10);
+    return Number.isFinite(val) && val > 0 ? val : 10000;
+  })(),
   connectTimeoutMS: 30000,
   socketTimeoutMS: 60000,
   serverSelectionTimeoutMS: 30000,
