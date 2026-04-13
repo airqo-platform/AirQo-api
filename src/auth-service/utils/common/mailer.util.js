@@ -707,8 +707,22 @@ const getEmailSubject = (functionName, params) => {
       "Urgent Security Alert - Potential Compromise of Your AIRQO API Token",
     newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
-    expiredToken: "Action Required: Your AirQo API Token is expired",
-    expiringToken: "AirQo API Token Expiry: Create New Token Urgently",
+    expiredToken: "Action Required: Your AirQo API Token Has Expired",
+    expiringToken: "Action Required: Your AirQo API Token is Expiring Soon",
+
+    // ===== SENSOR MANUFACTURER (NETWORK) REQUEST FUNCTIONS =====
+    notifyAdminOfSensorManufacturerRequest: `New Sensor Manufacturer Request: ${sanitizeEmailString(
+      params.net_name || "",
+    )}`,
+    confirmSensorManufacturerRequestReceived: `We Have Received Your Sensor Manufacturer Request: ${sanitizeEmailString(
+      params.net_name || "",
+    )}`,
+    notifySensorManufacturerRequestApproved: `Your Sensor Manufacturer Request Has Been Approved: ${sanitizeEmailString(
+      params.net_name || "",
+    )}`,
+    notifySensorManufacturerRequestDenied: `Update on Your Sensor Manufacturer Request: ${sanitizeEmailString(
+      params.net_name || "",
+    )}`,
 
     // ===== ORG MANAGEMENT FUNCTIONS =====
     notifyAdminsOfNewOrgRequest: `New Organization Request: ${sanitizeEmailString(
@@ -787,6 +801,8 @@ const getEmailSubject = (functionName, params) => {
       "Your AirQo Account: Update Your Name to Enhance Your Experience",
     sendPollutionAlert: params.subject || "AirQo Pollution Alert",
     inactiveAccount: "We've Missed You on AirQo!",
+    accountScheduledForDeletion: "Your AirQo Account is Scheduled for Deletion",
+    accountDeletionFinalReminder: `Final Notice: Your AirQo Account Will Be Deleted in ${params.reminderDays || 7} Days`,
     sendAccountDeletionConfirmation: "Confirm Your AirQo Account Deletion",
     sendAccountDeletionSuccess: "Your AirQo Account Has Been Deleted",
     sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
@@ -811,6 +827,8 @@ const EMAIL_CATEGORIES = {
     "signInWithEmailLink",
     "deleteMobileAccountEmail",
     "inactiveAccount",
+    "accountScheduledForDeletion",
+    "accountDeletionFinalReminder",
     "sendAccountDeletionConfirmation",
     "sendAccountDeletionSuccess",
     "sendMobileAccountDeletionCode",
@@ -823,6 +841,13 @@ const EMAIL_CATEGORIES = {
     "expiringToken",
     "onboardingAccountSetup",
     "notifyGroupStatusChanged",
+  ],
+
+  SENSOR_MANUFACTURER_MANAGEMENT: [
+    "notifyAdminOfSensorManufacturerRequest",
+    "confirmSensorManufacturerRequestReceived",
+    "notifySensorManufacturerRequestApproved",
+    "notifySensorManufacturerRequestDenied",
   ],
 
   ORG_MANAGEMENT: [
@@ -2279,13 +2304,20 @@ const mailer = {
   ),
   expiredToken: createSecurityEmailFunction(
     "expiredToken", //
-    (params) =>
-      msgs.tokenExpired({
+    (params) => {
+      const maskedToken =
+        params.token && params.token.length > 12
+          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
+          : params.token || "";
+      return msgs.tokenExpired({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-        token: params.token,
-      }),
+        token: maskedToken,
+        tokenName: params.tokenName,
+        expires: params.expires,
+      });
+    },
     {
       cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
@@ -2293,12 +2325,20 @@ const mailer = {
   ),
   expiringToken: createSecurityEmailFunction(
     "expiringToken", //
-    (params) =>
-      msgs.tokenExpiringSoon({
+    (params) => {
+      const maskedToken =
+        params.token && params.token.length > 12
+          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
+          : params.token || "";
+      return msgs.tokenExpiringSoon({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-      }),
+        token: maskedToken,
+        tokenName: params.tokenName,
+        expires: params.expires,
+      });
+    },
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
@@ -2420,6 +2460,27 @@ const mailer = {
         email: params.email,
       }),
   ),
+  accountScheduledForDeletion: createMailerFunction(
+    "accountScheduledForDeletion",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.accountScheduledForDeletion({
+        firstName: params.firstName,
+        email: params.email,
+        deletionDate: params.deletionDate,
+      }),
+  ),
+  accountDeletionFinalReminder: createMailerFunction(
+    "accountDeletionFinalReminder",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.accountDeletionFinalReminder({
+        firstName: params.firstName,
+        email: params.email,
+        deletionDate: params.deletionDate,
+        reminderDays: params.reminderDays,
+      }),
+  ),
   sendAccountDeletionConfirmation: createMailerFunction(
     "sendAccountDeletionConfirmation", //
     "CORE_CRITICAL",
@@ -2499,6 +2560,66 @@ const mailer = {
       };
     },
   ),
+  // ── Sensor manufacturer (network) creation request emails ──────────────────
+  //
+  // 1. Admin notification — sent to AirQo support when a new request is submitted
+  notifyAdminOfSensorManufacturerRequest: createMailerFunction(
+    "notifyAdminOfSensorManufacturerRequest",
+    "SENSOR_MANUFACTURER_MANAGEMENT",
+    (params) =>
+      msgs.notifyAdminOfSensorManufacturerRequest({
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        net_name: params.net_name,
+        net_email: params.net_email,
+        net_website: params.net_website,
+        net_category: params.net_category,
+        net_description: params.net_description,
+      }),
+    // Route this email to the support inbox rather than the requester's address
+    (baseMailOptions, _params) => ({
+      ...baseMailOptions,
+      to: constants.SUPPORT_EMAIL || "support@airqo.net",
+      bcc: constants.REQUEST_ACCESS_EMAILS || undefined,
+    }),
+  ),
+
+  // 2. Requester acknowledgement — confirms the request has been received
+  confirmSensorManufacturerRequestReceived: createMailerFunction(
+    "confirmSensorManufacturerRequestReceived",
+    "SENSOR_MANUFACTURER_MANAGEMENT",
+    (params) =>
+      msgs.confirmSensorManufacturerRequestReceived({
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        net_name: params.net_name,
+      }),
+  ),
+
+  // 3. Requester approval — informs the requester that the request was approved
+  notifySensorManufacturerRequestApproved: createMailerFunction(
+    "notifySensorManufacturerRequestApproved",
+    "SENSOR_MANUFACTURER_MANAGEMENT",
+    (params) =>
+      msgs.notifySensorManufacturerRequestApproved({
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        net_name: params.net_name,
+      }),
+  ),
+
+  notifySensorManufacturerRequestDenied: createMailerFunction(
+    "notifySensorManufacturerRequestDenied",
+    "SENSOR_MANUFACTURER_MANAGEMENT",
+    (params) =>
+      msgs.notifySensorManufacturerRequestDenied({
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        net_name: params.net_name,
+        reviewer_notes: params.reviewer_notes,
+      }),
+  ),
+
   // Mandatory lifecycle notification — sent to the group manager and all members
   // when an admin changes group status. Deactivation always triggers this;
   // activation also notifies the manager. Bypasses unsubscribe checks (CORE_CRITICAL)

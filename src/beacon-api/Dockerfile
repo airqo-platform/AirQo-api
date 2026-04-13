@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
+# Make entrypoint script executable
+RUN chmod +x entrypoint.sh
+
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -33,7 +36,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     resp = urllib.request.urlopen('http://localhost:8000/health', timeout=5); \
     sys.exit(0 if resp.getcode() == 200 else 1)"
 
-# Run with reload for staging
+# Run migrations if needed, then start the app
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production stage
@@ -58,6 +62,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
+# Make entrypoint script executable
+RUN chmod +x entrypoint.sh
+
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -71,5 +78,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     resp = urllib.request.urlopen('http://localhost:8000/health', timeout=5); \
     sys.exit(0 if resp.getcode() == 200 else 1)"
 
-# Run without reload for production
+# Run migrations if needed, then start the app
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

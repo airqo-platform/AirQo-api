@@ -65,9 +65,19 @@ const envs = {
   DEPLOY_TOPIC: process.env.DEPLOY_TOPIC,
   RECALL_TOPIC: process.env.RECALL_TOPIC,
   COHORT_TOPIC: process.env.COHORT_TOPIC,
-  HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
+  HOURLY_MEASUREMENTS_TOPIC:
+    process.env.HOURLY_MEASUREMENTS_TOPIC || "hourly-measurements-topic",
   NETWORK_EVENTS_TOPIC:
     process.env.NETWORK_EVENTS_TOPIC || "network-events-topic",
+  NETWORK_CREATION_REQUESTS_TOPIC:
+    process.env.NETWORK_CREATION_REQUESTS_TOPIC ||
+    "network-creation-requests-topic",
+  NETWORK_CREATION_APPROVED_TOPIC:
+    process.env.NETWORK_CREATION_APPROVED_TOPIC ||
+    "network-creation-approved-topic",
+  NETWORK_CREATION_DENIED_TOPIC:
+    process.env.NETWORK_CREATION_DENIED_TOPIC ||
+    "network-creation-denied-topic",
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
   TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,

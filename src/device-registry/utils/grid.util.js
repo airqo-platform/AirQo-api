@@ -1,6 +1,7 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
+const ComputedCacheModel = require("@models/ComputedCache");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -21,6 +22,208 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+
+// ---------------------------------------------------------------------------
+// Two-level cache for the private-site-IDs aggregation.
+//
+// Why two levels?
+//   L1 (in-memory): pod-local, sub-millisecond reads, lost on pod restart.
+//   L2 (MongoDB):   shared across all Kubernetes replicas, survives restarts.
+//
+// Flow on each request:
+//   1. L1 hit  → return immediately (nanoseconds).
+//   2. L1 miss → check MongoDB document (one indexed findOne, ~1 ms).
+//      2a. L2 hit  → populate L1 (TTL aligned to L2's absolute expiresAt), return.
+//      2b. L2 miss → try to acquire a cross-pod lease.
+//          Lease acquired   → run aggregation, write L2 + L1, release lease.
+//          Lease not held   → back off 500 ms, re-read L2; if still empty,
+//                             fall through to a local recompute so the
+//                             request never stalls indefinitely.
+//
+// Within-pod concurrency: concurrent callers share a single in-flight
+// Promise (_inflight map) so only one goroutine-equivalent pays the DB cost.
+// ---------------------------------------------------------------------------
+const _privateSiteIdsCache = new Map(); // Map prevents prototype-pollution attacks
+const _inflight = new Map(); // per-tenant in-flight recompute promises
+const PRIVATE_SITE_IDS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const LOCK_TTL_MS = 30 * 1000; // 30-second lease; TTL index cleans stale locks
+const PRIVATE_SITE_IDS_CACHE_KEY = "private_site_ids";
+const PRIVATE_SITE_IDS_LOCK_KEY = "private_site_ids_lock";
+
+// Attempt to insert a lock document. Returns true when this pod holds the
+// lease, false when another pod already has it (duplicate-key error 11000).
+// Any other DB error is treated as "lease acquired" to avoid starvation.
+async function acquireComputeLease(tenant) {
+  try {
+    await ComputedCacheModel(tenant).create({
+      key: PRIVATE_SITE_IDS_LOCK_KEY,
+      tenant,
+      data: 1,
+      computedAt: new Date(),
+      expiresAt: new Date(Date.now() + LOCK_TTL_MS),
+    });
+    return true;
+  } catch (err) {
+    if (err.code === 11000) {
+      return false; // another pod holds the lease
+    }
+    return true; // allow recompute on unexpected errors to avoid starvation
+  }
+}
+
+// Delete the lock document so the next TTL cycle can start immediately.
+// Fire-and-forget; the TTL index on expiresAt is the safety net.
+async function releaseComputeLease(tenant) {
+  try {
+    await ComputedCacheModel(tenant).deleteOne({
+      key: PRIVATE_SITE_IDS_LOCK_KEY,
+      tenant,
+    });
+  } catch (_err) {
+    // best-effort; TTL index will clean it up within LOCK_TTL_MS
+  }
+}
+
+async function computePrivateSiteIds(tenant) {
+  const result = await CohortModel(tenant).aggregate([
+    { $match: { visibility: false } },
+    {
+      $lookup: {
+        from: "devices",
+        localField: "_id",
+        foreignField: "cohorts",
+        as: "devices",
+      },
+    },
+    { $unwind: "$devices" },
+    { $match: { "devices.site_id": { $ne: null } } },
+    { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
+  ]);
+  return result.length > 0 ? result[0].site_ids : [];
+}
+
+async function getPrivateSiteIds(tenant) {
+  // Normalise to the same effective tenant the models use, so L1 keys,
+  // L2 filter values, and upsert documents are always consistent even when
+  // the caller omits or passes an empty tenant.
+  const normalizedTenant =
+    (tenant && tenant.toString().trim().toLowerCase()) ||
+    constants.DEFAULT_TENANT ||
+    "airqo";
+
+  const now = Date.now();
+
+  // ── L1: in-memory (pod-local, sub-millisecond) ────────────────────────
+  // L1 entry stores the absolute expiresAt (ms) taken from L2, so its
+  // effective lifetime tracks L2's expiry rather than resetting on warm.
+  const l1 = _privateSiteIdsCache.get(normalizedTenant);
+  if (l1 && now < l1.expiresAt) {
+    return l1.data;
+  }
+
+  // ── L2: MongoDB (shared across all pods, ~1 ms) ───────────────────────
+  try {
+    const l2 = await ComputedCacheModel(normalizedTenant)
+      .findOne({ key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant })
+      .lean();
+
+    if (l2 && l2.expiresAt > new Date()) {
+      // Fresh L2 hit — align L1 TTL to L2's absolute expiry timestamp
+      _privateSiteIdsCache.set(normalizedTenant, {
+        data: l2.data,
+        expiresAt: l2.expiresAt.getTime(),
+      });
+      return l2.data;
+    }
+  } catch (err) {
+    // L2 read failure is non-fatal: fall through to full recompute
+    logger.warn(
+      `ComputedCache L2 read failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${normalizedTenant}: ${err.message}`
+    );
+  }
+
+  // ── Within-pod deduplication ──────────────────────────────────────────
+  // If a recompute is already in-flight on this pod, piggyback on its
+  // promise rather than spawning a second concurrent aggregation.
+  const inflight = _inflight.get(normalizedTenant);
+  if (inflight) {
+    return inflight;
+  }
+
+  // ── Cross-pod deduplication (lease) + full recompute ─────────────────
+  // Store the promise BEFORE the first await so that any concurrent caller
+  // reaching this point on the same event-loop tick gets the same promise.
+  const promise = (async () => {
+    // hasLease is declared here so the finally block can see it.
+    let hasLease = false;
+    try {
+      hasLease = await acquireComputeLease(normalizedTenant);
+
+      if (!hasLease) {
+        // Another pod is already computing. Back off and re-read L2.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        try {
+          const l2Retry = await ComputedCacheModel(normalizedTenant)
+            .findOne({
+              key: PRIVATE_SITE_IDS_CACHE_KEY,
+              tenant: normalizedTenant,
+            })
+            .lean();
+          if (l2Retry && l2Retry.expiresAt > new Date()) {
+            _privateSiteIdsCache.set(normalizedTenant, {
+              data: l2Retry.data,
+              expiresAt: l2Retry.expiresAt.getTime(),
+            });
+            return l2Retry.data;
+          }
+        } catch (_err) {
+          // fall through to local recompute so the request never stalls
+        }
+      }
+
+      // ── Full aggregation ─────────────────────────────────────────────
+      const data = await computePrivateSiteIds(normalizedTenant);
+      const expiresAt = new Date(now + PRIVATE_SITE_IDS_TTL_MS);
+
+      // Write L1 (aligned to L2's expiresAt)
+      _privateSiteIdsCache.set(normalizedTenant, {
+        data,
+        expiresAt: expiresAt.getTime(),
+      });
+
+      // Write L2 — fire-and-forget so a cache write failure never blocks
+      // the API response. $setOnInsert keeps key/tenant explicit on insert
+      // so the unique-index filter is never the sole source of those fields.
+      ComputedCacheModel(normalizedTenant)
+        .findOneAndUpdate(
+          { key: PRIVATE_SITE_IDS_CACHE_KEY, tenant: normalizedTenant },
+          {
+            $set: { data, computedAt: new Date(now), expiresAt },
+            $setOnInsert: {
+              key: PRIVATE_SITE_IDS_CACHE_KEY,
+              tenant: normalizedTenant,
+            },
+          },
+          { upsert: true, new: false }
+        )
+        .catch((err) =>
+          logger.warn(
+            `ComputedCache L2 write failed for ${PRIVATE_SITE_IDS_CACHE_KEY}/${normalizedTenant}: ${err.message}`
+          )
+        );
+
+      return data;
+    } finally {
+      _inflight.delete(normalizedTenant);
+      if (hasLease) {
+        releaseComputeLease(normalizedTenant); // fire-and-forget, TTL is safety net
+      }
+    }
+  })();
+
+  _inflight.set(normalizedTenant, promise);
+  return promise;
+}
 
 function filterOutPrivateIDs(privateIds, randomIds) {
   // Create a Set from the privateIds array
@@ -573,26 +776,9 @@ const createGrid = {
         };
       }
 
-      // Optimized query to get all private site IDs in one go
-      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
-        { $match: { visibility: false } },
-        {
-          $lookup: {
-            from: "devices",
-            localField: "_id",
-            foreignField: "cohorts",
-            as: "devices",
-          },
-        },
-        { $unwind: "$devices" },
-        { $match: { "devices.site_id": { $ne: null } } },
-        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
-      ]);
-
-      const privateSiteIds =
-        privateSiteIdsResponse.length > 0
-          ? privateSiteIdsResponse[0].site_ids
-          : [];
+      // Use cached helper — avoids a full Cohort→Device join on every request.
+      // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
+      const privateSiteIds = await getPrivateSiteIds(tenant);
 
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
@@ -1323,26 +1509,9 @@ const createGrid = {
   listCountries: async (request, next) => {
     try {
       const { tenant, cohort_id } = request.query;
-      // Optimized query to get all private site IDs in one go
-      const privateSiteIdsResponse = await CohortModel(tenant).aggregate([
-        { $match: { visibility: false } },
-        {
-          $lookup: {
-            from: "devices",
-            localField: "_id",
-            foreignField: "cohorts",
-            as: "devices",
-          },
-        },
-        { $unwind: "$devices" },
-        { $match: { "devices.site_id": { $ne: null } } },
-        { $group: { _id: null, site_ids: { $addToSet: "$devices.site_id" } } },
-      ]);
-
-      const privateSiteIds =
-        privateSiteIdsResponse.length > 0
-          ? privateSiteIdsResponse[0].site_ids
-          : [];
+      // Use cached helper — avoids a full Cohort→Device join on every request.
+      // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
+      const privateSiteIds = await getPrivateSiteIds(tenant);
 
       let cohortSiteIds = [];
       if (cohort_id) {
@@ -1411,7 +1580,7 @@ const createGrid = {
         },
       ];
 
-      const results = await GridModel(tenant).aggregate(pipeline);
+      const results = await GridModel(tenant).aggregate(pipeline).allowDiskUse(true);
 
       const countriesWithFlags = results.map((countryData) => {
         // Safely handle null or undefined country names
@@ -1459,6 +1628,15 @@ const createGrid = {
       );
     }
   },
+};
+
+// Exported under private-convention names so unit tests can exercise the
+// two-level cache logic directly without going through a full HTTP request.
+// Not intended for use outside of tests.
+createGrid._getPrivateSiteIds = getPrivateSiteIds;
+createGrid._clearPrivateSiteIdsCache = () => {
+  _privateSiteIdsCache.clear();
+  _inflight.clear();
 };
 
 module.exports = createGrid;

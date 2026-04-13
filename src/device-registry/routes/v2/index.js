@@ -108,6 +108,14 @@ const routes = [
     name: "lookups",
   },
   { path: "/sites", route: "@routes/v2/sites.routes", name: "sites" },
+  // bulk-update-jobs MUST be before the "/" devices route — the devices router
+  // is mounted at "/" which matches all paths, so more specific paths must be
+  // registered first.
+  {
+    path: "/bulk-update-jobs",
+    route: "@routes/v2/device-bulk-update-jobs.routes",
+    name: "device-bulk-update-jobs",
+  },
   // MAIN DEVICES ROUTE - mounted at root "/" since we're already at /api/v2/devices
   { path: "/", route: "@routes/v2/devices.routes", name: "devices" },
   { path: "/events", route: "@routes/v2/events.routes", name: "events" },
@@ -142,6 +150,12 @@ const routes = [
   // Canonical Network CRUD endpoints — /api/v2/devices/networks/...
   // The legacy /cohorts/networks/... paths remain fully operational.
   { path: "/networks", route: "@routes/v2/networks.routes", name: "networks" },
+  // Sensor manufacturer (network) creation request workflow
+  {
+    path: "/network-creation-requests",
+    route: "@routes/v2/network-creation-requests.routes",
+    name: "network-creation-requests",
+  },
   {
     path: "/network-coverage",
     route: "@routes/v2/network-coverage.routes",
@@ -158,6 +172,11 @@ const routes = [
   { path: "/transmit", route: "@routes/v2/transmit.routes", name: "transmit" },
 
   { path: "/health", route: "@routes/v2/health.routes", name: "health" },
+  {
+    path: "/sdg/pm-annual",
+    route: "@routes/v2/sdg.routes",
+    name: "sdg-pm-annual",
+  },
 ];
 
 logInfo(`Starting to load ${routes.length} routes...`);

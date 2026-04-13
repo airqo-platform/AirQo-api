@@ -4,6 +4,7 @@ env/
 __pycache__/
 .DS_Store
 .nyc_output
+.claude
 
 # global vscode gitignore
 .vscode/*

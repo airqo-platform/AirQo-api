@@ -172,6 +172,19 @@ require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/backfill-site-metadata-job");
+const runPendingBulkUpdateJobs = require("@bin/jobs/device-bulk-update-job");
+// Run after a short delay to ensure DB connection is stable.
+setTimeout(() => runPendingBulkUpdateJobs("airqo"), 5000);
+
+try {
+  const clearDeploymentTypeJob = require("@bin/jobs/clear-deployment-type-job");
+  // Runs on every startup but self-skips immediately when no dirty records exist.
+  setTimeout(() => clearDeploymentTypeJob("airqo"), 8000);
+} catch (err) {
+  global.dedupLogger.error(
+    `clear-deployment-type-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
@@ -279,6 +292,18 @@ try {
 } catch (error) {
   console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
 }
+
+// Normalise the request URL by stripping trailing literal spaces and
+// URL-encoded spaces (%20) from the path segment. HTTP clients such as
+// Postman may encode a trailing space as %20 before sending, so a plain
+// trimEnd() is insufficient — the regex handles both forms.
+app.use((req, _res, next) => {
+  const [path, ...queryParts] = req.url.split("?");
+  const cleanPath = path.replace(/(%20|\s)+$/gi, "");
+  req.url =
+    queryParts.length > 0 ? `${cleanPath}?${queryParts.join("?")}` : cleanPath;
+  next();
+});
 
 app.use(express.json());
 app.use(

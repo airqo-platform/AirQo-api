@@ -1,4 +1,4 @@
-# Beacon Service.
+# Beacon Service
 
 > High-performance device management and performance analytics microservice for AirQo's air quality monitoring network.
 
@@ -121,57 +121,59 @@ Configure via environment variables or `.env` file:
 
 ### Endpoints Overview
 
-#### Devices (`/devices`)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/` | List devices with pagination, filtering, and search |
-| `GET` | `/devices/stats` | Comprehensive device statistics |
-| `GET` | `/devices/map-data` | Device locations with latest readings |
-| `GET` | `/devices/{device_id}` | Get specific device details |
+All API endpoints are available under the `/api/v1` prefix (recommended) but can also be accessed directly without it for backward compatibility or when the prefix is omitted.
 
-#### AirQlouds (`/airqlouds`)
+#### Devices (`/api/v1/devices` or `/devices`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/airqlouds/` | List AirQloud clusters with device counts |
-| `POST` | `/airqlouds/` | Create new AirQloud |
-| `GET` | `/airqlouds/{id}` | Get AirQloud details |
-| `POST` | `/airqlouds/{id}/devices` | Add devices to AirQloud |
+| `GET` | `/api/v1/devices/` | List devices with pagination, filtering, and search |
+| `GET` | `/api/v1/devices/stats` | Comprehensive device statistics |
+| `GET` | `/api/v1/devices/map-data` | Device locations with latest readings |
+| `GET` | `/api/v1/devices/{device_id}` | Get specific device details |
 
-#### Performance (`/performance`)
+#### AirQlouds (`/api/v1/airqlouds`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/performance/devices` | Query device performance metrics |
-| `POST` | `/performance/airqlouds` | Query AirQloud performance metrics |
+| `GET` | `/api/v1/airqlouds/` | List AirQloud clusters with device counts |
+| `POST` | `/api/v1/airqlouds/` | Create new AirQloud |
+| `GET` | `/api/v1/airqlouds/{id}` | Get AirQloud details |
+| `POST` | `/api/v1/airqlouds/{id}/devices` | Add devices to AirQloud |
 
-#### Firmware (`/firmware`)
+#### Performance (`/api/v1/performance`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/firmware/upload` | Upload new firmware (requires ORG_TOKEN) |
-| `GET` | `/firmware/` | List available firmware versions |
-| `GET` | `/firmware/{id}/download` | Download firmware binary |
-| `DELETE` | `/firmware/{id}` | Delete firmware version |
+| `POST` | `/api/v1/performance/devices` | Query device performance metrics |
+| `POST` | `/api/v1/performance/airqlouds` | Query AirQloud performance metrics |
 
-#### Data Management (`/data`)
+#### Firmware (`/api/v1/firmware`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/data/metadata` | Update device metadata |
-| `POST` | `/data/configs` | Update device configurations |
-| `GET` | `/data/field-values` | Get device field values |
+| `POST` | `/api/v1/firmware/upload` | Upload new firmware (requires ORG_TOKEN) |
+| `GET` | `/api/v1/firmware/` | List available firmware versions |
+| `GET` | `/api/v1/firmware/{id}/download` | Download firmware binary |
+| `DELETE` | `/api/v1/firmware/{id}` | Delete firmware version |
 
-#### Categories (`/categories`)
+#### Data Management (`/api/v1/data`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/categories/` | List all device categories |
-| `POST` | `/categories/` | Create new category |
-| `GET` | `/categories/{name}` | Get category with associated devices |
+| `POST` | `/api/v1/data/metadata` | Update device metadata |
+| `POST` | `/api/v1/data/configs` | Update device configurations |
+| `GET` | `/api/v1/data/field-values` | Get device field values |
 
-#### Inventory (`/items-stock`)
+#### Categories (`/api/v1/categories`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/items-stock/` | List inventory items with filtering |
-| `POST` | `/items-stock/` | Create inventory item |
-| `PATCH` | `/items-stock/{id}` | Update stock quantity |
-| `GET` | `/items-stock/{id}/history` | Get stock movement history |
+| `GET` | `/api/v1/categories/` | List all device categories |
+| `POST` | `/api/v1/categories/` | Create new category |
+| `GET` | `/api/v1/categories/{name}` | Get category with associated devices |
+
+#### Inventory (`/api/v1/items-stock`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/items-stock/` | List inventory items with filtering |
+| `POST` | `/api/v1/items-stock/` | Create inventory item |
+| `PATCH` | `/api/v1/items-stock/{id}` | Update stock quantity |
+| `GET` | `/api/v1/items-stock/{id}/history` | Get stock movement history |
 
 ### Health Checks
 

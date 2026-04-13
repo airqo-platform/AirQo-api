@@ -1,11 +1,10 @@
-from itertools import chain
 import logging
 import numpy as np
 import pandas as pd
 import ast
 from typing import Optional, Dict, List, Any
-from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
+from airqo_etl_utils.storage.schema_registry import get_columns_by_type
 from .config import configuration as Config
 
 logger = logging.getLogger("airflow.task")
@@ -192,7 +191,6 @@ class DataValidationUtils:
 
             mask = (data[col] >= min_val) & (data[col] <= max_val)
             data[col] = data[col].where(mask, other=None)
-
         return data
 
     @staticmethod
@@ -208,37 +206,36 @@ class DataValidationUtils:
         Returns:
             pd.DataFrame: A DataFrame with outliers removed or corrected and data formatted to their respective types (float, integer, timestamp).
         """
-        # TODO: Clean up and remove direct use of BigQueryApi in this method to enhance modularity and testability.
-        # Consider passing necessary metadata as parameters instead.
-        big_query_api = BigQueryApi()
-
-        column_types = {
-            ColumnDataType.FLOAT: big_query_api.get_columns(
-                table="all", column_type=[ColumnDataType.FLOAT]
+        column_type_map = {
+            ColumnDataType.FLOAT: get_columns_by_type("all", [ColumnDataType.FLOAT]),
+            ColumnDataType.INTEGER: get_columns_by_type(
+                "all", [ColumnDataType.INTEGER]
             ),
-            ColumnDataType.INTEGER: big_query_api.get_columns(
-                table="all", column_type=[ColumnDataType.INTEGER]
-            ),
-            ColumnDataType.TIMESTAMP: big_query_api.get_columns(
-                table="all", column_type=[ColumnDataType.TIMESTAMP]
+            ColumnDataType.TIMESTAMP: get_columns_by_type(
+                "all", [ColumnDataType.TIMESTAMP]
             ),
         }
 
         filtered_columns = {
             dtype: list(set(columns) & set(data.columns))
-            for dtype, columns in column_types.items()
+            for dtype, columns in column_type_map.items()
         }
-        if remove_outliers:
-            validated_columns = list(chain.from_iterable(filtered_columns.values()))
-            data = DataValidationUtils.get_valid_value(data, validated_columns)
 
-        # Fix data types after filling nas
         data = DataValidationUtils.format_data_types(
             data=data,
             floats=filtered_columns[ColumnDataType.FLOAT],
             integers=filtered_columns[ColumnDataType.INTEGER],
             timestamps=filtered_columns[ColumnDataType.TIMESTAMP],
         )
+
+        if remove_outliers:
+            try:
+                data = DataValidationUtils.get_valid_value(
+                    data, filtered_columns[ColumnDataType.FLOAT]
+                )
+            except Exception as e:
+                raise Exception(f"Error validating data: {e}") from e
+
         return data
 
     @staticmethod

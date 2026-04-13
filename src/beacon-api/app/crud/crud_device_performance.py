@@ -7,59 +7,122 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy import func, and_, or_
 
-from app.models.device_performance import SyncDevicePerformance
+from app.models.device_performance import SyncDevicePerformance, SyncBamPerformance
 
 logger = logging.getLogger(__name__)
 
 
-def upsert_device_performance(db: Session, records: List[Dict[str, Any]]) -> int:
+def upsert_bam_performance(db: Session, records: List[Dict[str, Any]], batch_size: int = 1000) -> int:
     """
-    Bulk upsert device performance records.
+    Bulk upsert BAM performance records in batches.
     On conflict (device_name, computed_for_date), update the metrics.
-    Returns the number of records upserted.
+    Returns the total number of records upserted.
     """
     if not records:
         return 0
 
-    values = []
-    for r in records:
-        cohorts_val = r.get("cohorts", [])
-        values.append({
-            "device_id": r.get("device_id", ""),
-            "device_name": r["device_name"],
-            "latitude": r.get("latitude"),
-            "longitude": r.get("longitude"),
-            "last_active": r.get("last_active"),
-            "uptime": r.get("uptime", 0.0),
-            "data_completeness": r.get("data_completeness", 0.0),
-            "error_margin": r.get("error_margin", 0.0),
-            "cohorts_json": json.dumps(cohorts_val) if isinstance(cohorts_val, list) else cohorts_val,
-            "complete_performance": r.get("complete_performance", False),
-            "computed_for_date": r.get("computed_for_date", date.today()),
-            "computed_at": datetime.utcnow(),
-        })
+    total_upserted = 0
+    for i in range(0, len(records), batch_size):
+        batch = records[i : i + batch_size]
+        values = []
+        for r in batch:
+            values.append({
+                "device_id": r.get("device_id", ""),
+                "device_name": r["device_name"],
+                "latitude": r.get("latitude"),
+                "longitude": r.get("longitude"),
+                "uptime": r.get("uptime", 0.0),
+                "data_completeness": r.get("data_completeness", 0.0),
+                "realtime_conc_average": r.get("realtime_conc_average"),
+                "short_time_conc_average": r.get("short_time_conc_average"),
+                "hourly_conc_average": r.get("hourly_conc_average"),
+                "computed_for_date": r.get("computed_for_date", date.today()),
+                "computed_at": datetime.utcnow(),
+            })
 
-    stmt = pg_insert(SyncDevicePerformance).values(values)
-    stmt = stmt.on_conflict_do_update(
-        constraint="uq_device_name_date",
-        set_={
-            "device_id": stmt.excluded.device_id,
-            "latitude": stmt.excluded.latitude,
-            "longitude": stmt.excluded.longitude,
-            "last_active": stmt.excluded.last_active,
-            "uptime": stmt.excluded.uptime,
-            "data_completeness": stmt.excluded.data_completeness,
-            "error_margin": stmt.excluded.error_margin,
-            "cohorts_json": stmt.excluded.cohorts_json,
-            "complete_performance": stmt.excluded.complete_performance,
-            "computed_at": stmt.excluded.computed_at,
-        },
-    )
+        stmt = pg_insert(SyncBamPerformance).values(values)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_bam_device_name_date",
+            set_={
+                "device_id": stmt.excluded.device_id,
+                "latitude": stmt.excluded.latitude,
+                "longitude": stmt.excluded.longitude,
+                "uptime": stmt.excluded.uptime,
+                "data_completeness": stmt.excluded.data_completeness,
+                "realtime_conc_average": stmt.excluded.realtime_conc_average,
+                "short_time_conc_average": stmt.excluded.short_time_conc_average,
+                "hourly_conc_average": stmt.excluded.hourly_conc_average,
+                "computed_at": stmt.excluded.computed_at,
+            },
+        )
 
-    db.execute(stmt)
-    db.commit()
-    logger.info(f"Upserted {len(values)} device performance records")
-    return len(values)
+        db.execute(stmt)
+        db.commit()
+        total_upserted += len(values)
+
+    logger.info(f"Upserted {total_upserted} BAM device performance records in batches of {batch_size}")
+    return total_upserted
+
+
+def upsert_device_performance(db: Session, records: List[Dict[str, Any]], batch_size: int = 1000) -> int:
+    """
+    Bulk upsert device performance records in batches.
+    On conflict (device_name, computed_for_date), update the metrics.
+    Returns the total number of records upserted.
+    """
+    if not records:
+        return 0
+
+    total_upserted = 0
+    for i in range(0, len(records), batch_size):
+        batch = records[i : i + batch_size]
+        values = []
+        for r in batch:
+            cohorts_val = r.get("cohorts", [])
+            values.append({
+                "device_id": r.get("device_id", ""),
+                "device_name": r["device_name"],
+                "latitude": r.get("latitude"),
+                "longitude": r.get("longitude"),
+                "last_active": r.get("last_active"),
+                "uptime": r.get("uptime", 0.0),
+                "data_completeness": r.get("data_completeness", 0.0),
+                "error_margin": r.get("error_margin", 0.0),
+                "s1_pm2_5_average": r.get("s1_pm2_5_average"),
+                "s2_pm2_5_average": r.get("s2_pm2_5_average"),
+                "correlation": r.get("correlation"),
+                "cohorts_json": json.dumps(cohorts_val) if isinstance(cohorts_val, list) else cohorts_val,
+                "complete_performance": r.get("complete_performance", False),
+                "computed_for_date": r.get("computed_for_date", date.today()),
+                "computed_at": datetime.utcnow(),
+            })
+
+        stmt = pg_insert(SyncDevicePerformance).values(values)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_device_name_date",
+            set_={
+                "device_id": stmt.excluded.device_id,
+                "latitude": stmt.excluded.latitude,
+                "longitude": stmt.excluded.longitude,
+                "last_active": stmt.excluded.last_active,
+                "uptime": stmt.excluded.uptime,
+                "data_completeness": stmt.excluded.data_completeness,
+                "error_margin": stmt.excluded.error_margin,
+                "s1_pm2_5_average": stmt.excluded.s1_pm2_5_average,
+                "s2_pm2_5_average": stmt.excluded.s2_pm2_5_average,
+                "correlation": stmt.excluded.correlation,
+                "cohorts_json": stmt.excluded.cohorts_json,
+                "complete_performance": stmt.excluded.complete_performance,
+                "computed_at": stmt.excluded.computed_at,
+            },
+        )
+
+        db.execute(stmt)
+        db.commit()
+        total_upserted += len(values)
+
+    logger.info(f"Upserted {total_upserted} device performance records in batches of {batch_size}")
+    return total_upserted
 
 
 def get_latest_performance(db: Session) -> List[SyncDevicePerformance]:
@@ -104,6 +167,9 @@ def get_averaged_performance(db: Session, days: int = 14) -> List[Dict[str, Any]
             func.avg(SyncDevicePerformance.uptime).label("avg_uptime"),
             func.avg(SyncDevicePerformance.data_completeness).label("avg_data_completeness"),
             func.avg(SyncDevicePerformance.error_margin).label("avg_error_margin"),
+            func.avg(SyncDevicePerformance.s1_pm2_5_average).label("avg_s1_pm2_5_average"),
+            func.avg(SyncDevicePerformance.s2_pm2_5_average).label("avg_s2_pm2_5_average"),
+            func.avg(SyncDevicePerformance.correlation).label("avg_correlation"),
             func.count(SyncDevicePerformance.id).label("record_count"),
         )
         .filter(
@@ -135,6 +201,9 @@ def get_averaged_performance(db: Session, days: int = 14) -> List[Dict[str, Any]
             avg_sq.c.avg_uptime,
             avg_sq.c.avg_data_completeness,
             avg_sq.c.avg_error_margin,
+            avg_sq.c.avg_s1_pm2_5_average,
+            avg_sq.c.avg_s2_pm2_5_average,
+            avg_sq.c.avg_correlation,
         )
         .join(
             latest_date_sq,
@@ -151,7 +220,15 @@ def get_averaged_performance(db: Session, days: int = 14) -> List[Dict[str, Any]
     )
 
     results = []
-    for record, avg_uptime, avg_data_completeness, avg_error_margin in latest_records:
+    for (
+        record,
+        avg_uptime,
+        avg_data_completeness,
+        avg_error_margin,
+        avg_s1,
+        avg_s2,
+        avg_corr,
+    ) in latest_records:
 
         results.append({
             "device_id": record.device_id,
@@ -162,6 +239,9 @@ def get_averaged_performance(db: Session, days: int = 14) -> List[Dict[str, Any]
             "uptime": round(avg_uptime, 4) if avg_uptime else 0.0,
             "data_completeness": round(avg_data_completeness, 4) if avg_data_completeness else 0.0,
             "error_margin": round(avg_error_margin, 4) if avg_error_margin else 0.0,
+            "s1_pm2_5_average": round(avg_s1, 4) if avg_s1 else 0.0,
+            "s2_pm2_5_average": round(avg_s2, 4) if avg_s2 else 0.0,
+            "correlation": round(avg_corr, 4) if avg_corr else 0.0,
             "cohorts": record.cohorts,
         })
 
@@ -221,6 +301,9 @@ def get_daily_performance_for_devices(
             "date": r.computed_for_date.isoformat(),
             "uptime": r.uptime or 0.0,
             "error_margin": r.error_margin or 0.0,
+            "s1_pm2_5_average": r.s1_pm2_5_average or 0.0,
+            "s2_pm2_5_average": r.s2_pm2_5_average or 0.0,
+            "correlation": r.correlation or 0.0,
         })
 
     return results

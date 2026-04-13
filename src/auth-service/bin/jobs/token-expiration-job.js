@@ -15,11 +15,14 @@ async function sendEmailsInBatches(tokens, batchSize = 100) {
       logObject("the expiring token", token);
       const {
         user: { email, firstName, lastName },
+        token: tokenValue,
+        name: tokenName,
+        expires,
       } = token;
 
       logObject("the email to be used", email);
       return mailer
-        .expiringToken({ email, firstName, lastName })
+        .expiringToken({ email, firstName, lastName, token: tokenValue, tokenName, expires })
         .then((response) => {
           if (response && response.success === false) {
             logger.error(

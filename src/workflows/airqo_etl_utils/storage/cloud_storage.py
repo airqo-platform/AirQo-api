@@ -188,10 +188,17 @@ class GCSFileStorage(FileStorage):
     ) -> Any:
         """Download and deserialize a Python object from GCS (in-memory when uncached)."""
         try:
-            # Check local cache first
+            # Check local cache first, but guard against corrupt partial files
             if local_cache_path and Path(local_cache_path).exists():
-                logger.info(f"Using cached object at {local_cache_path}")
-                return joblib.load(local_cache_path)
+                try:
+                    logger.info(f"Using cached object at {local_cache_path}")
+                    return joblib.load(local_cache_path)
+                except Exception as cache_err:
+                    logger.warning(
+                        f"Cached file at {local_cache_path} is corrupt ({cache_err}). "
+                        "Deleting and re-downloading."
+                    )
+                    Path(local_cache_path).unlink(missing_ok=True)
 
             bucket_obj = self.client.bucket(bucket)
             blob = bucket_obj.blob(source_file)
@@ -202,8 +209,16 @@ class GCSFileStorage(FileStorage):
                 )
 
             if local_cache_path:
-                # Download to cache path for future reuse
-                blob.download_to_filename(local_cache_path)
+                # Download atomically: write to a temp file then rename so the
+                # cache path is never left in a partial/corrupt state on failure.
+                cache_path = Path(local_cache_path)
+                tmp_path = cache_path.with_suffix(".tmp")
+                try:
+                    blob.download_to_filename(str(tmp_path))
+                    tmp_path.rename(cache_path)
+                except Exception:
+                    tmp_path.unlink(missing_ok=True)
+                    raise
                 logger.info(f"Downloaded and cached object at {local_cache_path}")
                 return joblib.load(local_cache_path)
 

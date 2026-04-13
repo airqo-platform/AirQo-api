@@ -26,6 +26,20 @@ const DEVICE_CONFIG = {
   ALLOWED_CATEGORIES: ["bam", "lowcost", "gas"],
 };
 
+// Statuses that mean a device is not actively deployed.
+// Derived from VALID_DEVICE_STATUSES so the list stays in sync automatically.
+const UN_DEPLOYED_STATUSES = constants.VALID_DEVICE_STATUSES
+  ? constants.VALID_DEVICE_STATUSES.filter((s) => s !== "deployed")
+  : [
+      "recalled",
+      "ready",
+      "undeployed",
+      "decommissioned",
+      "assembly",
+      "testing",
+      "not deployed",
+    ];
+
 const accessCodeGenerator = require("generate-password");
 
 function sanitizeObject(obj, invalidKeys) {
@@ -113,10 +127,14 @@ function computeDeviceCategories(deviceDoc) {
   }
 
   const primary_category = doc.category || "lowcost";
-  const deployment_category = doc.deployment_type || "static";
+  // Un-deployed devices have no deployment_type — keep it null rather than
+  // defaulting to "static", which would be semantically incorrect.
+  const deployment_category = doc.deployment_type || null;
 
-  // Use a Set to guarantee no duplicates in all_categories
-  const categorySet = new Set([primary_category, deployment_category]);
+  // Use a Set to guarantee no duplicates in all_categories.
+  // deployment_category is only added when it is actually set.
+  const categorySet = new Set([primary_category]);
+  if (deployment_category) categorySet.add(deployment_category);
   if (ownership_category) categorySet.add(ownership_category);
   if (mobile_category) categorySet.add(mobile_category);
   const all_categories = [...categorySet];
@@ -349,7 +367,6 @@ const deviceSchema = new mongoose.Schema(
     deployment_type: {
       type: String,
       enum: ["static", "mobile"],
-      default: "static",
       trim: true,
       lowercase: true,
     },
@@ -573,8 +590,16 @@ deviceSchema.pre(
       if (!doc) return next();
 
       // --- Mobility and Deployment Type Logic ---
-      // Rule 1: `mobility` is the source of truth.
-      if (typeof doc.mobility === "boolean") {
+      // Rule 1: `mobility` is the source of truth — but only when explicitly
+      // provided by the caller, not via a schema default.
+      // For query operations `doc` is a plain object so hasOwnProperty is exact.
+      // For save operations (new or existing) isDirectModified returns true only
+      // for user-set paths; schema defaults are applied with _skipMarkModified
+      // so they never appear as directly modified.
+      const mobilityExplicitlySet = isQuery
+        ? Object.prototype.hasOwnProperty.call(doc, "mobility")
+        : this.isDirectModified("mobility");
+      if (mobilityExplicitlySet) {
         if (doc.mobility === true) {
           if (isQuery) {
             update.$set = { ...(update.$set || {}), deployment_type: "mobile" };
@@ -626,10 +651,22 @@ deviceSchema.pre(
         if (doc.grid_id) {
           doc.deployment_type = "mobile";
           doc.mobility = true;
-        } else {
+        } else if (!UN_DEPLOYED_STATUSES.includes(doc.status || "not deployed")) {
+          // Only assign a deployment_type when the device is actively being deployed
           doc.deployment_type = "static";
           doc.mobility = false;
+        } else {
+          // New un-deployed device — leave deployment_type unset
+          doc.mobility = false;
         }
+      }
+
+      // --- Un-deployed Status Enforcement (query operations) ---
+      // When status is explicitly transitioned to an un-deployed state,
+      // remove deployment_type regardless of what the mobility sync set above.
+      if (isQuery && doc.status && UN_DEPLOYED_STATUSES.includes(doc.status)) {
+        update.$unset = { ...(update.$unset || {}), deployment_type: "" };
+        if (update.$set) delete update.$set.deployment_type;
       }
 
       // --- Business Rule Enforcement ---
@@ -1161,7 +1198,7 @@ deviceSchema.statics = {
         .addFields({
           device_categories: {
             primary_category: { $ifNull: ["$category", "lowcost"] },
-            deployment_category: { $ifNull: ["$deployment_type", "static"] },
+            deployment_category: "$deployment_type",
 
             // Returns the raw network value so the frontend can display it directly.
             // null when network is missing or empty string.
@@ -1315,7 +1352,7 @@ deviceSchema.statics = {
                     input: {
                       $concatArrays: [
                         [{ $ifNull: ["$category", "lowcost"] }],
-                        [{ $ifNull: ["$deployment_type", "static"] }],
+                        ["$deployment_type"],
                         // Include network value when present
                         {
                           $cond: {
@@ -1470,7 +1507,7 @@ deviceSchema.statics = {
               },
               {
                 level: "deployment",
-                category: { $ifNull: ["$deployment_type", "static"] },
+                category: "$deployment_type",
                 description: {
                   $switch: {
                     branches: [
@@ -1483,7 +1520,7 @@ deviceSchema.statics = {
                         then: "Static deployment (fixed location, site-based)",
                       },
                     ],
-                    default: "Static deployment (fixed location, site-based)",
+                    default: null,
                   },
                 },
               },

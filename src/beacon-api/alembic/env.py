@@ -1,19 +1,9 @@
-import os
-import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-
-# add your project's directory to the sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from app.db.session import Base
-from app.models import sync
-from app.models import device_performance  # noqa: F401
-from app.core.config import settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -24,22 +14,30 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+import os
+import sys
+
+# Add root folder to sys.path so 'app' can be imported
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from app.core.config import settings
+from app.db.session import Base
+from sqlmodel import SQLModel
+
+# Import all your models here so their metadata is collected
+from app.models import device_performance, firmware, sync
+
+# Dynamically override the url in alembic.ini with the one from our .env configuration
+config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)
+
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, SQLModel.metadata]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
-
-def include_object(obj, name, type_, reflected, compare_to):
-    if type_ == "table" and reflected and name not in target_metadata.tables:
-        return False
-    return True
 
 
 def run_migrations_offline() -> None:
@@ -54,13 +52,12 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = settings.SQLALCHEMY_DATABASE_URI
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -74,19 +71,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
     connectable = engine_from_config(
-        configuration,
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            include_object=include_object,
+            connection=connection, target_metadata=target_metadata
         )
 
         with context.begin_transaction():

@@ -75,14 +75,16 @@ app_config = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,
     "production": ProductionConfig,
-    "staging": TestingConfig,
+    "staging": StagingConfig,
 }
 
-environment = os.getenv("FLASK_ENV", "staging")
-print("ENVIRONMENT", environment or "staging")
 
-#configuration = app_config.get(environment, "staging")
-configuration = app_config.get(environment, StagingConfig)
+def get_environment() -> str:
+    # Flask 2.3 removed FLASK_ENV. Keep a fallback for older deployments.
+    return (os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "staging").lower()
+
+
+configuration = app_config.get(get_environment(), StagingConfig)
 
 satellite_collections = {
     "COPERNICUS/S5P/OFFL/L3_SO2": [

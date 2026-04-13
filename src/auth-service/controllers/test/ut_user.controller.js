@@ -9,6 +9,8 @@ const createUser = require("@controllers/create-user");
 chai.use(require("sinon-chai"));
 const { validationResult } = require("express-validator");
 const UserModel = require("@models/User");
+const constants = require("@config/constants");
+const userUtil = require("@utils/user.util");
 
 describe("createUserController", () => {
   describe("listStatistics", () => {
@@ -267,7 +269,7 @@ describe("createUserController", () => {
       ).to.be.true;
       expect(
         res.redirect.calledOnceWithExactly(
-          constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT
+          `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google`
         )
       ).to.be.true;
       expect(res.status.called).to.be.false;
@@ -300,6 +302,74 @@ describe("createUserController", () => {
           errors: { message: errorMessage },
         })
       ).to.be.true;
+    });
+  });
+  describe("oauthCallback", () => {
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should redirect to failure URL when req.user is not set", async () => {
+      const req = { user: null, params: {}, query: {}, body: {} };
+      const res = {
+        redirect: sinon.stub(),
+        cookie: sinon.stub(),
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+      const next = sinon.stub();
+
+      await createUser.oauthCallback(req, res, next);
+
+      expect(
+        res.redirect.calledOnceWithExactly(
+          `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`
+        )
+      ).to.be.true;
+    });
+
+    it("should redirect to /user/home with provider query param on success", async () => {
+      const token = "oauth-test-token";
+      const userId = "user-id-456";
+      const freshUser = {
+        _id: userId,
+        toAuthJSON: sinon.stub().resolves({ token }),
+        analyticsVersion: 3,
+        verified: true,
+      };
+
+      sinon.stub(userUtil, "ensureDefaultAirqoRole").resolves();
+
+      // Stub UserModel so UserModel(tenant).findById resolves freshUser
+      // and UserModel(tenant).findByIdAndUpdate resolves silently
+      const modelStub = {
+        findById: sinon.stub().resolves(freshUser),
+        findByIdAndUpdate: sinon.stub().resolves(),
+      };
+      sinon.stub(UserModel, "call").callsFake(() => modelStub);
+
+      const req = {
+        user: { _id: userId },
+        params: { provider: "google" },
+        query: { tenant: "airqo" },
+        body: {},
+        oauthProvider: "google",
+      };
+      const res = {
+        cookie: sinon.stub(),
+        redirect: sinon.stub(),
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+      const next = sinon.stub();
+
+      await createUser.oauthCallback(req, res, next);
+
+      // Verify the redirect uses the correct path and query string
+      expect(res.redirect.called).to.be.true;
+      const redirectArg = res.redirect.firstCall.args[0];
+      expect(redirectArg).to.include("/user/home?success=google");
+      expect(redirectArg).to.not.include("/xyz/");
     });
   });
   describe("generateVerificationToken", () => {

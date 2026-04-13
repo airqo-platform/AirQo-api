@@ -940,6 +940,7 @@ const dbProjections = {
     description: 1,
     networks: "$networks",
     access_token: { $arrayElemAt: ["$access_token", 0] },
+    requireClientSecret: 1,
   },
   CLIENTS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
