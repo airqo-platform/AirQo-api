@@ -13,7 +13,7 @@ resources:
     memory: 1000Mi
   requests:
     cpu: 50m
-    memory: 500Mi
+    memory: 600Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -32,4 +32,4 @@ service:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  targetMemoryUtilizationPercentage: 85
+  targetMemoryUtilizationPercentage: 70
