@@ -40,6 +40,17 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
       };
     }
 
+    // Privacy gate: private grids do not expose their sites
+    if (gridDetails.visibility === false) {
+      return {
+        success: true,
+        message: "Grid is private; site data is not publicly accessible",
+        data: null,
+        suppressed: true,
+        status: httpStatus.OK,
+      };
+    }
+
     const sites = gridDetails.sites || [];
 
     if (sites.length === 0) {
@@ -106,6 +117,9 @@ const processGridIds = async (grid_ids, request) => {
           )}`
         );
         return responseFromGetSitesOfGrid;
+      } else if (responseFromGetSitesOfGrid.suppressed) {
+        // Grid is private — treat as empty site set, not an error
+        return [];
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
           `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
@@ -163,11 +177,15 @@ const processCohortIds = async (cohort_ids, request) => {
     ? cohort_ids
     : cohort_ids.toString().split(",");
 
+  // Pass through requester identity so private cohorts can apply owner bypass
+  const user_id = request.query.user_id;
+
   // Use Promise.all to concurrently process each cohort_id
   const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
     if (!isEmpty(cohort_id)) {
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
         cohort_id,
+        user_id,
       });
 
       logObject(
@@ -182,6 +200,9 @@ const processCohortIds = async (cohort_ids, request) => {
           )}`
         );
         return responseFromGetDevicesOfCohort;
+      } else if (responseFromGetDevicesOfCohort.suppressed) {
+        // Cohort is private — treat as empty device set, not an error
+        return [];
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
           `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
