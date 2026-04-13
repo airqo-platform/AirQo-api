@@ -124,7 +124,10 @@ const envs = {
   // Maximum concurrent background IP analysis operations per pod.
   // Shedding work above this threshold prevents OOM during DB slowness.
   // Tune via IP_ANALYSIS_CONCURRENCY env var without a code change.
-  IP_ANALYSIS_CONCURRENCY: parseNumber(process.env.IP_ANALYSIS_CONCURRENCY, 50),
+  IP_ANALYSIS_CONCURRENCY: (() => {
+    const val = Math.floor(parseNumber(process.env.IP_ANALYSIS_CONCURRENCY, 50));
+    return Number.isFinite(val) && val >= 1 ? val : 50;
+  })(),
 
   // ── Feedback domain constants ──────────────────────────────────────────────
   // Single source of truth shared between the Feedback model and validators.

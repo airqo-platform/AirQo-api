@@ -157,11 +157,15 @@ const createDynamicLimiter = (options) => {
       // unique limiter config produces at most 3 keys (redis/memory/fallback),
       // so this supports ~33 distinct rate-limit configs before evicting the
       // oldest. Prevents unbounded growth when Redis availability flips often.
-      if (!limiterCache.has(limiterKey)) {
+      const evictIfNeeded = () => {
         if (limiterCache.size >= 100) {
           const oldestKey = limiterCache.keys().next().value;
           limiterCache.delete(oldestKey);
         }
+      };
+
+      if (!limiterCache.has(limiterKey)) {
+        evictIfNeeded();
         const config = createLimiterConfig(options, useRedis);
         const limiter = rateLimit(config);
 
@@ -189,6 +193,7 @@ const createDynamicLimiter = (options) => {
       const fallbackKey = `fallback_${cacheKey}`;
 
       if (!limiterCache.has(fallbackKey)) {
+        evictIfNeeded();
         const fallbackConfig = createLimiterConfig(options, false);
         const fallbackLimiter = rateLimit(fallbackConfig);
 

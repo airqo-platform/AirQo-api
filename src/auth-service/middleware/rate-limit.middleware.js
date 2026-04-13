@@ -358,6 +358,23 @@ const readRateLimiter = createSafeRateLimiter({
 });
 
 /**
+ * Coarse IP-based guard for the /:token/verify endpoint.
+ *
+ * Applied before the per-token limiter to prevent high-cardinality bypass
+ * attacks where an abuser rotates many unique (invalid) tokens from the same
+ * IP, each getting its own fresh per-token bucket. 5000 req/hr per IP allows
+ * a legitimate internal service running ~2-3 tokens at up to 2000 req/hr
+ * each, while blocking any single IP that hammers the endpoint indiscriminately.
+ */
+const tokenVerifyIpRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many verification requests from this IP. Please try again later.",
+});
+
+/**
  * Token-keyed rate limiter for the /:token/verify endpoint.
  *
  * Keyed by the token value from req.params.token rather than IP so that:
@@ -525,6 +542,7 @@ module.exports = {
   authRateLimiter,
   writeRateLimiter,
   readRateLimiter,
+  tokenVerifyIpRateLimiter,
   tokenVerifyRateLimiter,
 
   // Subscription tier-aware limiter (apply after JWT auth)
