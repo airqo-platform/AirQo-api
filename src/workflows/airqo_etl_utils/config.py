@@ -560,7 +560,7 @@ class Config:
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
-        DAILY_FORECAST_TABLE: "site_daily_forecasts.json",
+        DAILY_FORECAST_TABLE: "forecast_measurements.json",
         BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE: "satelite_airquality_data_copernicus_temp.json",
         BIGQUERY_GX_RESULTS_TABLE: "airqo_data_quality_checks.json",

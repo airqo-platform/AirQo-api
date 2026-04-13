@@ -2467,7 +2467,7 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("Missing required config: DAILY_FORECAST_TABLE.")
 
         ForecastModelTrainer._ensure_bigquery_table_exists(
-            table, schema_file="site_daily_forecasts.json"
+            table, schema_file="forecast_measurements.json"
         )
         existing = ForecastModelTrainer._read_site_forecasts_from_bigquery(table)
         retained = ForecastModelTrainer._retain_recent_site_forecasts(
