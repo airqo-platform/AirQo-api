@@ -1076,6 +1076,63 @@ const createCohort = {
       );
     }
   },
+  promoteCohorts: async (request, next) => {
+    try {
+      const { tenant, cohort_ids } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      const objectIds = cohort_ids.map((id) => new ObjectId(id));
+
+      // Identify which IDs exist in the DB
+      const existingCohorts = await CohortModel(tenant)
+        .find({ _id: { $in: objectIds } })
+        .select("_id visibility")
+        .lean();
+
+      const existingIds = new Set(
+        existingCohorts.map((c) => c._id.toString()),
+      );
+      const notFound = cohort_ids.filter((id) => !existingIds.has(id));
+      const alreadyPublic = existingCohorts
+        .filter((c) => c.visibility === true)
+        .map((c) => c._id.toString());
+      const toPromote = existingCohorts
+        .filter((c) => c.visibility !== true)
+        .map((c) => c._id);
+
+      if (toPromote.length > 0) {
+        await CohortModel(tenant).updateMany(
+          { _id: { $in: toPromote } },
+          { $set: { visibility: true } },
+        );
+      }
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        message:
+          toPromote.length > 0
+            ? `Successfully promoted ${toPromote.length} cohort(s) to public`
+            : "All provided cohorts are already public",
+        data: {
+          promoted: toPromote.map((id) => id.toString()),
+          already_public: alreadyPublic,
+          not_found: notFound,
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
   createCohortFromCohortIDs: async (request, next) => {
     try {
       const { body, query } = request;

@@ -13,6 +13,32 @@ const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
+const crypto = require("crypto");
+
+const requireAdminSecret = (req, res, next) => {
+  if (!constants.ADMIN_SETUP_SECRET) {
+    return next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: "Admin secret not configured on server",
+      }),
+    );
+  }
+  const provided = Buffer.from(
+    req.body.admin_secret || req.query.admin_secret || "",
+  );
+  const expected = Buffer.from(constants.ADMIN_SETUP_SECRET);
+  if (
+    provided.length !== expected.length ||
+    !crypto.timingSafeEqual(provided, expected)
+  ) {
+    return next(
+      new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+        message: "Invalid admin secret",
+      }),
+    );
+  }
+  next();
+};
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -752,7 +778,35 @@ const cohortValidations = {
   ],
 };
 
+const promoteCohorts = [
+  ...commonValidations.tenant,
+  body("admin_secret")
+    .exists()
+    .withMessage("admin_secret is required")
+    .bail()
+    .isString()
+    .withMessage("admin_secret must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("admin_secret must not be empty"),
+  body("cohort_ids")
+    .exists()
+    .withMessage("cohort_ids is required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("cohort_ids must be a non-empty array"),
+  body("cohort_ids.*")
+    .isString()
+    .withMessage("each cohort_id must be a string")
+    .bail()
+    .custom((id) => isValidObjectId(id))
+    .withMessage("each cohort_id must be a valid MongoDB ObjectId"),
+  handleValidationErrors,
+  requireAdminSecret,
+];
+
 module.exports = {
   ...cohortValidations,
+  promoteCohorts,
   pagination: commonValidations.pagination,
 };
