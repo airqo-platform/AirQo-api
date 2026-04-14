@@ -1542,219 +1542,29 @@ const createCohort = {
         {
           $addFields: {
             // Both branches are disjoint after the device_id:null constraint above,
-            // so $concatArrays is safe (no duplicates). $sortArray requires MongoDB
-            // 5.2+ which cannot be guaranteed; JS post-processing sorts the merged
-            // array instead.
+            // so $concatArrays is safe (no duplicates). The slice to activitiesLimit
+            // is deferred to JS post-processing so the global sort runs first —
+            // otherwise the name-branch tail is dropped before sorting, which can
+            // exclude newer legacy rows from the latestActivitiesByType derivation.
             activities: {
-              $slice: [
-                { $concatArrays: ["$_activities_by_id", "$_activities_by_name"] },
-                activitiesLimit,
-              ],
+              $concatArrays: ["$_activities_by_id", "$_activities_by_name"],
             },
           },
         },
         { $unset: ["_activities_by_id", "_activities_by_name"] },
-        // ── Latest deployment activity — indexed split lookups ─────────────────
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { activityType: "deployment", $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_deploy_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              { $match: { activityType: "deployment", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_deploy_by_name",
-          },
-        },
-        {
-          $addFields: {
-            // $sortArray requires MongoDB 5.2+. Since each branch returns ≤1 item,
-            // use nested $cond to pick the branch with the later createdAt instead.
-            latest_deployment_activity: {
-              $cond: [
-                { $eq: [{ $size: "$_deploy_by_id" }, 0] },
-                "$_deploy_by_name",
-                {
-                  $cond: [
-                    { $eq: [{ $size: "$_deploy_by_name" }, 0] },
-                    "$_deploy_by_id",
-                    {
-                      $cond: [
-                        { $gte: [
-                          { $arrayElemAt: ["$_deploy_by_id.createdAt", 0] },
-                          { $arrayElemAt: ["$_deploy_by_name.createdAt", 0] },
-                        ]},
-                        "$_deploy_by_id",
-                        "$_deploy_by_name",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unset: ["_deploy_by_id", "_deploy_by_name"] },
-        // ── Latest maintenance activity — indexed split lookups ────────────────
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { activityType: "maintenance", $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_maint_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              { $match: { activityType: "maintenance", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_maint_by_name",
-          },
-        },
-        {
-          $addFields: {
-            latest_maintenance_activity: {
-              $cond: [
-                { $eq: [{ $size: "$_maint_by_id" }, 0] },
-                "$_maint_by_name",
-                {
-                  $cond: [
-                    { $eq: [{ $size: "$_maint_by_name" }, 0] },
-                    "$_maint_by_id",
-                    {
-                      $cond: [
-                        { $gte: [
-                          { $arrayElemAt: ["$_maint_by_id.createdAt", 0] },
-                          { $arrayElemAt: ["$_maint_by_name.createdAt", 0] },
-                        ]},
-                        "$_maint_by_id",
-                        "$_maint_by_name",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unset: ["_maint_by_id", "_maint_by_name"] },
-        // ── Latest recall activity — indexed split lookups ─────────────────────
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { activityType: { $in: ["recall", "recallment"] }, $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_recall_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              { $match: { activityType: { $in: ["recall", "recallment"] }, device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_recall_by_name",
-          },
-        },
-        {
-          $addFields: {
-            latest_recall_activity: {
-              $cond: [
-                { $eq: [{ $size: "$_recall_by_id" }, 0] },
-                "$_recall_by_name",
-                {
-                  $cond: [
-                    { $eq: [{ $size: "$_recall_by_name" }, 0] },
-                    "$_recall_by_id",
-                    {
-                      $cond: [
-                        { $gte: [
-                          { $arrayElemAt: ["$_recall_by_id.createdAt", 0] },
-                          { $arrayElemAt: ["$_recall_by_name.createdAt", 0] },
-                        ]},
-                        "$_recall_by_id",
-                        "$_recall_by_name",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unset: ["_recall_by_id", "_recall_by_name"] },
-        // ── True activity count — split to avoid double-counting ──────────────
-        // (a) All activities matched by ObjectId reference.
-        // (b) Legacy name-only activities (device_id absent) matched by device name.
-        // Summing (a) + (b) gives the true total with no overlap.
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $count: "count" },
-            ],
-            as: "_count_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              // Only legacy records where device_id is not set — prevents double-counting
-              { $match: { device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $count: "count" },
-            ],
-            as: "_count_by_name",
-          },
-        },
-        {
-          $addFields: {
-            // True total — not capped by activitiesLimit, no double-counting
-            total_activities: {
-              $add: [
-                { $ifNull: [{ $arrayElemAt: ["$_count_by_id.count", 0] }, 0] },
-                { $ifNull: [{ $arrayElemAt: ["$_count_by_name.count", 0] }, 0] },
-              ],
-            },
-            // How many activity documents were actually returned in this response
-            activities_loaded: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
-            },
-          },
-        },
-        { $unset: ["_count_by_id", "_count_by_name"] },
+        // Typed-activity fields (latest_deployment_activity, latest_maintenance_activity,
+        // latest_recall_activity) are derived in JS post-processing from the merged
+        // activities array. Running 6 separate $lookup stages here for each type would
+        // add 6 extra DB sub-queries per device (60 extra queries for a page of 10),
+        // which is the primary driver of the 504s under concurrent load.
+        // total_activities and activities_loaded are handled by the inclusion
+        // projection ($project: DEVICES_INCLUSION_PROJECTION):
+        //   - total_activities uses cached_total_activities (device doc field) when
+        //     present, otherwise falls back to $size(activities).
+        //   - activities_loaded is not in the inclusion projection and was never
+        //     reaching the response.
+        // The separate count $lookup stages that previously computed these values
+        // were pure overhead (their results were discarded by the $project stage).
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
@@ -1765,35 +1575,21 @@ const createCohort = {
 
       // Post-processing for consistency
       paginatedResults.forEach((device) => {
-        // Process latest activities to extract single objects
-        device.latest_deployment_activity =
-          device.latest_deployment_activity &&
-          device.latest_deployment_activity.length > 0
-            ? device.latest_deployment_activity[0]
-            : null;
-
-        device.latest_maintenance_activity =
-          device.latest_maintenance_activity &&
-          device.latest_maintenance_activity.length > 0
-            ? device.latest_maintenance_activity[0]
-            : null;
-
-        device.latest_recall_activity =
-          device.latest_recall_activity &&
-          device.latest_recall_activity.length > 0
-            ? device.latest_recall_activity[0]
-            : null;
-
-        // Sort the merged activities array by most recent first.
-        // $sortArray (MongoDB 5.2+) was removed for version compatibility;
-        // the two disjoint branches are sorted here in JS instead.
+        // Sort the merged activities array by most recent first, then trim to
+        // activitiesLimit. The $slice was moved out of the pipeline so that both
+        // id-branch and name-branch items are considered before any are dropped.
         if (device.activities && device.activities.length > 1) {
           device.activities.sort(
             (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
           );
         }
+        if (device.activities && device.activities.length > activitiesLimit) {
+          device.activities = device.activities.slice(0, activitiesLimit);
+        }
 
-        // Create activities by type mapping
+        // Build per-type counts and latest-activity map.
+        // Typed-activity fields (latest_deployment_activity etc.) are derived
+        // from this map instead of running 6 separate DB lookups per device.
         if (device.activities && device.activities.length > 0) {
           const activitiesByType = {};
           const latestActivitiesByType = {};
@@ -1813,9 +1609,28 @@ const createCohort = {
 
           device.activities_by_type = activitiesByType;
           device.latest_activities_by_type = latestActivitiesByType;
+
+          // Derive typed-activity fields from the already-sorted activities array
+          device.latest_deployment_activity =
+            latestActivitiesByType["deployment"] || null;
+          device.latest_maintenance_activity =
+            latestActivitiesByType["maintenance"] || null;
+          // Pick the more recent of "recall" / "recallment" rather than blindly
+          // preferring one key — both can coexist on the same device.
+          const _r = latestActivitiesByType["recall"] || null;
+          const _rm = latestActivitiesByType["recallment"] || null;
+          device.latest_recall_activity =
+            _r && _rm
+              ? new Date(_r.createdAt) >= new Date(_rm.createdAt)
+                ? _r
+                : _rm
+              : _r || _rm || null;
         } else {
           device.activities_by_type = {};
           device.latest_activities_by_type = {};
+          device.latest_deployment_activity = null;
+          device.latest_maintenance_activity = null;
+          device.latest_recall_activity = null;
         }
 
         // Process assigned_grid to extract single object
