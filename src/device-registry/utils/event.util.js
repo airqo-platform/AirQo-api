@@ -965,6 +965,7 @@ const processCohortIds = async (cohort_ids, request) => {
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
         cohort_id,
         user_id,
+        tenant: request.query.tenant,
       });
 
       logObject(
@@ -1015,8 +1016,11 @@ const processCohortIds = async (cohort_ids, request) => {
     return invalidDeviceIdResults[0];
   }
 
+  // null entries are cohorts that were suppressed (private, no bypass)
+  const suppressedCount = deviceIdsResults.filter((r) => r === null).length;
+
   const validDeviceIdResults = deviceIdsResults.filter(
-    (result) => !(result.success === false),
+    (result) => result != null && !(result.success === false),
   );
 
   const flattened = [].concat(...validDeviceIdResults);
@@ -1026,7 +1030,9 @@ const processCohortIds = async (cohort_ids, request) => {
     // The use of a Set handles potential duplicates if a device is in multiple cohorts.
     const uniqueDeviceIds = [...new Set(flattened)];
     request.query.device_id = uniqueDeviceIds.join(",");
-  } else if (isEmpty(flattened)) {
+  } else if (isEmpty(flattened) && suppressedCount === 0) {
+    // Only return an error if the empty result is not due to privacy suppression.
+    // When all cohorts are private, silently resolve to no devices.
     return {
       success: false,
       status: httpStatus.BAD_REQUEST,
