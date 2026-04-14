@@ -1069,6 +1069,7 @@ const deviceUtil = {
         skip,
         useCache = "true",
         detailLevel = "full",
+        includeSiteDevices = "false",
         sortBy,
         order,
       } = request.query;
@@ -1118,9 +1119,40 @@ const deviceUtil = {
               localField: "site_id",
               foreignField: "_id",
               as: "site",
-              pipeline: [
-                { $project: { _id: 1, name: 1, district: 1, country: 1 } },
-              ],
+              pipeline:
+                includeSiteDevices === "true"
+                  ? [
+                      {
+                        $lookup: {
+                          from: "devices",
+                          localField: "_id",
+                          foreignField: "site_id",
+                          as: "devices",
+                          pipeline: [
+                            { $project: { _id: 1, name: 1, long_name: 1 } },
+                          ],
+                        },
+                      },
+                      {
+                        $project: {
+                          _id: 1,
+                          name: 1,
+                          district: 1,
+                          country: 1,
+                          devices: 1,
+                        },
+                      },
+                    ]
+                  : [
+                      {
+                        $project: {
+                          _id: 1,
+                          name: 1,
+                          district: 1,
+                          country: 1,
+                        },
+                      },
+                    ],
             },
           },
           {
@@ -1167,6 +1199,47 @@ const deviceUtil = {
               preserveNullAndEmptyArrays: true,
             },
           },
+          ...(includeSiteDevices === "true"
+            ? [
+                {
+                  $lookup: {
+                    from: "devices",
+                    let: { siteId: "$site_id" },
+                    pipeline: [
+                      {
+                        $match: {
+                          $expr: {
+                            $and: [
+                              { $ne: ["$$siteId", null] },
+                              { $eq: ["$site_id", "$$siteId"] },
+                            ],
+                          },
+                        },
+                      },
+                      { $project: { _id: 1, name: 1, long_name: 1 } },
+                    ],
+                    as: "_site_devices",
+                  },
+                },
+                {
+                  $addFields: {
+                    "site.devices": {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $ne: ["$site", null] },
+                            { $gt: [{ $size: "$_site_devices" }, 0] },
+                          ],
+                        },
+                        then: "$_site_devices",
+                        else: "$$REMOVE",
+                      },
+                    },
+                  },
+                },
+                { $unset: "_site_devices" },
+              ]
+            : []),
           {
             $lookup: {
               from: "hosts",
@@ -3002,11 +3075,11 @@ const deviceUtil = {
           return { success: false, ...groupObjectIdsResult };
         }
         groupObjectIds = groupObjectIdsResult.data;
-        const groups = await CohortModel(tenant)
-          .find({ groups: { $in: groupObjectIds } })
+        const groupLinkedCohorts = await CohortModel(tenant)
+          .find({ grp_id: { $in: groupObjectIds } })
           .select("_id")
           .lean();
-        groupCohorts = groups.map((g) => g._id);
+        groupCohorts = groupLinkedCohorts.map((g) => g._id);
       }
 
       // 2. Combine all cohort IDs: direct user cohorts and group cohorts

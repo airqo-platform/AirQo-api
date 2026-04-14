@@ -1009,12 +1009,9 @@ describe("createCohort", () => {
     // Add more test cases as needed for different scenarios
   });
   describe("assignManyDevicesToCohort", () => {
-    it("should assign devices to a cohort successfully", async () => {
-      // Arrange
+    it("should assign all new devices to a cohort successfully", async () => {
       const request = {
-        params: {
-          cohort_id: "sample_cohort_id",
-        },
+        params: { cohort_id: "sample_cohort_id" },
         body: {
           device_ids: [
             "sample_device_id_1",
@@ -1022,65 +1019,110 @@ describe("createCohort", () => {
             "sample_device_id_3",
           ],
         },
-        query: {
-          tenant: "sample_tenant",
-        },
+        query: { tenant: "sample_tenant" },
       };
 
-      // Mock the CohortModel.findById function to return a valid cohort
-      const findByIdCohortStub = chai.spy.on(
+      chai.spy.on(
         createCohort.CohortModel("sample_tenant"),
         "findById",
-        () => ({
-          _id: "sample_cohort_id",
-          // Add any other cohort data here
-        })
+        () => ({ lean: () => ({ _id: "sample_cohort_id" }) })
       );
 
-      // Mock the DeviceModel.findById function to return valid devices
-      const findByIdDeviceStub = chai.spy.on(
+      let findCallCount = 0;
+      chai.spy.on(
         createCohort.DeviceModel("sample_tenant"),
-        "findById",
-        (deviceId) => ({
-          _id: deviceId,
-          cohorts: [], // Set the initial cohorts array to be empty
-          // Add any other device data here
-        })
+        "find",
+        () => {
+          findCallCount++;
+          const docs =
+            findCallCount === 1
+              ? [
+                  { _id: "sample_device_id_1", cohorts: [] },
+                  { _id: "sample_device_id_2", cohorts: [] },
+                  { _id: "sample_device_id_3", cohorts: [] },
+                ]
+              : [
+                  { _id: "sample_device_id_1" },
+                  { _id: "sample_device_id_2" },
+                  { _id: "sample_device_id_3" },
+                ];
+          return { select: () => ({ lean: () => Promise.resolve(docs) }) };
+        }
       );
 
-      // Mock the DeviceModel.updateMany function to return the number of modified documents
-      const updateManyStub = chai.spy.on(
+      chai.spy.on(
         createCohort.DeviceModel("sample_tenant"),
         "updateMany",
-        () => ({
-          nModified: 3, // Number of documents modified
-          n: 3, // Total number of matching documents
-        })
+        () => Promise.resolve({ nModified: 3, n: 3 })
       );
 
-      // Act
       const result = await createCohort.assignManyDevicesToCohort(request);
 
-      // Assert
       expect(result.success).to.be.true;
       expect(result.message).to.equal(
-        "successfully assigned all the provided devices to the Cohort"
+        "Successfully assigned all provided devices to the cohort"
       );
       expect(result.status).to.equal(httpStatus.OK);
-      // Add additional assertions based on the response data
+      expect(result.data).to.have.property("assigned");
+      expect(result.data).to.have.property("already_assigned");
+      expect(result.data.already_assigned).to.have.lengthOf(0);
 
-      // Restore the stubs
       createCohort.CohortModel("sample_tenant").findById.restore();
-      createCohort.DeviceModel("sample_tenant").findById.restore();
+      createCohort.DeviceModel("sample_tenant").find.restore();
+      createCohort.DeviceModel("sample_tenant").updateMany.restore();
+    });
+
+    it("should skip already-assigned devices and assign only new ones", async () => {
+      const request = {
+        params: { cohort_id: "sample_cohort_id" },
+        body: { device_ids: ["device_new_1", "device_already_1"] },
+        query: { tenant: "sample_tenant" },
+      };
+
+      chai.spy.on(
+        createCohort.CohortModel("sample_tenant"),
+        "findById",
+        () => ({ lean: () => ({ _id: "sample_cohort_id" }) })
+      );
+
+      let findCallCount = 0;
+      chai.spy.on(
+        createCohort.DeviceModel("sample_tenant"),
+        "find",
+        () => {
+          findCallCount++;
+          const docs =
+            findCallCount === 1
+              ? [
+                  { _id: "device_new_1", cohorts: [] },
+                  { _id: "device_already_1", cohorts: ["sample_cohort_id"] },
+                ]
+              : [{ _id: "device_new_1" }];
+          return { select: () => ({ lean: () => Promise.resolve(docs) }) };
+        }
+      );
+
+      chai.spy.on(
+        createCohort.DeviceModel("sample_tenant"),
+        "updateMany",
+        () => Promise.resolve({ nModified: 1, n: 1 })
+      );
+
+      const result = await createCohort.assignManyDevicesToCohort(request);
+
+      expect(result.success).to.be.true;
+      expect(result.message).to.include("Partially successful");
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data.already_assigned).to.have.lengthOf(1);
+
+      createCohort.CohortModel("sample_tenant").findById.restore();
+      createCohort.DeviceModel("sample_tenant").find.restore();
       createCohort.DeviceModel("sample_tenant").updateMany.restore();
     });
 
     it("should handle invalid cohort ID", async () => {
-      // Arrange
       const request = {
-        params: {
-          cohort_id: "invalid_cohort_id",
-        },
+        params: { cohort_id: "invalid_cohort_id" },
         body: {
           device_ids: [
             "sample_device_id_1",
@@ -1088,22 +1130,17 @@ describe("createCohort", () => {
             "sample_device_id_3",
           ],
         },
-        query: {
-          tenant: "sample_tenant",
-        },
+        query: { tenant: "sample_tenant" },
       };
 
-      // Mock the CohortModel.findById function to return null (invalid cohort ID)
-      const findByIdCohortStub = chai.spy.on(
+      chai.spy.on(
         createCohort.CohortModel("sample_tenant"),
         "findById",
-        () => null
+        () => ({ lean: () => null })
       );
 
-      // Act
       const result = await createCohort.assignManyDevicesToCohort(request);
 
-      // Assert
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Bad Request Error");
       expect(result.status).to.equal(httpStatus.BAD_REQUEST);
@@ -1111,62 +1148,39 @@ describe("createCohort", () => {
         "Invalid cohort ID invalid_cohort_id"
       );
 
-      // Restore the stubs
       createCohort.CohortModel("sample_tenant").findById.restore();
-      createCohort.DeviceModel("sample_tenant").findById.restore();
-      createCohort.DeviceModel("sample_tenant").updateMany.restore();
     });
 
-    it("should handle invalid device IDs", async () => {
-      // Arrange
+    it("should handle device IDs not found in the system", async () => {
       const request = {
-        params: {
-          cohort_id: "sample_cohort_id",
-        },
+        params: { cohort_id: "sample_cohort_id" },
         body: {
-          device_ids: [
-            "invalid_device_id_1",
-            "invalid_device_id_2",
-            "invalid_device_id_3",
-          ],
+          device_ids: ["invalid_device_id_1", "invalid_device_id_2"],
         },
-        query: {
-          tenant: "sample_tenant",
-        },
+        query: { tenant: "sample_tenant" },
       };
 
-      // Mock the CohortModel.findById function to return a valid cohort
-      const findByIdCohortStub = chai.spy.on(
+      chai.spy.on(
         createCohort.CohortModel("sample_tenant"),
         "findById",
-        () => ({
-          _id: "sample_cohort_id",
-          // Add any other cohort data here
-        })
+        () => ({ lean: () => ({ _id: "sample_cohort_id" }) })
       );
 
-      // Mock the DeviceModel.findById function to return null (invalid device ID)
-      const findByIdDeviceStub = chai.spy.on(
+      chai.spy.on(
         createCohort.DeviceModel("sample_tenant"),
-        "findById",
-        () => null
+        "find",
+        () => ({ select: () => ({ lean: () => Promise.resolve([]) }) })
       );
 
-      // Act
       const result = await createCohort.assignManyDevicesToCohort(request);
 
-      // Assert
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Bad Request Error");
       expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.errors.message).to.equal(
-        "Invalid Device ID invalid_device_id_1, please crosscheck"
-      );
+      expect(result.errors.message).to.include("not found");
 
-      // Restore the stubs
       createCohort.CohortModel("sample_tenant").findById.restore();
-      createCohort.DeviceModel("sample_tenant").findById.restore();
-      createCohort.DeviceModel("sample_tenant").updateMany.restore();
+      createCohort.DeviceModel("sample_tenant").find.restore();
     });
 
     // Add more test cases as needed for different scenarios

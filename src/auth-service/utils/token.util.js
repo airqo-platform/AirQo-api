@@ -87,14 +87,15 @@ const TOKEN_VERIFY_TIER_LIMITS = { Free: 100, Standard: 500, Premium: 2000 };
 // { key: { count: number, expiry: number } }
 const _rlMemoryStore = new Map();
 
-// Prune expired entries once per hour so the Map doesn't grow indefinitely
-// in long-running processes where Redis stays unavailable.
+// Prune expired entries every 5 minutes so the Map doesn't grow significantly
+// during high-traffic windows where Redis stays unavailable. The previous 1-hour
+// cadence allowed a full hour of unique IPs to accumulate before cleanup.
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of _rlMemoryStore) {
     if (entry.expiry < now) _rlMemoryStore.delete(key);
   }
-}, 3600000).unref();
+}, 300000).unref();
 
 /**
  * Check and increment the hourly rate limit counter for a user.
@@ -1009,15 +1010,7 @@ const token = {
         }
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-      return;
+      throw error;
     }
   },
   listAccessToken: async (request, next) => {

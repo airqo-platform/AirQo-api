@@ -12,21 +12,8 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- admin-access`
 );
 
-const __rbacInstances = new Map();
-const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
-  if (!__rbacInstances.has(tenant)) {
-    const inst = new RBACService(tenant);
-    // Unref the timer so it doesn't hold the event loop open
-    if (
-      inst.cleanupInterval &&
-      typeof inst.cleanupInterval.unref === "function"
-    ) {
-      inst.cleanupInterval.unref();
-    }
-    __rbacInstances.set(tenant, inst);
-  }
-  return __rbacInstances.get(tenant);
-};
+const getRBACService = (tenant = constants.DEFAULT_TENANT) =>
+  RBACService.getInstance(tenant);
 
 /**
  * Enhanced admin access middleware that replaces the old adminCheck
