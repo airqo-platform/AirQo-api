@@ -106,6 +106,12 @@ router.post(
   createCohortController.filterOutPrivateDevices,
 );
 
+router.post(
+  "/promote",
+  cohortValidations.promoteCohorts,
+  createCohortController.promoteCohorts,
+);
+
 router.get(
   "/:cohort_id/generate",
   cohortValidations.getSiteAndDeviceIds,

@@ -1016,22 +1016,27 @@ const createCohort = {
   },
   filterOutPrivateDevices: async (request, next) => {
     try {
-      const { tenant, devices, device_ids, device_names } = {
+      const { tenant, devices, device_ids, device_names, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
       const privateCohorts = await CohortModel(tenant)
-        .find({
-          visibility: false,
-        })
+        .find({ visibility: false })
         .select("_id")
         .lean();
 
       const privateCohortIds = privateCohorts.map((cohort) => cohort._id);
-      const privateDevices = await DeviceModel(tenant).find({
-        cohorts: { $in: privateCohortIds },
-      });
+
+      // When a user_id is provided, exclude devices owned by that user from the
+      // "private" set so owners can always access their own device data.
+      const privateDevicesQuery = { cohorts: { $in: privateCohortIds } };
+      if (user_id && ObjectId.isValid(user_id)) {
+        privateDevicesQuery.owner_id = { $ne: new ObjectId(user_id) };
+      }
+      const privateDevices = await DeviceModel(tenant).find(
+        privateDevicesQuery,
+      );
 
       const privateDeviceIds = privateDevices.map((device) =>
         device._id.toString(),
@@ -1059,6 +1064,69 @@ const createCohort = {
         status: httpStatus.OK,
         data: publicDevices,
         message: "operation successful",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  promoteCohorts: async (request, next) => {
+    try {
+      const { cohort_ids } = request.body;
+      const tenant = request.query.tenant || request.body.tenant;
+
+      const objectIds = cohort_ids.map((id) => new ObjectId(id));
+
+      // Identify which IDs exist in the DB
+      const existingCohorts = await CohortModel(tenant)
+        .find({ _id: { $in: objectIds } })
+        .select("_id visibility")
+        .lean();
+
+      const existingIds = new Set(
+        existingCohorts.map((c) => c._id.toString()),
+      );
+      const notFound = cohort_ids.filter((id) => !existingIds.has(id));
+      const alreadyPublic = existingCohorts
+        .filter((c) => c.visibility === true)
+        .map((c) => c._id.toString());
+      const toPromote = existingCohorts
+        .filter((c) => c.visibility !== true)
+        .map((c) => c._id);
+
+      if (toPromote.length > 0) {
+        await CohortModel(tenant).updateMany(
+          { _id: { $in: toPromote } },
+          { $set: { visibility: true } },
+        );
+      }
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        message: (() => {
+          if (toPromote.length > 0 && notFound.length > 0) {
+            return `Promoted ${toPromote.length} cohort(s) to public; ${notFound.length} ID(s) not found`;
+          }
+          if (toPromote.length > 0) {
+            return `Successfully promoted ${toPromote.length} cohort(s) to public`;
+          }
+          if (notFound.length > 0) {
+            return `No cohorts promoted; the following ID(s) were not found: ${notFound.join(", ")}`;
+          }
+          return "All provided cohorts are already public";
+        })(),
+        data: {
+          promoted: toPromote.map((id) => id.toString()),
+          already_public: alreadyPublic,
+          not_found: notFound,
+        },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

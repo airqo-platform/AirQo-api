@@ -47,6 +47,8 @@ const {
   redisExpireAsync,
 } = require("@config/redis");
 const asyncRetry = require("async-retry");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
 let lastRedisWarning = 0;
 const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
@@ -734,6 +736,17 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
       };
     }
 
+    // Privacy gate: private grids do not expose their sites
+    if (gridDetails.visibility === false) {
+      return {
+        success: true,
+        message: "Grid is private; site data is not publicly accessible",
+        data: null,
+        suppressed: true,
+        status: httpStatus.OK,
+      };
+    }
+
     const sites = gridDetails.sites || [];
 
     if (sites.length === 0) {
@@ -766,7 +779,11 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   }
 };
-const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
+const getDevicesFromCohort = async ({
+  tenant = "airqo",
+  cohort_id,
+  user_id,
+} = {}) => {
   try {
     const request = {
       query: {
@@ -796,6 +813,51 @@ const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
+    // Privacy gate: private cohorts restrict access to recent measurements
+    const isPrivate = cohortDetails.visibility === false;
+    if (isPrivate) {
+      if (!user_id) {
+        // No user context — suppress all devices from this private cohort
+        return {
+          success: true,
+          message:
+            "Cohort is private; device data is not publicly accessible",
+          data: null,
+          suppressed: true,
+          status: httpStatus.OK,
+        };
+      }
+      // User context present — return only devices owned by this user
+      if (!ObjectId.isValid(user_id)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Invalid user_id format" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const ownedDevices = await DeviceModel(tenant)
+        .find({ cohorts: cohort_id, owner_id: new ObjectId(user_id) })
+        .select("_id")
+        .lean();
+      if (ownedDevices.length === 0) {
+        return {
+          success: true,
+          message: "No owned devices found in this private cohort",
+          data: null,
+          suppressed: true,
+          status: httpStatus.OK,
+        };
+      }
+      const ownedIds = ownedDevices.map((d) => d._id.toString()).join(",");
+      return {
+        success: true,
+        message: "Successfully retrieved owned devices from private cohort",
+        data: ownedIds,
+        status: httpStatus.OK,
+      };
+    }
+
     const assignedDevices = cohortDetails.devices || [];
     const deviceIds = assignedDevices.map((device) => device._id.toString());
 
@@ -837,6 +899,9 @@ const processGridIds = async (grid_ids, request) => {
           )}`,
         );
         return responseFromGetSitesOfGrid;
+      } else if (responseFromGetSitesOfGrid.suppressed) {
+        // Grid is private — treat as empty site set, not an error
+        return null;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
           `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
@@ -866,7 +931,7 @@ const processGridIds = async (grid_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false,
+    (result) => result != null && result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
@@ -877,7 +942,7 @@ const processGridIds = async (grid_ids, request) => {
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false),
+    (result) => result != null && !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -892,10 +957,15 @@ const processCohortIds = async (cohort_ids, request) => {
     ? cohort_ids
     : cohort_ids.toString().split(",");
 
+  // Pass through requester identity so private cohorts can apply owner bypass
+  const user_id = request.query.user_id;
+
   const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
     if (!isEmpty(cohort_id)) {
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
         cohort_id,
+        user_id,
+        tenant: request.query.tenant,
       });
 
       logObject(
@@ -911,6 +981,9 @@ const processCohortIds = async (cohort_ids, request) => {
         );
         // Return the error response to the caller
         return responseFromGetDevicesOfCohort;
+      } else if (responseFromGetDevicesOfCohort.suppressed) {
+        // Cohort is private — treat as empty device set, not an error
+        return null;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
           `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
@@ -932,7 +1005,7 @@ const processCohortIds = async (cohort_ids, request) => {
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
   const invalidDeviceIdResults = deviceIdsResults.filter(
-    (result) => result.success === false,
+    (result) => result != null && result.success === false,
   );
 
   // Return the first error found to the controller
@@ -943,8 +1016,11 @@ const processCohortIds = async (cohort_ids, request) => {
     return invalidDeviceIdResults[0];
   }
 
+  // null entries are cohorts that were suppressed (private, no bypass)
+  const suppressedCount = deviceIdsResults.filter((r) => r === null).length;
+
   const validDeviceIdResults = deviceIdsResults.filter(
-    (result) => !(result.success === false),
+    (result) => result != null && !(result.success === false),
   );
 
   const flattened = [].concat(...validDeviceIdResults);
@@ -954,7 +1030,9 @@ const processCohortIds = async (cohort_ids, request) => {
     // The use of a Set handles potential duplicates if a device is in multiple cohorts.
     const uniqueDeviceIds = [...new Set(flattened)];
     request.query.device_id = uniqueDeviceIds.join(",");
-  } else if (isEmpty(flattened)) {
+  } else if (isEmpty(flattened) && suppressedCount === 0) {
+    // Only return an error if the empty result is not due to privacy suppression.
+    // When all cohorts are private, silently resolve to no devices.
     return {
       success: false,
       status: httpStatus.BAD_REQUEST,
@@ -1020,7 +1098,7 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false,
+    (result) => result != null && result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
@@ -1031,7 +1109,7 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false),
+    (result) => result != null && !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
