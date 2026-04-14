@@ -220,12 +220,6 @@ def test_generate_site_daily_forecasts_with_synthetic_history(
         horizon=7,
     )
 
-#    print(f"Synthetic history rows: {len(synthetic_history)}")
-#    print(f"Forecast rows: {len(forecasts)}")
-#    print(f"Sites forecasted: {forecasts['site_id'].nunique()}")
-#    print("Forecast sample:")
-#    print(forecasts.head().to_string(index=False))
-
     assert len(synthetic_history) == 135
     assert len(forecasts) == 21
     assert forecasts["site_id"].nunique() == 3
