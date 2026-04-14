@@ -1542,14 +1542,12 @@ const createCohort = {
         {
           $addFields: {
             // Both branches are disjoint after the device_id:null constraint above,
-            // so $concatArrays is safe (no duplicates). $sortArray requires MongoDB
-            // 5.2+ which cannot be guaranteed; JS post-processing sorts the merged
-            // array instead.
+            // so $concatArrays is safe (no duplicates). The slice to activitiesLimit
+            // is deferred to JS post-processing so the global sort runs first —
+            // otherwise the name-branch tail is dropped before sorting, which can
+            // exclude newer legacy rows from the latestActivitiesByType derivation.
             activities: {
-              $slice: [
-                { $concatArrays: ["$_activities_by_id", "$_activities_by_name"] },
-                activitiesLimit,
-              ],
+              $concatArrays: ["$_activities_by_id", "$_activities_by_name"],
             },
           },
         },
@@ -1559,49 +1557,14 @@ const createCohort = {
         // activities array. Running 6 separate $lookup stages here for each type would
         // add 6 extra DB sub-queries per device (60 extra queries for a page of 10),
         // which is the primary driver of the 504s under concurrent load.
-        // ── True activity count — split to avoid double-counting ──────────────
-        // (a) All activities matched by ObjectId reference.
-        // (b) Legacy name-only activities (device_id absent) matched by device name.
-        // Summing (a) + (b) gives the true total with no overlap.
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $count: "count" },
-            ],
-            as: "_count_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              // Only legacy records where device_id is not set — prevents double-counting
-              { $match: { device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $count: "count" },
-            ],
-            as: "_count_by_name",
-          },
-        },
-        {
-          $addFields: {
-            // True total — not capped by activitiesLimit, no double-counting
-            total_activities: {
-              $add: [
-                { $ifNull: [{ $arrayElemAt: ["$_count_by_id.count", 0] }, 0] },
-                { $ifNull: [{ $arrayElemAt: ["$_count_by_name.count", 0] }, 0] },
-              ],
-            },
-            // How many activity documents were actually returned in this response
-            activities_loaded: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
-            },
-          },
-        },
-        { $unset: ["_count_by_id", "_count_by_name"] },
+        // total_activities and activities_loaded are handled by the inclusion
+        // projection ($project: DEVICES_INCLUSION_PROJECTION):
+        //   - total_activities uses cached_total_activities (device doc field) when
+        //     present, otherwise falls back to $size(activities).
+        //   - activities_loaded is not in the inclusion projection and was never
+        //     reaching the response.
+        // The separate count $lookup stages that previously computed these values
+        // were pure overhead (their results were discarded by the $project stage).
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
@@ -1612,13 +1575,16 @@ const createCohort = {
 
       // Post-processing for consistency
       paginatedResults.forEach((device) => {
-        // Sort the merged activities array by most recent first.
-        // $sortArray (MongoDB 5.2+) was avoided for version compatibility;
-        // the two disjoint branches are globally sorted here in JS instead.
+        // Sort the merged activities array by most recent first, then trim to
+        // activitiesLimit. The $slice was moved out of the pipeline so that both
+        // id-branch and name-branch items are considered before any are dropped.
         if (device.activities && device.activities.length > 1) {
           device.activities.sort(
             (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
           );
+        }
+        if (device.activities && device.activities.length > activitiesLimit) {
+          device.activities = device.activities.slice(0, activitiesLimit);
         }
 
         // Build per-type counts and latest-activity map.
@@ -1649,10 +1615,16 @@ const createCohort = {
             latestActivitiesByType["deployment"] || null;
           device.latest_maintenance_activity =
             latestActivitiesByType["maintenance"] || null;
+          // Pick the more recent of "recall" / "recallment" rather than blindly
+          // preferring one key — both can coexist on the same device.
+          const _r = latestActivitiesByType["recall"] || null;
+          const _rm = latestActivitiesByType["recallment"] || null;
           device.latest_recall_activity =
-            latestActivitiesByType["recall"] ||
-            latestActivitiesByType["recallment"] ||
-            null;
+            _r && _rm
+              ? new Date(_r.createdAt) >= new Date(_rm.createdAt)
+                ? _r
+                : _rm
+              : _r || _rm || null;
         } else {
           device.activities_by_type = {};
           device.latest_activities_by_type = {};
