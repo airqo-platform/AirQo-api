@@ -1,1188 +1,1188 @@
-name: deploy-apis-to-staging
-
-on:
-  pull_request_target:
-    branches:
-      - staging
-    types:
-      - closed
-
-env:
-  REGISTRY_URL: eu.gcr.io
-  PROJECT_ID: airqo-250220
-  DEPLOY_BRANCH: staging
-
-jobs:
-  image-tag:
-    if: github.event.pull_request.merged == true
-    name: create image tag
-    runs-on: ubuntu-latest
-    outputs:
-      build_id: ${{ steps.prep.outputs.build_id }} # build id
-      datetime: ${{ steps.prep.outputs.datetime }} # build date
-    steps:
-      - name: generate build ID
-        id: prep
-        run: |
-          sha=${GITHUB_SHA::8}
-          timestamp=$(date +%s)
-          datetime=$(date)
-          echo "build_id=stage-${sha}-${timestamp}" >>$GITHUB_OUTPUT
-          echo "datetime=${datetime}" >>$GITHUB_OUTPUT
-
-  check:
-    if: github.event.pull_request.merged == true
-    name: check changed microservice(s)
-    outputs:
-      run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
-      run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
-      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
-      run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon_api
-      run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
-      run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
-      run_view: ${{ steps.check_files.outputs.run_view }} # view
-      run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
-      run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
-      run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
-      run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
-      run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
-      run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
-      run_website: ${{ steps.check_files.outputs.run_website }} # website
-      run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
-      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
-      run_redis: ${{ steps.check_files.outputs.run_redis }} # redis
-
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout code
-        uses: actions/checkout@v3.5.3
-        with:
-          fetch-depth: 2
-
-        #### all microservices ######
-      - name: check modified microserivce
-        id: check_files
-        run: |
-          echo "=============== list modified files ==============="
-          git diff --name-only HEAD^ HEAD
-
-          echo "========== check paths of modified files =========="
-          git diff --name-only HEAD^ HEAD > files.txt
-
-          echo "run_auth_service=false" >>$GITHUB_OUTPUT
-          echo "run_device_registry=false" >>$GITHUB_OUTPUT
-          echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_beacon_api=false" >>$GITHUB_OUTPUT
-          echo "run_predict=false" >>$GITHUB_OUTPUT
-          echo "run_meta_data=false" >>$GITHUB_OUTPUT
-          echo "run_view=false" >>$GITHUB_OUTPUT
-          echo "run_calibrate=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
-          echo "run_workflows=false" >>$GITHUB_OUTPUT
-          echo "run_spatial=false" >>$GITHUB_OUTPUT
-          echo "run_website=false" >>$GITHUB_OUTPUT
-          echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
-          echo "run_nginx=false" >>$GITHUB_OUTPUT
-          echo "run_redis=false" >>$GITHUB_OUTPUT
-
-          while IFS= read -r file
-          do
-            echo $file
-
-            if [[ $file == src/auth-service/* ]]; then
-              echo "run_auth_service=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/auth-service/* ]]; then
-              echo "run_auth_service=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/device-registry/* ]]; then
-              echo "run_device_registry=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/device-registry/* ]]; then
-              echo "run_device_registry=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/analytics/* ]]; then
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/analytics/* ]]; then
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/beacon-api/* ]]; then
-              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/beacon-api/* ]]; then
-              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/predict/* ]]; then
-              echo "run_predict=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/predict/* ]]; then
-              echo "run_predict=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/meta-data/* ]]; then
-              echo "run_meta_data=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/meta-data/* ]]; then
-              echo "run_meta_data=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/view/* ]]; then
-              echo "run_view=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/view/* ]]; then
-              echo "run_view=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/calibrate/* ]]; then
-              echo "run_calibrate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/calibrate/* ]]; then
-              echo "run_calibrate=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/kafka/clusters/* ]]; then
-              echo "run_kafka_cluster=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/kafka/operator/* ]]; then
-              echo "run_kafka_cluster_operator=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/kafka/topics/* ]]; then
-              echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/kafka-connectors/* ]]; then
-              echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/workflows/* ]]; then
-              echo "run_workflows=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/workflows/* ]]; then
-              echo "run_workflows=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/spatial/* ]]; then
-              echo "run_spatial=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/spatial/* ]]; then
-              echo "run_spatial=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/website/* ]]; then
-              echo "run_website=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/website/* ]]; then
-              echo "run_website=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/nginx/staging/* ]]; then
-              echo "run_nginx=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/redis/* ]]; then
-              echo "run_redis=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == workflow-trigger ]]; then
-              echo "run_calibrate=true" >>$GITHUB_OUTPUT
-              echo "run_meta_data=true" >>$GITHUB_OUTPUT
-              echo "run_predict=true" >>$GITHUB_OUTPUT
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
-              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
-              echo "run_device_registry=true" >>$GITHUB_OUTPUT
-              echo "run_auth_service=true" >>$GITHUB_OUTPUT
-              echo "run_workflows=true" >>$GITHUB_OUTPUT
-              echo "run_spatial=true" >>$GITHUB_OUTPUT
-              echo "run_website=true" >>$GITHUB_OUTPUT
-              echo "run_view=true" >>$GITHUB_OUTPUT
-              echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
-              echo "run_nginx=true" >>$GITHUB_OUTPUT
-              echo "run_redis=true" >>$GITHUB_OUTPUT
-            fi
-
-          done < files.txt
-
-  ### auth service ###
-  auth-service:
-    name: build-push-deploy-auth
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_auth_service == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/auth-service/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/auth-service/
-          gcloud secrets versions access latest --secret="sta-env-auth-service" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-auth-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-auth-service-firebase-admin-sdk" > firebase_admin_sdk.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=firebase_admin_sdk.json stage-auth-api-config-files | kubectl replace -f - -n staging
-
-  #### Kafka Connectors ######
-  kafka-connectors:
-    name: build-push-deploy-kafka-connectors
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_kafka_connectors == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Build and push measurements source connectors
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/kafka-connectors/measurements-source-connector
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:latest
-
-      - name: Build and push biq query connector
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/kafka-connectors/bigquery-connector
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-bigquery-connector:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-bigquery-connector:latest
-
-      - name: Login to k8s cluster
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/kafka/BigQuery-connectors/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}
-
-      - name: Deploy to k8s cluster
-        run: |
-          export MEASUREMENTS_CONNECT_IMAGE=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
-          export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
-          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
-          kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
-
-      - name: Set up GCP credentials and Kubernetes configmaps
-        run: |
-          gcloud secrets versions access latest --secret="sta-env-kafka-bigquery-connectors" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-kafka-bigquery-connectors" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json bigquery-connectors-files | kubectl replace -f - -n staging
-
-  ### workflows ###
-  workflows:
-    name: build-push-deploy-workflows
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_workflows == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Build and push app
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/workflows
-          target: deployment
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows:latest
-
-      - name: Build and push Redis
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/workflows
-          target: redis
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-redis:latest
-
-      - name: Build and push XCom
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/workflows
-          target: xcom-setup
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows-xcom:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/workflows/values-stage.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update workflows staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/workflows/
-          gcloud secrets versions access latest --secret="sta-env-airflow" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
-
-  ### predict api and jobs ###
-  predict-service:
-    name: build-push-deploy-predict-service
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_predict == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and push API Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/predict/api
-          target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:latest
-
-      - name: Build and push predict places image
-        uses: docker/build-push-action@v3
-        with:
-          push: true
-          context: src/predict/jobs/predict_places_air_quality
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/predict/values-stage.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update predict staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/predict/
-          echo "=============== Downloading the required secrets from Secret Manager ==============="
-          gcloud secrets versions access latest --secret="sta-env-predict" > api.env
-          gcloud secrets versions access latest --secret="sta-env-predict-predict-places-air-quality" > predict_places_air_quality.env
-          gcloud secrets versions access latest --secret="sta-key-predict-service-account" > google_application_credentials.json
-          echo "=============== Updating the respective .env files ==============="
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-staging | kubectl replace -f - -n staging
-          echo "=============== Updating the respective credentials files ==============="
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
-
-  ### kafka cluster operator ###
-  kafka-cluster-operator:
-    name: build-push-deploy-kafka-cluster-operator
-    needs: [check]
-    if: needs.check.outputs.run_kafka_cluster_operator == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/namespaces/message-broker.yaml
-          bash k8s/kafka/operator/deployment-script.sh
-
-  ### kafka cluster ###
-  kafka-cluster:
-    name: build-push-deploy-kafka-cluster
-    needs: [check]
-    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_cluster_operator == 'true') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Deploy to K8S
-        run: |
-          export BROKER0_IP=${{ secrets.STAGE_BROKER0_IP }}
-          export BROKER1_IP=${{ secrets.STAGE_BROKER1_IP }}
-          export BROKER2_IP=${{ secrets.STAGE_BROKER2_IP }}
-          sed -i 's/$(BROKER0_IP)/'"$BROKER0_IP"'/g' k8s/kafka/clusters/kafka-cluster-stage.yaml
-          sed -i 's/$(BROKER1_IP)/'"$BROKER1_IP"'/g' k8s/kafka/clusters/kafka-cluster-stage.yaml
-          sed -i 's/$(BROKER2_IP)/'"$BROKER2_IP"'/g' k8s/kafka/clusters/kafka-cluster-stage.yaml
-          kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster-stage.yaml
-          kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
-          kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
-
-  ### kafka topics ###
-  kafka-topics:
-    name: build-push-deploy-kafka-topics
-    needs: [check]
-    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_topics == 'true') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/kafka/topics/kafka-topics.yaml -n message-broker
-
-  #### Device Registry ######
-  device-registry:
-    name: build-push-deploy-device-registry
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_device_registry == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-registry/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/device-registry/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/device-registry/
-          gcloud secrets versions access latest --secret="sta-env-device-registry" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-registry-staging | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-device-registry-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-registry-config-files | kubectl replace -f - -n staging
-
-  ### beacon_api ###
-  beacon-api:
-    name: build-push-deploy-beacon-api
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_beacon_api == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/beacon-api/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/beacon-api/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update beacon-api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/beacon-api/
-          gcloud secrets versions access latest --secret="sta-env-beacon" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-beacon-staging | kubectl replace -f - -n staging
-
-  ### analytics ###
-  analytics:
-    name: build-push-deploy-analytics
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_analytics == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and push API Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
-
-      - name: Build and push Celery beat Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: celery-beat
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:latest
-
-      - name: Build and push Celery worker Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: celery-worker
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:latest
-
-      - name: Build and push device summary job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: devices-summary-job
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:latest
-
-      - name: Build and push reports job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/jobs/reports
-          target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/analytics/values-stage.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update analytics staging images tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/analytics/
-          gcloud secrets versions access latest --secret="sta-env-analytics" > api.env
-          gcloud secrets versions access latest --secret="sta-env-analytics-report-job" > reports.env
-          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-staging | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-staging | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
-
-  ### meta-data ###
-  meta-data:
-    name: build-push-deploy-meta-data
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_meta_data == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and push  API
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/meta-data
-          target: api
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-api:latest
-
-      - name: Build and push sites consumer
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/meta-data
-          target: sites-consumer
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/meta-data/values-stage.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/meta-data/
-          gcloud secrets versions access latest --secret="sta-env-metadata" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-meta-data-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-metadata-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-meta-data-api-config-files | kubectl replace -f - -n staging
-
-  ### view  ###
-  view:
-    name: build-push-deploy-view
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_view == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and push API
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-api:latest
-          target: api
-          context: src/view
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/view/values-stage.yaml"
-            propertyPath: "images.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/view/
-          gcloud secrets versions access latest --secret="sta-env-view-api" > api.env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-view-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-view-api-google-credentials" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n staging
-
-  #### Calibrate ######
-  calibrate:
-    name: build-push-deploy-calibrate
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_calibrate == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Build and push calibrate API
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/calibrate
-          target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-api:latest
-
-      - name: Build and push calibrate pickle file
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/calibrate
-          target: pickle-file
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/calibrate/values-stage.yaml"
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
-            changes: |
-              {
-                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
-                "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
-              }
-
-      - name: Login to Main k8s cluster
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/calibrate/
-          gcloud secrets versions access latest --secret="sta-env-calibrate-api" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-calibrate-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-calibrate-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-calibrate-api-config-files | kubectl replace -f - -n staging
-
-  ### spatial ###
-  spatial:
-    name: build-push-deploy-spatial
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_spatial == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/spatial/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/spatial/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update spatial staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/spatial/
-          gcloud secrets versions access latest --secret="sta-env-spatial" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-spatial-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="spatial-bucket-access-secret" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-spatial-api-config-files | kubectl replace -f - -n staging
-
-  ### website ###
-  website:
-    name: build-push-deploy-website
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_website == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/website/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/website/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update website staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/website/
-          gcloud secrets versions access latest --secret="sta-env-website-backend" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-website-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging
-
-  ### RabbitMQ ###
-  # rabbitmq-deploy:
-  #   name: build-deploy-rabbitmq
-  #   runs-on: ubuntu-latest
-
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@v3.5.3
-
-  #     - name: Login to K8S
-  #       uses: azure/k8s-set-context@v3.0
-  #       with:
-  #         method: kubeconfig
-  #         kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-  #     - name: Deploy RabbitMQ Helm Chart
-  #       run: |
-  #         helm install rabbitmq bitnami/rabbitmq \ --namespace message-broker-rabbit \   -f values.yaml
-
-  #     - name: Check RabbitMQ Pods Status
-  #       run: |
-  #         kubectl get pods -n message-broker-rabbit -o wide
-
-  ### Redis Staging ###
-  redis:
-    name: build-push-deploy-redis
-    needs: [check]
-    if: needs.check.outputs.run_redis == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Deploy Redis via Helm
-        run: |
-          echo "Deploying Redis to staging..."
-          helm upgrade --install redis k8s/redis \
-            --namespace staging \
-            --values k8s/redis/values-stage.yaml \
-  ### apply nginx ###
-  nginx:
-    name: apply-nginx
-    needs: [check]
-    if: needs.check.outputs.run_nginx == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Apply nginx changes
-        run: kubectl apply -f k8s/nginx/staging/
+# name: deploy-apis-to-staging
+# 
+# on:
+#   pull_request_target:
+#     branches:
+#       - staging
+#     types:
+#       - closed
+# 
+# env:
+#   REGISTRY_URL: eu.gcr.io
+#   PROJECT_ID: airqo-250220
+#   DEPLOY_BRANCH: staging
+# 
+# jobs:
+#   image-tag:
+#     if: github.event.pull_request.merged == true
+#     name: create image tag
+#     runs-on: ubuntu-latest
+#     outputs:
+#       build_id: ${{ steps.prep.outputs.build_id }} # build id
+#       datetime: ${{ steps.prep.outputs.datetime }} # build date
+#     steps:
+#       - name: generate build ID
+#         id: prep
+#         run: |
+#           sha=${GITHUB_SHA::8}
+#           timestamp=$(date +%s)
+#           datetime=$(date)
+#           echo "build_id=stage-${sha}-${timestamp}" >>$GITHUB_OUTPUT
+#           echo "datetime=${datetime}" >>$GITHUB_OUTPUT
+# 
+#   check:
+#     if: github.event.pull_request.merged == true
+#     name: check changed microservice(s)
+#     outputs:
+#       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
+#       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
+#       run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
+#       run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon_api
+#       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
+#       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
+#       run_view: ${{ steps.check_files.outputs.run_view }} # view
+#       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
+#       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
+#       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
+#       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
+#       run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
+#       run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
+#       run_website: ${{ steps.check_files.outputs.run_website }} # website
+#       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
+#       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
+#       run_redis: ${{ steps.check_files.outputs.run_redis }} # redis
+# 
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: checkout code
+#         uses: actions/checkout@v3.5.3
+#         with:
+#           fetch-depth: 2
+# 
+#         #### all microservices ######
+#       - name: check modified microserivce
+#         id: check_files
+#         run: |
+#           echo "=============== list modified files ==============="
+#           git diff --name-only HEAD^ HEAD
+# 
+#           echo "========== check paths of modified files =========="
+#           git diff --name-only HEAD^ HEAD > files.txt
+# 
+#           echo "run_auth_service=false" >>$GITHUB_OUTPUT
+#           echo "run_device_registry=false" >>$GITHUB_OUTPUT
+#           echo "run_analytics=false" >>$GITHUB_OUTPUT
+#           echo "run_beacon_api=false" >>$GITHUB_OUTPUT
+#           echo "run_predict=false" >>$GITHUB_OUTPUT
+#           echo "run_meta_data=false" >>$GITHUB_OUTPUT
+#           echo "run_view=false" >>$GITHUB_OUTPUT
+#           echo "run_calibrate=false" >>$GITHUB_OUTPUT
+#           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
+#           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
+#           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
+#           echo "run_workflows=false" >>$GITHUB_OUTPUT
+#           echo "run_spatial=false" >>$GITHUB_OUTPUT
+#           echo "run_website=false" >>$GITHUB_OUTPUT
+#           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
+#           echo "run_nginx=false" >>$GITHUB_OUTPUT
+#           echo "run_redis=false" >>$GITHUB_OUTPUT
+# 
+#           while IFS= read -r file
+#           do
+#             echo $file
+# 
+#             if [[ $file == src/auth-service/* ]]; then
+#               echo "run_auth_service=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/auth-service/* ]]; then
+#               echo "run_auth_service=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/device-registry/* ]]; then
+#               echo "run_device_registry=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/device-registry/* ]]; then
+#               echo "run_device_registry=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/analytics/* ]]; then
+#               echo "run_analytics=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/analytics/* ]]; then
+#               echo "run_analytics=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/beacon-api/* ]]; then
+#               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/beacon-api/* ]]; then
+#               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/predict/* ]]; then
+#               echo "run_predict=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/predict/* ]]; then
+#               echo "run_predict=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/meta-data/* ]]; then
+#               echo "run_meta_data=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/meta-data/* ]]; then
+#               echo "run_meta_data=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/view/* ]]; then
+#               echo "run_view=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/view/* ]]; then
+#               echo "run_view=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/calibrate/* ]]; then
+#               echo "run_calibrate=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/calibrate/* ]]; then
+#               echo "run_calibrate=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/kafka/clusters/* ]]; then
+#               echo "run_kafka_cluster=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/kafka/operator/* ]]; then
+#               echo "run_kafka_cluster_operator=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/kafka/topics/* ]]; then
+#               echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/kafka-connectors/* ]]; then
+#               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/workflows/* ]]; then
+#               echo "run_workflows=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/workflows/* ]]; then
+#               echo "run_workflows=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/spatial/* ]]; then
+#               echo "run_spatial=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/spatial/* ]]; then
+#               echo "run_spatial=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == src/website/* ]]; then
+#               echo "run_website=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/website/* ]]; then
+#               echo "run_website=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/nginx/staging/* ]]; then
+#               echo "run_nginx=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == k8s/redis/* ]]; then
+#               echo "run_redis=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#             if [[ $file == workflow-trigger ]]; then
+#               echo "run_calibrate=true" >>$GITHUB_OUTPUT
+#               echo "run_meta_data=true" >>$GITHUB_OUTPUT
+#               echo "run_predict=true" >>$GITHUB_OUTPUT
+#               echo "run_analytics=true" >>$GITHUB_OUTPUT
+#               echo "run_beacon_api=true" >>$GITHUB_OUTPUT
+#               echo "run_device_registry=true" >>$GITHUB_OUTPUT
+#               echo "run_auth_service=true" >>$GITHUB_OUTPUT
+#               echo "run_workflows=true" >>$GITHUB_OUTPUT
+#               echo "run_spatial=true" >>$GITHUB_OUTPUT
+#               echo "run_website=true" >>$GITHUB_OUTPUT
+#               echo "run_view=true" >>$GITHUB_OUTPUT
+#               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
+#               echo "run_nginx=true" >>$GITHUB_OUTPUT
+#               echo "run_redis=true" >>$GITHUB_OUTPUT
+#             fi
+# 
+#           done < files.txt
+# 
+#   ### auth service ###
+#   auth-service:
+#     name: build-push-deploy-auth
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_auth_service == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and Push Docker Image
+#         run: |
+#           cd src/auth-service/
+#           docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
+#           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/auth-service/values-stage.yaml"
+#             propertyPath: "image.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/auth-service/
+#           gcloud secrets versions access latest --secret="sta-env-auth-service" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-auth-api-config | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-auth-service-firebase-admin-sdk" > firebase_admin_sdk.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=firebase_admin_sdk.json stage-auth-api-config-files | kubectl replace -f - -n staging
+# 
+#   #### Kafka Connectors ######
+#   kafka-connectors:
+#     name: build-push-deploy-kafka-connectors
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_kafka_connectors == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v2.2.0
+# 
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2.7.0
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Build and push measurements source connectors
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/kafka-connectors/measurements-source-connector
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:latest
+# 
+#       - name: Build and push biq query connector
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/kafka-connectors/bigquery-connector
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-bigquery-connector:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-bigquery-connector:latest
+# 
+#       - name: Login to k8s cluster
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/kafka/BigQuery-connectors/values-stage.yaml"
+#             propertyPath: "image.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}
+# 
+#       - name: Deploy to k8s cluster
+#         run: |
+#           export MEASUREMENTS_CONNECT_IMAGE=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
+#           export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
+#           cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+#           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
+# 
+#       - name: Set up GCP credentials and Kubernetes configmaps
+#         run: |
+#           gcloud secrets versions access latest --secret="sta-env-kafka-bigquery-connectors" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-kafka-bigquery-connectors" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json bigquery-connectors-files | kubectl replace -f - -n staging
+# 
+#   ### workflows ###
+#   workflows:
+#     name: build-push-deploy-workflows
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_workflows == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v2.2.0
+# 
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2.7.0
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Build and push app
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/workflows
+#           target: deployment
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows:latest
+# 
+#       - name: Build and push Redis
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/workflows
+#           target: redis
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-redis:latest
+# 
+#       - name: Build and push XCom
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/workflows
+#           target: xcom-setup
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows-xcom:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/workflows/values-stage.yaml"
+#             propertyPath: "images.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update workflows staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/workflows/
+#           gcloud secrets versions access latest --secret="sta-env-airflow" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
+# 
+#   ### predict api and jobs ###
+#   predict-service:
+#     name: build-push-deploy-predict-service
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_predict == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v2.2.0
+# 
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2.7.0
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and push API Docker Image
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/predict/api
+#           target: staging
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:latest
+# 
+#       - name: Build and push predict places image
+#         uses: docker/build-push-action@v3
+#         with:
+#           push: true
+#           context: src/predict/jobs/predict_places_air_quality
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/predict/values-stage.yaml"
+#             propertyPath: "images.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update predict staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/predict/
+#           echo "=============== Downloading the required secrets from Secret Manager ==============="
+#           gcloud secrets versions access latest --secret="sta-env-predict" > api.env
+#           gcloud secrets versions access latest --secret="sta-env-predict-predict-places-air-quality" > predict_places_air_quality.env
+#           gcloud secrets versions access latest --secret="sta-key-predict-service-account" > google_application_credentials.json
+#           echo "=============== Updating the respective .env files ==============="
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-staging | kubectl replace -f - -n staging
+#           echo "=============== Updating the respective credentials files ==============="
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
+# 
+#   ### kafka cluster operator ###
+#   kafka-cluster-operator:
+#     name: build-push-deploy-kafka-cluster-operator
+#     needs: [check]
+#     if: needs.check.outputs.run_kafka_cluster_operator == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Deploy to K8S
+#         run: |
+#           kubectl apply -f k8s/namespaces/message-broker.yaml
+#           bash k8s/kafka/operator/deployment-script.sh
+# 
+#   ### kafka cluster ###
+#   kafka-cluster:
+#     name: build-push-deploy-kafka-cluster
+#     needs: [check]
+#     if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_cluster_operator == 'true') }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Deploy to K8S
+#         run: |
+#           export BROKER0_IP=${{ secrets.STAGE_BROKER0_IP }}
+#           export BROKER1_IP=${{ secrets.STAGE_BROKER1_IP }}
+#           export BROKER2_IP=${{ secrets.STAGE_BROKER2_IP }}
+#           sed -i 's/$(BROKER0_IP)/'"$BROKER0_IP"'/g' k8s/kafka/clusters/kafka-cluster-stage.yaml
+#           sed -i 's/$(BROKER1_IP)/'"$BROKER1_IP"'/g' k8s/kafka/clusters/kafka-cluster-stage.yaml
+#           sed -i 's/$(BROKER2_IP)/'"$BROKER2_IP"'/g' k8s/kafka/clusters/kafka-cluster-stage.yaml
+#           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster-stage.yaml
+#           kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
+#           kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
+# 
+#   ### kafka topics ###
+#   kafka-topics:
+#     name: build-push-deploy-kafka-topics
+#     needs: [check]
+#     if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_topics == 'true') }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Deploy to K8S
+#         run: |
+#           kubectl apply -f k8s/kafka/topics/kafka-topics.yaml -n message-broker
+# 
+#   #### Device Registry ######
+#   device-registry:
+#     name: build-push-deploy-device-registry
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_device_registry == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and Push Docker Image
+#         run: |
+#           cd src/device-registry/
+#           docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+#           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }}
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/device-registry/values-stage.yaml"
+#             propertyPath: "image.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/device-registry/
+#           gcloud secrets versions access latest --secret="sta-env-device-registry" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-registry-staging | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-device-registry-service-account" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-registry-config-files | kubectl replace -f - -n staging
+# 
+#   ### beacon_api ###
+#   beacon-api:
+#     name: build-push-deploy-beacon-api
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_beacon_api == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and Push Docker Image
+#         run: |
+#           cd src/beacon-api/
+#           docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} .
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }}
+#           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:latest
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/beacon-api/values-stage.yaml"
+#             propertyPath: "image.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update beacon-api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/beacon-api/
+#           gcloud secrets versions access latest --secret="sta-env-beacon" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-beacon-staging | kubectl replace -f - -n staging
+# 
+#   ### analytics ###
+#   analytics:
+#     name: build-push-deploy-analytics
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_analytics == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       ### run unit tests ###
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and push API Docker Image
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/analytics/
+#           target: staging
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
+# 
+#       - name: Build and push Celery beat Docker Image
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/analytics/
+#           target: celery-beat
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:latest
+# 
+#       - name: Build and push Celery worker Docker Image
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/analytics/
+#           target: celery-worker
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:latest
+# 
+#       - name: Build and push device summary job Docker Image
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/analytics/
+#           target: devices-summary-job
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:latest
+# 
+#       - name: Build and push reports job Docker Image
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/analytics/jobs/reports
+#           target: staging
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/analytics/values-stage.yaml"
+#             propertyPath: "images.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update analytics staging images tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/analytics/
+#           gcloud secrets versions access latest --secret="sta-env-analytics" > api.env
+#           gcloud secrets versions access latest --secret="sta-env-analytics-report-job" > reports.env
+#           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-staging | kubectl replace -f - -n staging
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-staging | kubectl replace -f - -n staging
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
+# 
+#   ### meta-data ###
+#   meta-data:
+#     name: build-push-deploy-meta-data
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_meta_data == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v2.2.0
+# 
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2.7.0
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and push  API
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/meta-data
+#           target: api
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-api:latest
+# 
+#       - name: Build and push sites consumer
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/meta-data
+#           target: sites-consumer
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/meta-data/values-stage.yaml"
+#             propertyPath: "images.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/meta-data/
+#           gcloud secrets versions access latest --secret="sta-env-metadata" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-meta-data-api-config | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-metadata-service-account" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-meta-data-api-config-files | kubectl replace -f - -n staging
+# 
+#   ### view  ###
+#   view:
+#     name: build-push-deploy-view
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_view == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v2.2.0
+# 
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2.7.0
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and push API
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-api:latest
+#           target: api
+#           context: src/view
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/view/values-stage.yaml"
+#             propertyPath: "images.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update view staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/view/
+#           gcloud secrets versions access latest --secret="sta-env-view-api" > api.env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-view-api-config | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-view-api-google-credentials" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n staging
+# 
+#   #### Calibrate ######
+#   calibrate:
+#     name: build-push-deploy-calibrate
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_calibrate == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Set up QEMU
+#         uses: docker/setup-qemu-action@v2.2.0
+# 
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2.7.0
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Build and push calibrate API
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/calibrate
+#           target: staging
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-api:latest
+# 
+#       - name: Build and push calibrate pickle file
+#         uses: docker/build-push-action@v4.1.1
+#         with:
+#           push: true
+#           context: src/calibrate
+#           target: pickle-file
+#           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/calibrate/values-stage.yaml"
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
+#             changes: |
+#               {
+#                 "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+#                 "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+#               }
+# 
+#       - name: Login to Main k8s cluster
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/calibrate/
+#           gcloud secrets versions access latest --secret="sta-env-calibrate-api" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-calibrate-api-config | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-calibrate-service-account" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-calibrate-api-config-files | kubectl replace -f - -n staging
+# 
+#   ### spatial ###
+#   spatial:
+#     name: build-push-deploy-spatial
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_spatial == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and Push Docker Image
+#         run: |
+#           cd src/spatial/
+#           docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }} .
+#           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:latest
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:${{ needs.image-tag.outputs.build_id }}
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-spatial-api:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/spatial/values-stage.yaml"
+#             propertyPath: "image.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update spatial staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/spatial/
+#           gcloud secrets versions access latest --secret="sta-env-spatial" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-spatial-api-config | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="spatial-bucket-access-secret" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-spatial-api-config-files | kubectl replace -f - -n staging
+# 
+#   ### website ###
+#   website:
+#     name: build-push-deploy-website
+#     needs: [check, image-tag]
+#     if: needs.check.outputs.run_website == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Build and Push Docker Image
+#         run: |
+#           cd src/website/
+#           docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }} .
+#           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:latest
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:${{ needs.image-tag.outputs.build_id }}
+#           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-website-api:latest
+# 
+#       - name: Update corresponding helm values file(with retry)
+#         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+#         with:
+#           action: fjogeleit/yaml-update-action@main # Action to retry
+#           with: |
+#             valueFile: "k8s/website/values-stage.yaml"
+#             propertyPath: "image.tag"
+#             value: ${{ needs.image-tag.outputs.build_id }}
+#             branch: ${{ env.DEPLOY_BRANCH }}
+#             token: ${{ secrets.YAML_UPDATER_TOKEN }}
+#             message: "Update website staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+# 
+#       - name: Login to GCP
+#         uses: google-github-actions/auth@v1.1.1
+#         with:
+#           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+# 
+#       - name: Setup Cloud SDK
+#         uses: google-github-actions/setup-gcloud@v1.1.1
+# 
+#       - name: Update the corresponding k8s configmap(s)
+#         run: |
+#           cd src/website/
+#           gcloud secrets versions access latest --secret="sta-env-website-backend" > .env
+#           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-website-api-config | kubectl replace -f - -n staging
+#           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
+#           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging
+# 
+#   ### RabbitMQ ###
+#   # rabbitmq-deploy:
+#   #   name: build-deploy-rabbitmq
+#   #   runs-on: ubuntu-latest
+# 
+#   #   steps:
+#   #     - name: Checkout Code
+#   #       uses: actions/checkout@v3.5.3
+# 
+#   #     - name: Login to K8S
+#   #       uses: azure/k8s-set-context@v3.0
+#   #       with:
+#   #         method: kubeconfig
+#   #         kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#   #     - name: Deploy RabbitMQ Helm Chart
+#   #       run: |
+#   #         helm install rabbitmq bitnami/rabbitmq \ --namespace message-broker-rabbit \   -f values.yaml
+# 
+#   #     - name: Check RabbitMQ Pods Status
+#   #       run: |
+#   #         kubectl get pods -n message-broker-rabbit -o wide
+# 
+#   ### Redis Staging ###
+#   redis:
+#     name: build-push-deploy-redis
+#     needs: [check]
+#     if: needs.check.outputs.run_redis == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to GCR
+#         uses: docker/login-action@v2.2.0
+#         with:
+#           registry: ${{ env.REGISTRY_URL }}
+#           username: _json_key
+#           password: ${{ secrets.GCR_CONFIG }}
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Deploy Redis via Helm
+#         run: |
+#           echo "Deploying Redis to staging..."
+#           helm upgrade --install redis k8s/redis \
+#             --namespace staging \
+#             --values k8s/redis/values-stage.yaml \
+#   ### apply nginx ###
+#   nginx:
+#     name: apply-nginx
+#     needs: [check]
+#     if: needs.check.outputs.run_nginx == 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3.5.3
+# 
+#       - name: Login to K8S
+#         uses: azure/k8s-set-context@v3.0
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+# 
+#       - name: Apply nginx changes
+#         run: kubectl apply -f k8s/nginx/staging/
