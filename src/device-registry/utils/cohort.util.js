@@ -1078,10 +1078,8 @@ const createCohort = {
   },
   promoteCohorts: async (request, next) => {
     try {
-      const { tenant, cohort_ids } = {
-        ...request.body,
-        ...request.query,
-      };
+      const { cohort_ids } = request.body;
+      const tenant = request.query.tenant || request.body.tenant;
 
       const objectIds = cohort_ids.map((id) => new ObjectId(id));
 
@@ -1112,10 +1110,18 @@ const createCohort = {
       return {
         success: true,
         status: httpStatus.OK,
-        message:
-          toPromote.length > 0
-            ? `Successfully promoted ${toPromote.length} cohort(s) to public`
-            : "All provided cohorts are already public",
+        message: (() => {
+          if (toPromote.length > 0 && notFound.length > 0) {
+            return `Promoted ${toPromote.length} cohort(s) to public; ${notFound.length} ID(s) not found`;
+          }
+          if (toPromote.length > 0) {
+            return `Successfully promoted ${toPromote.length} cohort(s) to public`;
+          }
+          if (notFound.length > 0) {
+            return `No cohorts promoted; the following ID(s) were not found: ${notFound.join(", ")}`;
+          }
+          return "All provided cohorts are already public";
+        })(),
         data: {
           promoted: toPromote.map((id) => id.toString()),
           already_public: alreadyPublic,

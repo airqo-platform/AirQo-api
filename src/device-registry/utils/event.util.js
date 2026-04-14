@@ -840,12 +840,19 @@ const getDevicesFromCohort = async ({
         .find({ cohorts: cohort_id, owner_id: new ObjectId(user_id) })
         .select("_id")
         .lean();
+      if (ownedDevices.length === 0) {
+        return {
+          success: true,
+          message: "No owned devices found in this private cohort",
+          data: null,
+          suppressed: true,
+          status: httpStatus.OK,
+        };
+      }
       const ownedIds = ownedDevices.map((d) => d._id.toString()).join(",");
       return {
         success: true,
-        message: ownedIds
-          ? "Successfully retrieved owned devices from private cohort"
-          : "No owned devices found in this private cohort",
+        message: "Successfully retrieved owned devices from private cohort",
         data: ownedIds,
         status: httpStatus.OK,
       };
@@ -894,7 +901,7 @@ const processGridIds = async (grid_ids, request) => {
         return responseFromGetSitesOfGrid;
       } else if (responseFromGetSitesOfGrid.suppressed) {
         // Grid is private — treat as empty site set, not an error
-        return [];
+        return null;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
           `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
@@ -924,7 +931,7 @@ const processGridIds = async (grid_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false,
+    (result) => result != null && result.success === false,
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
@@ -935,7 +942,7 @@ const processGridIds = async (grid_ids, request) => {
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false),
+    (result) => result != null && !(result.success === false),
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
@@ -975,7 +982,7 @@ const processCohortIds = async (cohort_ids, request) => {
         return responseFromGetDevicesOfCohort;
       } else if (responseFromGetDevicesOfCohort.suppressed) {
         // Cohort is private — treat as empty device set, not an error
-        return [];
+        return null;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
           `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
@@ -997,7 +1004,7 @@ const processCohortIds = async (cohort_ids, request) => {
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
   const invalidDeviceIdResults = deviceIdsResults.filter(
-    (result) => result.success === false,
+    (result) => result != null && result.success === false,
   );
 
   // Return the first error found to the controller

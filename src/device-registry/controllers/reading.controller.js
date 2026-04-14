@@ -85,10 +85,10 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   }
 };
-const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
+const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id, user_id } = {}) => {
   try {
     const responseFromGetDevicesOfCohort = await createEventUtil.getDevicesFromCohort(
-      { cohort_id, tenant }
+      { cohort_id, tenant, user_id }
     );
     return responseFromGetDevicesOfCohort;
   } catch (error) {
@@ -119,7 +119,7 @@ const processGridIds = async (grid_ids, request) => {
         return responseFromGetSitesOfGrid;
       } else if (responseFromGetSitesOfGrid.suppressed) {
         // Grid is private — treat as empty site set, not an error
-        return [];
+        return null;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
           `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
@@ -186,6 +186,7 @@ const processCohortIds = async (cohort_ids, request) => {
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
         cohort_id,
         user_id,
+        tenant: request.query.tenant,
       });
 
       logObject(
@@ -202,7 +203,7 @@ const processCohortIds = async (cohort_ids, request) => {
         return responseFromGetDevicesOfCohort;
       } else if (responseFromGetDevicesOfCohort.suppressed) {
         // Cohort is private — treat as empty device set, not an error
-        return [];
+        return null;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
           `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
