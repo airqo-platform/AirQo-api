@@ -1387,31 +1387,13 @@ class BigQueryApi:
         if not self.sites_table:
             raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
 
-        query = f"""
-        SELECT
-            DATE(t1.timestamp) AS day,
-            t1.site_id,
-            ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
-            ANY_VALUE(
-                COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
-            ) AS site_latitude,
-            ANY_VALUE(
-                COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
-            ) AS site_longitude,
-            AVG(t1.pm2_5_calibrated_value) AS pm25_mean,
-            MIN(t1.pm2_5_calibrated_value) AS pm25_min,
-            MAX(t1.pm2_5_calibrated_value) AS pm25_max,
-            COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
-        FROM `{self.consolidated_data_table}` AS t1
-        LEFT JOIN `{self.sites_table}` AS t2
-            ON t1.site_id = t2.id
-        WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
-            AND t1.site_id IS NOT NULL
-            AND t1.pm2_5_calibrated_value IS NOT NULL
-        GROUP BY day, t1.site_id
-        HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
-        ORDER BY day, t1.site_id
-        """
+        query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs").format(
+            consolidated_table=f"`{self.consolidated_data_table}`",
+            sites_table=f"`{self.sites_table}`",
+            start_date=str(start_date),
+            end_date=str(end_date),
+            min_hours=2,
+        )
 
         try:
             return self.execute_data_query(query=query)
