@@ -17,6 +17,7 @@ const {
   authGuest,
   authGoogle,
   enhancedJWTAuth,
+  refreshTokenAuth,
 } = require("@middleware/passport");
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
@@ -63,6 +64,12 @@ router.post(
 // ================================
 // TOKEN MANAGEMENT ROUTES
 // ================================
+
+router.post(
+  "/token/refresh",
+  refreshTokenAuth,
+  userController.refreshToken,
+);
 
 router.post(
   "/generate-token",

@@ -16,6 +16,11 @@ const numericals = {
   )
     ? Number(process.env.JWT_GRACE_PERIOD_SECONDS)
     : 5 * 60, // 5 mins
+  JWT_REFRESH_MAX_AGE_SECONDS: Number.isFinite(
+    Number(process.env.JWT_REFRESH_MAX_AGE_SECONDS),
+  )
+    ? Number(process.env.JWT_REFRESH_MAX_AGE_SECONDS)
+    : 7 * 24 * 60 * 60, // 7 days — how long after expiry a token can still be silently refreshed
   SALT_ROUNDS: 10,
   BCRYPT_SALT_ROUNDS: 12,
   SLUG_MAX_LENGTH: 60,
