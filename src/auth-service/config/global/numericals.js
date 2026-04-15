@@ -20,7 +20,8 @@ const numericals = {
     Number(process.env.JWT_REFRESH_MAX_AGE_SECONDS),
   )
     ? Number(process.env.JWT_REFRESH_MAX_AGE_SECONDS)
-    : 7 * 24 * 60 * 60, // 7 days — how long after expiry a token can still be silently refreshed
+    : 365 * 24 * 60 * 60, // 1 year — covers MAU-heavy usage; users who open the app once a month
+                           // (or less) are silently refreshed without ever seeing a login prompt
   SALT_ROUNDS: 10,
   BCRYPT_SALT_ROUNDS: 12,
   SLUG_MAX_LENGTH: 60,
