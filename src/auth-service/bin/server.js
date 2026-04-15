@@ -289,7 +289,7 @@ app.use(function (err, req, res, next) {
       res.status(err.statusCode).json({
         success: false,
         message: err.message,
-        errors: err.errors,
+        errors: err.errors ?? { message: err.message },
       });
     } else if (err instanceof SyntaxError) {
       res.status(400).json({
