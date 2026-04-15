@@ -10,15 +10,14 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-redis
     containers: airqoacr.azurecr.io/airqo-workflows
-  tag: prod-17043644-1775989165
+  tag: prod-cd2dae35-1776264931
 nodeSelector:
   workload: airflow
-
 tolerations:
-  - key: "airflow"
-    operator: "Equal"
-    value: "true"
-    effect: "NoSchedule"
+  - key: airflow
+    operator: Equal
+    value: 'true'
+    effect: NoSchedule
 resources:
   initContainer:
     requests:
