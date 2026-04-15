@@ -11,6 +11,14 @@ images:
     redisContainer: airqoacr.azurecr.io/airqo-redis
     containers: airqoacr.azurecr.io/airqo-workflows
   tag: prod-17043644-1775989165
+nodeSelector:
+  workload: airflow
+
+tolerations:
+  - key: "airflow"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
 resources:
   initContainer:
     requests:
@@ -31,15 +39,15 @@ resources:
       cpu: 500m
       memory: 1000Mi
     limits:
-      cpu: 3000m
+      cpu: 1500m
       memory: 1800Mi
   celery:
     requests:
-      cpu: 125m
-      memory: 1000Mi
+      cpu: 1000m
+      memory: 2500Mi
     limits:
-      cpu: 3000m
-      memory: 4000Mi
+      cpu: 2000m
+      memory: 3000Mi
   redis:
     requests:
       cpu: 50m
