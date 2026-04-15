@@ -1594,8 +1594,9 @@ function authenticateJWT(req, res, next) {
 // REFRESH TOKEN AUTH MIDDLEWARE
 // ============================================
 // A lenient variant of enhancedJWTAuth used exclusively on POST /token/refresh.
-// Accepts tokens that have expired within the last REFRESH_MAX_AGE_SECONDS (default 7 days),
-// so the mobile app can silently obtain a fresh token without forcing re-login.
+// Accepts tokens that are still valid or that expired within the last
+// REFRESH_MAX_AGE_SECONDS (default 7 days), so the mobile app can silently
+// obtain a fresh token without forcing re-login.
 
 const refreshTokenAuth = (req, _res, next) => {
   try {
@@ -1623,7 +1624,7 @@ const refreshTokenAuth = (req, _res, next) => {
     jwt.verify(
       token,
       constants.JWT_SECRET,
-      { ignoreExpiration: true },
+      { ignoreExpiration: true, algorithms: ["HS256"] },
       async (err, decoded) => {
         try {
           if (err) {
@@ -1635,6 +1636,15 @@ const refreshTokenAuth = (req, _res, next) => {
           }
 
           const now = Math.floor(Date.now() / 1000);
+
+          // Guard: exp must be a finite number; tokens without exp are rejected.
+          if (!Number.isFinite(decoded.exp)) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Invalid token: missing expiry claim",
+              }),
+            );
+          }
 
           // Reject tokens older than the max refresh window
           if (decoded.exp + REFRESH_MAX_AGE_SECONDS < now) {
@@ -1653,7 +1663,19 @@ const refreshTokenAuth = (req, _res, next) => {
             "airqo";
           const tenant = String(tenantRaw).toLowerCase();
 
-          const userId = decoded.userId || decoded.id || decoded._id;
+          const rawUserId = decoded.userId || decoded.id || decoded._id;
+          const userId =
+            rawUserId !== undefined && rawUserId !== null
+              ? String(rawUserId)
+              : null;
+          if (!userId) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Invalid token: missing user identifier",
+              }),
+            );
+          }
+
           const user = await UserModel(tenant).findById(userId).lean();
 
           if (!user) {
@@ -1667,7 +1689,8 @@ const refreshTokenAuth = (req, _res, next) => {
           req.user = { ...decoded, ...user };
           next();
         } catch (callbackError) {
-          logger.error(
+          const authLogger = global.dedupLogger || logger;
+          authLogger.error(
             `🐛🐛 refreshTokenAuth callback error: ${callbackError.message}`,
           );
           next(

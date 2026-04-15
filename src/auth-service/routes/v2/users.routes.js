@@ -67,6 +67,7 @@ router.post(
 
 router.post(
   "/token/refresh",
+  rateLimiter.apiGeneral,
   refreshTokenAuth,
   userController.refreshToken,
 );
@@ -775,6 +776,7 @@ router.use("*", (req, res) => {
     availableEndpoints: [
       "POST /login-enhanced",
       "POST /generate-token",
+      "POST /token/refresh",
       "POST /refresh-permissions",
       "GET /analyze-tokens/:userId",
       "PUT /token-strategy",
