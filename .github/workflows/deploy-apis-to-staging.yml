@@ -1,11 +1,6 @@
 name: deploy-apis-to-staging
 
-on:
-  pull_request_target:
-    branches:
-      - staging
-    types:
-      - closed
+on: workflow_dispatch
 
 env:
   REGISTRY_URL: eu.gcr.io
