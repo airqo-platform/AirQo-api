@@ -2683,19 +2683,32 @@ const createUserModule = {
       const userId = newUser._doc._id;
 
       // ── STEP 6: Generate mobile verification token ─────────────────────────────
-      const verificationToken = generateNumericToken(5);
+      // Uses 6-digit tokens (1,000,000 space) and retries once on E11000
+      // collision before rolling back the user. The previous 5-digit token
+      // (100,000 space) was the root cause of duplicate key errors in production.
       const tokenExpiry = 86400; // 24 hrs in seconds
+      let verifyTokenResponse;
 
-      const tokenCreationBody = {
-        token: verificationToken,
-        name: newUser._doc.firstName,
-        expires: new Date(Date.now() + tokenExpiry * 1000),
-      };
-
-      const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
-        tokenCreationBody,
-        next,
-      );
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const verificationToken = generateNumericToken(6);
+        verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+          {
+            token: verificationToken,
+            name: newUser._doc.firstName,
+            expires: new Date(Date.now() + tokenExpiry * 1000),
+          },
+          next,
+        );
+        if (
+          verifyTokenResponse.success ||
+          verifyTokenResponse.status !== httpStatus.CONFLICT
+        ) {
+          break;
+        }
+        logger.warn(
+          `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — retrying`,
+        );
+      }
 
       if (verifyTokenResponse && verifyTokenResponse.success === false) {
         logger.error(
@@ -3116,26 +3129,39 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 4: Generate mobile verification token (5-digit numeric)
-      const token = generateNumericToken(5);
-
-      const tokenCreationBody = {
-        token,
-        name: user.firstName,
-        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      };
+      // ✅ STEP 4: Generate mobile verification token (6-digit numeric)
+      // 6-digit tokens give 1,000,000 possible values — 10× the previous
+      // 5-digit range — and retries once on collision before failing.
 
       // ✅ STEP 5: Create token with cleanup of old expired tokens
       try {
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          token: { $regex: /^\d{5}$/ },
+          token: { $regex: /^\d{6}$/ },
           expires: { $lt: new Date() },
         });
 
-        const responseFromCreateToken = await VerifyTokenModel(
-          dbTenant,
-        ).register(tokenCreationBody, next);
+        let responseFromCreateToken;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const token = generateNumericToken(6);
+          responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
+            {
+              token,
+              name: user.firstName,
+              expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+            },
+            next,
+          );
+          if (
+            responseFromCreateToken.success ||
+            responseFromCreateToken.status !== httpStatus.CONFLICT
+          ) {
+            break;
+          }
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — retrying`,
+          );
+        }
 
         if (
           responseFromCreateToken &&

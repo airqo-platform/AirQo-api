@@ -1282,11 +1282,30 @@ const authGoogle = passport.authenticate("google", {
 
 /**
  * Handles the Google OAuth callback (legacy route support).
+ * Wraps passport.authenticate so that transient network errors during the
+ * token exchange (e.g. ECONNRESET / InternalOAuthError) redirect to the
+ * failure URL instead of surfacing as an unhandled 500.
  */
-const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
-  session: false,
-});
+const authGoogleCallback = (req, res, next) => {
+  passport.authenticate("google", {
+    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    session: false,
+  })(req, res, (err) => {
+    if (err) {
+      if (err.name === "InternalOAuthError" || err.oauthError) {
+        logger.error(
+          `Google OAuth token exchange failed: ${err.message}`,
+          { oauthError: err.oauthError?.message, code: err.oauthError?.code },
+        );
+        return res.redirect(
+          `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}?error=oauth_failed`,
+        );
+      }
+      return next(err);
+    }
+    next();
+  });
+};
 
 /**
  * Dynamically initiates OAuth flow for any supported provider.
@@ -1319,13 +1338,29 @@ const authOAuth = (req, res, next) => {
 /**
  * Dynamically handles the OAuth callback for any supported provider.
  * Used by the generic GET /auth/callback/:provider route.
+ * Catches InternalOAuthError (e.g. ECONNRESET during token exchange) and
+ * redirects to the failure URL rather than propagating a 500.
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
   passport.authenticate(provider, {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
-  })(req, res, next);
+  })(req, res, (err) => {
+    if (err) {
+      if (err.name === "InternalOAuthError" || err.oauthError) {
+        logger.error(
+          `${provider} OAuth token exchange failed: ${err.message}`,
+          { provider, oauthError: err.oauthError?.message, code: err.oauthError?.code },
+        );
+        return res.redirect(
+          `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}?error=oauth_failed`,
+        );
+      }
+      return next(err);
+    }
+    next();
+  });
 };
 
 const authGuest = (req, res, next) => {
