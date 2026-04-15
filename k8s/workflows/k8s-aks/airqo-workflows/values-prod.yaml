@@ -4,7 +4,7 @@ app:
   secret: prod-env-airflow
   namespace: pipeline
   serviceAccount: airflow-sa
-replicaCount: 3
+replicaCount: 2
 images:
   repositories:
     initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
