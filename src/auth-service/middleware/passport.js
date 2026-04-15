@@ -31,6 +31,7 @@ const { configureStrategies } = require("@config/passport-strategies");
 const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS;
 const REFRESH_WINDOW_SECONDS = constants.JWT_REFRESH_WINDOW_SECONDS;
 const GRACE_PERIOD_SECONDS = constants.JWT_GRACE_PERIOD_SECONDS;
+const REFRESH_MAX_AGE_SECONDS = constants.JWT_REFRESH_MAX_AGE_SECONDS;
 
 const setLocalOptions = (req, res, next) => {
   try {
@@ -1590,6 +1591,129 @@ function authenticateJWT(req, res, next) {
 }
 
 // ============================================
+// REFRESH TOKEN AUTH MIDDLEWARE
+// ============================================
+// A lenient variant of enhancedJWTAuth used exclusively on POST /token/refresh.
+// Accepts tokens that are still valid or that expired within the last
+// REFRESH_MAX_AGE_SECONDS (default 7 days), so the mobile app can silently
+// obtain a fresh token without forcing re-login.
+
+const refreshTokenAuth = (req, _res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Authorization header is missing",
+        }),
+      );
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match || !match[2]) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message:
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+        }),
+      );
+    }
+
+    const token = match[2].trim();
+
+    jwt.verify(
+      token,
+      constants.JWT_SECRET,
+      { ignoreExpiration: true, algorithms: ["HS256"] },
+      async (err, decoded) => {
+        try {
+          if (err) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: `Invalid token: ${err.message}`,
+              }),
+            );
+          }
+
+          const now = Math.floor(Date.now() / 1000);
+
+          // Guard: exp must be a finite number; tokens without exp are rejected.
+          if (!Number.isFinite(decoded.exp)) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Invalid token: missing expiry claim",
+              }),
+            );
+          }
+
+          // Reject tokens older than the max refresh window
+          if (decoded.exp + REFRESH_MAX_AGE_SECONDS < now) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message:
+                  "Token has expired beyond the refresh window. Please log in again.",
+              }),
+            );
+          }
+
+          const tenantRaw =
+            req.query.tenant ||
+            req.body.tenant ||
+            constants.DEFAULT_TENANT ||
+            "airqo";
+          const tenant = String(tenantRaw).toLowerCase();
+
+          const rawUserId = decoded.userId || decoded.id || decoded._id;
+          const userId =
+            rawUserId !== undefined && rawUserId !== null
+              ? String(rawUserId)
+              : null;
+          if (!userId) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Invalid token: missing user identifier",
+              }),
+            );
+          }
+
+          const user = await UserModel(tenant).findById(userId).lean();
+
+          if (!user) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "User from token no longer exists",
+              }),
+            );
+          }
+
+          req.user = { ...decoded, ...user };
+          next();
+        } catch (callbackError) {
+          const authLogger = global.dedupLogger || logger;
+          authLogger.error(
+            `🐛🐛 refreshTokenAuth callback error: ${callbackError.message}`,
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Internal Server Error" },
+            ),
+          );
+        }
+      },
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 refreshTokenAuth error: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      }),
+    );
+  }
+};
+
+// ============================================
 // ROUTE CONFIGURATION VALIDATION
 // ============================================
 
@@ -1646,6 +1770,7 @@ module.exports = {
   authOAuthCallback,
   authGuest,
   enhancedJWTAuth,
+  refreshTokenAuth,
   authenticateJWT,
   optionalJWTAuth,
 };

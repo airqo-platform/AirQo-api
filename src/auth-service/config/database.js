@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 mongoose.set("useNewUrlParser", true);
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
+// bufferTimeoutMS is a Mongoose-level setting and must NOT be passed to
+// mongoose.connect() options — the MongoDB driver does not recognise it and
+// emits a startup warning. Setting it here via mongoose.set() is correct.
+mongoose.set("bufferTimeoutMS", (() => {
+  const val = parseInt(process.env.MONGODB_BUFFER_TIMEOUT_MS, 10);
+  return Number.isFinite(val) && val > 0 ? val : 10000;
+})());
 // mongoose.set("debug", process.env.NODE_ENV === "development");
 const constants = require("./constants");
 const log4js = require("log4js");
@@ -36,10 +43,7 @@ const options = {
   // failing every in-flight request. Operations now buffer for up to 10s
   // before surfacing an error, matching the typical reconnect window.
   // Long outages still surface as errors — just not on the first 200ms blip.
-  bufferTimeoutMS: (() => {
-    const val = parseInt(constants.MONGODB_BUFFER_TIMEOUT_MS, 10);
-    return Number.isFinite(val) && val > 0 ? val : 10000;
-  })(),
+  // (bufferTimeoutMS is set via mongoose.set() at the top of this file)
   connectTimeoutMS: 30000,
   socketTimeoutMS: 60000,
   serverSelectionTimeoutMS: 30000,
