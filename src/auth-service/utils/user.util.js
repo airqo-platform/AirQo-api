@@ -1630,7 +1630,7 @@ const createUserModule = {
         const firebase_uid = firebaseUser.uid;
 
         // Generate the custom token
-        const token = generateNumericToken(5);
+        const token = generateNumericToken(6);
 
         let generateCacheRequest = Object.assign({}, request);
         const userIdentifier = firebaseUser.email
@@ -2278,7 +2278,7 @@ const createUserModule = {
         };
       }
 
-      const token = generateNumericToken(5); // 5-digit code
+      const token = generateNumericToken(6); // 6-digit code
       const update = {
         deletionToken: token,
         deletionTokenExpires: Date.now() + 3600000, // 1 hour
@@ -2303,7 +2303,7 @@ const createUserModule = {
           return {
             success: true,
             message:
-              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
+              "Account deletion process initiated. Please check your email for a 6-digit confirmation code.",
             status: httpStatus.OK,
           };
         } else {

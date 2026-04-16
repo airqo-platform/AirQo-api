@@ -723,7 +723,7 @@ const userController = {
       if (!request) return;
       const { email } = request.body;
       const { tenant } = request.query;
-      const token = userUtil.generateNumericToken(5);
+      const token = userUtil.generateNumericToken(6);
       const result = await userUtil.initiatePasswordReset({
         email,
         token,
