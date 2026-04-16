@@ -6,6 +6,7 @@ const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
+const ClientModel = require("@models/Client");
 const constants = require("@config/constants");
 const PermissionModel = require("@models/Permission");
 const { mailer, stringify, winstonLogger } = require("@utils/common");
@@ -30,6 +31,7 @@ const { configureStrategies } = require("@config/passport-strategies");
 const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS;
 const REFRESH_WINDOW_SECONDS = constants.JWT_REFRESH_WINDOW_SECONDS;
 const GRACE_PERIOD_SECONDS = constants.JWT_GRACE_PERIOD_SECONDS;
+const REFRESH_MAX_AGE_SECONDS = constants.JWT_REFRESH_MAX_AGE_SECONDS;
 
 const setLocalOptions = (req, res, next) => {
   try {
@@ -1015,28 +1017,62 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
           return done(null, false);
         }
 
-        UserModel(tenant.toLowerCase()).findOne(
-          { id: accessToken.user_id },
-          function (error, user) {
+        const proceedWithUserLookup = () => {
+          UserModel(tenant.toLowerCase()).findOne(
+            { id: accessToken.user_id },
+            function (error, user) {
+              if (error) {
+                return done(error);
+              }
+
+              if (!user) {
+                return done(null, false);
+              }
+
+              winstonLogger.info(
+                `successful login through ${
+                  service ? service : "unknown"
+                } service`,
+                {
+                  username: user.userName,
+                  email: user.email,
+                  service: service ? service : "unknown",
+                },
+              );
+              return done(null, user);
+            },
+          );
+        };
+
+        // If the client has opted into client-secret enforcement, validate the
+        // X-Client-Secret header before allowing the request through.
+        // This is user-triggered and opt-in — clients where requireClientSecret
+        // is false (the default) are completely unaffected.
+        if (!accessToken.client_id) {
+          return proceedWithUserLookup();
+        }
+
+        ClientModel(tenant.toLowerCase()).findOne(
+          { _id: accessToken.client_id },
+          function (error, client) {
             if (error) {
               return done(error);
             }
 
-            if (!user) {
+            // Fail closed: if the token references a client that no longer exists,
+            // reject the request rather than silently proceeding.
+            if (!client) {
               return done(null, false);
             }
 
-            winstonLogger.info(
-              `successful login through ${
-                service ? service : "unknown"
-              } service`,
-              {
-                username: user.userName,
-                email: user.email,
-                service: service ? service : "unknown",
-              },
-            );
-            return done(null, user);
+            if (client.requireClientSecret === true) {
+              const providedSecret = req.headers["x-client-secret"];
+              if (!providedSecret || providedSecret !== client.client_secret) {
+                return done(null, false);
+              }
+            }
+
+            return proceedWithUserLookup();
           },
         );
       },
@@ -1138,20 +1174,13 @@ function setOAuthProvider(req, res, next) {
     const tenant = req.query.tenant || "airqo";
     const provider = (req.params.provider || "google").toLowerCase();
 
-    const SUPPORTED_PROVIDERS = [
-      "google",
-      "github",
-      "linkedin",
-      "microsoft",
-      "twitter",
-    ];
-    if (!SUPPORTED_PROVIDERS.includes(provider)) {
+    if (!SUPPORTED_OAUTH_PROVIDERS.has(provider)) {
       return next(
         new HttpError(
           `Unsupported OAuth provider: ${provider}`,
           httpStatus.BAD_REQUEST,
           {
-            message: `Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`,
+            message: `Supported providers: ${[...SUPPORTED_OAUTH_PROVIDERS].join(", ")}`,
           },
         ),
       );
@@ -1244,13 +1273,65 @@ const authGoogle = passport.authenticate("google", {
   prompt: "select_account",
 });
 
+// Single authoritative provider allowlist used for validation (setOAuthProvider)
+// and log sanitisation (handleOAuthCallbackError). Defined once here to prevent
+// the two lists from drifting out of sync.
+const SUPPORTED_OAUTH_PROVIDERS = new Set([
+  "google",
+  "github",
+  "linkedin",
+  "microsoft",
+  "twitter",
+]);
+
+/**
+ * Safely appends ?error=oauth_failed (or &error=oauth_failed) to a redirect
+ * URL regardless of whether it already contains a query string.
+ * Falls back to "/" when base is missing or not a string so the error handler
+ * never throws on an unconfigured GMAIL_VERIFICATION_FAILURE_REDIRECT.
+ */
+function buildOAuthFailureRedirect(base) {
+  const safeBase = typeof base === "string" && base.trim() !== "" ? base : "/";
+  const separator = safeBase.includes("?") ? "&" : "?";
+  return `${safeBase}${separator}error=oauth_failed`;
+}
+
+/**
+ * Shared handler for InternalOAuthError inside passport callback wrappers.
+ * Logs a sanitised message (no raw OAuth payloads) and redirects to the
+ * configured failure URL.
+ */
+function handleOAuthCallbackError(err, provider, res, next) {
+  if (err.name === "InternalOAuthError" || err.oauthError) {
+    const safeProvider = SUPPORTED_OAUTH_PROVIDERS.has(provider) ? provider : "unknown";
+    // Do not log err.message or oauthError.message — they may contain raw
+    // OAuth tokens or secrets returned by the upstream provider.
+    logger.error("OAuth token exchange failed", {
+      provider: safeProvider,
+      errorType: err.name || "OAuthError",
+    });
+    return res.redirect(
+      buildOAuthFailureRedirect(constants.GMAIL_VERIFICATION_FAILURE_REDIRECT),
+    );
+  }
+  return next(err);
+}
+
 /**
  * Handles the Google OAuth callback (legacy route support).
+ * Wraps passport.authenticate so that transient network errors during the
+ * token exchange (e.g. ECONNRESET / InternalOAuthError) redirect to the
+ * failure URL instead of surfacing as an unhandled 500.
  */
-const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
-  session: false,
-});
+const authGoogleCallback = (req, res, next) => {
+  passport.authenticate("google", {
+    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    session: false,
+  })(req, res, (err) => {
+    if (err) return handleOAuthCallbackError(err, "google", res, next);
+    next();
+  });
+};
 
 /**
  * Dynamically initiates OAuth flow for any supported provider.
@@ -1283,13 +1364,18 @@ const authOAuth = (req, res, next) => {
 /**
  * Dynamically handles the OAuth callback for any supported provider.
  * Used by the generic GET /auth/callback/:provider route.
+ * Catches InternalOAuthError (e.g. ECONNRESET during token exchange) and
+ * redirects to the failure URL rather than propagating a 500.
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
   passport.authenticate(provider, {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
-  })(req, res, next);
+  })(req, res, (err) => {
+    if (err) return handleOAuthCallbackError(err, provider, res, next);
+    next();
+  });
 };
 
 const authGuest = (req, res, next) => {
@@ -1555,6 +1641,129 @@ function authenticateJWT(req, res, next) {
 }
 
 // ============================================
+// REFRESH TOKEN AUTH MIDDLEWARE
+// ============================================
+// A lenient variant of enhancedJWTAuth used exclusively on POST /token/refresh.
+// Accepts tokens that are still valid or that expired within the last
+// REFRESH_MAX_AGE_SECONDS (default 7 days), so the mobile app can silently
+// obtain a fresh token without forcing re-login.
+
+const refreshTokenAuth = (req, _res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Authorization header is missing",
+        }),
+      );
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match || !match[2]) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message:
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+        }),
+      );
+    }
+
+    const token = match[2].trim();
+
+    jwt.verify(
+      token,
+      constants.JWT_SECRET,
+      { ignoreExpiration: true, algorithms: ["HS256"] },
+      async (err, decoded) => {
+        try {
+          if (err) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: `Invalid token: ${err.message}`,
+              }),
+            );
+          }
+
+          const now = Math.floor(Date.now() / 1000);
+
+          // Guard: exp must be a finite number; tokens without exp are rejected.
+          if (!Number.isFinite(decoded.exp)) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Invalid token: missing expiry claim",
+              }),
+            );
+          }
+
+          // Reject tokens older than the max refresh window
+          if (decoded.exp + REFRESH_MAX_AGE_SECONDS < now) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message:
+                  "Token has expired beyond the refresh window. Please log in again.",
+              }),
+            );
+          }
+
+          const tenantRaw =
+            req.query.tenant ||
+            req.body.tenant ||
+            constants.DEFAULT_TENANT ||
+            "airqo";
+          const tenant = String(tenantRaw).toLowerCase();
+
+          const rawUserId = decoded.userId || decoded.id || decoded._id;
+          const userId =
+            rawUserId !== undefined && rawUserId !== null
+              ? String(rawUserId)
+              : null;
+          if (!userId) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "Invalid token: missing user identifier",
+              }),
+            );
+          }
+
+          const user = await UserModel(tenant).findById(userId).lean();
+
+          if (!user) {
+            return next(
+              new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+                message: "User from token no longer exists",
+              }),
+            );
+          }
+
+          req.user = { ...decoded, ...user };
+          next();
+        } catch (callbackError) {
+          const authLogger = global.dedupLogger || logger;
+          authLogger.error(
+            `🐛🐛 refreshTokenAuth callback error: ${callbackError.message}`,
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Internal Server Error" },
+            ),
+          );
+        }
+      },
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 refreshTokenAuth error: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      }),
+    );
+  }
+};
+
+// ============================================
 // ROUTE CONFIGURATION VALIDATION
 // ============================================
 
@@ -1611,6 +1820,7 @@ module.exports = {
   authOAuthCallback,
   authGuest,
   enhancedJWTAuth,
+  refreshTokenAuth,
   authenticateJWT,
   optionalJWTAuth,
 };

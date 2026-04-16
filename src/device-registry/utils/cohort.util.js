@@ -541,8 +541,8 @@ const createCohort = {
               description: 1,
               createdAt: {
                 $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
+                  format: "%Y-%m-%dT%H:%M:%SZ",
+                  date: "$createdAt",
                 },
               },
             },
@@ -605,8 +605,8 @@ const createCohort = {
               description: 1,
               createdAt: {
                 $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
+                  format: "%Y-%m-%dT%H:%M:%SZ",
+                  date: "$createdAt",
                 },
               },
             },
@@ -655,75 +655,78 @@ const createCohort = {
         };
       }
 
-      const alreadyAssignedDevices = [];
+      // Batch fetch all devices at once to avoid N+1 queries
+      const existingDevices = await DeviceModel(tenant)
+        .find({ _id: { $in: device_ids } })
+        .select("_id cohorts")
+        .lean();
 
-      for (const device_id of device_ids) {
-        const device = await DeviceModel(tenant)
-          .findById(ObjectId(device_id))
-          .lean();
+      const foundIds = new Set(existingDevices.map((d) => d._id.toString()));
+      const notFoundIds = device_ids.filter(
+        (id) => !foundIds.has(id.toString()),
+      );
 
-        if (!device) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Invalid Device ID ${device_id}, please crosscheck`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
-        if (
-          device.cohorts &&
-          device.cohorts.map(String).includes(cohort_id.toString())
-        ) {
-          alreadyAssignedDevices.push(device_id);
-        }
-      }
-
-      if (alreadyAssignedDevices.length > 0) {
+      if (notFoundIds.length > 0) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `The following devices are already assigned to the Cohort ${cohort_id}: ${alreadyAssignedDevices.join(
-              ", ",
-            )}`,
+            message: `The following Device IDs were not found: ${notFoundIds.join(", ")}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
-      //
-      const totalDevices = device_ids.length;
-      const { nModified, n } = await DeviceModel(tenant).updateMany(
-        { _id: { $in: device_ids } },
+
+      // Split into already-assigned and new-to-assign; proceed with new ones
+      const cohortIdStr = cohort_id.toString();
+      const alreadyAssigned = existingDevices
+        .filter(
+          (d) =>
+            d.cohorts && d.cohorts.map(String).includes(cohortIdStr),
+        )
+        .map((d) => d._id);
+
+      const toAssign = existingDevices
+        .filter(
+          (d) =>
+            !d.cohorts || !d.cohorts.map(String).includes(cohortIdStr),
+        )
+        .map((d) => d._id);
+
+      if (toAssign.length === 0) {
+        return {
+          success: true,
+          message: "All provided devices are already assigned to this cohort",
+          status: httpStatus.OK,
+          data: { assigned: [], already_assigned: alreadyAssigned },
+        };
+      }
+
+      await DeviceModel(tenant).updateMany(
+        { _id: { $in: toAssign } },
         { $addToSet: { cohorts: cohort_id } },
       );
 
-      const notFoundCount = totalDevices - nModified;
-      if (nModified === 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching Device found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      // Re-query after the update to confirm which devices were actually assigned,
+      // guarding against concurrent requests that may have already written the same cohort_id.
+      const confirmedDocs = await DeviceModel(tenant)
+        .find({ _id: { $in: toAssign }, cohorts: cohort_id })
+        .select("_id")
+        .lean();
+      const confirmedAssigned = confirmedDocs.map((d) => d._id);
 
-      if (notFoundCount > 0) {
-        return {
-          success: true,
-          message: `Operation partially successful some ${notFoundCount} of the provided devices were not found in the system`,
-          status: httpStatus.OK,
-          data: cohort,
-        };
-      }
+      const partialMessage =
+        alreadyAssigned.length > 0
+          ? `${alreadyAssigned.length} device(s) were already assigned and skipped`
+          : null;
 
       return {
         success: true,
-        message: "successfully assigned all the provided devices to the Cohort",
+        message: partialMessage
+          ? `Partially successful: ${partialMessage}`
+          : "Successfully assigned all provided devices to the cohort",
         status: httpStatus.OK,
-        data: cohort,
+        data: { assigned: confirmedAssigned, already_assigned: alreadyAssigned },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -982,21 +985,17 @@ const createCohort = {
         };
       }
       // Fetch devices based on the provided Cohort ID
-      const devices = await DeviceModel(tenant).find({ cohorts: cohort_id });
+      const devices = await DeviceModel(tenant)
+        .find({ cohorts: cohort_id })
+        .select("_id site_id")
+        .lean();
 
-      // Extract device IDs from the fetched devices
+      // Extract device and site IDs directly from the fetched documents
       const device_ids = devices.map((device) => device._id);
-
-      // Fetch sites for each device concurrently
-      const site_ids_promises = device_ids.map(async (deviceId) => {
-        const device = await DeviceModel(tenant).findOne({ _id: deviceId });
-        return device.site_id;
-      });
-
-      const site_ids = await Promise.all(site_ids_promises);
+      const site_ids = devices.map((device) => device.site_id);
 
       logObject("device_ids:", device_ids);
-      logObject("device_ids:", site_ids);
+      logObject("site_ids:", site_ids);
 
       return {
         success: true,
@@ -1017,22 +1016,27 @@ const createCohort = {
   },
   filterOutPrivateDevices: async (request, next) => {
     try {
-      const { tenant, devices, device_ids, device_names } = {
+      const { tenant, devices, device_ids, device_names, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
       const privateCohorts = await CohortModel(tenant)
-        .find({
-          visibility: false,
-        })
+        .find({ visibility: false })
         .select("_id")
         .lean();
 
       const privateCohortIds = privateCohorts.map((cohort) => cohort._id);
-      const privateDevices = await DeviceModel(tenant).find({
-        cohorts: { $in: privateCohortIds },
-      });
+
+      // When a user_id is provided, exclude devices owned by that user from the
+      // "private" set so owners can always access their own device data.
+      const privateDevicesQuery = { cohorts: { $in: privateCohortIds } };
+      if (user_id && ObjectId.isValid(user_id)) {
+        privateDevicesQuery.owner_id = { $ne: new ObjectId(user_id) };
+      }
+      const privateDevices = await DeviceModel(tenant).find(
+        privateDevicesQuery,
+      );
 
       const privateDeviceIds = privateDevices.map((device) =>
         device._id.toString(),
@@ -1060,6 +1064,69 @@ const createCohort = {
         status: httpStatus.OK,
         data: publicDevices,
         message: "operation successful",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  promoteCohorts: async (request, next) => {
+    try {
+      const { cohort_ids } = request.body;
+      const tenant = request.query.tenant || request.body.tenant;
+
+      const objectIds = cohort_ids.map((id) => new ObjectId(id));
+
+      // Identify which IDs exist in the DB
+      const existingCohorts = await CohortModel(tenant)
+        .find({ _id: { $in: objectIds } })
+        .select("_id visibility")
+        .lean();
+
+      const existingIds = new Set(
+        existingCohorts.map((c) => c._id.toString()),
+      );
+      const notFound = cohort_ids.filter((id) => !existingIds.has(id));
+      const alreadyPublic = existingCohorts
+        .filter((c) => c.visibility === true)
+        .map((c) => c._id.toString());
+      const toPromote = existingCohorts
+        .filter((c) => c.visibility !== true)
+        .map((c) => c._id);
+
+      if (toPromote.length > 0) {
+        await CohortModel(tenant).updateMany(
+          { _id: { $in: toPromote } },
+          { $set: { visibility: true } },
+        );
+      }
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        message: (() => {
+          if (toPromote.length > 0 && notFound.length > 0) {
+            return `Promoted ${toPromote.length} cohort(s) to public; ${notFound.length} ID(s) not found`;
+          }
+          if (toPromote.length > 0) {
+            return `Successfully promoted ${toPromote.length} cohort(s) to public`;
+          }
+          if (notFound.length > 0) {
+            return `No cohorts promoted; the following ID(s) were not found: ${notFound.join(", ")}`;
+          }
+          return "All provided cohorts are already public";
+        })(),
+        data: {
+          promoted: toPromote.map((id) => id.toString()),
+          already_public: alreadyPublic,
+          not_found: notFound,
+        },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1475,219 +1542,29 @@ const createCohort = {
         {
           $addFields: {
             // Both branches are disjoint after the device_id:null constraint above,
-            // so $concatArrays is safe (no duplicates). $sortArray requires MongoDB
-            // 5.2+ which cannot be guaranteed; JS post-processing sorts the merged
-            // array instead.
+            // so $concatArrays is safe (no duplicates). The slice to activitiesLimit
+            // is deferred to JS post-processing so the global sort runs first —
+            // otherwise the name-branch tail is dropped before sorting, which can
+            // exclude newer legacy rows from the latestActivitiesByType derivation.
             activities: {
-              $slice: [
-                { $concatArrays: ["$_activities_by_id", "$_activities_by_name"] },
-                activitiesLimit,
-              ],
+              $concatArrays: ["$_activities_by_id", "$_activities_by_name"],
             },
           },
         },
         { $unset: ["_activities_by_id", "_activities_by_name"] },
-        // ── Latest deployment activity — indexed split lookups ─────────────────
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { activityType: "deployment", $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_deploy_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              { $match: { activityType: "deployment", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_deploy_by_name",
-          },
-        },
-        {
-          $addFields: {
-            // $sortArray requires MongoDB 5.2+. Since each branch returns ≤1 item,
-            // use nested $cond to pick the branch with the later createdAt instead.
-            latest_deployment_activity: {
-              $cond: [
-                { $eq: [{ $size: "$_deploy_by_id" }, 0] },
-                "$_deploy_by_name",
-                {
-                  $cond: [
-                    { $eq: [{ $size: "$_deploy_by_name" }, 0] },
-                    "$_deploy_by_id",
-                    {
-                      $cond: [
-                        { $gte: [
-                          { $arrayElemAt: ["$_deploy_by_id.createdAt", 0] },
-                          { $arrayElemAt: ["$_deploy_by_name.createdAt", 0] },
-                        ]},
-                        "$_deploy_by_id",
-                        "$_deploy_by_name",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unset: ["_deploy_by_id", "_deploy_by_name"] },
-        // ── Latest maintenance activity — indexed split lookups ────────────────
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { activityType: "maintenance", $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_maint_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              { $match: { activityType: "maintenance", device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_maint_by_name",
-          },
-        },
-        {
-          $addFields: {
-            latest_maintenance_activity: {
-              $cond: [
-                { $eq: [{ $size: "$_maint_by_id" }, 0] },
-                "$_maint_by_name",
-                {
-                  $cond: [
-                    { $eq: [{ $size: "$_maint_by_name" }, 0] },
-                    "$_maint_by_id",
-                    {
-                      $cond: [
-                        { $gte: [
-                          { $arrayElemAt: ["$_maint_by_id.createdAt", 0] },
-                          { $arrayElemAt: ["$_maint_by_name.createdAt", 0] },
-                        ]},
-                        "$_maint_by_id",
-                        "$_maint_by_name",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unset: ["_maint_by_id", "_maint_by_name"] },
-        // ── Latest recall activity — indexed split lookups ─────────────────────
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { activityType: { $in: ["recall", "recallment"] }, $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_recall_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              { $match: { activityType: { $in: ["recall", "recallment"] }, device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "_recall_by_name",
-          },
-        },
-        {
-          $addFields: {
-            latest_recall_activity: {
-              $cond: [
-                { $eq: [{ $size: "$_recall_by_id" }, 0] },
-                "$_recall_by_name",
-                {
-                  $cond: [
-                    { $eq: [{ $size: "$_recall_by_name" }, 0] },
-                    "$_recall_by_id",
-                    {
-                      $cond: [
-                        { $gte: [
-                          { $arrayElemAt: ["$_recall_by_id.createdAt", 0] },
-                          { $arrayElemAt: ["$_recall_by_name.createdAt", 0] },
-                        ]},
-                        "$_recall_by_id",
-                        "$_recall_by_name",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        },
-        { $unset: ["_recall_by_id", "_recall_by_name"] },
-        // ── True activity count — split to avoid double-counting ──────────────
-        // (a) All activities matched by ObjectId reference.
-        // (b) Legacy name-only activities (device_id absent) matched by device name.
-        // Summing (a) + (b) gives the true total with no overlap.
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceId: "$_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
-              { $count: "count" },
-            ],
-            as: "_count_by_id",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              // Only legacy records where device_id is not set — prevents double-counting
-              { $match: { device_id: null, $expr: { $eq: ["$device", "$$deviceName"] } } },
-              { $count: "count" },
-            ],
-            as: "_count_by_name",
-          },
-        },
-        {
-          $addFields: {
-            // True total — not capped by activitiesLimit, no double-counting
-            total_activities: {
-              $add: [
-                { $ifNull: [{ $arrayElemAt: ["$_count_by_id.count", 0] }, 0] },
-                { $ifNull: [{ $arrayElemAt: ["$_count_by_name.count", 0] }, 0] },
-              ],
-            },
-            // How many activity documents were actually returned in this response
-            activities_loaded: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
-            },
-          },
-        },
-        { $unset: ["_count_by_id", "_count_by_name"] },
+        // Typed-activity fields (latest_deployment_activity, latest_maintenance_activity,
+        // latest_recall_activity) are derived in JS post-processing from the merged
+        // activities array. Running 6 separate $lookup stages here for each type would
+        // add 6 extra DB sub-queries per device (60 extra queries for a page of 10),
+        // which is the primary driver of the 504s under concurrent load.
+        // total_activities and activities_loaded are handled by the inclusion
+        // projection ($project: DEVICES_INCLUSION_PROJECTION):
+        //   - total_activities uses cached_total_activities (device doc field) when
+        //     present, otherwise falls back to $size(activities).
+        //   - activities_loaded is not in the inclusion projection and was never
+        //     reaching the response.
+        // The separate count $lookup stages that previously computed these values
+        // were pure overhead (their results were discarded by the $project stage).
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
@@ -1698,35 +1575,21 @@ const createCohort = {
 
       // Post-processing for consistency
       paginatedResults.forEach((device) => {
-        // Process latest activities to extract single objects
-        device.latest_deployment_activity =
-          device.latest_deployment_activity &&
-          device.latest_deployment_activity.length > 0
-            ? device.latest_deployment_activity[0]
-            : null;
-
-        device.latest_maintenance_activity =
-          device.latest_maintenance_activity &&
-          device.latest_maintenance_activity.length > 0
-            ? device.latest_maintenance_activity[0]
-            : null;
-
-        device.latest_recall_activity =
-          device.latest_recall_activity &&
-          device.latest_recall_activity.length > 0
-            ? device.latest_recall_activity[0]
-            : null;
-
-        // Sort the merged activities array by most recent first.
-        // $sortArray (MongoDB 5.2+) was removed for version compatibility;
-        // the two disjoint branches are sorted here in JS instead.
+        // Sort the merged activities array by most recent first, then trim to
+        // activitiesLimit. The $slice was moved out of the pipeline so that both
+        // id-branch and name-branch items are considered before any are dropped.
         if (device.activities && device.activities.length > 1) {
           device.activities.sort(
             (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
           );
         }
+        if (device.activities && device.activities.length > activitiesLimit) {
+          device.activities = device.activities.slice(0, activitiesLimit);
+        }
 
-        // Create activities by type mapping
+        // Build per-type counts and latest-activity map.
+        // Typed-activity fields (latest_deployment_activity etc.) are derived
+        // from this map instead of running 6 separate DB lookups per device.
         if (device.activities && device.activities.length > 0) {
           const activitiesByType = {};
           const latestActivitiesByType = {};
@@ -1746,9 +1609,28 @@ const createCohort = {
 
           device.activities_by_type = activitiesByType;
           device.latest_activities_by_type = latestActivitiesByType;
+
+          // Derive typed-activity fields from the already-sorted activities array
+          device.latest_deployment_activity =
+            latestActivitiesByType["deployment"] || null;
+          device.latest_maintenance_activity =
+            latestActivitiesByType["maintenance"] || null;
+          // Pick the more recent of "recall" / "recallment" rather than blindly
+          // preferring one key — both can coexist on the same device.
+          const _r = latestActivitiesByType["recall"] || null;
+          const _rm = latestActivitiesByType["recallment"] || null;
+          device.latest_recall_activity =
+            _r && _rm
+              ? new Date(_r.createdAt) >= new Date(_rm.createdAt)
+                ? _r
+                : _rm
+              : _r || _rm || null;
         } else {
           device.activities_by_type = {};
           device.latest_activities_by_type = {};
+          device.latest_deployment_activity = null;
+          device.latest_maintenance_activity = null;
+          device.latest_recall_activity = null;
         }
 
         // Process assigned_grid to extract single object

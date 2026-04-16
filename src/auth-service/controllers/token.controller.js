@@ -268,6 +268,17 @@ const createAccessToken = {
       analyzeIP(request, res, () => {});
       const result = await tokenUtil.verifyToken(request, next);
 
+      if (result == null) {
+        if (res.headersSent) return;
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Token verification returned no result" },
+          ),
+        );
+        return;
+      }
       const status = result.status;
       if (!res.headersSent) {
         res.status(status).send(result.message);

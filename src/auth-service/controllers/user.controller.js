@@ -723,7 +723,7 @@ const userController = {
       if (!request) return;
       const { email } = request.body;
       const { tenant } = request.query;
-      const token = userUtil.generateNumericToken(5);
+      const token = userUtil.generateNumericToken(6);
       const result = await userUtil.initiatePasswordReset({
         email,
         token,
@@ -1290,6 +1290,46 @@ const userController = {
       return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Token generation controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * Silent token refresh — accepts tokens expired within the last 7 days.
+   * Called by mobile clients to renew a session without requiring re-login.
+   * @route POST /api/v2/users/token/refresh
+   */
+  refreshToken: async (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "No authenticated user found",
+          }),
+        );
+      }
+
+      const tenant = String(
+        req.query.tenant || req.body.tenant || constants.DEFAULT_TENANT || "airqo",
+      ).toLowerCase();
+
+      const tokenFactory = new AbstractTokenFactory(tenant);
+      const strategy = userUtil._getEffectiveTokenStrategy(user);
+      const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS || 86400;
+
+      const newToken = await tokenFactory.createToken(user, strategy, {
+        expiresIn: `${TOKEN_LIFE_SECONDS}s`,
+      });
+
+      return res.status(httpStatus.OK).json({
+        success: true,
+        message: "Token refreshed successfully",
+        token: `JWT ${newToken}`,
+        expiresIn: TOKEN_LIFE_SECONDS,
+      });
+    } catch (error) {
+      logger.error(`🐛 Token refresh controller error: ${error.message}`);
       handleError(error, next);
     }
   },

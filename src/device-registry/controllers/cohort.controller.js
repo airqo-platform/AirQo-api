@@ -377,6 +377,17 @@ const createCohort = {
       handleError(error, next);
     }
   },
+  promoteCohorts: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.promoteCohorts(request, next);
+      handleResponse({ res, result, key: "promotion" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 };
 
 module.exports = createCohort;

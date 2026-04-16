@@ -63,6 +63,15 @@ const envs = {
   RECALL_TOPIC: process.env.RECALL_TOPIC,
   NETWORK_EVENTS_TOPIC:
     process.env.NETWORK_EVENTS_TOPIC || "network-events-topic",
+  NETWORK_CREATION_REQUESTS_TOPIC:
+    process.env.NETWORK_CREATION_REQUESTS_TOPIC ||
+    "network-creation-requests-topic",
+  NETWORK_CREATION_APPROVED_TOPIC:
+    process.env.NETWORK_CREATION_APPROVED_TOPIC ||
+    "network-creation-approved-topic",
+  NETWORK_CREATION_DENIED_TOPIC:
+    process.env.NETWORK_CREATION_DENIED_TOPIC ||
+    "network-creation-denied-topic",
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,
@@ -112,6 +121,13 @@ const envs = {
   // logins across 3 replicas (each login uses ~3-5 pool slots).
   // Tune via MONGODB_POOL_SIZE env var without a code change.
   MONGODB_POOL_SIZE: parseNumber(process.env.MONGODB_POOL_SIZE, 100),
+  // Maximum concurrent background IP analysis operations per pod.
+  // Shedding work above this threshold prevents OOM during DB slowness.
+  // Tune via IP_ANALYSIS_CONCURRENCY env var without a code change.
+  IP_ANALYSIS_CONCURRENCY: (() => {
+    const val = Math.floor(parseNumber(process.env.IP_ANALYSIS_CONCURRENCY, 50));
+    return Number.isFinite(val) && val >= 1 ? val : 50;
+  })(),
 
   // ── Feedback domain constants ──────────────────────────────────────────────
   // Single source of truth shared between the Feedback model and validators.

@@ -1,6 +1,7 @@
 import json
 import math
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from typing import Any
 
 import pandas as pd
 import requests
@@ -12,14 +13,346 @@ from pymongo import errors
 from sqlalchemy import func
 
 from app import cache
-from config import connect_mongo, Config
+from config import connect_mongo, connect_site_forecast_mongo, Config
 
 load_dotenv()
 db = connect_mongo()
+site_forecast_db = connect_site_forecast_mongo()
 
 
 def date_to_str(date: datetime):
     return date.isoformat()
+
+
+def serialize_datetime(value: Any):
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def clean_response_value(value: Any):
+    serialized = serialize_datetime(value)
+    try:
+        if pd.isna(serialized):
+            return None
+    except TypeError:
+        return serialized
+    return serialized
+
+
+def get_site_daily_forecast_collection_name():
+    """Return the Mongo collection that stores site daily forecast documents."""
+    return Config.MONGO_SITE_DAILY_FORECAST_COLLECTION
+
+
+def get_site_daily_forecast_cache_version(
+    site_id: str | None, start_date: date, days: int = 7
+):
+    """
+    Return a version token for site daily forecast cache keys.
+
+    The token is derived from the latest matching document in the forecast
+    collection so cached responses are invalidated when forecast data changes.
+    If the collection is empty, return ``empty``. If Mongo is unavailable while
+    generating the key, return ``db-unavailable`` so cache-key generation does
+    not raise.
+    """
+    end_date = start_date + timedelta(days=days - 1)
+    query = {
+        "date": {
+            "$gte": start_date.isoformat(),
+            "$lte": end_date.isoformat(),
+        }
+    }
+    if site_id:
+        query["site_id"] = site_id
+
+    try:
+        latest_document = (
+            site_forecast_db[get_site_daily_forecast_collection_name()]
+            .find(query, {"created_at": 1, "date": 1, "site_id": 1})
+            .sort([("created_at", -1), ("date", -1), ("site_id", -1)])
+            .limit(1)
+        )
+        latest_document = next(iter(latest_document), None)
+    except (errors.ServerSelectionTimeoutError, errors.PyMongoError):
+        return "db-unavailable"
+
+    if not latest_document:
+        return "empty"
+
+    return (
+        clean_response_value(latest_document.get("created_at"))
+        or clean_response_value(latest_document.get("date"))
+        or "present"
+    )
+
+
+def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 7):
+    """
+    Fetch raw site daily forecast documents for the requested date window.
+
+    When ``site_id`` is provided the result is limited to one site's forecast
+    horizon. Otherwise, the result contains documents for all sites in the
+    window, sorted by date then site.
+    """
+    end_date = start_date + timedelta(days=days - 1)
+    query = {
+        "date": {
+            "$gte": start_date.isoformat(),
+            "$lte": end_date.isoformat(),
+        }
+    }
+    if site_id:
+        query["site_id"] = site_id
+
+    sort_fields = [("date", 1)] if site_id else [("date", 1), ("site_id", 1)]
+    cursor = site_forecast_db[get_site_daily_forecast_collection_name()].find(
+        query, {"_id": 0}
+    ).sort(sort_fields)
+    if site_id:
+        cursor = cursor.limit(days)
+    return list(cursor)
+
+
+SITE_FORECAST_UNITS = {
+    "pm2_5": "ug/m3",
+    "air_temperature": "degC",
+    "relative_humidity": "%",
+    "air_pressure_at_sea_level": "hPa",
+    "precipitation_amount": "mm",
+    "cloud_area_fraction": "%",
+    "wind_speed": "m/s",
+    "wind_from_direction": "degrees",
+    "forecast_confidence": "%",
+}
+
+SITE_FORECAST_DESCRIPTIONS = {
+    "pm2_5_mean": "Predicted average PM2.5 concentration.",
+    "pm2_5_low": "Lower PM2.5 forecast estimate.",
+    "pm2_5_high": "Upper PM2.5 forecast estimate.",
+    "pm2_5_min": "Minimum predicted PM2.5.",
+    "pm2_5_max": "Maximum predicted PM2.5.",
+    "forecast_confidence": "Confidence level of the forecast.",
+}
+
+
+def build_site_forecast_response(
+    site_id: str | None, aqi_category_getter, wind_direction_formatter
+):
+    """
+    Build the API response payload for ``/api/v2/predict/daily-forecasting``.
+
+    The response is normalized so filtered and unfiltered requests share the
+    same outer structure. Each site entry contains ``site_details`` and a list
+    of daily forecast rows with forecast, AQI, and meteorology metadata.
+    """
+    start_date = date.today()
+    try:
+        forecast_documents = get_site_daily_forecasts(
+            site_id=site_id, start_date=start_date
+        )
+    except errors.ServerSelectionTimeoutError:
+        current_app.logger.error(
+            "Site daily forecast database connection timed out", exc_info=False
+        )
+        return {
+            "success": False,
+            "message": "Site daily forecast database is unavailable.",
+            "data": {
+                "site_details": None,
+                "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_FORECAST_DESCRIPTIONS,
+                "forecasts": [],
+            },
+        }, 503
+    except errors.PyMongoError as ex:
+        current_app.logger.error(
+            "Site daily forecast database query failed: %s", ex, exc_info=False
+        )
+        return {
+            "success": False,
+            "message": "Failed to fetch site daily forecasts.",
+            "data": {
+                "site_details": None,
+                "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_FORECAST_DESCRIPTIONS,
+                "forecasts": [],
+            },
+        }, 503
+    expected_days = 7
+
+    if not forecast_documents:
+        return {
+            "success": False,
+            "data": {
+                "site_details": None,
+                "start_date": start_date.isoformat() if site_id else None,
+                "end_date": (start_date + timedelta(days=6)).isoformat()
+                if site_id
+                else None,
+                "days": expected_days if site_id else None,
+                "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_FORECAST_DESCRIPTIONS,
+                "forecasts": [],
+            },
+        }, 404
+
+    def format_forecast_entry(forecast_document):
+        pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
+        wind_direction_degrees = clean_response_value(
+            forecast_document.get("wind_from_direction")
+        )
+        aqi_category_details = (
+            aqi_category_getter(pm2_5_mean) if pm2_5_mean is not None else None
+        )
+
+        return {
+            "date": clean_response_value(forecast_document.get("date")),
+            "site": {
+                "site_id": clean_response_value(forecast_document.get("site_id")),
+                "site_name": clean_response_value(forecast_document.get("site_name")),
+                "site_latitude": clean_response_value(
+                    forecast_document.get("site_latitude")
+                ),
+                "site_longitude": clean_response_value(
+                    forecast_document.get("site_longitude")
+                ),
+                "forecast": {
+                    "pm2_5_mean": pm2_5_mean,
+                    "pm2_5_low": clean_response_value(
+                        forecast_document.get("pm2_5_low")
+                    ),
+                    "pm2_5_high": clean_response_value(
+                        forecast_document.get("pm2_5_high")
+                    ),
+                    "pm2_5_min": clean_response_value(
+                        forecast_document.get("pm2_5_min")
+                    ),
+                    "pm2_5_max": clean_response_value(
+                        forecast_document.get("pm2_5_max")
+                    ),
+                    "forecast_confidence": clean_response_value(
+                        forecast_document.get("forecast_confidence")
+                    ),
+                },
+                "aqi": {
+                    "aqi_value": pm2_5_mean,
+                    "aqi_category": (
+                        aqi_category_details.get("aqi_category")
+                        if aqi_category_details
+                        else None
+                    ),
+                    "aqi_color_name": (
+                        aqi_category_details.get("aqi_color_name")
+                        if aqi_category_details
+                        else None
+                    ),
+                    "aqi_color": (
+                        f"#{aqi_category_details['aqi_color'].upper()}"
+                        if aqi_category_details
+                        else None
+                    ),
+                },
+                "met": {
+                    "air_temperature": clean_response_value(
+                        forecast_document.get("air_temperature")
+                    ),
+                    "relative_humidity": clean_response_value(
+                        forecast_document.get("relative_humidity")
+                    ),
+                    "air_pressure_at_sea_level": clean_response_value(
+                        forecast_document.get("air_pressure_at_sea_level")
+                    ),
+                    "precipitation_amount": clean_response_value(
+                        forecast_document.get("precipitation_amount")
+                    ),
+                    "cloud_area_fraction": clean_response_value(
+                        forecast_document.get("cloud_area_fraction")
+                    ),
+                    "wind_speed": clean_response_value(
+                        forecast_document.get("wind_speed")
+                    ),
+                    "wind_from_direction": wind_direction_degrees,
+                    "wind_direction_compass": wind_direction_formatter(
+                        wind_direction_degrees
+                    ),
+                },
+            },
+            "created_at": clean_response_value(forecast_document.get("created_at")),
+        }
+
+    def simplify_site_forecast(forecast):
+        return {
+            "date": forecast.get("date"),
+            "forecast": forecast.get("site", {}).get("forecast"),
+            "aqi": forecast.get("site", {}).get("aqi"),
+            "met": forecast.get("site", {}).get("met"),
+            "created_at": forecast.get("created_at"),
+        }
+
+    forecasts = [
+        format_forecast_entry(forecast_document)
+        for forecast_document in (
+            forecast_documents[:expected_days] if site_id else forecast_documents
+        )
+    ]
+    distinct_dates = sorted(
+        {
+            forecast["date"]
+            for forecast in forecasts
+            if forecast.get("date") is not None
+        }
+    )
+    grouped_forecasts = {}
+
+    for forecast in forecasts:
+        site = forecast.get("site", {})
+        forecast_site_id = site.get("site_id")
+        if forecast_site_id not in grouped_forecasts:
+            grouped_forecasts[forecast_site_id] = {
+                "site_details": {
+                    "site_id": site.get("site_id"),
+                    "site_name": site.get("site_name"),
+                    "site_latitude": site.get("site_latitude"),
+                    "site_longitude": site.get("site_longitude"),
+                },
+                "start_date": forecast.get("date"),
+                "end_date": forecast.get("date"),
+                "days": 0,
+                "total": 0,
+                "forecasts": [],
+            }
+
+        grouped_forecasts[forecast_site_id]["forecasts"].append(
+            simplify_site_forecast(forecast)
+        )
+        grouped_forecasts[forecast_site_id]["end_date"] = forecast.get("date")
+
+    for grouped_site_forecast in grouped_forecasts.values():
+        grouped_site_forecast["days"] = len(
+            {
+                site_forecast.get("date")
+                for site_forecast in grouped_site_forecast["forecasts"]
+                if site_forecast.get("date") is not None
+            }
+        )
+        grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
+
+    return {
+        "success": len(forecasts) == expected_days if site_id else True,
+        "data": {
+            "start_date": distinct_dates[0] if distinct_dates else None,
+            "end_date": distinct_dates[-1] if distinct_dates else None,
+            "days": len(distinct_dates),
+            "total": len(grouped_forecasts),
+            "units": SITE_FORECAST_UNITS,
+            "descriptions": SITE_FORECAST_DESCRIPTIONS,
+            "forecasts": list(grouped_forecasts.values()),
+        },
+    }, 200
 
 
 # Ensure these are updated when the API query parameters are changed
@@ -52,6 +385,22 @@ def daily_forecasts_cache_key():
 def all_daily_forecasts_cache_key():
     current_day = datetime.now().strftime("%Y-%m-%d")
     return f"all_daily_{current_day}"
+
+
+def site_daily_forecasts_cache_key():
+    """
+    Generate the Redis cache key for the site daily forecasting endpoint.
+
+    The key varies by day, optional ``site_id``, and a data-derived cache
+    version so stale responses are dropped automatically when source forecast
+    documents change.
+    """
+    current_day = date.today().isoformat()
+    site_id = request.args.get("site_id")
+    cache_version = get_site_daily_forecast_cache_version(
+        site_id=site_id, start_date=date.today()
+    )
+    return f"site_daily_v7_{current_day}_{site_id}_{cache_version}"
 
 
 def hourly_forecasts_cache_key():

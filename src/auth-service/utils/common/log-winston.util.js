@@ -53,6 +53,9 @@ const pollInterval = setInterval(() => {
     addMongoTransport();
   }
 }, 2000);
+// Prevent these timers from keeping the event loop alive if the process is
+// otherwise idle (e.g. during DB reconnect windows or test teardown).
+pollInterval.unref();
 
 // Cap polling so it doesn't run forever if the DB never comes up.
 // mongoTimeout is named so the success path above can cancel it.
@@ -64,5 +67,6 @@ const mongoTimeout = setTimeout(() => {
     );
   }
 }, 60000);
+mongoTimeout.unref();
 
 module.exports = winstonLogger;
