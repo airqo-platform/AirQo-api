@@ -64,6 +64,7 @@ class Config:
     BIGQUERY_DAILY_FORECAST_EVENTS_TABLE = os.getenv(
         "BIGQUERY_DAILY_FORECAST_EVENTS_TABLE"
     )
+    DAILY_FORECAST_TABLE = os.getenv("DAILY_FORECAST_TABLE")
     BIGQUERY_HOURLY_WEATHER_TABLE = os.getenv("BIGQUERY_HOURLY_WEATHER_TABLE")
     BIGQUERY_OPENWEATHERMAP_TABLE = os.getenv("BIGQUERY_OPENWEATHERMAP_TABLE")
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
@@ -147,6 +148,8 @@ class Config:
     OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
     OPENWEATHER_BASE_URL = os.getenv("OPENWEATHER_BASE_URL")
     OPENWEATHER_DATA_BATCH_SIZE = os.getenv("OPENWEATHER_DATA_BATCH_SIZE")
+    #MET Weather API
+    MET_NO_BASE_URL = os.getenv("MET_NO_BASE_URL")
     # Kafka
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092")
     TOPIC_PARTITIONS = os.getenv("TOPIC_PARTITIONS", "0,1,2").split(",")
@@ -236,6 +239,10 @@ class Config:
         "openweather": {
             "url": OPENWEATHER_BASE_URL,
             "auth": {"appid": OPENWEATHER_API_KEY},
+            "endpoints": {},
+        },
+        "met_no": {
+            "url": MET_NO_BASE_URL,
             "endpoints": {},
         },
         "airgradient": {
@@ -553,6 +560,7 @@ class Config:
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
+        DAILY_FORECAST_TABLE: "forecast_measurements.json",
         BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE: "satelite_airquality_data_copernicus_temp.json",
         BIGQUERY_GX_RESULTS_TABLE: "airqo_data_quality_checks.json",
@@ -855,6 +863,9 @@ class Config:
     )
     HOURLY_FORECAST_HORIZON = os.getenv("HOURLY_FORECAST_HORIZON")
     DAILY_FORECAST_HORIZON = os.getenv("DAILY_FORECAST_HORIZON")
+    MONGO_SITE_DAILY_FORECAST_COLLECTION = os.getenv(
+        "MONGO_SITE_DAILY_FORECAST_COLLECTION", "site_7days_daily_forecasts"
+    )
     SATELLITE_TRAINING_SCOPE = os.getenv("SATELLITE_TRAINING_SCOPE")
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
@@ -880,6 +891,7 @@ class Config:
 
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
+    MONGO_BULK_WRITE_BATCH_SIZE = int(os.getenv("MONGO_BULK_WRITE_BATCH_SIZE", "500"))
     ENVIRONMENT = os.getenv("ENVIRONMENT")
     CALIBRATEBY = os.getenv("CALIBRATEBY", "country")
 

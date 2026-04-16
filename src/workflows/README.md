@@ -52,10 +52,13 @@ pip install -r dev-requirements.txt
 
 ### Test e.g  quarterly site forecast training locally
 
-After setting up `.env` and credentials, you can run the local forecast trainer test script:
 
 ```bash
 python src/workflows/airqo_etl_utils/tests/forecast.py
+or
+python src/workflows/airqo_etl_utils/tests/test_7days_forecast.py  
+Test all
+python -m pytest airqo_etl_utils\tests
 ```
 
 Required `.env` values for this test:
