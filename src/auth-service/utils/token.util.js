@@ -43,6 +43,13 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+// Cache key and TTL for the IP-prefix blacklist.
+// The prefix list changes rarely; 10 minutes is the right trade-off between
+// freshness and eliminating the unbounded BlacklistedIPPrefixModel.find() that
+// was previously running on every single authenticated request.
+const IP_PREFIX_CACHE_KEY = "ip_prefix_blacklist_cache";
+const IP_PREFIX_CACHE_TTL_SECONDS = 10 * 60; // 10 minutes
+
 const getDay = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -458,7 +465,31 @@ const isIPBlacklistedHelper = async (
       AccessTokenModel("airqo")
         .findOne(accessTokenFilter)
         .select("name token client_id expiredEmailSent"),
-      BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
+      // Redis-first cache for the prefix list — avoids a full-collection scan
+      // on every authenticated request. Falls through to MongoDB on cache miss
+      // or Redis unavailability; both failure paths are non-fatal.
+      (async () => {
+        try {
+          const cached = await redisGetAsync(IP_PREFIX_CACHE_KEY);
+          if (cached) return JSON.parse(cached);
+        } catch (_) {
+          // Redis unavailable — fall through to DB
+        }
+        const prefixes = await BlacklistedIPPrefixModel("airqo")
+          .find()
+          .select("prefix")
+          .lean();
+        try {
+          await redisSetAsync(
+            IP_PREFIX_CACHE_KEY,
+            JSON.stringify(prefixes),
+            IP_PREFIX_CACHE_TTL_SECONDS
+          );
+        } catch (_) {
+          // Cache write failure is non-fatal
+        }
+        return prefixes;
+      })(),
     ]);
 
     const {
