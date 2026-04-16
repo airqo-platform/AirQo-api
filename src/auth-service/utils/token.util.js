@@ -471,13 +471,29 @@ const isIPBlacklistedHelper = async (
       (async () => {
         try {
           const cached = await redisGetAsync(IP_PREFIX_CACHE_KEY);
-          if (cached) return JSON.parse(cached);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            // Validate shape before trusting the cached value. A corrupted or
+            // unexpected payload (null, object, array of strings) would cause
+            // blacklistedIpPrefixesData.map(item => item.prefix) to throw and
+            // the outer catch to treat the request as blacklisted. Fall through
+            // to the DB if the shape is wrong.
+            if (
+              Array.isArray(parsed) &&
+              (parsed.length === 0 ||
+                (typeof parsed[0] === "object" &&
+                  parsed[0] !== null &&
+                  typeof parsed[0].prefix === "string"))
+            ) {
+              return parsed;
+            }
+          }
         } catch (_) {
-          // Redis unavailable — fall through to DB
+          // Redis unavailable or JSON.parse failure — fall through to DB
         }
         const prefixes = await BlacklistedIPPrefixModel("airqo")
           .find()
-          .select("prefix")
+          .select("prefix -_id")
           .lean();
         try {
           await redisSetAsync(
