@@ -1174,20 +1174,13 @@ function setOAuthProvider(req, res, next) {
     const tenant = req.query.tenant || "airqo";
     const provider = (req.params.provider || "google").toLowerCase();
 
-    const SUPPORTED_PROVIDERS = [
-      "google",
-      "github",
-      "linkedin",
-      "microsoft",
-      "twitter",
-    ];
-    if (!SUPPORTED_PROVIDERS.includes(provider)) {
+    if (!SUPPORTED_OAUTH_PROVIDERS.has(provider)) {
       return next(
         new HttpError(
           `Unsupported OAuth provider: ${provider}`,
           httpStatus.BAD_REQUEST,
           {
-            message: `Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`,
+            message: `Supported providers: ${[...SUPPORTED_OAUTH_PROVIDERS].join(", ")}`,
           },
         ),
       );
@@ -1280,9 +1273,10 @@ const authGoogle = passport.authenticate("google", {
   prompt: "select_account",
 });
 
-// Providers that are valid values to include in logs. Anything else is
-// replaced with "unknown" to prevent user-controlled input reaching log sinks.
-const KNOWN_OAUTH_PROVIDERS = new Set([
+// Single authoritative provider allowlist used for validation (setOAuthProvider)
+// and log sanitisation (handleOAuthCallbackError). Defined once here to prevent
+// the two lists from drifting out of sync.
+const SUPPORTED_OAUTH_PROVIDERS = new Set([
   "google",
   "github",
   "linkedin",
@@ -1293,10 +1287,13 @@ const KNOWN_OAUTH_PROVIDERS = new Set([
 /**
  * Safely appends ?error=oauth_failed (or &error=oauth_failed) to a redirect
  * URL regardless of whether it already contains a query string.
+ * Falls back to "/" when base is missing or not a string so the error handler
+ * never throws on an unconfigured GMAIL_VERIFICATION_FAILURE_REDIRECT.
  */
 function buildOAuthFailureRedirect(base) {
-  const separator = base.includes("?") ? "&" : "?";
-  return `${base}${separator}error=oauth_failed`;
+  const safeBase = typeof base === "string" && base.trim() !== "" ? base : "/";
+  const separator = safeBase.includes("?") ? "&" : "?";
+  return `${safeBase}${separator}error=oauth_failed`;
 }
 
 /**
@@ -1306,7 +1303,7 @@ function buildOAuthFailureRedirect(base) {
  */
 function handleOAuthCallbackError(err, provider, res, next) {
   if (err.name === "InternalOAuthError" || err.oauthError) {
-    const safeProvider = KNOWN_OAUTH_PROVIDERS.has(provider) ? provider : "unknown";
+    const safeProvider = SUPPORTED_OAUTH_PROVIDERS.has(provider) ? provider : "unknown";
     // Do not log err.message or oauthError.message — they may contain raw
     // OAuth tokens or secrets returned by the upstream provider.
     logger.error("OAuth token exchange failed", {
