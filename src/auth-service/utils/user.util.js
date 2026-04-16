@@ -3212,7 +3212,7 @@ const createUserModule = {
                 email: user.email,
                 verified: user.verified,
                 reminderSent: true,
-                codeLength: 5,
+                codeLength: 6,
                 expiresIn: "24 hours",
               },
             };
