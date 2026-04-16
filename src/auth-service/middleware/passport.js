@@ -1280,6 +1280,48 @@ const authGoogle = passport.authenticate("google", {
   prompt: "select_account",
 });
 
+// Providers that are valid values to include in logs. Anything else is
+// replaced with "unknown" to prevent user-controlled input reaching log sinks.
+const KNOWN_OAUTH_PROVIDERS = new Set([
+  "google",
+  "github",
+  "linkedin",
+  "microsoft",
+  "twitter",
+]);
+
+/**
+ * Safely appends ?error=oauth_failed (or &error=oauth_failed) to a redirect
+ * URL regardless of whether it already contains a query string.
+ */
+function buildOAuthFailureRedirect(base) {
+  const separator = base.includes("?") ? "&" : "?";
+  return `${base}${separator}error=oauth_failed`;
+}
+
+/**
+ * Shared handler for InternalOAuthError inside passport callback wrappers.
+ * Logs a sanitised message (no raw OAuth payloads) and redirects to the
+ * configured failure URL.
+ */
+function handleOAuthCallbackError(err, provider, res, next) {
+  if (err.name === "InternalOAuthError" || err.oauthError) {
+    const safeProvider = KNOWN_OAUTH_PROVIDERS.has(provider) ? provider : "unknown";
+    // Do not log err.message or oauthError.message — they may contain raw
+    // OAuth tokens or secrets returned by the upstream provider.
+    logger.error("OAuth token exchange failed", {
+      provider: safeProvider,
+      errorType: err.name || "OAuthError",
+      // err.oauthError.code is a short string like "ECONNRESET" — safe to log
+      code: err.oauthError?.code || null,
+    });
+    return res.redirect(
+      buildOAuthFailureRedirect(constants.GMAIL_VERIFICATION_FAILURE_REDIRECT),
+    );
+  }
+  return next(err);
+}
+
 /**
  * Handles the Google OAuth callback (legacy route support).
  * Wraps passport.authenticate so that transient network errors during the
@@ -1291,18 +1333,7 @@ const authGoogleCallback = (req, res, next) => {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
   })(req, res, (err) => {
-    if (err) {
-      if (err.name === "InternalOAuthError" || err.oauthError) {
-        logger.error(
-          `Google OAuth token exchange failed: ${err.message}`,
-          { oauthError: err.oauthError?.message, code: err.oauthError?.code },
-        );
-        return res.redirect(
-          `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}?error=oauth_failed`,
-        );
-      }
-      return next(err);
-    }
+    if (err) return handleOAuthCallbackError(err, "google", res, next);
     next();
   });
 };
@@ -1347,18 +1378,7 @@ const authOAuthCallback = (req, res, next) => {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
   })(req, res, (err) => {
-    if (err) {
-      if (err.name === "InternalOAuthError" || err.oauthError) {
-        logger.error(
-          `${provider} OAuth token exchange failed: ${err.message}`,
-          { provider, oauthError: err.oauthError?.message, code: err.oauthError?.code },
-        );
-        return res.redirect(
-          `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}?error=oauth_failed`,
-        );
-      }
-      return next(err);
-    }
+    if (err) return handleOAuthCallbackError(err, provider, res, next);
     next();
   });
 };

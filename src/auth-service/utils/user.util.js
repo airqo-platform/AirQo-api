@@ -2688,9 +2688,11 @@ const createUserModule = {
       // (100,000 space) was the root cause of duplicate key errors in production.
       const tokenExpiry = 86400; // 24 hrs in seconds
       let verifyTokenResponse;
+      let verificationToken; // hoisted so STEP 7 email send can reference it
 
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        const verificationToken = generateNumericToken(6);
+      const MAX_TOKEN_ATTEMPTS = 2;
+      for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+        verificationToken = generateNumericToken(6);
         verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
           {
             token: verificationToken,
@@ -2705,9 +2707,15 @@ const createUserModule = {
         ) {
           break;
         }
-        logger.warn(
-          `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — retrying`,
-        );
+        if (attempt < MAX_TOKEN_ATTEMPTS) {
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — retrying`,
+          );
+        } else {
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — no more retries`,
+          );
+        }
       }
 
       if (verifyTokenResponse && verifyTokenResponse.success === false) {
@@ -3142,8 +3150,11 @@ const createUserModule = {
         });
 
         let responseFromCreateToken;
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          const token = generateNumericToken(6);
+        let token; // hoisted so STEP 6 email send can reference it
+
+        const MAX_TOKEN_ATTEMPTS = 2;
+        for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+          token = generateNumericToken(6);
           responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
             {
               token,
@@ -3158,9 +3169,15 @@ const createUserModule = {
           ) {
             break;
           }
-          logger.warn(
-            `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — retrying`,
-          );
+          if (attempt < MAX_TOKEN_ATTEMPTS) {
+            logger.warn(
+              `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — retrying`,
+            );
+          } else {
+            logger.warn(
+              `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — no more retries`,
+            );
+          }
         }
 
         if (
