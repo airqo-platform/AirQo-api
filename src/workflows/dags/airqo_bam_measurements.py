@@ -150,7 +150,7 @@ def airqo_bam_realtime_measurements():
             data=data,
         )
 
-        if not data:
+        if data.empty:
             raise AirflowFailException(
                 "Processing for message broker failed. Please check if kafka is up and running."
             )
