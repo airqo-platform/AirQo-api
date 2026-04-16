@@ -1812,6 +1812,17 @@ const token = {
         finalStatus = httpStatus.BAD_REQUEST;
       }
 
+      // Invalidate the cached prefix list so the new entries are visible
+      // on the next request. Non-fatal — a stale cache is acceptable for
+      // up to IP_PREFIX_CACHE_TTL_SECONDS if Redis is momentarily unavailable.
+      if (successful_responses.length > 0) {
+        redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+          logger.warn(
+            `Failed to invalidate IP prefix cache after bulk insert: ${err.message}`,
+          ),
+        );
+      }
+
       return {
         success: true,
         data: { successful_responses, unsuccessful_responses },
@@ -1842,6 +1853,13 @@ const token = {
         { filter },
         next,
       );
+      if (response && response.success) {
+        redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+          logger.warn(
+            `Failed to invalidate IP prefix cache after removal: ${err.message}`,
+          ),
+        );
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2299,6 +2317,13 @@ const token = {
         if (!prefixBlacklistResponse.success) {
           logger.error(
             `Failed to blacklist prefix ${ipPrefix}: ${prefixBlacklistResponse.message}`,
+          );
+        } else {
+          // New prefix written — invalidate cache so the next request picks it up immediately
+          redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+            logger.warn(
+              `Failed to invalidate IP prefix cache after auto-blacklist of ${ipPrefix}: ${err.message}`,
+            ),
           );
         }
       }
