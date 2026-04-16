@@ -480,10 +480,12 @@ const isIPBlacklistedHelper = async (
             // to the DB if the shape is wrong.
             if (
               Array.isArray(parsed) &&
-              (parsed.length === 0 ||
-                (typeof parsed[0] === "object" &&
-                  parsed[0] !== null &&
-                  typeof parsed[0].prefix === "string"))
+              parsed.every(
+                (item) =>
+                  item !== null &&
+                  typeof item === "object" &&
+                  typeof item.prefix === "string",
+              )
             ) {
               return parsed;
             }
@@ -1760,6 +1762,13 @@ const token = {
         },
         next,
       );
+      if (response && response.success) {
+        redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+          logger.warn(
+            `Failed to invalidate IP prefix cache after single insert: ${err.message}`,
+          ),
+        );
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
