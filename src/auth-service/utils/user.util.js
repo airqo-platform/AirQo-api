@@ -1630,7 +1630,7 @@ const createUserModule = {
         const firebase_uid = firebaseUser.uid;
 
         // Generate the custom token
-        const token = generateNumericToken(5);
+        const token = generateNumericToken(6);
 
         let generateCacheRequest = Object.assign({}, request);
         const userIdentifier = firebaseUser.email
@@ -2278,7 +2278,7 @@ const createUserModule = {
         };
       }
 
-      const token = generateNumericToken(5); // 5-digit code
+      const token = generateNumericToken(6); // 6-digit code
       const update = {
         deletionToken: token,
         deletionTokenExpires: Date.now() + 3600000, // 1 hour
@@ -2303,7 +2303,7 @@ const createUserModule = {
           return {
             success: true,
             message:
-              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
+              "Account deletion process initiated. Please check your email for a 6-digit confirmation code.",
             status: httpStatus.OK,
           };
         } else {
@@ -2653,7 +2653,7 @@ const createUserModule = {
             user: null,
             data: {
               verificationEmailSent: true,
-              nextStep: "Check your email for a 5-digit verification code",
+              nextStep: "Check your email for a 6-digit verification code",
             },
           };
         }
@@ -2683,19 +2683,40 @@ const createUserModule = {
       const userId = newUser._doc._id;
 
       // ── STEP 6: Generate mobile verification token ─────────────────────────────
-      const verificationToken = generateNumericToken(5);
+      // Uses 6-digit tokens (1,000,000 space) and retries once on E11000
+      // collision before rolling back the user. The previous 5-digit token
+      // (100,000 space) was the root cause of duplicate key errors in production.
       const tokenExpiry = 86400; // 24 hrs in seconds
+      let verifyTokenResponse;
+      let verificationToken; // hoisted so STEP 7 email send can reference it
 
-      const tokenCreationBody = {
-        token: verificationToken,
-        name: newUser._doc.firstName,
-        expires: new Date(Date.now() + tokenExpiry * 1000),
-      };
-
-      const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
-        tokenCreationBody,
-        next,
-      );
+      const MAX_TOKEN_ATTEMPTS = 2;
+      for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+        verificationToken = generateNumericToken(6);
+        verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+          {
+            token: verificationToken,
+            name: newUser._doc.firstName,
+            expires: new Date(Date.now() + tokenExpiry * 1000),
+          },
+          next,
+        );
+        if (
+          verifyTokenResponse.success ||
+          verifyTokenResponse.status !== httpStatus.CONFLICT
+        ) {
+          break;
+        }
+        if (attempt < MAX_TOKEN_ATTEMPTS) {
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — retrying`,
+          );
+        } else {
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — no more retries`,
+          );
+        }
+      }
 
       if (verifyTokenResponse && verifyTokenResponse.success === false) {
         logger.error(
@@ -2745,7 +2766,7 @@ const createUserModule = {
                 analyticsVersion: userDoc.analyticsVersion,
               },
               verificationEmailSent: true,
-              nextStep: "Check your email for a 5-digit verification code",
+              nextStep: "Check your email for a 6-digit verification code",
             },
           };
         } else {
@@ -3116,26 +3137,48 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 4: Generate mobile verification token (5-digit numeric)
-      const token = generateNumericToken(5);
-
-      const tokenCreationBody = {
-        token,
-        name: user.firstName,
-        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      };
+      // ✅ STEP 4: Generate mobile verification token (6-digit numeric)
+      // 6-digit tokens give 1,000,000 possible values — 10× the previous
+      // 5-digit range — and retries once on collision before failing.
 
       // ✅ STEP 5: Create token with cleanup of old expired tokens
       try {
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          token: { $regex: /^\d{5}$/ },
+          token: { $regex: /^\d{6}$/ },
           expires: { $lt: new Date() },
         });
 
-        const responseFromCreateToken = await VerifyTokenModel(
-          dbTenant,
-        ).register(tokenCreationBody, next);
+        let responseFromCreateToken;
+        let token; // hoisted so STEP 6 email send can reference it
+
+        const MAX_TOKEN_ATTEMPTS = 2;
+        for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+          token = generateNumericToken(6);
+          responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
+            {
+              token,
+              name: user.firstName,
+              expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+            },
+            next,
+          );
+          if (
+            responseFromCreateToken.success ||
+            responseFromCreateToken.status !== httpStatus.CONFLICT
+          ) {
+            break;
+          }
+          if (attempt < MAX_TOKEN_ATTEMPTS) {
+            logger.warn(
+              `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — retrying`,
+            );
+          } else {
+            logger.warn(
+              `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — no more retries`,
+            );
+          }
+        }
 
         if (
           responseFromCreateToken &&
@@ -3169,7 +3212,7 @@ const createUserModule = {
                 email: user.email,
                 verified: user.verified,
                 reminderSent: true,
-                codeLength: 5,
+                codeLength: 6,
                 expiresIn: "24 hours",
               },
             };
@@ -3250,8 +3293,8 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Token format validation for mobile (5-digit numeric)
-      if (!/^\d{5}$/.test(token)) {
+      // ✅ STEP 2: Token format validation for mobile (6-digit numeric)
+      if (!/^\d{6}$/.test(token)) {
         logger.warn(
           `Invalid mobile verification token format for ${normalizedEmail}`,
           {
@@ -3266,7 +3309,7 @@ const createUserModule = {
           success: false,
           message: "Invalid verification code format",
           errors: {
-            token: "Verification code must be a 5-digit number",
+            token: "Verification code must be a 6-digit number",
           },
         };
       }

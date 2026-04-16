@@ -1174,20 +1174,13 @@ function setOAuthProvider(req, res, next) {
     const tenant = req.query.tenant || "airqo";
     const provider = (req.params.provider || "google").toLowerCase();
 
-    const SUPPORTED_PROVIDERS = [
-      "google",
-      "github",
-      "linkedin",
-      "microsoft",
-      "twitter",
-    ];
-    if (!SUPPORTED_PROVIDERS.includes(provider)) {
+    if (!SUPPORTED_OAUTH_PROVIDERS.has(provider)) {
       return next(
         new HttpError(
           `Unsupported OAuth provider: ${provider}`,
           httpStatus.BAD_REQUEST,
           {
-            message: `Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`,
+            message: `Supported providers: ${[...SUPPORTED_OAUTH_PROVIDERS].join(", ")}`,
           },
         ),
       );
@@ -1280,13 +1273,65 @@ const authGoogle = passport.authenticate("google", {
   prompt: "select_account",
 });
 
+// Single authoritative provider allowlist used for validation (setOAuthProvider)
+// and log sanitisation (handleOAuthCallbackError). Defined once here to prevent
+// the two lists from drifting out of sync.
+const SUPPORTED_OAUTH_PROVIDERS = new Set([
+  "google",
+  "github",
+  "linkedin",
+  "microsoft",
+  "twitter",
+]);
+
+/**
+ * Safely appends ?error=oauth_failed (or &error=oauth_failed) to a redirect
+ * URL regardless of whether it already contains a query string.
+ * Falls back to "/" when base is missing or not a string so the error handler
+ * never throws on an unconfigured GMAIL_VERIFICATION_FAILURE_REDIRECT.
+ */
+function buildOAuthFailureRedirect(base) {
+  const safeBase = typeof base === "string" && base.trim() !== "" ? base : "/";
+  const separator = safeBase.includes("?") ? "&" : "?";
+  return `${safeBase}${separator}error=oauth_failed`;
+}
+
+/**
+ * Shared handler for InternalOAuthError inside passport callback wrappers.
+ * Logs a sanitised message (no raw OAuth payloads) and redirects to the
+ * configured failure URL.
+ */
+function handleOAuthCallbackError(err, provider, res, next) {
+  if (err.name === "InternalOAuthError" || err.oauthError) {
+    const safeProvider = SUPPORTED_OAUTH_PROVIDERS.has(provider) ? provider : "unknown";
+    // Do not log err.message or oauthError.message — they may contain raw
+    // OAuth tokens or secrets returned by the upstream provider.
+    logger.error("OAuth token exchange failed", {
+      provider: safeProvider,
+      errorType: err.name || "OAuthError",
+    });
+    return res.redirect(
+      buildOAuthFailureRedirect(constants.GMAIL_VERIFICATION_FAILURE_REDIRECT),
+    );
+  }
+  return next(err);
+}
+
 /**
  * Handles the Google OAuth callback (legacy route support).
+ * Wraps passport.authenticate so that transient network errors during the
+ * token exchange (e.g. ECONNRESET / InternalOAuthError) redirect to the
+ * failure URL instead of surfacing as an unhandled 500.
  */
-const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
-  session: false,
-});
+const authGoogleCallback = (req, res, next) => {
+  passport.authenticate("google", {
+    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    session: false,
+  })(req, res, (err) => {
+    if (err) return handleOAuthCallbackError(err, "google", res, next);
+    next();
+  });
+};
 
 /**
  * Dynamically initiates OAuth flow for any supported provider.
@@ -1319,13 +1364,18 @@ const authOAuth = (req, res, next) => {
 /**
  * Dynamically handles the OAuth callback for any supported provider.
  * Used by the generic GET /auth/callback/:provider route.
+ * Catches InternalOAuthError (e.g. ECONNRESET during token exchange) and
+ * redirects to the failure URL rather than propagating a 500.
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
   passport.authenticate(provider, {
     failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
-  })(req, res, next);
+  })(req, res, (err) => {
+    if (err) return handleOAuthCallbackError(err, provider, res, next);
+    next();
+  });
 };
 
 const authGuest = (req, res, next) => {
