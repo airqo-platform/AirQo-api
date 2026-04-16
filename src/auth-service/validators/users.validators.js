@@ -485,8 +485,8 @@ const verifyMobileEmail = [
       .isNumeric()
       .withMessage("Token must be numeric")
       .bail()
-      .isLength({ min: 5, max: 5 })
-      .withMessage("Token must be 5 digits")
+      .isLength({ min: 6, max: 6 })
+      .withMessage("Token must be 6 digits")
       .trim(),
     body("email")
       .exists()
@@ -1049,8 +1049,8 @@ const resetPassword = [
     .bail()
     .isNumeric()
     .withMessage("Token must be numeric")
-    .isLength({ min: 5, max: 5 })
-    .withMessage("Token must be 5 digits")
+    .isLength({ min: 6, max: 6 })
+    .withMessage("Token must be 6 digits")
     .trim(),
   body("password")
     .exists()
@@ -1329,8 +1329,8 @@ const confirmMobileAccountDeletion = [
       .trim()
       .isNumeric()
       .withMessage("token must be a numeric string")
-      .isLength({ min: 5, max: 5 })
-      .withMessage("token must be 5 characters long"),
+      .isLength({ min: 6, max: 6 })
+      .withMessage("token must be 6 characters long"),
   ],
 ];
 

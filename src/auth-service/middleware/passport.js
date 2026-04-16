@@ -1309,10 +1309,6 @@ function handleOAuthCallbackError(err, provider, res, next) {
     logger.error("OAuth token exchange failed", {
       provider: safeProvider,
       errorType: err.name || "OAuthError",
-      // Avoid logging any oauthError-derived content — it may contain raw
-      // OAuth tokens or secrets from the upstream provider. A boolean flag
-      // preserves observability without exposing sensitive data.
-      oauthErrorPresent: Boolean(err.oauthError),
     });
     return res.redirect(
       buildOAuthFailureRedirect(constants.GMAIL_VERIFICATION_FAILURE_REDIRECT),

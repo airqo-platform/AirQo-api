@@ -2653,7 +2653,7 @@ const createUserModule = {
             user: null,
             data: {
               verificationEmailSent: true,
-              nextStep: "Check your email for a 5-digit verification code",
+              nextStep: "Check your email for a 6-digit verification code",
             },
           };
         }
@@ -2766,7 +2766,7 @@ const createUserModule = {
                 analyticsVersion: userDoc.analyticsVersion,
               },
               verificationEmailSent: true,
-              nextStep: "Check your email for a 5-digit verification code",
+              nextStep: "Check your email for a 6-digit verification code",
             },
           };
         } else {
@@ -3293,8 +3293,8 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Token format validation for mobile (5-digit numeric)
-      if (!/^\d{5}$/.test(token)) {
+      // ✅ STEP 2: Token format validation for mobile (6-digit numeric)
+      if (!/^\d{6}$/.test(token)) {
         logger.warn(
           `Invalid mobile verification token format for ${normalizedEmail}`,
           {
@@ -3309,7 +3309,7 @@ const createUserModule = {
           success: false,
           message: "Invalid verification code format",
           errors: {
-            token: "Verification code must be a 5-digit number",
+            token: "Verification code must be a 6-digit number",
           },
         };
       }
