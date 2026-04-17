@@ -59,7 +59,11 @@ const createSnapshotConnection = () =>
   mongoose.createConnection(QUERY_URI, {
     ...options,
     dbName: `${constants.DB_NAME}`,
-    maxPoolSize: 10,
+    // Mongoose 5.x (mongodb driver 3.7.x) uses poolSize, not maxPoolSize.
+    // Explicitly override poolSize here so the spread of options.poolSize (20)
+    // is replaced with the intended 10-connection ceiling for this pool.
+    poolSize: 10,
+    maxPoolSize: 10, // forward-compatible for when Mongoose 6+ is adopted
   });
 
 // Store database connections
