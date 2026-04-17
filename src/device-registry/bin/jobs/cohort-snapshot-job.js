@@ -269,10 +269,10 @@ async function runCohortSnapshotJob() {
     const runAt = new Date(); // per-cohort timestamp for stale cleanup
 
     try {
-      const [deviceResult, siteResult] = await Promise.all([
-        refreshDevicesForCohort(cohortId, TENANT, runAt),
-        refreshSitesForCohort(cohortId, TENANT, runAt),
-      ]);
+      // Run sequentially to avoid doubling simultaneous connection demand on a
+      // shared pool that may already be under pressure from live aggregation requests.
+      const deviceResult = await refreshDevicesForCohort(cohortId, TENANT, runAt);
+      const siteResult = await refreshSitesForCohort(cohortId, TENANT, runAt);
 
       totalDevices += deviceResult.count;
       totalSites += siteResult.count;
