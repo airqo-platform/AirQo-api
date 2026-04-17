@@ -30,8 +30,6 @@ const logger = log4js.getLogger(
 );
 const { logText } = require("@utils/shared");
 const cron = require("node-cron");
-const mongoose = require("mongoose");
-
 const CohortModel = require("@models/Cohort");
 const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
@@ -162,21 +160,30 @@ async function refreshDevicesForCohort(cohortId, tenant, runAt) {
       logger.error(
         `${JOB_NAME} -- listDevices failed for cohort ${cohortId} skip=${skip}: ${err.message}`
       );
-      break;
+      // Propagate incomplete flag so the caller skips stale pruning
+      return { count: totalUpserted, complete: false };
     }
 
-    if (!result || !result.success || !result.data || !result.data.length) {
-      break;
+    if (!result || !result.success) {
+      logger.error(
+        `${JOB_NAME} -- listDevices returned failure for cohort ${cohortId} skip=${skip}`
+      );
+      return { count: totalUpserted, complete: false };
+    }
+
+    // Natural end of data — pagination exhausted
+    if (!result.data || !result.data.length) {
+      return { count: totalUpserted, complete: true };
     }
 
     await upsertDeviceSnapshots(cohortId, tenant, result.data, runAt);
     totalUpserted += result.data.length;
 
-    if (result.data.length < BATCH_SIZE) break;
+    if (result.data.length < BATCH_SIZE) {
+      return { count: totalUpserted, complete: true };
+    }
     skip += BATCH_SIZE;
   }
-
-  return totalUpserted;
 }
 
 /**
@@ -201,21 +208,30 @@ async function refreshSitesForCohort(cohortId, tenant, runAt) {
       logger.error(
         `${JOB_NAME} -- listSites failed for cohort ${cohortId} skip=${skip}: ${err.message}`
       );
-      break;
+      // Propagate incomplete flag so the caller skips stale pruning
+      return { count: totalUpserted, complete: false };
     }
 
-    if (!result || !result.success || !result.data || !result.data.length) {
-      break;
+    if (!result || !result.success) {
+      logger.error(
+        `${JOB_NAME} -- listSites returned failure for cohort ${cohortId} skip=${skip}`
+      );
+      return { count: totalUpserted, complete: false };
+    }
+
+    // Natural end of data — pagination exhausted
+    if (!result.data || !result.data.length) {
+      return { count: totalUpserted, complete: true };
     }
 
     await upsertSiteSnapshots(cohortId, tenant, result.data, runAt);
     totalUpserted += result.data.length;
 
-    if (result.data.length < BATCH_SIZE) break;
+    if (result.data.length < BATCH_SIZE) {
+      return { count: totalUpserted, complete: true };
+    }
     skip += BATCH_SIZE;
   }
-
-  return totalUpserted;
 }
 
 /**
@@ -253,19 +269,27 @@ async function runCohortSnapshotJob() {
     const runAt = new Date(); // per-cohort timestamp for stale cleanup
 
     try {
-      const [deviceCount, siteCount] = await Promise.all([
+      const [deviceResult, siteResult] = await Promise.all([
         refreshDevicesForCohort(cohortId, TENANT, runAt),
         refreshSitesForCohort(cohortId, TENANT, runAt),
       ]);
 
-      // Remove devices / sites that left this cohort since the last run
-      await removeStaleSnapshots(cohortId, TENANT, runAt);
+      totalDevices += deviceResult.count;
+      totalSites += siteResult.count;
 
-      totalDevices += deviceCount;
-      totalSites += siteCount;
+      // Only prune stale documents when both refreshes completed without error.
+      // If either was interrupted mid-pagination, pruning would incorrectly delete
+      // valid snapshot documents for the portion that was not yet upserted.
+      if (deviceResult.complete && siteResult.complete) {
+        await removeStaleSnapshots(cohortId, TENANT, runAt);
+      } else {
+        logger.warn(
+          `${JOB_NAME} -- cohort ${cohortId}: skipping stale pruning (devices complete=${deviceResult.complete}, sites complete=${siteResult.complete})`
+        );
+      }
 
       logText(
-        `${JOB_NAME} -- cohort ${cohortId}: ${deviceCount} device(s), ${siteCount} site(s) refreshed`
+        `${JOB_NAME} -- cohort ${cohortId}: ${deviceResult.count} device(s), ${siteResult.count} site(s) refreshed`
       );
     } catch (err) {
       logger.error(
@@ -277,7 +301,7 @@ async function runCohortSnapshotJob() {
 
   const elapsed = ((Date.now() - jobStart) / 1000).toFixed(1);
   logText(
-    `${JOB_NAME} -- completed in ${elapsed}s: ${totalDevices} devices, ${totalSites} sites refreshed across ${cohorts.length} cohort(s), ${cohortErrors} error(s)`
+    `${JOB_NAME} -- completed in ${elapsed}s: ${totalDevices} device(s), ${totalSites} site(s) refreshed across ${cohorts.length} cohort(s), ${cohortErrors} error(s)`
   );
 }
 

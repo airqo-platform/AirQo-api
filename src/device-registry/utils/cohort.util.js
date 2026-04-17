@@ -2048,8 +2048,8 @@ const createCohort = {
         } = {},
       } = request;
 
-      const _skip = parseInt(rawSkip, 10) || 0;
-      const _limit = Math.min(parseInt(rawLimit, 10) || 10, 100);
+      const _skip = Math.max(0, parseInt(rawSkip, 10) || 0);
+      const _limit = Math.min(Math.max(1, parseInt(rawLimit, 10) || 10), 100);
 
       if (!cohort_ids.length) {
         return {
@@ -2073,22 +2073,22 @@ const createCohort = {
         };
       }
 
-      // Check whether the snapshot collection has data for these cohorts
-      const snapshotExists = await CohortDeviceSnapshotModel(tenant)
-        .findOne({ cohort_id: { $in: cohortObjectIds }, tenant })
-        .select("_id")
-        .lean()
+      // Check whether the snapshot collection has data for ALL requested cohorts.
+      // distinct() returns one entry per cohort that has at least one snapshot,
+      // so comparing the count against cohortObjectIds.length detects partial coverage.
+      const coveredCohortIds = await CohortDeviceSnapshotModel(tenant)
+        .distinct("cohort_id", { cohort_id: { $in: cohortObjectIds }, tenant })
         .maxTimeMS(5000);
 
-      // Fall back to the live aggregation if the snapshot is not yet populated
-      if (!snapshotExists) {
+      // Fall back to the live aggregation if any cohort lacks snapshot data
+      if (coveredCohortIds.length < cohortObjectIds.length) {
         logger.warn(
-          `listCachedDevices -- no snapshot found for cohort_ids [${cohort_ids}], falling back to live query`
+          `listCachedDevices -- snapshot incomplete for cohort_ids [${cohort_ids}] (${coveredCohortIds.length}/${cohortObjectIds.length} covered), falling back to live query`
         );
         return createCohort.listDevices(request, next);
       }
 
-      // Build the filter
+      // Build the filter — use top-level indexed fields, not data.*
       const filter = {
         cohort_id: { $in: cohortObjectIds },
         tenant,
@@ -2097,13 +2097,13 @@ const createCohort = {
         filter.name = { $regex: search, $options: "i" };
       }
       if (status) {
-        filter["data.status"] = status;
+        filter.status = status;
       }
       if (category) {
-        filter["data.category"] = category;
+        filter.category = category;
       }
       if (network) {
-        filter["data.network"] = network;
+        filter.network = network;
       }
 
       const [total, snapshots] = await Promise.all([
@@ -2114,22 +2114,38 @@ const createCohort = {
           .find(filter)
           .skip(_skip)
           .limit(_limit)
-          .select("data _snapshot_generated_at")
+          .select("device_id data _snapshot_generated_at")
           .lean()
           .maxTimeMS(10000),
       ]);
 
-      const devices = snapshots.map((s) => s.data);
+      // Deduplicate by device_id when a device appears in multiple cohorts
+      const seen = new Map();
+      for (const s of snapshots) {
+        const key = s.device_id.toString();
+        if (!seen.has(key)) seen.set(key, s.data);
+      }
+      const devices = [...seen.values()];
+
+      // Report the oldest snapshot age so the caller knows the cache staleness
       const cacheGeneratedAt =
-        snapshots.length > 0 ? snapshots[0]._snapshot_generated_at : null;
+        snapshots.length > 0
+          ? new Date(Math.min(...snapshots.map((s) => +s._snapshot_generated_at)))
+          : null;
+
+      const totalPages = Math.ceil(total / _limit);
 
       return {
         success: true,
         message: "Successfully retrieved cached devices",
         data: devices,
-        total,
-        skip: _skip,
-        limit: _limit,
+        meta: {
+          total,
+          skip: _skip,
+          limit: _limit,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages,
+        },
         cache_generated_at: cacheGeneratedAt,
       };
     } catch (error) {
@@ -2162,8 +2178,8 @@ const createCohort = {
         } = {},
       } = request;
 
-      const _skip = parseInt(rawSkip, 10) || 0;
-      const _limit = Math.min(parseInt(rawLimit, 10) || 10, 100);
+      const _skip = Math.max(0, parseInt(rawSkip, 10) || 0);
+      const _limit = Math.min(Math.max(1, parseInt(rawLimit, 10) || 10), 100);
 
       if (!cohort_ids.length) {
         return {
@@ -2187,15 +2203,14 @@ const createCohort = {
         };
       }
 
-      const snapshotExists = await CohortSiteSnapshotModel(tenant)
-        .findOne({ cohort_id: { $in: cohortObjectIds }, tenant })
-        .select("_id")
-        .lean()
+      // Check whether the snapshot collection has data for ALL requested cohorts
+      const coveredCohortIds = await CohortSiteSnapshotModel(tenant)
+        .distinct("cohort_id", { cohort_id: { $in: cohortObjectIds }, tenant })
         .maxTimeMS(5000);
 
-      if (!snapshotExists) {
+      if (coveredCohortIds.length < cohortObjectIds.length) {
         logger.warn(
-          `listCachedSites -- no snapshot found for cohort_ids [${cohort_ids}], falling back to live query`
+          `listCachedSites -- snapshot incomplete for cohort_ids [${cohort_ids}] (${coveredCohortIds.length}/${cohortObjectIds.length} covered), falling back to live query`
         );
         return createCohort.listSites(request, next);
       }
@@ -2222,22 +2237,38 @@ const createCohort = {
           .find(filter)
           .skip(_skip)
           .limit(_limit)
-          .select("data _snapshot_generated_at")
+          .select("site_id data _snapshot_generated_at")
           .lean()
           .maxTimeMS(10000),
       ]);
 
-      const sites = snapshots.map((s) => s.data);
+      // Deduplicate by site_id when a site appears in multiple cohorts
+      const seen = new Map();
+      for (const s of snapshots) {
+        const key = s.site_id.toString();
+        if (!seen.has(key)) seen.set(key, s.data);
+      }
+      const sites = [...seen.values()];
+
+      // Report the oldest snapshot age so the caller knows the cache staleness
       const cacheGeneratedAt =
-        snapshots.length > 0 ? snapshots[0]._snapshot_generated_at : null;
+        snapshots.length > 0
+          ? new Date(Math.min(...snapshots.map((s) => +s._snapshot_generated_at)))
+          : null;
+
+      const totalPages = Math.ceil(total / _limit);
 
       return {
         success: true,
         message: "Successfully retrieved cached sites",
         data: sites,
-        total,
-        skip: _skip,
-        limit: _limit,
+        meta: {
+          total,
+          skip: _skip,
+          limit: _limit,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages,
+        },
         cache_generated_at: cacheGeneratedAt,
       };
     } catch (error) {

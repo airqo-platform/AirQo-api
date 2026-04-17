@@ -48,6 +48,7 @@ cohortSiteSnapshotSchema.index(
 );
 
 cohortSiteSnapshotSchema.index({ cohort_id: 1, tenant: 1, name: 1 });
+cohortSiteSnapshotSchema.index({ cohort_id: 1, tenant: 1, search_name: 1 });
 cohortSiteSnapshotSchema.index({ cohort_id: 1, tenant: 1, country: 1 });
 
 cohortSiteSnapshotSchema.index(
@@ -59,7 +60,7 @@ const CohortSiteSnapshotModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    return mongoose.model("cohortsitesnapshots");
+    return mongoose.model("cohortsitesnapshot");
   } catch (error) {
     return getModelByTenant(
       dbTenant,

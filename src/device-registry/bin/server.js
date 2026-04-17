@@ -263,7 +263,9 @@ try {
 try {
   require("@bin/jobs/cohort-snapshot-job");
 } catch (jobError) {
-  console.error(`❌ cohort-snapshot-job failed to start: ${jobError.message}`);
+  global.dedupLogger.error(
+    `❌ cohort-snapshot-job failed to start: ${jobError.message}`
+  );
   // Continue - server stays up
 }
 

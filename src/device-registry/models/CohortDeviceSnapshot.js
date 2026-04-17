@@ -61,8 +61,13 @@ cohortDeviceSnapshotSchema.index(
 // Support search on name within a cohort
 cohortDeviceSnapshotSchema.index({ cohort_id: 1, tenant: 1, name: 1 });
 
-// Support isOnline / status filter within a cohort
+// Support isOnline filter within a cohort
 cohortDeviceSnapshotSchema.index({ cohort_id: 1, tenant: 1, isOnline: 1 });
+
+// Support status / category / network filters within a cohort
+cohortDeviceSnapshotSchema.index({ cohort_id: 1, tenant: 1, status: 1 });
+cohortDeviceSnapshotSchema.index({ cohort_id: 1, tenant: 1, category: 1 });
+cohortDeviceSnapshotSchema.index({ cohort_id: 1, tenant: 1, network: 1 });
 
 // Auto-expire stale documents after 25 hours (safety net if the job stops running)
 cohortDeviceSnapshotSchema.index(
@@ -74,7 +79,7 @@ const CohortDeviceSnapshotModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    return mongoose.model("cohortdevicesnapshots");
+    return mongoose.model("cohortdevicesnapshot");
   } catch (error) {
     return getModelByTenant(
       dbTenant,
