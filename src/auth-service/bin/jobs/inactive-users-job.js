@@ -28,12 +28,29 @@ const sendInactivityReminders = async () => {
     );
 
     while (true) {
+      // A user is considered inactive when BOTH their explicit login signal
+      // (lastLogin) AND their API activity signal (lastActiveAt, written by
+      // the preferences endpoints) are older than the threshold. If either
+      // signal is recent the user is still engaging with the platform and
+      // should not receive an inactivity reminder.
       const inactiveUsers = await UserModel(tenant)
         .find({
-          lastLogin: { $lt: inactiveThresholdDate },
-          $or: [
-            { last_inactive_reminder_sent_at: { $exists: false } },
-            { last_inactive_reminder_sent_at: { $lt: reminderCooldownDate } },
+          $and: [
+            // Both activity signals must be stale (or absent).
+            { lastLogin: { $lt: inactiveThresholdDate } },
+            {
+              $or: [
+                { lastActiveAt: null },
+                { lastActiveAt: { $lt: inactiveThresholdDate } },
+              ],
+            },
+            // Reminder cooldown — don't re-send within the cooldown window.
+            {
+              $or: [
+                { last_inactive_reminder_sent_at: { $exists: false } },
+                { last_inactive_reminder_sent_at: { $lt: reminderCooldownDate } },
+              ],
+            },
           ],
         })
         .limit(BATCH_SIZE)

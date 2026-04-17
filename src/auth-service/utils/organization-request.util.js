@@ -564,11 +564,15 @@ const organizationRequest = {
           orgRequest.branding_settings?.logo_url,
         );
 
-        // Create the group with validated profile picture and ensured slug
+        // Create the group with validated profile picture and ensured slug.
+        // grp_status is explicitly ACTIVE here because admin approval IS the
+        // activation step — the org request review is the gate, so the resulting
+        // group must be immediately usable.
         const baseGroupBody = {
           grp_title: orgRequest.organization_name,
           grp_description: orgRequest.use_case,
           organization_slug: organizationSlug, // Use the ensured slug
+          grp_status: "ACTIVE",
         };
 
         // Only add profile picture if it's valid

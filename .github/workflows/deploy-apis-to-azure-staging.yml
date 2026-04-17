@@ -841,6 +841,7 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_STAGE }}
+          context: azure-staging
 
       - name: Apply nginx changes
         run: kubectl apply -f k8s/nginx/staging/

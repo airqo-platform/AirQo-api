@@ -7,7 +7,7 @@ const httpStatus = require("http-status");
 const deviceUtil = require("@utils/device.util");
 const DeviceModel = require("@models/Device");
 const CohortModel = require("@models/Cohort");
-const generateFilter = require("@utils/generate-filter");
+const generateFilter = require("@utils/common/generate-filter");
 const ActivityModel = require("@models/Activity");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
@@ -2563,5 +2563,229 @@ describe("Device Util", () => {
     });
 
     // Add tests for other functions in deviceUtil
+  });
+
+  // ── createOnPlatform — adapter auto-population ────────────────────────────
+  // Tests for external-device behaviors added in PR A:
+  //   • user_id is optional
+  //   • api_code extracted from description URL (Step 1)
+  //   • api_code built from adapter template + serial_number (Step 2)
+  //   • serial_number derived from api_code via regex (Step 3)
+  //   • malformed cohort_id/user_id return 400
+  //   • airqo network bypasses adapter lookup
+  //
+  // Uses proxyquire to inject mock model factories (DB connection not needed).
+  describe("createOnPlatform — adapter auto-population", () => {
+    const proxyquire = require("proxyquire");
+
+    let proxiedDeviceUtil;
+    let getNetworkAdapterStub;
+    let deviceRegisterStub;
+    let cohortFindOneAndUpdateStub;
+    let cohortDefaultCohortLeanStub;
+    let cohortFindByIdLeanStub;
+    let nextStub;
+
+    const DEFAULT_COHORT_ID = new mongoose.Types.ObjectId();
+
+    before(() => {
+      // These stubs are shared across all tests; their return values are reset in beforeEach.
+      getNetworkAdapterStub = sinon.stub().resolves(null);
+      deviceRegisterStub = sinon.stub().resolves({ success: true, data: {} });
+      cohortFindOneAndUpdateStub = sinon.stub().resolves(null);
+      cohortDefaultCohortLeanStub = sinon.stub().resolves({ _id: DEFAULT_COHORT_ID });
+      cohortFindByIdLeanStub = sinon.stub().resolves(null);
+
+      const mockDeviceFactory = () => ({ register: deviceRegisterStub });
+      const mockCohortFactory = () => ({
+        findOneAndUpdate: cohortFindOneAndUpdateStub,
+        findOne: () => ({
+          select: () => ({ lean: cohortDefaultCohortLeanStub }),
+        }),
+        findById: () => ({ lean: cohortFindByIdLeanStub }),
+      });
+
+      proxiedDeviceUtil = proxyquire("../device.util", {
+        "@models/Device": mockDeviceFactory,
+        "@models/Cohort": mockCohortFactory,
+        "@utils/network.util": { getNetworkAdapter: getNetworkAdapterStub },
+      });
+    });
+
+    beforeEach(() => {
+      getNetworkAdapterStub.reset();
+      getNetworkAdapterStub.resolves(null);
+      deviceRegisterStub.reset();
+      deviceRegisterStub.resolves({ success: true, data: {} });
+      cohortFindOneAndUpdateStub.reset();
+      cohortFindOneAndUpdateStub.resolves(null);
+      cohortDefaultCohortLeanStub.reset();
+      cohortDefaultCohortLeanStub.resolves({ _id: DEFAULT_COHORT_ID });
+      cohortFindByIdLeanStub.reset();
+      cohortFindByIdLeanStub.resolves(null);
+      nextStub = sinon.stub();
+    });
+
+    // ── user_id optional ─────────────────────────────────────────────────────
+    it("creates device without user_id — no owner_id set, no personal cohort lookup", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: { name: "test-device", network: "airqo" },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.called).to.be.false;
+      expect(deviceRegisterStub.calledOnce).to.be.true;
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody).to.not.have.property("owner_id");
+      expect(cohortFindOneAndUpdateStub.called).to.be.false;
+    });
+
+    it("returns BAD_REQUEST when user_id is provided but malformed", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: { name: "test-device", network: "airqo", user_id: "not-an-objectid" },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.calledOnce).to.be.true;
+      const err = nextStub.getCall(0).args[0];
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    // ── api_code extracted from description URL (Step 1) ─────────────────────
+    it("Step 1: sets api_code from a trusted URL found in description", async () => {
+      getNetworkAdapterStub.resolves({ api_base_url: "https://device.iqair.com" });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          name: "iqair-1",
+          network: "iqair",
+          description: "Station at https://device.iqair.com/v2/ABC123",
+        },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.called).to.be.false;
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody.api_code).to.equal("https://device.iqair.com/v2/ABC123");
+    });
+
+    it("Step 1: ignores URL in description that does not match adapter base URL", async () => {
+      getNetworkAdapterStub.resolves({ api_base_url: "https://device.iqair.com" });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          name: "iqair-2",
+          network: "iqair",
+          description: "See https://evil.example.com/data",
+        },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.called).to.be.false;
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody.api_code).to.be.undefined;
+    });
+
+    // ── api_code built from template + serial_number (Step 2) ────────────────
+    it("Step 2: builds api_code from adapter URL template and serial_number", async () => {
+      getNetworkAdapterStub.resolves({
+        api_base_url: "https://api.airgradient.com",
+        api_url_template: "/public/api/v1/locations/{serial_number}/measures/current",
+      });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: { name: "ag-1", network: "airgradient", serial_number: "12345" },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.called).to.be.false;
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody.api_code).to.equal(
+        "https://api.airgradient.com/public/api/v1/locations/12345/measures/current"
+      );
+    });
+
+    it("Step 2: does not overwrite api_code already set", async () => {
+      getNetworkAdapterStub.resolves({
+        api_base_url: "https://device.iqair.com",
+        api_url_template: "/v2/{serial_number}",
+      });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          name: "iqair-3",
+          network: "iqair",
+          serial_number: "SERIAL1",
+          api_code: "https://device.iqair.com/v2/ALREADY_SET",
+        },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody.api_code).to.equal("https://device.iqair.com/v2/ALREADY_SET");
+    });
+
+    // ── serial_number derived from api_code via regex (Step 3) ───────────────
+    it("Step 3: derives serial_number from api_code using serial_number_regex", async () => {
+      getNetworkAdapterStub.resolves({ serial_number_regex: "/v2/([^/?#]+)" });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          name: "iqair-4",
+          network: "iqair",
+          api_code: "https://device.iqair.com/v2/SN_XYZ",
+        },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.called).to.be.false;
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody.serial_number).to.equal("SN_XYZ");
+    });
+
+    // ── invalid cohort_id format ──────────────────────────────────────────────
+    it("returns BAD_REQUEST for a cohort_id that is not a valid ObjectId", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          name: "test-device",
+          network: "airqo",
+          user_id: new mongoose.Types.ObjectId().toString(),
+          cohort_id: "not-a-valid-objectid",
+        },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.calledOnce).to.be.true;
+      const err = nextStub.getCall(0).args[0];
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    // ── airqo network bypasses adapter resolution ─────────────────────────────
+    it("does not call getNetworkAdapter for airqo-network devices", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        body: { name: "airqo-device", network: "airqo" },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(getNetworkAdapterStub.called).to.be.false;
+    });
   });
 });

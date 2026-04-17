@@ -47,6 +47,12 @@ const {
 
 const RBACService = require("@services/rbac.service");
 const { AbstractTokenFactory } = require("@services/atf.service");
+const {
+  parseUserAgent,
+  computeDeviceFingerprint,
+  getIpLocation,
+  extractIp,
+} = require("@utils/common/device.util");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -1624,7 +1630,7 @@ const createUserModule = {
         const firebase_uid = firebaseUser.uid;
 
         // Generate the custom token
-        const token = generateNumericToken(5);
+        const token = generateNumericToken(6);
 
         let generateCacheRequest = Object.assign({}, request);
         const userIdentifier = firebaseUser.email
@@ -2272,7 +2278,7 @@ const createUserModule = {
         };
       }
 
-      const token = generateNumericToken(5); // 5-digit code
+      const token = generateNumericToken(6); // 6-digit code
       const update = {
         deletionToken: token,
         deletionTokenExpires: Date.now() + 3600000, // 1 hour
@@ -2297,7 +2303,7 @@ const createUserModule = {
           return {
             success: true,
             message:
-              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
+              "Account deletion process initiated. Please check your email for a 6-digit confirmation code.",
             status: httpStatus.OK,
           };
         } else {
@@ -2647,7 +2653,7 @@ const createUserModule = {
             user: null,
             data: {
               verificationEmailSent: true,
-              nextStep: "Check your email for a 5-digit verification code",
+              nextStep: "Check your email for a 6-digit verification code",
             },
           };
         }
@@ -2677,19 +2683,40 @@ const createUserModule = {
       const userId = newUser._doc._id;
 
       // ── STEP 6: Generate mobile verification token ─────────────────────────────
-      const verificationToken = generateNumericToken(5);
+      // Uses 6-digit tokens (1,000,000 space) and retries once on E11000
+      // collision before rolling back the user. The previous 5-digit token
+      // (100,000 space) was the root cause of duplicate key errors in production.
       const tokenExpiry = 86400; // 24 hrs in seconds
+      let verifyTokenResponse;
+      let verificationToken; // hoisted so STEP 7 email send can reference it
 
-      const tokenCreationBody = {
-        token: verificationToken,
-        name: newUser._doc.firstName,
-        expires: new Date(Date.now() + tokenExpiry * 1000),
-      };
-
-      const verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
-        tokenCreationBody,
-        next,
-      );
+      const MAX_TOKEN_ATTEMPTS = 2;
+      for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+        verificationToken = generateNumericToken(6);
+        verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
+          {
+            token: verificationToken,
+            name: newUser._doc.firstName,
+            expires: new Date(Date.now() + tokenExpiry * 1000),
+          },
+          next,
+        );
+        if (
+          verifyTokenResponse.success ||
+          verifyTokenResponse.status !== httpStatus.CONFLICT
+        ) {
+          break;
+        }
+        if (attempt < MAX_TOKEN_ATTEMPTS) {
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — retrying`,
+          );
+        } else {
+          logger.warn(
+            `Verification token collision on attempt ${attempt} for mobile user ${normalizedEmail} — no more retries`,
+          );
+        }
+      }
 
       if (verifyTokenResponse && verifyTokenResponse.success === false) {
         logger.error(
@@ -2739,7 +2766,7 @@ const createUserModule = {
                 analyticsVersion: userDoc.analyticsVersion,
               },
               verificationEmailSent: true,
-              nextStep: "Check your email for a 5-digit verification code",
+              nextStep: "Check your email for a 6-digit verification code",
             },
           };
         } else {
@@ -3110,26 +3137,48 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 4: Generate mobile verification token (5-digit numeric)
-      const token = generateNumericToken(5);
-
-      const tokenCreationBody = {
-        token,
-        name: user.firstName,
-        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      };
+      // ✅ STEP 4: Generate mobile verification token (6-digit numeric)
+      // 6-digit tokens give 1,000,000 possible values — 10× the previous
+      // 5-digit range — and retries once on collision before failing.
 
       // ✅ STEP 5: Create token with cleanup of old expired tokens
       try {
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          token: { $regex: /^\d{5}$/ },
+          token: { $regex: /^\d{6}$/ },
           expires: { $lt: new Date() },
         });
 
-        const responseFromCreateToken = await VerifyTokenModel(
-          dbTenant,
-        ).register(tokenCreationBody, next);
+        let responseFromCreateToken;
+        let token; // hoisted so STEP 6 email send can reference it
+
+        const MAX_TOKEN_ATTEMPTS = 2;
+        for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+          token = generateNumericToken(6);
+          responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
+            {
+              token,
+              name: user.firstName,
+              expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+            },
+            next,
+          );
+          if (
+            responseFromCreateToken.success ||
+            responseFromCreateToken.status !== httpStatus.CONFLICT
+          ) {
+            break;
+          }
+          if (attempt < MAX_TOKEN_ATTEMPTS) {
+            logger.warn(
+              `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — retrying`,
+            );
+          } else {
+            logger.warn(
+              `Verification token collision on attempt ${attempt} for mobile resend ${normalizedEmail} — no more retries`,
+            );
+          }
+        }
 
         if (
           responseFromCreateToken &&
@@ -3163,7 +3212,7 @@ const createUserModule = {
                 email: user.email,
                 verified: user.verified,
                 reminderSent: true,
-                codeLength: 5,
+                codeLength: 6,
                 expiresIn: "24 hours",
               },
             };
@@ -3244,8 +3293,8 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Token format validation for mobile (5-digit numeric)
-      if (!/^\d{5}$/.test(token)) {
+      // ✅ STEP 2: Token format validation for mobile (6-digit numeric)
+      if (!/^\d{6}$/.test(token)) {
         logger.warn(
           `Invalid mobile verification token format for ${normalizedEmail}`,
           {
@@ -3260,7 +3309,7 @@ const createUserModule = {
           success: false,
           message: "Invalid verification code format",
           errors: {
-            token: "Verification code must be a 5-digit number",
+            token: "Verification code must be a 6-digit number",
           },
         };
       }
@@ -6416,7 +6465,7 @@ const createUserModule = {
         };
       }
 
-      // Update login statistics
+      // Update login statistics and check for new device
       (async () => {
         try {
           // Decide if auto-verification should happen.
@@ -6447,6 +6496,73 @@ const createUserModule = {
           logger.error(
             `Login stats/roles update error: ${updateError.message}`,
           );
+        }
+
+        // New device detection and email notification
+        try {
+          const ip = extractIp(request);
+          const uaString = request.headers["user-agent"] || "";
+          const fingerprint = computeDeviceFingerprint(ip, uaString);
+
+          // Atomic insert: only pushes the fingerprint if it is not already
+          // present, preventing duplicate entries and concurrent-login races.
+          const insertResult = await UserModel(dbTenant).updateOne(
+            { _id: user._id, "knownDevices.fingerprint": { $ne: fingerprint } },
+            {
+              $push: {
+                knownDevices: {
+                  $each: [{ fingerprint, lastSeenAt: new Date() }],
+                  $slice: -20,
+                },
+              },
+            },
+          );
+
+          if (insertResult.modifiedCount > 0) {
+            // Genuinely new device — resolve UA details and notify the user.
+            // If the back-fill or email fails, roll back the inserted fingerprint
+            // so the next login still triggers a notification attempt.
+            try {
+              const { os, browser, deviceType } = parseUserAgent(uaString);
+              const location = await getIpLocation(ip);
+
+              // Back-fill the UA fields now that we know it is a new device.
+              await UserModel(dbTenant).updateOne(
+                { _id: user._id, "knownDevices.fingerprint": fingerprint },
+                { $set: { "knownDevices.$.os": os, "knownDevices.$.browser": browser, "knownDevices.$.deviceType": deviceType } },
+              );
+
+              const mailResult = await mailer.newDeviceLogin({
+                email: user.email,
+                tenant: dbTenant,
+                firstName: user.firstName || "",
+                lastName: user.lastName || "",
+                os,
+                browser,
+                deviceType,
+                location,
+                loginTime: new Date(),
+              });
+
+              if (!mailResult || mailResult.success === false) {
+                throw new Error(mailResult?.message || "newDeviceLogin email failed");
+              }
+            } catch (notifyError) {
+              logger.error(`New device notify failed, rolling back fingerprint: ${notifyError.message}`);
+              await UserModel(dbTenant).updateOne(
+                { _id: user._id },
+                { $pull: { knownDevices: { fingerprint } } },
+              );
+            }
+          } else {
+            // Known device — just refresh the lastSeenAt timestamp.
+            await UserModel(dbTenant).updateOne(
+              { _id: user._id, "knownDevices.fingerprint": fingerprint },
+              { $set: { "knownDevices.$.lastSeenAt": new Date() } },
+            );
+          }
+        } catch (deviceError) {
+          logger.error(`New device check error: ${deviceError.message}`);
         }
       })();
 
@@ -7493,8 +7609,197 @@ const createUserModule = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FEEDBACK UTILITIES
+// Separated from createUserModule to keep concerns clear; exported individually.
+// ─────────────────────────────────────────────────────────────────────────────
+const FeedbackModel = require("@models/Feedback");
+
+// N1: single helper so all four methods share identical tenant resolution logic.
+const resolveFeedbackTenant = (query) =>
+  query.tenant
+    ? String(query.tenant).toLowerCase()
+    : constants.DEFAULT_TENANT || "airqo";
+
+// U3: allowed status transitions — enforced before every modify call.
+const FEEDBACK_TRANSITIONS = {
+  pending: ["reviewed", "archived"],
+  reviewed: ["resolved", "archived"],
+  resolved: [],
+  archived: [],
+};
+
+const feedbackUtil = {
+  submitFeedback: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { email, subject, message, rating, category, platform, metadata } =
+        body;
+
+      // U2: safely normalise email — validator guarantees it's present and a
+      // string at the HTTP layer, but guard here so a missing value yields a
+      // clear 400 instead of a TypeError in production.
+      if (typeof email !== "string" || !email.trim()) {
+        return {
+          success: false,
+          message: "email is required and must be a non-empty string",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "email is required" },
+        };
+      }
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Persist to database
+      const createResult = await FeedbackModel(tenant).register({
+        email: normalizedEmail,
+        subject,
+        message,
+        rating,
+        category,
+        platform,
+        metadata,
+        tenant,
+        userId: request.user ? request.user._id : undefined,
+      });
+
+      if (!createResult || !createResult.success) {
+        return createResult;
+      }
+
+      // Also dispatch a support email (best-effort; DB record already saved)
+      try {
+        await mailer.feedback(
+          { email: normalizedEmail, subject, message },
+          next,
+        );
+      } catch (emailError) {
+        logger.warn(
+          `Feedback saved to DB but support email failed: ${emailError.message}`,
+        );
+      }
+
+      return {
+        success: true,
+        message: "Feedback submitted successfully",
+        status: httpStatus.CREATED,
+        data: createResult.data,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  listFeedbackSubmissions: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = resolveFeedbackTenant(query);
+
+      // U1: clamp skip/limit to safe bounds even if the validator was bypassed.
+      const MAX_LIMIT = 1000;
+      const rawSkip = parseInt(query.skip, 10);
+      const rawLimit = parseInt(query.limit, 10);
+      const skip = Number.isFinite(rawSkip) ? Math.max(0, rawSkip) : 0;
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(MAX_LIMIT, Math.max(1, rawLimit))
+        : 100;
+
+      const filter = { tenant };
+      if (query.status) filter.status = query.status;
+      if (query.category) filter.category = query.category;
+      if (query.platform) filter.platform = query.platform;
+      if (query.email) filter.email = query.email.toLowerCase().trim();
+
+      return await FeedbackModel(tenant).list({ skip, limit, filter });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getFeedbackSubmission: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const filter = { _id: params.feedback_id, tenant };
+      // findSingle avoids the countDocuments overhead of list().
+      return await FeedbackModel(tenant).findSingle(filter);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  updateFeedbackStatus: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const requestedStatus = body.status;
+
+      // U3: enforce the status transition workflow before persisting.
+      const existing = await FeedbackModel(tenant).findSingle({
+        _id: params.feedback_id,
+        tenant,
+      });
+
+      if (!existing || !existing.success) {
+        return existing; // propagates the 404 from findSingle
+      }
+
+      const currentStatus = existing.data.status;
+      const allowed = FEEDBACK_TRANSITIONS[currentStatus] || [];
+
+      if (!allowed.includes(requestedStatus)) {
+        return {
+          success: false,
+          message: `Invalid status transition: "${currentStatus}" → "${requestedStatus}"`,
+          status: httpStatus.CONFLICT,
+          errors: {
+            message:
+              allowed.length > 0
+                ? `Allowed transitions from "${currentStatus}": ${allowed.join(", ")}`
+                : `"${currentStatus}" is a terminal status and cannot be changed`,
+          },
+        };
+      }
+
+      const filter = { _id: params.feedback_id, tenant };
+      return await FeedbackModel(tenant).modify({ filter, update: { status: requestedStatus } });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+};
+
 module.exports = {
   ...createUserModule,
+  ...feedbackUtil,
   generateNumericToken,
   ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
 };

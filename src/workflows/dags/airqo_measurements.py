@@ -411,7 +411,6 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
-
         data_api = DataApi()
         data_api.save_events(measurements=data)
 

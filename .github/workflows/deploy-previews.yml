@@ -1,9 +1,6 @@
 name: deploy-to-preview-environment
 
-on:
-  pull_request:
-    branches:
-      - staging
+on: workflow_dispatch
 
 env:
   REGISTRY_URL: eu.gcr.io

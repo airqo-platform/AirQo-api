@@ -1,5 +1,6 @@
 const constants = require("@config/constants");
 const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
 const { logObject, logText } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -270,19 +271,24 @@ const onRateLimitError = (error, req, res, next) => {
  * Create a safe rate limiter with error handling
  */
 const createSafeRateLimiter = (config) => {
+  // Extract keyGenerator separately so callers can override the default
+  // IP-based key. Placing ...config last would let callers override store,
+  // skip, and handler too, which is undesirable — so we only allow
+  // keyGenerator to be customised.
+  const { keyGenerator: configKeyGenerator, ...restConfig } = config;
   try {
     return rateLimit({
-      ...config,
+      ...restConfig,
       store: rateStore,
       skip: skipFunction,
       handler: rateLimitHandler,
-      keyGenerator,
-      // CRITICAL: Skip failed requests to avoid breaking the app
+      keyGenerator: configKeyGenerator || keyGenerator,
+      // Suppress the trust-proxy validation error — we use custom x-client-ip
+      // headers via keyGenerator so req.ip trustworthiness is irrelevant here.
+      validate: { trustProxy: false },
       skipFailedRequests: false,
       skipSuccessfulRequests: false,
-      // Add error handler
       requestWasSuccessful: (req, res) => res.statusCode < 400,
-      // If store throws error, handle it gracefully
     });
   } catch (error) {
     logger.error(`Failed to create rate limiter: ${error.message}`);
@@ -352,6 +358,59 @@ const readRateLimiter = createSafeRateLimiter({
 });
 
 /**
+ * Coarse IP-based guard for the /:token/verify endpoint.
+ *
+ * Applied before the per-token limiter to prevent high-cardinality bypass
+ * attacks where an abuser rotates many unique (invalid) tokens from the same
+ * IP, each getting its own fresh per-token bucket. 5000 req/hr per IP allows
+ * a legitimate internal service running ~2-3 tokens at up to 2000 req/hr
+ * each, while blocking any single IP that hammers the endpoint indiscriminately.
+ */
+const tokenVerifyIpRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many verification requests from this IP. Please try again later.",
+});
+
+/**
+ * Token-keyed rate limiter for the /:token/verify endpoint.
+ *
+ * Keyed by the token value from req.params.token rather than IP so that:
+ * - Each API client gets its own independent bucket regardless of the IP they
+ *   call from (internal services sharing a cluster IP won't collide).
+ * - External abuse of a single token is still capped.
+ *
+ * Limit: 2000 requests per hour per token — generous enough for busy
+ * service-to-service callers (~33/min) but low enough to cap runaway callers.
+ * Falls back to IP key if the token param is absent for any reason.
+ */
+const tokenVerifyRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many verification requests for this token. Please try again later.",
+  keyGenerator: (req) => {
+    const token = req.params.token;
+    if (token) {
+      // Hash the token so raw credentials are never stored in Redis keys or
+      // visible in datastore inspection/metrics. A 16-char hex prefix of
+      // SHA-256 gives 64 bits of collision resistance — sufficient for a
+      // rate-limit key while keeping key size small.
+      const hashed = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex")
+        .slice(0, 16);
+      return `token_verify_rl:${hashed}`;
+    }
+    return `token_verify_rl:ip:${extractIp(req)}`;
+  },
+});
+
+/**
  * Custom rate limiter factory
  */
 const createCustomRateLimiter = ({ windowMs, max, message }) => {
@@ -362,6 +421,65 @@ const createCustomRateLimiter = ({ windowMs, max, message }) => {
     standardHeaders: true,
     legacyHeaders: false,
   });
+};
+
+/**
+ * Key generator that uses authenticated user ID instead of IP.
+ * Falls back to IP if user is not authenticated.
+ */
+const userKeyGenerator = (req) => {
+  if (req.user && req.user._id) {
+    return `tier_rl:${req.user._id}`;
+  }
+  return `tier_rl:${extractIp(req)}`;
+};
+
+// Pre-built per-tier limiters (hourly window, keyed by user ID)
+const freeTierLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKeyGenerator,
+  message: "Hourly request limit reached for Free tier. Upgrade to Standard or Premium for higher limits.",
+});
+
+const standardTierLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKeyGenerator,
+  message: "Hourly request limit reached for Standard tier. Upgrade to Premium for higher limits.",
+});
+
+const premiumTierLimiter = createSafeRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userKeyGenerator,
+  message: "Hourly request limit reached for Premium tier.",
+});
+
+/**
+ * Subscription tier-aware rate limiter.
+ * Reads req.user.subscriptionTier (set by JWT auth middleware) and applies
+ * the matching pre-built limiter. Falls back to Free tier limits if the user
+ * is unauthenticated or has no subscriptionTier set.
+ *
+ * Usage: apply AFTER enhancedJWTAuth so req.user is populated.
+ */
+const tierBasedRateLimiter = (req, res, next) => {
+  try {
+    const tier = req.user?.subscriptionTier || "Free";
+    if (tier === "Premium") return premiumTierLimiter(req, res, next);
+    if (tier === "Standard") return standardTierLimiter(req, res, next);
+    return freeTierLimiter(req, res, next);
+  } catch (error) {
+    logger.error(`tierBasedRateLimiter error: ${error.message}`);
+    next(); // Fail open — never block a request due to rate-limiter error
+  }
 };
 
 // ============================================
@@ -424,6 +542,11 @@ module.exports = {
   authRateLimiter,
   writeRateLimiter,
   readRateLimiter,
+  tokenVerifyIpRateLimiter,
+  tokenVerifyRateLimiter,
+
+  // Subscription tier-aware limiter (apply after JWT auth)
+  tierBasedRateLimiter,
 
   // Factory function
   createCustomRateLimiter,

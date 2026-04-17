@@ -21,6 +21,8 @@ from urllib3.util.retry import Retry
 from airqo_etl_utils.utils import Utils
 from .config import configuration
 from .constants import DeviceCategory, DeviceNetwork, MetaDataType
+from .cache import TTLCache
+import simplejson as json
 
 import logging
 
@@ -31,9 +33,19 @@ RETRY_DELAY = 300
 max_workers = configuration.MAX_WORKERS
 
 
+# In-memory cache for DataApi responses
 class DataApi:
     def __init__(self) -> None:
-        pass
+        try:
+            if getattr(configuration, "API_CACHE_ENABLED", False):
+                self._api_cache = TTLCache(
+                    default_ttl=configuration.CACHE_TTL_SECONDS,
+                    cleanup_interval=configuration.CACHE_CLEANUP_INTERVAL_SECONDS,
+                )
+            else:
+                self._api_cache = None
+        except Exception:
+            self._api_cache = None
 
     def send_to_events_api(self, measurements: List) -> None:
         """
@@ -189,6 +201,16 @@ class DataApi:
 
         params = self.__check_api_params(params)
 
+        # cache key based on request params
+        try:
+            cache_key = f"dataapi:devices:{json.dumps(params, sort_keys=True)}"
+            if getattr(self, "_api_cache", None) is not None:
+                cached_devices = self._api_cache.get(cache_key)
+                if cached_devices is not None:
+                    return cached_devices
+        except Exception:
+            cache_key = None
+
         devices = [
             {
                 "device_id": device.pop("name"),
@@ -203,6 +225,12 @@ class DataApi:
                 "devices/summary", MetaDataType.DEVICES, params
             )
         ]
+
+        try:
+            if cache_key and getattr(self, "_api_cache", None) is not None:
+                self._api_cache.set(cache_key, devices)
+        except Exception:
+            pass
         return devices
 
     def __check_api_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -879,7 +907,17 @@ class DataApi:
         if network:
             query_params["network"] = network.str
 
-        return [
+        # cache key based on network
+        try:
+            cache_key = f"dataapi:sites:{network.str if network else 'all'}"
+            if getattr(self, "_api_cache", None) is not None:
+                cached_sites = self._api_cache.get(cache_key)
+                if cached_sites is not None:
+                    return cached_sites
+        except Exception:
+            cache_key = None
+
+        sites = [
             {
                 **site,
                 "approximate_latitude": site.get(
@@ -895,6 +933,14 @@ class DataApi:
                 "devices/sites", MetaDataType.SITES, query_params
             )
         ]
+
+        try:
+            if cache_key and getattr(self, "_api_cache", None) is not None:
+                self._api_cache.set(cache_key, sites)
+        except Exception:
+            pass
+
+        return sites
 
     def update_sites(self, updated_sites: List[Dict[str, Any]]) -> None:
         """

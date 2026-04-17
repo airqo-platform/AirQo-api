@@ -253,6 +253,8 @@ IconButton(
 | **npm**     | Push to `main` with a changeset |
 | **pub.dev** | Tag `flutter-v*.*.*`            |
 
+For local npm publishing, copy `.npmrc.example` to `.npmrc` and add your token there. Keep the real `.npmrc` uncommitted because it contains secrets.
+
 Example release flow:
 
 ```bash

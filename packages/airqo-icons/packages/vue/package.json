@@ -1,6 +1,6 @@
 {
   "name": "@airqo/icons-vue",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Production-ready Vue icon library with 1,383+ TypeScript components and tree-shakable imports",
   "type": "module",
   "main": "./dist/index.umd.cjs",
@@ -25,6 +25,7 @@
   ],
   "scripts": {
     "build:icons": "node ../../tools/generators/vue-generator.js",
+    "prepack": "npm run build",
     "build:bundle": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" vite build",
     "build": "npm run build:icons && npm run build:bundle",
     "dev": "npm run build:icons && vite build --watch",

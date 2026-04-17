@@ -6,14 +6,14 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-auth-api
-  tag: prod-00286f02-1774175427
+  tag: prod-ab53ff16-1776397590
 resources:
   limits:
     cpu: 400m
-    memory: 600Mi
+    memory: 1000Mi
   requests:
     cpu: 50m
-    memory: 250Mi
+    memory: 600Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -32,4 +32,4 @@ service:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  targetMemoryUtilizationPercentage: 85
+  targetMemoryUtilizationPercentage: 70

@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 mongoose.set("useNewUrlParser", true);
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
+// bufferTimeoutMS is a Mongoose-level setting and must NOT be passed to
+// mongoose.connect() options — the MongoDB driver does not recognise it and
+// emits a startup warning. Setting it here via mongoose.set() is correct.
+mongoose.set("bufferTimeoutMS", (() => {
+  const val = parseInt(process.env.MONGODB_BUFFER_TIMEOUT_MS, 10);
+  return Number.isFinite(val) && val > 0 ? val : 10000;
+})());
 // mongoose.set("debug", process.env.NODE_ENV === "development");
 const constants = require("./constants");
 const log4js = require("log4js");
@@ -31,7 +38,12 @@ const options = {
   // Default 100 supports ~1000 concurrent logins (each login uses ~3-5 pool
   // slots across auth + session + stats queries).
   poolSize: parseInt(constants.MONGODB_POOL_SIZE || "100", 10),
-  bufferMaxEntries: 0,
+  // bufferMaxEntries: 0 was removed to allow brief connection-loss windows
+  // (e.g. replica-set elections, TCP keepalive resets) to recover without
+  // failing every in-flight request. Operations now buffer for up to 10s
+  // before surfacing an error, matching the typical reconnect window.
+  // Long outages still surface as errors — just not on the first 200ms blip.
+  // (bufferTimeoutMS is set via mongoose.set() at the top of this file)
   connectTimeoutMS: 30000,
   socketTimeoutMS: 60000,
   serverSelectionTimeoutMS: 30000,
@@ -235,11 +247,21 @@ const connectToMongoDB = () => {
 
         const {
           ensureDefaultAirqoGroupExists,
+          activateAllExistingGroups,
         } = require("@bin/jobs/default-group-init-job");
-        console.log("🚀 Kicking off default group initialization...");
-        ensureDefaultAirqoGroupExists().catch((err) => {
+
+        // Awaited so both complete before further startup proceeds. The
+        // activation migration in particular must finish before the Option C
+        // JWT guard can safely enforce ACTIVE-only group permissions.
+        console.log("🚀 Initializing default group and running activation migration...");
+        await ensureDefaultAirqoGroupExists().catch((err) => {
           logger.error(
-            `Background job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+            `Startup job 'ensureDefaultAirqoGroupExists' failed: ${err.message}`,
+          );
+        });
+        await activateAllExistingGroups().catch((err) => {
+          logger.error(
+            `Startup job 'activateAllExistingGroups' failed: ${err.message}`,
           );
         });
 

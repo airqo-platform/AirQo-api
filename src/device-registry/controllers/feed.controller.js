@@ -13,6 +13,11 @@ const { stringify } = require("@utils/common");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- feed-controller`);
 
 const createFeed = {
+  // ── GET /recent/:ch_id ────────────────────────────────────────────────────
+  // ch_id is accepted as either:
+  //   • all-digit string  → ThingSpeak channel (AirQo)
+  //   • alphanumeric      → serial_number (external devices)
+  // getDeviceFeed() in feed.util.js handles the resolution.
   getLastFeed: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -24,20 +29,14 @@ const createFeed = {
       }
 
       const { start, end, ch_id } = { ...req.query, ...req.params };
-      const channel = ch_id;
 
+      // Pass ch_id as-is — getDeviceFeed()/resolveDevice() handles type
+      // detection internally (numeric string → device_number, else serial_number).
+      // Coercing to an integer here would strip leading zeros and misclassify
+      // digit-only serial numbers.
       try {
-        const apiKeyResponse = await createFeedUtil.getAPIKey(channel, next);
-        if (apiKeyResponse.success !== true) {
-          return res.status(apiKeyResponse.status).json(apiKeyResponse);
-        }
-        const api_key = apiKeyResponse.data;
-        const request = { channel, api_key, start, end };
-        const thingspeakData = await createFeedUtil.fetchThingspeakData(
-          request
-        );
-        const { status, data } = createFeedUtil.handleThingspeakResponse(
-          thingspeakData
+        const { status, data } = await createFeedUtil.getDeviceFeed(
+          { identifier: ch_id, start, end, transform: false }
         );
         return res.status(status).json(data);
       } catch (error) {
@@ -49,7 +48,6 @@ const createFeed = {
           ? error.response.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         next(new HttpError(message, statusCode, { message: error.message }));
         return;
       }
@@ -66,6 +64,10 @@ const createFeed = {
     }
   },
 
+  // ── GET /transform/recent ─────────────────────────────────────────────────
+  // Accepts:
+  //   • ?channel=<number>         → AirQo device (ThingSpeak)
+  //   • ?serial_number=<string>   → external device (manufacturer API)
   generateDescriptiveLastEntry: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -76,22 +78,15 @@ const createFeed = {
         return;
       }
 
-      const { channel, start, end } = req.query;
+      const { channel, serial_number, start, end } = req.query;
+
+      // Resolve identifier: numeric channel takes precedence when both are
+      // somehow present (shouldn't happen given oneOf validation, but be safe).
+      const identifier = channel ? parseInt(channel, 10) : serial_number;
 
       try {
-        const apiKeyResponse = await createFeedUtil.getAPIKey(channel, next);
-        if (apiKeyResponse.success !== true) {
-          return res.status(apiKeyResponse.status).json(apiKeyResponse);
-        }
-        const api_key = apiKeyResponse.data;
-        const request = { channel, api_key, start, end };
-        const thingspeakData = await createFeedUtil.fetchThingspeakData(
-          request
-        );
-
-        const { status, data } = await createFeedUtil.processDeviceMeasurements(
-          thingspeakData.feeds[0],
-          thingspeakData.channel
+        const { status, data } = await createFeedUtil.getDeviceFeed(
+          { identifier, start, end, transform: true }
         );
         return res.status(status).json(data);
       } catch (error) {
@@ -105,7 +100,6 @@ const createFeed = {
           ? error.response.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         next(new HttpError(message, statusCode, error));
         return;
       }

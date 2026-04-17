@@ -14,6 +14,51 @@ const processString = (inputString) => {
   return uppercasedString;
 };
 
+/**
+ * Builds the shared token-identification and security-tip HTML segments used
+ * in both token-expiry email templates. Centralises masking, HTML-escaping,
+ * date validation, and the security-tip callout so neither template diverges.
+ *
+ * @param {object} opts
+ * @param {string}  opts.token       - Raw or pre-masked token value
+ * @param {string}  opts.tokenName   - Human-readable token name (may contain HTML)
+ * @param {*}       opts.expires     - Expiry value (Date, ISO string, timestamp, …)
+ * @param {boolean} opts.expiredMode - true → past-tense copy; false → future-tense
+ * @returns {{ maskedToken: string, tokenLabel: string, expiryLine: string, securityTip: string }}
+ */
+const buildTokenEmailSegment = ({
+  token = "",
+  tokenName = "",
+  expires = null,
+  expiredMode = false,
+} = {}) => {
+  const maskedToken = escapeHtml(
+    token && token.length > 12
+      ? `${token.slice(0, 8)}...${token.slice(-4)}`
+      : token || "N/A",
+  );
+
+  const tokenLabel = tokenName
+    ? ` (<strong>${escapeHtml(tokenName)}</strong>)`
+    : "";
+
+  let expiryLine = expiredMode
+    ? ""
+    : "<p>This token will expire in less than 1 month from today.</p>";
+  if (expires !== null && expires !== undefined) {
+    const expiryDate = new Date(expires);
+    if (!isNaN(expiryDate.getTime())) {
+      expiryLine = expiredMode
+        ? `<p>This token expired on <strong>${expiryDate.toDateString()}</strong>.</p>`
+        : `<p>This token will expire on <strong>${expiryDate.toDateString()}</strong>.</p>`;
+    }
+  }
+
+  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this under <strong>Settings &rsaquo; API</strong> in <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>.</p>`;
+
+  return { maskedToken, tokenLabel, expiryLine, securityTip };
+};
+
 module.exports = {
   confirm: "Email sent, please check your inbox to confirm",
   confirmed: "Your email is confirmed!",
@@ -596,31 +641,75 @@ module.exports = {
     lastName = "",
     email = "",
     token = "",
+    tokenName = "",
+    expires = null,
   } = {}) => {
     const name = firstName + " " + lastName;
+    const { maskedToken, tokenLabel, expiryLine, securityTip } =
+      buildTokenEmailSegment({ token, tokenName, expires, expiredMode: true });
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Your AIRQO API token <strong>${token}</strong> has expired.</p>
-        <p>Please create a new token to continue accessing our services. You can do so by logging into your account and navigating to the API section under settings.</p>
-        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Click here</a> to log in to your AirQo account.</p>
+        <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} has expired.</p>
+        ${expiryLine}
+        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
+        ${securityTip}
       </td>
     </tr>
     `;
 
     return constants.EMAIL_BODY({ email, content, name });
   },
-  tokenExpiringSoon: ({ firstName = "", lastName = "", email = "" }) => {
+  newDeviceLogin: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    os = "Unknown OS",
+    browser = "Unknown Browser",
+    deviceType = "Unknown",
+    location = null,
+    loginTime = new Date(),
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const timeStr = loginTime instanceof Date ? loginTime.toUTCString() : String(loginTime);
+    const locationLine = location
+      ? `<p><strong>Location:</strong> ${escapeHtml(location)}</p>`
+      : "";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We noticed a new sign-in to your AirQo account from a device we don't recognise.</p>
+        <p><strong>Device:</strong> ${escapeHtml(deviceType)} &mdash; ${escapeHtml(os)}, ${escapeHtml(browser)}</p>
+        ${locationLine}
+        <p><strong>Time:</strong> ${timeStr}</p>
+        <p>If this was you, you can safely ignore this email. If you don't recognise this activity, please change your password immediately and contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">click here</a> to review your account security settings.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  tokenExpiringSoon: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    expires = null,
+  } = {}) => {
     const name = firstName + " " + lastName;
-    let content = "";
-    content = `
+    const { maskedToken, tokenLabel, expiryLine, securityTip } =
+      buildTokenEmailSegment({ token, tokenName, expires, expiredMode: false });
+    const content = `
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <p>Your AIRQO API token is set to expire soon, in less than 1 month from today.</p>
-          <p>Please generate a new token to continue accessing our services.</p>
-          <p>If you have already done so, please ignore this message.</p>
-          <p>You can manage your API token settings through the AirQo web platform or directly within the mobile app.</p>
+          <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} is expiring soon.</p>
+          ${expiryLine}
+          <p>You can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
+          <p>If you have already refreshed your token, please ignore this message.</p>
+          <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
+          ${securityTip}
         </td>
       </tr>
     `;
@@ -1178,6 +1267,60 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
+  accountScheduledForDeletion: ({ firstName, email, deletionDate }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We noticed that your AirQo account has been inactive for over a year.
+                                    <br /><br />
+                                    To keep our platform clean and secure, inactive accounts are periodically removed. Your account is scheduled for permanent deletion on <strong>${deletionDate}</strong>.
+                                    <br /><br />
+                                    <strong>If you'd like to keep your account, simply log in before that date — no other action is needed.</strong>
+                                    <br /><br />
+                                    <a href="${constants.LOGIN_PAGE}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Log In to Keep My Account
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    If you no longer need your account, you can safely ignore this email.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  accountDeletionFinalReminder: ({ firstName, email, deletionDate, reminderDays }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    <strong>This is a final reminder.</strong> Your AirQo account is scheduled for permanent deletion on <strong>${deletionDate}</strong> — that's in ${reminderDays} day${reminderDays === 1 ? "" : "s"}.
+                                    <br /><br />
+                                    Once deleted, your account and all associated data cannot be recovered.
+                                    <br /><br />
+                                    <strong>Log in now to cancel the deletion and keep your account active.</strong>
+                                    <br /><br />
+                                    <a href="${constants.LOGIN_PAGE}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #D92D20; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Log In to Cancel Deletion
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    If you no longer need your account, no action is required.
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
   mobileAccountDeletionCode: ({ firstName, email, token }) => {
     const name = firstName;
     const content = ` <tr>
@@ -1387,5 +1530,157 @@ module.exports = {
     </td>
   </tr>`;
     return constants.EMAIL_BODY({ email: userEmail, content, name: "Admin" });
+  },
+
+  // ── Sensor manufacturer (network) creation request emails ──────────────────
+  //
+  // Terminology: internally "networks"; in all user-facing copy "sensor manufacturers".
+  //
+  // Four emails in the workflow:
+  //   1. notifyAdminOfSensorManufacturerRequest  → sent to the AirQo admin
+  //   2. confirmSensorManufacturerRequestReceived → sent to the requester
+  //   3. notifySensorManufacturerRequestApproved  → sent to the requester on approval
+  //   4. notifySensorManufacturerRequestDenied    → sent to the requester on denial
+
+  notifyAdminOfSensorManufacturerRequest: ({
+    requester_name,
+    requester_email,
+    net_name,
+    net_email,
+    net_website,
+    net_category,
+    net_description,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A new sensor manufacturer onboarding request has been submitted and is awaiting your review.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; width: 40%;">Sensor Manufacturer Name:</td>
+            <td style="padding: 6px 0;">${escapeHtml(net_name)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600;">Contact Email:</td>
+            <td style="padding: 6px 0;">${escapeHtml(net_email)}</td>
+          </tr>
+          ${net_website ? `<tr><td style="padding: 6px 0; font-weight: 600;">Website:</td><td style="padding: 6px 0;">${escapeHtml(net_website)}</td></tr>` : ""}
+          ${net_category ? `<tr><td style="padding: 6px 0; font-weight: 600;">Category:</td><td style="padding: 6px 0;">${escapeHtml(net_category)}</td></tr>` : ""}
+          ${net_description ? `<tr><td style="padding: 6px 0; font-weight: 600;">Description:</td><td style="padding: 6px 0;">${escapeHtml(net_description)}</td></tr>` : ""}
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600;">Submitted By:</td>
+            <td style="padding: 6px 0;">${escapeHtml(requester_name)} (${escapeHtml(requester_email)})</td>
+          </tr>
+        </table>
+        <p>Please review and process this request in the admin dashboard.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL || "support@airqo.net",
+      content,
+    });
+  },
+
+  confirmSensorManufacturerRequestReceived: ({
+    requester_name,
+    requester_email,
+    net_name,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Thank you for submitting a request to onboard <strong>${escapeHtml(net_name)}</strong> as a sensor manufacturer on the AirQo platform.</p>
+        <p>We have received your request and our team will review it shortly. You will receive a follow-up email once your request has been processed.</p>
+        <p>If you have any questions in the meantime, please contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>Thank you for contributing to cleaner air across Africa.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: requester_email,
+      content,
+      name: requester_name,
+    });
+  },
+
+  notifySensorManufacturerRequestApproved: ({
+    requester_name,
+    requester_email,
+    net_name,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Great news! Your request to onboard <strong>${escapeHtml(net_name)}</strong> as a sensor manufacturer on the AirQo platform has been <strong>approved</strong>.</p>
+        <p>The sensor manufacturer profile has been created and is now available in the AirQo system. Our team will be in touch to guide you through the next steps of the integration process.</p>
+        <p>If you have any questions, please contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>Welcome to the AirQo network!</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: requester_email,
+      content,
+      name: requester_name,
+    });
+  },
+
+  notifySensorManufacturerRequestDenied: ({
+    requester_name,
+    requester_email,
+    net_name,
+    reviewer_notes,
+  }) => {
+    const notesRow = reviewer_notes
+      ? `<p><strong>Reason:</strong> ${escapeHtml(reviewer_notes)}</p>`
+      : "";
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Thank you for your interest in partnering with AirQo as a sensor manufacturer.</p>
+        <p>After careful review, we regret to inform you that your request to onboard <strong>${escapeHtml(net_name)}</strong> has not been approved at this time.</p>
+        ${notesRow}
+        <p>If you believe this decision was made in error, or if you would like to provide additional information, please contact us at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+        <p>We appreciate your interest in the AirQo network and encourage you to reach out if your circumstances change.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email: requester_email,
+      content,
+      name: requester_name,
+    });
+  },
+
+  // Sent to all group members and the manager when an admin changes group status.
+  // Deactivation (INACTIVE/SUSPENDED/ARCHIVED) always triggers this regardless
+  // of the notify_members flag. Activation also sends to the manager.
+  groupStatusChanged: ({ organization_name, contact_name, new_status, reason, email = "" }) => {
+    const statusLabel =
+      {
+        ACTIVE: "Active",
+        INACTIVE: "Inactive",
+        SUSPENDED: "Suspended",
+        ARCHIVED: "Archived",
+        MAINTENANCE: "Under Maintenance",
+      }[new_status] || new_status;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>The status of your organisation <strong>${escapeHtml(organization_name)}</strong> has been updated to <strong>${escapeHtml(statusLabel)}</strong>.</p>
+        ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
+        <p>If you have any questions, please contact our support team at support@airqo.net.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email, content, name: contact_name });
   },
 };

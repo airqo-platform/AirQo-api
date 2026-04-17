@@ -1323,6 +1323,83 @@ class BigQueryApi:
         except Exception as e:
             raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
+    def fetch_raw_site_data_for_forecast_jobs(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        min_hours: int = 16,
+    ) -> pd.DataFrame:
+        """Fetch daily site-level forecast input from the consolidated table.
+
+        Despite the legacy method name, this helper now reads from
+        ``BIGQUERY_ANALYTICS_TABLE`` instead of the raw device measurements
+        table. It aggregates hourly consolidated measurements into one row per
+        ``site_id`` and day for site-level forecasting.
+
+        Data selection rules:
+        - Reads from ``self.consolidated_data_table``.
+        - Filters to the inclusive date window ``[start_date_time, end_date_time]``.
+        - Keeps only rows with non-null ``site_id``.
+        - Keeps only rows with non-null ``pm2_5_calibrated_value``.
+        - Requires at least ``min_hours`` distinct hourly timestamps per site/day.
+        - Left-joins ``self.sites_table`` so missing site names or coordinates on
+          consolidated rows can be backfilled from site metadata.
+
+        Args:
+            start_date_time (str): Start date in a pandas-parseable format,
+                typically ``YYYY-MM-DD``.
+            end_date_time (str): End date in a pandas-parseable format,
+                typically ``YYYY-MM-DD``.
+            min_hours (int, optional): Minimum number of distinct hourly records
+                required for a site/day aggregate to be included. Defaults to 16.
+
+        Returns:
+            pd.DataFrame: Daily site aggregates with these columns:
+                ``day``, ``site_id``, ``site_name``, ``site_latitude``,
+                ``site_longitude``, ``pm25_mean``, ``pm25_min``, ``pm25_max``,
+                and ``n_hours``.
+
+        Raises:
+            ValueError: If ``min_hours`` is invalid, the dates cannot be parsed,
+                the date range is inverted, or required BigQuery table
+                configuration is missing.
+            RuntimeError: If the query execution fails.
+        """
+        if min_hours <= 0:
+            raise ValueError(f"min_hours must be a positive integer, got {min_hours}")
+
+        try:
+            start_date = pd.to_datetime(start_date_time).date()
+            end_date = pd.to_datetime(end_date_time).date()
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid date format. start_date_time='{start_date_time}', end_date_time='{end_date_time}'"
+            ) from e
+
+        if start_date > end_date:
+            raise ValueError(
+                f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
+            )
+
+        if not self.consolidated_data_table:
+            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
+
+        if not self.sites_table:
+            raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
+
+        query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs").format(
+            consolidated_table=f"`{self.consolidated_data_table}`",
+            sites_table=f"`{self.sites_table}`",
+            start_date=str(start_date),
+            end_date=str(end_date),
+            min_hours=2,
+        )
+
+        try:
+            return self.execute_data_query(query=query)
+        except Exception as e:
+            raise RuntimeError(f"Error fetching consolidated site forecast data: {e}")
+
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,

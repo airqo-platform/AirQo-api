@@ -229,20 +229,8 @@ const userController = {
         }
       })();
 
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: true,
-      });
-
-      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        res.cookie("temp_access_token", token, {
-          httpOnly: false,
-          secure: true,
-        });
-      }
-
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -334,21 +322,8 @@ const userController = {
         }
       })();
 
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: true,
-      });
-
-      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        res.cookie("temp_access_token", token, {
-          httpOnly: false,
-          secure: true,
-        });
-      }
-
       return res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home` +
-          `?success=${providerForLog}`,
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -748,7 +723,7 @@ const userController = {
       if (!request) return;
       const { email } = request.body;
       const { tenant } = request.query;
-      const token = userUtil.generateNumericToken(5);
+      const token = userUtil.generateNumericToken(6);
       const result = await userUtil.initiatePasswordReset({
         email,
         token,
@@ -1320,6 +1295,46 @@ const userController = {
   },
 
   /**
+   * Silent token refresh — accepts tokens expired within the last 7 days.
+   * Called by mobile clients to renew a session without requiring re-login.
+   * @route POST /api/v2/users/token/refresh
+   */
+  refreshToken: async (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "No authenticated user found",
+          }),
+        );
+      }
+
+      const tenant = String(
+        req.query.tenant || req.body.tenant || constants.DEFAULT_TENANT || "airqo",
+      ).toLowerCase();
+
+      const tokenFactory = new AbstractTokenFactory(tenant);
+      const strategy = userUtil._getEffectiveTokenStrategy(user);
+      const TOKEN_LIFE_SECONDS = constants.JWT_EXPIRES_IN_SECONDS || 86400;
+
+      const newToken = await tokenFactory.createToken(user, strategy, {
+        expiresIn: `${TOKEN_LIFE_SECONDS}s`,
+      });
+
+      return res.status(httpStatus.OK).json({
+        success: true,
+        message: "Token refreshed successfully",
+        token: `JWT ${newToken}`,
+        expiresIn: TOKEN_LIFE_SECONDS,
+      });
+    } catch (error) {
+      logger.error(`🐛 Token refresh controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
+  /**
    * Refresh user permissions and optionally regenerate token
    * @route POST /api/v2/users/refreshPermissions
    */
@@ -1705,6 +1720,67 @@ const userController = {
       return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Legacy login controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
+  // ── FEEDBACK (persistent) ───────────────────────────────────────────────────
+
+  submitFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.submitFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listFeedbackSubmissions: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listFeedbackSubmissions(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          feedbacks: result.data,
+          meta: result.meta,
+        });
+      }
+      return res
+        .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "Internal Server Error" },
+        });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  getFeedbackSubmission: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getFeedbackSubmission(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateFeedbackStatus: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateFeedbackStatus(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
       handleError(error, next);
     }
   },

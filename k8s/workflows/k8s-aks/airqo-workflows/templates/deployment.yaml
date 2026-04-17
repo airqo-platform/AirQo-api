@@ -27,7 +27,15 @@ spec:
         app: {{ .Values.app.label }}
     spec:
       restartPolicy: Always
+      terminationGracePeriodSeconds: 600
       serviceAccountName: {{ .Values.app.serviceAccount }}
+
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+
       initContainers:
         - name: '{{ .Values.app.name }}-xcom'
           image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
@@ -73,7 +81,14 @@ spec:
             - secretRef:
                 name: {{ .Values.app.secret }}
           command: ["airflow"]
-          args: ["celery", "worker", "--autoscale=4,2"]
+          args: ["celery", "worker", "--autoscale=6,2"]
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - "airflow celery stop; sleep 5"
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

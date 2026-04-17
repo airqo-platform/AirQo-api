@@ -5,6 +5,8 @@ from typing import Dict, List, Any, Sequence, Optional, Tuple
 import logging
 
 from dateutil.relativedelta import relativedelta
+from google.api_core import exceptions as google_api_exceptions
+from google.cloud import bigquery
 from pymongo.errors import ServerSelectionTimeoutError
 import mlflow
 import numpy as np
@@ -17,15 +19,17 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from .config import configuration, db
-from .constants import Frequency
+from .constants import Frequency, JobAction, SITE_DAILY_FORECAST_MET_COLUMNS
 from .date import DateUtils
 from airqo_etl_utils.storage import (
     get_configured_storage,
     GCSFileStorage,
     FileStorage,
 )
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.utils.machine_learning.mlflow_tracker import MlflowTracker
 from airqo_etl_utils.sql import query_manager
+from airqo_etl_utils.utils import Utils
 
 logger = logging.getLogger("airflow.task")
 
@@ -312,6 +316,50 @@ class BaseMlUtils:
         df["z_cord"] = np.sin(df["latitude"])
 
         return df
+
+    @staticmethod
+    def calculate_forecast_confidence(
+        mean_forecast: Sequence[float],
+        q10_forecast: Sequence[float],
+        q90_forecast: Sequence[float],
+    ) -> np.ndarray:
+        """Derive an intuitive 0-100 confidence score from q10/q90 spread.
+
+        Assumes the forecast spread is approximately normal so that the
+        predicted standard deviation can be estimated from the central 80%
+        interval:
+
+            sigma ~= (q90 - q10) / (2 * 1.28155)
+
+        The returned score is not a calibrated probability. It is a relative,
+        scale-aware confidence heuristic where tighter intervals around the
+        mean yield higher values:
+
+            confidence = max(0, min(100, (1 - sigma / |mean|) * 100))
+        """
+        mean_array = np.asarray(mean_forecast, dtype=float)
+        q10_array = np.asarray(q10_forecast, dtype=float)
+        q90_array = np.asarray(q90_forecast, dtype=float)
+
+        spread = np.maximum(q90_array - q10_array, 0.0)
+        sigma = spread / (2 * 1.2815515655446004)
+        denominator = np.maximum(np.abs(mean_array), 1e-6)
+        confidence = (1 - (sigma / denominator)) * 100
+
+        return np.clip(confidence, 0.0, 100.0)
+
+    @staticmethod
+    def round_numeric_columns(
+        data: pd.DataFrame, column_digits: Dict[str, int]
+    ) -> pd.DataFrame:
+        """Round selected numeric columns in-place when they exist."""
+        for column, digits in column_digits.items():
+            if column not in data.columns:
+                continue
+
+            data[column] = pd.to_numeric(data[column], errors="coerce").round(digits)
+
+        return data
 
 
 class ForecastUtils(BaseMlUtils):
@@ -1026,6 +1074,12 @@ class ForecastModelTrainer(BaseMlUtils):
     # helpers
     # -------------------------
     @staticmethod
+    def _build_site_id_mapping(site_ids: pd.Series) -> Dict[str, int]:
+        """Build a deterministic numeric encoding for site IDs."""
+        ordered_site_ids = sorted({str(site_id) for site_id in site_ids.dropna()})
+        return {site_id: idx for idx, site_id in enumerate(ordered_site_ids)}
+
+    @staticmethod
     def _prep_time_split(
         df: pd.DataFrame,
         *,
@@ -1379,6 +1433,9 @@ class ForecastModelTrainer(BaseMlUtils):
             "date_col": date_col,
             "metrics": metrics,
             "params": params,
+            "site_id_mapping": ForecastModelTrainer._build_site_id_mapping(
+                df["site_id"]
+            ),
         }
 
         deployment = ForecastModelTrainer._deploy_if_better(
@@ -1506,6 +1563,9 @@ class ForecastModelTrainer(BaseMlUtils):
             "date_col": date_col,
             "metrics": metrics,
             "params": params,
+            "site_id_mapping": ForecastModelTrainer._build_site_id_mapping(
+                df["site_id"]
+            ),
         }
 
         deployment = ForecastModelTrainer._deploy_if_better(
@@ -1826,6 +1886,769 @@ class ForecastModelTrainer(BaseMlUtils):
         )
 
         return results
+
+    @staticmethod
+    def _load_site_forecast_artifacts() -> Dict[str, Dict[str, Any]]:
+        """Load the five deployed site-level forecast artifacts from GCS."""
+        bucket_name = configuration.FORECAST_MODELS_BUCKET
+        if not bucket_name:
+            raise ValueError("Missing required config: FORECAST_MODELS_BUCKET.")
+
+        storage: FileStorage = GCSFileStorage()
+        blobs = {
+            "mean": "daily_pm25_mean_model.pkl",
+            "min": "daily_pm25_min_model.pkl",
+            "max": "daily_pm25_max_model.pkl",
+            "low": "daily_pm25_low_model.pkl",
+            "high": "daily_pm25_high_model.pkl",
+        }
+
+        artifacts: Dict[str, Dict[str, Any]] = {}
+        for label, blob_name in blobs.items():
+            artifact = storage.load_file_object(bucket=bucket_name, source_file=blob_name)
+            if not isinstance(artifact, dict) or "model" not in artifact:
+                raise ValueError(f"Invalid artifact loaded for site forecast model '{label}'.")
+            artifacts[label] = artifact
+
+        return artifacts
+
+    @staticmethod
+    def _get_prediction_site_mapping(
+        artifacts: Dict[str, Dict[str, Any]], history: pd.DataFrame
+    ) -> Dict[str, int]:
+        """Use stored site encoding when available, otherwise fall back safely."""
+        mapping = artifacts.get("mean", {}).get("site_id_mapping")
+        if isinstance(mapping, dict) and mapping:
+            return {str(key): int(value) for key, value in mapping.items()}
+
+        logger.warning(
+            "Site forecast artifacts do not include site_id_mapping; falling back to alphabetical site encoding."
+        )
+        return ForecastModelTrainer._build_site_id_mapping(history["site_id"])
+
+    @staticmethod
+    def _resolve_site_forecast_metadata(history: pd.DataFrame) -> pd.DataFrame:
+        """Keep one metadata row per site, preferring the latest non-null coordinates."""
+
+        def _latest_non_null(series: pd.Series):
+            non_null = series.dropna()
+            if non_null.empty:
+                return np.nan
+            return non_null.iloc[-1]
+
+        metadata = history[
+            ["site_id", "site_name", "site_latitude", "site_longitude", "day"]
+        ].copy()
+        metadata = metadata.sort_values(["site_id", "day"])
+
+        return (
+            metadata.groupby("site_id", as_index=False)
+            .agg(
+                site_name=("site_name", "last"),
+                site_latitude=("site_latitude", _latest_non_null),
+                site_longitude=("site_longitude", _latest_non_null),
+            )
+            .drop(columns=["day"], errors="ignore")
+        )
+
+    @staticmethod
+    def generate_site_daily_forecasts(
+        raw_data: pd.DataFrame,
+        *,
+        horizon: Optional[int] = None,
+        run_timestamp: Optional[pd.Timestamp] = None,
+        include_met_no_weather: bool = True,
+    ) -> pd.DataFrame:
+        """Generate 7-day site-level forecasts using the quarterly-trained models."""
+        if raw_data.empty:
+            raise ValueError("No raw site forecast data provided for prediction.")
+
+        try:
+            horizon = int(horizon or configuration.DAILY_FORECAST_HORIZON or 7)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("DAILY_FORECAST_HORIZON must be a valid integer.") from exc
+
+        if horizon < 1:
+            raise ValueError("DAILY_FORECAST_HORIZON must be greater than 0.")
+
+        required = {"day", "site_id", "site_name", "pm25_mean"}
+        missing = required - set(raw_data.columns)
+        if missing:
+            raise ValueError(f"Missing required columns for site forecasts: {sorted(missing)}")
+
+        history = raw_data.copy()
+        history["day"] = pd.to_datetime(history["day"], errors="coerce").dt.normalize()
+        history["site_id"] = history["site_id"].astype(str)
+        history["site_name"] = history["site_name"].fillna(history["site_id"])
+        for column in ("site_latitude", "site_longitude"):
+            if column not in history.columns:
+                history[column] = np.nan
+        history = BaseMlUtils.round_numeric_columns(
+            history, {"site_latitude": 6, "site_longitude": 6}
+        )
+        history = history.dropna(subset=["day", "site_id", "pm25_mean"])
+        history = history.sort_values(["site_id", "day"]).drop_duplicates(
+            subset=["site_id", "day"], keep="last"
+        )
+
+        if history.empty:
+            raise ValueError("No usable historical site data available after cleaning.")
+
+        artifacts = ForecastModelTrainer._load_site_forecast_artifacts()
+        site_mapping = ForecastModelTrainer._get_prediction_site_mapping(
+            artifacts, history
+        )
+        next_unknown_site_code = max(site_mapping.values(), default=-1) + 1
+
+        run_timestamp = pd.Timestamp(run_timestamp or pd.Timestamp.now(tz="UTC"))
+        if run_timestamp.tzinfo is None:
+            run_timestamp = run_timestamp.tz_localize("UTC")
+        else:
+            run_timestamp = run_timestamp.tz_convert("UTC")
+
+        recursive_history = history[["site_id", "site_name", "day", "pm25_mean"]].copy()
+        site_meta = ForecastModelTrainer._resolve_site_forecast_metadata(history)
+        predictions: List[pd.DataFrame] = []
+
+        for _ in range(horizon):
+            next_rows = (
+                recursive_history.groupby("site_id", as_index=False)["day"]
+                .max()
+                .assign(day=lambda df: df["day"] + pd.Timedelta(days=1))
+                .merge(site_meta, on="site_id", how="left")
+            )
+            next_rows["pm25_mean"] = np.nan
+
+            feature_source = pd.concat(
+                [recursive_history, next_rows], ignore_index=True, sort=False
+            )
+            featured = ForecastSiteUtils.add_time_lag_roll_features(
+                feature_source,
+                date_col="day",
+                site_col="site_id",
+                target_col="pm25_mean",
+                lags=(1, 2, 3, 7, 14),
+                rolling_window=(7, 14),
+                roll_shift=1,
+                dropna=False,
+            )
+            candidates = featured.merge(
+                next_rows[["site_id", "day"]],
+                on=["site_id", "day"],
+                how="inner",
+            ).copy()
+
+            if candidates.empty:
+                raise ValueError("Feature engineering produced no site forecast candidates.")
+
+            missing_codes = candidates["site_id"].map(site_mapping).isna()
+            if missing_codes.any():
+                unknown_sites = sorted(candidates.loc[missing_codes, "site_id"].unique())
+                logger.warning(
+                    "Assigning fallback site_id_code values for unseen sites during prediction: %s",
+                    unknown_sites,
+                )
+                for site_id in unknown_sites:
+                    site_mapping[str(site_id)] = next_unknown_site_code
+                    next_unknown_site_code += 1
+
+            candidates["site_id_code"] = candidates["site_id"].map(site_mapping).astype(int)
+
+            for label, artifact in artifacts.items():
+                feature_columns = artifact.get("features", [])
+                scored_frame = candidates.reindex(columns=feature_columns)
+                predictions_array = artifact["model"].predict(scored_frame)
+                candidates[f"pm2_5_{label}"] = np.maximum(
+                    np.asarray(predictions_array, dtype=float), 0.0
+                )
+
+            candidates["pm2_5_min"], candidates["pm2_5_max"] = (
+                np.minimum(candidates["pm2_5_min"], candidates["pm2_5_max"]),
+                np.maximum(candidates["pm2_5_min"], candidates["pm2_5_max"]),
+            )
+            candidates["pm2_5_low"], candidates["pm2_5_high"] = (
+                np.minimum(candidates["pm2_5_low"], candidates["pm2_5_high"]),
+                np.maximum(candidates["pm2_5_low"], candidates["pm2_5_high"]),
+            )
+            candidates["forecast_confidence"] = BaseMlUtils.calculate_forecast_confidence(
+                candidates["pm2_5_mean"],
+                candidates["pm2_5_low"],
+                candidates["pm2_5_high"],
+            )
+            candidates = BaseMlUtils.round_numeric_columns(
+                candidates,
+                {
+                    "pm2_5_mean": 1,
+                    "pm2_5_min": 1,
+                    "pm2_5_max": 1,
+                    "pm2_5_low": 1,
+                    "pm2_5_high": 1,
+                    "forecast_confidence": 1,
+                    "site_latitude": 6,
+                    "site_longitude": 6,
+                },
+            )
+
+            forecast_step = candidates[
+                [
+                    "site_name",
+                    "site_id",
+                    "site_latitude",
+                    "site_longitude",
+                    "day",
+                    "pm2_5_mean",
+                    "pm2_5_min",
+                    "pm2_5_max",
+                    "pm2_5_low",
+                    "pm2_5_high",
+                    "forecast_confidence",
+                ]
+            ].rename(columns={"day": "date"})
+            forecast_step["created_at"] = run_timestamp
+            predictions.append(forecast_step)
+
+            recursive_history = pd.concat(
+                [
+                    recursive_history,
+                    forecast_step[["site_id", "site_name", "date", "pm2_5_mean"]].rename(
+                        columns={"date": "day", "pm2_5_mean": "pm25_mean"}
+                    ),
+                ],
+                ignore_index=True,
+                sort=False,
+            )
+
+        forecast_df = pd.concat(predictions, ignore_index=True)
+        forecast_df["date"] = pd.to_datetime(forecast_df["date"]).dt.date
+
+        counts = forecast_df.groupby("site_id")["date"].nunique()
+        complete_sites = counts[counts == horizon].index
+        if len(complete_sites) != counts.shape[0]:
+            dropped_sites = sorted(set(counts.index) - set(complete_sites))
+            logger.warning(
+                "Dropping incomplete site forecasts that did not reach the full %s-day horizon: %s",
+                horizon,
+                dropped_sites,
+            )
+            forecast_df = forecast_df[forecast_df["site_id"].isin(complete_sites)]
+
+        if forecast_df.empty:
+            raise ValueError("No complete site forecasts were generated.")
+
+        if include_met_no_weather:
+            forecast_df = (
+                ForecastModelTrainer._enrich_site_daily_forecasts_with_met_no_weather(
+                    forecast_df
+                )
+            )
+
+        return forecast_df.sort_values(["site_id", "date"]).reset_index(drop=True)
+
+    @staticmethod
+    def fetch_site_prediction_data(
+        execution_date: datetime,
+        lookback_days: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Fetch site-level daily aggregates used for site forecast prediction.
+
+        Prediction is intentionally more permissive than training so newly
+        deployed sites can still receive a forecast. In particular, the fetch:
+        - includes the execution day, allowing partial current-day data
+        - lowers the per-site/day hourly threshold to 1 row
+        """
+        from .bigquery_api import BigQueryApi
+
+        end_date = execution_date
+        lookback_window = int(
+            lookback_days or configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30
+        )
+        start_date = end_date - timedelta(days=lookback_window)
+
+        return BigQueryApi().fetch_raw_site_data_for_forecast_jobs(
+            start_date_time=DateUtils.date_to_str(start_date, str_format="%Y-%m-%d"),
+            end_date_time=DateUtils.date_to_str(end_date, str_format="%Y-%m-%d"),
+            min_hours=1,
+        )
+
+    @staticmethod
+    def _build_bigquery_schema(schema_file: str) -> List[bigquery.SchemaField]:
+        """Convert a JSON schema definition into BigQuery SchemaField objects."""
+        schema_definition = Utils.load_schema(file_name=schema_file)
+        return [
+            bigquery.SchemaField(
+                field["name"],
+                field["type"],
+                mode=field.get("mode", "NULLABLE"),
+            )
+            for field in schema_definition
+        ]
+
+    @staticmethod
+    def _ensure_bigquery_table_exists(table: str, schema_file: str) -> None:
+        """Create the target BigQuery dataset/table when they do not exist."""
+        from .bigquery_api import BigQueryApi
+
+        try:
+            project_id, dataset_id, _ = table.split(".", 2)
+        except ValueError as exc:
+            raise ValueError(
+                f"BigQuery table must be fully qualified as project.dataset.table, got '{table}'."
+            ) from exc
+
+        bigquery_api = BigQueryApi()
+
+        dataset_ref = bigquery.Dataset(f"{project_id}.{dataset_id}")
+        bigquery_api.client.create_dataset(dataset_ref, exists_ok=True)
+
+        try:
+            existing_table = bigquery_api.client.get_table(table)
+            desired_schema = ForecastModelTrainer._build_bigquery_schema(schema_file)
+            existing_columns = {field.name for field in existing_table.schema}
+            missing_fields = [
+                field for field in desired_schema if field.name not in existing_columns
+            ]
+            if missing_fields:
+                existing_table.schema = list(existing_table.schema) + missing_fields
+                bigquery_api.client.update_table(existing_table, ["schema"])
+            return
+        except google_api_exceptions.NotFound:
+            pass
+
+        table_obj = bigquery.Table(
+            table,
+            schema=ForecastModelTrainer._build_bigquery_schema(schema_file),
+        )
+        bigquery_api.client.create_table(table_obj, exists_ok=True)
+
+    @staticmethod
+    def _read_site_forecasts_from_bigquery(table: str) -> pd.DataFrame:
+        """Read the current site forecast table if it already exists."""
+        from .bigquery_api import BigQueryApi
+
+        bigquery_api = BigQueryApi()
+        try:
+            bigquery_api.client.get_table(table)
+        except google_api_exceptions.NotFound:
+            return pd.DataFrame()
+
+        return bigquery_api.execute_data_query(query=f"SELECT * FROM `{table}`")
+
+    @staticmethod
+    def _enrich_site_daily_forecasts_with_met_no_weather(
+        data: pd.DataFrame,
+        *,
+        fail_on_error: bool = False,
+    ) -> pd.DataFrame:
+        """Attach daily MET.no weather summaries to site daily forecast rows."""
+        if data.empty:
+            return data
+
+        enriched = data.copy()
+        enriched["met_no_query_latitude"] = pd.to_numeric(
+            enriched["site_latitude"], errors="coerce"
+        ).round(2)
+        enriched["met_no_query_longitude"] = pd.to_numeric(
+            enriched["site_longitude"], errors="coerce"
+        ).round(2)
+
+        def with_empty_met_columns(frame: pd.DataFrame) -> pd.DataFrame:
+            fallback = frame.copy()
+            for column in SITE_DAILY_FORECAST_MET_COLUMNS:
+                if column not in fallback.columns:
+                    fallback[column] = np.nan
+            return fallback.drop(
+                columns=["met_no_query_latitude", "met_no_query_longitude"],
+                errors="ignore",
+            )
+
+        try:
+            met_daily = WeatherDataUtils.fetch_met_no_daily_data_for_sites(
+                enriched[
+                    [
+                        "site_id",
+                        "site_name",
+                        "site_latitude",
+                        "site_longitude",
+                        "date",
+                    ]
+                ].drop_duplicates()
+            )
+        except Exception as exc:
+            if fail_on_error:
+                raise
+            logger.exception(
+                "MET.no enrichment failed for site daily forecasts. "
+                "Continuing with forecast-only output: %s",
+                exc,
+            )
+            return with_empty_met_columns(enriched)
+
+        if met_daily.empty:
+            return with_empty_met_columns(enriched)
+
+        try:
+            enriched["date"] = pd.to_datetime(enriched["date"], errors="coerce").dt.date
+            met_daily["date"] = pd.to_datetime(met_daily["date"], errors="coerce").dt.date
+            enriched = enriched.merge(
+                met_daily,
+                on=["date", "met_no_query_latitude", "met_no_query_longitude"],
+                how="left",
+            )
+        except Exception as exc:
+            if fail_on_error:
+                raise
+            logger.exception(
+                "MET.no merge failed for site daily forecasts. "
+                "Continuing with forecast-only output: %s",
+                exc,
+            )
+            return with_empty_met_columns(enriched)
+
+        return with_empty_met_columns(enriched)
+
+    @staticmethod
+    def _has_site_forecast_met_data(data: pd.DataFrame) -> bool:
+        """Return True when site forecast output contains at least one MET value."""
+        if data is None or getattr(data, "empty", True):
+            return False
+
+        return any(
+            column in data.columns and data[column].notna().any()
+            for column in SITE_DAILY_FORECAST_MET_COLUMNS
+        )
+
+    @staticmethod
+    def resolve_site_forecasts_for_met_updates(
+        enriched_data: Optional[pd.DataFrame],
+    ) -> Optional[pd.DataFrame]:
+        """Keep enriched site forecasts only when MET fields were actually populated."""
+        if (
+            enriched_data is not None
+            and ForecastModelTrainer._has_site_forecast_met_data(enriched_data)
+        ):
+            return enriched_data
+
+        logger.warning(
+            "MET enrichment failed or returned no MET values. Keeping PM forecast already saved in MongoDB."
+        )
+        return None
+
+    @staticmethod
+    def _prepare_site_daily_forecasts_for_persistence(
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Apply persistence-level rounding for site daily forecast outputs."""
+        prepared = ForecastModelTrainer._ensure_site_daily_forecast_met_columns(data)
+        return BaseMlUtils.round_numeric_columns(
+            prepared,
+            {
+                "pm2_5_mean": 1,
+                "pm2_5_min": 1,
+                "pm2_5_max": 1,
+                "pm2_5_low": 1,
+                "pm2_5_high": 1,
+                "forecast_confidence": 1,
+                "site_latitude": 6,
+                "site_longitude": 6,
+                "air_pressure_at_sea_level": 1,
+                "air_temperature": 1,
+                "cloud_area_fraction": 1,
+                "precipitation_amount": 1,
+                "relative_humidity": 1,
+                "wind_from_direction": 1,
+                "wind_speed": 1,
+            },
+        )
+
+    @staticmethod
+    def _ensure_site_daily_forecast_met_columns(data: pd.DataFrame) -> pd.DataFrame:
+        """Add nullable MET.no columns when forecasts are stored without enrichment."""
+        prepared = data.copy()
+        for column in SITE_DAILY_FORECAST_MET_COLUMNS:
+            if column not in prepared.columns:
+                prepared[column] = np.nan
+        return prepared
+
+    @staticmethod
+    def _standardize_site_daily_forecasts_for_persistence(
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Normalize site forecast rows to one valid row per site/date key."""
+        standardized = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
+            data
+        )
+        if standardized.empty:
+            return standardized
+
+        standardized = standardized.dropna(subset=["site_id"]).copy()
+        standardized["site_id"] = standardized["site_id"].astype(str)
+        standardized["date"] = pd.to_datetime(
+            standardized["date"], errors="coerce"
+        ).dt.date
+        standardized["created_at"] = pd.to_datetime(
+            standardized["created_at"], utc=True, errors="coerce"
+        )
+        standardized = standardized.dropna(subset=["date", "created_at"])
+        standardized = standardized.sort_values(["site_id", "date", "created_at"])
+        standardized = standardized.drop_duplicates(
+            subset=["site_id", "date"], keep="last"
+        )
+        return standardized.reset_index(drop=True)
+
+    @staticmethod
+    def _merge_site_daily_forecast_updates(
+        existing: pd.DataFrame, updates: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Preserve stored MET values until an incoming update provides real ones."""
+        existing_standardized = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+                existing
+            )
+        )
+        updates_standardized = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+                updates
+            )
+        )
+
+        if updates_standardized.empty:
+            return updates_standardized
+        if existing_standardized.empty:
+            return updates_standardized
+
+        existing_indexed = existing_standardized.set_index(
+            ["site_id", "date"], drop=False
+        )
+        updates_indexed = updates_standardized.set_index(
+            ["site_id", "date"], drop=False
+        )
+        overlapping_existing = existing_indexed.reindex(updates_indexed.index)
+        merged_updates = updates_indexed.copy()
+
+        for column in SITE_DAILY_FORECAST_MET_COLUMNS:
+            merged_updates[column] = merged_updates[column].combine_first(
+                overlapping_existing[column]
+            )
+
+        return merged_updates.reset_index(drop=True)
+
+    @staticmethod
+    def _retain_recent_site_forecasts(
+        data: pd.DataFrame, max_rows_per_site: int = 14
+    ) -> pd.DataFrame:
+        """Keep the newest forecast per site/date and cap each site to recent dates."""
+        if data.empty:
+            return data
+        if max_rows_per_site < 1:
+            raise ValueError("max_rows_per_site must be greater than 0.")
+
+        retained = ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+            data
+        )
+        retained = retained.sort_values(
+            ["site_id", "date", "created_at"],
+            ascending=[True, False, False],
+        )
+        retained = retained.groupby("site_id", group_keys=False).head(max_rows_per_site)
+        return retained.sort_values(["site_id", "date", "created_at"]).reset_index(
+            drop=True
+        )
+
+    @staticmethod
+    def _replace_site_daily_forecasts(
+        existing: pd.DataFrame, updates: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Replace existing site/date rows with updated rows before retention is applied."""
+        existing_prepared = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
+                existing
+            )
+        )
+        updates_prepared = ForecastModelTrainer._merge_site_daily_forecast_updates(
+            existing, updates
+        )
+
+        if existing_prepared.empty:
+            return updates_prepared
+        if updates_prepared.empty:
+            return existing_prepared
+
+        replacement_keys = (
+            updates_prepared[["site_id", "date"]]
+            .dropna()
+            .drop_duplicates()
+            .assign(_replace_existing=True)
+        )
+        remaining_existing = existing_prepared.merge(
+            replacement_keys,
+            on=["site_id", "date"],
+            how="left",
+        )
+        remaining_existing = remaining_existing[
+            remaining_existing["_replace_existing"].isna()
+        ].drop(columns=["_replace_existing"])
+
+        return pd.concat(
+            [remaining_existing, updates_prepared],
+            ignore_index=True,
+            sort=False,
+        )
+
+    @staticmethod
+    def _save_site_daily_forecasts_to_bigquery(data: pd.DataFrame) -> Dict[str, Any]:
+        """Persist site forecasts to BigQuery, creating the table on demand."""
+        from .bigquery_api import BigQueryApi
+
+        table = configuration.DAILY_FORECAST_TABLE
+        if not table:
+            raise ValueError("Missing required config: DAILY_FORECAST_TABLE.")
+
+        ForecastModelTrainer._ensure_bigquery_table_exists(
+            table, schema_file="forecast_measurements.json"
+        )
+        existing = ForecastModelTrainer._read_site_forecasts_from_bigquery(table)
+        retained = ForecastModelTrainer._retain_recent_site_forecasts(
+            ForecastModelTrainer._replace_site_daily_forecasts(existing, data)
+        )
+
+        BigQueryApi().load_data(
+            dataframe=retained,
+            table=table,
+            job_action=JobAction.OVERWRITE,
+        )
+
+        return {"rows": int(len(retained)), "table": table}
+
+    @staticmethod
+    def _save_site_daily_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+        """Persist site forecasts to MongoDB with batched upsert and per-site retention."""
+        if not configuration.MONGO_URI:
+            raise ValueError("Missing required config: MONGO_URI.")
+
+        prepared = ForecastModelTrainer._retain_recent_site_forecasts(data)
+        collection_name = configuration.MONGO_SITE_DAILY_FORECAST_COLLECTION
+
+        with pm.MongoClient(
+            configuration.MONGO_URI, serverSelectionTimeoutMS=5000
+        ) as client:
+            mongo_db = client[configuration.MONGO_DATABASE_NAME]
+            collection = mongo_db[collection_name]
+            site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
+
+            if site_ids:
+                existing_docs = list(collection.find({"site_id": {"$in": site_ids}}))
+                if existing_docs:
+                    prepared = ForecastModelTrainer._merge_site_daily_forecast_updates(
+                        pd.DataFrame(existing_docs), prepared
+                    )
+
+            bulk_operations = []
+            for row in prepared.to_dict(orient="records"):
+                bulk_operations.append(
+                    pm.UpdateOne(
+                        {
+                            "site_id": row["site_id"],
+                            "date": str(row["date"]),
+                        },
+                        {
+                        "$set": {
+                                "site_name": row.get("site_name"),
+                                "site_latitude": row.get("site_latitude"),
+                                "site_longitude": row.get("site_longitude"),
+                                "pm2_5_mean": row.get("pm2_5_mean"),
+                                "pm2_5_min": row.get("pm2_5_min"),
+                                "pm2_5_max": row.get("pm2_5_max"),
+                                "pm2_5_low": row.get("pm2_5_low"),
+                                "pm2_5_high": row.get("pm2_5_high"),
+                                "forecast_confidence": row.get("forecast_confidence"),
+                                "air_pressure_at_sea_level": row.get(
+                                    "air_pressure_at_sea_level"
+                                ),
+                                "air_temperature": row.get("air_temperature"),
+                                "cloud_area_fraction": row.get(
+                                    "cloud_area_fraction"
+                                ),
+                                "precipitation_amount": row.get(
+                                    "precipitation_amount"
+                                ),
+                                "relative_humidity": row.get("relative_humidity"),
+                                "wind_from_direction": row.get(
+                                    "wind_from_direction"
+                                ),
+                                "wind_speed": row.get("wind_speed"),
+                                "created_at": pd.Timestamp(
+                                    row["created_at"]
+                                ).to_pydatetime(),
+                            }
+                        },
+                        upsert=True,
+                    )
+                )
+
+            if bulk_operations:
+                collection.bulk_write(bulk_operations, ordered=False)
+
+            deleted_rows = 0
+            if site_ids:
+                existing_docs = list(
+                    collection.find(
+                        {"site_id": {"$in": site_ids}},
+                        {"_id": 1, "site_id": 1, "date": 1, "created_at": 1},
+                    )
+                )
+                if existing_docs:
+                    retained_docs = ForecastModelTrainer._retain_recent_site_forecasts(
+                        pd.DataFrame(existing_docs)
+                    )
+                    keep_ids = set(retained_docs["_id"].tolist())
+                    stale_ids = [
+                        doc["_id"] for doc in existing_docs if doc["_id"] not in keep_ids
+                    ]
+                    if stale_ids:
+                        deleted_rows = collection.delete_many(
+                            {"_id": {"$in": stale_ids}}
+                        ).deleted_count
+
+        return {
+            "rows": int(len(prepared)),
+            "collection": collection_name,
+            "deleted_rows": int(deleted_rows),
+        }
+
+    @staticmethod
+    def save_site_daily_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+        """Public wrapper for persisting site forecasts to MongoDB only."""
+        if data.empty:
+            raise ValueError("No site forecasts available to persist.")
+        return ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
+
+    @staticmethod
+    def save_site_daily_forecasts_best_effort(data: pd.DataFrame) -> Dict[str, Any]:
+        """Write site forecasts to every available target and fail only if all fail."""
+        if data.empty:
+            raise ValueError("No site forecasts available to persist.")
+
+        outcomes: Dict[str, Any] = {}
+        errors: Dict[str, str] = {}
+
+        writers = {
+            "bigquery": ForecastModelTrainer._save_site_daily_forecasts_to_bigquery,
+            "mongo": ForecastModelTrainer._save_site_daily_forecasts_to_mongo,
+        }
+
+        for target, writer in writers.items():
+            try:
+                outcomes[target] = writer(data.copy())
+            except Exception as exc:
+                logger.exception("Failed to save site daily forecasts to %s: %s", target, exc)
+                errors[target] = str(exc)
+
+        if not outcomes:
+            raise RuntimeError(
+                f"Failed to save site daily forecasts to any target. Errors: {errors}"
+            )
+
+        return {"saved_to": list(outcomes.keys()), "details": outcomes, "errors": errors}
 
     @staticmethod
     def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:

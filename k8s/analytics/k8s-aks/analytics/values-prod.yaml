@@ -21,10 +21,10 @@ api:
     common:
       limits:
         cpu: 200m
-        memory: 1000Mi
+        memory: 1200Mi
       requests:
-        cpu: 10m
-        memory: 250Mi
+        cpu: 50m
+        memory: 900Mi
     redis:
       requests:
         cpu: 50m
@@ -68,4 +68,4 @@ ingress:
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  targetMemoryUtilizationPercentage: 85
+  targetMemoryUtilizationPercentage: 75

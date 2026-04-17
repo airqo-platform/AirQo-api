@@ -63,6 +63,15 @@ const envs = {
   RECALL_TOPIC: process.env.RECALL_TOPIC,
   NETWORK_EVENTS_TOPIC:
     process.env.NETWORK_EVENTS_TOPIC || "network-events-topic",
+  NETWORK_CREATION_REQUESTS_TOPIC:
+    process.env.NETWORK_CREATION_REQUESTS_TOPIC ||
+    "network-creation-requests-topic",
+  NETWORK_CREATION_APPROVED_TOPIC:
+    process.env.NETWORK_CREATION_APPROVED_TOPIC ||
+    "network-creation-approved-topic",
+  NETWORK_CREATION_DENIED_TOPIC:
+    process.env.NETWORK_CREATION_DENIED_TOPIC ||
+    "network-creation-denied-topic",
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,
@@ -97,6 +106,8 @@ const envs = {
   PADDLE_PRODUCT_ID: process.env.PADDLE_PRODUCT_ID,
   PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID:
     process.env.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID,
+  PADDLE_STANDARD_PRICE_ID: process.env.PADDLE_STANDARD_PRICE_ID,
+  PADDLE_PREMIUM_PRICE_ID: process.env.PADDLE_PREMIUM_PRICE_ID,
   DEFAULT_ORGANISATION_PROFILE_PICTURE:
     process.env.DEFAULT_ORGANISATION_PROFILE_PICTURE,
   DEFAULT_USE_ONBOARDING_FLOW: parseBoolean(
@@ -110,6 +121,35 @@ const envs = {
   // logins across 3 replicas (each login uses ~3-5 pool slots).
   // Tune via MONGODB_POOL_SIZE env var without a code change.
   MONGODB_POOL_SIZE: parseNumber(process.env.MONGODB_POOL_SIZE, 100),
+  // Maximum concurrent background IP analysis operations per pod.
+  // Shedding work above this threshold prevents OOM during DB slowness.
+  // Tune via IP_ANALYSIS_CONCURRENCY env var without a code change.
+  IP_ANALYSIS_CONCURRENCY: (() => {
+    const val = Math.floor(parseNumber(process.env.IP_ANALYSIS_CONCURRENCY, 50));
+    return Number.isFinite(val) && val >= 1 ? val : 50;
+  })(),
+
+  // ── Feedback domain constants ──────────────────────────────────────────────
+  // Single source of truth shared between the Feedback model and validators.
+  FEEDBACK_CATEGORIES: [
+    "general",
+    "bug",
+    "feature_request",
+    "performance",
+    "ux_design",
+    "other",
+  ],
+  FEEDBACK_STATUSES: ["pending", "reviewed", "resolved", "archived"],
+  FEEDBACK_PLATFORMS: ["web", "mobile", "api"],
+  // Conservative cap: reject metadata objects whose JSON serialisation exceeds
+  // this byte count. Keeps individual documents well under MongoDB's 16 MB
+  // document limit and avoids storage/query cost surprises.
+  FEEDBACK_METADATA_MAX_BYTES: 4096,
+  // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
+  // uses this URL for login location lookups; when absent, geolocation is
+  // skipped entirely (returns null) to avoid plaintext HTTP calls.
+  // Example: https://pro.ip-api.com/json/<ip>?fields=status,city,regionName,country&key=<API_KEY>
+  IP_API_PRO_URL: process.env.IP_API_PRO_URL || null,
 };
 
 module.exports = envs;

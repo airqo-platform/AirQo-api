@@ -16,6 +16,12 @@ const numericals = {
   )
     ? Number(process.env.JWT_GRACE_PERIOD_SECONDS)
     : 5 * 60, // 5 mins
+  JWT_REFRESH_MAX_AGE_SECONDS: Number.isFinite(
+    Number(process.env.JWT_REFRESH_MAX_AGE_SECONDS),
+  )
+    ? Number(process.env.JWT_REFRESH_MAX_AGE_SECONDS)
+    : 365 * 24 * 60 * 60, // 1 year — covers MAU-heavy usage; users who open the app once a month
+                           // (or less) are silently refreshed without ever seeing a login prompt
   SALT_ROUNDS: 10,
   BCRYPT_SALT_ROUNDS: 12,
   SLUG_MAX_LENGTH: 60,
@@ -28,5 +34,7 @@ const numericals = {
   INACTIVE_THRESHOLD: 2592000000, //30 days ==> 30 (days) * 24 (hours per day) * 60 (minutes per hour) * 60 (seconds per minute) * 1000 (milliseconds per second)
   TOKEN_CLOCK_TOLERANCE: 30, // 30 seconds, Grace period for clock skew
   EMAIL_QUEUE_INTERVAL_MS: 3000, // 3 seconds
+  UNKNOWN_IP_RETENTION_DAYS: 90, // Documents not updated within this window are expired/deleted
+  UNKNOWN_IP_COUNTS_MAX_ENTRIES: 30, // Max daily ipCounts entries kept per document
 };
 module.exports = numericals;

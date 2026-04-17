@@ -8,6 +8,7 @@ const EventModel = require("@models/Event");
 const SignalModel = require("@models/Signal");
 const JobStateModel = require("@models/JobState");
 const { logObject, logText } = require("@utils/shared");
+const { calculatePm25Aqi } = require("@utils/aqi.util");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
@@ -153,6 +154,14 @@ class SignalsBatchProcessor {
       if (averages) {
         updateDoc.averages = averages;
       }
+
+      // Ensure aqi_index is present. It is normally computed by
+      // Event.generateAqiAddFields() in the fetch pipeline, but we calculate
+      // it here as a fallback so stored signals are never missing the value.
+      if (updateDoc.aqi_index == null && doc.pm2_5?.value != null) {
+        updateDoc.aqi_index = calculatePm25Aqi(doc.pm2_5.value);
+      }
+
       // Extract latest_pm2_5 from siteDetails or deviceDetails if available
       if (doc.siteDetails && doc.siteDetails.latest_pm2_5) {
         updateDoc.latest_pm2_5 = doc.siteDetails.latest_pm2_5;

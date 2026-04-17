@@ -79,6 +79,16 @@ UnknownIPSchema.pre("update", function (next) {
 
 UnknownIPSchema.index({ ip: 1, "ipCounts.day": 1 }, { unique: true });
 
+// Automatically expire documents that have not been updated within the
+// retention window. NOTE: on a large existing collection this index build can
+// impact cluster load at startup. For production deployments against a
+// collection that is already large, create this index manually during a
+// controlled maintenance window rather than relying on auto-indexing.
+UnknownIPSchema.index(
+  { updatedAt: 1 },
+  { expireAfterSeconds: constants.UNKNOWN_IP_RETENTION_DAYS * 24 * 60 * 60 }
+);
+
 UnknownIPSchema.statics = {
   async register(args, next) {
     try {

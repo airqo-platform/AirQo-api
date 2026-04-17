@@ -122,7 +122,7 @@ void main() {
 
     testWidgets('Version information is accessible',
         (WidgetTester tester) async {
-      expect(AirQOIconsVersion.totalIcons, 1383);
+      expect(AirQOIconsVersion.totalIcons, 1380);
       expect(AirQOIconsVersion.totalGroups, 22);
       expect(AirQOIconsVersion.groups, isNotEmpty);
     });

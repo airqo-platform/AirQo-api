@@ -7,6 +7,7 @@ const logger = log4js.getLogger(
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const { logObject, logText } = require("@utils/shared");
+const { calculatePm25Aqi } = require("@utils/aqi.util");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
@@ -141,6 +142,13 @@ class ReadingsBatchProcessor {
       const { _id, ...updateDoc } = { ...doc, time: docTime };
       if (averages) {
         updateDoc.averages = averages;
+      }
+
+      // Ensure aqi_index is present. It is normally computed by
+      // Event.generateAqiAddFields() in the fetch pipeline, but we calculate
+      // it here as a fallback so stored readings are never missing the value.
+      if (updateDoc.aqi_index == null && doc.pm2_5?.value != null) {
+        updateDoc.aqi_index = calculatePm25Aqi(doc.pm2_5.value);
       }
 
       // Explicitly ensure the details from the 'events' view are preserved.

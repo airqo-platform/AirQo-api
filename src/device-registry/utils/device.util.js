@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+const { getNetworkAdapter } = require("@utils/network.util");
 const {
   generateFilter,
   claimTokenUtil,
@@ -69,12 +70,35 @@ const kafka = new Kafka({
  *   $mobility_metadata Object  { route_id, coverage_area, operational_hours,
  *                                movement_pattern, max_speed, typical_locations }
  */
+const buildRecallUpdateOperation = (recallDate) => ({
+  $set: {
+    status: "recalled",
+    isActive: false,
+    recall_date: recallDate,
+    mobility: false,
+  },
+  $unset: {
+    deployment_type: "",
+    height: "",
+    mountType: "",
+    powerType: "",
+    isPrimaryInLocation: "",
+    latitude: "",
+    longitude: "",
+    deployment_date: "",
+    site_id: null,
+    grid_id: null,
+  },
+});
+
 const getDeviceCategoriesAddFieldsStage = () => {
   return {
     $addFields: {
       device_categories: {
         primary_category: { $ifNull: ["$category", "lowcost"] },
-        deployment_category: { $ifNull: ["$deployment_type", "static"] },
+        // Un-deployed devices have no deployment_type — use the field directly
+        // so they surface as null rather than a misleading "static" default.
+        deployment_category: "$deployment_type",
 
         // Returns the raw network value so the frontend can display it directly.
         // null when network is missing or empty string.
@@ -219,7 +243,9 @@ const getDeviceCategoriesAddFieldsStage = () => {
                 input: {
                   $concatArrays: [
                     [{ $ifNull: ["$category", "lowcost"] }],
-                    [{ $ifNull: ["$deployment_type", "static"] }],
+                    // Only include deployment_type when it is set — the $filter
+                    // below removes nulls, so un-deployed devices contribute nothing here.
+                    ["$deployment_type"],
                     // Include network value when present
                     {
                       $cond: {
@@ -373,7 +399,8 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
           {
             level: "deployment",
-            category: { $ifNull: ["$deployment_type", "static"] },
+            // null for un-deployed devices — no deployment type assigned yet.
+            category: "$deployment_type",
             description: {
               $switch: {
                 branches: [
@@ -386,7 +413,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
                     then: "Static deployment (fixed location, site-based)",
                   },
                 ],
-                default: "Static deployment (fixed location, site-based)",
+                default: null,
               },
             },
           },
@@ -1042,6 +1069,7 @@ const deviceUtil = {
         skip,
         useCache = "true",
         detailLevel = "full",
+        includeSiteDevices = "false",
         sortBy,
         order,
       } = request.query;
@@ -1091,9 +1119,40 @@ const deviceUtil = {
               localField: "site_id",
               foreignField: "_id",
               as: "site",
-              pipeline: [
-                { $project: { _id: 1, name: 1, district: 1, country: 1 } },
-              ],
+              pipeline:
+                includeSiteDevices === "true"
+                  ? [
+                      {
+                        $lookup: {
+                          from: "devices",
+                          localField: "_id",
+                          foreignField: "site_id",
+                          as: "devices",
+                          pipeline: [
+                            { $project: { _id: 1, name: 1, long_name: 1 } },
+                          ],
+                        },
+                      },
+                      {
+                        $project: {
+                          _id: 1,
+                          name: 1,
+                          district: 1,
+                          country: 1,
+                          devices: 1,
+                        },
+                      },
+                    ]
+                  : [
+                      {
+                        $project: {
+                          _id: 1,
+                          name: 1,
+                          district: 1,
+                          country: 1,
+                        },
+                      },
+                    ],
             },
           },
           {
@@ -1140,6 +1199,47 @@ const deviceUtil = {
               preserveNullAndEmptyArrays: true,
             },
           },
+          ...(includeSiteDevices === "true"
+            ? [
+                {
+                  $lookup: {
+                    from: "devices",
+                    let: { siteId: "$site_id" },
+                    pipeline: [
+                      {
+                        $match: {
+                          $expr: {
+                            $and: [
+                              { $ne: ["$$siteId", null] },
+                              { $eq: ["$site_id", "$$siteId"] },
+                            ],
+                          },
+                        },
+                      },
+                      { $project: { _id: 1, name: 1, long_name: 1 } },
+                    ],
+                    as: "_site_devices",
+                  },
+                },
+                {
+                  $addFields: {
+                    "site.devices": {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $ne: ["$site", null] },
+                            { $gt: [{ $size: "$_site_devices" }, 0] },
+                          ],
+                        },
+                        then: "$_site_devices",
+                        else: "$$REMOVE",
+                      },
+                    },
+                  },
+                },
+                { $unset: "_site_devices" },
+              ]
+            : []),
           {
             $lookup: {
               from: "hosts",
@@ -1528,39 +1628,122 @@ const deviceUtil = {
       const { tenant } = request.query;
       const { body } = request;
 
-      // Validate user_id for ownership and personal cohort assignment
-      if (!body.user_id || !isValidObjectId(body.user_id)) {
-        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      // ── Auto-populate api_code and serial_number for external devices ───────
+      // Runs only for non-AirQo networks. Three steps in priority order:
+      //   1. Extract api_code from a URL embedded in description (e.g. IQAir
+      //      devices where the connection URL is pasted into description).
+      //   2. Build api_code from adapter template + serial_number (e.g. IQAir
+      //      where only serial_number is known at registration time).
+      //   3. Derive serial_number from api_code via regex if still missing.
+      // All steps are non-fatal — failures are logged and device creation
+      // continues without the field rather than blocking the caller.
+      if (body.network && body.network !== "airqo") {
+        // DB-first adapter resolution via shared helper (DB wins, static fills gaps).
+        const adapterConfig = await getNetworkAdapter(body.network, tenant);
+
+        // Step 1: extract api_code from description URL, validated against adapter
+        // Require adapterConfig.api_base_url to be set before trusting any URL
+        // found in description — without a known base URL to validate against,
+        // any arbitrary outbound URL could be injected via this field.
+        if (!body.api_code && body.description && adapterConfig?.api_base_url) {
+          const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
+          if (urlMatch) {
+            const extractedUrl = urlMatch[0].replace(/[.,;]+$/, "");
+            if (extractedUrl.startsWith(adapterConfig.api_base_url)) {
+              body.api_code = extractedUrl;
+              logText(
+                `createOnPlatform: extracted api_code from description for network "${body.network}"`
+              );
+            } else {
+              logger.warn(
+                `createOnPlatform: URL in description does not match expected base ` +
+                  `for network "${body.network}" — ignoring`
+              );
+            }
+          }
+        }
+
+        // Step 2: build api_code from adapter template + serial_number
+        if (
+          !body.api_code &&
+          body.serial_number &&
+          adapterConfig?.api_base_url &&
+          adapterConfig?.api_url_template
+        ) {
+          body.api_code =
+            adapterConfig.api_base_url +
+            adapterConfig.api_url_template.replace(
+              "{serial_number}",
+              body.serial_number
+            );
+          logText(
+            `createOnPlatform: built api_code from adapter template for network "${body.network}"`
+          );
+        }
+
+        // Step 3: derive serial_number from api_code via regex
+        if (body.api_code && !body.serial_number && adapterConfig?.serial_number_regex) {
+          try {
+            const match = body.api_code.match(
+              new RegExp(adapterConfig.serial_number_regex)
+            );
+            if (match && match[1]) {
+              body.serial_number = match[1];
+              logText(
+                `createOnPlatform: auto-populated serial_number from api_code for network "${body.network}"`
+              );
+            }
+          } catch (regexError) {
+            logger.warn(
+              `createOnPlatform: serial_number regex failed for network "${body.network}": ` +
+                regexError.message
+            );
+          }
+        }
       }
 
       // Initialize cohorts array if it doesn't exist to prevent runtime errors
       if (!body.cohorts) {
         body.cohorts = [];
       }
+
+      // user_id is optional — when provided it sets ownership and personal cohort
+      if (body.user_id && !isValidObjectId(body.user_id)) {
+        throw new HttpError("Invalid user_id provided", httpStatus.BAD_REQUEST);
+      }
+
       // Automatically assign the user who is importing the device as the owner
       if (body.user_id) {
         body.owner_id = body.user_id;
       }
 
       try {
-        // --- START: New logic for cohort assignment ---
+        // --- START: Cohort assignment ---
         const { user_id, cohort_id } = body;
         let targetCohort;
 
         if (cohort_id) {
           // Case A: A specific cohort is provided during import
+          if (!isValidObjectId(cohort_id)) {
+            throw new HttpError(
+              `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
+              httpStatus.BAD_REQUEST,
+            );
+          }
           targetCohort = await CohortModel(tenant)
             .findById(cohort_id)
             .lean();
           if (!targetCohort) {
-            // If a specific cohort is requested but not found, it's an error.
             throw new HttpError(
               `Specified cohort with ID ${cohort_id} not found.`,
               httpStatus.NOT_FOUND,
             );
           }
-        } else {
-          // Case B: No cohort provided, use or create the user's personal cohort
+          if (targetCohort) {
+            body.cohorts.push(targetCohort._id);
+          }
+        } else if (user_id) {
+          // Case B: No cohort provided but user_id given — use/create personal cohort
           const personalCohortName = `coh_user_${user_id.toString()}`;
           targetCohort = await CohortModel(tenant).findOneAndUpdate(
             { name: personalCohortName },
@@ -1568,18 +1751,17 @@ const deviceUtil = {
               $setOnInsert: {
                 name: personalCohortName,
                 description: `Personal cohort for user ${user_id.toString()}`,
-                network: body.network || "airqo", // Use device network or default
+                network: body.network || "airqo",
               },
             },
             { upsert: true, new: true, setDefaultsOnInsert: true },
           );
+          if (targetCohort) {
+            body.cohorts.push(targetCohort._id);
+          }
         }
-
-        // Add the target cohort (personal or specified) to the device
-        if (targetCohort) {
-          body.cohorts.push(targetCohort._id);
-        }
-        // --- END: New logic for cohort assignment ---
+        // Case C: no user_id and no cohort_id — only default cohort assigned below
+        // --- END: Cohort assignment ---
 
         // Add device to the main default cohort as well
         const defaultCohort = await CohortModel(tenant)
@@ -1595,10 +1777,15 @@ const deviceUtil = {
           );
         }
       } catch (cohortError) {
+        // Rethrow intentional errors (e.g. cohort not found) so the caller
+        // receives the correct status code instead of a generic 500.
+        if (cohortError instanceof HttpError) {
+          throw cohortError;
+        }
         logger.error(
-          `🪲🪲 Error finding default cohort: ${cohortError.message}. Continuing with device creation.`,
+          `🪲🪲 Error during cohort assignment: ${cohortError.message}. Continuing with device creation.`,
         );
-        // Don't fail device creation if cohort lookup fails
+        // Unexpected DB errors are non-fatal — device is still created.
       }
 
       // Ensure cohorts array has unique values before saving
@@ -1646,6 +1833,12 @@ const deviceUtil = {
         return responseFromRegisterDevice;
       }
     } catch (error) {
+      // Preserve intentional HttpErrors (e.g. 400 invalid user_id, 404 cohort
+      // not found) so they reach the client with the correct status code.
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      }
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -2246,21 +2439,7 @@ const deviceUtil = {
 
         const recallDate = new Date();
 
-        const updateOperation = {
-          $set: {
-            status: "recalled",
-            isActive: false,
-            recall_date: recallDate,
-          },
-          $unset: {
-            height: "",
-            mountType: "",
-            powerType: "",
-            isPrimaryInLocation: "",
-            site_id: null,
-            grid_id: null,
-          },
-        };
+        const updateOperation = buildRecallUpdateOperation(recallDate);
 
         if (device.site_id) {
           updateOperation.$addToSet = { previous_sites: device.site_id };
@@ -2517,21 +2696,7 @@ const deviceUtil = {
             );
             const recallDate = new Date();
 
-            const updateOperation = {
-              $set: {
-                status: "recalled",
-                isActive: false,
-                recall_date: recallDate,
-              },
-              $unset: {
-                height: "",
-                mountType: "",
-                powerType: "",
-                isPrimaryInLocation: "",
-                site_id: null,
-                grid_id: null,
-              },
-            };
+            const updateOperation = buildRecallUpdateOperation(recallDate);
 
             if (device.site_id) {
               updateOperation.$addToSet = { previous_sites: device.site_id };
@@ -2910,11 +3075,11 @@ const deviceUtil = {
           return { success: false, ...groupObjectIdsResult };
         }
         groupObjectIds = groupObjectIdsResult.data;
-        const groups = await CohortModel(tenant)
-          .find({ groups: { $in: groupObjectIds } })
+        const groupLinkedCohorts = await CohortModel(tenant)
+          .find({ grp_id: { $in: groupObjectIds } })
           .select("_id")
           .lean();
-        groupCohorts = groups.map((g) => g._id);
+        groupCohorts = groupLinkedCohorts.map((g) => g._id);
       }
 
       // 2. Combine all cohort IDs: direct user cohorts and group cohorts

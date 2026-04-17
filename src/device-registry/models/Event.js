@@ -15,6 +15,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { getDeviceCategoriesAddFieldsStage } = require("@utils/device.util.js");
+const { getAqiIndexMongoExpression } = require("@utils/aqi.util");
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`,
@@ -124,7 +125,16 @@ const getAqiCategoryExpression = () => buildSwitchExpression("thenCategory");
 // MongoDB switch case expression for AQI color name
 const getAqiColorNameExpression = () => buildSwitchExpression("thenColorName");
 
-// Function to generate the AQI addFields for MongoDB aggregation pipelines
+// Function to generate the AQI addFields for MongoDB aggregation pipelines.
+//
+// NOTE: callers MUST push/apply a prior { $addFields: { aqi_ranges: AQI_RANGES } }
+// stage before this one, because the AQI_BRANCHES switch expressions reference
+// $aqi_ranges.good.min etc. via the document field.
+//
+// Existing behaviour of aqi_color / aqi_category / aqi_color_name is
+// intentionally preserved (raw pm2_5.value vs AQI_RANGES thresholds) to
+// maintain backward compatibility with deployed consumers.
+// aqi_index is a new additive field and does not affect any existing field.
 function generateAqiAddFields() {
   return {
     $addFields: {
@@ -133,6 +143,10 @@ function generateAqiAddFields() {
       aqi_category: getAqiCategoryExpression(),
       aqi_color_name: getAqiColorNameExpression(),
       aqi_ranges: AQI_RANGES,
+      // NEW — numeric AQI value (0–500) computed from PM2.5 using the EPA
+      // piecewise linear formula (EPA-454/B-24-002, 2024 revision).
+      // This is purely additive and does not change any existing field value.
+      aqi_index: getAqiIndexMongoExpression("$pm2_5.value"),
     },
   };
 }
@@ -811,6 +825,27 @@ function buildEarlyProjection(isHistorical) {
   };
 }
 
+/**
+ * Returns a MongoDB aggregation expression that resolves to the averaged/
+ * calibrated field when its nested `.value` is non-null, and falls back to the
+ * raw sensor field otherwise.  Used so BAM devices (which never populate
+ * average_pm2_5) surface their raw readings instead of being silently dropped
+ * by filterNullAndReportOffDevices.
+ *
+ * @param {string} averageFieldKey - e.g. "average_pm2_5"
+ * @param {string} rawFieldKey     - e.g. "pm2_5"
+ * @returns {object} MongoDB $cond aggregation expression
+ */
+function buildPreferredMeasurement(averageFieldKey, rawFieldKey) {
+  return {
+    $cond: {
+      if: { $ne: [{ $ifNull: [`$${averageFieldKey}.value`, null] }, null] },
+      then: `$${averageFieldKey}`,
+      else: `$${rawFieldKey}`,
+    },
+  };
+}
+
 function logSlowQuery(queryType, duration, metadata, isHistorical, limit) {
   if (duration > SLOW_QUERY_THRESHOLD_MS) {
     logger.warn(
@@ -936,6 +971,17 @@ async function fetchData(model, filter) {
   if (tenant !== "airqo") {
     pm2_5 = "$pm2_5";
     pm10 = "$pm10";
+  } else {
+    // For airqo tenant: prefer the calibrated/averaged value (populated by
+    // lowcost pipelines) but fall back to the raw sensor reading when the
+    // averaged field is absent or null.  BAM (Beta Attenuation Monitor)
+    // devices are reference-grade monitors that skip the ML calibration step,
+    // so their events never carry a non-null average_pm2_5.  Without this
+    // fallback every BAM event is silently dropped by filterNullAndReportOffDevices.
+    // Lowcost behavior is unchanged: average_pm2_5.value is always non-null for
+    // them, so the $cond always resolves to "$average_pm2_5" as before.
+    pm2_5 = buildPreferredMeasurement("average_pm2_5", "pm2_5");
+    pm10 = buildPreferredMeasurement("average_pm10", "pm10");
   }
 
   // ── Projection setup (unchanged from original) ──────────────────────────
@@ -1696,8 +1742,10 @@ async function signalData(model, filter) {
   let from = "devices";
   let _as = "_deviceDetails";
   let as = "deviceDetails";
-  let pm2_5 = "$average_pm2_5";
-  let pm10 = "$average_pm10";
+  // Prefer calibrated/averaged value; fall back to raw for BAM devices
+  // that never populate average_pm2_5. Same rationale as fetchData.
+  let pm2_5 = buildPreferredMeasurement("average_pm2_5", "pm2_5");
+  let pm10 = buildPreferredMeasurement("average_pm10", "pm10");
   let s1_pm2_5 = "$pm2_5";
   let s1_pm10 = "$pm10";
   let elementAtIndex0 = elementAtIndexName(metadata, recent);
@@ -2414,6 +2462,7 @@ eventSchema.statics.getAirQualityAverages = async function(
         $group: {
           _id: "$yearWeek",
           weeklyAverage: { $avg: "$dailyAverage" },
+          dayCount: { $sum: 1 },
           days: {
             $push: {
               date: "$_id",
@@ -2448,11 +2497,24 @@ eventSchema.statics.getAirQualityAverages = async function(
           100
         : 0;
 
+    // Flag whether each week has enough days of data to make the percentage
+    // meaningful. Fewer than 3 days means the weekly average is based on sparse
+    // data (e.g. device downtime) and the percentage change may be misleading.
+    // This is a NEW additive field — existing consumers are unaffected.
+    const MIN_DAYS_FOR_COMPARISON = 3;
+    const hasSufficientData =
+      currentWeek.dayCount >= MIN_DAYS_FOR_COMPARISON &&
+      previousWeek.dayCount >= MIN_DAYS_FOR_COMPARISON;
+
     return {
       success: true,
       data: {
-        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        dailyAverage:
+          todayAverage == null
+            ? null
+            : parseFloat(todayAverage.toFixed(2)),
         percentageDifference: parseFloat(percentageDifference.toFixed(2)),
+        hasSufficientData,
         weeklyAverages: {
           currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
           previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
@@ -2832,7 +2894,10 @@ eventSchema.statics.v3_getAirQualityAverages = async function(
     return {
       success: true,
       data: {
-        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        dailyAverage:
+          todayAverage == null
+            ? null
+            : parseFloat(todayAverage.toFixed(2)),
         percentageDifference:
           percentageDifference !== null
             ? parseFloat(percentageDifference.toFixed(2))

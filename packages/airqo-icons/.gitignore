@@ -29,6 +29,7 @@ coverage/
 .env*
 *.local
 *.cache/
+.npmrc
 
 # Flutter
 .packages
@@ -46,3 +47,5 @@ build/
 packages/react/src/components/
 packages/flutter/lib/
 packages/vue/src/components/
+
+

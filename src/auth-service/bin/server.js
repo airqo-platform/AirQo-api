@@ -98,6 +98,7 @@ const buildSessionStore = () => {
 const jobs = [
   "@bin/jobs/active-status-job",
   "@bin/jobs/inactive-users-job",
+  "@bin/jobs/stale-accounts-job",
   "@bin/jobs/token-expiration-job",
   "@bin/jobs/incomplete-profile-job",
   "@bin/jobs/preferences-log-job",
@@ -106,6 +107,7 @@ const jobs = [
   "@bin/jobs/profile-picture-update-job",
   "@bin/jobs/role-cleanup-job",
   "@bin/jobs/daily-compromise-summary-job",
+  "@bin/jobs/unknown-ip-cleanup-job",
 ];
 
 // Initialize log4js with SAFE configuration
@@ -287,7 +289,7 @@ app.use(function (err, req, res, next) {
       res.status(err.statusCode).json({
         success: false,
         message: err.message,
-        errors: err.errors,
+        errors: err.errors ?? { message: err.message },
       });
     } else if (err instanceof SyntaxError) {
       res.status(400).json({

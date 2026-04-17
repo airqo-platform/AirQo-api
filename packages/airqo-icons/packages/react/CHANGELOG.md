@@ -1,11 +1,16 @@
 # @airqo/icons-react
 
+## 0.2.9
+
+### Patch Changes
+
+- Bumped the package version to move past the already-published 0.2.8 release.
+
 ## 0.2.7
 
 ### Patch Changes
 
 - 4d3ceea: feat: update SVG components and add new AirQo icon
-
   - Adjusted viewBox dimensions for AqAirQlouds and AqSites components.
   - Modified paths in AqAirQlouds and AqSites SVGs for improved design.
   - Added new AqAirQo component and corresponding SVG file.
@@ -18,19 +23,16 @@
 - 158e49b: ### 🛠️ Build & Workflow Improvements
 
   **@airqo/icons-vue**
-
   - Fixed out-of-memory build errors by optimizing Vite config and using cross-env for Node.js memory settings
   - Excluded test files from type declarations for a cleaner, smaller package
   - Improved build reliability and performance for large icon sets
   - Updated documentation and changelog for clarity
 
   **@airqo/icons-react**
-
   - Enhanced build and metadata generation for React icons
   - Improved changeset and documentation for better maintainability
 
   **General**
-
   - Improved CI workflow for Flutter and JS packages (dependency caching, robust install order)
   - Removed unnecessary example analysis step to prevent false CI failures
   - Codebase cleanup and dependency updates for a more reliable release process
@@ -40,7 +42,6 @@
 ### Patch Changes
 
 - 2fb5abc: **Enhancements:**
-
   - Improved package metadata and repository information for better discoverability
   - Updated package description and keywords for npm search optimization
   - Added proper repository field with directory structure
@@ -48,7 +49,6 @@
   - Bumped version to 0.2.4
 
   **Quality:**
-
   - All tests passing (29/29)
   - Build and type-check successful
 
@@ -93,20 +93,17 @@
   ## ✨ Major Features Added
 
   ### 🔍 Enhanced Search & Discovery
-
   - **Fuse.js Integration**: Added advanced fuzzy search capabilities for intelligent icon discovery
   - **Smart Suggestions**: Implemented intelligent search suggestions with ranking and relevance scoring
   - **Semantic Search**: Enhanced search with synonyms, categories, and alternative naming patterns
   - **Search Performance**: Optimized search algorithms for sub-100ms response times on 1,383 icons
 
   ### 🏷️ Consistent Naming Convention
-
   - **Aq Prefix**: All icons now use standardized "Aq" prefix (e.g., `AqHome01`, `AqUganda`)
   - **Enhanced Metadata**: Added comprehensive metadata including group classification and enhanced tags
   - **Type Safety**: Improved TypeScript support with better type definitions and IntelliSense
 
   ### 🧪 Testing Infrastructure
-
   - **React Testing**: Comprehensive test suite with 29 passing tests covering component rendering and utilities
   - **Flutter Testing**: Enhanced Flutter test framework with proper dev dependencies
   - **Utility Testing**: Added dedicated tests for search functionality, icon validation, and React hooks
@@ -115,7 +112,6 @@
   ## 🔧 Technical Improvements
 
   ### 📦 React Package (`@airqo/icons-react`)
-
   - **Fuse.js 7.1.0**: Advanced search library for intelligent filtering
   - **Enhanced Utilities**: New `AirQOIconsUtils` class with comprehensive icon management
   - **React Hooks**: Added `useIconSearch` and `useIconGroups` for seamless React integration
@@ -123,14 +119,12 @@
   - **TypeScript**: Full TypeScript support with comprehensive type definitions
 
   ### 🦋 Flutter Package (`@airqo/icons-flutter`)
-
   - **1,383 Widgets**: Generated Flutter widgets for all icons with Aq prefix naming
   - **Enhanced Dependencies**: Added `flutter_test` and `flutter_lints` for better development experience
   - **Improved Documentation**: Updated with comprehensive API examples and usage patterns
   - **Version Alignment**: Synchronized with React package for consistent releases
 
   ### 🔄 Build & Generation
-
   - **Enhanced Generators**: Updated icon generation scripts with better error handling and validation
   - **Metadata Enhancement**: Improved tag generation and group classification algorithms
   - **Build Optimization**: Faster build times with parallel processing and caching strategies
@@ -139,14 +133,12 @@
   ## 📚 Documentation Overhaul
 
   ### 📖 Professional Documentation
-
   - **Comprehensive READMEs**: Updated documentation for React, Flutter, and Core packages
   - **API Documentation**: Detailed API references with TypeScript signatures and usage examples
   - **Migration Guides**: Clear guidance for upgrading to new Aq prefix naming convention
   - **Best Practices**: Added sections on performance optimization and usage patterns
 
   ### 🔗 Cross-References
-
   - **Package Linking**: Enhanced cross-references between related packages
   - **Example Consistency**: Standardized examples across all documentation
   - **Version Information**: Added clear version compatibility matrices
@@ -154,21 +146,18 @@
   ## 🛠️ Infrastructure & Workflows
 
   ### 🔄 GitHub Actions
-
   - **NPM Publishing**: Optimized workflow with proper testing and validation steps
   - **Flutter Publishing**: Enhanced Flutter publishing pipeline with better error handling
   - **Concurrent Builds**: Improved build parallelization for faster CI/CD cycles
   - **Artifact Management**: Better artifact handling and retention policies
 
   ### 🧹 Code Quality
-
   - **Linting**: Enhanced ESLint and Prettier configurations
   - **TypeScript**: Strict TypeScript configuration with comprehensive type checking
   - **Test Coverage**: Improved test coverage across all packages
   - **Dependency Management**: Updated and optimized package dependencies
 
   ## 📊 Performance Metrics
-
   - **Icon Count**: 1,383 icons across 22 categories
   - **Build Time**: Reduced by ~30% through optimization
   - **Bundle Size**: React package optimized for tree-shaking
@@ -178,13 +167,11 @@
   ## 🔄 Breaking Changes
 
   ### ⚠️ Naming Convention Update
-
   - **Icon Names**: All icons now use "Aq" prefix instead of previous naming
   - **Import Paths**: Component imports updated to reflect new naming (automatic via generators)
   - **TypeScript Types**: Type definitions updated to match new naming convention
 
   ### 📦 Package Structure
-
   - **Utility Organization**: Reorganized utility functions for better tree-shaking
   - **Export Structure**: Streamlined exports for improved developer experience
 
@@ -194,10 +181,10 @@
 
   ```typescript
   // Old
-  import { Home01 } from '@airqo/icons-react';
+  import { Home01 } from "@airqo/icons-react";
 
   // New
-  import { AqHome01 } from '@airqo/icons-react';
+  import { AqHome01 } from "@airqo/icons-react";
   ```
 
   ### For Flutter Users
@@ -213,7 +200,6 @@
   ## 🔮 Future Improvements
 
   This release establishes a strong foundation for:
-
   - Vue.js and Svelte package implementations
   - Additional icon categories and specialized sets
   - Advanced theming and customization options
@@ -231,7 +217,6 @@
   ## 🐛 **Fixed Major Group Metadata Issues**
 
   ### ✅ Corrected Icon Group Classifications
-
   - **Fixed Flag Icons**: All country flags now correctly assigned to `"Flags"` group instead of individual letter groups (`"A"`, `"B"`, `"C"`, etc.)
   - **Improved Search Accuracy**: Icons now return proper group metadata for website categorization
   - **Enhanced Generators**: Updated both React and Flutter generators to preserve parent group names for nested directories
@@ -257,13 +242,11 @@
   ## 🚀 **Flutter Package Improvements**
 
   ### 📄 **Added Missing Package Files**
-
   - **LICENSE**: Added MIT license file for pub.dev compliance
   - **CHANGELOG.md**: Comprehensive changelog with version history and features
   - **Fixed Exports**: Resolved ambiguous export issues causing analysis errors
 
   ### 🧪 **Enhanced Testing**
-
   - **Updated Test Suite**: Fixed undefined function references
   - **Removed Unused Imports**: Cleaned up unnecessary dependencies
   - **Improved Test Coverage**: Better assertions and widget testing
@@ -271,13 +254,11 @@
   ## ⚡ **Performance & Code Quality**
 
   ### 🔧 **Generator Optimizations**
-
   - **Fixed Group Logic**: Corrected recursive processing to maintain accurate group assignments
   - **Enhanced Error Handling**: Better duplicate detection and resolution
   - **Cleaner Output**: Reduced duplicate warnings and improved logging
 
   ### 📦 **Package Size Optimization**
-
   - **React Bundle**: 15MB with proper tree-shaking support
   - **Flutter Package**: 11MB with optimized widget structure
   - **Better Imports**: Enhanced import organization for faster builds
@@ -285,13 +266,11 @@
   ## 🔍 **Search & Discovery**
 
   ### 🎯 **Metadata Enhancement**
-
   - **Accurate Grouping**: All 1,383 icons now have correct group classifications
   - **Better Tags**: Enhanced tag generation with proper group-based keywords
   - **Improved Descriptions**: More descriptive icon descriptions for better accessibility
 
   ### 📱 **Flutter Compatibility**
-
   - **Widget Generation**: All 1,383 Flutter widgets regenerated with correct metadata
   - **Consistent Naming**: Aq prefix maintained across all platforms
   - **Group Alignment**: Flutter and React packages now share identical group structure
@@ -299,13 +278,11 @@
   ## 🛠️ **Developer Experience**
 
   ### ⚠️ **Breaking Change Mitigation**
-
   - **Backward Compatibility**: Existing icon names maintained (only metadata improved)
   - **Enhanced Types**: Better TypeScript definitions for group filtering
   - **Documentation**: Updated READMEs with accurate icon counts and categories
 
   ### 🔄 **Workflow Improvements**
-
   - **CI/CD Ready**: Enhanced workflows with proper error handling
   - **Package Validation**: Added comprehensive validation steps
   - **Build Optimization**: Faster build times with parallel processing
@@ -313,7 +290,6 @@
   ## 📋 **Technical Details**
 
   ### 🔧 **Files Modified**
-
   - `tools/generators/react-generator-enhanced.js`: Fixed group recursive processing
   - `tools/generators/flutter-generator.js`: Aligned group logic with React
   - `packages/flutter/LICENSE`: Added MIT license
@@ -321,7 +297,6 @@
   - `packages/flutter/test/airqo_icons_test.dart`: Fixed test imports and references
 
   ### 📊 **Impact Metrics**
-
   - **Group Accuracy**: 100% of icons now have correct group metadata
   - **Search Performance**: Maintained sub-100ms response times
   - **Build Success**: All packages build successfully with optimized outputs
@@ -344,7 +319,6 @@
   ## @airqo/icons-core & @airqo/icons-react
 
   ### Major Updates
-
   - **Flat Export Structure:** All icon exports now use clean, group-free names (e.g., `Uganda`, `Home01`, `BarChart01`).
   - **Creative Flag Naming:** Country flags are now exported with intuitive names (e.g., `Uganda`, `USA`, `UK`).
   - **Bundle Optimization:** Aggressive tree-shaking and minification reduce bundle size from ~29MB to ~5.6MB. Importing 20 icons is now ~88KB.
@@ -353,14 +327,12 @@
   - **Quality Assurance:** 85%+ test coverage, comprehensive CI/CD, and manual icon review for clarity and consistency.
 
   ### Icon Library Highlights
-
   - **1,376 production-ready icons** across 21 categories, including 196 country flags.
   - **Consistent 24x24 viewBox**, single-color SVGs for easy theming, and accessibility-first design.
   - **React 18+ support** with SSR compatibility and customizable props (`size`, `color`, `className`).
   - **Advanced Utilities & Hooks:** Programmatic icon search, grouping, and analytics for React.
 
   ### Breaking Changes
-
   - **Icon Import Names:**
     - _Before:_ `import { FlagsUganda, GeneralHome01, ChartsBarChart01 } from '@airqo/icons-react';`
     - _After:_ `import { Uganda, Home01, BarChart01 } from '@airqo/icons-react';`
@@ -472,7 +444,6 @@
 ### Major Changes
 
 - 62bd998: Initial major release of AirQo Icons packages
-
   - **Core Package (@airqo/icons-core)**: Complete icon library with 1,376 SVG icons organized by categories
   - **React Package (@airqo/icons-react)**: React components for all icons with TypeScript support and customizable props
 
@@ -487,7 +458,6 @@
   This major release introduces the complete AirQo Icons library with comprehensive React components and TypeScript support.
 
   ## ✨ What's New
-
   - **1,376 SVG Icons**: Complete icon library organized into 21 categories
   - **React Components**: Fully typed React components for all icons
   - **TypeScript Support**: 100% TypeScript with strict type checking
@@ -496,7 +466,6 @@
   - **Production Ready**: 85%+ test coverage with comprehensive CI/CD pipeline
 
   ## 🚀 Features
-
   - **Core Package (`@airqo/icons-core`)**: SVG icons and TypeScript utilities
   - **React Package (`@airqo/icons-react`)**: React components with forwardRef support
   - **Flutter Package**: Upcoming Flutter support for cross-platform development
@@ -515,7 +484,7 @@
   ## 🔧 Usage
 
   ```tsx
-  import { Uganda, Home01, BarChart01 } from '@airqo/icons-react';
+  import { Uganda, Home01, BarChart01 } from "@airqo/icons-react";
 
   function App() {
     return (
@@ -533,7 +502,6 @@
   This is the initial release, so no breaking changes from previous versions.
 
   ## 🎯 Icon Categories
-
   - **AirQo**: 5 icons (brand-specific)
   - **Alerts & Feedback**: 26 icons
   - **Arrows**: 92 icons
@@ -557,7 +525,6 @@
   - **Weather**: 52 icons
 
   ## 🧪 Quality Assurance
-
   - **Test Coverage**: 85.32% statement coverage
   - **TypeScript**: Strict compilation with full type safety
   - **React Testing**: Comprehensive component testing with React Testing Library
@@ -575,7 +542,6 @@
 - 1d1c553: # BREAKING CHANGE: Flat Export Structure and Bundle Optimization
 
   ## What Changed
-
   - **Removed group prefixes from all icon exports** - Icons are now exported with clean names instead of group-prefixed names
   - **Implemented creative flag naming** - Country flags now use intuitive names (e.g., `Uganda`, `USA`, `UK`)
   - **Optimized bundle size** - Reduced from ~29MB to ~5.6MB with aggressive tree-shaking and minification
@@ -588,17 +554,20 @@
   **Before:**
 
   ```typescript
-  import { FlagsUganda, GeneralHome01, ChartsBarChart01 } from '@airqo/icons-react';
+  import {
+    FlagsUganda,
+    GeneralHome01,
+    ChartsBarChart01,
+  } from "@airqo/icons-react";
   ```
 
   **After:**
 
   ```typescript
-  import { Uganda, Home01, BarChart01 } from '@airqo/icons-react';
+  import { Uganda, Home01, BarChart01 } from "@airqo/icons-react";
   ```
 
   ### Migration Guide
-
   1. **Update import statements**: Remove group prefixes from all icon names
   2. **Use new flag names**: Replace `Flags*` with creative country names
   3. **Check for duplicates**: Some icons may have been renamed to avoid conflicts
@@ -610,7 +579,6 @@
 - 8266d70: # BREAKING CHANGE: Flat Export Structure and Bundle Optimization
 
   ## What Changed
-
   - **Removed group prefixes from all icon exports** - Icons are now exported with clean names instead of group-prefixed names
   - **Implemented creative flag naming** - Country flags now use intuitive names (e.g., `Uganda`, `USA`, `UK`)
   - **Optimized bundle size** - Reduced from ~29MB to ~5.6MB with aggressive tree-shaking and minification
@@ -623,36 +591,36 @@
   **Before:**
 
   ```typescript
-  import { FlagsUganda, GeneralHome01, ChartsBarChart01 } from '@airqo/icons-react';
+  import {
+    FlagsUganda,
+    GeneralHome01,
+    ChartsBarChart01,
+  } from "@airqo/icons-react";
   ```
 
   **After:**
 
   ```typescript
-  import { Uganda, Home01, BarChart01 } from '@airqo/icons-react';
+  import { Uganda, Home01, BarChart01 } from "@airqo/icons-react";
   ```
 
   ### Migration Guide
-
   1. **Update import statements**: Remove group prefixes from all icon names
   2. **Use new flag names**: Replace `Flags*` with creative country names
   3. **Check for duplicates**: Some icons may have been renamed to avoid conflicts
 
   ### Bundle Size Benefits
-
   - Tree-shaking efficiency: 98.5% size reduction for typical usage
   - Importing 20 icons: ~88KB (vs 5.6MB full bundle)
   - Minified and optimized for production builds
 
   ## Why This Change
-
   - **Better Developer Experience**: Cleaner, more intuitive import names
   - **Reduced Bundle Size**: Significant optimization for production applications
   - **Improved Tree-shaking**: Flat structure enables better dead code elimination
   - **Enhanced Discoverability**: Icons are easier to find and use
 
   ## Core Package Updates
-
   - Enhanced build pipeline with optimized generators
   - Improved TypeScript definitions
   - Better duplicate icon handling across groups
@@ -662,7 +630,6 @@
 ### Major Changes
 
 - [`6669ac9`](https://github.com/airqo-platform/airqo-libraries/commit/6669ac9d5fa001c94f57703d23341a453f5c8a96) Thanks [@OchiengPaul442](https://github.com/OchiengPaul442)! - Initial release of AirQO Icons React package
-
   - ✨ 1,376 high-quality SVG icons across 21 categories
   - 🎯 Full TypeScript support with complete type definitions
   - ⚡ Tree-shakable ES modules for optimal bundle size
@@ -671,7 +638,6 @@
   - 🌍 Comprehensive icon categories: Flags, General, Charts, Communication, Development, Editor, Education, Files, Finance, Maps, Media, Security, Shapes, Time, Users, Weather, and more
 
   Icon Categories:
-
   - **Flags**: 196 country and regional flags (A-Z organized)
   - **General**: 197 common UI and utility icons
   - **Charts**: 49 data visualization and analytics icons

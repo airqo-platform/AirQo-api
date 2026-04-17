@@ -896,7 +896,6 @@ class AirQoDataUtils:
             pd.DataFrame: A DataFrame with calibrated PM2.5 and PM10 values.
         """
         bucket = Config.FORECAST_MODELS_BUCKET
-        project_id = Config.GOOGLE_CLOUD_PROJECT_ID
         calibrate_by: Dict[str, Union[CityModels, CountryModels]] = {
             "city": CityModels,
             "country": CountryModels,

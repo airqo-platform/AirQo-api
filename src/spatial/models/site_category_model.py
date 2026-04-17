@@ -1,8 +1,14 @@
+import logging
+import random
+import time
+
 import overpy
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
-import time
+
+
+logger = logging.getLogger(__name__)
 
 
 # Initialize the Overpass API
@@ -34,6 +40,57 @@ class SiteCategoryModel:
                 print(f"Unexpected geocoding error: {e}")
                 return None
         return None
+
+    @staticmethod
+    def _is_transient_overpass_error(error):
+        message = str(error).lower()
+        transient_markers = (
+            "server load too high",
+            "too many requests",
+            "rate limit",
+            "timed out",
+            "timeout",
+            "gateway timeout",
+            "temporarily unavailable",
+            "connection reset",
+            "remote end closed",
+            "429",
+            "502",
+            "503",
+            "504",
+        )
+        transient_types = (
+            overpy.exception.OverpassGatewayTimeout,
+            overpy.exception.OverpassRuntimeError,
+            overpy.exception.OverpassTooManyRequests,
+            overpy.exception.OverpassUnknownHTTPStatusCode,
+        )
+        return isinstance(error, transient_types) or any(
+            marker in message for marker in transient_markers
+        )
+
+    def _query_osm_with_retries(self, query, retries=3, base_delay=2):
+        last_error = None
+
+        for attempt in range(1, retries + 1):
+            try:
+                return api.query(query)
+            except Exception as error:
+                last_error = error
+                if attempt == retries or not self._is_transient_overpass_error(error):
+                    break
+
+                delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+                logger.warning(
+                    "Transient Overpass error on attempt %d/%d: %s. Retrying in %.1f seconds.",
+                    attempt,
+                    retries,
+                    error,
+                    delay,
+                )
+                time.sleep(delay)
+
+        raise last_error
 
     def categorize_site_osm(self, latitude, longitude):
         # Define search radii
@@ -102,9 +159,17 @@ class SiteCategoryModel:
             """
 
             try:
-                result = api.query(query)
+                result = self._query_osm_with_retries(query)
             except Exception as e:
-                debug_info.append(f"Error querying OSM: {e}")
+                error_message = f"Error querying OSM after retries: {e}"
+                if error_message not in debug_info:
+                    debug_info.append(error_message)
+
+                # If the upstream Overpass service is overloaded, the same query
+                # is unlikely to succeed for the next radius immediately after.
+                if self._is_transient_overpass_error(e):
+                    break
+
                 continue
 
             for way in result.ways:

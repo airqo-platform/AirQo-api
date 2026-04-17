@@ -1,6 +1,16 @@
 import os
 from enum import Enum, unique, IntEnum
 
+SITE_DAILY_FORECAST_MET_COLUMNS = (
+    "air_pressure_at_sea_level",
+    "air_temperature",
+    "cloud_area_fraction",
+    "precipitation_amount",
+    "relative_humidity",
+    "wind_from_direction",
+    "wind_speed",
+)
+
 
 @unique
 class DeviceCategory(IntEnum):
@@ -56,7 +66,9 @@ class DeviceNetwork(IntEnum):
     PURPLEAIR = 10
     AIRGRADIENT = 11
     COPERNICUS = 12
-    NONE = 13
+    OPENWEATHER = 13
+    NOMADS = 14
+    NONE = 15
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -86,6 +98,7 @@ class DataType(Enum):
     EXTRAS = "extras"
     METADATA = "metadata"
     COMPUTEDDATA = "computed"
+    FORECAST = "forecast"
 
     def __str__(self) -> str:
         return self.name.lower()
