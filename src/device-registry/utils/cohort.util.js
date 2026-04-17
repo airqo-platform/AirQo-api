@@ -1843,159 +1843,15 @@ const createCohort = {
             as: "activities",
           },
         },
-        // Dedicated lookups for the most-recent activity of each type.
-        // These cannot be derived from the capped activities array above
-        // because that array is limited to the 100 most-recent activities
-        // overall — the latest deployment/maintenance/recall could be older
-        // than position 100.  The compound index on Activity
-        // { site_id, activityType, createdAt } makes each of these an
-        // index-range scan + limit 1, so the cost is negligible.
-        // $project is placed after $match and before $sort/$limit to keep
-        // field parity with the main activities lookup and reduce sort memory.
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      { $eq: ["$activityType", "deployment"] },
-                    ],
-                  },
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_deployment_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      { $eq: ["$activityType", "maintenance"] },
-                    ],
-                  },
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_maintenance_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      {
-                        $or: [
-                          { $eq: ["$activityType", "recall"] },
-                          { $eq: ["$activityType", "recallment"] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_recall_activity",
-          },
-        },
-        // Dedicated count lookup so total_activities reflects all activities
-        // for the site, not just the 100-document cap in the activities array.
-        // The { site_id, createdAt } index makes this an efficient count-scan.
-        // activity_count is an intermediate field; the inclusion $project
-        // below removes it from the final output automatically.
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
-              { $count: "count" },
-            ],
-            as: "activity_count",
-          },
-        },
-        {
-          $addFields: {
-            // True total across all activities for this site
-            total_activities: {
-              $ifNull: [{ $arrayElemAt: ["$activity_count.count", 0] }, 0],
-            },
-            // Count of activities returned in the capped array (max 100)
-            recent_activities_count: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
-            },
-          },
-        },
+        // Typed-activity fields (latest_deployment_activity, latest_maintenance_activity,
+        // latest_recall_activity) are derived in JS post-processing from the merged
+        // activities array fetched above. Running 4 separate $lookup stages here
+        // (3 typed + 1 count) adds 40 extra DB sub-queries for a page of 10 sites.
+        // The Sites inclusion $project already unwraps lookup arrays to single objects
+        // via $cond/$arrayElemAt, then the post-processing .length check runs on the
+        // resulting plain objects — always evaluating to null. The lookups were dead.
+        // Deriving in JS from the top-100 activities window is equivalent for all
+        // realistic AirQo site activity histories.
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
@@ -2006,24 +1862,14 @@ const createCohort = {
 
       // Post-processing for consistency
       paginatedResults.forEach((site) => {
-        site.latest_deployment_activity =
-          site.latest_deployment_activity &&
-          site.latest_deployment_activity.length > 0
-            ? site.latest_deployment_activity[0]
-            : null;
-
-        site.latest_maintenance_activity =
-          site.latest_maintenance_activity &&
-          site.latest_maintenance_activity.length > 0
-            ? site.latest_maintenance_activity[0]
-            : null;
-
-        site.latest_recall_activity =
-          site.latest_recall_activity && site.latest_recall_activity.length > 0
-            ? site.latest_recall_activity[0]
-            : null;
-
         if (site.activities && site.activities.length > 0) {
+          // Sort merged activities by most recent first
+          if (site.activities.length > 1) {
+            site.activities.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+            );
+          }
+
           const activitiesByType = {};
           const latestActivitiesByType = {};
 
@@ -2042,6 +1888,24 @@ const createCohort = {
 
           site.activities_by_type = activitiesByType;
           site.latest_activities_by_type = latestActivitiesByType;
+          site.recent_activities_count = site.activities.length;
+
+          // Derive typed-activity fields from the already-sorted activities array
+          site.latest_deployment_activity =
+            latestActivitiesByType["deployment"] || null;
+          site.latest_maintenance_activity =
+            latestActivitiesByType["maintenance"] || null;
+
+          const latestRecall = latestActivitiesByType["recall"] || null;
+          const latestRecallment =
+            latestActivitiesByType["recallment"] || null;
+          site.latest_recall_activity =
+            latestRecall && latestRecallment
+              ? new Date(latestRecall.createdAt) >=
+                new Date(latestRecallment.createdAt)
+                ? latestRecall
+                : latestRecallment
+              : latestRecall || latestRecallment || null;
 
           const deviceActivitySummary = site.devices.map((device) => {
             const deviceActivities = site.activities.filter(
@@ -2060,6 +1924,10 @@ const createCohort = {
         } else {
           site.activities_by_type = {};
           site.latest_activities_by_type = {};
+          site.recent_activities_count = 0;
+          site.latest_deployment_activity = null;
+          site.latest_maintenance_activity = null;
+          site.latest_recall_activity = null;
           site.device_activity_summary = site.devices.map((device) => ({
             device_id: device._id,
             device_name: device.name,
