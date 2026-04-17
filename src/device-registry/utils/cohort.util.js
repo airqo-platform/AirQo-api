@@ -1423,7 +1423,9 @@ const createCohort = {
       };
 
       // Get total count for pagination metadata before applying limit and skip
-      const total = await DeviceModel(tenant).countDocuments(filter);
+      const total = await DeviceModel(tenant)
+        .countDocuments(filter)
+        .maxTimeMS(45000);
 
       const pipeline = [
         { $match: filter },
@@ -1483,6 +1485,24 @@ const createCohort = {
             localField: "site.grids",
             foreignField: "_id",
             as: "grids",
+          },
+        },
+        {
+          // Trim grids to the same field subset the previous pipeline-form
+          // $project returned, keeping the response payload unchanged.
+          $addFields: {
+            grids: {
+              $map: {
+                input: "$grids",
+                as: "g",
+                in: {
+                  _id: "$$g._id",
+                  name: "$$g.name",
+                  admin_level: "$$g.admin_level",
+                  long_name: "$$g.long_name",
+                },
+              },
+            },
           },
         },
         {
@@ -1569,8 +1589,11 @@ const createCohort = {
         { $project: exclusionProjection },
       ];
 
+      // Mongoose 5.x ignores a plain-object second argument to .aggregate();
+      // options must be applied via .option() on the returned Aggregate instance.
       const paginatedResults = await DeviceModel(tenant)
-        .aggregate(pipeline, { maxTimeMS: 45000 })
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       // Post-processing for consistency
@@ -1738,6 +1761,7 @@ const createCohort = {
       const devicesInCohorts = await DeviceModel(tenant)
         .find(deviceFilter)
         .select("site_id deployment_type")
+        .maxTimeMS(45000)
         .lean();
 
       // Extract unique site IDs (only for static deployments with sites)
@@ -1778,7 +1802,9 @@ const createCohort = {
       };
 
       // Get total count for pagination
-      const total = await SiteModel(tenant).countDocuments(siteFilter);
+      const total = await SiteModel(tenant)
+        .countDocuments(siteFilter)
+        .maxTimeMS(45000);
 
       // Build aggregation pipeline for sites
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
@@ -1856,8 +1882,11 @@ const createCohort = {
         { $project: exclusionProjection },
       ];
 
+      // Mongoose 5.x ignores a plain-object second argument to .aggregate();
+      // options must be applied via .option() on the returned Aggregate instance.
       const paginatedResults = await SiteModel(tenant)
-        .aggregate(pipeline, { maxTimeMS: 45000 })
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       // Post-processing for consistency
