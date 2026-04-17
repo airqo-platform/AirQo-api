@@ -27,6 +27,7 @@ spec:
         app: {{ .Values.app.label }}
     spec:
       restartPolicy: Always
+      terminationGracePeriodSeconds: 600
       serviceAccountName: {{ .Values.app.serviceAccount }}
 
       nodeSelector:
@@ -80,7 +81,14 @@ spec:
             - secretRef:
                 name: {{ .Values.app.secret }}
           command: ["airflow"]
-          args: ["celery", "worker", "--autoscale=3,2"]
+          args: ["celery", "worker", "--autoscale=6,2"]
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - "airflow celery stop; sleep 5"
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

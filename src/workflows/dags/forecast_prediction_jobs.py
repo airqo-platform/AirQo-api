@@ -1,15 +1,15 @@
 ## This module contains DAGS for prediction/inference jobs of AirQo.
 from airflow.decorators import dag, task
+from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta, timezone
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration as Config
-from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastUtils
+from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastModelTrainer, ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.date import DateUtils
-
 
 @dag(
     "AirQo-forecasting-job",
@@ -18,6 +18,12 @@ from airqo_etl_utils.date import DateUtils
     tags=["airqo", "hourly-forecast", "daily-forecast", "prediction-job"],
 )
 def make_forecasts():
+    """Run the hourly and daily PM2.5 forecast pipelines.
+    This DAG is the legacy device forecast flow. It fetches device-level
+    prediction history from BigQuery, engineers the full model feature set
+    explicitly in the DAG, then persists forecasts to both BigQuery and MongoDB.
+    
+    """
     bucket = Config.FORECAST_MODELS_BUCKET
     project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
@@ -150,6 +156,94 @@ def make_forecasts():
     daily_forecasts = make_daily_forecasts(daily_location_features)
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)
-
-
 make_forecasts()
+
+@dag(
+    "AirQo-site-daily-forecasting-job_Q",
+    schedule="0 3 * * *",
+    default_args={
+        **AirflowUtils.dag_default_configs(),
+        "retries": 3,
+        "retry_delay": timedelta(minutes=10),
+        "retry_exponential_backoff": True,
+        "max_retry_delay": timedelta(minutes=60),
+    },
+    catchup=False,
+    tags=["airqo", "forecast", "site-level", "prediction-job", "daily"],
+    description="Daily site-level PM forecasting pipeline.",
+)
+def make_site_daily_forecasts():
+    """Run the site-level daily PM2.5 forecast pipeline.
+
+    Key characteristics:
+    - Uses site-level prediction data prepared inside ``ForecastModelTrainer``.
+    - Allows sparse recent data so newly deployed sites can still receive a
+      forecast.
+    - Saves the PM forecast to MongoDB first.
+    - Attempts MET.no enrichment afterwards and only applies the update when
+      weather fields are actually returned.
+    """    
+    @task()
+    def fetch_site_prediction_data(**kwargs):
+        """Fetch site-level prediction history for the configured lookback window."""
+        execution_date = kwargs["dag_run"].execution_date
+        lookback_days = int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30)
+        return ForecastModelTrainer.fetch_site_prediction_data(
+            execution_date=execution_date,
+            lookback_days=lookback_days,
+        )
+
+    @task()
+    def generate_site_forecasts(data):
+        """Generate forward site-level daily forecasts without MET enrichment."""
+        horizon = int(Config.DAILY_FORECAST_HORIZON or 7)
+        return ForecastModelTrainer.generate_site_daily_forecasts(
+            data,
+            horizon=horizon,
+            include_met_no_weather=False,
+        )
+
+    @task()
+    
+    def enrich_site_forecasts_with_met(data):
+        """Enrich site-level daily forecasts with MET.no weather data."""
+        return ForecastModelTrainer._enrich_site_daily_forecasts_with_met_no_weather(
+            data,
+            fail_on_error=True,
+        )
+
+    @task()
+    def save_site_forecasts_to_mongodb(data):
+        """Save site-level daily forecasts to MongoDB."""
+        return ForecastModelTrainer.save_site_daily_forecasts_to_mongo(data)
+
+    @task(trigger_rule=TriggerRule.ALL_DONE)
+    def resolve_site_forecasts_for_met_updates(**kwargs):
+        """Resolve site-level daily forecasts for MET.no weather updates."""
+        taskinstance = kwargs.get("ti") or kwargs.get("task_instance")
+        enriched_data = taskinstance.xcom_pull(
+            task_ids="enrich_site_forecasts_with_met"
+        )
+        return ForecastModelTrainer.resolve_site_forecasts_for_met_updates(
+            enriched_data
+        )
+
+    @task()
+    def update_site_forecasts_met_in_mongodb(data):
+        """Update site-level daily forecasts in MongoDB with MET.no weather data."""
+        if data is None:
+            return {"updated": False, "reason": "met_unavailable"}
+
+        details = ForecastModelTrainer.save_site_daily_forecasts_to_mongo(data)
+        return {"updated": True, "details": details}
+
+    site_data = fetch_site_prediction_data()
+    site_forecasts = generate_site_forecasts(site_data)
+    mongodb_save = save_site_forecasts_to_mongodb(site_forecasts)
+    site_forecasts_with_met = enrich_site_forecasts_with_met(site_forecasts)
+    mongodb_save >> site_forecasts_with_met
+    site_forecasts_for_met_updates = resolve_site_forecasts_for_met_updates()
+    site_forecasts_with_met >> site_forecasts_for_met_updates
+    update_site_forecasts_met_in_mongodb(site_forecasts_for_met_updates)
+
+site_daily_forecast_prediction_dag = make_site_daily_forecasts()
