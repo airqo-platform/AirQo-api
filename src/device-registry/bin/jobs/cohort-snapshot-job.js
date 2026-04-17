@@ -239,6 +239,21 @@ async function refreshSitesForCohort(cohortId, tenant, runAt) {
  */
 async function runCohortSnapshotJob() {
   const jobStart = new Date();
+
+  // Preflight: verify the MongoDB connection is ready before touching any cohort.
+  // If the connection is in a reconnecting state (readyState !== 1) we log a
+  // single WARN and skip the run entirely rather than emitting one ERROR per
+  // cohort, which floods the alerts channel.
+  const connReadyState = CohortModel(TENANT).db
+    ? CohortModel(TENANT).db.readyState
+    : -1;
+  if (connReadyState !== 1) {
+    logger.warn(
+      `${JOB_NAME} -- skipping run: MongoDB connection not ready (readyState=${connReadyState})`
+    );
+    return;
+  }
+
   logText(`${JOB_NAME} -- starting at ${jobStart.toISOString()}`);
 
   let cohorts;
