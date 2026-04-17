@@ -43,6 +43,13 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+// Cache key and TTL for the IP-prefix blacklist.
+// The prefix list changes rarely; 10 minutes is the right trade-off between
+// freshness and eliminating the unbounded BlacklistedIPPrefixModel.find() that
+// was previously running on every single authenticated request.
+const IP_PREFIX_CACHE_KEY = "ip_prefix_blacklist_cache";
+const IP_PREFIX_CACHE_TTL_SECONDS = 10 * 60; // 10 minutes
+
 const getDay = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -458,7 +465,49 @@ const isIPBlacklistedHelper = async (
       AccessTokenModel("airqo")
         .findOne(accessTokenFilter)
         .select("name token client_id expiredEmailSent"),
-      BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
+      // Redis-first cache for the prefix list — avoids a full-collection scan
+      // on every authenticated request. Falls through to MongoDB on cache miss
+      // or Redis unavailability; both failure paths are non-fatal.
+      (async () => {
+        try {
+          const cached = await redisGetAsync(IP_PREFIX_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            // Validate shape before trusting the cached value. A corrupted or
+            // unexpected payload (null, object, array of strings) would cause
+            // blacklistedIpPrefixesData.map(item => item.prefix) to throw and
+            // the outer catch to treat the request as blacklisted. Fall through
+            // to the DB if the shape is wrong.
+            if (
+              Array.isArray(parsed) &&
+              parsed.every(
+                (item) =>
+                  item !== null &&
+                  typeof item === "object" &&
+                  typeof item.prefix === "string",
+              )
+            ) {
+              return parsed;
+            }
+          }
+        } catch (_) {
+          // Redis unavailable or JSON.parse failure — fall through to DB
+        }
+        const prefixes = await BlacklistedIPPrefixModel("airqo")
+          .find()
+          .select("prefix -_id")
+          .lean();
+        try {
+          await redisSetAsync(
+            IP_PREFIX_CACHE_KEY,
+            JSON.stringify(prefixes),
+            IP_PREFIX_CACHE_TTL_SECONDS
+          );
+        } catch (_) {
+          // Cache write failure is non-fatal
+        }
+        return prefixes;
+      })(),
     ]);
 
     const {
@@ -1713,6 +1762,13 @@ const token = {
         },
         next,
       );
+      if (response && response.success) {
+        redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+          logger.warn(
+            `Failed to invalidate IP prefix cache after single insert: ${err.message}`,
+          ),
+        );
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1781,6 +1837,17 @@ const token = {
         finalStatus = httpStatus.BAD_REQUEST;
       }
 
+      // Invalidate the cached prefix list so the new entries are visible
+      // on the next request. Non-fatal — a stale cache is acceptable for
+      // up to IP_PREFIX_CACHE_TTL_SECONDS if Redis is momentarily unavailable.
+      if (successful_responses.length > 0) {
+        redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+          logger.warn(
+            `Failed to invalidate IP prefix cache after bulk insert: ${err.message}`,
+          ),
+        );
+      }
+
       return {
         success: true,
         data: { successful_responses, unsuccessful_responses },
@@ -1811,6 +1878,13 @@ const token = {
         { filter },
         next,
       );
+      if (response && response.success) {
+        redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+          logger.warn(
+            `Failed to invalidate IP prefix cache after removal: ${err.message}`,
+          ),
+        );
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2268,6 +2342,13 @@ const token = {
         if (!prefixBlacklistResponse.success) {
           logger.error(
             `Failed to blacklist prefix ${ipPrefix}: ${prefixBlacklistResponse.message}`,
+          );
+        } else {
+          // New prefix written — invalidate cache so the next request picks it up immediately
+          redisDelAsync(IP_PREFIX_CACHE_KEY).catch((err) =>
+            logger.warn(
+              `Failed to invalidate IP prefix cache after auto-blacklist of ${ipPrefix}: ${err.message}`,
+            ),
           );
         }
       }
