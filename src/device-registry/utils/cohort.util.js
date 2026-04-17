@@ -1863,13 +1863,8 @@ const createCohort = {
       // Post-processing for consistency
       paginatedResults.forEach((site) => {
         if (site.activities && site.activities.length > 0) {
-          // Sort merged activities by most recent first
-          if (site.activities.length > 1) {
-            site.activities.sort(
-              (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-            );
-          }
-
+          // No JS sort needed: the activities $lookup pipeline already applies
+          // { $sort: { createdAt: -1 } } server-side (single source, no merge).
           const activitiesByType = {};
           const latestActivitiesByType = {};
 
@@ -1888,7 +1883,9 @@ const createCohort = {
 
           site.activities_by_type = activitiesByType;
           site.latest_activities_by_type = latestActivitiesByType;
-          site.recent_activities_count = site.activities.length;
+          // recent_activities_count omitted: total_activities from the inclusion
+          // projection already equals $size(activities) — the two fields would
+          // always be identical, duplicating the same capped-window count.
 
           // Derive typed-activity fields from the already-sorted activities array
           site.latest_deployment_activity =
@@ -1924,7 +1921,6 @@ const createCohort = {
         } else {
           site.activities_by_type = {};
           site.latest_activities_by_type = {};
-          site.recent_activities_count = 0;
           site.latest_deployment_activity = null;
           site.latest_maintenance_activity = null;
           site.latest_recall_activity = null;
