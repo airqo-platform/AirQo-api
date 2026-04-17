@@ -259,6 +259,16 @@ try {
   }
 }
 
+// Cohort snapshot pre-computation job (every hour at :15)
+try {
+  require("@bin/jobs/cohort-snapshot-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ cohort-snapshot-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }

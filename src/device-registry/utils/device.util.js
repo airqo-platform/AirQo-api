@@ -490,7 +490,10 @@ const deviceUtil = {
         },
       ];
 
-      const results = await DeviceModel(tenant).aggregate(pipeline);
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
 
       const summary = results[0] || {
         total_monitors: 0,
@@ -606,7 +609,9 @@ const deviceUtil = {
       const { query } = request;
       const { tenant } = query;
       const filter = generateFilter.devices(request, next);
-      const count = await DeviceModel(tenant).countDocuments(filter);
+      const count = await DeviceModel(tenant)
+        .countDocuments(filter)
+        .maxTimeMS(45000);
       return {
         success: true,
         message: "retrieved the number of devices",
@@ -1474,6 +1479,7 @@ const deviceUtil = {
 
       const results = await DeviceModel(tenant)
         .aggregate(facetPipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;

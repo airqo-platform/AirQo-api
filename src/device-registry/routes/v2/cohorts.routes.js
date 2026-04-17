@@ -177,6 +177,24 @@ router.post(
   createCohortController.listDevicesByCohort,
 );
 
+// Pre-computed snapshot endpoints — same request body / response shape as the
+// live endpoints above, served from a flat pre-populated collection (no
+// aggregation pipeline at request time). Falls back to the live query when the
+// snapshot is not yet populated for a given cohort.
+router.post(
+  "/cached-sites",
+  cohortValidations.listSites,
+  pagination(),
+  createCohortController.listCachedSitesByCohort,
+);
+
+router.post(
+  "/cached-devices",
+  cohortValidations.listDevices,
+  pagination(),
+  createCohortController.listCachedDevicesByCohort,
+);
+
 router.get(
   "/:cohort_id",
   cohortValidations.getCohort,

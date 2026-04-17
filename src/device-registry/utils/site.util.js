@@ -84,7 +84,10 @@ const getSiteCountSummary = async (request, next) => {
       },
     ];
 
-    const results = await SiteModel(tenant).aggregate(pipeline);
+    const results = await SiteModel(tenant)
+      .aggregate(pipeline)
+      .option({ maxTimeMS: 45000 })
+      .allowDiskUse(true);
     const defaultSummary = {
       total_sites: 0,
       operational: 0,
@@ -1357,6 +1360,7 @@ const createSite = {
 
       const results = await SiteModel(tenant)
         .aggregate(facetPipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;

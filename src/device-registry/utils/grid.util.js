@@ -852,6 +852,7 @@ const createGrid = {
 
       const results = await GridModel(tenant)
         .aggregate(facetPipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       const agg =
@@ -1304,6 +1305,7 @@ const createGrid = {
             },
           },
         ])
+        .option({ maxTimeMS: 45000 })
         .exec();
 
       logObject("responseFromListAssignedSites", responseFromListAssignedSites);
@@ -1580,7 +1582,10 @@ const createGrid = {
         },
       ];
 
-      const results = await GridModel(tenant).aggregate(pipeline).allowDiskUse(true);
+      const results = await GridModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
 
       const countriesWithFlags = results.map((countryData) => {
         // Safely handle null or undefined country names

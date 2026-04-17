@@ -1,6 +1,8 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
+const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
+const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const networkUtil = require("@utils/network.util");
 const isEmpty = require("is-empty");
@@ -1933,19 +1935,29 @@ const createCohort = {
                 : latestRecallment
               : latestRecall || latestRecallment || null;
 
-          const deviceActivitySummary = site.devices.map((device) => {
-            const deviceActivities = site.activities.filter(
-              (activity) =>
-                activity.device === device.name ||
-                (activity.device_id &&
-                  activity.device_id.toString() === device._id.toString()),
-            );
-            return {
-              device_id: device._id,
-              device_name: device.name,
-              activity_count: deviceActivities.length,
-            };
-          });
+          // Build separate count maps (O(n)) to avoid an O(n²) nested filter
+          // across site.devices × site.activities for every site.
+          // Activities with device_id are keyed by id; legacy name-only
+          // activities are keyed by name — matching the original OR logic
+          // without the risk of double-counting an activity that carries both.
+          const activityCountById = {};
+          const activityCountByName = {};
+          for (const activity of site.activities) {
+            if (activity.device_id) {
+              const key = activity.device_id.toString();
+              activityCountById[key] = (activityCountById[key] || 0) + 1;
+            } else if (activity.device) {
+              activityCountByName[activity.device] =
+                (activityCountByName[activity.device] || 0) + 1;
+            }
+          }
+          const deviceActivitySummary = site.devices.map((device) => ({
+            device_id: device._id,
+            device_name: device.name,
+            activity_count:
+              (activityCountById[device._id.toString()] || 0) +
+              (activityCountByName[device.name] || 0),
+          }));
           site.device_activity_summary = deviceActivitySummary;
         } else {
           site.activities_by_type = {};
@@ -2008,6 +2020,265 @@ const createCohort = {
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message },
         ),
+      );
+    }
+  },
+
+
+  /**
+   * listCachedDevices — serve devices from the pre-computed CohortDeviceSnapshot
+   * collection. Falls back transparently to the live listDevices aggregation when
+   * the snapshot is empty (e.g. new cohort, first run before the job fires).
+   *
+   * Accepts the same request body / query shape as listDevices so callers need
+   * only swap the endpoint URL.
+   */
+  listCachedDevices: async (request, next) => {
+    try {
+      const {
+        body: { cohort_ids = [] } = {},
+        query: {
+          tenant,
+          skip: rawSkip = 0,
+          limit: rawLimit = 10,
+          search,
+          status,
+          category,
+          network,
+        } = {},
+      } = request;
+
+      const _skip = Math.max(0, parseInt(rawSkip, 10) || 0);
+      const _limit = Math.min(Math.max(1, parseInt(rawLimit, 10) || 10), 100);
+
+      if (!cohort_ids.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "cohort_ids is required",
+          errors: { message: "cohort_ids array must not be empty" },
+        };
+      }
+
+      const cohortObjectIds = cohort_ids
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => ObjectId(id));
+
+      if (!cohortObjectIds.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "No valid cohort_ids provided",
+          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+        };
+      }
+
+      // Check whether the snapshot collection has data for ALL requested cohorts.
+      // distinct() returns one entry per cohort that has at least one snapshot,
+      // so comparing the count against cohortObjectIds.length detects partial coverage.
+      const coveredCohortIds = await CohortDeviceSnapshotModel(tenant)
+        .distinct("cohort_id", { cohort_id: { $in: cohortObjectIds }, tenant })
+        .maxTimeMS(5000);
+
+      // Fall back to the live aggregation if any cohort lacks snapshot data
+      if (coveredCohortIds.length < cohortObjectIds.length) {
+        logger.warn(
+          `listCachedDevices -- snapshot incomplete for cohort_ids [${cohort_ids}] (${coveredCohortIds.length}/${cohortObjectIds.length} covered), falling back to live query`
+        );
+        return createCohort.listDevices(request, next);
+      }
+
+      // Build the filter — use top-level indexed fields, not data.*
+      const filter = {
+        cohort_id: { $in: cohortObjectIds },
+        tenant,
+      };
+      if (search) {
+        filter.name = { $regex: search, $options: "i" };
+      }
+      if (status) {
+        filter.status = status;
+      }
+      if (category) {
+        filter.category = category;
+      }
+      if (network) {
+        filter.network = network;
+      }
+
+      const [total, snapshots] = await Promise.all([
+        CohortDeviceSnapshotModel(tenant)
+          .countDocuments(filter)
+          .maxTimeMS(10000),
+        CohortDeviceSnapshotModel(tenant)
+          .find(filter)
+          .skip(_skip)
+          .limit(_limit)
+          .select("device_id data _snapshot_generated_at")
+          .lean()
+          .maxTimeMS(10000),
+      ]);
+
+      // Deduplicate by device_id when a device appears in multiple cohorts
+      const seen = new Map();
+      for (const s of snapshots) {
+        const key = s.device_id.toString();
+        if (!seen.has(key)) seen.set(key, s.data);
+      }
+      const devices = [...seen.values()];
+
+      // Report the oldest snapshot age so the caller knows the cache staleness
+      const cacheGeneratedAt =
+        snapshots.length > 0
+          ? new Date(Math.min(...snapshots.map((s) => +s._snapshot_generated_at)))
+          : null;
+
+      const totalPages = Math.ceil(total / _limit);
+
+      return {
+        success: true,
+        message: "Successfully retrieved cached devices",
+        data: devices,
+        meta: {
+          total,
+          skip: _skip,
+          limit: _limit,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages,
+        },
+        cache_generated_at: cacheGeneratedAt,
+      };
+    } catch (error) {
+      logger.error(`listCachedDevices -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * listCachedSites — serve sites from the pre-computed CohortSiteSnapshot
+   * collection. Falls back to the live listSites aggregation when the snapshot
+   * is not yet populated.
+   */
+  listCachedSites: async (request, next) => {
+    try {
+      const {
+        body: { cohort_ids = [] } = {},
+        query: {
+          tenant,
+          skip: rawSkip = 0,
+          limit: rawLimit = 10,
+          search,
+          country,
+        } = {},
+      } = request;
+
+      const _skip = Math.max(0, parseInt(rawSkip, 10) || 0);
+      const _limit = Math.min(Math.max(1, parseInt(rawLimit, 10) || 10), 100);
+
+      if (!cohort_ids.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "cohort_ids is required",
+          errors: { message: "cohort_ids array must not be empty" },
+        };
+      }
+
+      const cohortObjectIds = cohort_ids
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => ObjectId(id));
+
+      if (!cohortObjectIds.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "No valid cohort_ids provided",
+          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+        };
+      }
+
+      // Check whether the snapshot collection has data for ALL requested cohorts
+      const coveredCohortIds = await CohortSiteSnapshotModel(tenant)
+        .distinct("cohort_id", { cohort_id: { $in: cohortObjectIds }, tenant })
+        .maxTimeMS(5000);
+
+      if (coveredCohortIds.length < cohortObjectIds.length) {
+        logger.warn(
+          `listCachedSites -- snapshot incomplete for cohort_ids [${cohort_ids}] (${coveredCohortIds.length}/${cohortObjectIds.length} covered), falling back to live query`
+        );
+        return createCohort.listSites(request, next);
+      }
+
+      const filter = {
+        cohort_id: { $in: cohortObjectIds },
+        tenant,
+      };
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { search_name: { $regex: search, $options: "i" } },
+        ];
+      }
+      if (country) {
+        filter.country = country;
+      }
+
+      const [total, snapshots] = await Promise.all([
+        CohortSiteSnapshotModel(tenant)
+          .countDocuments(filter)
+          .maxTimeMS(10000),
+        CohortSiteSnapshotModel(tenant)
+          .find(filter)
+          .skip(_skip)
+          .limit(_limit)
+          .select("site_id data _snapshot_generated_at")
+          .lean()
+          .maxTimeMS(10000),
+      ]);
+
+      // Deduplicate by site_id when a site appears in multiple cohorts
+      const seen = new Map();
+      for (const s of snapshots) {
+        const key = s.site_id.toString();
+        if (!seen.has(key)) seen.set(key, s.data);
+      }
+      const sites = [...seen.values()];
+
+      // Report the oldest snapshot age so the caller knows the cache staleness
+      const cacheGeneratedAt =
+        snapshots.length > 0
+          ? new Date(Math.min(...snapshots.map((s) => +s._snapshot_generated_at)))
+          : null;
+
+      const totalPages = Math.ceil(total / _limit);
+
+      return {
+        success: true,
+        message: "Successfully retrieved cached sites",
+        data: sites,
+        meta: {
+          total,
+          skip: _skip,
+          limit: _limit,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages,
+        },
+        cache_generated_at: cacheGeneratedAt,
+      };
+    } catch (error) {
+      logger.error(`listCachedSites -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
