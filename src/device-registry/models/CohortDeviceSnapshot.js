@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { getModelByTenant } = require("@config/database");
+const { getSnapshotModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 
@@ -78,15 +78,11 @@ cohortDeviceSnapshotSchema.index(
 const CohortDeviceSnapshotModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    return mongoose.model("cohortdevicesnapshot");
-  } catch (error) {
-    return getModelByTenant(
-      dbTenant,
-      "cohortdevicesnapshot",
-      cohortDeviceSnapshotSchema
-    );
-  }
+  return getSnapshotModelByTenant(
+    dbTenant,
+    "cohortdevicesnapshot",
+    cohortDeviceSnapshotSchema
+  );
 };
 
 module.exports = CohortDeviceSnapshotModel;

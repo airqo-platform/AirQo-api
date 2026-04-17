@@ -240,19 +240,17 @@ async function refreshSitesForCohort(cohortId, tenant, runAt) {
 async function runCohortSnapshotJob() {
   const jobStart = new Date();
 
-  // Preflight: verify the MongoDB connection is ready before touching any cohort.
-  // If the connection is in a reconnecting state (readyState !== 1) we log a
-  // single WARN and skip the run entirely rather than emitting one ERROR per
-  // cohort, which floods the alerts channel.
-  // NOTE: CohortDeviceSnapshotModel and CohortSiteSnapshotModel currently share
-  // the same underlying connection as CohortModel via getModelByTenant. If they
-  // are ever moved to a separate connection, add equivalent readyState checks for
-  // their .db connections here.
+  // Preflight: verify both the main and snapshot MongoDB connections are ready
+  // before touching any cohort. If either is reconnecting (readyState !== 1) we
+  // log a single WARN and skip the run entirely, rather than emitting one ERROR
+  // per cohort which floods the alerts channel.
   const cohortModel = CohortModel(TENANT);
-  const connReadyState = cohortModel.db?.readyState;
-  if (connReadyState !== 1) {
+  const snapshotModel = CohortDeviceSnapshotModel(TENANT);
+  const mainReadyState = cohortModel.db?.readyState;
+  const snapshotReadyState = snapshotModel.db?.readyState;
+  if (mainReadyState !== 1 || snapshotReadyState !== 1) {
     logger.warn(
-      `${JOB_NAME} -- skipping run: MongoDB connection not ready (readyState=${connReadyState})`
+      `${JOB_NAME} -- skipping run: MongoDB connection(s) not ready (main=${mainReadyState}, snapshot=${snapshotReadyState})`
     );
     return;
   }

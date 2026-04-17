@@ -42,9 +42,30 @@ const createQueryConnection = () =>
     dbName: `${constants.DB_NAME}`,
   });
 
+/**
+ * Dedicated connection for the pre-computed snapshot collections
+ * (cohortdevicesnapshots, cohortsitesnapshots).
+ *
+ * WHY A SEPARATE POOL:
+ *   The snapshot job (bulkWrite) and the cached cohort endpoints (distinct/find)
+ *   previously shared queryDB with the live aggregation requests. Under load the
+ *   live aggregations held connections for 3-10 s each, exhausting the pool and
+ *   starving the snapshot operations — preventing the cache from ever being
+ *   populated. A dedicated pool with a smaller ceiling (10 connections is ample
+ *   for one hourly job + low-concurrency reads) isolates snapshot I/O completely
+ *   from live traffic regardless of frontend load.
+ */
+const createSnapshotConnection = () =>
+  mongoose.createConnection(QUERY_URI, {
+    ...options,
+    dbName: `${constants.DB_NAME}`,
+    maxPoolSize: 10,
+  });
+
 // Store database connections
 let commandDB = null;
 let queryDB = null;
+let snapshotDB = null;
 let isConnected = false;
 
 // Helper function to set up connection event handlers
@@ -79,6 +100,10 @@ const connectToMongoDB = () => {
     // Establish query database connection
     queryDB = createQueryConnection();
     setupConnectionHandlers(queryDB, "query");
+
+    // Establish dedicated snapshot database connection
+    snapshotDB = createSnapshotConnection();
+    setupConnectionHandlers(snapshotDB, "snapshot");
 
     // Set up global error handlers
     process.on("unhandledRejection", (reason, p) => {
@@ -168,6 +193,29 @@ function getModelByTenant(
 }
 
 /**
+ * Get the snapshot tenant database (for cohort snapshot read/write operations).
+ * Uses the dedicated snapshotDB pool so snapshot I/O never competes with the
+ * live aggregation requests that run through queryDB.
+ */
+function getSnapshotTenantDB(tenantId, modelName, schema) {
+  const dbName = `${constants.DB_NAME}_${tenantId}`;
+  if (snapshotDB) {
+    const db = snapshotDB.useDb(dbName, { useCache: true });
+    db.model(modelName, schema);
+    return db;
+  }
+  throw new Error("Snapshot database connection not established");
+}
+
+/**
+ * Get a snapshot model for a specific tenant.
+ */
+function getSnapshotModelByTenant(tenantId, modelName, schema) {
+  const tenantDb = getSnapshotTenantDB(tenantId, modelName, schema);
+  return tenantDb.model(modelName);
+}
+
+/**
  * Get a raw tenant database connection without model registration
  * Useful for migrations and operations that don't need model access
  */
@@ -192,7 +240,9 @@ module.exports = {
   connectToMongoDB,
   getCommandModelByTenant,
   getQueryModelByTenant,
+  getSnapshotModelByTenant,
   getCommandTenantDB,
   getQueryTenantDB,
+  getSnapshotTenantDB,
   getRawTenantDB,
 };
