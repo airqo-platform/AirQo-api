@@ -377,6 +377,28 @@ const createCohort = {
       handleError(error, next);
     }
   },
+  listCachedDevicesByCohort: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.listCachedDevices(request, next);
+      handleResponse({ res, result, key: "devices" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  listCachedSitesByCohort: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.listCachedSites(request, next);
+      handleResponse({ res, result, key: "sites" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   promoteCohorts: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

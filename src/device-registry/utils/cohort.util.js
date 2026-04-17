@@ -1,6 +1,8 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
+const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
+const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const networkUtil = require("@utils/network.util");
 const isEmpty = require("is-empty");
@@ -1933,19 +1935,29 @@ const createCohort = {
                 : latestRecallment
               : latestRecall || latestRecallment || null;
 
-          const deviceActivitySummary = site.devices.map((device) => {
-            const deviceActivities = site.activities.filter(
-              (activity) =>
-                activity.device === device.name ||
-                (activity.device_id &&
-                  activity.device_id.toString() === device._id.toString()),
-            );
-            return {
-              device_id: device._id,
-              device_name: device.name,
-              activity_count: deviceActivities.length,
-            };
-          });
+          // Build separate count maps (O(n)) to avoid an O(n²) nested filter
+          // across site.devices × site.activities for every site.
+          // Activities with device_id are keyed by id; legacy name-only
+          // activities are keyed by name — matching the original OR logic
+          // without the risk of double-counting an activity that carries both.
+          const activityCountById = {};
+          const activityCountByName = {};
+          for (const activity of site.activities) {
+            if (activity.device_id) {
+              const key = activity.device_id.toString();
+              activityCountById[key] = (activityCountById[key] || 0) + 1;
+            } else if (activity.device) {
+              activityCountByName[activity.device] =
+                (activityCountByName[activity.device] || 0) + 1;
+            }
+          }
+          const deviceActivitySummary = site.devices.map((device) => ({
+            device_id: device._id,
+            device_name: device.name,
+            activity_count:
+              (activityCountById[device._id.toString()] || 0) +
+              (activityCountByName[device.name] || 0),
+          }));
           site.device_activity_summary = deviceActivitySummary;
         } else {
           site.activities_by_type = {};
@@ -2008,6 +2020,234 @@ const createCohort = {
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message },
         ),
+      );
+    }
+  },
+
+
+  /**
+   * listCachedDevices — serve devices from the pre-computed CohortDeviceSnapshot
+   * collection. Falls back transparently to the live listDevices aggregation when
+   * the snapshot is empty (e.g. new cohort, first run before the job fires).
+   *
+   * Accepts the same request body / query shape as listDevices so callers need
+   * only swap the endpoint URL.
+   */
+  listCachedDevices: async (request, next) => {
+    try {
+      const {
+        body: { cohort_ids = [] } = {},
+        query: {
+          tenant,
+          skip: rawSkip = 0,
+          limit: rawLimit = 10,
+          search,
+          status,
+          category,
+          network,
+        } = {},
+      } = request;
+
+      const _skip = parseInt(rawSkip, 10) || 0;
+      const _limit = Math.min(parseInt(rawLimit, 10) || 10, 100);
+
+      if (!cohort_ids.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "cohort_ids is required",
+          errors: { message: "cohort_ids array must not be empty" },
+        };
+      }
+
+      const cohortObjectIds = cohort_ids
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => ObjectId(id));
+
+      if (!cohortObjectIds.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "No valid cohort_ids provided",
+          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+        };
+      }
+
+      // Check whether the snapshot collection has data for these cohorts
+      const snapshotExists = await CohortDeviceSnapshotModel(tenant)
+        .findOne({ cohort_id: { $in: cohortObjectIds }, tenant })
+        .select("_id")
+        .lean()
+        .maxTimeMS(5000);
+
+      // Fall back to the live aggregation if the snapshot is not yet populated
+      if (!snapshotExists) {
+        logger.warn(
+          `listCachedDevices -- no snapshot found for cohort_ids [${cohort_ids}], falling back to live query`
+        );
+        return createCohort.listDevices(request, next);
+      }
+
+      // Build the filter
+      const filter = {
+        cohort_id: { $in: cohortObjectIds },
+        tenant,
+      };
+      if (search) {
+        filter.name = { $regex: search, $options: "i" };
+      }
+      if (status) {
+        filter["data.status"] = status;
+      }
+      if (category) {
+        filter["data.category"] = category;
+      }
+      if (network) {
+        filter["data.network"] = network;
+      }
+
+      const [total, snapshots] = await Promise.all([
+        CohortDeviceSnapshotModel(tenant)
+          .countDocuments(filter)
+          .maxTimeMS(10000),
+        CohortDeviceSnapshotModel(tenant)
+          .find(filter)
+          .skip(_skip)
+          .limit(_limit)
+          .select("data _snapshot_generated_at")
+          .lean()
+          .maxTimeMS(10000),
+      ]);
+
+      const devices = snapshots.map((s) => s.data);
+      const cacheGeneratedAt =
+        snapshots.length > 0 ? snapshots[0]._snapshot_generated_at : null;
+
+      return {
+        success: true,
+        message: "Successfully retrieved cached devices",
+        data: devices,
+        total,
+        skip: _skip,
+        limit: _limit,
+        cache_generated_at: cacheGeneratedAt,
+      };
+    } catch (error) {
+      logger.error(`listCachedDevices -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * listCachedSites — serve sites from the pre-computed CohortSiteSnapshot
+   * collection. Falls back to the live listSites aggregation when the snapshot
+   * is not yet populated.
+   */
+  listCachedSites: async (request, next) => {
+    try {
+      const {
+        body: { cohort_ids = [] } = {},
+        query: {
+          tenant,
+          skip: rawSkip = 0,
+          limit: rawLimit = 10,
+          search,
+          country,
+        } = {},
+      } = request;
+
+      const _skip = parseInt(rawSkip, 10) || 0;
+      const _limit = Math.min(parseInt(rawLimit, 10) || 10, 100);
+
+      if (!cohort_ids.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "cohort_ids is required",
+          errors: { message: "cohort_ids array must not be empty" },
+        };
+      }
+
+      const cohortObjectIds = cohort_ids
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => ObjectId(id));
+
+      if (!cohortObjectIds.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "No valid cohort_ids provided",
+          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+        };
+      }
+
+      const snapshotExists = await CohortSiteSnapshotModel(tenant)
+        .findOne({ cohort_id: { $in: cohortObjectIds }, tenant })
+        .select("_id")
+        .lean()
+        .maxTimeMS(5000);
+
+      if (!snapshotExists) {
+        logger.warn(
+          `listCachedSites -- no snapshot found for cohort_ids [${cohort_ids}], falling back to live query`
+        );
+        return createCohort.listSites(request, next);
+      }
+
+      const filter = {
+        cohort_id: { $in: cohortObjectIds },
+        tenant,
+      };
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { search_name: { $regex: search, $options: "i" } },
+        ];
+      }
+      if (country) {
+        filter.country = country;
+      }
+
+      const [total, snapshots] = await Promise.all([
+        CohortSiteSnapshotModel(tenant)
+          .countDocuments(filter)
+          .maxTimeMS(10000),
+        CohortSiteSnapshotModel(tenant)
+          .find(filter)
+          .skip(_skip)
+          .limit(_limit)
+          .select("data _snapshot_generated_at")
+          .lean()
+          .maxTimeMS(10000),
+      ]);
+
+      const sites = snapshots.map((s) => s.data);
+      const cacheGeneratedAt =
+        snapshots.length > 0 ? snapshots[0]._snapshot_generated_at : null;
+
+      return {
+        success: true,
+        message: "Successfully retrieved cached sites",
+        data: sites,
+        total,
+        skip: _skip,
+        limit: _limit,
+        cache_generated_at: cacheGeneratedAt,
+      };
+    } catch (error) {
+      logger.error(`listCachedSites -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

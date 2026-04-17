@@ -1,0 +1,293 @@
+/**
+ * cohort-snapshot-job.js
+ *
+ * Runs every hour at :15 and pre-populates the CohortDeviceSnapshot and
+ * CohortSiteSnapshot collections for every active cohort.
+ *
+ * WHY:
+ *   POST /cohorts/devices and POST /cohorts/sites run a multi-$lookup MongoDB
+ *   aggregation that takes 3–10 seconds per page under normal load and times out
+ *   (504) under concurrent load. Pre-computing the results hourly means the new
+ *   POST /cohorts/cached-devices and POST /cohorts/cached-sites endpoints can
+ *   answer with a simple find() in <100 ms regardless of load.
+ *
+ * HOW:
+ *   1. Fetch all cohorts for the configured tenant.
+ *   2. For each cohort, call the existing listDevices / listSites util functions
+ *      in pages (BATCH_SIZE devices / sites per page) so each page stays within
+ *      the maxTimeMS budget already set on those functions.
+ *   3. Upsert each device / site into the snapshot collection keyed by
+ *      (cohort_id, device_id|site_id, tenant).
+ *   4. After a successful full refresh, remove any stale snapshot documents for
+ *      the cohort whose _snapshot_generated_at is older than the current run
+ *      (handles devices / sites that left the cohort since the last run).
+ */
+
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- /bin/jobs/cohort-snapshot-job`
+);
+const { logText } = require("@utils/shared");
+const cron = require("node-cron");
+const mongoose = require("mongoose");
+
+const CohortModel = require("@models/Cohort");
+const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
+const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
+const createCohortUtil = require("@utils/cohort.util");
+
+const TENANT = constants.DEFAULT_TENANT || "airqo";
+const JOB_NAME = "cohort-snapshot-job";
+const JOB_SCHEDULE = "15 * * * *"; // Every hour at :15
+const BATCH_SIZE = 50; // Devices / sites per page — keeps each page under 45 s maxTimeMS
+
+// Silent next() — the util functions call next(error) on failures; we log and
+// continue rather than crashing the job.
+const noop = (err) => {
+  if (err) logger.error(`${JOB_NAME} -- util error: ${err.message}`);
+};
+
+/**
+ * Build a synthetic request object that the util functions accept.
+ */
+function buildRequest({ cohortIds, tenant, skip, limit, extra = {} }) {
+  return {
+    body: { cohort_ids: cohortIds.map((id) => id.toString()) },
+    query: { tenant, skip, limit, ...extra },
+    params: {},
+  };
+}
+
+/**
+ * Upsert a batch of snapshot documents for devices.
+ */
+async function upsertDeviceSnapshots(cohortId, tenant, devices, runAt) {
+  if (!devices.length) return;
+  const ops = devices.map((device) => ({
+    updateOne: {
+      filter: {
+        cohort_id: cohortId,
+        device_id: device._id,
+        tenant,
+      },
+      update: {
+        $set: {
+          cohort_id: cohortId,
+          device_id: device._id,
+          tenant,
+          name: device.name || null,
+          isOnline: device.isOnline !== undefined ? device.isOnline : null,
+          status: device.status || null,
+          category: device.category || null,
+          network: device.network || null,
+          data: device,
+          _snapshot_generated_at: runAt,
+        },
+      },
+      upsert: true,
+    },
+  }));
+  await CohortDeviceSnapshotModel(tenant).bulkWrite(ops, { ordered: false });
+}
+
+/**
+ * Upsert a batch of snapshot documents for sites.
+ */
+async function upsertSiteSnapshots(cohortId, tenant, sites, runAt) {
+  if (!sites.length) return;
+  const ops = sites.map((site) => ({
+    updateOne: {
+      filter: {
+        cohort_id: cohortId,
+        site_id: site._id,
+        tenant,
+      },
+      update: {
+        $set: {
+          cohort_id: cohortId,
+          site_id: site._id,
+          tenant,
+          name: site.name || null,
+          search_name: site.search_name || null,
+          country: site.country || null,
+          data: site,
+          _snapshot_generated_at: runAt,
+        },
+      },
+      upsert: true,
+    },
+  }));
+  await CohortSiteSnapshotModel(tenant).bulkWrite(ops, { ordered: false });
+}
+
+/**
+ * Remove snapshot documents for a cohort that were NOT touched in this run.
+ * This cleans up devices / sites that have left the cohort since the last run.
+ */
+async function removeStaleSnapshots(cohortId, tenant, runAt) {
+  await Promise.all([
+    CohortDeviceSnapshotModel(tenant).deleteMany({
+      cohort_id: cohortId,
+      tenant,
+      _snapshot_generated_at: { $lt: runAt },
+    }),
+    CohortSiteSnapshotModel(tenant).deleteMany({
+      cohort_id: cohortId,
+      tenant,
+      _snapshot_generated_at: { $lt: runAt },
+    }),
+  ]);
+}
+
+/**
+ * Refresh the device snapshot for a single cohort.
+ */
+async function refreshDevicesForCohort(cohortId, tenant, runAt) {
+  let skip = 0;
+  let totalUpserted = 0;
+
+  while (true) {
+    const request = buildRequest({
+      cohortIds: [cohortId],
+      tenant,
+      skip,
+      limit: BATCH_SIZE,
+    });
+
+    let result;
+    try {
+      result = await createCohortUtil.listDevices(request, noop);
+    } catch (err) {
+      logger.error(
+        `${JOB_NAME} -- listDevices failed for cohort ${cohortId} skip=${skip}: ${err.message}`
+      );
+      break;
+    }
+
+    if (!result || !result.success || !result.data || !result.data.length) {
+      break;
+    }
+
+    await upsertDeviceSnapshots(cohortId, tenant, result.data, runAt);
+    totalUpserted += result.data.length;
+
+    if (result.data.length < BATCH_SIZE) break;
+    skip += BATCH_SIZE;
+  }
+
+  return totalUpserted;
+}
+
+/**
+ * Refresh the site snapshot for a single cohort.
+ */
+async function refreshSitesForCohort(cohortId, tenant, runAt) {
+  let skip = 0;
+  let totalUpserted = 0;
+
+  while (true) {
+    const request = buildRequest({
+      cohortIds: [cohortId],
+      tenant,
+      skip,
+      limit: BATCH_SIZE,
+    });
+
+    let result;
+    try {
+      result = await createCohortUtil.listSites(request, noop);
+    } catch (err) {
+      logger.error(
+        `${JOB_NAME} -- listSites failed for cohort ${cohortId} skip=${skip}: ${err.message}`
+      );
+      break;
+    }
+
+    if (!result || !result.success || !result.data || !result.data.length) {
+      break;
+    }
+
+    await upsertSiteSnapshots(cohortId, tenant, result.data, runAt);
+    totalUpserted += result.data.length;
+
+    if (result.data.length < BATCH_SIZE) break;
+    skip += BATCH_SIZE;
+  }
+
+  return totalUpserted;
+}
+
+/**
+ * Main job function — iterates all cohorts and refreshes both snapshots.
+ */
+async function runCohortSnapshotJob() {
+  const jobStart = new Date();
+  logText(`${JOB_NAME} -- starting at ${jobStart.toISOString()}`);
+
+  let cohorts;
+  try {
+    cohorts = await CohortModel(TENANT)
+      .find({})
+      .select("_id cohort_id")
+      .lean()
+      .maxTimeMS(30000);
+  } catch (err) {
+    logger.error(`${JOB_NAME} -- failed to fetch cohorts: ${err.message}`);
+    return;
+  }
+
+  if (!cohorts || cohorts.length === 0) {
+    logText(`${JOB_NAME} -- no cohorts found, exiting`);
+    return;
+  }
+
+  logText(`${JOB_NAME} -- processing ${cohorts.length} cohort(s)`);
+
+  let totalDevices = 0;
+  let totalSites = 0;
+  let cohortErrors = 0;
+
+  for (const cohort of cohorts) {
+    const cohortId = cohort._id;
+    const runAt = new Date(); // per-cohort timestamp for stale cleanup
+
+    try {
+      const [deviceCount, siteCount] = await Promise.all([
+        refreshDevicesForCohort(cohortId, TENANT, runAt),
+        refreshSitesForCohort(cohortId, TENANT, runAt),
+      ]);
+
+      // Remove devices / sites that left this cohort since the last run
+      await removeStaleSnapshots(cohortId, TENANT, runAt);
+
+      totalDevices += deviceCount;
+      totalSites += siteCount;
+
+      logText(
+        `${JOB_NAME} -- cohort ${cohortId}: ${deviceCount} device(s), ${siteCount} site(s) refreshed`
+      );
+    } catch (err) {
+      logger.error(
+        `${JOB_NAME} -- error processing cohort ${cohortId}: ${err.message}`
+      );
+      cohortErrors++;
+    }
+  }
+
+  const elapsed = ((Date.now() - jobStart) / 1000).toFixed(1);
+  logText(
+    `${JOB_NAME} -- completed in ${elapsed}s: ${totalDevices} devices, ${totalSites} sites refreshed across ${cohorts.length} cohort(s), ${cohortErrors} error(s)`
+  );
+}
+
+// Schedule the job
+cron.schedule(JOB_SCHEDULE, () => {
+  runCohortSnapshotJob().catch((err) => {
+    logger.error(`${JOB_NAME} -- unhandled error: ${err.message}`);
+  });
+});
+
+logText(`${JOB_NAME} -- scheduled (${JOB_SCHEDULE})`);
+
+module.exports = { runCohortSnapshotJob };
