@@ -244,9 +244,12 @@ async function runCohortSnapshotJob() {
   // If the connection is in a reconnecting state (readyState !== 1) we log a
   // single WARN and skip the run entirely rather than emitting one ERROR per
   // cohort, which floods the alerts channel.
-  const connReadyState = CohortModel(TENANT).db
-    ? CohortModel(TENANT).db.readyState
-    : -1;
+  // NOTE: CohortDeviceSnapshotModel and CohortSiteSnapshotModel currently share
+  // the same underlying connection as CohortModel via getModelByTenant. If they
+  // are ever moved to a separate connection, add equivalent readyState checks for
+  // their .db connections here.
+  const cohortModel = CohortModel(TENANT);
+  const connReadyState = cohortModel.db?.readyState;
   if (connReadyState !== 1) {
     logger.warn(
       `${JOB_NAME} -- skipping run: MongoDB connection not ready (readyState=${connReadyState})`
