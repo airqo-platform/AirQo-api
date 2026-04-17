@@ -542,6 +542,7 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.index({ site_id: 1 });
 deviceSchema.index({ mobility: 1 });
+deviceSchema.index({ cohorts: 1 });
 deviceSchema.index({ mobility: 1, cohorts: 1 });
 // Index for stale entity checks
 deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
