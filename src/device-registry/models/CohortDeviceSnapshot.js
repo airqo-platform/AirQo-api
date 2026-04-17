@@ -49,14 +49,7 @@ const cohortDeviceSnapshotSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
-  {
-    timestamps: false,
-    // Fail immediately when no connection is available instead of buffering for
-    // bufferTimeoutMS (10 s). The snapshot job and cached endpoints both have
-    // explicit error handling / fallback logic, so a fast failure is preferable
-    // to a silent 10 s hang under connection pool pressure.
-    bufferCommands: false,
-  }
+  { timestamps: false }
 );
 
 // Unique compound key used for upserts in the snapshot job
