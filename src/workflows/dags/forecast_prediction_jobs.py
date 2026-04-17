@@ -160,7 +160,7 @@ make_forecasts()
 
 @dag(
     "AirQo-site-daily-forecasting-job_Q",
-    schedule="0 1 * * *",
+    schedule="0 0 * * *",
     default_args={
         **AirflowUtils.dag_default_configs(),
         "retries": 3,
