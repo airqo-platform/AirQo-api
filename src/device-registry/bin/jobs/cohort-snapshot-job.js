@@ -34,11 +34,54 @@ const CohortModel = require("@models/Cohort");
 const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const createCohortUtil = require("@utils/cohort.util");
+const redisClient = require("@config/redis");
 
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const JOB_NAME = "cohort-snapshot-job";
 const JOB_SCHEDULE = "15 * * * *"; // Every hour at :15
 const BATCH_SIZE = 50; // Devices / sites per page — keeps each page under 45 s maxTimeMS
+
+// Distributed lock key — scoped to environment so staging and production locks
+// are independent. TTL of 3600 s ensures the lock auto-expires if a pod crashes
+// before releasing it, preventing a permanent lockout until the next deployment.
+const ENV_SLUG = (constants.ENVIRONMENT || "unknown")
+  .replace(/\s+/g, "_")
+  .toLowerCase();
+const LOCK_KEY = `${ENV_SLUG}:${JOB_NAME}:lock`;
+const LOCK_TTL_SECONDS = 3600;
+
+/**
+ * Attempt to acquire the distributed Redis lock.
+ * Returns true if the lock was acquired (this pod should run the job),
+ * false if another pod already holds it (this pod should skip the run).
+ * If Redis is unavailable the lock is skipped and the job proceeds — data
+ * correctness is preserved because snapshot writes are idempotent upserts.
+ */
+async function acquireJobLock() {
+  try {
+    if (!redisClient.isOpen) return true; // Redis unavailable — proceed without lock
+    const result = await redisClient.set(LOCK_KEY, "1", {
+      NX: true, // Only set if key does not exist
+      EX: LOCK_TTL_SECONDS,
+    });
+    return result === "OK";
+  } catch (err) {
+    logger.warn(`${JOB_NAME} -- could not acquire lock (${err.message}), proceeding without lock`);
+    return true;
+  }
+}
+
+/**
+ * Release the distributed Redis lock.
+ */
+async function releaseJobLock() {
+  try {
+    if (!redisClient.isOpen) return;
+    await redisClient.del(LOCK_KEY);
+  } catch (err) {
+    logger.warn(`${JOB_NAME} -- could not release lock: ${err.message}`);
+  }
+}
 
 // Silent next() — the util functions call next(error) on failures; we log and
 // continue rather than crashing the job.
@@ -238,89 +281,100 @@ async function refreshSitesForCohort(cohortId, tenant, runAt) {
  * Main job function — iterates all cohorts and refreshes both snapshots.
  */
 async function runCohortSnapshotJob() {
+  // Distributed lock — only one pod across all replicas runs the job per cycle.
+  // Without this every replica fires simultaneously, multiplying per-cohort errors
+  // in logs and MongoDB write contention on the snapshot collections.
+  const lockAcquired = await acquireJobLock();
+  if (!lockAcquired) {
+    logText(`${JOB_NAME} -- skipping run: another instance holds the lock`);
+    return;
+  }
+
   const jobStart = new Date();
 
-  // Preflight: verify the MongoDB connection is ready before touching any cohort.
-  // If the connection is in a reconnecting state (readyState !== 1) we log a
-  // single WARN and skip the run entirely rather than emitting one ERROR per
-  // cohort, which floods the alerts channel.
-  // NOTE: CohortDeviceSnapshotModel and CohortSiteSnapshotModel currently share
-  // the same underlying connection as CohortModel via getModelByTenant. If they
-  // are ever moved to a separate connection, add equivalent readyState checks for
-  // their .db connections here.
+  // Preflight: verify both the main and snapshot MongoDB connections are ready
+  // before touching any cohort. If either is reconnecting (readyState !== 1) we
+  // log a single WARN and skip the run entirely, rather than emitting one ERROR
+  // per cohort which floods the alerts channel.
   const cohortModel = CohortModel(TENANT);
-  const connReadyState = cohortModel.db?.readyState;
-  if (connReadyState !== 1) {
+  const snapshotModel = CohortDeviceSnapshotModel(TENANT);
+  const mainReadyState = cohortModel.db?.readyState;
+  const snapshotReadyState = snapshotModel.db?.readyState;
+  if (mainReadyState !== 1 || snapshotReadyState !== 1) {
     logger.warn(
-      `${JOB_NAME} -- skipping run: MongoDB connection not ready (readyState=${connReadyState})`
+      `${JOB_NAME} -- skipping run: MongoDB connection(s) not ready (main=${mainReadyState}, snapshot=${snapshotReadyState})`
     );
     return;
   }
 
-  logText(`${JOB_NAME} -- starting at ${jobStart.toISOString()}`);
-
-  let cohorts;
   try {
-    cohorts = await CohortModel(TENANT)
-      .find({})
-      .select("_id cohort_id")
-      .lean()
-      .maxTimeMS(30000);
-  } catch (err) {
-    logger.error(`${JOB_NAME} -- failed to fetch cohorts: ${err.message}`);
-    return;
-  }
+    logText(`${JOB_NAME} -- starting at ${jobStart.toISOString()}`);
 
-  if (!cohorts || cohorts.length === 0) {
-    logText(`${JOB_NAME} -- no cohorts found, exiting`);
-    return;
-  }
-
-  logText(`${JOB_NAME} -- processing ${cohorts.length} cohort(s)`);
-
-  let totalDevices = 0;
-  let totalSites = 0;
-  let cohortErrors = 0;
-
-  for (const cohort of cohorts) {
-    const cohortId = cohort._id;
-    const runAt = new Date(); // per-cohort timestamp for stale cleanup
-
+    let cohorts;
     try {
-      // Run sequentially to avoid doubling simultaneous connection demand on a
-      // shared pool that may already be under pressure from live aggregation requests.
-      const deviceResult = await refreshDevicesForCohort(cohortId, TENANT, runAt);
-      const siteResult = await refreshSitesForCohort(cohortId, TENANT, runAt);
-
-      totalDevices += deviceResult.count;
-      totalSites += siteResult.count;
-
-      // Only prune stale documents when both refreshes completed without error.
-      // If either was interrupted mid-pagination, pruning would incorrectly delete
-      // valid snapshot documents for the portion that was not yet upserted.
-      if (deviceResult.complete && siteResult.complete) {
-        await removeStaleSnapshots(cohortId, TENANT, runAt);
-      } else {
-        logger.warn(
-          `${JOB_NAME} -- cohort ${cohortId}: skipping stale pruning (devices complete=${deviceResult.complete}, sites complete=${siteResult.complete})`
-        );
-      }
-
-      logText(
-        `${JOB_NAME} -- cohort ${cohortId}: ${deviceResult.count} device(s), ${siteResult.count} site(s) refreshed`
-      );
+      cohorts = await CohortModel(TENANT)
+        .find({})
+        .select("_id cohort_id")
+        .lean()
+        .maxTimeMS(30000);
     } catch (err) {
-      logger.error(
-        `${JOB_NAME} -- error processing cohort ${cohortId}: ${err.message}`
-      );
-      cohortErrors++;
+      logger.error(`${JOB_NAME} -- failed to fetch cohorts: ${err.message}`);
+      return;
     }
-  }
 
-  const elapsed = ((Date.now() - jobStart) / 1000).toFixed(1);
-  logText(
-    `${JOB_NAME} -- completed in ${elapsed}s: ${totalDevices} device(s), ${totalSites} site(s) refreshed across ${cohorts.length} cohort(s), ${cohortErrors} error(s)`
-  );
+    if (!cohorts || cohorts.length === 0) {
+      logText(`${JOB_NAME} -- no cohorts found, exiting`);
+      return;
+    }
+
+    logText(`${JOB_NAME} -- processing ${cohorts.length} cohort(s)`);
+
+    let totalDevices = 0;
+    let totalSites = 0;
+    let cohortErrors = 0;
+
+    for (const cohort of cohorts) {
+      const cohortId = cohort._id;
+      const runAt = new Date(); // per-cohort timestamp for stale cleanup
+
+      try {
+        // Run sequentially to avoid doubling simultaneous connection demand on a
+        // shared pool that may already be under pressure from live aggregation requests.
+        const deviceResult = await refreshDevicesForCohort(cohortId, TENANT, runAt);
+        const siteResult = await refreshSitesForCohort(cohortId, TENANT, runAt);
+
+        totalDevices += deviceResult.count;
+        totalSites += siteResult.count;
+
+        // Only prune stale documents when both refreshes completed without error.
+        // If either was interrupted mid-pagination, pruning would incorrectly delete
+        // valid snapshot documents for the portion that was not yet upserted.
+        if (deviceResult.complete && siteResult.complete) {
+          await removeStaleSnapshots(cohortId, TENANT, runAt);
+        } else {
+          logger.warn(
+            `${JOB_NAME} -- cohort ${cohortId}: skipping stale pruning (devices complete=${deviceResult.complete}, sites complete=${siteResult.complete})`
+          );
+        }
+
+        logText(
+          `${JOB_NAME} -- cohort ${cohortId}: ${deviceResult.count} device(s), ${siteResult.count} site(s) refreshed`
+        );
+      } catch (err) {
+        logger.error(
+          `${JOB_NAME} -- error processing cohort ${cohortId}: ${err.message}`
+        );
+        cohortErrors++;
+      }
+    }
+
+    const elapsed = ((Date.now() - jobStart) / 1000).toFixed(1);
+    logText(
+      `${JOB_NAME} -- completed in ${elapsed}s: ${totalDevices} device(s), ${totalSites} site(s) refreshed across ${cohorts.length} cohort(s), ${cohortErrors} error(s)`
+    );
+  } finally {
+    await releaseJobLock();
+  }
 }
 
 // Schedule the job
