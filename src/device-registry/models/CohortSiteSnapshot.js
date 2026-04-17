@@ -39,7 +39,13 @@ const cohortSiteSnapshotSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
-  { timestamps: false }
+  {
+    timestamps: false,
+    // Fail immediately when no connection is available — same rationale as
+    // CohortDeviceSnapshot. Both the snapshot job and cached endpoints handle
+    // errors explicitly, so fast failure beats a silent 10 s buffer timeout.
+    bufferCommands: false,
+  }
 );
 
 cohortSiteSnapshotSchema.index(

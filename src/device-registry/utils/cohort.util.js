@@ -2149,6 +2149,14 @@ const createCohort = {
         cache_generated_at: cacheGeneratedAt,
       };
     } catch (error) {
+      // Snapshot collection unavailable (connection pool exhausted or collection not yet
+      // created by the job) — fall back to the live aggregation transparently.
+      if (error.message && error.message.includes("buffering timed out")) {
+        logger.warn(
+          `listCachedDevices -- snapshot unavailable (${error.message}), falling back to live query`
+        );
+        return createCohort.listDevices(request, next);
+      }
       logger.error(`listCachedDevices -- ${error.message}`);
       next(
         new HttpError(
@@ -2272,6 +2280,13 @@ const createCohort = {
         cache_generated_at: cacheGeneratedAt,
       };
     } catch (error) {
+      // Snapshot collection unavailable — fall back to the live aggregation transparently.
+      if (error.message && error.message.includes("buffering timed out")) {
+        logger.warn(
+          `listCachedSites -- snapshot unavailable (${error.message}), falling back to live query`
+        );
+        return createCohort.listSites(request, next);
+      }
       logger.error(`listCachedSites -- ${error.message}`);
       next(
         new HttpError(
