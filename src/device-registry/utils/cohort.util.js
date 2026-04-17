@@ -1475,13 +1475,13 @@ const createCohort = {
           },
         },
         {
+          // Simple-form $lookup allows MongoDB to use the _id index on the grids
+          // collection. The previous pipeline-form with $expr/$in blocked index
+          // usage, causing a full grids collection scan per device.
           $lookup: {
             from: "grids",
-            let: { gridIds: { $ifNull: ["$site.grids", []] } },
-            pipeline: [
-              { $match: { $expr: { $in: ["$_id", "$$gridIds"] } } },
-              { $project: { _id: 1, name: 1, admin_level: 1, long_name: 1 } },
-            ],
+            localField: "site.grids",
+            foreignField: "_id",
             as: "grids",
           },
         },
@@ -1570,7 +1570,7 @@ const createCohort = {
       ];
 
       const paginatedResults = await DeviceModel(tenant)
-        .aggregate(pipeline)
+        .aggregate(pipeline, { maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       // Post-processing for consistency
@@ -1857,7 +1857,7 @@ const createCohort = {
       ];
 
       const paginatedResults = await SiteModel(tenant)
-        .aggregate(pipeline)
+        .aggregate(pipeline, { maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       // Post-processing for consistency
