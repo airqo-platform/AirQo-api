@@ -2026,6 +2026,30 @@ const createCohort = {
 
 
   /**
+   * Returns true when an error indicates the snapshot collection is temporarily
+   * unreachable — either because the connection pool is exhausted (buffering
+   * timeout) or because bufferCommands:false caused an immediate fast-fail
+   * before a connection was available. In both cases the right response is to
+   * fall back to the live aggregation rather than returning a 500.
+   */
+  _isSnapshotUnavailableError(error) {
+    if (!error) return false;
+    const unavailableNames = new Set([
+      "MongooseError",
+      "MongoServerSelectionError",
+      "MongoNetworkTimeoutError",
+      "MongoPoolClearedError",
+    ]);
+    if (unavailableNames.has(error.name)) return true;
+    const msg = error.message || "";
+    return (
+      msg.includes("buffering timed out") ||
+      msg.includes("before initial connection") ||
+      msg.includes("checking out a connection")
+    );
+  },
+
+  /**
    * listCachedDevices — serve devices from the pre-computed CohortDeviceSnapshot
    * collection. Falls back transparently to the live listDevices aggregation when
    * the snapshot is empty (e.g. new cohort, first run before the job fires).
@@ -2149,6 +2173,14 @@ const createCohort = {
         cache_generated_at: cacheGeneratedAt,
       };
     } catch (error) {
+      // Snapshot collection unavailable — covers both the legacy "buffering timed
+      // out" message and the fast-fail messages emitted by bufferCommands:false.
+      if (createCohort._isSnapshotUnavailableError(error)) {
+        logger.warn(
+          `listCachedDevices -- snapshot unavailable (${error.name}: ${error.message}), falling back to live query`
+        );
+        return createCohort.listDevices(request, next);
+      }
       logger.error(`listCachedDevices -- ${error.message}`);
       next(
         new HttpError(
@@ -2272,6 +2304,13 @@ const createCohort = {
         cache_generated_at: cacheGeneratedAt,
       };
     } catch (error) {
+      // Snapshot collection unavailable — same broadened check as listCachedDevices.
+      if (createCohort._isSnapshotUnavailableError(error)) {
+        logger.warn(
+          `listCachedSites -- snapshot unavailable (${error.name}: ${error.message}), falling back to live query`
+        );
+        return createCohort.listSites(request, next);
+      }
       logger.error(`listCachedSites -- ${error.message}`);
       next(
         new HttpError(
