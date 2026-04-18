@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "main": "./bin",
+  "engines": {
+    "node": ">=18.19.0"
+  },
   "scripts": {
     "start": "NODE_ENV=production node --max-old-space-size=4096 ./bin",
     "stage": "NODE_ENV=staging node --max-old-space-size=4096 ./bin",

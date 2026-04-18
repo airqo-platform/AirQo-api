@@ -75,7 +75,7 @@ const logThrottledConnectionError = (error) => {
 };
 // --- END: Connection Error Log Throttling ---
 
-// Redis v4 configuration with improved retry strategy
+// redis@5 client configuration (RESP2 enabled for redis@4-compatible return types)
 const redisConfig = {
   url: REDIS_URL,
   // ── RESP protocol version ───────────────────────────────────────────────────
@@ -95,7 +95,7 @@ const redisConfig = {
     reconnectStrategy: (retries) => {
       connectionAttempts = retries + 1;
 
-      if (retries > 15) {
+      if (retries >= 15) {
         logger.error(
           "Redis maximum retry attempts (15) reached. Stopping retries.",
         );
@@ -106,9 +106,10 @@ const redisConfig = {
       const baseDelay = Math.min(Math.pow(2, retries) * 500, 30000);
       const jitter = Math.random() * 1000;
       const delay = baseDelay + jitter;
+      const attemptNumber = Math.min(retries + 1, 15);
 
       logger.warn(
-        `Redis retry attempt ${retries + 1}/15 in ${Math.round(delay)}ms`,
+        `Redis retry attempt ${attemptNumber}/15 in ${Math.round(delay)}ms`,
       );
       return delay;
     },
