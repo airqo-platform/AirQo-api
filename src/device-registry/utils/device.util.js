@@ -267,9 +267,39 @@ const getDeviceCategoriesAddFieldsStage = () => {
                 input: {
                   $concatArrays: [
                     [{ $ifNull: ["$category", "lowcost"] }],
-                    // Only include deployment_type when it is set — the $filter
-                    // below removes nulls, so un-deployed devices contribute nothing here.
-                    ["$deployment_type"],
+                    // Use the same inferred deployment value as deployment_category so
+                    // devices without an explicit deployment_type (but with site_id/grid_id)
+                    // still contribute "static"/"mobile" to all_categories.
+                    // The $filter below removes nulls, so un-deployed devices add nothing.
+                    [
+                      {
+                        $switch: {
+                          branches: [
+                            {
+                              case: { $eq: ["$deployment_type", "mobile"] },
+                              then: "mobile",
+                            },
+                            {
+                              case: { $eq: ["$deployment_type", "static"] },
+                              then: "static",
+                            },
+                            {
+                              case: {
+                                $ne: [{ $ifNull: ["$grid_id", null] }, null],
+                              },
+                              then: "mobile",
+                            },
+                            {
+                              case: {
+                                $ne: [{ $ifNull: ["$site_id", null] }, null],
+                              },
+                              then: "static",
+                            },
+                          ],
+                          default: null,
+                        },
+                      },
+                    ],
                     // Include network value when present
                     {
                       $cond: {

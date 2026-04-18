@@ -1256,7 +1256,12 @@ const deviceController = {
         "mobility", "deployment_type", "site_id", "grid_id",
         "status", "deployment_date", "recall_date", "isActive",
       ];
-      LIFECYCLE_FIELDS.forEach((f) => delete request.body[f]);
+      const stripLifecycleFields = (obj) => {
+        if (obj && typeof obj === "object") {
+          LIFECYCLE_FIELDS.forEach((f) => delete obj[f]);
+        }
+      };
+      stripLifecycleFields(request.body);
 
       const result = await createDeviceUtil.updateOnPlatform(request, next);
 
@@ -1311,11 +1316,19 @@ const deviceController = {
         : req.query.tenant;
 
       // Same lifecycle-field guard as the single-device update endpoint.
+      // Also covers request.body.updateData which is the nested payload
+      // consumed by updateManyDevicesOnPlatform in the util.
       const LIFECYCLE_FIELDS = [
         "mobility", "deployment_type", "site_id", "grid_id",
         "status", "deployment_date", "recall_date", "isActive",
       ];
-      LIFECYCLE_FIELDS.forEach((f) => delete request.body[f]);
+      const stripLifecycleFields = (obj) => {
+        if (obj && typeof obj === "object") {
+          LIFECYCLE_FIELDS.forEach((f) => delete obj[f]);
+        }
+      };
+      stripLifecycleFields(request.body);
+      stripLifecycleFields(request.body.updateData);
 
       const result = await createDeviceUtil.updateManyDevicesOnPlatform(
         request,

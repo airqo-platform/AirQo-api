@@ -13,7 +13,8 @@
  *
  *  Pass 2 – backfill_mobile
  *    Deployed devices that have a grid_id but no deployment_type.
- *    Action: set deployment_type="mobile", mobility=true.
+ *    Action: set deployment_type="mobile", mobility=true, unset site_id
+ *    (mirrors the pre-save hook that clears site_id for mobile devices).
  *
  *  Pass 3 – fix_static_mobility
  *    Devices with deployment_type="static" but mobility=true.
@@ -28,10 +29,14 @@
  * • Cursor-based pagination (_id > lastSeenId) keeps memory usage O(1)
  *   regardless of fleet size.  Each DB round-trip fetches at most BATCH_SIZE
  *   _ids, then issues a targeted updateMany — no full documents are loaded.
+ * • The write predicate merges the original pass filter with the _id set so
+ *   documents that changed between read and write are not incorrectly patched.
  * • Mongoose middleware is bypassed (collection.updateMany) so the pre-save
  *   hook's mobility↔deployment_type sync does not re-run and produce
  *   redundant writes.
- * • Distributed locking (JobLock) prevents duplicate runs across pods.
+ * • The distributed lock (JobLock) is periodically refreshed while work is
+ *   ongoing. If a refresh fails the run aborts immediately so another pod
+ *   cannot start an overlapping run.
  * • Dry-run mode (DEVICE_METADATA_CLEANUP_DRY_RUN=true) logs what would
  *   change without writing anything — safe to enable in production for audits.
  */
@@ -56,23 +61,11 @@ const JOB_NAME = "device-metadata-cleanup-job";
 const JOB_SCHEDULE = getSchedule("0 2,10,18 * * *", constants.ENVIRONMENT);
 const TIMEZONE = constants.TIMEZONE || moment.tz.guess();
 const POD_ID = process.env.HOSTNAME || os.hostname();
-const LOCK_TTL_SECONDS = 60 * 60; // 1 hour — generous for large fleets
-const BATCH_SIZE = 500; // IDs fetched per DB round-trip
-const INTER_BATCH_DELAY_MS = 50; // breathing room between batches
+const LOCK_TTL_SECONDS = 30 * 60;        // 30 min initial grant
+const LOCK_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // refresh every 10 min
+const BATCH_SIZE = 500;                  // IDs fetched per DB round-trip
+const INTER_BATCH_DELAY_MS = 50;         // breathing room between batches
 const DRY_RUN = process.env.DEVICE_METADATA_CLEANUP_DRY_RUN === "true";
-
-// Mirror the constant from Device.js / constants
-const UN_DEPLOYED_STATUSES = constants.VALID_DEVICE_STATUSES
-  ? constants.VALID_DEVICE_STATUSES.filter((s) => s !== "deployed")
-  : [
-      "recalled",
-      "ready",
-      "undeployed",
-      "decommissioned",
-      "assembly",
-      "testing",
-      "not deployed",
-    ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -105,6 +98,26 @@ const acquireLock = async (tenant) => {
   }
 };
 
+/**
+ * Extends the lock TTL from now. Returns true on success, false if the lock
+ * was lost (another pod took it or it expired). The caller must abort if false.
+ */
+const refreshLock = async (tenant) => {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + LOCK_TTL_SECONDS * 1000);
+  try {
+    const result = await JobLockModel(tenant).findOneAndUpdate(
+      { jobName: JOB_NAME, acquiredBy: POD_ID },
+      { $set: { expiresAt } },
+      { new: true }
+    );
+    return !!result;
+  } catch (error) {
+    logger.error(`[${POD_ID}] Lock refresh error: ${error.message}`);
+    return false;
+  }
+};
+
 const releaseLock = async (tenant) => {
   try {
     await JobLockModel(tenant).findOneAndDelete({
@@ -121,13 +134,14 @@ const releaseLock = async (tenant) => {
 /**
  * Runs a single correction pass.
  *
- * @param {string}  tenant    - Tenant key (e.g. "airqo")
- * @param {string}  passName  - Human-readable label for logs
- * @param {object}  filter    - MongoDB match filter for dirty documents
- * @param {object}  updateOp  - Raw MongoDB update operator ($set / $unset)
+ * @param {string}   tenant       - Tenant key (e.g. "airqo")
+ * @param {string}   passName     - Human-readable label for logs
+ * @param {object}   filter       - MongoDB match filter for dirty documents
+ * @param {object}   updateOp     - Raw MongoDB update operator ($set / $unset)
+ * @param {{ isAborted: boolean }} abortSignal - Set .isAborted=true to halt mid-pass
  * @returns {Promise<number>} Count of modified documents
  */
-const runPass = async (tenant, passName, filter, updateOp) => {
+const runPass = async (tenant, passName, filter, updateOp, abortSignal) => {
   const collection = DeviceModel(tenant).collection;
 
   // Quick pre-check — avoid acquiring a batch cursor when there's nothing to do
@@ -145,6 +159,11 @@ const runPass = async (tenant, passName, filter, updateOp) => {
   let totalModified = 0;
 
   while (true) {
+    if (abortSignal.isAborted) {
+      logger.warn(`[${POD_ID}] ${passName}: aborting — lock was lost.`);
+      break;
+    }
+
     const cursorFilter = lastSeenId
       ? { ...filter, _id: { $gt: lastSeenId } }
       : filter;
@@ -170,10 +189,10 @@ const runPass = async (tenant, passName, filter, updateOp) => {
       );
       totalModified += ids.length;
     } else {
-      const result = await collection.updateMany(
-        { _id: { $in: ids } },
-        updateOp
-      );
+      // Merge the original pass filter with the id set so documents that
+      // changed between the read and this write are not incorrectly patched.
+      const writeFilter = { ...filter, _id: { $in: ids } };
+      const result = await collection.updateMany(writeFilter, updateOp);
       totalModified += result.modifiedCount;
       logger.info(
         `[${POD_ID}] ${passName}: batch of ${ids.length} — modified ${result.modifiedCount}.`
@@ -202,6 +221,21 @@ const runCleanup = async (tenant = "airqo") => {
     return;
   }
 
+  // Shared abort signal — set to true if a lock refresh fails so all passes
+  // bail out immediately instead of writing under a lost lock.
+  const abortSignal = { isAborted: false };
+
+  // Periodically refresh the lock TTL while passes are running.
+  const refreshTimer = setInterval(async () => {
+    const refreshed = await refreshLock(tenant);
+    if (!refreshed) {
+      logger.error(
+        `[${POD_ID}] ${JOB_NAME}: lock refresh failed — aborting to prevent overlapping runs.`
+      );
+      abortSignal.isAborted = true;
+    }
+  }, LOCK_REFRESH_INTERVAL_MS);
+
   const startedAt = Date.now();
   logger.info(`[${POD_ID}] ${JOB_NAME}: starting${DRY_RUN ? " [DRY RUN]" : ""}.`);
 
@@ -219,13 +253,16 @@ const runCleanup = async (tenant = "airqo") => {
         site_id: { $exists: true, $ne: null },
         grid_id: { $in: [null, undefined] },
       },
-      { $set: { deployment_type: "static", mobility: false } }
+      { $set: { deployment_type: "static", mobility: false } },
+      abortSignal
     );
 
-    if (global.isShuttingDown) return;
+    if (abortSignal.isAborted || global.isShuttingDown) return;
 
     // ── Pass 2: Backfill deployment_type="mobile" from grid_id ───────────────
     // Grid-assigned deployed devices without an explicit deployment_type.
+    // Also unsets site_id to mirror the pre-save hook that clears it for
+    // mobile devices, preventing stale site_id values from persisting.
     await runPass(
       tenant,
       "pass2/backfill_mobile",
@@ -234,10 +271,14 @@ const runCleanup = async (tenant = "airqo") => {
         deployment_type: { $exists: false },
         grid_id: { $exists: true, $ne: null },
       },
-      { $set: { deployment_type: "mobile", mobility: true } }
+      {
+        $set: { deployment_type: "mobile", mobility: true },
+        $unset: { site_id: "" },
+      },
+      abortSignal
     );
 
-    if (global.isShuttingDown) return;
+    if (abortSignal.isAborted || global.isShuttingDown) return;
 
     // ── Pass 3: Fix mobility flag on static devices ───────────────────────────
     // Old devices (e.g. 2019 cohort) that have deployment_type="static" but
@@ -247,17 +288,19 @@ const runCleanup = async (tenant = "airqo") => {
       tenant,
       "pass3/fix_static_mobility",
       { deployment_type: "static", mobility: { $ne: false } },
-      { $set: { mobility: false } }
+      { $set: { mobility: false } },
+      abortSignal
     );
 
-    if (global.isShuttingDown) return;
+    if (abortSignal.isAborted || global.isShuttingDown) return;
 
     // ── Pass 4: Fix mobility flag on mobile devices ───────────────────────────
     await runPass(
       tenant,
       "pass4/fix_mobile_mobility",
       { deployment_type: "mobile", mobility: { $ne: true } },
-      { $set: { mobility: true } }
+      { $set: { mobility: true } },
+      abortSignal
     );
 
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -265,6 +308,7 @@ const runCleanup = async (tenant = "airqo") => {
   } catch (error) {
     logger.error(`[${POD_ID}] ${JOB_NAME} error: ${error.message}`);
   } finally {
+    clearInterval(refreshTimer);
     await releaseLock(tenant);
   }
 };

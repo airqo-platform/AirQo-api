@@ -89,7 +89,8 @@ function getDeploymentDescription(deploymentType) {
     mobile: "Mobile deployment (vehicle-mounted, grid-based)",
     static: "Static deployment (fixed location, site-based)",
   };
-  return descriptions[deploymentType] || "Unknown deployment type";
+  // Return null for missing/un-deployed rather than a misleading fallback string.
+  return descriptions[deploymentType] ?? null;
 }
 
 /**
@@ -1386,7 +1387,47 @@ deviceSchema.statics = {
                     input: {
                       $concatArrays: [
                         [{ $ifNull: ["$category", "lowcost"] }],
-                        ["$deployment_type"],
+                        // Mirror deployment_category derivation so devices inferred
+                        // as static/mobile via site_id/grid_id appear in all_categories.
+                        [
+                          {
+                            $switch: {
+                              branches: [
+                                {
+                                  case: {
+                                    $eq: ["$deployment_type", "mobile"],
+                                  },
+                                  then: "mobile",
+                                },
+                                {
+                                  case: {
+                                    $eq: ["$deployment_type", "static"],
+                                  },
+                                  then: "static",
+                                },
+                                {
+                                  case: {
+                                    $ne: [
+                                      { $ifNull: ["$grid_id", null] },
+                                      null,
+                                    ],
+                                  },
+                                  then: "mobile",
+                                },
+                                {
+                                  case: {
+                                    $ne: [
+                                      { $ifNull: ["$site_id", null] },
+                                      null,
+                                    ],
+                                  },
+                                  then: "static",
+                                },
+                              ],
+                              default: null,
+                            },
+                          },
+                        ],
                         // Include network value when present
                         {
                           $cond: {
