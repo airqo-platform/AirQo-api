@@ -681,6 +681,50 @@ class ForecastUtils(BaseMlUtils):
 
 
 class FaultDetectionUtils(BaseMlUtils):
+    SENSOR_DISAGREEMENT_THRESHOLD = 20
+    SENSOR_DISAGREEMENT_SHARE_THRESHOLD = 0.3
+    CONSTANT_VALUE_WINDOW = 24
+    MISSING_DATA_WINDOW = 60
+    LOW_BATTERY_THRESHOLD = 3.3
+    LOW_BATTERY_WINDOW = 24
+    INVALID_VALUE_SHARE_THRESHOLD = 0.05
+    MIN_INVALID_VALUE_COUNT = 3
+    RULE_FAULT_COLUMNS = [
+        "correlation_fault",
+        "missing_data_fault",
+        "sensor_disagreement_fault",
+        "constant_value_fault",
+        "battery_fault",
+        "range_fault",
+    ]
+
+    @staticmethod
+    def _has_sustained_condition(series: pd.Series, window: int) -> bool:
+        if series.empty or len(series) < window:
+            return False
+        return bool((series.astype(int).rolling(window=window).sum() >= window).any())
+
+    @staticmethod
+    def _has_constant_run(series: pd.Series, window: int) -> bool:
+        clean_series = series.dropna()
+        if clean_series.empty or len(clean_series) < window:
+            return False
+        value_groups = clean_series.ne(clean_series.shift()).cumsum()
+        max_run = clean_series.groupby(value_groups).size().max()
+        return bool(max_run >= window)
+
+    @staticmethod
+    def _has_invalid_value_fault(series: pd.Series, lower: float, upper: float) -> bool:
+        clean_series = series.dropna()
+        if clean_series.empty:
+            return False
+        invalid_count = ((clean_series < lower) | (clean_series > upper)).sum()
+        invalid_share = invalid_count / len(clean_series)
+        return bool(
+            invalid_count >= FaultDetectionUtils.MIN_INVALID_VALUE_COUNT
+            or invalid_share >= FaultDetectionUtils.INVALID_VALUE_SHARE_THRESHOLD
+        )
+
     @staticmethod
     def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -694,30 +738,92 @@ class FaultDetectionUtils(BaseMlUtils):
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
 
+        result_columns = [
+            "device_id",
+            "correlation_fault",
+            "correlation_value",
+            "missing_data_fault",
+            "sensor_disagreement_fault",
+            "constant_value_fault",
+            "battery_fault",
+            "range_fault",
+        ]
+        if df.empty:
+            return pd.DataFrame(columns=result_columns)
+
         required_columns = ["device_id", "s1_pm2_5", "s2_pm2_5"]
         if not set(required_columns).issubset(set(df.columns.to_list())):
             raise ValueError(
                 f"Input must have the following columns: {required_columns}"
             )
 
-        result = pd.DataFrame(
-            columns=[
-                "device_id",
-                "correlation_fault",
-                "correlation_value",
-                "missing_data_fault",
-            ]
-        )
+        df = df.copy()
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df = df.sort_values(["device_id", "timestamp"])
+
+        result = pd.DataFrame(columns=result_columns)
         for device in df["device_id"].unique():
             device_df = df[df["device_id"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
-            correlation_fault = 1 if corr < 0.9 else 0
+            correlation_fault = 1 if pd.isna(corr) or corr < 0.9 else 0
             missing_data_fault = 0
             for col in ["s1_pm2_5", "s2_pm2_5"]:
                 null_series = device_df[col].isna()
-                if (null_series.rolling(window=60).sum() >= 60).any():
+                if FaultDetectionUtils._has_sustained_condition(
+                    null_series, FaultDetectionUtils.MISSING_DATA_WINDOW
+                ):
                     missing_data_fault = 1
                     break
+
+            valid_sensor_delta = (
+                device_df["s1_pm2_5"] - device_df["s2_pm2_5"]
+            ).abs().dropna()
+            sensor_disagreement_fault = 0
+            if not valid_sensor_delta.empty:
+                disagreement_share = (
+                    valid_sensor_delta
+                    > FaultDetectionUtils.SENSOR_DISAGREEMENT_THRESHOLD
+                ).mean()
+                if (
+                    disagreement_share
+                    >= FaultDetectionUtils.SENSOR_DISAGREEMENT_SHARE_THRESHOLD
+                ):
+                    sensor_disagreement_fault = 1
+
+            constant_value_fault = int(
+                any(
+                    FaultDetectionUtils._has_constant_run(
+                        device_df[column], FaultDetectionUtils.CONSTANT_VALUE_WINDOW
+                    )
+                    for column in ["s1_pm2_5", "s2_pm2_5", "pm2_5"]
+                    if column in device_df.columns
+                )
+            )
+
+            battery_fault = 0
+            range_fault = int(
+                any(
+                    FaultDetectionUtils._has_invalid_value_fault(
+                        device_df[column], *valid_range
+                    )
+                    for column, valid_range in {
+                        "s1_pm2_5": configuration.VALID_SENSOR_RANGES["pm2_5"],
+                        "s2_pm2_5": configuration.VALID_SENSOR_RANGES["pm2_5"],
+                        "pm2_5": configuration.VALID_SENSOR_RANGES["pm2_5"],
+                        "battery": configuration.VALID_SENSOR_RANGES["battery"],
+                    }.items()
+                    if column in device_df.columns
+                )
+            )
+            if "battery" in device_df.columns:
+                battery_fault = int(
+                    FaultDetectionUtils._has_sustained_condition(
+                        device_df["battery"].fillna(np.inf)
+                        <= FaultDetectionUtils.LOW_BATTERY_THRESHOLD,
+                        FaultDetectionUtils.LOW_BATTERY_WINDOW,
+                    )
+                )
 
             temp = pd.DataFrame(
                 {
@@ -725,13 +831,68 @@ class FaultDetectionUtils(BaseMlUtils):
                     "correlation_fault": [correlation_fault],
                     "correlation_value": [corr],
                     "missing_data_fault": [missing_data_fault],
+                    "sensor_disagreement_fault": [sensor_disagreement_fault],
+                    "constant_value_fault": [constant_value_fault],
+                    "battery_fault": [battery_fault],
+                    "range_fault": [range_fault],
                 }
             )
             result = pd.concat([result, temp], ignore_index=True)
-        result = result[
-            (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
-        ]
+        result = result[result[FaultDetectionUtils.RULE_FAULT_COLUMNS].any(axis=1)]
         return result
+
+    @staticmethod
+    def initialize_device_fault_status(df: pd.DataFrame) -> pd.DataFrame:
+        """Return one initialized fault-status row per device in the input frame."""
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        if df.empty or "device_id" not in df.columns:
+            return pd.DataFrame(columns=["device_id", "device_name"])
+
+        devices = (
+            df[["device_id"]]
+            .dropna(subset=["device_id"])
+            .drop_duplicates(subset=["device_id"])
+            .sort_values("device_id")
+            .reset_index(drop=True)
+        )
+        devices["device_name"] = devices["device_id"]
+
+        return devices
+
+    @staticmethod
+    def prepare_pattern_detection_features(
+        df: pd.DataFrame, freq: Frequency = Frequency.HOURLY
+    ) -> pd.DataFrame:
+        """Prepare richer temporal features for pattern-based fault detection."""
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
+
+        required_columns = {"device_id", "timestamp", "pm2_5", "s1_pm2_5", "s2_pm2_5"}
+        if not required_columns.issubset(df.columns):
+            missing_columns = sorted(required_columns.difference(df.columns))
+            raise ValueError(
+                f"Provided dataframe missing necessary columns: {', '.join(missing_columns)}"
+            )
+
+        feature_df = df.copy()
+        feature_df["timestamp"] = pd.to_datetime(feature_df["timestamp"])
+        feature_df = feature_df.sort_values(["device_id", "timestamp"]).reset_index(
+            drop=True
+        )
+        feature_df["sensor_delta"] = (
+            feature_df["s1_pm2_5"] - feature_df["s2_pm2_5"]
+        ).abs()
+        feature_df = FaultDetectionUtils.get_cyclic_features(feature_df, freq)
+        feature_df = FaultDetectionUtils.get_lag_and_roll_features(
+            feature_df, "pm2_5", freq
+        )
+
+        return feature_df
 
     @staticmethod
     def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
@@ -742,34 +903,86 @@ class FaultDetectionUtils(BaseMlUtils):
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
 
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
+
+        required_columns = {"device_id", "timestamp"}
+        if not required_columns.issubset(df.columns):
+            raise ValueError(
+                f"Input must have the following columns: {sorted(required_columns)}"
+            )
+
+        df = df.copy()
         df["timestamp"] = pd.to_datetime(df["timestamp"])
-        columns_to_ignore = ["device_id", "timestamp"]
-        df.dropna(inplace=True)
+        df = df.sort_values(["device_id", "timestamp"]).reset_index(drop=True)
+        columns_to_ignore = {"device_id", "timestamp", "latitude", "longitude"}
+        feature_columns = [
+            column
+            for column in df.columns
+            if column not in columns_to_ignore
+            and pd.api.types.is_numeric_dtype(df[column])
+        ]
 
-        isolation_forest = IsolationForest(contamination=0.37)
-        isolation_forest.fit(df.drop(columns=columns_to_ignore))
+        if not feature_columns:
+            raise ValueError("No numeric feature columns available for anomaly detection")
 
-        df["anomaly_value"] = isolation_forest.predict(
-            df.drop(columns=columns_to_ignore)
+        model_df = df.dropna(subset=feature_columns).copy()
+
+        if model_df.empty or len(model_df.index) < 2:
+            model_df["anomaly_value"] = pd.Series(dtype=int)
+            model_df["anomaly_score"] = pd.Series(dtype=float)
+            return model_df
+
+        isolation_forest = IsolationForest(contamination=0.37, random_state=42)
+        isolation_forest.fit(model_df[feature_columns])
+
+        model_df["anomaly_value"] = isolation_forest.predict(model_df[feature_columns])
+        model_df["anomaly_score"] = isolation_forest.decision_function(
+            model_df[feature_columns]
         )
 
-        return df
+        return model_df
 
     @staticmethod
     def process_faulty_devices_percentage(df: pd.DataFrame):
         """Process faulty devices dataframe and save to MongoDB"""
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
 
-        anomaly_percentage = pd.DataFrame(
-            (
-                df[df["anomaly_value"] == -1].groupby("device_id").size()
-                / df.groupby("device_id").size()
+        if df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "device_id",
+                    "anomaly_percentage",
+                    "anomaly_count",
+                    "observation_count",
+                    "anomaly_percentage_fault",
+                ]
             )
-            * 100,
-            columns=["anomaly_percentage"],
+
+        observation_count = df.groupby("device_id").size().rename("observation_count")
+        anomaly_count = (
+            df[df["anomaly_value"] == -1].groupby("device_id").size().rename("anomaly_count")
         )
+        anomaly_percentage = pd.concat(
+            [anomaly_count, observation_count], axis=1
+        ).fillna(0)
+        anomaly_percentage["anomaly_percentage"] = (
+            anomaly_percentage["anomaly_count"]
+            / anomaly_percentage["observation_count"]
+        ) * 100
+        anomaly_percentage["anomaly_count"] = anomaly_percentage["anomaly_count"].astype(
+            int
+        )
+        anomaly_percentage["observation_count"] = anomaly_percentage[
+            "observation_count"
+        ].astype(int)
+        anomaly_percentage["anomaly_percentage_fault"] = (
+            anomaly_percentage["anomaly_percentage"] > 45
+        ).astype(int)
 
         return anomaly_percentage[
-            anomaly_percentage["anomaly_percentage"] > 45
+            anomaly_percentage["anomaly_percentage_fault"] == 1
         ].reset_index(level=0)
 
     @staticmethod
@@ -786,30 +999,116 @@ class FaultDetectionUtils(BaseMlUtils):
             DataFrame with 'device_id' and 'fault_count' columns for devices
             exceeding the anomaly sequence threshold.
         """
-        df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
-        df["anomaly_sequence_length"] = (
-            df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        if df.empty:
+            return pd.DataFrame(
+                columns=["device_id", "fault_count", "anomaly_sequence_fault"]
+            )
+
+        required_columns = {"device_id", "timestamp", "anomaly_value"}
+        if not required_columns.issubset(df.columns):
+            raise ValueError(
+                f"Input must have the following columns: {sorted(required_columns)}"
+            )
+
+        df = df.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.sort_values(["device_id", "timestamp"]).reset_index(drop=True)
+        df["is_anomaly"] = df["anomaly_value"].eq(-1).astype(int)
+        df["group"] = df.groupby("device_id")["is_anomaly"].transform(
+            lambda series: series.ne(series.shift()).cumsum()
         )
-        df["anomaly_sequence_length"].fillna(0, inplace=True)
+        anomaly_runs = (
+            df[df["is_anomaly"] == 1]
+            .groupby(["device_id", "group"])
+            .size()
+            .reset_index(name="fault_count")
+        )
+
+        if anomaly_runs.empty:
+            return pd.DataFrame(
+                columns=["device_id", "fault_count", "anomaly_sequence_fault"]
+            )
+
         device_max_anomaly_sequence = (
-            df.groupby("device_id")["anomaly_sequence_length"].max().reset_index()
+            anomaly_runs.groupby("device_id")["fault_count"].max().reset_index()
         )
         faulty_devices_df = device_max_anomaly_sequence[
-            device_max_anomaly_sequence["anomaly_sequence_length"] >= 80
+            device_max_anomaly_sequence["fault_count"] >= 80
         ]
-        faulty_devices_df.columns = ["device_id", "fault_count"]
+        if not faulty_devices_df.empty:
+            faulty_devices_df["anomaly_sequence_fault"] = 1
 
         return faulty_devices_df
 
     @staticmethod
     def save_faulty_devices(*dataframes):
         """Save or update faulty devices to MongoDB"""
-        dataframes = list(dataframes)
+        dataframes = [
+            dataframe.copy().drop_duplicates(subset=["device_id"], keep="last")
+            for dataframe in dataframes
+            if isinstance(dataframe, pd.DataFrame)
+            and not dataframe.empty
+            and "device_id" in dataframe.columns
+        ]
+
+        if not dataframes:
+            logger.info("No faulty devices detected. Skipping MongoDB write.")
+            return None
+
         merged_df = dataframes[0]
         for df in dataframes[1:]:
             merged_df = merged_df.merge(df, on="device_id", how="outer")
+
+        if merged_df.empty:
+            logger.info("No faulty devices detected after merge. Skipping MongoDB write.")
+            return None
+
         merged_df = merged_df.fillna(0)
+        if "device_name" not in merged_df.columns:
+            merged_df["device_name"] = merged_df["device_id"]
+        merged_df["fault_detected"] = 1
+        if (
+            "anomaly_percentage" in merged_df.columns
+            and "anomaly_percentage_fault" not in merged_df.columns
+        ):
+            merged_df["anomaly_percentage_fault"] = (
+                merged_df["anomaly_percentage"] > 45
+            ).astype(int)
+        if "fault_count" in merged_df.columns and "anomaly_sequence_fault" not in merged_df.columns:
+            merged_df["anomaly_sequence_fault"] = (
+                merged_df["fault_count"] >= 80
+            ).astype(int)
+        fault_flag_columns = [
+            column
+            for column in (
+                FaultDetectionUtils.RULE_FAULT_COLUMNS
+                + ["anomaly_percentage_fault", "anomaly_sequence_fault"]
+            )
+            if column in merged_df.columns
+        ]
+        if fault_flag_columns:
+            merged_df[fault_flag_columns] = merged_df[fault_flag_columns].astype(int)
+            merged_df["fault_types"] = merged_df.apply(
+                lambda row: [
+                    column
+                    for column in fault_flag_columns
+                    if int(row.get(column, 0)) == 1
+                ],
+                axis=1,
+            )
+            merged_df["triggered_fault_count"] = merged_df["fault_types"].map(len)
+            merged_df["fault_detected"] = (
+                merged_df["triggered_fault_count"] > 0
+            ).astype(int)
+        else:
+            merged_df["fault_detected"] = 0
         merged_df["created_at"] = datetime.now().isoformat(timespec="seconds")
+        collection_name = getattr(
+            configuration, "MONGO_FAULTY_DEVICES_COLLECTION", "faulty_devices_1"
+        )
         with pm.MongoClient(configuration.MONGO_URI) as client:
             db = client[configuration.MONGO_DATABASE_NAME]
             records = merged_df.to_dict("records")
@@ -822,12 +1121,21 @@ class FaultDetectionUtils(BaseMlUtils):
                 for record in records
             ]
 
+            if not bulk_ops:
+                logger.info("No faulty device upserts to write. Skipping MongoDB write.")
+                return None
+
             try:
-                db.faulty_devices_1.bulk_write(bulk_ops)
+                db[collection_name].bulk_write(bulk_ops, ordered=False)
             except Exception as e:
                 logger.error(f"Error saving faulty devices to MongoDB: {e}")
+                raise
 
-            logger.info("Faulty devices saved/updated to MongoDB")
+            logger.info(
+                "Faulty devices saved/updated to MongoDB. rows=%s collection=%s",
+                len(bulk_ops),
+                collection_name,
+            )
 
 
 class SatelliteUtils(BaseMlUtils):

@@ -1046,6 +1046,320 @@ def test_aggregate_met_no_hourly_payload_to_daily():
     assert daily.loc[0, "met_no_query_longitude"] == 3.36
     assert daily.loc[0, "air_temperature"] == 27.6
     assert daily.loc[0, "precipitation_amount"] == 0.0
-        ForecastUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
-        mock_collection = getattr(mock_db, collection_name)
-        assert mock_collection.update_one.call_count >= 1
+
+
+def _build_fault_detection_frame(device_id: str, periods: int = 48) -> pd.DataFrame:
+    timestamps = pd.date_range("2026-03-01", periods=periods, freq="h")
+    base = pd.Series(range(periods), dtype=float)
+    return pd.DataFrame(
+        {
+            "device_id": [device_id] * periods,
+            "timestamp": timestamps,
+            "latitude": [0.3476] * periods,
+            "longitude": [32.5825] * periods,
+            "s1_pm2_5": base + 10,
+            "s2_pm2_5": base + 11,
+            "pm2_5": base + 10.5,
+            "battery": [3.9] * periods,
+        }
+    )
+
+
+def test_prepare_pattern_detection_features_adds_sensor_delta_and_hourly_rollups():
+    raw = _build_fault_detection_frame("device-a", periods=48)
+
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+
+    assert "sensor_delta" in features.columns
+    assert "hour_sin" in features.columns
+    assert "hour_cos" in features.columns
+    assert "pm2_5_last_12_hour" in features.columns
+    assert "pm2_5_mean_24_hour" in features.columns
+    assert features["timestamp"].is_monotonic_increasing
+
+
+def test_initialize_device_fault_status_returns_one_row_per_device():
+    raw = pd.concat(
+        [
+            _build_fault_detection_frame("device-b", periods=3),
+            _build_fault_detection_frame("device-a", periods=3),
+        ],
+        ignore_index=True,
+    )
+
+    status = ml_utils_module.FaultDetectionUtils.initialize_device_fault_status(raw)
+
+    assert list(status["device_id"]) == ["device-a", "device-b"]
+    assert list(status["device_name"]) == ["device-a", "device-b"]
+
+
+def test_flag_pattern_based_faults_is_deterministic_for_same_input():
+    raw = pd.concat(
+        [
+            _build_fault_detection_frame("device-a", periods=72),
+            _build_fault_detection_frame("device-b", periods=72).assign(
+                pm2_5=lambda frame: frame["pm2_5"] + 5,
+                s1_pm2_5=lambda frame: frame["s1_pm2_5"] + 5,
+                s2_pm2_5=lambda frame: frame["s2_pm2_5"] + 5,
+            ),
+        ],
+        ignore_index=True,
+    )
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+
+    first = ml_utils_module.FaultDetectionUtils.flag_pattern_based_faults(features)
+    second = ml_utils_module.FaultDetectionUtils.flag_pattern_based_faults(features)
+
+    assert "anomaly_value" in first.columns
+    assert "anomaly_score" in first.columns
+    pd.testing.assert_series_equal(
+        first["anomaly_value"].reset_index(drop=True),
+        second["anomaly_value"].reset_index(drop=True),
+    )
+    pd.testing.assert_series_equal(
+        first["anomaly_score"].reset_index(drop=True),
+        second["anomaly_score"].reset_index(drop=True),
+        check_exact=False,
+        atol=1e-12,
+        rtol=1e-12,
+    )
+
+
+def test_flag_rule_based_faults_marks_missing_data_and_nan_correlation_as_faults():
+    missing_window = 60
+    raw = pd.DataFrame(
+        {
+            "device_id": (["device-a"] * missing_window) + (["device-b"] * 3),
+            "timestamp": list(pd.date_range("2026-03-01", periods=missing_window, freq="h"))
+            + list(pd.date_range("2026-03-01", periods=3, freq="h")),
+            "s1_pm2_5": ([None] * missing_window) + [10.0, 10.0, 10.0],
+            "s2_pm2_5": ([12.0] * missing_window) + [20.0, 20.0, 20.0],
+        }
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.flag_rule_based_faults(raw)
+    result = result.sort_values("device_id").reset_index(drop=True)
+
+    assert list(result["device_id"]) == ["device-a", "device-b"]
+    assert result.loc[0, "missing_data_fault"] == 1
+    assert result.loc[0, "correlation_fault"] == 1
+    assert result.loc[1, "missing_data_fault"] == 0
+    assert result.loc[1, "correlation_fault"] == 1
+
+
+def test_flag_rule_based_faults_marks_sensor_disagreement_constant_battery_and_range_faults():
+    raw = pd.DataFrame(
+        {
+            "device_id": (["device-a"] * 24) + (["device-b"] * 24),
+            "timestamp": list(pd.date_range("2026-03-01", periods=24, freq="h"))
+            + list(pd.date_range("2026-03-02", periods=24, freq="h")),
+            "s1_pm2_5": ([10.0] * 24) + ([1300.0] * 3 + [25.0] * 21),
+            "s2_pm2_5": ([40.0] * 24) + ([24.0] * 24),
+            "pm2_5": ([10.0] * 24) + ([24.5] * 24),
+            "battery": ([3.2] * 24) + ([4.0] * 24),
+        }
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.flag_rule_based_faults(raw)
+    result = result.sort_values("device_id").reset_index(drop=True)
+
+    assert list(result["device_id"]) == ["device-a", "device-b"]
+    assert result.loc[0, "sensor_disagreement_fault"] == 1
+    assert result.loc[0, "constant_value_fault"] == 1
+    assert result.loc[0, "battery_fault"] == 1
+    assert result.loc[0, "range_fault"] == 0
+    assert result.loc[1, "sensor_disagreement_fault"] == 0
+    assert result.loc[1, "constant_value_fault"] == 1
+    assert result.loc[1, "battery_fault"] == 0
+    assert result.loc[1, "range_fault"] == 1
+
+
+def test_process_faulty_devices_percentage_returns_only_devices_above_threshold():
+    anomalies = pd.DataFrame(
+        {
+            "device_id": (["device-a"] * 10) + (["device-b"] * 10),
+            "anomaly_value": ([-1] * 5 + [1] * 5) + ([-1] * 4 + [1] * 6),
+        }
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.process_faulty_devices_percentage(
+        anomalies
+    )
+
+    assert list(result["device_id"]) == ["device-a"]
+    assert result.loc[0, "anomaly_percentage"] == 50.0
+    assert result.loc[0, "anomaly_count"] == 5
+    assert result.loc[0, "observation_count"] == 10
+    assert result.loc[0, "anomaly_percentage_fault"] == 1
+
+
+def test_process_faulty_devices_fault_sequence_sorts_timestamps_per_device():
+    faulty_sequence = pd.DataFrame(
+        {
+            "device_id": (["device-a"] * 81) + (["device-b"] * 90),
+            "timestamp": list(
+                reversed(pd.date_range("2026-03-01", periods=81, freq="h").tolist())
+            )
+            + list(pd.date_range("2026-03-01", periods=90, freq="h").tolist()),
+            "anomaly_value": ([-1] * 81) + ([-1, 1] * 45),
+        }
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.process_faulty_devices_fault_sequence(
+        faulty_sequence
+    )
+
+    assert len(result) == 1
+    assert result.iloc[0]["device_id"] == "device-a"
+    assert result.iloc[0]["fault_count"] == 81
+    assert result.iloc[0]["anomaly_sequence_fault"] == 1
+
+
+def test_process_faulty_devices_fault_sequence_excludes_short_runs():
+    faulty_sequence = pd.DataFrame(
+        {
+            "device_id": ["device-a"] * 79,
+            "timestamp": list(pd.date_range("2026-03-01", periods=79, freq="h")),
+            "anomaly_value": [-1] * 79,
+        }
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.process_faulty_devices_fault_sequence(
+        faulty_sequence
+    )
+
+    assert result.empty
+
+
+def test_save_faulty_devices_writes_device_name_alias_and_summary_flags(monkeypatch):
+    rules = pd.DataFrame(
+        {
+            "device_id": ["device-a"],
+            "correlation_fault": [1],
+            "correlation_value": [0.5],
+            "missing_data_fault": [0],
+        }
+    )
+    anomaly_share = pd.DataFrame(
+        {
+            "device_id": ["device-a"],
+            "anomaly_percentage": [52.5],
+            "anomaly_count": [21],
+            "observation_count": [40],
+        }
+    )
+
+    mock_collection = MagicMock()
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+
+    mock_client_manager = MagicMock()
+    mock_client_manager.__enter__.return_value = mock_client
+    mock_client_manager.__exit__.return_value = None
+
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "MONGO_FAULTY_DEVICES_COLLECTION",
+        "faulty_devices_1",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ml_utils_module.pm,
+        "MongoClient",
+        lambda *args, **kwargs: mock_client_manager,
+    )
+
+    ml_utils_module.FaultDetectionUtils.save_faulty_devices(rules, anomaly_share)
+
+    bulk_operations = mock_collection.bulk_write.call_args.args[0]
+    assert len(bulk_operations) == 1
+    update_document = bulk_operations[0]._doc["$set"]
+    assert update_document["device_id"] == "device-a"
+    assert update_document["device_name"] == "device-a"
+    assert update_document["fault_detected"] == 1
+    assert update_document["anomaly_percentage"] == 52.5
+    assert update_document["fault_types"] == ["correlation_fault", "anomaly_percentage_fault"]
+    assert update_document["triggered_fault_count"] == 2
+    assert mock_collection.bulk_write.call_args.kwargs["ordered"] is False
+
+
+def test_save_faulty_devices_skips_empty_inputs(monkeypatch):
+    mock_collection = MagicMock()
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+
+    mock_client_manager = MagicMock()
+    mock_client_manager.__enter__.return_value = mock_client
+    mock_client_manager.__exit__.return_value = None
+
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
+    monkeypatch.setattr(
+        ml_utils_module.pm,
+        "MongoClient",
+        lambda *args, **kwargs: mock_client_manager,
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.save_faulty_devices(pd.DataFrame())
+
+    assert result is None
+    assert mock_collection.bulk_write.called is False
+
+
+def test_save_faulty_devices_persists_one_row_per_device_without_duplicates(monkeypatch):
+    device_status = pd.DataFrame(
+        {
+            "device_id": ["device-a", "device-b"],
+            "device_name": ["device-a", "device-b"],
+        }
+    )
+    rules = pd.DataFrame(
+        {
+            "device_id": ["device-a"],
+            "correlation_fault": [1],
+            "correlation_value": [0.7],
+            "missing_data_fault": [0],
+        }
+    )
+
+    mock_collection = MagicMock()
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+
+    mock_client_manager = MagicMock()
+    mock_client_manager.__enter__.return_value = mock_client
+    mock_client_manager.__exit__.return_value = None
+
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
+    monkeypatch.setattr(
+        ml_utils_module.pm,
+        "MongoClient",
+        lambda *args, **kwargs: mock_client_manager,
+    )
+
+    ml_utils_module.FaultDetectionUtils.save_faulty_devices(device_status, rules)
+
+    bulk_operations = mock_collection.bulk_write.call_args.args[0]
+    assert len(bulk_operations) == 2
+    updated_records = [operation._doc["$set"] for operation in bulk_operations]
+    updated_records = sorted(updated_records, key=lambda record: record["device_id"])
+    assert updated_records[0]["device_id"] == "device-a"
+    assert updated_records[0]["fault_detected"] == 1
+    assert updated_records[1]["device_id"] == "device-b"
+    assert updated_records[1]["fault_detected"] == 0

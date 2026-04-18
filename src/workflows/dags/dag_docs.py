@@ -425,3 +425,54 @@ Data Destinations:
 - MongoDB: site daily forecast collection
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+fault_detection_doc = """
+### AirQo fault detection
+#### Purpose
+Detect likely faulty devices from recent raw sensor readings using both rule-based checks and pattern-based anomaly detection.
+
+#### Workflow Steps
+1. **Raw Data Extraction** (`fetch_raw_data`)
+   - Fetches recent raw device readings from BigQuery using the dedicated fault-detection SQL query
+   - Resamples numeric fields to hourly resolution per device
+
+2. **Rule-Based Fault Detection** (`flag_rule_based_faults`)
+   - Flags devices with poor inter-sensor correlation
+   - Flags devices with sustained missing raw sensor values
+   - Flags devices with sustained sensor disagreement
+   - Flags constant-value sensor runs that suggest stuck sensors
+   - Flags sustained low-battery behavior
+   - Flags persistent out-of-range raw values
+
+3. **Pattern Feature Preparation** (`prepare_pattern_detection_features`)
+   - Builds temporal, cyclic, lag, rolling, and sensor-delta features
+   - Sorts readings by device and timestamp before anomaly scoring
+
+4. **Pattern-Based Fault Detection** (`flag_pattern_based_faults`)
+   - Scores devices with an Isolation Forest model
+   - Produces anomaly labels and anomaly scores for downstream aggregation
+
+5. **Fault Aggregation**
+   - `process_faulty_devices_percentage` identifies devices with high anomaly share
+   - `process_faulty_devices_sequence` identifies devices with long consecutive anomaly runs
+   - Consolidated records include the triggered fault types and total triggered-fault count
+
+6. **Persistence** (`save_to_mongo`)
+   - Merges rule-based and pattern-based outputs
+   - Upserts consolidated fault records into MongoDB
+
+#### Schedule
+Runs weekly on Monday at 01:00 UTC (`0 1 * * 1`)
+
+#### Notes
+Data sources:
+- BigQuery: raw device measurements
+
+Lookback window:
+- Configured by `FAULT_DETECTION_LOOKBACK_DAYS`
+- Default: 14 days
+
+Data Destinations:
+- MongoDB: faulty devices collection
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""

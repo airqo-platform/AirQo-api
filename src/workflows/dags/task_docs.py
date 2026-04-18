@@ -120,3 +120,67 @@ Update stored site daily forecasts with MET.no weather fields when enrichment su
 #### Notes
 - Skips the update gracefully when MET.no data is unavailable.
 """
+
+fetch_fault_detection_raw_data_doc = """
+#### Purpose
+Fetch recent raw device readings for the fault-detection workflow from BigQuery.
+#### Notes
+- Uses the dedicated SQL query under `airqo_etl_utils/sql/faultdetection`.
+- Uses the configured `FAULT_DETECTION_LOOKBACK_DAYS` window. Default is 14 days.
+- Resamples numeric readings to hourly resolution for each device.
+"""
+
+flag_rule_based_faults_doc = """
+#### Purpose
+Identify rule-based device faults from raw dual-sensor readings.
+#### Notes
+- Flags low inter-sensor correlation.
+- Flags long windows of missing `s1_pm2_5` or `s2_pm2_5` values.
+- Flags sustained sensor disagreement between the two PM2.5 channels.
+- Flags constant-value runs that suggest stuck sensor readings.
+- Flags sustained low-battery behavior.
+- Flags persistent out-of-range PM2.5 or battery values.
+"""
+
+prepare_pattern_detection_features_doc = """
+#### Purpose
+Prepare model features for pattern-based fault detection.
+#### Notes
+- Sorts readings by device and timestamp.
+- Builds `sensor_delta`, cyclic time features, and hourly lag/rolling features.
+"""
+
+flag_pattern_based_faults_doc = """
+#### Purpose
+Score pattern-based anomalies for device readings.
+#### Notes
+- Uses Isolation Forest on numeric fault-detection features.
+- Returns both `anomaly_value` and `anomaly_score`.
+"""
+
+process_faulty_devices_percentage_doc = """
+#### Purpose
+Summarize anomaly share per device for the fault-detection workflow.
+#### Notes
+- Computes anomaly percentage, anomaly count, and observation count.
+- Returns devices exceeding the configured anomaly percentage threshold.
+- Marks those devices with `anomaly_percentage_fault`.
+"""
+
+process_faulty_devices_sequence_doc = """
+#### Purpose
+Identify devices with long consecutive anomaly runs.
+#### Notes
+- Evaluates anomaly sequences independently per device.
+- Returns devices whose longest anomaly run exceeds the configured threshold.
+- Marks those devices with `anomaly_sequence_fault`.
+"""
+
+save_faulty_devices_doc = """
+#### Purpose
+Persist consolidated fault-detection results to MongoDB.
+#### Notes
+- Merges rule-based and pattern-based fault outputs on `device_id`.
+- Stores `fault_types` and `triggered_fault_count` for each flagged device.
+- Skips writes when no faulty devices are detected.
+"""
