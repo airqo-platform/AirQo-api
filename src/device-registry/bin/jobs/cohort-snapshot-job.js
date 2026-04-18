@@ -59,7 +59,7 @@ const LOCK_TTL_SECONDS = 3600;
  */
 async function acquireJobLock() {
   try {
-    if (!redisClient.isOpen) return true; // Redis unavailable — proceed without lock
+    if (!redisClient.isOpen || !redisClient.isReady) return true; // Redis unavailable — proceed without lock
     const result = await redisClient.set(LOCK_KEY, "1", {
       NX: true, // Only set if key does not exist
       EX: LOCK_TTL_SECONDS,
@@ -76,7 +76,7 @@ async function acquireJobLock() {
  */
 async function releaseJobLock() {
   try {
-    if (!redisClient.isOpen) return;
+    if (!redisClient.isOpen || !redisClient.isReady) return;
     await redisClient.del(LOCK_KEY);
   } catch (err) {
     logger.warn(`${JOB_NAME} -- could not release lock: ${err.message}`);
