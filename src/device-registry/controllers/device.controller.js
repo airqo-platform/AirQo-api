@@ -1249,6 +1249,15 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
+      // Lifecycle fields may only be changed via dedicated activity endpoints
+      // (deploy, recall, maintain). Strip them here so a direct PATCH cannot
+      // corrupt deployment state or bypass the activity audit trail.
+      const LIFECYCLE_FIELDS = [
+        "mobility", "deployment_type", "site_id", "grid_id",
+        "status", "deployment_date", "recall_date", "isActive",
+      ];
+      LIFECYCLE_FIELDS.forEach((f) => delete request.body[f]);
+
       const result = await createDeviceUtil.updateOnPlatform(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -1300,6 +1309,13 @@ const deviceController = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+
+      // Same lifecycle-field guard as the single-device update endpoint.
+      const LIFECYCLE_FIELDS = [
+        "mobility", "deployment_type", "site_id", "grid_id",
+        "status", "deployment_date", "recall_date", "isActive",
+      ];
+      LIFECYCLE_FIELDS.forEach((f) => delete request.body[f]);
 
       const result = await createDeviceUtil.updateManyDevicesOnPlatform(
         request,

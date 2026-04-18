@@ -127,9 +127,12 @@ function computeDeviceCategories(deviceDoc) {
   }
 
   const primary_category = doc.category || "lowcost";
-  // Un-deployed devices have no deployment_type — keep it null rather than
-  // defaulting to "static", which would be semantically incorrect.
-  const deployment_category = doc.deployment_type || null;
+  // Priority: explicit deployment_type → grid_id (mobile) → site_id (static) → null.
+  // Deliberately avoids the `mobility` field as a fallback because many old devices
+  // have mobility:true stored incorrectly from an earlier era.
+  const deployment_category =
+    doc.deployment_type ||
+    (doc.grid_id ? "mobile" : doc.site_id ? "static" : null);
 
   // Use a Set to guarantee no duplicates in all_categories.
   // deployment_category is only added when it is actually set.
@@ -544,6 +547,12 @@ deviceSchema.index({ site_id: 1 });
 deviceSchema.index({ mobility: 1 });
 deviceSchema.index({ cohorts: 1 });
 deviceSchema.index({ mobility: 1, cohorts: 1 });
+// Compound indexes for the device-metadata-cleanup-job — keep cleanup passes
+// O(log n) regardless of fleet size.
+deviceSchema.index({ deployment_type: 1, status: 1 });
+deviceSchema.index({ deployment_type: 1, mobility: 1 });
+deviceSchema.index({ status: 1, site_id: 1 });
+deviceSchema.index({ status: 1, grid_id: 1 });
 // Index for stale entity checks
 deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
 // Index for offline entity checks
@@ -1199,7 +1208,31 @@ deviceSchema.statics = {
         .addFields({
           device_categories: {
             primary_category: { $ifNull: ["$category", "lowcost"] },
-            deployment_category: "$deployment_type",
+            // Priority: explicit deployment_type → grid_id (mobile) →
+            // site_id (static) → null (un-deployed or unknown).
+            deployment_category: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "static",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                    then: "static",
+                  },
+                ],
+                default: null,
+              },
+            },
 
             // Returns the raw network value so the frontend can display it directly.
             // null when network is missing or empty string.
@@ -1508,7 +1541,31 @@ deviceSchema.statics = {
               },
               {
                 level: "deployment",
-                category: "$deployment_type",
+                // Mirrors deployment_category: explicit deployment_type wins, then
+                // infer from location reference, fall back to null.
+                category: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$deployment_type", "mobile"] },
+                        then: "mobile",
+                      },
+                      {
+                        case: { $eq: ["$deployment_type", "static"] },
+                        then: "static",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                        then: "mobile",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                        then: "static",
+                      },
+                    ],
+                    default: null,
+                  },
+                },
                 description: {
                   $switch: {
                     branches: [
@@ -1518,6 +1575,14 @@ deviceSchema.statics = {
                       },
                       {
                         case: { $eq: ["$deployment_type", "static"] },
+                        then: "Static deployment (fixed location, site-based)",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                        then: "Mobile deployment (vehicle-mounted, grid-based)",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
                         then: "Static deployment (fixed location, site-based)",
                       },
                     ],

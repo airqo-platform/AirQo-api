@@ -185,6 +185,13 @@ try {
     `clear-deployment-type-job failed to start: ${err.message}`,
   );
 }
+try {
+  require("@bin/jobs/device-metadata-cleanup-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `device-metadata-cleanup-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");

@@ -2361,9 +2361,12 @@ const createActivity = {
           site_id: null,
           grid_id: null,
           mobility: false,
-          deployment_type: "static",
         },
         $unset: {
+          // deployment_type must be cleared on recall — a recalled device
+          // is no longer deployed anywhere, so assigning it a type is
+          // semantically incorrect and breaks the frontend deployment card.
+          deployment_type: "",
           mountType: "",
           powerType: "",
           height: "",

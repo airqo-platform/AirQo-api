@@ -96,9 +96,33 @@ const getDeviceCategoriesAddFieldsStage = () => {
     $addFields: {
       device_categories: {
         primary_category: { $ifNull: ["$category", "lowcost"] },
-        // Un-deployed devices have no deployment_type — use the field directly
-        // so they surface as null rather than a misleading "static" default.
-        deployment_category: "$deployment_type",
+        // Priority: explicit deployment_type (authoritative) → grid_id (mobile) →
+        // site_id (static) → null (un-deployed or unknown).
+        // Deliberately avoids the `mobility` field as a fallback because many old
+        // devices have mobility:true stored incorrectly from an earlier era.
+        deployment_category: {
+          $switch: {
+            branches: [
+              {
+                case: { $eq: ["$deployment_type", "mobile"] },
+                then: "mobile",
+              },
+              {
+                case: { $eq: ["$deployment_type", "static"] },
+                then: "static",
+              },
+              {
+                case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                then: "mobile",
+              },
+              {
+                case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                then: "static",
+              },
+            ],
+            default: null,
+          },
+        },
 
         // Returns the raw network value so the frontend can display it directly.
         // null when network is missing or empty string.
@@ -399,8 +423,31 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
           {
             level: "deployment",
-            // null for un-deployed devices — no deployment type assigned yet.
-            category: "$deployment_type",
+            // Mirrors deployment_category: explicit deployment_type wins, then
+            // infer from location reference, fall back to null for un-deployed.
+            category: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "static",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                    then: "static",
+                  },
+                ],
+                default: null,
+              },
+            },
             description: {
               $switch: {
                 branches: [
@@ -410,6 +457,14 @@ const getDeviceCategoriesAddFieldsStage = () => {
                   },
                   {
                     case: { $eq: ["$deployment_type", "static"] },
+                    then: "Static deployment (fixed location, site-based)",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                    then: "Mobile deployment (vehicle-mounted, grid-based)",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
                     then: "Static deployment (fixed location, site-based)",
                   },
                 ],
