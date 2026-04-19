@@ -286,10 +286,21 @@ const sessionMiddleware = session({
   store: new MongoStore(options),
   resave: false,
   saveUninitialized: false,
+  proxy: isProd,
+  cookie: {
+    secure: isProd,
+    httpOnly: true,
+    sameSite: "lax",
+  },
 });
 
 app.use((req, res, next) => {
-  if (req.headers.authorization || req.query.token) {
+  const authHeader = req.headers.authorization;
+  const hasBearerToken =
+    typeof authHeader === "string" &&
+    authHeader.startsWith("Bearer ") &&
+    authHeader.length > "Bearer ".length;
+  if (hasBearerToken || req.query.token) {
     return next();
   }
   sessionMiddleware(req, res, next);
