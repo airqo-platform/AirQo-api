@@ -16,5 +16,21 @@ const staticLists = {
     "not deployed",
   ],
   DEVICE_FILTER_TYPES: ["lowcost", "gas", "bam", "static", "mobile"],
+  /**
+   * Fields that may only be changed through dedicated lifecycle activity
+   * endpoints (deploy / recall / maintain). Guards in the controller,
+   * model modify()/bulkModify(), and background jobs all reference this
+   * single source of truth.
+   */
+  LIFECYCLE_FIELDS: [
+    "mobility",
+    "deployment_type",
+    "site_id",
+    "grid_id",
+    "status",
+    "deployment_date",
+    "recall_date",
+    "isActive",
+  ],
 };
 module.exports = staticLists;
