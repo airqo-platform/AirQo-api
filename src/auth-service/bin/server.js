@@ -186,16 +186,10 @@ app.use((req, res, next) => {
     return next();
   }
 
-  // For non-API requests (browser/OAuth), run the full session middleware chain.
-  // 1. sessionMiddleware: Loads session data from the store.
-  // 2. passport.initialize(): Initializes Passport.
-  // 3. passport.session(): Restores the user from the session (`req.user`).
-  // Errors from sessionMiddleware (e.g., store connection issues) are now
-  // correctly propagated to the main error handler.
-  sessionMiddleware(req, res, (err) => {
-    if (err) return next(err);
-    passport.session()(req, res, next);
-  });
+  // For non-API requests (browser/OAuth), load session data so that
+  // req.session.oauthTenant is available across the OAuth redirect round-trip.
+  // All passport strategies use session:false, so passport.session() is not needed.
+  sessionMiddleware(req, res, next);
 });
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
