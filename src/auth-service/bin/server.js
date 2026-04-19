@@ -184,7 +184,10 @@ app.use((req, res, next) => {
   if (req.headers.authorization || req.query.token) {
     return next();
   }
-  return sessionMiddleware(req, res, next);
+  // For non-API requests (e.g., browser-based OAuth flows), enable sessions.
+  // passport.session() is the middleware that restores login sessions.
+  // By placing it here, we ensure it ONLY runs when sessions are enabled.
+  return sessionMiddleware(req, res, () => passport.session()(req, res, next));
 }); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
@@ -199,6 +202,15 @@ if (isDev) {
 }
 
 app.use(passport.initialize());
+
+app.use(express.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+    limit: "50mb",
+    parameterLimit: 50000,
+  }),
+);
 
 // ── OAuth strategy one-time startup registration ───────────────────────────
 // Must be called here, after passport.initialize() and before any routes
@@ -220,32 +232,8 @@ try {
 } catch (error) {
   console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
 }
-
-app.use(express.json());
-app.use(
-  bodyParser.urlencoded({
-    extended: true,
-    limit: "50mb",
-    parameterLimit: 50000,
-  }),
-);
 // app.use(attachUserId); // Attach user ID to all requests
 // app.use(trackAPIRequest); // Track all API requests
-
-// Header protection middleware - ensures headers exist before fileUpload
-app.use((req, res, next) => {
-  // Ensure headers object exists
-  if (!req.headers) {
-    req.headers = {};
-  }
-
-  // Ensure content-type header exists (even if empty)
-  if (req.headers["content-type"] === undefined) {
-    req.headers["content-type"] = "";
-  }
-
-  next();
-});
 
 app.use(
   fileUpload({
@@ -261,6 +249,20 @@ app.use(
 );
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
+
+const normalizePort = (val) => {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    return val;
+  }
+
+  if (port >= 0) {
+    return port;
+  }
+
+  return false;
+};
 
 const transactionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -382,20 +384,6 @@ app.use(function (err, req, res, next) {
     );
   }
 });
-
-const normalizePort = (val) => {
-  var port = parseInt(val, 10);
-
-  if (isNaN(port)) {
-    return val;
-  }
-
-  if (port >= 0) {
-    return port;
-  }
-
-  return false;
-};
 
 const createServer = () => {
   const port = normalizePort(process.env.PORT || "3000");
