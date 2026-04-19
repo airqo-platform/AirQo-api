@@ -2,6 +2,7 @@ const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const ComputedCacheModel = require("@models/ComputedCache");
+const LRUCache = require("lru-cache");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -70,10 +71,25 @@ const PRIVATE_SITE_IDS_LOCK_KEY = "private_site_ids_lock";
 // Only the "summary" detailLevel is cached — the "full" (dashboard) level
 // includes mobileDevice join data that changes more frequently.
 // ---------------------------------------------------------------------------
-const _gridSummaryDataCache = new Map();
-const _gridSummaryCountCache = new Map();
+// lru-cache v6 handles TTL expiry on read and LRU eviction when max is
+// reached, removing the need for manual expiresAt tracking, a prune function,
+// or a background setInterval.
+//
+// max sizes are intentionally generous:
+//   data  — keyed on (tenant + filter + skip + limit + sort + cohort + level);
+//            typical usage produces O(10–50) distinct entries per deployment.
+//   count — keyed on (tenant + filter + cohort + level), no pagination dims;
+//            typically O(2–10) entries (one per admin_level combination).
 const GRID_SUMMARY_DATA_TTL_MS = 3 * 60 * 1000; // 3 minutes
 const GRID_SUMMARY_COUNT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const _gridSummaryDataCache = new LRUCache({
+  max: 500,
+  maxAge: GRID_SUMMARY_DATA_TTL_MS,
+});
+const _gridSummaryCountCache = new LRUCache({
+  max: 200,
+  maxAge: GRID_SUMMARY_COUNT_TTL_MS,
+});
 
 /**
  * Stable string key for the summary data cache.
@@ -92,34 +108,27 @@ function makeGridSummaryCountKey(tenant, filterHash, cohortKey, detailLevel) {
   return `${tenant}:${filterHash}:count:${cohortKey}:${detailLevel}`;
 }
 
-/**
- * Removes all entries whose TTL has elapsed from both summary caches.
- * Called on a background interval so entries added by uncommon
- * filter/pagination combinations don't accumulate indefinitely.
- */
-function pruneExpiredGridSummaryCacheEntries() {
-  const now = Date.now();
-  for (const [key, entry] of _gridSummaryDataCache) {
-    if (now >= entry.expiresAt) _gridSummaryDataCache.delete(key);
-  }
-  for (const [key, entry] of _gridSummaryCountCache) {
-    if (now >= entry.expiresAt) _gridSummaryCountCache.delete(key);
-  }
-}
-// Prune every 5 minutes. .unref() prevents the interval from keeping the
-// Node.js process alive in test environments or during graceful shutdown.
-setInterval(pruneExpiredGridSummaryCacheEntries, 5 * 60 * 1000).unref();
-
 // ---------------------------------------------------------------------------
-// Fix 3: derive the site field list from the shared projection definition.
+// Fix 3: derive the site field list and $map alias from the shared projection
+// definition so the early-reduction stage can never drift out of sync with
+// GRIDS_INCLUSION_PROJECTION.
 //
-// GRIDS_INCLUSION_PROJECTION.sites.$map.in holds exactly the $$site.* field
-// mapping that the final $project stage applies.  Reusing it here means the
-// early-reduction stage and the projection can never drift out of sync: adding
-// or removing a site field in db-projections.js is automatically reflected in
-// the $lookup reduction without any change to this file.
+// Accessed defensively so a future reshape of the projection object does not
+// crash the process at startup; a warning is logged instead and the stage
+// falls back to passing sites through unmodified (safe, just slower).
 // ---------------------------------------------------------------------------
-const _siteInclusionFields = constants.GRIDS_INCLUSION_PROJECTION.sites.$map.in;
+const _projectionSites = constants.GRIDS_INCLUSION_PROJECTION?.sites;
+const _siteInclusionFields = _projectionSites?.$map?.in ?? null;
+// Derive the $map alias from the projection rather than hardcoding "site", so
+// the $$alias references inside `in` stay consistent if the alias ever changes.
+const _siteMapAlias = _projectionSites?.$map?.as ?? "site";
+
+if (!_siteInclusionFields) {
+  logger.warn(
+    "grid.util: GRIDS_INCLUSION_PROJECTION.sites.$map.in is missing — " +
+    "buildSiteEarlyProjectionStage will skip field reduction."
+  );
+}
 
 /**
  * Returns the $addFields stage that reduces each looked-up site document to
@@ -131,8 +140,17 @@ const _siteInclusionFields = constants.GRIDS_INCLUSION_PROJECTION.sites.$map.in;
  * For "summary" detailLevel, latitude/longitude are omitted because the
  * summary path-strategy exclusion projection strips them anyway — fetching
  * them from disk would be wasted I/O.
+ *
+ * If the projection shape is unavailable at load time the stage is a no-op
+ * ($map with all fields), keeping the pipeline correct at the cost of the
+ * size reduction.
  */
 function buildSiteEarlyProjectionStage(detailLevel) {
+  if (!_siteInclusionFields) {
+    // Projection unavailable — pass sites through unchanged (safe fallback).
+    return { $addFields: { sites: "$sites" } };
+  }
+
   let siteFields = _siteInclusionFields;
   if (detailLevel === "summary") {
     // Omit fields that the summary exclusion projection removes, so they are
@@ -146,7 +164,7 @@ function buildSiteEarlyProjectionStage(detailLevel) {
       sites: {
         $map: {
           input: "$sites",
-          as: "site",
+          as: _siteMapAlias,
           in: siteFields,
         },
       },
@@ -899,7 +917,18 @@ const createGrid = {
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
-      const sortField = sortBy ? sortBy : "createdAt";
+      // Restrict sortBy to known indexed fields so clients cannot force
+      // expensive unindexed sorts or inject arbitrary keys into the $sort stage
+      // and the cache key.  Any value not in the allowlist falls back to
+      // "createdAt" (the default sort, which is indexed via the timestamps option).
+      const GRID_SORT_ALLOWLIST = new Set([
+        "createdAt",
+        "updatedAt",
+        "name",
+        "admin_level",
+      ]);
+      const sortField =
+        sortBy && GRID_SORT_ALLOWLIST.has(sortBy) ? sortBy : "createdAt";
 
       let cohortSiteIds = [];
       if (cohort_id && cohort_id.trim() !== "") {
@@ -942,7 +971,6 @@ const createGrid = {
         cohortSiteIds.length > 0
           ? JSON.stringify(cohortSiteIds.map((id) => id.toString()).sort())
           : "none";
-      const now = Date.now();
 
       let cachedTotal = null; // populated from count cache when available
 
@@ -951,24 +979,21 @@ const createGrid = {
           normalizedTenant, filterHash, _skip, _limit,
           sortField, sortOrder, cohortKey, detailLevel
         );
+        // lru-cache returns undefined for missing or TTL-expired entries;
+        // no manual expiresAt check needed.
         const cachedData = _gridSummaryDataCache.get(dataCacheKey);
         if (cachedData) {
-          if (now < cachedData.expiresAt) {
-            // Full L1 data hit — recompute meta URLs from the live request so
-            // nextPage/previousPage reflect the actual host on every call.
-            const { paginatedResults, total } = cachedData;
-            const meta = buildGridListMeta({ total, _skip, _limit, request });
-            return {
-              success: true,
-              message: "Successfully retrieved grids",
-              data: paginatedResults,
-              status: httpStatus.OK,
-              meta,
-            };
-          }
-          // Lazy eviction: remove the stale entry immediately on read rather
-          // than waiting for the background pruning interval.
-          _gridSummaryDataCache.delete(dataCacheKey);
+          // Full cache hit — recompute meta URLs from the live request so
+          // nextPage/previousPage reflect the actual host on every call.
+          const { paginatedResults, total } = cachedData;
+          const meta = buildGridListMeta({ total, _skip, _limit, request });
+          return {
+            success: true,
+            message: "Successfully retrieved grids",
+            data: paginatedResults,
+            status: httpStatus.OK,
+            meta,
+          };
         }
 
         // Data cache missed; check count cache so we can skip the $count stage.
@@ -977,11 +1002,7 @@ const createGrid = {
         );
         const cachedCount = _gridSummaryCountCache.get(countCacheKey);
         if (cachedCount) {
-          if (now < cachedCount.expiresAt) {
-            cachedTotal = cachedCount.total;
-          } else {
-            _gridSummaryCountCache.delete(countCacheKey); // lazy eviction
-          }
+          cachedTotal = cachedCount.total;
         }
       }
       // ── End cache check ────────────────────────────────────────────────────
@@ -1103,14 +1124,12 @@ const createGrid = {
             : 0;
 
         // Cache the count with the longer TTL (Fix 4).
+        // lru-cache applies maxAge automatically; no expiresAt field needed.
         if (shouldCache) {
           const countCacheKey = makeGridSummaryCountKey(
             normalizedTenant, filterHash, cohortKey, detailLevel
           );
-          _gridSummaryCountCache.set(countCacheKey, {
-            total,
-            expiresAt: now + GRID_SUMMARY_COUNT_TTL_MS,
-          });
+          _gridSummaryCountCache.set(countCacheKey, { total });
         }
       }
 
@@ -1120,11 +1139,7 @@ const createGrid = {
           normalizedTenant, filterHash, _skip, _limit,
           sortField, sortOrder, cohortKey, detailLevel
         );
-        _gridSummaryDataCache.set(dataCacheKey, {
-          paginatedResults,
-          total,
-          expiresAt: now + GRID_SUMMARY_DATA_TTL_MS,
-        });
+        _gridSummaryDataCache.set(dataCacheKey, { paginatedResults, total });
       }
 
       const meta = buildGridListMeta({ total, _skip, _limit, request });
