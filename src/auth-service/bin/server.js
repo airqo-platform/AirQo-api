@@ -49,15 +49,17 @@ const rateLimit = require("express-rate-limit");
 
 const mongoStoreOptions = {
   mongooseConnection: mongoose.connection,
-  ttl: 24 * 60 * 60,       // 1 day in seconds
-  touchAfter: 10 * 60,      // only write if data changed, or once per 10 min
-  autoRemove: "native",     // MongoDB TTL index handles expiry (no polling)
+  ttl: 24 * 60 * 60, // 1 day in seconds
+  touchAfter: 10 * 60, // only write if data changed, or once per 10 min
+  autoRemove: "native", // MongoDB TTL index handles expiry (no polling)
 };
 
 const buildSessionStore = () => {
   // Allow opting out via USE_REDIS_SESSIONS=false env var.
   if (constants.USE_REDIS_SESSIONS === false) {
-    logger.info("[session] Redis sessions disabled by config — using MongoStore");
+    logger.info(
+      "[session] Redis sessions disabled by config — using MongoStore",
+    );
     return new MongoStore(mongoStoreOptions);
   }
 
@@ -73,7 +75,7 @@ const buildSessionStore = () => {
     // created successfully but then fail on the first session read/write.
     if (!redisClient.isOpen || !redisClient.isReady) {
       logger.warn(
-        "[session] Redis client not ready at startup — falling back to MongoStore"
+        "[session] Redis client not ready at startup — falling back to MongoStore",
       );
       return new MongoStore(mongoStoreOptions);
     }
@@ -88,7 +90,7 @@ const buildSessionStore = () => {
     return store;
   } catch (err) {
     logger.warn(
-      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`
+      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`,
     );
     return new MongoStore(mongoStoreOptions);
   }
@@ -162,14 +164,28 @@ if (isEmpty(constants.SESSION_SECRET)) {
 app.set("trust proxy", true);
 
 // Express Middlewares
-app.use(
-  session({
-    secret: constants.SESSION_SECRET,
-    store: buildSessionStore(),
-    resave: false,
-    saveUninitialized: false,
-  }),
-); // session setup
+// Skip session store lookup for JWT-authenticated API requests. When the
+// browser's connect.sid cookie is forwarded (e.g. via the nginx auth_request
+// subrequest), express-session would otherwise hit the session store on every
+// request — causing 30-second timeouts when the store is slow. API routes
+// authenticate via the Authorization header and never rely on sessions.
+const sessionMiddleware = session({
+  secret: constants.SESSION_SECRET,
+  store: buildSessionStore(),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: isProd,
+    httpOnly: true,
+    sameSite: "lax",
+  },
+});
+app.use((req, res, next) => {
+  if (req.headers.authorization || req.query.token) {
+    return next();
+  }
+  return sessionMiddleware(req, res, next);
+}); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
