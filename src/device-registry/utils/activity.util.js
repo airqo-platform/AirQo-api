@@ -1798,25 +1798,19 @@ const createActivity = {
                 }
 
                 // Best-effort geocoding enrichment — completely isolated from
-                // site creation. Any failure here is logged and silently
-                // dropped; deployment succeeds regardless. No retries are
-                // attempted to keep Google Maps API costs low. Missing fields
-                // (country, city, etc.) will be repaired by the nightly
-                // backfill-site-metadata job.
+                // site creation. Failures are handled and logged inside
+                // enrichSiteWithMetadata; deployment succeeds regardless.
+                // No retries are attempted to keep Google Maps API costs
+                // low. Missing fields (country, city, etc.) will be
+                // repaired by the nightly backfill-site-metadata job.
                 if (!wasExisting) {
-                  try {
-                    await enrichSiteWithMetadata(
-                      tenant,
-                      site._id,
-                      site.latitude,
-                      site.longitude,
-                      site.network,
-                    );
-                  } catch (enrichError) {
-                    logger.warn(
-                      `Site ${site._id} created successfully but geocoding enrichment failed (no retry): ${enrichError.message}`,
-                    );
-                  }
+                  await enrichSiteWithMetadata(
+                    tenant,
+                    site._id,
+                    site.latitude,
+                    site.longitude,
+                    site.network,
+                  );
                 }
               }
 
