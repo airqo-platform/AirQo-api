@@ -27,7 +27,7 @@ def airqo_fault_detection_dag():
     def fetch_raw_data():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        return BigQueryApi().fetch_raw_readings()
+        return BigQueryApi().fetch_fault_detection_raw_readings()
 
     @task(doc_md=flag_rule_based_faults_doc)
     def flag_rule_based_faults(data):

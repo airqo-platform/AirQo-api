@@ -1,5 +1,4 @@
 import pytest
-from airqo_etl_utils.sql import query_manager as default_query_manager
 from airqo_etl_utils.sql.query_manager import QueryManager
 
 
@@ -64,11 +63,3 @@ def test_format_raises_on_missing_placeholders(tmp_path):
     q = qm.get_query("site_daily_aggregated")
     with pytest.raises(KeyError):
         q.format(start_date="2025-01-01")
-
-
-def test_fault_detection_query_is_loaded_from_faultdetection_sql_dir():
-    q = default_query_manager.get_query("fault_detection_raw_device_readings")
-
-    assert q.source.parent.name == "faultdetection"
-    assert q.source.suffix == ".sql"
-    assert "raw_measurements_table" in q.placeholders

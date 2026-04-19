@@ -1207,11 +1207,37 @@ class BigQueryApi:
         """
         TODO: Document
         """
+        query = query_manager.get_query("raw_device_readings").format(
+            raw_measurements_table=self.raw_measurements_table,
+        )
+        # TODO: May need to review frequency
+        try:
+            results = self.execute_data_query(f"{query}")
+        except Exception as e:
+            logger.exception(f"Error when fetching data from bigquery, {e}")
+        else:
+            if results.empty:
+                raise Exception("No data found from bigquery")
+            else:
+                results["timestamp"] = pd.to_datetime(results["timestamp"], utc=True)
+                num_cols = results.select_dtypes(include="number").columns
+                results = (
+                    results.groupby("device_id")
+                    .resample("H", on="timestamp")[num_cols]
+                    .mean()
+                )
+                results.reset_index(inplace=True)
+
+        return results
+
+    def fetch_fault_detection_raw_readings(self) -> pd.DataFrame:
+        """
+        Fetch raw device readings for fault detection using the configured lookback.
+        """
         query = query_manager.get_query("fault_detection_raw_device_readings").format(
             raw_measurements_table=self.raw_measurements_table,
             lookback_days=configuration.FAULT_DETECTION_LOOKBACK_DAYS,
         )
-        # TODO: May need to review frequency
         try:
             results = self.execute_data_query(f"{query}")
         except Exception as e:
@@ -1219,12 +1245,12 @@ class BigQueryApi:
             raise
 
         if results.empty:
-            raise ValueError("No data found from bigquery")
+            raise Exception("No data found from bigquery")
 
         results["timestamp"] = pd.to_datetime(results["timestamp"], utc=True)
         num_cols = results.select_dtypes(include="number").columns
         results = (
-            results.groupby("device_id").resample("h", on="timestamp")[num_cols].mean()
+            results.groupby("device_id").resample("H", on="timestamp")[num_cols].mean()
         )
         results.reset_index(inplace=True)
 

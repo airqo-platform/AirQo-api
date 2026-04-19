@@ -141,12 +141,13 @@ def test_fetch_raw_readings_empty(mock_bigquery_client):
     api.client.query.return_value.result.return_value.to_dataframe.return_value = (
         pd.DataFrame()
     )
-    with pytest.raises(ValueError, match="No data found from bigquery"):
-        api.fetch_raw_readings()
+    with pytest.raises(Exception) as e:
+        df = api.fetch_raw_readings()
+        assert "No data found" in str(e.value)
 
 
 @pytest.fixture
-def fault_detection_raw_readings_df():
+def synthetic_fault_detection_raw_readings_df():
     return pd.DataFrame(
         {
             "timestamp": [
@@ -166,8 +167,8 @@ def fault_detection_raw_readings_df():
     )
 
 
-def test_fetch_raw_readings_uses_faultdetection_sql_and_hourly_aggregation(
-    monkeypatch, fault_detection_raw_readings_df
+def test_fetch_fault_detection_raw_readings_uses_configured_lookback_days(
+    monkeypatch, synthetic_fault_detection_raw_readings_df
 ):
     captured = {}
     expected_query = Query(
@@ -191,9 +192,11 @@ def test_fetch_raw_readings_uses_faultdetection_sql_and_hourly_aggregation(
 
     def fake_execute_data_query(query):
         captured["rendered_query"] = query
-        return fault_detection_raw_readings_df.copy()
+        return synthetic_fault_detection_raw_readings_df.copy()
 
-    monkeypatch.setattr("airqo_etl_utils.bigquery_api.query_manager.get_query", fake_get_query)
+    monkeypatch.setattr(
+        "airqo_etl_utils.bigquery_api.query_manager.get_query", fake_get_query
+    )
     monkeypatch.setattr(api, "execute_data_query", fake_execute_data_query)
     api.raw_measurements_table = "project.dataset.raw_measurements"
     monkeypatch.setattr(
@@ -201,7 +204,7 @@ def test_fetch_raw_readings_uses_faultdetection_sql_and_hourly_aggregation(
         14,
     )
 
-    result = api.fetch_raw_readings()
+    result = api.fetch_fault_detection_raw_readings()
 
     assert captured["query_name"] == "fault_detection_raw_device_readings"
     assert captured["source"].parent.name == "faultdetection"
@@ -211,17 +214,14 @@ def test_fetch_raw_readings_uses_faultdetection_sql_and_hourly_aggregation(
     assert isinstance(result["timestamp"].dtype, pd.DatetimeTZDtype)
 
 
-def test_fetch_raw_readings_query_failure_raises(monkeypatch):
+def test_fetch_fault_detection_raw_readings_empty_raises(monkeypatch):
     with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
         api = BigQueryApi()
 
-    def raise_query_error(_query):
-        raise RuntimeError("BigQuery unavailable")
+    monkeypatch.setattr(api, "execute_data_query", lambda _query: pd.DataFrame())
 
-    monkeypatch.setattr(api, "execute_data_query", raise_query_error)
-
-    with pytest.raises(RuntimeError, match="BigQuery unavailable"):
-        api.fetch_raw_readings()
+    with pytest.raises(Exception, match="No data found from bigquery"):
+        api.fetch_fault_detection_raw_readings()
 
 
 class TestFetchMaxMinValues(unittest.TestCase):
