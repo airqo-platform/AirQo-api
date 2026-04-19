@@ -92,6 +92,23 @@ const buildRecallUpdateOperation = (recallDate) => ({
 });
 
 const getDeviceCategoriesAddFieldsStage = () => {
+  // Shared expression: mirrors deployment_category derivation.
+  // Using the same $switch for is_mobile / is_static / mobile_category gating
+  // keeps all fields consistent even on old devices where `mobility` is wrong.
+  const deploymentCategoryExpr = {
+    $switch: {
+      branches: [
+        { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+        { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+        { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+        { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+      ],
+      default: null,
+    },
+  };
+  const isMobileExpr = { $eq: [deploymentCategoryExpr, "mobile"] };
+  const isStaticExpr = { $eq: [deploymentCategoryExpr, "static"] };
+
   return {
     $addFields: {
       device_categories: {
@@ -143,12 +160,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
         // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
         mobile_category: {
           $cond: {
-            if: {
-              $or: [
-                { $eq: ["$mobility", true] },
-                { $eq: ["$deployment_type", "mobile"] },
-              ],
-            },
+            if: isMobileExpr,
             then: {
               $switch: {
                 branches: [
@@ -234,23 +246,12 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
         },
 
-        is_mobile: {
-          $or: [
-            { $eq: ["$mobility", true] },
-            { $eq: ["$deployment_type", "mobile"] },
-          ],
-        },
-        // Strict negation of is_mobile — $not requires array form in aggregation expressions
-        is_static: {
-          $not: [
-            {
-              $or: [
-                { $eq: ["$mobility", true] },
-                { $eq: ["$deployment_type", "mobile"] },
-              ],
-            },
-          ],
-        },
+        // Derived from deployment_category — consistent even on old devices
+        // where `mobility` was stored incorrectly.
+        is_mobile: isMobileExpr,
+        // Explicitly checks "static" — a null deployment_category device is
+        // neither is_mobile nor is_static (not simply the negation of is_mobile).
+        is_static: isStaticExpr,
         // Compare against resolved primary_category (via $ifNull) not raw $category,
         // so a device with no category correctly gets is_lowcost: true
         is_lowcost: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"] },
@@ -311,12 +312,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
                     // Include mobile_category when device is mobile
                     {
                       $cond: {
-                        if: {
-                          $or: [
-                            { $eq: ["$mobility", true] },
-                            { $eq: ["$deployment_type", "mobile"] },
-                          ],
-                        },
+                        if: isMobileExpr,
                         then: [
                           {
                             $switch: {
@@ -509,12 +505,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
             "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
           mobile_is_subcategory_of: {
             $cond: [
-              {
-                $or: [
-                  { $eq: ["$mobility", true] },
-                  { $eq: ["$deployment_type", "mobile"] },
-                ],
-              },
+              isMobileExpr,
               { $ifNull: ["$category", "lowcost"] },
               null,
             ],
@@ -2135,13 +2126,13 @@ const deviceUtil = {
       };
 
       return await ActivityLogger.trackOperation(async () => {
-        // Controllers strip lifecycle fields before calling updateOnPlatform,
-        // so any lifecycle field present in `update` here means the caller is
-        // an activity function (deploy/recall/maintain) that legitimately owns
-        // those fields. Pass the opt-in flag so the model guard lets them through.
-        const { LIFECYCLE_FIELDS } = constants;
-        const hasLifecycleFields = LIFECYCLE_FIELDS.some((f) => f in update);
-        let opts = hasLifecycleFields ? { allowLifecycleFields: true } : {};
+        // Only activity call sites (deploy/recall/maintain) set
+        // request.allowLifecycleFields = true before calling updateOnPlatform.
+        // Never infer this from payload content — that would let a crafted body
+        // self-elevate permission to write lifecycle fields.
+        const opts = request.allowLifecycleFields
+          ? { allowLifecycleFields: true }
+          : {};
         const responseFromModifyDevice = await DeviceModel(tenant).modify(
           {
             filter,

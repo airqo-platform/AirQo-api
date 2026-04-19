@@ -1053,6 +1053,9 @@ const createActivity = {
         const createdActivity = responseFromRegisterActivity.data;
 
         // **STEP 3**: Update device
+        // Mark as an activity call so updateOnPlatform passes allowLifecycleFields
+        // to the model guard — activity functions own lifecycle fields.
+        deviceBody.allowLifecycleFields = true;
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
           next,
