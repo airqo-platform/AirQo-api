@@ -1777,15 +1777,6 @@ const createActivity = {
                       approxResult.approximate_distance_in_km || 0,
                     bearing_in_radians: approxResult.bearing_in_radians || 0,
                   });
-
-                  // Fire and forget: enrich the site in the background
-                  enrichSiteWithMetadata(
-                    tenant,
-                    site._id,
-                    site.latitude,
-                    site.longitude,
-                    site.network,
-                  );
                 } catch (createError) {
                   // Handle race condition: another process may have
                   // created the site between Phase A's existence check
@@ -1803,6 +1794,28 @@ const createActivity = {
                     wasExisting = true;
                   } else {
                     throw createError;
+                  }
+                }
+
+                // Best-effort geocoding enrichment — completely isolated from
+                // site creation. Any failure here is logged and silently
+                // dropped; deployment succeeds regardless. No retries are
+                // attempted to keep Google Maps API costs low. Missing fields
+                // (country, city, etc.) will be repaired by the nightly
+                // backfill-site-metadata job.
+                if (!wasExisting) {
+                  try {
+                    await enrichSiteWithMetadata(
+                      tenant,
+                      site._id,
+                      site.latitude,
+                      site.longitude,
+                      site.network,
+                    );
+                  } catch (enrichError) {
+                    logger.warn(
+                      `Site ${site._id} created successfully but geocoding enrichment failed (no retry): ${enrichError.message}`,
+                    );
                   }
                 }
               }

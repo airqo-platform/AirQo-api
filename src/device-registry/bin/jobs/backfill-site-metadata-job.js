@@ -53,67 +53,6 @@ const releaseLock = async (tenant) => {
 };
 
 /**
- * Runs a single altitude call before each batch fires.
- * If it fails, sets altitudeCircuitOpen = true so that all 100
- * concurrent promises in the batch already have skipAltitude = true
- * before they start — guaranteeing at most ONE altitude error log
- * per batch rather than one per site.
- *
- * Without this, Promise.allSettled fires all 100 promises simultaneously.
- * By the time the first one trips the circuit breaker flag, the other 99
- * have already called generateMetadata with skipAltitude = false,
- * producing 100 identical error logs.
- */
-const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
-  if (altitudeCircuitOpen) return true;
-
-  try {
-    const testResponse = await createSiteUtil.getAltitude(
-      site.latitude,
-      site.longitude,
-      (err) => err,
-    );
-
-    if (!testResponse || typeof testResponse !== "object") {
-      logger.error(
-        `[${POD_ID}] Altitude API pre-flight check returned an unexpected value — ` +
-          `opening circuit breaker for this batch. ` +
-          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
-      );
-      return true;
-    }
-
-    if (testResponse.success === false) {
-      const safeError = {
-        code: testResponse.errors?.message?.code,
-        message: testResponse.errors?.message?.message,
-      };
-      logger.error(
-        `[${POD_ID}] Altitude API pre-flight check failed — skipping altitude ` +
-          `enrichment for this entire batch to suppress duplicate errors. ` +
-          `Safe error: ${JSON.stringify(safeError)}. ` +
-          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
-      );
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    const safeError = {
-      code: error.code,
-      message: error.message,
-    };
-    logger.error(
-      `[${POD_ID}] Altitude API pre-flight check threw an unexpected error — ` +
-        `opening circuit breaker to suppress duplicate errors for this batch. ` +
-        `Safe error: ${JSON.stringify(safeError)}. ` +
-        `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
-    );
-    return true;
-  }
-};
-
-/**
  * Filters the metadata returned by generateMetadata down to only the fields
  * that are currently absent (missing, null, or empty string) on the site
  * document. Fields that already have a value are intentionally skipped.
@@ -232,13 +171,6 @@ const backfillSiteMetadata = async (tenant) => {
     let sitesFailedCount = 0;
     const attemptedIds = [];
 
-    // Circuit breaker for the Google Maps Elevation API.
-    // Scoped to this job run — resets automatically on the next cron tick.
-    // Tripped by the pre-flight check at the start of each batch so that
-    // all concurrent promises skip altitude before they even start,
-    // guaranteeing at most one error log per batch instead of one per site.
-    let altitudeCircuitOpen = false;
-
     while (true) {
       // -----------------------------------------------------------------
       // Two-query fetch strategy:
@@ -322,16 +254,6 @@ const backfillSiteMetadata = async (tenant) => {
       const batchIds = sitesToUpdate.map((s) => s._id);
       attemptedIds.push(...batchIds);
 
-      // Run the pre-flight check BEFORE firing Promise.allSettled so that
-      // the circuit breaker state is fully resolved before any of the 100
-      // concurrent promises read it. This is the key guarantee — without
-      // awaiting this first, all promises read altitudeCircuitOpen = false
-      // simultaneously and all 100 make failing altitude calls.
-      altitudeCircuitOpen = await runAltitudePreflightCheck(
-        sitesToUpdate[0],
-        altitudeCircuitOpen,
-      );
-
       const updatePromises = sitesToUpdate.map(async (site) => {
         try {
           // ----------------------------------------------------------------
@@ -406,6 +328,9 @@ const backfillSiteMetadata = async (tenant) => {
           // If the only missing fields were generated_name and/or description
           // and both are now repaired, skip the Google Maps call entirely.
           // ----------------------------------------------------------------
+          // altitude is excluded: it is permanently skipped in this job
+          // (see skipAltitude: true above) and must not trigger geocoding
+          // calls for sites that are otherwise complete.
           const GEOCODED_FIELDS = [
             "country",
             "district",
@@ -423,7 +348,6 @@ const backfillSiteMetadata = async (tenant) => {
             "google_place_id",
             "location_name",
             "search_name",
-            "altitude",
             "data_provider",
             "site_tags",
           ];
@@ -439,9 +363,11 @@ const backfillSiteMetadata = async (tenant) => {
           }
 
           // ----------------------------------------------------------------
-          // Step 3: Generate geocoding metadata (reverse geocode + altitude).
-          // Only reached by sites that still have missing geocoded fields
-          // after local repairs have been applied.
+          // Step 3: Generate geocoding metadata (reverse geocode only).
+          // Altitude is permanently skipped in the backfill job because the
+          // Google Elevation API fails almost all the time in this context
+          // and retrying it was driving up Cloud API costs. Altitude is still
+          // populated for sites created via the direct POST /sites API path.
           // ----------------------------------------------------------------
           const request = {
             query: { tenant },
@@ -449,7 +375,7 @@ const backfillSiteMetadata = async (tenant) => {
               latitude: site.latitude,
               longitude: site.longitude,
               network: site.network || "airqo",
-              skipAltitude: altitudeCircuitOpen,
+              skipAltitude: true,
             },
           };
 
@@ -556,13 +482,6 @@ const backfillSiteMetadata = async (tenant) => {
         `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
       );
     }
-
-    if (altitudeCircuitOpen) {
-      logger.error(
-        `[${POD_ID}] Altitude enrichment was skipped for this entire run. ` +
-          `Fix GOOGLE_MAPS_API_KEY and altitude data will be populated on the next run.`,
-      );
-    }
   } catch (error) {
     logger.error(`🐛🐛 Error in ${jobName}: ${error.message}`);
   } finally {
@@ -570,7 +489,7 @@ const backfillSiteMetadata = async (tenant) => {
   }
 };
 
-const schedule = "20 * * * *"; // Every hour at minute 20
+const schedule = "0 2 * * *"; // Once daily at 02:00 Nairobi time
 
 if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
   cron.schedule(
