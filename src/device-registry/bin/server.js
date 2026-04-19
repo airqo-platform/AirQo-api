@@ -5,8 +5,6 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const app = express();
 const bodyParser = require("body-parser");
-const session = require("express-session");
-const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
@@ -65,7 +63,6 @@ const compression = require("compression");
 const helmet = require("helmet");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
-const options = { mongooseConnection: mongoose.connection };
 
 const debug = require("debug")("device-service:server");
 const isEmpty = require("is-empty");
@@ -276,36 +273,7 @@ try {
   // Continue - server stays up
 }
 
-if (isEmpty(constants.SESSION_SECRET)) {
-  throw new Error("SESSION_SECRET environment variable not set");
-}
-
 // Express Middlewares
-const sessionMiddleware = session({
-  secret: constants.SESSION_SECRET,
-  store: new MongoStore(options),
-  resave: false,
-  saveUninitialized: false,
-  proxy: isProd,
-  cookie: {
-    secure: isProd,
-    httpOnly: true,
-    sameSite: "lax",
-  },
-});
-
-app.use((req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const hasJwtToken =
-    typeof authHeader === "string" &&
-    authHeader.startsWith("JWT ") &&
-    authHeader.length > "JWT ".length;
-  if (hasJwtToken || req.query.token) {
-    return next();
-  }
-  sessionMiddleware(req, res, next);
-}); // session setup
-
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {
