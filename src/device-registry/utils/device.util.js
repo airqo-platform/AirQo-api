@@ -2130,7 +2130,7 @@ const deviceUtil = {
         // request.allowLifecycleFields = true before calling updateOnPlatform.
         // Never infer this from payload content — that would let a crafted body
         // self-elevate permission to write lifecycle fields.
-        const opts = request.allowLifecycleFields
+        const opts = request.allowLifecycleFields === true
           ? { allowLifecycleFields: true }
           : {};
         const responseFromModifyDevice = await DeviceModel(tenant).modify(
@@ -2539,7 +2539,7 @@ const deviceUtil = {
           updateOperation,
         );
 
-        if (recallResult.modifiedCount === 0) {
+        if ((recallResult.modifiedCount ?? recallResult.nModified ?? 0) === 0) {
           throw new HttpError(
             "Device status may have changed during the operation. Please try again.",
             httpStatus.CONFLICT,
@@ -2795,7 +2795,7 @@ const deviceUtil = {
               updateOperation,
             );
 
-            if (recallResult.modifiedCount === 0) {
+            if ((recallResult.modifiedCount ?? recallResult.nModified ?? 0) === 0) {
               throw new Error("Device status changed during recall operation");
             }
 
