@@ -296,11 +296,11 @@ const sessionMiddleware = session({
 
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization;
-  const hasBearerToken =
+  const hasJwtToken =
     typeof authHeader === "string" &&
     authHeader.startsWith("JWT ") &&
     authHeader.length > "JWT ".length;
-  if (hasBearerToken || req.query.token) {
+  if (hasJwtToken || req.query.token) {
     return next();
   }
   sessionMiddleware(req, res, next);
