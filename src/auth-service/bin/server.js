@@ -162,14 +162,23 @@ if (isEmpty(constants.SESSION_SECRET)) {
 app.set("trust proxy", true);
 
 // Express Middlewares
-app.use(
-  session({
-    secret: constants.SESSION_SECRET,
-    store: buildSessionStore(),
-    resave: false,
-    saveUninitialized: false,
-  }),
-); // session setup
+// Skip session store lookup for JWT-authenticated API requests. When the
+// browser's connect.sid cookie is forwarded (e.g. via the nginx auth_request
+// subrequest), express-session would otherwise hit the session store on every
+// request — causing 30-second timeouts when the store is slow. API routes
+// authenticate via the Authorization header and never rely on sessions.
+const sessionMiddleware = session({
+  secret: constants.SESSION_SECRET,
+  store: buildSessionStore(),
+  resave: false,
+  saveUninitialized: false,
+});
+app.use((req, res, next) => {
+  if (req.headers.authorization) {
+    return next();
+  }
+  return sessionMiddleware(req, res, next);
+}); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
