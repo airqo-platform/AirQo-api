@@ -180,15 +180,23 @@ const sessionMiddleware = session({
     sameSite: "lax",
   },
 });
+
 app.use((req, res, next) => {
   if (req.headers.authorization || req.query.token) {
     return next();
   }
-  // For non-API requests (e.g., browser-based OAuth flows), enable sessions.
-  // passport.session() is the middleware that restores login sessions.
-  // By placing it here, we ensure it ONLY runs when sessions are enabled.
-  return sessionMiddleware(req, res, () => passport.session()(req, res, next));
-}); // session setup
+
+  // For non-API requests (browser/OAuth), run the full session middleware chain.
+  // 1. sessionMiddleware: Loads session data from the store.
+  // 2. passport.initialize(): Initializes Passport.
+  // 3. passport.session(): Restores the user from the session (`req.user`).
+  // Errors from sessionMiddleware (e.g., store connection issues) are now
+  // correctly propagated to the main error handler.
+  sessionMiddleware(req, res, (err) => {
+    if (err) return next(err);
+    passport.session()(req, res, next);
+  });
+});
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
@@ -203,7 +211,6 @@ if (isDev) {
 
 app.use(passport.initialize());
 
-app.use(express.json());
 app.use(
   bodyParser.urlencoded({
     extended: true,
