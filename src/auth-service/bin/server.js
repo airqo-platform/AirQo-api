@@ -174,7 +174,7 @@ const sessionMiddleware = session({
   saveUninitialized: false,
 });
 app.use((req, res, next) => {
-  if (req.headers.authorization) {
+  if (req.headers.authorization || req.query.token) {
     return next();
   }
   return sessionMiddleware(req, res, next);
