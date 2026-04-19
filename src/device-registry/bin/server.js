@@ -281,14 +281,19 @@ if (isEmpty(constants.SESSION_SECRET)) {
 }
 
 // Express Middlewares
-app.use(
-  session({
-    secret: constants.SESSION_SECRET,
-    store: new MongoStore(options),
-    resave: false,
-    saveUninitialized: false,
-  }),
-); // session setup
+const sessionMiddleware = session({
+  secret: constants.SESSION_SECRET,
+  store: new MongoStore(options),
+  resave: false,
+  saveUninitialized: false,
+});
+
+app.use((req, res, next) => {
+  if (req.headers.authorization || req.query.token) {
+    return next();
+  }
+  sessionMiddleware(req, res, next);
+}); // session setup
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
