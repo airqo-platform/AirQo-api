@@ -404,7 +404,6 @@ const backfillSiteMetadata = async (tenant) => {
               google_place_id,
               location_name,
               search_name,
-              altitude,
               data_provider,
               site_tags,
               description,
@@ -427,7 +426,6 @@ const backfillSiteMetadata = async (tenant) => {
               google_place_id,
               location_name,
               search_name,
-              altitude,
               data_provider,
               site_tags,
               // retrieveInformationFromAddress in site.util.js never sets a
