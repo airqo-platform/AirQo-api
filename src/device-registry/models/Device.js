@@ -1746,6 +1746,12 @@ deviceSchema.statics = {
     try {
       logText("we are now inside the modify function for devices....");
       const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      // Lifecycle fields may only be written by activity functions (deploy /
+      // recall / maintain).  Block them here unless the caller explicitly opts
+      // in via opts.allowLifecycleFields — activity callers set this flag.
+      if (!opts.allowLifecycleFields) {
+        invalidKeys.push(...constants.LIFECYCLE_FIELDS);
+      }
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
       const options = { new: true, ...opts };
@@ -1798,6 +1804,9 @@ deviceSchema.statics = {
     try {
       // Sanitize update object
       const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      if (!opts.allowLifecycleFields) {
+        invalidKeys.push(...constants.LIFECYCLE_FIELDS);
+      }
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
       // Handle special cases like access code generation

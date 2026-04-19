@@ -2135,7 +2135,13 @@ const deviceUtil = {
       };
 
       return await ActivityLogger.trackOperation(async () => {
-        let opts = {};
+        // Controllers strip lifecycle fields before calling updateOnPlatform,
+        // so any lifecycle field present in `update` here means the caller is
+        // an activity function (deploy/recall/maintain) that legitimately owns
+        // those fields. Pass the opt-in flag so the model guard lets them through.
+        const { LIFECYCLE_FIELDS } = constants;
+        const hasLifecycleFields = LIFECYCLE_FIELDS.some((f) => f in update);
+        let opts = hasLifecycleFields ? { allowLifecycleFields: true } : {};
         const responseFromModifyDevice = await DeviceModel(tenant).modify(
           {
             filter,
