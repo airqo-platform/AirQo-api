@@ -93,6 +93,35 @@ function makeGridSummaryCountKey(tenant, filterHash, cohortKey, detailLevel) {
 }
 
 /**
+ * Removes all entries whose TTL has elapsed from both summary caches.
+ * Called on a background interval so entries added by uncommon
+ * filter/pagination combinations don't accumulate indefinitely.
+ */
+function pruneExpiredGridSummaryCacheEntries() {
+  const now = Date.now();
+  for (const [key, entry] of _gridSummaryDataCache) {
+    if (now >= entry.expiresAt) _gridSummaryDataCache.delete(key);
+  }
+  for (const [key, entry] of _gridSummaryCountCache) {
+    if (now >= entry.expiresAt) _gridSummaryCountCache.delete(key);
+  }
+}
+// Prune every 5 minutes. .unref() prevents the interval from keeping the
+// Node.js process alive in test environments or during graceful shutdown.
+setInterval(pruneExpiredGridSummaryCacheEntries, 5 * 60 * 1000).unref();
+
+// ---------------------------------------------------------------------------
+// Fix 3: derive the site field list from the shared projection definition.
+//
+// GRIDS_INCLUSION_PROJECTION.sites.$map.in holds exactly the $$site.* field
+// mapping that the final $project stage applies.  Reusing it here means the
+// early-reduction stage and the projection can never drift out of sync: adding
+// or removing a site field in db-projections.js is automatically reflected in
+// the $lookup reduction without any change to this file.
+// ---------------------------------------------------------------------------
+const _siteInclusionFields = constants.GRIDS_INCLUSION_PROJECTION.sites.$map.in;
+
+/**
  * Returns the $addFields stage that reduces each looked-up site document to
  * only the fields consumed by GRIDS_INCLUSION_PROJECTION.  Running this
  * immediately after the $lookup means every downstream stage (private-site
@@ -100,35 +129,17 @@ function makeGridSummaryCountKey(tenant, filterHash, cohortKey, detailLevel) {
  * documents instead of full site objects.
  *
  * For "summary" detailLevel, latitude/longitude are omitted because the
- * summary exclusion projection strips them anyway — fetching them from disk
- * would be wasted I/O.
+ * summary path-strategy exclusion projection strips them anyway — fetching
+ * them from disk would be wasted I/O.
  */
 function buildSiteEarlyProjectionStage(detailLevel) {
-  const siteFields = {
-    _id: "$$site._id",
-    name: "$$site.name",
-    generated_name: "$$site.generated_name",
-    formatted_name: "$$site.formatted_name",
-    approximate_latitude: "$$site.approximate_latitude",
-    approximate_longitude: "$$site.approximate_longitude",
-    country: "$$site.country",
-    region: "$$site.region",
-    district: "$$site.district",
-    county: "$$site.county",
-    sub_county: "$$site.sub_county",
-    parish: "$$site.parish",
-    city: "$$site.city",
-    search_name: "$$site.search_name",
-    location_name: "$$site.location_name",
-    isOnline: "$$site.isOnline",
-    rawOnlineStatus: "$$site.rawOnlineStatus",
-    lastRawData: "$$site.lastRawData",
-  };
-  // latitude/longitude are excluded by the summary exclusion projection;
-  // only include them for full-detail responses to avoid unnecessary I/O.
-  if (detailLevel !== "summary") {
-    siteFields.latitude = "$$site.latitude";
-    siteFields.longitude = "$$site.longitude";
+  let siteFields = _siteInclusionFields;
+  if (detailLevel === "summary") {
+    // Omit fields that the summary exclusion projection removes, so they are
+    // never read from disk in the first place.
+    // eslint-disable-next-line no-unused-vars
+    const { latitude, longitude, ...rest } = _siteInclusionFields;
+    siteFields = rest;
   }
   return {
     $addFields: {
@@ -875,6 +886,16 @@ const createGrid = {
       const { cohort_id } = request.query;
       const filter = generateFilter.grids(request, next);
 
+      // Normalise tenant once, up-front, so cache keys and every model call
+      // below use the identical string.  Without this, a caller that passes
+      // "AirQo" (mixed-case) would produce a cache key of "airqo" but query
+      // a different logical DB, potentially returning cached data from another
+      // tenant's request — a cross-tenant data leak.
+      const normalizedTenant =
+        (tenant && tenant.toString().trim().toLowerCase()) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
@@ -882,7 +903,7 @@ const createGrid = {
 
       let cohortSiteIds = [];
       if (cohort_id && cohort_id.trim() !== "") {
-        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        const siteIdsResponse = await getSiteIdsFromCohort(normalizedTenant, cohort_id);
         if (!siteIdsResponse.success) {
           return siteIdsResponse; // Propagate error
         }
@@ -909,17 +930,13 @@ const createGrid = {
 
       // Use cached helper — avoids a full Cohort→Device join on every request.
       // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
-      const privateSiteIds = await getPrivateSiteIds(tenant);
+      const privateSiteIds = await getPrivateSiteIds(normalizedTenant);
 
       // ── Fix 3 + Fix 4: L1 cache check ─────────────────────────────────────
       // Only cache "summary" responses — "full" (dashboard) includes mobile-
       // device join data that changes more frequently and benefits less from
       // short-lived caching.
       const shouldCache = detailLevel === "summary";
-      const normalizedTenant =
-        (tenant && tenant.toString().trim().toLowerCase()) ||
-        constants.DEFAULT_TENANT ||
-        "airqo";
       const filterHash = JSON.stringify(filter);
       const cohortKey =
         cohortSiteIds.length > 0
@@ -935,20 +952,23 @@ const createGrid = {
           sortField, sortOrder, cohortKey, detailLevel
         );
         const cachedData = _gridSummaryDataCache.get(dataCacheKey);
-        if (cachedData && now < cachedData.expiresAt) {
-          // Full L1 data hit — recompute meta URLs from the live request so
-          // nextPage/previousPage reflect the actual host on every call.
-          const { paginatedResults, total } = cachedData;
-          const meta = buildGridListMeta({
-            total, _skip, _limit, request,
-          });
-          return {
-            success: true,
-            message: "Successfully retrieved grids",
-            data: paginatedResults,
-            status: httpStatus.OK,
-            meta,
-          };
+        if (cachedData) {
+          if (now < cachedData.expiresAt) {
+            // Full L1 data hit — recompute meta URLs from the live request so
+            // nextPage/previousPage reflect the actual host on every call.
+            const { paginatedResults, total } = cachedData;
+            const meta = buildGridListMeta({ total, _skip, _limit, request });
+            return {
+              success: true,
+              message: "Successfully retrieved grids",
+              data: paginatedResults,
+              status: httpStatus.OK,
+              meta,
+            };
+          }
+          // Lazy eviction: remove the stale entry immediately on read rather
+          // than waiting for the background pruning interval.
+          _gridSummaryDataCache.delete(dataCacheKey);
         }
 
         // Data cache missed; check count cache so we can skip the $count stage.
@@ -956,8 +976,12 @@ const createGrid = {
           normalizedTenant, filterHash, cohortKey, detailLevel
         );
         const cachedCount = _gridSummaryCountCache.get(countCacheKey);
-        if (cachedCount && now < cachedCount.expiresAt) {
-          cachedTotal = cachedCount.total;
+        if (cachedCount) {
+          if (now < cachedCount.expiresAt) {
+            cachedTotal = cachedCount.total;
+          } else {
+            _gridSummaryCountCache.delete(countCacheKey); // lazy eviction
+          }
         }
       }
       // ── End cache check ────────────────────────────────────────────────────
@@ -1042,7 +1066,7 @@ const createGrid = {
           { $skip: _skip },
           { $limit: _limit },
         ];
-        paginatedResults = await GridModel(tenant)
+        paginatedResults = await GridModel(normalizedTenant)
           .aggregate(dataOnlyPipeline)
           .option({ maxTimeMS: 45000 })
           .allowDiskUse(true);
@@ -1063,7 +1087,7 @@ const createGrid = {
           },
         ];
 
-        const results = await GridModel(tenant)
+        const results = await GridModel(normalizedTenant)
           .aggregate(facetPipeline)
           .option({ maxTimeMS: 45000 })
           .allowDiskUse(true);
