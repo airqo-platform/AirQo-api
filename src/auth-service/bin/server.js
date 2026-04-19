@@ -49,15 +49,17 @@ const rateLimit = require("express-rate-limit");
 
 const mongoStoreOptions = {
   mongooseConnection: mongoose.connection,
-  ttl: 24 * 60 * 60,       // 1 day in seconds
-  touchAfter: 10 * 60,      // only write if data changed, or once per 10 min
-  autoRemove: "native",     // MongoDB TTL index handles expiry (no polling)
+  ttl: 24 * 60 * 60, // 1 day in seconds
+  touchAfter: 10 * 60, // only write if data changed, or once per 10 min
+  autoRemove: "native", // MongoDB TTL index handles expiry (no polling)
 };
 
 const buildSessionStore = () => {
   // Allow opting out via USE_REDIS_SESSIONS=false env var.
   if (constants.USE_REDIS_SESSIONS === false) {
-    logger.info("[session] Redis sessions disabled by config — using MongoStore");
+    logger.info(
+      "[session] Redis sessions disabled by config — using MongoStore",
+    );
     return new MongoStore(mongoStoreOptions);
   }
 
@@ -73,7 +75,7 @@ const buildSessionStore = () => {
     // created successfully but then fail on the first session read/write.
     if (!redisClient.isOpen || !redisClient.isReady) {
       logger.warn(
-        "[session] Redis client not ready at startup — falling back to MongoStore"
+        "[session] Redis client not ready at startup — falling back to MongoStore",
       );
       return new MongoStore(mongoStoreOptions);
     }
@@ -88,7 +90,7 @@ const buildSessionStore = () => {
     return store;
   } catch (err) {
     logger.warn(
-      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`
+      `[session] Redis store unavailable, falling back to MongoStore: ${err.message}`,
     );
     return new MongoStore(mongoStoreOptions);
   }
@@ -172,6 +174,11 @@ const sessionMiddleware = session({
   store: buildSessionStore(),
   resave: false,
   saveUninitialized: false,
+  cookie: {
+    secure: isProd,
+    httpOnly: true,
+    sameSite: "lax",
+  },
 });
 app.use((req, res, next) => {
   if (req.headers.authorization || req.query.token) {
