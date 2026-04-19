@@ -1053,6 +1053,9 @@ const createActivity = {
         const createdActivity = responseFromRegisterActivity.data;
 
         // **STEP 3**: Update device
+        // Mark as an activity call so updateOnPlatform passes allowLifecycleFields
+        // to the model guard — activity functions own lifecycle fields.
+        deviceBody.allowLifecycleFields = true;
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
           deviceBody,
           next,
@@ -2361,9 +2364,12 @@ const createActivity = {
           site_id: null,
           grid_id: null,
           mobility: false,
-          deployment_type: "static",
         },
         $unset: {
+          // deployment_type must be cleared on recall — a recalled device
+          // is no longer deployed anywhere, so assigning it a type is
+          // semantically incorrect and breaks the frontend deployment card.
+          deployment_type: "",
           mountType: "",
           powerType: "",
           height: "",

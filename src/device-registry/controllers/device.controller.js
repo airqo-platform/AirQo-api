@@ -607,6 +607,10 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
+      // Same lifecycle-field guard applied to PUT /soft and PUT /bulk.
+      const { LIFECYCLE_FIELDS } = constants;
+      LIFECYCLE_FIELDS.forEach((f) => delete request.body[f]);
+
       const result = await createDeviceUtil.update(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -1249,6 +1253,17 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
+      // Lifecycle fields may only be changed via dedicated activity endpoints
+      // (deploy, recall, maintain). Strip them here so a direct PATCH cannot
+      // corrupt deployment state or bypass the activity audit trail.
+      const { LIFECYCLE_FIELDS } = constants;
+      const stripLifecycleFields = (obj) => {
+        if (obj && typeof obj === "object") {
+          LIFECYCLE_FIELDS.forEach((f) => delete obj[f]);
+        }
+      };
+      stripLifecycleFields(request.body);
+
       const result = await createDeviceUtil.updateOnPlatform(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -1300,6 +1315,18 @@ const deviceController = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+
+      // Same lifecycle-field guard as the single-device update endpoint.
+      // Also covers request.body.updateData which is the nested payload
+      // consumed by updateManyDevicesOnPlatform in the util.
+      const { LIFECYCLE_FIELDS } = constants;
+      const stripLifecycleFields = (obj) => {
+        if (obj && typeof obj === "object") {
+          LIFECYCLE_FIELDS.forEach((f) => delete obj[f]);
+        }
+      };
+      stripLifecycleFields(request.body);
+      stripLifecycleFields(request.body.updateData);
 
       const result = await createDeviceUtil.updateManyDevicesOnPlatform(
         request,
