@@ -2,6 +2,7 @@ const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const ComputedCacheModel = require("@models/ComputedCache");
+const LRUCache = require("lru-cache");
 const qs = require("qs");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
@@ -49,6 +50,166 @@ const PRIVATE_SITE_IDS_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const LOCK_TTL_MS = 30 * 1000; // 30-second lease; TTL index cleans stale locks
 const PRIVATE_SITE_IDS_CACHE_KEY = "private_site_ids";
 const PRIVATE_SITE_IDS_LOCK_KEY = "private_site_ids_lock";
+
+// ---------------------------------------------------------------------------
+// Two-tier L1 cache for GET /grids/summary (used by the Countries & Cities
+// tabs in the Data Export page).
+//
+// Why two separate caches?
+//   DATA cache (3 min): the paginated grid documents change whenever sites are
+//     reassigned to grids or grid metadata is updated — relatively common.
+//   COUNT cache (10 min): the total number of grids matching a given
+//     admin_level filter is much more stable; splitting it out means that when
+//     the data cache expires the expensive $count aggregation stage is skipped
+//     and only the paginated pipeline runs, saving a meaningful round-trip.
+//
+// Both caches are pod-local (L1 only). The private-site-IDs cache (above) is
+// already shared via MongoDB (L2); adding L2 here would duplicate that
+// infra for a short-lived result that already benefits from the private-IDs
+// cache's L2 freshness guarantees.
+//
+// Only the "summary" detailLevel is cached — the "full" (dashboard) level
+// includes mobileDevice join data that changes more frequently.
+// ---------------------------------------------------------------------------
+// lru-cache v6 handles TTL expiry on read and LRU eviction when max is
+// reached, removing the need for manual expiresAt tracking, a prune function,
+// or a background setInterval.
+//
+// max sizes are intentionally generous:
+//   data  — keyed on (tenant + filter + skip + limit + sort + cohort + level);
+//            typical usage produces O(10–50) distinct entries per deployment.
+//   count — keyed on (tenant + filter + cohort + level), no pagination dims;
+//            typically O(2–10) entries (one per admin_level combination).
+const GRID_SUMMARY_DATA_TTL_MS = 3 * 60 * 1000; // 3 minutes
+const GRID_SUMMARY_COUNT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const _gridSummaryDataCache = new LRUCache({
+  max: 500,
+  maxAge: GRID_SUMMARY_DATA_TTL_MS,
+});
+const _gridSummaryCountCache = new LRUCache({
+  max: 200,
+  maxAge: GRID_SUMMARY_COUNT_TTL_MS,
+});
+
+/**
+ * Stable string key for the summary data cache.
+ * Includes all parameters that affect the paginated result set.
+ */
+function makeGridSummaryDataKey(tenant, filterHash, skip, limit, sortField, sortOrder, cohortKey, detailLevel) {
+  return `${tenant}:${filterHash}:${skip}:${limit}:${sortField}:${sortOrder}:${cohortKey}:${detailLevel}`;
+}
+
+/**
+ * Stable string key for the count-only cache.
+ * Excludes pagination parameters — the total count is the same for all pages
+ * of the same filter.
+ */
+function makeGridSummaryCountKey(tenant, filterHash, cohortKey, detailLevel) {
+  return `${tenant}:${filterHash}:count:${cohortKey}:${detailLevel}`;
+}
+
+// ---------------------------------------------------------------------------
+// Fix 3: derive the site field list and $map alias from the shared projection
+// definition so the early-reduction stage can never drift out of sync with
+// GRIDS_INCLUSION_PROJECTION.
+//
+// Accessed defensively so a future reshape of the projection object does not
+// crash the process at startup; a warning is logged instead and the stage
+// falls back to passing sites through unmodified (safe, just slower).
+// ---------------------------------------------------------------------------
+const _projectionSites = constants.GRIDS_INCLUSION_PROJECTION?.sites;
+const _siteInclusionFields = _projectionSites?.$map?.in ?? null;
+// Derive the $map alias from the projection rather than hardcoding "site", so
+// the $$alias references inside `in` stay consistent if the alias ever changes.
+const _siteMapAlias = _projectionSites?.$map?.as ?? "site";
+
+if (!_siteInclusionFields) {
+  logger.warn(
+    "grid.util: GRIDS_INCLUSION_PROJECTION.sites.$map.in is missing — " +
+    "buildSiteEarlyProjectionStage will skip field reduction."
+  );
+}
+
+/**
+ * Returns the $addFields stage that reduces each looked-up site document to
+ * only the fields consumed by GRIDS_INCLUSION_PROJECTION.  Running this
+ * immediately after the $lookup means every downstream stage (private-site
+ * filter, cohort filter, $project, $sort, $facet) operates on small
+ * documents instead of full site objects.
+ *
+ * For "summary" detailLevel, latitude/longitude are omitted because the
+ * summary path-strategy exclusion projection strips them anyway — fetching
+ * them from disk would be wasted I/O.
+ *
+ * If the projection shape is unavailable at load time the stage is a no-op
+ * ($map with all fields), keeping the pipeline correct at the cost of the
+ * size reduction.
+ */
+function buildSiteEarlyProjectionStage(detailLevel) {
+  if (!_siteInclusionFields) {
+    // Projection unavailable — pass sites through unchanged (safe fallback).
+    return { $addFields: { sites: "$sites" } };
+  }
+
+  let siteFields = _siteInclusionFields;
+  if (detailLevel === "summary") {
+    // Omit fields that the summary exclusion projection removes, so they are
+    // never read from disk in the first place.
+    // eslint-disable-next-line no-unused-vars
+    const { latitude, longitude, ...rest } = _siteInclusionFields;
+    siteFields = rest;
+  }
+  return {
+    $addFields: {
+      sites: {
+        $map: {
+          input: "$sites",
+          as: _siteMapAlias,
+          in: siteFields,
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Builds the pagination meta object for grid list responses.
+ * Extracted so both the cache-hit and cold paths produce identical shapes,
+ * ensuring backward-compatible response structure regardless of cache state.
+ */
+function buildGridListMeta({ total, _skip, _limit, request }) {
+  const meta = {
+    total,
+    limit: _limit,
+    skip: _skip,
+    page: Math.floor(_skip / _limit) + 1,
+    totalPages: Math.ceil(total / _limit),
+  };
+
+  const baseUrl =
+    typeof request.protocol === "string" &&
+    typeof request.get === "function" &&
+    typeof request.originalUrl === "string"
+      ? `${request.protocol}://${request.get("host")}${
+          request.originalUrl.split("?")[0]
+        }`
+      : "";
+
+  if (baseUrl) {
+    const nextSkip = _skip + _limit;
+    if (nextSkip < total) {
+      const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+      meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
+    }
+    const prevSkip = _skip - _limit;
+    if (prevSkip >= 0) {
+      const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+      meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+    }
+  }
+
+  return meta;
+}
 
 // Attempt to insert a lock document. Returns true when this pod holds the
 // lease, false when another pod already has it (duplicate-key error 11000).
@@ -729,7 +890,6 @@ const createGrid = {
       return;
     }
   },
-  // Replace the existing 'list' function with this one:
 
   list: async (request, next) => {
     try {
@@ -744,14 +904,35 @@ const createGrid = {
       const { cohort_id } = request.query;
       const filter = generateFilter.grids(request, next);
 
+      // Normalise tenant once, up-front, so cache keys and every model call
+      // below use the identical string.  Without this, a caller that passes
+      // "AirQo" (mixed-case) would produce a cache key of "airqo" but query
+      // a different logical DB, potentially returning cached data from another
+      // tenant's request — a cross-tenant data leak.
+      const normalizedTenant =
+        (tenant && tenant.toString().trim().toLowerCase()) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+
       const _skip = Math.max(0, parseInt(skip, 10) || 0);
       const _limit = Math.max(1, Math.min(parseInt(limit, 10) || 30, 80));
       const sortOrder = order === "asc" ? 1 : -1;
-      const sortField = sortBy ? sortBy : "createdAt";
+      // Restrict sortBy to known indexed fields so clients cannot force
+      // expensive unindexed sorts or inject arbitrary keys into the $sort stage
+      // and the cache key.  Any value not in the allowlist falls back to
+      // "createdAt" (the default sort, which is indexed via the timestamps option).
+      const GRID_SORT_ALLOWLIST = new Set([
+        "createdAt",
+        "updatedAt",
+        "name",
+        "admin_level",
+      ]);
+      const sortField =
+        sortBy && GRID_SORT_ALLOWLIST.has(sortBy) ? sortBy : "createdAt";
 
       let cohortSiteIds = [];
       if (cohort_id && cohort_id.trim() !== "") {
-        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        const siteIdsResponse = await getSiteIdsFromCohort(normalizedTenant, cohort_id);
         if (!siteIdsResponse.success) {
           return siteIdsResponse; // Propagate error
         }
@@ -778,21 +959,77 @@ const createGrid = {
 
       // Use cached helper — avoids a full Cohort→Device join on every request.
       // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
-      const privateSiteIds = await getPrivateSiteIds(tenant);
+      const privateSiteIds = await getPrivateSiteIds(normalizedTenant);
+
+      // ── Fix 3 + Fix 4: L1 cache check ─────────────────────────────────────
+      // Only cache "summary" responses — "full" (dashboard) includes mobile-
+      // device join data that changes more frequently and benefits less from
+      // short-lived caching.
+      const shouldCache = detailLevel === "summary";
+      const filterHash = JSON.stringify(filter);
+      const cohortKey =
+        cohortSiteIds.length > 0
+          ? JSON.stringify(cohortSiteIds.map((id) => id.toString()).sort())
+          : "none";
+
+      let cachedTotal = null; // populated from count cache when available
+
+      if (shouldCache) {
+        const dataCacheKey = makeGridSummaryDataKey(
+          normalizedTenant, filterHash, _skip, _limit,
+          sortField, sortOrder, cohortKey, detailLevel
+        );
+        // lru-cache returns undefined for missing or TTL-expired entries;
+        // no manual expiresAt check needed.
+        const cachedData = _gridSummaryDataCache.get(dataCacheKey);
+        if (cachedData) {
+          // Full cache hit — recompute meta URLs from the live request so
+          // nextPage/previousPage reflect the actual host on every call.
+          const { paginatedResults, total } = cachedData;
+          const meta = buildGridListMeta({ total, _skip, _limit, request });
+          return {
+            success: true,
+            message: "Successfully retrieved grids",
+            data: paginatedResults,
+            status: httpStatus.OK,
+            meta,
+          };
+        }
+
+        // Data cache missed; check count cache so we can skip the $count stage.
+        const countCacheKey = makeGridSummaryCountKey(
+          normalizedTenant, filterHash, cohortKey, detailLevel
+        );
+        const cachedCount = _gridSummaryCountCache.get(countCacheKey);
+        if (cachedCount) {
+          cachedTotal = cachedCount.total;
+        }
+      }
+      // ── End cache check ────────────────────────────────────────────────────
 
       const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
         detailLevel
       );
-      let pipeline = [
+
+      // ── Fix 2: Build base pipeline with early site-field projection ────────
+      // The $lookup fetches full site documents. The stage immediately after it
+      // ($map) reduces each site to only the fields that GRIDS_INCLUSION_PROJECTION
+      // actually uses, shrinking the working set for every downstream stage
+      // (private-site filter, cohort filter, $project, $sort, $facet).
+      const basePipeline = [
         { $match: filter },
         {
           $lookup: {
             from: "sites",
             localField: "_id",
-            foreignField: "grids",
+            foreignField: "grids", // uses the new { grids: 1 } index on sites
             as: "sites",
           },
         },
+        // Early projection — reduce site documents to only needed fields before
+        // any filtering stage touches them (Fix 2).
+        buildSiteEarlyProjectionStage(detailLevel),
+        // Filter out private sites (IDs are pre-cached by getPrivateSiteIds).
         {
           $addFields: {
             sites: {
@@ -804,7 +1041,7 @@ const createGrid = {
             },
           },
         },
-        // If cohort_id is provided, further filter the sites
+        // If cohort_id is provided, further restrict to cohort-member sites.
         {
           $addFields: {
             sites: cohort_id
@@ -821,7 +1058,7 @@ const createGrid = {
       ];
 
       if (detailLevel === "full") {
-        pipeline.push({
+        basePipeline.push({
           $lookup: {
             from: "devices",
             localField: "activeMobileDevices.device_id",
@@ -831,70 +1068,81 @@ const createGrid = {
         });
       }
 
-      pipeline.push(
+      basePipeline.push(
         { $project: constants.GRIDS_INCLUSION_PROJECTION },
         { $project: exclusionProjection }
       );
+      // ── End base pipeline ──────────────────────────────────────────────────
 
-      const facetPipeline = [
-        ...pipeline,
-        {
-          $facet: {
-            paginatedResults: [
-              { $sort: { [sortField]: sortOrder } },
-              { $skip: _skip },
-              { $limit: _limit },
-            ],
-            totalCount: [{ $count: "count" }],
+      let paginatedResults;
+      let total;
+
+      if (shouldCache && cachedTotal !== null) {
+        // ── Fix 4: count cache hit — skip the $count stage entirely ──────────
+        // Run only the paginated data pipeline; the total is served from cache.
+        // This is the common case once the count warms up (10-min TTL).
+        const dataOnlyPipeline = [
+          ...basePipeline,
+          { $sort: { [sortField]: sortOrder } },
+          { $skip: _skip },
+          { $limit: _limit },
+        ];
+        paginatedResults = await GridModel(normalizedTenant)
+          .aggregate(dataOnlyPipeline)
+          .option({ maxTimeMS: 45000 })
+          .allowDiskUse(true);
+        total = cachedTotal;
+      } else {
+        // ── Cold path — run $facet to get data + count in one aggregation ─────
+        const facetPipeline = [
+          ...basePipeline,
+          {
+            $facet: {
+              paginatedResults: [
+                { $sort: { [sortField]: sortOrder } },
+                { $skip: _skip },
+                { $limit: _limit },
+              ],
+              totalCount: [{ $count: "count" }],
+            },
           },
-        },
-      ];
+        ];
 
-      const results = await GridModel(tenant)
-        .aggregate(facetPipeline)
-        .option({ maxTimeMS: 45000 })
-        .allowDiskUse(true);
+        const results = await GridModel(normalizedTenant)
+          .aggregate(facetPipeline)
+          .option({ maxTimeMS: 45000 })
+          .allowDiskUse(true);
 
-      const agg =
-        Array.isArray(results) && results[0]
-          ? results[0]
-          : { paginatedResults: [], totalCount: [] };
-      const paginatedResults = agg.paginatedResults || [];
-      const total =
-        Array.isArray(agg.totalCount) && agg.totalCount[0]
-          ? agg.totalCount[0].count
-          : 0;
+        const agg =
+          Array.isArray(results) && results[0]
+            ? results[0]
+            : { paginatedResults: [], totalCount: [] };
+        paginatedResults = agg.paginatedResults || [];
+        total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
 
-      const baseUrl =
-        typeof request.protocol === "string" &&
-        typeof request.get === "function" &&
-        typeof request.originalUrl === "string"
-          ? `${request.protocol}://${request.get("host")}${
-              request.originalUrl.split("?")[0]
-            }`
-          : "";
-
-      const meta = {
-        total,
-        limit: _limit,
-        skip: _skip,
-        page: Math.floor(_skip / _limit) + 1,
-        totalPages: Math.ceil(total / _limit),
-      };
-
-      if (baseUrl) {
-        const nextSkip = _skip + _limit;
-        if (nextSkip < total) {
-          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
-          meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
-        }
-
-        const prevSkip = _skip - _limit;
-        if (prevSkip >= 0) {
-          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
-          meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
+        // Cache the count with the longer TTL (Fix 4).
+        // lru-cache applies maxAge automatically; no expiresAt field needed.
+        if (shouldCache) {
+          const countCacheKey = makeGridSummaryCountKey(
+            normalizedTenant, filterHash, cohortKey, detailLevel
+          );
+          _gridSummaryCountCache.set(countCacheKey, { total });
         }
       }
+
+      // Cache the paginated data (Fix 3).
+      if (shouldCache) {
+        const dataCacheKey = makeGridSummaryDataKey(
+          normalizedTenant, filterHash, _skip, _limit,
+          sortField, sortOrder, cohortKey, detailLevel
+        );
+        _gridSummaryDataCache.set(dataCacheKey, { paginatedResults, total });
+      }
+
+      const meta = buildGridListMeta({ total, _skip, _limit, request });
 
       return {
         success: true,

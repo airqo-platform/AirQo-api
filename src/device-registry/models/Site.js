@@ -573,6 +573,10 @@ siteSchema.index({ isOnline: 1, search_name: 1 });
 siteSchema.index({ isOnline: 1, description: 1 });
 // Index for offline entity checks
 siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
+// Index to support $lookup from grids collection (grids._id → sites.grids)
+// Without this, every $lookup on GET /grids/summary requires a full sites
+// collection scan for each matched grid document.
+siteSchema.index({ grids: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
