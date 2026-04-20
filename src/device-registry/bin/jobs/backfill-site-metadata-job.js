@@ -360,8 +360,15 @@ const backfillSiteMetadata = async (tenant) => {
             continue;
           }
 
+          // Flag used by the outer catch to distinguish geocoding errors from
+          // local-repair errors. Only geocoding failures should increment the
+          // persistent failure counter — a transient DB error in Steps 1-2
+          // must not permanently exclude a valid site.
+          let attemptedGeocoding = false;
+
           // Step 3: Reverse geocode. Altitude permanently skipped — the
           // Elevation API was the primary driver of runaway API costs.
+          attemptedGeocoding = true;
           const metadataResponse = await createSiteUtil.generateMetadata(
             {
               query: { tenant },
@@ -423,6 +430,28 @@ const backfillSiteMetadata = async (tenant) => {
           logger.error(
             `[${POD_ID}] Error processing site ${site._id}: ${error.message}`,
           );
+          // Only stamp the geocoding failure counter if the error was thrown
+          // during Step 3. Errors from Steps 1-2 (local DB repairs) are
+          // transient and must not permanently exclude a valid site.
+          if (attemptedGeocoding) {
+            try {
+              const newCount = (site._geocodingFailedCount || 0) + 1;
+              const stampFields = { _geocodingFailedCount: newCount };
+              if (newCount >= MAX_GEOCODING_FAILURES) {
+                stampFields._geocodingPermanentlyExcluded = true;
+                logger.warn(
+                  `[${POD_ID}] Site ${site.name} (${site._id}) permanently excluded after ${newCount} failed geocoding attempts (exception path).`,
+                );
+              }
+              await SiteModel(tenant).findByIdAndUpdate(site._id, {
+                $set: stampFields,
+              });
+            } catch (stampError) {
+              logger.error(
+                `[${POD_ID}] Failed to stamp geocoding failure for site ${site._id}: ${stampError.message}`,
+              );
+            }
+          }
           sitesFailedCount++;
         }
       }

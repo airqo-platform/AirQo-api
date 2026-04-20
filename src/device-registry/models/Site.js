@@ -301,6 +301,10 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    division: {
+      type: String,
+      trim: true,
+    },
     lastActive: { type: Date },
     isOnline: {
       type: Boolean,
@@ -589,10 +593,15 @@ siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 // Without this, every $lookup on GET /grids/summary requires a full sites
 // collection scan for each matched grid document.
 siteSchema.index({ grids: 1 });
-// Backfill job: compound index covering the aggregation $match filters
-// (_geocodingPermanentlyExcluded + createdAt range) and the cursor-based
-// $sort on _id — all three resolved in a single index scan.
-siteSchema.index({ _geocodingPermanentlyExcluded: 1, createdAt: 1, _id: 1 });
+// Backfill job: partial index covering only documents that are NOT permanently
+// excluded (_geocodingPermanentlyExcluded != true). Using a partial index
+// avoids the inequality prefix problem — $ne: true cannot anchor a compound
+// index scan, so we filter it out at index-build time instead and keep the
+// index fields as pure range/sort keys (createdAt range + _id cursor sort).
+siteSchema.index(
+  { createdAt: 1, _id: 1 },
+  { partialFilterExpression: { _geocodingPermanentlyExcluded: { $ne: true } } },
+);
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
