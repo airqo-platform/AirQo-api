@@ -164,6 +164,18 @@ const siteSchema = new Schema(
     altitude: {
       type: Number,
     },
+    // Backfill job geocoding state. Written by backfill-site-metadata-job
+    // when Google Maps reverse geocoding returns no results for a site's
+    // coordinates. Tracked here (not in pod memory) so the state survives
+    // Kubernetes pod restarts and rolling deployments.
+    _geocodingFailedCount: {
+      type: Number,
+      default: 0,
+    },
+    _geocodingPermanentlyExcluded: {
+      type: Boolean,
+      default: false,
+    },
     distance_to_nearest_road: {
       type: Number,
       trim: true,
@@ -577,6 +589,10 @@ siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 // Without this, every $lookup on GET /grids/summary requires a full sites
 // collection scan for each matched grid document.
 siteSchema.index({ grids: 1 });
+// Backfill job: compound index covering the aggregation $match filters
+// (_geocodingPermanentlyExcluded + createdAt range) and the cursor-based
+// $sort on _id — all three resolved in a single index scan.
+siteSchema.index({ _geocodingPermanentlyExcluded: 1, createdAt: 1, _id: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
