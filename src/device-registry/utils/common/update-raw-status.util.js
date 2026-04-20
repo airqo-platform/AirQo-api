@@ -10,8 +10,9 @@ const { getNetworkAdapter } = require("@utils/network.util");
 const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 const isEmpty = require("is-empty");
 
-// Skip re-checking a device whose lastRawData is fresher than this threshold.
-// Balances freshness against ThingSpeak / external-API rate pressure.
+// Skip re-checking a device whose lastRawStatusCheckedAt is fresher than this.
+// Using a dedicated throttle field rather than lastRawData ensures devices with
+// no feed data are also throttled correctly.
 const RECENCY_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 const RAW_INACTIVE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours (matches job)
 const THINGSPEAK_TIMEOUT_MS = 30000;
@@ -23,12 +24,23 @@ const STATUSES_FOR_PRIMARY_UPDATE = (
 
 const isDeviceRawActive = (lastFeedTime) => {
   if (!lastFeedTime) return false;
-  return Date.now() - new Date(lastFeedTime).getTime() < RAW_INACTIVE_THRESHOLD_MS;
+  const t = new Date(lastFeedTime).getTime();
+  if (isNaN(t)) return false;
+  return Date.now() - t < RAW_INACTIVE_THRESHOLD_MS;
 };
 
 const isDeviceActuallyMobile = (device) => {
   const type = (device?.deployment_type || "").toString().toLowerCase();
   return device?.mobility === true || type === "mobile";
+};
+
+// Returns a Promise.race-compatible pair that always clears its timer.
+const withTimeout = (promise, ms, label) => {
+  let timerId;
+  const timeout = new Promise((_, reject) => {
+    timerId = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timerId));
 };
 
 const mockNext = (error) => {
@@ -55,7 +67,6 @@ const processDevice = async (device) => {
 
   // ── AirQo device path ──────────────────────────────────────────────────────
   if (device.device_number) {
-    // Fetch readKey (lean query — only what we need)
     let apiKey;
     try {
       const detail = await DeviceModel("airqo")
@@ -76,7 +87,8 @@ const processDevice = async (device) => {
         detail.readKey,
         mockNext
       );
-      if (!decryptResponse.success) {
+      // Guard against undefined return from decryptKey
+      if (!decryptResponse?.success) {
         isRawOnline = hasExistingRawData ? !shouldMarkOfflineFromStaleData : false;
         updateReason = shouldMarkOfflineFromStaleData
           ? "stale_lastRawData"
@@ -89,29 +101,33 @@ const processDevice = async (device) => {
       logger.warn(
         `[update-raw-status] key fetch/decrypt failed for ${device.name}: ${err.message}`
       );
+      // Write a stale-data fallback rather than leaving the device unupdated
+      isRawOnline = hasExistingRawData ? !shouldMarkOfflineFromStaleData : false;
+      updateReason = shouldMarkOfflineFromStaleData
+        ? "stale_lastRawData"
+        : "key_fetch_or_decrypt_error";
+      await writeDeviceUpdate(device, isRawOnline, null, updateReason);
       return;
     }
 
     try {
-      const thingspeakData = await Promise.race([
+      const thingspeakData = await withTimeout(
         createFeedUtil.fetchThingspeakData({
           channel: device.device_number,
           api_key: apiKey,
         }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("ThingSpeak fetch timeout")),
-            THINGSPEAK_TIMEOUT_MS
-          )
-        ),
-      ]);
+        THINGSPEAK_TIMEOUT_MS,
+        "ThingSpeak fetch"
+      );
 
       if (thingspeakData?.feeds?.[0]) {
         lastFeedTime = thingspeakData.feeds[0].created_at;
         isRawOnline = isDeviceRawActive(lastFeedTime);
         updateReason = isRawOnline ? "online_raw" : "offline_raw";
-      } else if (shouldMarkOfflineFromStaleData) {
-        isRawOnline = false;
+      } else {
+        // No new feed data — fall back to existing lastRawData to avoid
+        // incorrectly flipping a recently-active device offline
+        isRawOnline = isDeviceRawActive(device.lastRawData);
         updateReason = "stale_lastRawData";
       }
     } catch (err) {
@@ -136,15 +152,11 @@ const processDevice = async (device) => {
 
   if (externalAdapter?.online_check_via_feed) {
     try {
-      const externalResult = await Promise.race([
+      const externalResult = await withTimeout(
         createFeedUtil.fetchExternalDeviceData({ device, adapter: externalAdapter }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("External API timeout")),
-            EXTERNAL_API_TIMEOUT_MS
-          )
-        ),
-      ]);
+        EXTERNAL_API_TIMEOUT_MS,
+        "External API"
+      );
 
       if (externalResult.success && !isEmpty(externalResult.data)) {
         const data = externalResult.data;
@@ -159,8 +171,10 @@ const processDevice = async (device) => {
         }
         updateReason = isRawOnline ? "online_external_api" : "offline_external_api";
       } else {
-        isRawOnline = false;
-        updateReason = "offline_external_api";
+        // Empty/unsuccessful response — fall back to lastRawData rather than
+        // immediately marking offline
+        isRawOnline = isDeviceRawActive(device.lastRawData);
+        updateReason = "stale_lastRawData";
       }
     } catch (err) {
       logger.warn(
@@ -184,6 +198,9 @@ const processDevice = async (device) => {
 
 /**
  * Write rawOnlineStatus (and related fields) to the Device document.
+ *
+ * Uses a conditional filter on lastRawData so we never overwrite fresher data
+ * that the batch job may have written between our fetch and this write.
  */
 const writeDeviceUpdate = async (device, isRawOnline, lastFeedTime, reason) => {
   try {
@@ -194,18 +211,32 @@ const writeDeviceUpdate = async (device, isRawOnline, lastFeedTime, reason) => {
       reason,
     });
 
-    const updateFields = { rawOnlineStatus: isRawOnline, ...setUpdate };
+    const updateFields = {
+      rawOnlineStatus: isRawOnline,
+      // Durable throttle timestamp — used by the recency guard so devices with
+      // no feed data are also dampened correctly
+      lastRawStatusCheckedAt: new Date(),
+      ...setUpdate,
+    };
+
     if (lastFeedTime) {
-      updateFields.lastRawData = new Date(lastFeedTime);
+      const parsedTime = new Date(lastFeedTime);
+      if (!isNaN(parsedTime.getTime())) {
+        updateFields.lastRawData = parsedTime;
+        if (
+          STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+          isDeviceActuallyMobile(device)
+        ) {
+          updateFields.lastActive = parsedTime;
+        }
+      }
     }
+
     if (
       STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
       isDeviceActuallyMobile(device)
     ) {
       updateFields.isOnline = isRawOnline;
-      if (lastFeedTime) {
-        updateFields.lastActive = new Date(lastFeedTime);
-      }
     }
 
     const updateDoc = { $set: updateFields };
@@ -213,11 +244,20 @@ const writeDeviceUpdate = async (device, isRawOnline, lastFeedTime, reason) => {
       updateDoc.$inc = incUpdate;
     }
 
-    await DeviceModel(device.tenant || "airqo").findByIdAndUpdate(
-      device._id,
+    // Conditional write: only apply if lastRawData hasn't advanced since we
+    // fetched the device, preventing overwrites from the concurrent batch job.
+    const filter = { _id: device._id, lastRawData: device.lastRawData || null };
+    const updated = await DeviceModel(device.tenant || "airqo").findOneAndUpdate(
+      filter,
       updateDoc,
       { new: false }
     );
+
+    if (!updated) {
+      logger.debug(
+        `[update-raw-status] skipped write for ${device.name} — lastRawData advanced by another writer`
+      );
+    }
   } catch (err) {
     logger.warn(
       `[update-raw-status] DB write failed for ${device.name}: ${err.message}`
@@ -238,8 +278,8 @@ const updateDevices = async (deviceIds, tenant = "airqo") => {
       .find({ _id: { $in: deviceIds } })
       .select(
         "_id name device_number api_code network rawOnlineStatus lastRawData " +
-          "status deployment_type mobility site_id isPrimaryInLocation " +
-          "onlineStatusAccuracy readKey"
+          "lastRawStatusCheckedAt status deployment_type mobility site_id " +
+          "isPrimaryInLocation onlineStatusAccuracy"
       )
       .lean();
   } catch (err) {
@@ -247,15 +287,18 @@ const updateDevices = async (deviceIds, tenant = "airqo") => {
     return;
   }
 
-  // Apply recency guard: skip devices updated within RECENCY_THRESHOLD_MS
+  // Recency guard: prefer lastRawStatusCheckedAt (always written), fall back to
+  // lastRawData. Treat invalid/missing timestamps as stale (include in batch).
   const staleDevices = devices.filter((d) => {
-    if (!d.lastRawData) return true;
-    return Date.now() - new Date(d.lastRawData).getTime() >= RECENCY_THRESHOLD_MS;
+    const checkField = d.lastRawStatusCheckedAt || d.lastRawData;
+    if (!checkField) return true;
+    const t = new Date(checkField).getTime();
+    if (isNaN(t)) return true;
+    return Date.now() - t >= RECENCY_THRESHOLD_MS;
   });
 
   if (!staleDevices.length) return;
 
-  // Attach tenant so writeDeviceUpdate can use the right model
   for (const d of staleDevices) {
     d.tenant = tenant;
   }

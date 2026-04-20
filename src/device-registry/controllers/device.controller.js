@@ -231,9 +231,9 @@ const deviceController = {
       handleResponse({ result, res });
 
       // Fire-and-forget: keep rawOnlineStatus fresh without blocking the response
-      if (result?.success && result?.data?.[0]?._id) {
+      if (result?.success && result?.data?._id) {
         rawStatusUpdater.fireAndForget(
-          [result.data[0]._id],
+          [result.data._id],
           req.query.tenant
         );
       }
