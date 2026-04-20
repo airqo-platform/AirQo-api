@@ -742,11 +742,11 @@ def read_faulty_devices():
     except errors.ServerSelectionTimeoutError:
         current_app.logger.error("Error with database connection", exc_info=False)
     except errors.PyMongoError as e:
-        current_app.logger.error("Error", str(e), exc_info=False)
+        current_app.logger.error(f"Error: {e}", exc_info=False)
     except Exception as e:
-        current_app.logger.error("Error: ", str(e), exc_info=False)
-    finally:
-        return devices
+        current_app.logger.error(f"Error: {e}", exc_info=False)
+
+    return devices
 
 
 def add_forecast_health_tips(results: dict, language: str = ""):
