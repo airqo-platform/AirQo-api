@@ -220,7 +220,7 @@ def fetch_faulty_devices():
             200,
         )
     except Exception as e:
-        current_app.logger.error("Error: ", str(e))
+        current_app.logger.error(f"Error: {e}")
         return (
             jsonify(
                 {"message": "Internal server error", "success": False, "data": None}
