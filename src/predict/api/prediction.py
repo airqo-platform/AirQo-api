@@ -409,7 +409,7 @@ def predictions_for_heatmap():
             response["error"] = "No data found."
             status_code = 404
     except Exception as e:
-        response["error"] = f"Unfortunately an error occured"
+        response["error"] = "Unfortunately an error occured"
         current_app.logger.error(f"Error: {e}", exc_info=True)
         status_code = 500
 

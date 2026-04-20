@@ -739,13 +739,15 @@ def read_faulty_devices():
     try:
         collection = db["faulty_devices_1"]
         devices = list(collection.find({}, {"_id": 0}))
-    except errors.ServerSelectionTimeoutError:
-        current_app.logger.error("Error with database connection", exc_info=False)
+    except errors.ServerSelectionTimeoutError as e:
+        current_app.logger.error(
+             "Error with database connection: %s", e, exc_info=False
+            )
     except errors.PyMongoError as e:
-        current_app.logger.error(f"Error: {e}", exc_info=False)
-    except Exception as e:
-        current_app.logger.error(f"Error: {e}", exc_info=False)
-
+        current_app.logger.error(
+            "Error reading faulty devices: %s", e, exc_info=False
+            )
+        raise Exception("Failed to read faulty devices from the database.")
     return devices
 
 
