@@ -5,8 +5,6 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const app = express();
 const bodyParser = require("body-parser");
-const session = require("express-session");
-const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
@@ -65,7 +63,6 @@ const compression = require("compression");
 const helmet = require("helmet");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
-const options = { mongooseConnection: mongoose.connection };
 
 const debug = require("debug")("device-service:server");
 const isEmpty = require("is-empty");
@@ -185,6 +182,13 @@ try {
     `clear-deployment-type-job failed to start: ${err.message}`,
   );
 }
+try {
+  require("@bin/jobs/device-metadata-cleanup-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `device-metadata-cleanup-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
 require("@bin/jobs/site-categorization-job");
@@ -259,20 +263,17 @@ try {
   }
 }
 
-if (isEmpty(constants.SESSION_SECRET)) {
-  throw new Error("SESSION_SECRET environment variable not set");
+// Cohort snapshot pre-computation job (every hour at :15)
+try {
+  require("@bin/jobs/cohort-snapshot-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ cohort-snapshot-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
 }
 
 // Express Middlewares
-app.use(
-  session({
-    secret: constants.SESSION_SECRET,
-    store: new MongoStore(options),
-    resave: false,
-    saveUninitialized: false,
-  }),
-); // session setup
-
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {

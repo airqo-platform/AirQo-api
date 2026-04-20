@@ -92,13 +92,54 @@ const buildRecallUpdateOperation = (recallDate) => ({
 });
 
 const getDeviceCategoriesAddFieldsStage = () => {
+  // Shared expression: mirrors deployment_category derivation.
+  // Using the same $switch for is_mobile / is_static / mobile_category gating
+  // keeps all fields consistent even on old devices where `mobility` is wrong.
+  const deploymentCategoryExpr = {
+    $switch: {
+      branches: [
+        { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+        { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+        { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+        { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+      ],
+      default: null,
+    },
+  };
+  const isMobileExpr = { $eq: [deploymentCategoryExpr, "mobile"] };
+  const isStaticExpr = { $eq: [deploymentCategoryExpr, "static"] };
+
   return {
     $addFields: {
       device_categories: {
         primary_category: { $ifNull: ["$category", "lowcost"] },
-        // Un-deployed devices have no deployment_type — use the field directly
-        // so they surface as null rather than a misleading "static" default.
-        deployment_category: "$deployment_type",
+        // Priority: explicit deployment_type (authoritative) → grid_id (mobile) →
+        // site_id (static) → null (un-deployed or unknown).
+        // Deliberately avoids the `mobility` field as a fallback because many old
+        // devices have mobility:true stored incorrectly from an earlier era.
+        deployment_category: {
+          $switch: {
+            branches: [
+              {
+                case: { $eq: ["$deployment_type", "mobile"] },
+                then: "mobile",
+              },
+              {
+                case: { $eq: ["$deployment_type", "static"] },
+                then: "static",
+              },
+              {
+                case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                then: "mobile",
+              },
+              {
+                case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                then: "static",
+              },
+            ],
+            default: null,
+          },
+        },
 
         // Returns the raw network value so the frontend can display it directly.
         // null when network is missing or empty string.
@@ -119,12 +160,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
         // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
         mobile_category: {
           $cond: {
-            if: {
-              $or: [
-                { $eq: ["$mobility", true] },
-                { $eq: ["$deployment_type", "mobile"] },
-              ],
-            },
+            if: isMobileExpr,
             then: {
               $switch: {
                 branches: [
@@ -210,23 +246,12 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
         },
 
-        is_mobile: {
-          $or: [
-            { $eq: ["$mobility", true] },
-            { $eq: ["$deployment_type", "mobile"] },
-          ],
-        },
-        // Strict negation of is_mobile — $not requires array form in aggregation expressions
-        is_static: {
-          $not: [
-            {
-              $or: [
-                { $eq: ["$mobility", true] },
-                { $eq: ["$deployment_type", "mobile"] },
-              ],
-            },
-          ],
-        },
+        // Derived from deployment_category — consistent even on old devices
+        // where `mobility` was stored incorrectly.
+        is_mobile: isMobileExpr,
+        // Explicitly checks "static" — a null deployment_category device is
+        // neither is_mobile nor is_static (not simply the negation of is_mobile).
+        is_static: isStaticExpr,
         // Compare against resolved primary_category (via $ifNull) not raw $category,
         // so a device with no category correctly gets is_lowcost: true
         is_lowcost: { $eq: [{ $ifNull: ["$category", "lowcost"] }, "lowcost"] },
@@ -243,9 +268,39 @@ const getDeviceCategoriesAddFieldsStage = () => {
                 input: {
                   $concatArrays: [
                     [{ $ifNull: ["$category", "lowcost"] }],
-                    // Only include deployment_type when it is set — the $filter
-                    // below removes nulls, so un-deployed devices contribute nothing here.
-                    ["$deployment_type"],
+                    // Use the same inferred deployment value as deployment_category so
+                    // devices without an explicit deployment_type (but with site_id/grid_id)
+                    // still contribute "static"/"mobile" to all_categories.
+                    // The $filter below removes nulls, so un-deployed devices add nothing.
+                    [
+                      {
+                        $switch: {
+                          branches: [
+                            {
+                              case: { $eq: ["$deployment_type", "mobile"] },
+                              then: "mobile",
+                            },
+                            {
+                              case: { $eq: ["$deployment_type", "static"] },
+                              then: "static",
+                            },
+                            {
+                              case: {
+                                $ne: [{ $ifNull: ["$grid_id", null] }, null],
+                              },
+                              then: "mobile",
+                            },
+                            {
+                              case: {
+                                $ne: [{ $ifNull: ["$site_id", null] }, null],
+                              },
+                              then: "static",
+                            },
+                          ],
+                          default: null,
+                        },
+                      },
+                    ],
                     // Include network value when present
                     {
                       $cond: {
@@ -257,12 +312,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
                     // Include mobile_category when device is mobile
                     {
                       $cond: {
-                        if: {
-                          $or: [
-                            { $eq: ["$mobility", true] },
-                            { $eq: ["$deployment_type", "mobile"] },
-                          ],
-                        },
+                        if: isMobileExpr,
                         then: [
                           {
                             $switch: {
@@ -399,8 +449,31 @@ const getDeviceCategoriesAddFieldsStage = () => {
           },
           {
             level: "deployment",
-            // null for un-deployed devices — no deployment type assigned yet.
-            category: "$deployment_type",
+            // Mirrors deployment_category: explicit deployment_type wins, then
+            // infer from location reference, fall back to null for un-deployed.
+            category: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "static",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                    then: "static",
+                  },
+                ],
+                default: null,
+              },
+            },
             description: {
               $switch: {
                 branches: [
@@ -410,6 +483,14 @@ const getDeviceCategoriesAddFieldsStage = () => {
                   },
                   {
                     case: { $eq: ["$deployment_type", "static"] },
+                    then: "Static deployment (fixed location, site-based)",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                    then: "Mobile deployment (vehicle-mounted, grid-based)",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
                     then: "Static deployment (fixed location, site-based)",
                   },
                 ],
@@ -424,12 +505,7 @@ const getDeviceCategoriesAddFieldsStage = () => {
             "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
           mobile_is_subcategory_of: {
             $cond: [
-              {
-                $or: [
-                  { $eq: ["$mobility", true] },
-                  { $eq: ["$deployment_type", "mobile"] },
-                ],
-              },
+              isMobileExpr,
               { $ifNull: ["$category", "lowcost"] },
               null,
             ],
@@ -490,7 +566,10 @@ const deviceUtil = {
         },
       ];
 
-      const results = await DeviceModel(tenant).aggregate(pipeline);
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
 
       const summary = results[0] || {
         total_monitors: 0,
@@ -606,7 +685,9 @@ const deviceUtil = {
       const { query } = request;
       const { tenant } = query;
       const filter = generateFilter.devices(request, next);
-      const count = await DeviceModel(tenant).countDocuments(filter);
+      const count = await DeviceModel(tenant)
+        .countDocuments(filter)
+        .maxTimeMS(45000);
       return {
         success: true,
         message: "retrieved the number of devices",
@@ -1474,6 +1555,7 @@ const deviceUtil = {
 
       const results = await DeviceModel(tenant)
         .aggregate(facetPipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;
@@ -2044,7 +2126,13 @@ const deviceUtil = {
       };
 
       return await ActivityLogger.trackOperation(async () => {
-        let opts = {};
+        // Only activity call sites (deploy/recall/maintain) set
+        // request.allowLifecycleFields = true before calling updateOnPlatform.
+        // Never infer this from payload content — that would let a crafted body
+        // self-elevate permission to write lifecycle fields.
+        const opts = request.allowLifecycleFields === true
+          ? { allowLifecycleFields: true }
+          : {};
         const responseFromModifyDevice = await DeviceModel(tenant).modify(
           {
             filter,
@@ -2451,7 +2539,7 @@ const deviceUtil = {
           updateOperation,
         );
 
-        if (recallResult.modifiedCount === 0) {
+        if ((recallResult.modifiedCount ?? recallResult.nModified ?? 0) === 0) {
           throw new HttpError(
             "Device status may have changed during the operation. Please try again.",
             httpStatus.CONFLICT,
@@ -2707,7 +2795,7 @@ const deviceUtil = {
               updateOperation,
             );
 
-            if (recallResult.modifiedCount === 0) {
+            if ((recallResult.modifiedCount ?? recallResult.nModified ?? 0) === 0) {
               throw new Error("Device status changed during recall operation");
             }
 

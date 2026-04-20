@@ -89,7 +89,8 @@ function getDeploymentDescription(deploymentType) {
     mobile: "Mobile deployment (vehicle-mounted, grid-based)",
     static: "Static deployment (fixed location, site-based)",
   };
-  return descriptions[deploymentType] || "Unknown deployment type";
+  // Return null for missing/un-deployed rather than a misleading fallback string.
+  return descriptions[deploymentType] ?? null;
 }
 
 /**
@@ -101,7 +102,19 @@ function getDeploymentDescription(deploymentType) {
 function computeDeviceCategories(deviceDoc) {
   const doc = deviceDoc.toObject ? deviceDoc.toObject() : deviceDoc;
 
-  const isMobile = doc.mobility === true || doc.deployment_type === "mobile";
+  const primary_category = doc.category || "lowcost";
+  // Priority: explicit deployment_type → grid_id (mobile) → site_id (static) → null.
+  // Deliberately avoids the `mobility` field as a fallback because many old devices
+  // have mobility:true stored incorrectly from an earlier era.
+  const deployment_category =
+    doc.deployment_type ||
+    (doc.grid_id ? "mobile" : doc.site_id ? "static" : null);
+
+  // Derive is_mobile / is_static from deployment_category so they stay
+  // consistent even for old devices where `mobility` was stored incorrectly.
+  // A device with deployment_category === null gets both flags false.
+  const is_mobile = deployment_category === "mobile";
+  const is_static = deployment_category === "static";
 
   // ownership_category — returns raw network value for frontend display
   // null when network is missing or empty string
@@ -110,10 +123,10 @@ function computeDeviceCategories(deviceDoc) {
     ownership_category = doc.network;
   }
 
-  // mobile_category — only meaningful for mobile devices, null for static
+  // mobile_category — only meaningful for mobile devices, null for static/undeployed
   // priority: movement_pattern (most descriptive) → route_id → coverage_area → "mobile"
   let mobile_category = null;
-  if (isMobile) {
+  if (is_mobile) {
     const mm = doc.mobility_metadata || {};
     if (mm.movement_pattern) {
       mobile_category = mm.movement_pattern;
@@ -125,11 +138,6 @@ function computeDeviceCategories(deviceDoc) {
       mobile_category = "mobile";
     }
   }
-
-  const primary_category = doc.category || "lowcost";
-  // Un-deployed devices have no deployment_type — keep it null rather than
-  // defaulting to "static", which would be semantically incorrect.
-  const deployment_category = doc.deployment_type || null;
 
   // Use a Set to guarantee no duplicates in all_categories.
   // deployment_category is only added when it is actually set.
@@ -144,8 +152,8 @@ function computeDeviceCategories(deviceDoc) {
     deployment_category,
     ownership_category,
     mobile_category,
-    is_mobile: isMobile,
-    is_static: !isMobile,
+    is_mobile,
+    is_static,
     // Use primary_category (resolved) not doc.category (raw) so flags are
     // consistent when category is missing and defaults to "lowcost"
     is_lowcost: primary_category === "lowcost",
@@ -167,7 +175,7 @@ function computeDeviceCategories(deviceDoc) {
     category_relationships: {
       note:
         "Mobile devices can belong to any equipment category (lowcost, bam, or gas)",
-      mobile_is_subcategory_of: isMobile ? primary_category : null,
+      mobile_is_subcategory_of: is_mobile ? primary_category : null,
     },
   };
 
@@ -542,7 +550,14 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.index({ site_id: 1 });
 deviceSchema.index({ mobility: 1 });
+deviceSchema.index({ cohorts: 1 });
 deviceSchema.index({ mobility: 1, cohorts: 1 });
+// Compound indexes for the device-metadata-cleanup-job — keep cleanup passes
+// O(log n) regardless of fleet size.
+deviceSchema.index({ deployment_type: 1, status: 1 });
+deviceSchema.index({ deployment_type: 1, mobility: 1 });
+deviceSchema.index({ status: 1, site_id: 1 });
+deviceSchema.index({ status: 1, grid_id: 1 });
 // Index for stale entity checks
 deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
 // Index for offline entity checks
@@ -1198,7 +1213,31 @@ deviceSchema.statics = {
         .addFields({
           device_categories: {
             primary_category: { $ifNull: ["$category", "lowcost"] },
-            deployment_category: "$deployment_type",
+            // Priority: explicit deployment_type → grid_id (mobile) →
+            // site_id (static) → null (un-deployed or unknown).
+            deployment_category: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $eq: ["$deployment_type", "mobile"] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $eq: ["$deployment_type", "static"] },
+                    then: "static",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                    then: "mobile",
+                  },
+                  {
+                    case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                    then: "static",
+                  },
+                ],
+                default: null,
+              },
+            },
 
             // Returns the raw network value so the frontend can display it directly.
             // null when network is missing or empty string.
@@ -1213,13 +1252,25 @@ deviceSchema.statics = {
 
             // Only meaningful for mobile devices — null for static.
             // Priority: movement_pattern → route_id → coverage_area → "mobile"
+            // Uses the same deployment_category $switch so this flag is consistent
+            // with deployment_category even on old devices where mobility was wrong.
             // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
             mobile_category: {
               $cond: {
                 if: {
-                  $or: [
-                    { $eq: ["$mobility", true] },
-                    { $eq: ["$deployment_type", "mobile"] },
+                  $eq: [
+                    {
+                      $switch: {
+                        branches: [
+                          { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+                          { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+                          { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+                          { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+                        ],
+                        default: null,
+                      },
+                    },
+                    "mobile",
                   ],
                 },
                 then: {
@@ -1317,21 +1368,40 @@ deviceSchema.statics = {
               },
             },
 
+            // Derived from deployment_category so consistent with old devices
+            // where `mobility` was stored incorrectly.
             is_mobile: {
-              $or: [
-                { $eq: ["$mobility", true] },
-                { $eq: ["$deployment_type", "mobile"] },
+              $eq: [
+                {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+                      { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+                      { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+                      { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+                    ],
+                    default: null,
+                  },
+                },
+                "mobile",
               ],
             },
-            // Strict negation of is_mobile — $not requires array form in aggregation expressions
+            // Explicitly checks "static" — a null deployment_category device is
+            // neither is_mobile nor is_static (not the negation of is_mobile).
             is_static: {
-              $not: [
+              $eq: [
                 {
-                  $or: [
-                    { $eq: ["$mobility", true] },
-                    { $eq: ["$deployment_type", "mobile"] },
-                  ],
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+                      { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+                      { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+                      { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+                    ],
+                    default: null,
+                  },
                 },
+                "static",
               ],
             },
             // Compare against resolved primary_category (via $ifNull) not raw $category,
@@ -1352,7 +1422,47 @@ deviceSchema.statics = {
                     input: {
                       $concatArrays: [
                         [{ $ifNull: ["$category", "lowcost"] }],
-                        ["$deployment_type"],
+                        // Mirror deployment_category derivation so devices inferred
+                        // as static/mobile via site_id/grid_id appear in all_categories.
+                        [
+                          {
+                            $switch: {
+                              branches: [
+                                {
+                                  case: {
+                                    $eq: ["$deployment_type", "mobile"],
+                                  },
+                                  then: "mobile",
+                                },
+                                {
+                                  case: {
+                                    $eq: ["$deployment_type", "static"],
+                                  },
+                                  then: "static",
+                                },
+                                {
+                                  case: {
+                                    $ne: [
+                                      { $ifNull: ["$grid_id", null] },
+                                      null,
+                                    ],
+                                  },
+                                  then: "mobile",
+                                },
+                                {
+                                  case: {
+                                    $ne: [
+                                      { $ifNull: ["$site_id", null] },
+                                      null,
+                                    ],
+                                  },
+                                  then: "static",
+                                },
+                              ],
+                              default: null,
+                            },
+                          },
+                        ],
                         // Include network value when present
                         {
                           $cond: {
@@ -1365,9 +1475,19 @@ deviceSchema.statics = {
                         {
                           $cond: {
                             if: {
-                              $or: [
-                                { $eq: ["$mobility", true] },
-                                { $eq: ["$deployment_type", "mobile"] },
+                              $eq: [
+                                {
+                                  $switch: {
+                                    branches: [
+                                      { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+                                      { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+                                      { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+                                      { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+                                    ],
+                                    default: null,
+                                  },
+                                },
+                                "mobile",
                               ],
                             },
                             then: [
@@ -1507,7 +1627,31 @@ deviceSchema.statics = {
               },
               {
                 level: "deployment",
-                category: "$deployment_type",
+                // Mirrors deployment_category: explicit deployment_type wins, then
+                // infer from location reference, fall back to null.
+                category: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$deployment_type", "mobile"] },
+                        then: "mobile",
+                      },
+                      {
+                        case: { $eq: ["$deployment_type", "static"] },
+                        then: "static",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                        then: "mobile",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
+                        then: "static",
+                      },
+                    ],
+                    default: null,
+                  },
+                },
                 description: {
                   $switch: {
                     branches: [
@@ -1517,6 +1661,14 @@ deviceSchema.statics = {
                       },
                       {
                         case: { $eq: ["$deployment_type", "static"] },
+                        then: "Static deployment (fixed location, site-based)",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] },
+                        then: "Mobile deployment (vehicle-mounted, grid-based)",
+                      },
+                      {
+                        case: { $ne: [{ $ifNull: ["$site_id", null] }, null] },
                         then: "Static deployment (fixed location, site-based)",
                       },
                     ],
@@ -1532,9 +1684,19 @@ deviceSchema.statics = {
               mobile_is_subcategory_of: {
                 $cond: [
                   {
-                    $or: [
-                      { $eq: ["$mobility", true] },
-                      { $eq: ["$deployment_type", "mobile"] },
+                    $eq: [
+                      {
+                        $switch: {
+                          branches: [
+                            { case: { $eq: ["$deployment_type", "mobile"] }, then: "mobile" },
+                            { case: { $eq: ["$deployment_type", "static"] }, then: "static" },
+                            { case: { $ne: [{ $ifNull: ["$grid_id", null] }, null] }, then: "mobile" },
+                            { case: { $ne: [{ $ifNull: ["$site_id", null] }, null] }, then: "static" },
+                          ],
+                          default: null,
+                        },
+                      },
+                      "mobile",
                     ],
                   },
                   { $ifNull: ["$category", "lowcost"] },
@@ -1639,7 +1801,28 @@ deviceSchema.statics = {
     try {
       logText("we are now inside the modify function for devices....");
       const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      // Lifecycle fields may only be written by activity functions (deploy /
+      // recall / maintain).  Block them here unless the caller explicitly opts
+      // in via opts.allowLifecycleFields — activity callers set this flag.
+      if (!opts.allowLifecycleFields) {
+        invalidKeys.push(...constants.LIFECYCLE_FIELDS);
+      }
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Also strip lifecycle fields nested inside Mongo update operators so a
+      // payload like { $set: { status: "deployed" } } cannot bypass the guard.
+      if (!opts.allowLifecycleFields) {
+        const UPDATE_OPERATORS = [
+          "$set", "$unset", "$setOnInsert", "$rename",
+          "$inc", "$mul", "$min", "$max",
+          "$push", "$pull", "$addToSet", "$pullAll", "$bit",
+        ];
+        for (const op of UPDATE_OPERATORS) {
+          if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+            constants.LIFECYCLE_FIELDS.forEach((f) => delete sanitizedUpdate[op][f]);
+          }
+        }
+      }
 
       const options = { new: true, ...opts };
 
@@ -1691,7 +1874,24 @@ deviceSchema.statics = {
     try {
       // Sanitize update object
       const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      if (!opts.allowLifecycleFields) {
+        invalidKeys.push(...constants.LIFECYCLE_FIELDS);
+      }
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Also strip lifecycle fields nested inside Mongo update operators.
+      if (!opts.allowLifecycleFields) {
+        const UPDATE_OPERATORS = [
+          "$set", "$unset", "$setOnInsert", "$rename",
+          "$inc", "$mul", "$min", "$max",
+          "$push", "$pull", "$addToSet", "$pullAll", "$bit",
+        ];
+        for (const op of UPDATE_OPERATORS) {
+          if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+            constants.LIFECYCLE_FIELDS.forEach((f) => delete sanitizedUpdate[op][f]);
+          }
+        }
+      }
 
       // Handle special cases like access code generation
       if (sanitizedUpdate.access_code) {

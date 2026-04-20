@@ -75,34 +75,51 @@ const logThrottledConnectionError = (error) => {
 };
 // --- END: Connection Error Log Throttling ---
 
-// Redis v4 configuration with improved retry strategy
+// redis@5 client configuration (RESP2 enabled for redis@4-compatible return types)
 const redisConfig = {
   url: REDIS_URL,
+  // ── RESP protocol version ───────────────────────────────────────────────────
+  // redis@5 defaults to RESP3 which changes return types of certain commands
+  // (e.g. HGETALL returns a Map instead of a plain object). Setting RESP: 2
+  // keeps the same return types as redis@4, ensuring backward compatibility
+  // across all existing callers in the codebase.
+  RESP: 2,
   socket: {
     connectTimeout: 10000, // 10 seconds
     keepAlive: 5000, // Send keep-alive packets every 5 seconds
     tls: REDIS_URL?.startsWith("rediss://") ? true : undefined,
-  },
-  reconnectStrategy: (retries) => {
-    connectionAttempts = retries + 1;
+    // ── Reconnect strategy ──────────────────────────────────────────────────
+    // reconnectStrategy MUST be inside socket (not at the top level of the
+    // config object) — top-level placement is silently ignored by node-redis.
+    // Previously this was at the top level and the default strategy was used.
+    reconnectStrategy: (retries) => {
+      connectionAttempts = retries + 1;
 
-    if (retries > 15) {
-      logger.error(
-        "Redis maximum retry attempts (15) reached. Stopping retries.",
+      if (retries >= 15) {
+        logger.error(
+          "Redis maximum retry attempts (15) reached. Stopping retries.",
+        );
+        return new Error("Redis retry limit reached");
+      }
+
+      // Exponential backoff with jitter: 500ms, 1s, 2s … 30s
+      const baseDelay = Math.min(Math.pow(2, retries) * 500, 30000);
+      const jitter = Math.random() * 1000;
+      const delay = baseDelay + jitter;
+      const attemptNumber = Math.min(retries + 1, 15);
+
+      logger.warn(
+        `Redis retry attempt ${attemptNumber}/15 in ${Math.round(delay)}ms`,
       );
-      return new Error("Redis retry limit reached");
-    }
-
-    // Exponential backoff with jitter
-    const baseDelay = Math.min(Math.pow(2, retries) * 500, 30000); // Start at 500ms, max 30s
-    const jitter = Math.random() * 1000;
-    const delay = baseDelay + jitter;
-
-    logger.warn(
-      `Redis retry attempt ${retries + 1}/15 in ${Math.round(delay)}ms`,
-    );
-    return delay;
+      return delay;
+    },
   },
+  // ── Offline queue ───────────────────────────────────────────────────────────
+  // Intentionally disabled. Unlike auth-service (which enables the queue so
+  // commands replay on reconnect), device-registry uses an in-process fallback
+  // cache (see setFallbackCache / getFallbackCache above) to serve reads when
+  // Redis is unavailable. Commands should fail fast so callers hit the fallback
+  // immediately rather than queuing silently for an unknown duration.
   disableOfflineQueue: true,
 };
 
