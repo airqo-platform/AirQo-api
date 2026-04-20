@@ -1925,6 +1925,8 @@ const generateFilter = {
       country,
       county,
       parish,
+      division,
+      sub_county,
       site_id,
       category,
       path,
@@ -2088,6 +2090,14 @@ const generateFilter = {
 
     if (parish) {
       filter["parish"] = parish;
+    }
+
+    if (division) {
+      filter["division"] = division;
+    }
+
+    if (sub_county) {
+      filter["sub_county"] = sub_county;
     }
 
     return filter;
