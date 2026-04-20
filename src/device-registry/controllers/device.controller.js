@@ -17,6 +17,7 @@ const {
 } = require("@utils/shared");
 
 const isEmpty = require("is-empty");
+const rawStatusUpdater = require("@utils/common/update-raw-status.util");
 function handleResponse({
   result,
   key = "data",
@@ -226,8 +227,16 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createDeviceUtil.getDeviceById(req, next); // Call the utility function
+      const result = await createDeviceUtil.getDeviceById(req, next);
       handleResponse({ result, res });
+
+      // Fire-and-forget: keep rawOnlineStatus fresh without blocking the response
+      if (result?.success && result?.data?.[0]?._id) {
+        rawStatusUpdater.fireAndForget(
+          [result.data[0]._id],
+          req.query.tenant
+        );
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
