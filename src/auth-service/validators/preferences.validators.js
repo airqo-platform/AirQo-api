@@ -691,11 +691,16 @@ const commonValidations = {
   },
   declaredPlaces: () => {
     return (req, res, next) => {
-      const declaredPlaces = req.body.declared_places;
-
-      if (declaredPlaces === undefined || declaredPlaces === null) {
+      if (req.body.declared_places === undefined) {
         return next();
       }
+
+      if (req.body.declared_places === null) {
+        req.body.declared_places = [];
+        return next();
+      }
+
+      const declaredPlaces = req.body.declared_places;
 
       if (!Array.isArray(declaredPlaces)) {
         return res.status(400).json({
@@ -708,7 +713,7 @@ const commonValidations = {
       const VALID_TYPES = ["home", "work", "school", "gym", "family", "other"];
       const errors = {};
 
-      const validateTimeWindow = (window, path) => {
+      const validateTimeWindow = (window) => {
         const windowErrors = [];
         if (typeof window !== "object" || Array.isArray(window)) {
           windowErrors.push("must be an object");
@@ -764,8 +769,11 @@ const commonValidations = {
         }
 
         ["display_name", "location_name", "city"].forEach((field) => {
-          if (!place[field] || typeof place[field] !== "string") {
+          const val = typeof place[field] === "string" ? place[field].trim() : "";
+          if (!val) {
             placeErrors.push(`${field} is required and must be a non-empty string`);
+          } else {
+            place[field] = val;
           }
         });
 
@@ -786,18 +794,12 @@ const commonValidations = {
         });
 
         if (place.weekday_window !== undefined && place.weekday_window !== null) {
-          const winErrors = validateTimeWindow(
-            place.weekday_window,
-            `${prefix}.weekday_window`
-          );
+          const winErrors = validateTimeWindow(place.weekday_window);
           winErrors.forEach((e) => placeErrors.push(`weekday_window: ${e}`));
         }
 
         if (place.weekend_window !== undefined && place.weekend_window !== null) {
-          const winErrors = validateTimeWindow(
-            place.weekend_window,
-            `${prefix}.weekend_window`
-          );
+          const winErrors = validateTimeWindow(place.weekend_window);
           winErrors.forEach((e) => placeErrors.push(`weekend_window: ${e}`));
         }
 

@@ -509,7 +509,7 @@ const preferences = {
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       // declared_places: full replace semantics, no _id deduplication
-      if (body.declared_places !== undefined) {
+      if (Array.isArray(body.declared_places)) {
         update["$set"] = update["$set"] || {};
         update["$set"].declared_places = body.declared_places;
         delete update.declared_places;

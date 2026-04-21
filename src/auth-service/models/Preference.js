@@ -330,7 +330,7 @@ const PreferenceSchema = new mongoose.Schema(
       },
     ],
     selected_sites: [siteSchema],
-    declared_places: [declaredPlaceSchema],
+    declared_places: { type: [declaredPlaceSchema], default: [] },
     selected_grids: [gridSchema],
     selected_devices: [deviceSchema],
     selected_cohorts: [cohortSchema],
@@ -490,7 +490,7 @@ PreferenceSchema.methods = {
       period: this.period,
       createdAt: this.createdAt,
       selected_sites: this.selected_sites,
-      declared_places: this.declared_places,
+      declared_places: this.declared_places || [],
       selected_grids: this.selected_grids,
       selected_devices: this.selected_devices,
       selected_cohorts: this.selected_cohorts,
@@ -615,6 +615,7 @@ PreferenceSchema.statics = {
               (a, b) => b.createdAt - a.createdAt
             );
           }
+          preference.declared_places = preference.declared_places || [];
         });
 
         // Update lastAccessed timestamp for all found preferences
