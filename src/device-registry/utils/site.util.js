@@ -1147,7 +1147,15 @@ const createSite = {
           }
         }
 
-        if (isEmpty(site.lat_long) && latitude && longitude) {
+        if (
+          isEmpty(site.lat_long) &&
+          latitude !== undefined &&
+          latitude !== null &&
+          latitude !== "" &&
+          longitude !== undefined &&
+          longitude !== null &&
+          longitude !== ""
+        ) {
           setFields.lat_long = createSite.generateLatLong(latitude, longitude);
         }
 
@@ -1156,16 +1164,6 @@ const createSite = {
           if (nameRes && nameRes.success) {
             setFields.generated_name = nameRes.data;
           }
-        }
-
-        // description: mirrors backfill job — use site name as the value
-        if (isEmpty(site.description)) {
-          const nameToUse =
-            setFields.name ||
-            site.name ||
-            setFields.generated_name ||
-            site.generated_name;
-          if (nameToUse) setFields.description = nameToUse;
         }
 
         stepResults.localFields = "ok";
@@ -1219,6 +1217,35 @@ const createSite = {
           stepResults.geocoding =
             geoRes?.errors?.message || geoRes?.message || "failed";
         }
+
+        // ── Description (built after geocoding so location data is available) ─
+        // Only written when the site has no description at all.
+        // Strategy: "{name}, {locality}, {country}" — each part is optional
+        // so a partial geocode still produces a useful description.
+        if (isEmpty(site.description) && isEmpty(setFields.description)) {
+          const namePart =
+            setFields.name ||
+            site.name ||
+            setFields.generated_name ||
+            site.generated_name;
+          const localityPart =
+            setFields.search_name ||
+            site.search_name ||
+            setFields.parish ||
+            site.parish ||
+            setFields.city ||
+            site.city ||
+            setFields.district ||
+            site.district;
+          const countryPart = setFields.country || site.country;
+
+          const descParts = [namePart, localityPart, countryPart].filter(
+            (p) => !isEmpty(p),
+          );
+          if (descParts.length > 0) {
+            setFields.description = descParts.join(", ");
+          }
+        }
       } catch (err) {
         logger.error(
           `refresh: geocoding step failed for site ${id}: ${err.message}`,
@@ -1244,45 +1271,43 @@ const createSite = {
       }
 
       // ── Step 4: Grid membership ─────────────────────────────────────────────
-      // Query grids directly for _id + shape — GridModel.list() excludes shape
-      // in its projection so we go to the model directly.
-      // Grids are always replaced (not merged) because polygon boundaries can
-      // change independently of the site.
+      // Use $geoIntersects against the 2dsphere index on shape — handles both
+      // Polygon and MultiPolygon without client-side iteration or geolib.
+      // Only overwrite setFields.grids when we have at least one match; an
+      // empty result is treated as "no matching grids" rather than clearing
+      // existing memberships, in case the grids collection is empty/misconfigured.
       try {
-        const grids = await GridModel(tenant)
-          .find({})
-          .select("_id shape")
+        const matchedGrids = await GridModel(tenant)
+          .find({
+            shape: {
+              $geoIntersects: {
+                $geometry: {
+                  type: "Point",
+                  coordinates: [longitude, latitude],
+                },
+              },
+            },
+          })
+          .select("_id")
           .lean();
 
-        const matchedGridIds = [];
-        for (const grid of grids) {
-          if (
-            !grid.shape ||
-            !Array.isArray(grid.shape.coordinates) ||
-            !grid.shape.coordinates[0]
-          ) {
-            continue;
-          }
-          try {
-            const polygon = grid.shape.coordinates[0].map(([lng, lat]) => ({
-              longitude: lng,
-              latitude: lat,
-            }));
-            if (geolib.isPointInPolygon({ latitude, longitude }, polygon)) {
-              matchedGridIds.push(grid._id);
-            }
-          } catch (polyErr) {
+        if (matchedGrids.length > 0) {
+          setFields.grids = matchedGrids.map((g) => g._id);
+          stepResults.grids = "ok";
+        } else {
+          const hasAnyGrid = await GridModel(tenant).exists({});
+          if (!hasAnyGrid) {
             logger.warn(
-              `refresh: grid ${grid._id} polygon check error: ${polyErr.message}`,
+              `refresh: grids collection appears empty for tenant ${tenant} — skipping grid assignment`,
             );
+            stepResults.grids = "skipped (grids collection empty)";
+          } else {
+            stepResults.grids = "no matching grids for site coordinates";
           }
         }
-
-        setFields.grids = matchedGridIds;
-        stepResults.grids = "ok";
       } catch (err) {
         logger.error(
-          `refresh: grids step failed for site ${id}: ${err.message}`,
+          `refresh: grids step failed for site ${siteDbId}: ${err.message}`,
         );
         stepResults.grids = err.message;
       }
@@ -1319,14 +1344,14 @@ const createSite = {
 
       // ── Step 6: Data provider (always recomputed) ───────────────────────────
       try {
-        const dataProvider = await computeSiteDataProvider(tenant, id);
+        const dataProvider = await computeSiteDataProvider(tenant, siteDbId);
         if (dataProvider !== undefined) {
           setFields.data_provider = dataProvider;
         }
         stepResults.dataProvider = "ok";
       } catch (err) {
         logger.error(
-          `refresh: dataProvider step failed for site ${id}: ${err.message}`,
+          `refresh: dataProvider step failed for site ${siteDbId}: ${err.message}`,
         );
         stepResults.dataProvider = err.message;
       }
@@ -1336,12 +1361,27 @@ const createSite = {
       //   a) strips generated_name and lat_long from $set (restricted fields)
       //   b) converts top-level grids array to $addToSet (unwanted here — we
       //      want a full replace so stale grid memberships are removed)
+      const normalizeStepResult = (v) => {
+        if (typeof v === "string") return v;
+        if (v instanceof Error) return v.message;
+        return String(v);
+      };
+
+      const failedSteps = Object.entries(stepResults)
+        .filter(([, v]) => {
+          const s = normalizeStepResult(v);
+          return s !== "ok" && !s.startsWith("skipped");
+        })
+        .map(([k, v]) => `${k}: ${normalizeStepResult(v)}`);
+
       const hasChanges = !isEmpty(setFields) || tagsToAdd.length > 0;
 
       if (!hasChanges) {
         return {
           success: true,
-          message: "Site metadata is already complete — nothing to update",
+          message: failedSteps.length
+            ? `Site metadata unchanged — some enrichment steps were unsuccessful: ${failedSteps.join("; ")}`
+            : "Site metadata is already complete — nothing to update",
           data: site,
           status: httpStatus.OK,
         };
@@ -1356,11 +1396,23 @@ const createSite = {
           site_tags: { $each: [...new Set(tagsToAdd)] },
         };
       }
+      updateOp.$currentDate = { updatedAt: true };
 
-      await SiteModel(tenant).collection.updateOne(
-        { _id: siteDbId },
-        updateOp,
-      );
+      try {
+        await SiteModel(tenant).collection.updateOne(
+          { _id: siteDbId },
+          updateOp,
+        );
+      } catch (persistErr) {
+        if (persistErr.code === 11000) {
+          logger.error(
+            `refresh: duplicate-key conflict persisting site ${siteDbId}: ${persistErr.message}`,
+          );
+          stepResults.persist = `duplicate-key conflict: ${persistErr.message}`;
+        } else {
+          throw persistErr;
+        }
+      }
 
       // Re-fetch so the response reflects the persisted state
       const refreshedDetails = await createSite.fetchSiteDetails(
@@ -1371,14 +1423,17 @@ const createSite = {
       const updatedSite =
         refreshedDetails.success ? refreshedDetails.data[0] : site;
 
-      const failedSteps = Object.entries(stepResults)
-        .filter(([, v]) => v !== "ok" && !v.startsWith("skipped"))
-        .map(([k, v]) => `${k}: ${v}`);
+      const allFailedSteps = Object.entries(stepResults)
+        .filter(([, v]) => {
+          const s = normalizeStepResult(v);
+          return s !== "ok" && !s.startsWith("skipped");
+        })
+        .map(([k, v]) => `${k}: ${normalizeStepResult(v)}`);
 
       return {
         success: true,
-        message: failedSteps.length
-          ? `Site partially refreshed — some steps were unsuccessful: ${failedSteps.join("; ")}`
+        message: allFailedSteps.length
+          ? `Site partially refreshed — some steps were unsuccessful: ${allFailedSteps.join("; ")}`
           : "Site details successfully refreshed",
         data: updatedSite,
         status: httpStatus.OK,
