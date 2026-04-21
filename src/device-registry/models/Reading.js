@@ -2083,14 +2083,15 @@ ReadingsSchema.statics.listForMap = async function(
 ReadingsSchema.statics.hourlyForSite = async function (siteId, date) {
   try {
     const dayStart = new Date(`${date}T00:00:00.000Z`);
-    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+    const nextDayStart = new Date(dayStart);
+    nextDayStart.setUTCDate(nextDayStart.getUTCDate() + 1);
 
     const results = await this.aggregate([
       {
         $match: {
           site_id: siteId,
           frequency: "hourly",
-          time: { $gte: dayStart, $lte: dayEnd },
+          time: { $gte: dayStart, $lt: nextDayStart },
         },
       },
       {
