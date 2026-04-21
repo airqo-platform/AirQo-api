@@ -508,6 +508,13 @@ const preferences = {
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
+      // declared_places: full replace semantics, no _id deduplication
+      if (body.declared_places !== undefined) {
+        update["$set"] = update["$set"] || {};
+        update["$set"].declared_places = body.declared_places;
+        delete update.declared_places;
+      }
+
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(

@@ -689,6 +689,134 @@ const commonValidations = {
       next();
     };
   },
+  declaredPlaces: () => {
+    return (req, res, next) => {
+      const declaredPlaces = req.body.declared_places;
+
+      if (declaredPlaces === undefined || declaredPlaces === null) {
+        return next();
+      }
+
+      if (!Array.isArray(declaredPlaces)) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation Error: declared_places must be an array",
+          errors: { declared_places: "Expected an array of place objects" },
+        });
+      }
+
+      const VALID_TYPES = ["home", "work", "school", "gym", "family", "other"];
+      const errors = {};
+
+      const validateTimeWindow = (window, path) => {
+        const windowErrors = [];
+        if (typeof window !== "object" || Array.isArray(window)) {
+          windowErrors.push("must be an object");
+          return windowErrors;
+        }
+        ["arrive_h", "arrive_m", "leave_h", "leave_m"].forEach((key) => {
+          if (window[key] === undefined) {
+            windowErrors.push(`${key} is required`);
+          } else if (!Number.isInteger(window[key])) {
+            windowErrors.push(`${key} must be an integer`);
+          }
+        });
+        if (
+          window.arrive_h !== undefined &&
+          (window.arrive_h < 0 || window.arrive_h > 23)
+        ) {
+          windowErrors.push("arrive_h must be 0–23");
+        }
+        if (
+          window.arrive_m !== undefined &&
+          (window.arrive_m < 0 || window.arrive_m > 59)
+        ) {
+          windowErrors.push("arrive_m must be 0–59");
+        }
+        if (
+          window.leave_h !== undefined &&
+          (window.leave_h < 0 || window.leave_h > 23)
+        ) {
+          windowErrors.push("leave_h must be 0–23");
+        }
+        if (
+          window.leave_m !== undefined &&
+          (window.leave_m < 0 || window.leave_m > 59)
+        ) {
+          windowErrors.push("leave_m must be 0–59");
+        }
+        return windowErrors;
+      };
+
+      declaredPlaces.forEach((place, idx) => {
+        const placeErrors = [];
+        const prefix = `declared_places[${idx}]`;
+
+        if (!place || typeof place !== "object" || Array.isArray(place)) {
+          errors[prefix] = ["each declared place must be an object"];
+          return;
+        }
+
+        if (!place.site_id) {
+          placeErrors.push("site_id is required");
+        } else if (!isMongoId(String(place.site_id))) {
+          placeErrors.push("site_id must be a valid MongoDB ObjectId");
+        }
+
+        ["display_name", "location_name", "city"].forEach((field) => {
+          if (!place[field] || typeof place[field] !== "string") {
+            placeErrors.push(`${field} is required and must be a non-empty string`);
+          }
+        });
+
+        if (!place.type) {
+          placeErrors.push("type is required");
+        } else if (!VALID_TYPES.includes(place.type)) {
+          placeErrors.push(
+            `type must be one of: ${VALID_TYPES.join(", ")}`
+          );
+        }
+
+        ["absent_on_weekdays", "absent_on_weekends"].forEach((field) => {
+          if (place[field] === undefined) {
+            placeErrors.push(`${field} is required`);
+          } else if (typeof place[field] !== "boolean") {
+            placeErrors.push(`${field} must be a boolean`);
+          }
+        });
+
+        if (place.weekday_window !== undefined && place.weekday_window !== null) {
+          const winErrors = validateTimeWindow(
+            place.weekday_window,
+            `${prefix}.weekday_window`
+          );
+          winErrors.forEach((e) => placeErrors.push(`weekday_window: ${e}`));
+        }
+
+        if (place.weekend_window !== undefined && place.weekend_window !== null) {
+          const winErrors = validateTimeWindow(
+            place.weekend_window,
+            `${prefix}.weekend_window`
+          );
+          winErrors.forEach((e) => placeErrors.push(`weekend_window: ${e}`));
+        }
+
+        if (placeErrors.length > 0) {
+          errors[prefix] = placeErrors;
+        }
+      });
+
+      if (Object.keys(errors).length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation errors found in declared_places",
+          errors,
+        });
+      }
+
+      next();
+    };
+  },
   preferenceBody: [
     //validations for the request body itself
     oneOf([
@@ -1128,6 +1256,7 @@ const preferenceValidations = {
     ...commonValidations.userId,
     ...commonValidations.preferenceBody,
     commonValidations.selectedSites(["_id", "search_name", "name"], true),
+    commonValidations.declaredPlaces(),
   ],
   update: [
     ...commonValidations.tenant,
