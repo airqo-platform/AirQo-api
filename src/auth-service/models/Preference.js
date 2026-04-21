@@ -171,6 +171,35 @@ const airqloudSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const timeWindowSchema = new mongoose.Schema(
+  {
+    arrive_h: { type: Number, min: 0, max: 23, required: true },
+    arrive_m: { type: Number, min: 0, max: 59, required: true },
+    leave_h: { type: Number, min: 0, max: 23, required: true },
+    leave_m: { type: Number, min: 0, max: 59, required: true },
+  },
+  { _id: false }
+);
+
+const declaredPlaceSchema = new mongoose.Schema(
+  {
+    site_id: { type: String, required: true },
+    display_name: { type: String, required: true },
+    location_name: { type: String, required: true },
+    city: { type: String, required: true },
+    type: {
+      type: String,
+      enum: ["home", "work", "school", "gym", "family", "other"],
+      required: true,
+    },
+    absent_on_weekdays: { type: Boolean, required: true },
+    absent_on_weekends: { type: Boolean, required: true },
+    weekday_window: { type: timeWindowSchema, default: null },
+    weekend_window: { type: timeWindowSchema, default: null },
+  },
+  { _id: false }
+);
+
 const locationPreferenceSchema = new mongoose.Schema(
   {
     trackingEnabled: { type: Boolean, default: true },
@@ -301,6 +330,7 @@ const PreferenceSchema = new mongoose.Schema(
       },
     ],
     selected_sites: [siteSchema],
+    declared_places: { type: [declaredPlaceSchema], default: [] },
     selected_grids: [gridSchema],
     selected_devices: [deviceSchema],
     selected_cohorts: [cohortSchema],
@@ -460,6 +490,7 @@ PreferenceSchema.methods = {
       period: this.period,
       createdAt: this.createdAt,
       selected_sites: this.selected_sites,
+      declared_places: this.declared_places || [],
       selected_grids: this.selected_grids,
       selected_devices: this.selected_devices,
       selected_cohorts: this.selected_cohorts,
@@ -584,6 +615,7 @@ PreferenceSchema.statics = {
               (a, b) => b.createdAt - a.createdAt
             );
           }
+          preference.declared_places = preference.declared_places || [];
         });
 
         // Update lastAccessed timestamp for all found preferences

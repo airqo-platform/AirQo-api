@@ -2080,6 +2080,55 @@ ReadingsSchema.statics.listForMap = async function(
   }
 };
 
+ReadingsSchema.statics.hourlyForSite = async function (siteId, date) {
+  try {
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const nextDayStart = new Date(dayStart);
+    nextDayStart.setUTCDate(nextDayStart.getUTCDate() + 1);
+
+    const results = await this.aggregate([
+      {
+        $match: {
+          site_id: siteId,
+          frequency: "hourly",
+          time: { $gte: dayStart, $lt: nextDayStart },
+        },
+      },
+      {
+        $group: {
+          _id: { $hour: "$time" },
+          pm25: { $avg: "$pm2_5.value" },
+        },
+      },
+    ]).allowDiskUse(true);
+
+    const hourMap = {};
+    results.forEach(({ _id: hour, pm25 }) => {
+      hourMap[hour] = pm25 != null ? Math.round(pm25 * 10) / 10 : null;
+    });
+
+    const data = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      pm25: hourMap[h] !== undefined ? hourMap[h] : null,
+    }));
+
+    return {
+      success: true,
+      message: "Hourly readings fetched successfully",
+      data,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Reading.hourlyForSite error: ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
 const ReadingModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
