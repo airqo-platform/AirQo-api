@@ -647,6 +647,29 @@ const readingsValidations = {
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, next);
   },
+
+  listHourlySiteReadings: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      commonValidations.requiredObjectId("site_id", param),
+      query("date")
+        .exists()
+        .withMessage("date is required")
+        .bail()
+        .matches(/^\d{4}-\d{2}-\d{2}$/)
+        .withMessage("date must be in YYYY-MM-DD format")
+        .bail()
+        .custom((value) => {
+          const d = new Date(`${value}T00:00:00.000Z`);
+          if (isNaN(d.getTime()))
+            throw new Error("date is not a valid calendar date");
+          return true;
+        }),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
 };
 
 const validateGetRepresentativeAQForGrid = [
