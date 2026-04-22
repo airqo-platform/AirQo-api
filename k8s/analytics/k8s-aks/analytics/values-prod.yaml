@@ -21,10 +21,10 @@ api:
     common:
       limits:
         cpu: 200m
-        memory: 1200Mi
+        memory: 2000Mi
       requests:
         cpu: 50m
-        memory: 900Mi
+        memory: 1400Mi
     redis:
       requests:
         cpu: 50m
