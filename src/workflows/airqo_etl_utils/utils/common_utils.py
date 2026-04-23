@@ -6,7 +6,6 @@ import json
 import os
 import ast
 from threading import Thread
-from datetime import timedelta
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple, Coroutine, Optional, Generic, TypeVar, List
 from http.client import HTTPResponse
@@ -174,22 +173,22 @@ class Utils:
                 f"Invalid date format for start_date_time or end_date_time: {e}. "
                 "Expected ISO 8601 or pandas-recognized date string."
             )
-        dates = pd.date_range(start_dt, end_dt, freq=freq)
-        frequency = dates.freq
 
-        if dates.values.size == 1:
-            dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
+        breakpoints = list(pd.date_range(start_dt, end_dt, freq=freq))
 
-        dates = [pd.to_datetime(str(date)) for date in dates.values]
-        dates_new = []
+        # If end_dt falls after the last breakpoint (i.e. a remainder chunk exists),
+        # append it so the final partial interval is not dropped.
+        if not breakpoints or breakpoints[-1] < end_dt:
+            breakpoints.append(end_dt)
 
-        array_last_date_time = dates.pop()
-        for date in dates:
-            end = date + timedelta(hours=frequency.n)
-            if end > array_last_date_time:
-                end = array_last_date_time
-            dates_new.append((DateUtils.date_to_str(date), DateUtils.date_to_str(end)))
-        return dates_new
+        pairs = [
+            (DateUtils.date_to_str(a), DateUtils.date_to_str(b))
+            for a, b in zip(breakpoints, breakpoints[1:])
+        ]
+        # Fallback for degenerate case where start == end.
+        return pairs or [
+            (DateUtils.date_to_str(start_dt), DateUtils.date_to_str(end_dt))
+        ]
 
     @staticmethod
     def year_months_query_array(year: int):
