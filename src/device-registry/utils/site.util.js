@@ -1784,6 +1784,98 @@ const createSite = {
       logElement("server error", { message: error.message });
     }
   },
+  // Transforms a Nominatim reverse-geocoding response into the same field
+  // shape that retrieveInformationFromAddress produces for Google responses.
+  // Callers of reverseGeoCode never need to know which provider was used.
+  _parseNominatimAddress: (nominatimData) => {
+    const addr = nominatimData.address || {};
+
+    const city = addr.city || addr.town || addr.municipality || undefined;
+    const suburb =
+      addr.suburb || addr.neighbourhood || addr.quarter || undefined;
+    const district = addr.county || addr.state_district || undefined;
+    const country = addr.country || undefined;
+    const region = addr.state || undefined;
+
+    const locationName =
+      country && country.toLowerCase() === "uganda"
+        ? `${district || region}, ${country}`
+        : `${region || district}, ${country}`;
+
+    const searchName =
+      suburb ||
+      city ||
+      addr.village ||
+      addr.hamlet ||
+      addr.road ||
+      district ||
+      undefined;
+
+    const parsed = {
+      country,
+      region,
+      district,
+      county: district,
+      city,
+      town: city,
+      village: addr.village || addr.hamlet || suburb || undefined,
+      parish: suburb,
+      division: suburb,
+      sub_county: suburb,
+      street: addr.road || undefined,
+      formatted_name: nominatimData.display_name || undefined,
+      geometry: {
+        location: {
+          lat: parseFloat(nominatimData.lat),
+          lng: parseFloat(nominatimData.lon),
+        },
+      },
+      site_tags: [nominatimData.type, nominatimData.class].filter(Boolean),
+      location_name: country ? locationName : undefined,
+      search_name: searchName,
+    };
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, v]) => v !== undefined),
+    );
+  },
+
+  // Calls the Nominatim (OpenStreetMap) reverse-geocoding API and returns the
+  // same success/failure envelope as the Google path in reverseGeoCode.
+  // Used as a fallback when Google Geocoding is unavailable or over quota.
+  _reverseGeoCodeNominatim: async (latitude, longitude) => {
+    const url = constants.NOMINATIM_REVERSE_URL(latitude, longitude);
+
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        // Nominatim usage policy requires a descriptive User-Agent.
+        "User-Agent": "AirQo-DeviceRegistry/1.0 (support@airqo.net)",
+        "Accept-Language": "en",
+      },
+    });
+
+    const data = response.data;
+
+    if (data.error) {
+      return {
+        success: false,
+        message: "unable to get the site address details",
+        status: httpStatus.NOT_FOUND,
+        errors: {
+          message: `review the GPS coordinates provided, we cannot get corresponding metadata`,
+        },
+      };
+    }
+
+    const addressData = createSite._parseNominatimAddress(data);
+    return {
+      success: true,
+      message: "retrieved the address details of this site",
+      data: addressData,
+    };
+  },
+
   retrieveInformationFromAddress: (address, next) => {
     try {
       let results = address.results[0];
@@ -1855,42 +1947,74 @@ const createSite = {
   reverseGeoCode: async (latitude, longitude, next) => {
     try {
       logText("reverseGeoCode...........");
-      let url = constants.GET_ADDRESS_URL(latitude, longitude);
-      return await axios
-        .get(url)
-        .then(async (response) => {
-          let responseJSON = response.data;
-          if (!isEmpty(responseJSON.results)) {
-            const responseFromTransformAddress = createSite.retrieveInformationFromAddress(
-              responseJSON,
-              next,
-            );
-            return responseFromTransformAddress;
-          } else {
-            return {
-              success: false,
-              message: "unable to get the site address details",
-              status: httpStatus.NOT_FOUND,
-              errors: {
-                message:
-                  "review the GPS coordinates provided, we cannot get corresponding metadata",
-              },
-            };
-          }
-        })
-        .catch((error) => {
-          logObject("error in the reverse Geocode util", error);
-          try {
-            logger.error(`internal server error -- ${JSON.stringify(error)}`);
-          } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
-          }
-          return {
-            success: false,
-            errors: { message: error },
-            message: "constants server side error",
-          };
-        });
+
+      // ── Primary: Google Geocoding ────────────────────────────────────
+      let googleFailReason = null;
+      try {
+        const url = constants.GET_ADDRESS_URL(latitude, longitude);
+        const response = await axios.get(url, { timeout: 10000 });
+        const responseJSON = response.data;
+        const googleStatus = responseJSON.status;
+
+        // Non-OK statuses (REQUEST_DENIED, OVER_QUERY_LIMIT, INVALID_REQUEST,
+        // etc.) must fall through to Nominatim — they are not bad-coordinate
+        // errors, they reflect API availability problems on Google's side.
+        if (googleStatus && googleStatus !== "OK" && googleStatus !== "ZERO_RESULTS") {
+          googleFailReason = `Google status: ${googleStatus} — ${responseJSON.error_message || googleStatus}`;
+          logger.warn(`reverseGeoCode: ${googleFailReason} — trying Nominatim fallback`);
+        } else if (!isEmpty(responseJSON.results)) {
+          return createSite.retrieveInformationFromAddress(responseJSON, next);
+        } else {
+          // ZERO_RESULTS or truly empty — Nominatim may still resolve it
+          googleFailReason = "Google returned no results";
+          logger.warn(
+            `reverseGeoCode: Google returned no results for (${latitude}, ${longitude}) — trying Nominatim fallback`,
+          );
+        }
+      } catch (googleError) {
+        const isTimeout =
+          googleError.code === "ECONNABORTED" ||
+          googleError.code === "ETIMEDOUT";
+        googleFailReason = isTimeout
+          ? "Google request timed out after 10s"
+          : googleError.message;
+        logger.warn(
+          `reverseGeoCode: Google failed (${googleFailReason}) — trying Nominatim fallback`,
+        );
+      }
+
+      // ── Fallback: Nominatim (OpenStreetMap) ──────────────────────────
+      try {
+        const nominatimResult = await createSite._reverseGeoCodeNominatim(
+          latitude,
+          longitude,
+        );
+        if (nominatimResult.success) {
+          logger.info(
+            `reverseGeoCode: Nominatim fallback succeeded for (${latitude}, ${longitude})`,
+          );
+        } else {
+          logger.warn(
+            `reverseGeoCode: both providers failed for (${latitude}, ${longitude}). ` +
+              `Google: ${googleFailReason}. Nominatim: ${nominatimResult.message}`,
+          );
+        }
+        return nominatimResult;
+      } catch (nominatimError) {
+        logger.error(
+          `reverseGeoCode: Nominatim fallback threw: ${nominatimError.message}`,
+        );
+        return {
+          success: false,
+          message: "unable to get the site address details",
+          status: httpStatus.BAD_GATEWAY,
+          errors: {
+            message:
+              `All geocoding providers failed. ` +
+              `Google: ${googleFailReason}. Nominatim: ${nominatimError.message}`,
+          },
+        };
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
