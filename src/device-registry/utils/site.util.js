@@ -6,7 +6,7 @@ const GridModel = require("@models/Grid");
 const AirQloudModel = require("@models/Airqloud");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
-const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+const { logObject, logElement, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -1797,10 +1797,12 @@ const createSite = {
     const country = addr.country || undefined;
     const region = addr.state || undefined;
 
-    const locationName =
+    const qualifier =
       country && country.toLowerCase() === "uganda"
-        ? `${district || region}, ${country}`
-        : `${region || district}, ${country}`;
+        ? district || region
+        : region || district;
+    const locationName =
+      country && qualifier ? `${qualifier}, ${country}` : undefined;
 
     const searchName =
       suburb ||
@@ -1810,6 +1812,13 @@ const createSite = {
       addr.road ||
       district ||
       undefined;
+
+    const lat = parseFloat(nominatimData.lat);
+    const lng = parseFloat(nominatimData.lon);
+    const geometry =
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? { location: { lat, lng } }
+        : undefined;
 
     const parsed = {
       country,
@@ -1824,14 +1833,9 @@ const createSite = {
       sub_county: suburb,
       street: addr.road || undefined,
       formatted_name: nominatimData.display_name || undefined,
-      geometry: {
-        location: {
-          lat: parseFloat(nominatimData.lat),
-          lng: parseFloat(nominatimData.lon),
-        },
-      },
+      geometry,
       site_tags: [nominatimData.type, nominatimData.class].filter(Boolean),
-      location_name: country ? locationName : undefined,
+      location_name: locationName,
       search_name: searchName,
     };
 
@@ -1946,7 +1950,7 @@ const createSite = {
   },
   reverseGeoCode: async (latitude, longitude, next) => {
     try {
-      logText("reverseGeoCode...........");
+      logger.debug(`reverseGeoCode: (${latitude}, ${longitude})`);
 
       // ── Primary: Google Geocoding ────────────────────────────────────
       let googleFailReason = null;
