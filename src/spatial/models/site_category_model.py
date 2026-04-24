@@ -42,6 +42,76 @@ class SiteCategoryModel:
         return None
 
     @staticmethod
+    def _determine_category_from_address(address):
+        """Infer a coarse site category from reverse-geocoded address tags."""
+        landuse = (address.get("landuse") or "").lower()
+        natural = (address.get("natural") or "").lower()
+        road = (address.get("road") or "").lower()
+        waterway = (address.get("waterway") or "").lower()
+
+        if landuse in {"industrial", "commercial", "retail"}:
+            return "Urban Commercial"
+        if road:
+            return "Urban Background"
+        if natural in {"water", "wetland", "lake", "river"} or waterway:
+            return "Water Body"
+        if landuse in {
+            "forest",
+            "farmland",
+            "grass",
+            "meadow",
+            "vineyard",
+            "wetland",
+            "park",
+            "scrub",
+            "heath",
+            "orchard",
+        } or natural in {"forest", "wood", "scrub"}:
+            return "Background Site"
+        if address.get("city") or address.get("town") or address.get("suburb"):
+            return "Urban Background"
+        return "Unknown_Category"
+
+    def _categorize_from_reverse_geocoder(self, latitude, longitude, debug_info):
+        """Fallback classification when Overpass is unavailable."""
+        try:
+            location = geolocator.reverse((latitude, longitude), exactly_one=True)
+            if not location:
+                return None
+
+            address = location.raw.get("address", {})
+            category = self._determine_category_from_address(address)
+            area_name = (
+                address.get("suburb")
+                or address.get("city")
+                or address.get("town")
+                or address.get("county")
+                or location.address
+            )
+            landuse = address.get("landuse")
+            natural = address.get("natural")
+            waterway = address.get("waterway")
+            highway = address.get("road")
+
+            debug_info.append(
+                "Overpass unavailable; using reverse-geocoder fallback classification."
+            )
+
+            return (
+                category,
+                None,
+                area_name,
+                landuse,
+                natural,
+                waterway,
+                highway,
+                debug_info,
+            )
+        except Exception as error:
+            debug_info.append(f"Reverse-geocoder fallback failed: {error}")
+            return None
+
+    @staticmethod
     def _is_transient_overpass_error(error):
         message = str(error).lower()
         transient_markers = (
@@ -168,6 +238,11 @@ class SiteCategoryModel:
                 # If the upstream Overpass service is overloaded, the same query
                 # is unlikely to succeed for the next radius immediately after.
                 if self._is_transient_overpass_error(e):
+                    fallback_result = self._categorize_from_reverse_geocoder(
+                        latitude, longitude, debug_info
+                    )
+                    if fallback_result is not None:
+                        return fallback_result
                     break
 
                 continue
