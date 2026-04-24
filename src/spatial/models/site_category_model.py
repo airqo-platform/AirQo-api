@@ -46,7 +46,7 @@ class SiteCategoryModel:
         self.category = category
         self.overpass_urls = self._load_overpass_urls()
         self.overpass_max_attempts = max(
-            1, int(getattr(Config, "OVERPASS_MAX_ATTEMPTS", os.getenv("OVERPASS_MAX_ATTEMPTS", "1")))
+            1, int(getattr(Config, "OVERPASS_MAX_ATTEMPTS", os.getenv("OVERPASS_MAX_ATTEMPTS", "3")))
         )
         self.overpass_base_delay = max(
             0.0,
