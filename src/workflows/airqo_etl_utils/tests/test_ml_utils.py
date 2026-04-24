@@ -1129,6 +1129,25 @@ def test_flag_pattern_based_faults_is_deterministic_for_same_input():
     )
 
 
+def test_flag_pattern_based_faults_requires_saved_model_when_fallback_disabled(
+    monkeypatch,
+):
+    raw = _build_fault_detection_frame("device-a", periods=72)
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+    monkeypatch.setattr(
+        ml_utils_module.FaultDetectionUtils,
+        "load_isolation_forest",
+        staticmethod(lambda frequency: None),
+    )
+
+    with pytest.raises(RuntimeError, match="No trained fault-detection"):
+        ml_utils_module.FaultDetectionUtils.flag_pattern_based_faults(
+            features, train_if_missing=False
+        )
+
+
 def test_flag_rule_based_faults_marks_missing_data_and_nan_correlation_as_faults():
     missing_window = 60
     raw = pd.DataFrame(
@@ -1361,5 +1380,11 @@ def test_save_faulty_devices_persists_one_row_per_device_without_duplicates(monk
     updated_records = sorted(updated_records, key=lambda record: record["device_id"])
     assert updated_records[0]["device_id"] == "device-a"
     assert updated_records[0]["fault_detected"] == 1
+    assert updated_records[0]["anomaly_percentage_fault"] == 0
+    assert updated_records[0]["anomaly_sequence_fault"] == 0
+    assert updated_records[0]["anomaly_percentage"] == 0.0
     assert updated_records[1]["device_id"] == "device-b"
     assert updated_records[1]["fault_detected"] == 0
+    assert updated_records[1]["anomaly_percentage_fault"] == 0
+    assert updated_records[1]["anomaly_sequence_fault"] == 0
+    assert updated_records[1]["anomaly_percentage"] == 0.0

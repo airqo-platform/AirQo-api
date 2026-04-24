@@ -1230,13 +1230,16 @@ class BigQueryApi:
 
         return results
 
-    def fetch_fault_detection_raw_readings(self) -> pd.DataFrame:
+    def fetch_fault_detection_raw_readings(
+        self, lookback_days: Optional[int] = None
+    ) -> pd.DataFrame:
         """
-        Fetch raw device readings for fault detection using the configured lookback.
+        Fetch raw device readings for fault detection using the requested lookback.
         """
+        lookback_days = lookback_days or configuration.FAULT_DETECTION_LOOKBACK_DAYS
         query = query_manager.get_query("fault_detection_raw_device_readings").format(
             raw_measurements_table=self.raw_measurements_table,
-            lookback_days=configuration.FAULT_DETECTION_LOOKBACK_DAYS,
+            lookback_days=lookback_days,
         )
         try:
             results = self.execute_data_query(f"{query}")

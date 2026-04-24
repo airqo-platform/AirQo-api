@@ -130,6 +130,15 @@ Fetch recent raw device readings for the fault-detection workflow from BigQuery.
 - Resamples numeric readings to hourly resolution for each device.
 """
 
+fetch_fault_detection_training_data_doc = """
+#### Purpose
+Fetch historical raw device readings for fault-detection model training from BigQuery.
+#### Notes
+- Uses the dedicated SQL query under `airqo_etl_utils/sql/faultdetection`.
+- Uses the configured `FAULT_DETECTION_TRAINING_LOOKBACK_DAYS` window. Default is 90 days.
+- Resamples numeric readings to hourly resolution for each device.
+"""
+
 flag_rule_based_faults_doc = """
 #### Purpose
 Identify rule-based device faults from raw dual-sensor readings.
@@ -155,7 +164,17 @@ flag_pattern_based_faults_doc = """
 Score pattern-based anomalies for device readings.
 #### Notes
 - Uses Isolation Forest on numeric fault-detection features.
+- Requires a trained model saved by `AirQo-fault-detection-model-training`.
 - Returns both `anomaly_value` and `anomaly_score`.
+"""
+
+train_fault_detection_model_doc = """
+#### Purpose
+Train and save the fault-detection Isolation Forest model.
+#### Notes
+- Trains on numeric fault-detection features prepared from historical raw readings.
+- Saves the model to `FAULT_DETECTION_MODELS_BUCKET`.
+- The scheduled detection DAG loads this model for anomaly scoring.
 """
 
 process_faulty_devices_percentage_doc = """

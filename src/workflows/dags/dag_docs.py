@@ -429,7 +429,9 @@ Data Destinations:
 fault_detection_doc = """
 ### AirQo fault detection
 #### Purpose
-Detect likely faulty devices from recent raw sensor readings using both rule-based checks and pattern-based anomaly detection.
+Detect likely faulty devices from recent raw sensor readings using both deterministic rule checks and a trained unsupervised anomaly model.
+
+This DAG does not train the ML model. It expects the `AirQo-fault-detection-model-training` DAG to have saved the Isolation Forest artifact first.
 
 #### Workflow Steps
 1. **Raw Data Extraction** (`fetch_raw_data`)
@@ -449,13 +451,16 @@ Detect likely faulty devices from recent raw sensor readings using both rule-bas
    - Sorts readings by device and timestamp before anomaly scoring
 
 4. **Pattern-Based Fault Detection** (`flag_pattern_based_faults`)
-   - Scores devices with an Isolation Forest model
+   - Scores devices with the trained Isolation Forest model from GCS
+   - Loads the object configured by `FAULT_DETECTION_MODEL_PATH` from `FAULT_DETECTION_MODELS_BUCKET`
+   - Fails when the trained model is unavailable, instead of retraining inside the detection DAG
    - Produces anomaly labels and anomaly scores for downstream aggregation
 
 5. **Fault Aggregation**
    - `process_faulty_devices_percentage` identifies devices with high anomaly share
    - `process_faulty_devices_sequence` identifies devices with long consecutive anomaly runs
-   - Consolidated records include the triggered fault types and total triggered-fault count
+   - Consolidated records include rule flags, ML flags, triggered fault types, and total triggered-fault count
+   - ML fields are still written with zero defaults when no ML threshold is triggered
 
 6. **Persistence** (`save_to_mongo`)
    - Merges rule-based and pattern-based outputs
@@ -472,7 +477,52 @@ Lookback window:
 - Configured by `FAULT_DETECTION_LOOKBACK_DAYS`
 - Default: 14 days
 
+Model artifact:
+- Bucket: `FAULT_DETECTION_MODELS_BUCKET`
+- Object path: `FAULT_DETECTION_MODEL_PATH`
+
+Important output fields:
+- Rule flags: `correlation_fault`, `missing_data_fault`, `sensor_disagreement_fault`, `constant_value_fault`, `battery_fault`, `range_fault`
+- ML flags: `anomaly_percentage_fault`, `anomaly_sequence_fault`
+- ML summaries: `anomaly_percentage`, `anomaly_count`, `observation_count`, `fault_count`
+- Consolidated summaries: `fault_detected`, `fault_types`, `triggered_fault_count`
+
 Data Destinations:
 - MongoDB: faulty devices collection
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+fault_detection_training_doc = """
+### AirQo fault detection model training
+#### Purpose
+Train and publish the unsupervised Isolation Forest model used by the scheduled fault-detection DAG.
+
+This DAG is intentionally separate from weekly detection because the model does not need to be retrained on every detection run.
+
+#### Workflow Steps
+1. **Training Data Extraction** (`fetch_training_data`)
+   - Fetches historical raw device readings from BigQuery
+   - Uses the configured `FAULT_DETECTION_TRAINING_LOOKBACK_DAYS` window
+   - Resamples numeric fields to hourly resolution per device
+
+2. **Pattern Feature Preparation** (`prepare_pattern_detection_features`)
+   - Builds the same temporal, cyclic, lag, rolling, and sensor-delta features used during scoring
+
+3. **Model Training** (`train_isolation_forest_model`)
+   - Trains an Isolation Forest model on complete numeric feature rows
+   - Saves the model artifact to `FAULT_DETECTION_MODELS_BUCKET` using `FAULT_DETECTION_MODEL_PATH`
+   - Returns model metadata such as training row count, feature count, bucket, and artifact path
+   - Can log training and validation diagnostics under `FAULT_DETECTION_MLFLOW_EXPERIMENT` when MLflow is configured
+
+#### Schedule
+Runs every two months on the 1st at 02:00 UTC (`0 2 1 */2 *`)
+
+#### Notes
+Run this DAG before `AirQo-Fault-Detection` in a fresh environment so anomaly scoring can load a trained model.
+
+Configuration:
+- `FAULT_DETECTION_TRAINING_LOOKBACK_DAYS`: historical window used for training data
+- `FAULT_DETECTION_MODELS_BUCKET`: GCS bucket used for the model artifact
+- `FAULT_DETECTION_MODEL_PATH`: object path for the serialized model
+- `FAULT_DETECTION_MLFLOW_EXPERIMENT`: MLflow experiment name for training diagnostics
 """

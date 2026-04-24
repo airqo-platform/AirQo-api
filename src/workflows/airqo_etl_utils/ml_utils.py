@@ -697,6 +697,49 @@ class FaultDetectionUtils(BaseMlUtils):
         "battery_fault",
         "range_fault",
     ]
+    ML_FAULT_DEFAULTS = {
+        "anomaly_percentage": 0.0,
+        "anomaly_count": 0,
+        "observation_count": 0,
+        "anomaly_percentage_fault": 0,
+        "fault_count": 0,
+        "anomaly_sequence_fault": 0,
+    }
+
+    @staticmethod
+    def _get_model_bucket() -> str:
+        bucket = configuration.FAULT_DETECTION_MODELS_BUCKET
+        if not bucket:
+            raise ValueError(
+                "Missing required config: FAULT_DETECTION_MODELS_BUCKET."
+            )
+        return bucket
+
+    @staticmethod
+    def _get_model_storage() -> FileStorage:
+        return GCSFileStorage()
+
+    @staticmethod
+    def _get_isolation_forest_model_path() -> str:
+        return configuration.FAULT_DETECTION_MODEL_PATH
+
+    @staticmethod
+    def _save_model_object(obj: Any, destination_file: str) -> str:
+        storage = FaultDetectionUtils._get_model_storage()
+        return storage.save_file_object(
+            bucket=FaultDetectionUtils._get_model_bucket(),
+            obj=obj,
+            destination_file=destination_file,
+        )
+
+    @staticmethod
+    def _load_model_object(source_file: str, local_cache_path: Optional[str] = None):
+        storage = FaultDetectionUtils._get_model_storage()
+        return storage.load_file_object(
+            bucket=FaultDetectionUtils._get_model_bucket(),
+            source_file=source_file,
+            local_cache_path=local_cache_path,
+        )
 
     @staticmethod
     def _has_sustained_condition(series: pd.Series, window: int) -> bool:
@@ -895,9 +938,15 @@ class FaultDetectionUtils(BaseMlUtils):
         return feature_df
 
     @staticmethod
-    def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
+    def flag_pattern_based_faults(
+        df: pd.DataFrame,
+        frequency: Frequency = Frequency.HOURLY,
+        train_if_missing: bool = True,
+    ) -> pd.DataFrame:
         """
-        Flags pattern-based faults such as high variance, constant values, etc"""
+        Flags pattern-based faults such as high variance, constant values, etc.
+        Uses a trained Isolation Forest model from GCS when available.
+        """
         from sklearn.ensemble import IsolationForest
 
         if not isinstance(df, pd.DataFrame):
@@ -933,8 +982,21 @@ class FaultDetectionUtils(BaseMlUtils):
             model_df["anomaly_score"] = pd.Series(dtype=float)
             return model_df
 
-        isolation_forest = IsolationForest(contamination=0.37, random_state=42)
-        isolation_forest.fit(model_df[feature_columns])
+        isolation_forest = FaultDetectionUtils.load_isolation_forest(frequency)
+
+        if isolation_forest is None:
+            if not train_if_missing:
+                raise RuntimeError(
+                    "No trained fault-detection Isolation Forest model is available. "
+                    "Run AirQo-fault-detection-model-training first."
+                )
+            logger.info("Training new Isolation Forest model...")
+            isolation_forest = IsolationForest(
+                contamination=0.37, random_state=42, n_estimators=100
+            )
+            isolation_forest.fit(model_df[feature_columns])
+        else:
+            logger.info("Using loaded Isolation Forest model for prediction")
 
         model_df["anomaly_value"] = isolation_forest.predict(model_df[feature_columns])
         model_df["anomaly_score"] = isolation_forest.decision_function(
@@ -942,6 +1004,96 @@ class FaultDetectionUtils(BaseMlUtils):
         )
 
         return model_df
+
+    @staticmethod
+    def train_and_save_isolation_forest(
+        training_data: pd.DataFrame, frequency: Frequency
+    ) -> dict:
+        """Train an Isolation Forest model and save it to GCS.
+
+        Args:
+            training_data: DataFrame with device_id, timestamp, and feature columns.
+            frequency: Feature-engineering frequency used for training metadata.
+        """
+        from sklearn.ensemble import IsolationForest
+
+        bucket = FaultDetectionUtils._get_model_bucket()
+
+        training_data = training_data.copy()
+        training_data.dropna(subset=["device_id"], inplace=True)
+        training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
+
+        columns_to_ignore = {"device_id", "timestamp", "latitude", "longitude"}
+        feature_columns = [
+            c
+            for c in training_data.columns
+            if c not in columns_to_ignore
+            and pd.api.types.is_numeric_dtype(training_data[c])
+        ]
+
+        if not feature_columns:
+            raise ValueError("No numeric feature columns available for training")
+
+        train_data = training_data.dropna(subset=feature_columns).copy()
+        if train_data.empty:
+            raise ValueError("No complete rows available for training")
+
+        train_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
+
+        logger.info(f"Training Isolation Forest with {len(train_data)} samples")
+        logger.info(f"Features: {feature_columns}")
+
+        isolation_forest = IsolationForest(
+            contamination=0.37,
+            random_state=42,
+            n_estimators=100,
+            max_samples="auto",
+        )
+        isolation_forest.fit(train_data[feature_columns])
+
+        model_path = FaultDetectionUtils._get_isolation_forest_model_path()
+        FaultDetectionUtils._save_model_object(
+            obj=isolation_forest,
+            destination_file=model_path,
+        )
+        logger.info(f"Isolation Forest model saved to {bucket}/{model_path}")
+        return {
+            "bucket": bucket,
+            "model_path": model_path,
+            "frequency": frequency.str,
+            "feature_count": len(feature_columns),
+            "training_rows": len(train_data),
+        }
+
+    @staticmethod
+    def load_isolation_forest(frequency: Frequency):
+        """Load a trained Isolation Forest model from GCS.
+
+        Args:
+            frequency: Feature-engineering frequency kept for caller compatibility.
+
+        Returns:
+            Trained IsolationForest model.
+        """
+        try:
+            bucket = FaultDetectionUtils._get_model_bucket()
+        except ValueError as exc:
+            logger.warning(str(exc))
+            return None
+
+        model_path = FaultDetectionUtils._get_isolation_forest_model_path()
+        try:
+            model = FaultDetectionUtils._load_model_object(
+                source_file=model_path,
+                local_cache_path=f"/tmp/{model_path}",
+            )
+            logger.info(f"Loaded Isolation Forest model from {bucket}/{model_path}")
+            return model
+        except Exception as e:
+            logger.warning(
+                f"Could not load Isolation Forest model: {e}."
+            )
+            return None
 
     @staticmethod
     def process_faulty_devices_percentage(df: pd.DataFrame):
@@ -1070,16 +1222,18 @@ class FaultDetectionUtils(BaseMlUtils):
         if "device_name" not in merged_df.columns:
             merged_df["device_name"] = merged_df["device_id"]
         merged_df["fault_detected"] = 1
-        if (
-            "anomaly_percentage" in merged_df.columns
-            and "anomaly_percentage_fault" not in merged_df.columns
-        ):
+        for column, default_value in FaultDetectionUtils.ML_FAULT_DEFAULTS.items():
+            if column not in merged_df.columns:
+                merged_df[column] = default_value
+        if "anomaly_percentage" in merged_df.columns:
             merged_df["anomaly_percentage_fault"] = (
-                merged_df["anomaly_percentage"] > 45
+                (merged_df["anomaly_percentage_fault"].astype(int) == 1)
+                | (merged_df["anomaly_percentage"] > 45)
             ).astype(int)
-        if "fault_count" in merged_df.columns and "anomaly_sequence_fault" not in merged_df.columns:
+        if "fault_count" in merged_df.columns:
             merged_df["anomaly_sequence_fault"] = (
-                merged_df["fault_count"] >= 80
+                (merged_df["anomaly_sequence_fault"].astype(int) == 1)
+                | (merged_df["fault_count"] >= 80)
             ).astype(int)
         fault_flag_columns = [
             column

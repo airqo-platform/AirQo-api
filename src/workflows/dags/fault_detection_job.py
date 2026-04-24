@@ -45,7 +45,9 @@ def airqo_fault_detection_dag():
 
     @task(doc_md=flag_pattern_based_faults_doc)
     def flag_pattern_based_faults(data):
-        return FaultDetectionUtils.flag_pattern_based_faults(data)
+        return FaultDetectionUtils.flag_pattern_based_faults(
+            data, Frequency.HOURLY, train_if_missing=False
+        )
 
     @task(doc_md=process_faulty_devices_percentage_doc)
     def process_faulty_devices_percentage(data):
@@ -64,6 +66,7 @@ def airqo_fault_detection_dag():
     rule_based_faults = flag_rule_based_faults(raw_data)
     pattern_features = prepare_pattern_detection_features(raw_data)
     pattern_based_faults = flag_pattern_based_faults(pattern_features)
+
     faulty_devices_percentage = process_faulty_devices_percentage(pattern_based_faults)
     faulty_devices_sequence = process_faulty_devices_sequence(pattern_based_faults)
     save_to_mongo(
