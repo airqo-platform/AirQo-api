@@ -395,7 +395,7 @@ class SiteCategoryModel:
             center_lon = way.center_lon
             area_name = tags.get("name", "Unnamed")
 
-            debug_info.append(f"Found OSM data:")
+            debug_info.append("Found OSM data:")
             debug_info.append(f"  Landuse: {landuse}")
             debug_info.append(f"  Natural: {natural}")
             debug_info.append(f"  Waterway: {waterway}")
