@@ -25,11 +25,12 @@ const BATCH_SIZE = 100;
 // Sites are processed in BATCH_SIZE chunks; the job stops once this many
 // sites have been attempted regardless of how many remain.
 const MAX_GEOCODING_ATTEMPTS_PER_RUN = 300;
-// After this many consecutive geocoding failures a site is stamped
-// _geocodingPermanentlyExcluded and never attempted again. Coordinates
-// that Google Maps cannot resolve (bad GPS, sparse coverage, water) will
-// not suddenly become resolvable, so retrying them indefinitely is wasteful.
-const MAX_GEOCODING_FAILURES = 2;
+// A single geocoding failure permanently excludes the site from this automated
+// job. Coordinates that cannot be resolved (bad GPS, water, sparse coverage)
+// are unlikely to resolve on a retry, and re-attempting wastes API credits.
+// Manual refresh via the site-refresh endpoint is still available for one-off
+// corrections and is not affected by this limit.
+const MAX_GEOCODING_FAILURES = 1;
 const JOB_NAME = "backfill-site-metadata";
 const LOCK_TTL_SECONDS = 90 * 60; // 90 minutes
 const POD_ID = process.env.HOSTNAME || os.hostname();
@@ -254,22 +255,40 @@ const backfillSiteMetadata = async (tenant) => {
             _geocodingPermanentlyExcluded: { $ne: true },
             ...idCursor,
             $or: [
-              // Local-only missing fields (no external API call needed)
+              // Branch A: local-only missing fields — no API call needed,
+              // so these are always retried regardless of geocoding history.
               { generated_name: { $in: [null, ""] } },
               { generated_name: { $exists: false } },
               { search_name: { $in: [null, ""] } },
               { search_name: { $exists: false } },
               { description: { $in: [null, ""] } },
               { description: { $exists: false } },
-              // Geocoded missing fields (Google Maps API required)
-              { country: { $in: [null, ""] } },
-              { country: { $exists: false } },
-              { district: { $in: [null, ""] } },
-              { district: { $exists: false } },
-              { city: { $in: [null, ""] } },
-              { city: { $exists: false } },
-              { data_provider: { $in: [null, ""] } },
-              { data_provider: { $exists: false } },
+              // Branch B: geocoded missing fields — only attempt for sites
+              // that have NEVER been geocoded before (_geocodingFailedCount
+              // absent or 0). A single past failure is treated as permanent
+              // for this automated job; manual refresh remains available.
+              {
+                $and: [
+                  {
+                    $or: [
+                      { _geocodingFailedCount: { $exists: false } },
+                      { _geocodingFailedCount: 0 },
+                    ],
+                  },
+                  {
+                    $or: [
+                      { country: { $in: [null, ""] } },
+                      { country: { $exists: false } },
+                      { district: { $in: [null, ""] } },
+                      { district: { $exists: false } },
+                      { city: { $in: [null, ""] } },
+                      { city: { $exists: false } },
+                      { data_provider: { $in: [null, ""] } },
+                      { data_provider: { $exists: false } },
+                    ],
+                  },
+                ],
+              },
             ],
           },
         },
