@@ -3636,6 +3636,53 @@ const createEvent = {
       return;
     }
   },
+  getHourlySiteReadings: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+
+      const result = await createEventUtil.getHourlySiteReadings(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else {
+        res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 getHourlySiteReadings error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
 };
 
 module.exports = createEvent;

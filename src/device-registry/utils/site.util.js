@@ -1104,50 +1104,341 @@ const createSite = {
   },
   refresh: async (req, next) => {
     try {
-      logObject("the req coming in...", req);
       const { tenant, id } = req.query;
 
+      // Step 0: Fetch current site — required before any enrichment
       const siteDetails = await createSite.fetchSiteDetails(tenant, req, next);
       if (!siteDetails.success) return siteDetails;
 
-      const requestBody = createSite.prepareSiteRequestBody(
-        siteDetails.data[0],
-        tenant,
-        next,
-      );
+      const site = siteDetails.data[0];
+      const { latitude, longitude, _id: siteDbId } = site;
 
-      const airQloudsAndWeatherStations = await createSite.fetchAdditionalSiteDetails(
-        tenant,
-        id,
-        next,
-      );
-      Object.assign(requestBody, airQloudsAndWeatherStations);
+      // setFields  → written via $set  (collection.updateOne bypasses pre-hook)
+      // tagsToAdd  → written via $addToSet so existing tags are never removed
+      const setFields = {};
+      const tagsToAdd = [];
+      const stepResults = {};
 
-      // Pass the site's id in body so generateMetadata can resolve the
-      // correct data_provider from deployed devices rather than body.network.
-      const metadataResponse = await createSite.generateMetadata(
-        { query: { tenant }, body: { ...requestBody, siteId: id } },
-        next,
-      );
-
-      if (!metadataResponse.success) return metadataResponse;
-
-      const updateRequest = {
-        ...req,
-        body: { ...metadataResponse.data },
+      // Queue a scalar field only when the site is currently missing it
+      const setIfMissing = (field, value) => {
+        if (
+          value !== undefined &&
+          value !== null &&
+          value !== "" &&
+          isEmpty(site[field])
+        ) {
+          setFields[field] = value;
+        }
       };
 
-      const updateResponse = await createSite.update(updateRequest, next);
-
-      return updateResponse.success
-        ? {
-            success: true,
-            message: "Site details successfully refreshed",
-            data: updateResponse.data,
+      // ── Step 1: Local fields (no external API calls) ────────────────────────
+      try {
+        if (isEmpty(site.name)) {
+          const { name, parish, county, district } = site;
+          const avail = createSite.pickAvailableValue(
+            { name, parish, county, district },
+            next,
+          );
+          if (avail) {
+            const valid = createSite.validateSiteName(avail, next);
+            setFields.name = valid
+              ? avail
+              : createSite.sanitiseName(avail, next);
           }
-        : updateResponse;
+        }
+
+        if (
+          isEmpty(site.lat_long) &&
+          latitude !== undefined &&
+          latitude !== null &&
+          latitude !== "" &&
+          longitude !== undefined &&
+          longitude !== null &&
+          longitude !== ""
+        ) {
+          setFields.lat_long = createSite.generateLatLong(latitude, longitude);
+        }
+
+        if (isEmpty(site.generated_name)) {
+          const nameRes = await createSite.generateName(tenant, next);
+          if (nameRes && nameRes.success) {
+            setFields.generated_name = nameRes.data;
+          }
+        }
+
+        stepResults.localFields = "ok";
+      } catch (err) {
+        logger.error(
+          `refresh: localFields step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.localFields = err.message;
+      }
+
+      // ── Step 2: Reverse geocoding ───────────────────────────────────────────
+      try {
+        const geoRes = await createSite.reverseGeoCode(
+          latitude,
+          longitude,
+          next,
+        );
+        if (geoRes && geoRes.success) {
+          const geo = geoRes.data;
+          [
+            "country",
+            "district",
+            "city",
+            "region",
+            "town",
+            "village",
+            "parish",
+            "sub_county",
+            "division",
+            "street",
+            "formatted_name",
+            "google_place_id",
+            "location_name",
+            "search_name",
+            "geometry",
+          ].forEach((f) => setIfMissing(f, geo[f]));
+
+          if (Array.isArray(geo.site_tags) && geo.site_tags.length > 0) {
+            tagsToAdd.push(...geo.site_tags);
+          }
+
+          // search_name fallback when geocoder had no sublocality data
+          if (isEmpty(site.search_name) && isEmpty(setFields.search_name)) {
+            const fallback =
+              geo.town || geo.street || geo.city || geo.district;
+            if (fallback) setFields.search_name = fallback;
+          }
+
+          stepResults.geocoding = "ok";
+        } else {
+          stepResults.geocoding =
+            geoRes?.errors?.message || geoRes?.message || "failed";
+        }
+
+        // ── Description (built after geocoding so location data is available) ─
+        // Only written when the site has no description at all.
+        // Strategy: "{name}, {locality}, {country}" — each part is optional
+        // so a partial geocode still produces a useful description.
+        if (isEmpty(site.description) && isEmpty(setFields.description)) {
+          const namePart =
+            setFields.name ||
+            site.name ||
+            setFields.generated_name ||
+            site.generated_name;
+          const localityPart =
+            setFields.search_name ||
+            site.search_name ||
+            setFields.parish ||
+            site.parish ||
+            setFields.city ||
+            site.city ||
+            setFields.district ||
+            site.district;
+          const countryPart = setFields.country || site.country;
+
+          const descParts = [namePart, localityPart, countryPart].filter(
+            (p) => !isEmpty(p),
+          );
+          if (descParts.length > 0) {
+            setFields.description = descParts.join(", ");
+          }
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: geocoding step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.geocoding = err.message;
+      }
+
+      // ── Step 3: Altitude ────────────────────────────────────────────────────
+      try {
+        const altRes = await createSite.getAltitude(latitude, longitude, next);
+        if (altRes && altRes.success) {
+          setIfMissing("altitude", altRes.data);
+          stepResults.altitude = "ok";
+        } else {
+          stepResults.altitude =
+            altRes?.errors?.message || altRes?.message || "failed";
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: altitude step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.altitude = err.message;
+      }
+
+      // ── Step 4: Grid membership ─────────────────────────────────────────────
+      // Use $geoIntersects against the 2dsphere index on shape — handles both
+      // Polygon and MultiPolygon without client-side iteration or geolib.
+      // Only overwrite setFields.grids when we have at least one match; an
+      // empty result is treated as "no matching grids" rather than clearing
+      // existing memberships, in case the grids collection is empty/misconfigured.
+      try {
+        const matchedGrids = await GridModel(tenant)
+          .find({
+            shape: {
+              $geoIntersects: {
+                $geometry: {
+                  type: "Point",
+                  coordinates: [longitude, latitude],
+                },
+              },
+            },
+          })
+          .select("_id")
+          .lean();
+
+        if (matchedGrids.length > 0) {
+          setFields.grids = matchedGrids.map((g) => g._id);
+          stepResults.grids = "ok";
+        } else {
+          const hasAnyGrid = await GridModel(tenant).exists({});
+          if (!hasAnyGrid) {
+            logger.warn(
+              `refresh: grids collection appears empty for tenant ${tenant} — skipping grid assignment`,
+            );
+            stepResults.grids = "skipped (grids collection empty)";
+          } else {
+            stepResults.grids = "no matching grids for site coordinates";
+          }
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: grids step failed for site ${siteDbId}: ${err.message}`,
+        );
+        stepResults.grids = err.message;
+      }
+
+      // ── Step 5: Nearest TAHMO weather station ───────────────────────────────
+      try {
+        if (isEmpty(site.nearest_tahmo_station)) {
+          const stationsRes = await createSite.listWeatherStations(next);
+          if (stationsRes && stationsRes.success && !isEmpty(stationsRes.data)) {
+            const nearest = geolib.findNearest(
+              { latitude, longitude },
+              stationsRes.data,
+            );
+            if (nearest) {
+              setFields.nearest_tahmo_station =
+                createSite.cleanWeatherStationData(nearest);
+            }
+            stepResults.weatherStation = "ok";
+          } else {
+            stepResults.weatherStation =
+              stationsRes?.errors?.message ||
+              stationsRes?.message ||
+              "failed";
+          }
+        } else {
+          stepResults.weatherStation = "skipped (already set)";
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: weatherStation step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.weatherStation = err.message;
+      }
+
+      // ── Step 6: Data provider (always recomputed) ───────────────────────────
+      try {
+        const dataProvider = await computeSiteDataProvider(tenant, siteDbId);
+        if (dataProvider !== undefined) {
+          setFields.data_provider = dataProvider;
+        }
+        stepResults.dataProvider = "ok";
+      } catch (err) {
+        logger.error(
+          `refresh: dataProvider step failed for site ${siteDbId}: ${err.message}`,
+        );
+        stepResults.dataProvider = err.message;
+      }
+
+      // ── Step 7: Persist ─────────────────────────────────────────────────────
+      // Use collection.updateOne to bypass the Mongoose pre-hook which:
+      //   a) strips generated_name and lat_long from $set (restricted fields)
+      //   b) converts top-level grids array to $addToSet (unwanted here — we
+      //      want a full replace so stale grid memberships are removed)
+      const normalizeStepResult = (v) => {
+        if (typeof v === "string") return v;
+        if (v instanceof Error) return v.message;
+        return String(v);
+      };
+
+      const failedSteps = Object.entries(stepResults)
+        .filter(([, v]) => {
+          const s = normalizeStepResult(v);
+          return s !== "ok" && !s.startsWith("skipped");
+        })
+        .map(([k, v]) => `${k}: ${normalizeStepResult(v)}`);
+
+      const hasChanges = !isEmpty(setFields) || tagsToAdd.length > 0;
+
+      if (!hasChanges) {
+        return {
+          success: true,
+          message: failedSteps.length
+            ? `Site metadata unchanged — some enrichment steps were unsuccessful: ${failedSteps.join("; ")}`
+            : "Site metadata is already complete — nothing to update",
+          data: site,
+          status: httpStatus.OK,
+        };
+      }
+
+      const updateOp = {};
+      if (!isEmpty(setFields)) {
+        updateOp.$set = setFields;
+      }
+      if (tagsToAdd.length > 0) {
+        updateOp.$addToSet = {
+          site_tags: { $each: [...new Set(tagsToAdd)] },
+        };
+      }
+      updateOp.$currentDate = { updatedAt: true };
+
+      try {
+        await SiteModel(tenant).collection.updateOne(
+          { _id: siteDbId },
+          updateOp,
+        );
+      } catch (persistErr) {
+        if (persistErr.code === 11000) {
+          logger.error(
+            `refresh: duplicate-key conflict persisting site ${siteDbId}: ${persistErr.message}`,
+          );
+          stepResults.persist = `duplicate-key conflict: ${persistErr.message}`;
+        } else {
+          throw persistErr;
+        }
+      }
+
+      // Re-fetch so the response reflects the persisted state
+      const refreshedDetails = await createSite.fetchSiteDetails(
+        tenant,
+        req,
+        next,
+      );
+      const updatedSite =
+        refreshedDetails.success ? refreshedDetails.data[0] : site;
+
+      const allFailedSteps = Object.entries(stepResults)
+        .filter(([, v]) => {
+          const s = normalizeStepResult(v);
+          return s !== "ok" && !s.startsWith("skipped");
+        })
+        .map(([k, v]) => `${k}: ${normalizeStepResult(v)}`);
+
+      return {
+        success: true,
+        message: allFailedSteps.length
+          ? `Site partially refreshed — some steps were unsuccessful: ${allFailedSteps.join("; ")}`
+          : "Site details successfully refreshed",
+        data: updatedSite,
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logObject("util errors", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(

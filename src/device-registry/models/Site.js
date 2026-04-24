@@ -164,6 +164,18 @@ const siteSchema = new Schema(
     altitude: {
       type: Number,
     },
+    // Backfill job geocoding state. Written by backfill-site-metadata-job
+    // when Google Maps reverse geocoding returns no results for a site's
+    // coordinates. Tracked here (not in pod memory) so the state survives
+    // Kubernetes pod restarts and rolling deployments.
+    _geocodingFailedCount: {
+      type: Number,
+      default: 0,
+    },
+    _geocodingPermanentlyExcluded: {
+      type: Boolean,
+      default: false,
+    },
     distance_to_nearest_road: {
       type: Number,
       trim: true,
@@ -286,6 +298,10 @@ const siteSchema = new Schema(
       trim: true,
     },
     sub_county: {
+      type: String,
+      trim: true,
+    },
+    division: {
       type: String,
       trim: true,
     },
@@ -573,6 +589,19 @@ siteSchema.index({ isOnline: 1, search_name: 1 });
 siteSchema.index({ isOnline: 1, description: 1 });
 // Index for offline entity checks
 siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
+// Index to support $lookup from grids collection (grids._id → sites.grids)
+// Without this, every $lookup on GET /grids/summary requires a full sites
+// collection scan for each matched grid document.
+siteSchema.index({ grids: 1 });
+// Backfill job: partial index covering only documents that are NOT permanently
+// excluded (_geocodingPermanentlyExcluded != true). Using a partial index
+// avoids the inequality prefix problem — $ne: true cannot anchor a compound
+// index scan, so we filter it out at index-build time instead and keep the
+// index fields as pure range/sort keys (createdAt range + _id cursor sort).
+siteSchema.index(
+  { createdAt: 1, _id: 1 },
+  { partialFilterExpression: { _geocodingPermanentlyExcluded: { $ne: true } } },
+);
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
