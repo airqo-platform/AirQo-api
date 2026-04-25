@@ -249,6 +249,7 @@ const backfillSiteMetadata = async (tenant) => {
             { country: { $in: [null, ""] } },
             { district: { $in: [null, ""] } },
             { city: { $in: [null, ""] } },
+            { data_provider: { $in: [null, ""] } },
             // Include altitude-only gaps while the failure counter is below the
             // threshold so exhausted sites are not repeatedly selected.
             {
@@ -346,6 +347,7 @@ const backfillSiteMetadata = async (tenant) => {
                 longitude: site.longitude,
                 network: site.network || "airqo",
                 skipAltitude,
+                siteId: site._id.toString(),
               },
             },
             (err) => {
