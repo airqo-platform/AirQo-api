@@ -164,17 +164,14 @@ const siteSchema = new Schema(
     altitude: {
       type: Number,
     },
-    // Backfill job geocoding state. Written by backfill-site-metadata-job
-    // when Google Maps reverse geocoding returns no results for a site's
-    // coordinates. Tracked here (not in pod memory) so the state survives
-    // Kubernetes pod restarts and rolling deployments.
-    _geocodingFailedCount: {
+    // Tracks how many times the altitude API has failed for this site.
+    // When the count reaches ALTITUDE_FAILURE_THRESHOLD the backfill job
+    // and the refresh utility both skip the getAltitude call rather than
+    // burning API credits on a coordinate that repeatedly returns nothing.
+    // Reset to 0 whenever altitude is successfully written.
+    _altitudeFailedCount: {
       type: Number,
       default: 0,
-    },
-    _geocodingPermanentlyExcluded: {
-      type: Boolean,
-      default: false,
     },
     distance_to_nearest_road: {
       type: Number,
@@ -593,15 +590,10 @@ siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 // Without this, every $lookup on GET /grids/summary requires a full sites
 // collection scan for each matched grid document.
 siteSchema.index({ grids: 1 });
-// Backfill job: partial index covering only documents that are NOT permanently
-// excluded (_geocodingPermanentlyExcluded != true). Using a partial index
-// avoids the inequality prefix problem — $ne: true cannot anchor a compound
-// index scan, so we filter it out at index-build time instead and keep the
-// index fields as pure range/sort keys (createdAt range + _id cursor sort).
-siteSchema.index(
-  { createdAt: 1, _id: 1 },
-  { partialFilterExpression: { _geocodingPermanentlyExcluded: { $ne: true } } },
-);
+// Backfill job: equality on isOnline, cursor on _id, range on createdAt.
+// Placing _id before createdAt lets MongoDB satisfy the _id sort from the
+// index without an in-memory SORT stage.
+siteSchema.index({ isOnline: 1, _id: 1, createdAt: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
