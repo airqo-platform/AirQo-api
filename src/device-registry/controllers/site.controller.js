@@ -151,7 +151,7 @@ const siteController = {
       // already has their response and this runs outside the request lifecycle.
       if (result && result.success && result.data) {
         const site = result.data;
-        if (!site.country || !site.city || !site.district) {
+        if (!site.country || !site.city || !site.district || site.altitude == null) {
           const siteId = site._id.toString();
           if (!refreshInFlight.has(siteId)) {
             refreshInFlight.add(siteId);
