@@ -1254,16 +1254,34 @@ const createSite = {
       }
 
       // ── Step 3: Altitude ────────────────────────────────────────────────────
+      // Skip the external API call when altitude is already present, or when
+      // the per-site failure counter has reached the threshold — repeated
+      // failures against the same coordinates burn credits without result.
+      // The counter is written into setFields so it is persisted in the same
+      // updateOne batch at the end of refresh with no extra DB round-trip.
+      const ALTITUDE_FAILURE_THRESHOLD = 3;
       try {
-        const altRes = await createSite.getAltitude(latitude, longitude, next);
-        if (altRes && altRes.success) {
-          setIfMissing("altitude", altRes.data);
-          stepResults.altitude = "ok";
+        if (!isEmpty(site.altitude)) {
+          stepResults.altitude = "skipped (already present)";
+        } else if (
+          (site._altitudeFailedCount || 0) >= ALTITUDE_FAILURE_THRESHOLD
+        ) {
+          stepResults.altitude = "skipped (failure threshold exceeded)";
         } else {
-          stepResults.altitude =
-            altRes?.errors?.message || altRes?.message || "failed";
+          const altRes = await createSite.getAltitude(latitude, longitude, next);
+          if (altRes && altRes.success) {
+            setIfMissing("altitude", altRes.data);
+            setFields._altitudeFailedCount = 0;
+            stepResults.altitude = "ok";
+          } else {
+            setFields._altitudeFailedCount =
+              (site._altitudeFailedCount || 0) + 1;
+            stepResults.altitude =
+              altRes?.errors?.message || altRes?.message || "failed";
+          }
         }
       } catch (err) {
+        setFields._altitudeFailedCount = (site._altitudeFailedCount || 0) + 1;
         logger.error(
           `refresh: altitude step failed for site ${id}: ${err.message}`,
         );
