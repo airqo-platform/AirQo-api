@@ -178,6 +178,18 @@ const siteController = {
                   logger.warn(
                     `background refresh failed for site ${siteId}: ${refreshResult.message || "unknown error"}`,
                   );
+                } else if (
+                  refreshResult &&
+                  refreshResult.success &&
+                  !refreshResult.data?.data_provider
+                ) {
+                  // Refresh completed but data_provider is still null — the site
+                  // has no active device and no network field. It will re-trigger
+                  // every REFRESH_TTL_MS with the same result. Log once per TTL
+                  // window so the data team can identify and fix stuck sites.
+                  logger.warn(
+                    `background refresh: data_provider still null for site ${siteId} [reason: no-active-device-no-network]`,
+                  );
                 }
               } catch (err) {
                 logger.warn(

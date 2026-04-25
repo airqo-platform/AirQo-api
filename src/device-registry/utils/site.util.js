@@ -114,13 +114,14 @@ const getSiteCountSummary = async (request, next) => {
 };
 
 /**
- * Derives a display-ready data_provider string from the networks of all
- * devices currently deployed at a given site.
+ * Derives a display-ready data_provider string for a site.
  *
  * Rules:
- *   - No devices at the site → returns null (callers such as refreshSiteDataProvider() should clear any stale stored value)
- *   - Single network       → e.g. "AIRQO"
- *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
+ *   - Active devices found  → map each device's network through DATA_PROVIDER_MAPPINGS,
+ *                             deduplicate, sort, and join (e.g. "AIRQO / METONE")
+ *   - No active devices     → fall back to the site's own network field via
+ *                             DATA_PROVIDER_MAPPINGS (covers recalled-device sites)
+ *   - No active devices AND no site.network → returns null
  *
  * @param {string}   tenant  - The tenant identifier
  * @param {ObjectId} siteId  - The site whose devices will be queried
@@ -143,7 +144,7 @@ const computeSiteDataProvider = async (tenant, siteId) => {
         .select("network")
         .lean();
       if (!site || !site.network) return null;
-      const label = constants.DATA_PROVIDER_MAPPINGS(site.network.trim());
+      const label = constants.DATA_PROVIDER_MAPPINGS(site.network);
       return label || null;
     }
 
