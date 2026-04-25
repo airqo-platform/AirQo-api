@@ -492,10 +492,17 @@ const createCohort = {
         };
       }
 
-      const protectedNames = (
-        constants.PROTECTED_COHORT_NAMES || [constants.DEFAULT_COHORT_NAME]
-      ).map((n) => n.toLowerCase());
-      if (response.name && protectedNames.includes(response.name.toLowerCase())) {
+      const normalizeCohortName = (name) =>
+        typeof name === "string" ? name.trim().toLowerCase() : "";
+      const protectedNames = [
+        ...new Set(
+          (constants.PROTECTED_COHORT_NAMES || [constants.DEFAULT_COHORT_NAME])
+            .map((n) => normalizeCohortName(String(n)))
+            .filter((n) => n !== ""),
+        ),
+      ];
+      const normalizedResponseName = normalizeCohortName(response.name);
+      if (normalizedResponseName && protectedNames.includes(normalizedResponseName)) {
         return {
           success: false,
           status: httpStatus.FORBIDDEN,

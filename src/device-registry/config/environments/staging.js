@@ -15,9 +15,9 @@ const stageConfig = {
   PROTECTED_COHORT_NAMES: [
     "airqo",
     ...(process.env.STAGE_PROTECTED_COHORT_NAMES
-      ? process.env.STAGE_PROTECTED_COHORT_NAMES.split(",").filter(
-          (v) => v.trim() !== "",
-        )
+      ? process.env.STAGE_PROTECTED_COHORT_NAMES.split(",")
+          .map((v) => v.trim().toLowerCase())
+          .filter((v) => v !== "")
       : []),
   ],
   MONGO_URI: process.env.MONGO_URI_STAGE,
