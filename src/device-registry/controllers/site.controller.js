@@ -151,44 +151,56 @@ const siteController = {
       // already has their response and this runs outside the request lifecycle.
       if (result && result.success && result.data) {
         const site = result.data;
-        if (
+        const needsGeocoding =
           !site.country ||
           !site.city ||
           !site.district ||
-          site.altitude == null ||
-          !site.data_provider
-        ) {
+          site.altitude == null;
+        const needsDataProvider = !site.data_provider;
+
+        if (needsGeocoding || needsDataProvider) {
           const siteId = site._id.toString();
           if (!refreshInFlight.has(siteId)) {
             refreshInFlight.add(siteId);
             setTimeout(() => refreshInFlight.delete(siteId), REFRESH_TTL_MS);
             setImmediate(async () => {
               try {
-                const refreshResult = await siteUtil.refresh(
-                  { query: { id: siteId, tenant: req.query.tenant } },
-                  (err) => {
-                    if (err) {
-                      logger.warn(
-                        `background refresh failed for site ${siteId}: ${err.message}`,
-                      );
-                    }
-                  },
-                );
-                if (refreshResult && refreshResult.success === false) {
-                  logger.warn(
-                    `background refresh failed for site ${siteId}: ${refreshResult.message || "unknown error"}`,
+                if (needsGeocoding) {
+                  // Full refresh — reverse-geocoding, altitude, and data_provider.
+                  const refreshResult = await siteUtil.refresh(
+                    { query: { id: siteId, tenant: req.query.tenant } },
+                    (err) => {
+                      if (err) {
+                        logger.warn(
+                          `background refresh failed for site ${siteId}: ${err.message}`,
+                        );
+                      }
+                    },
                   );
-                } else if (
-                  refreshResult &&
-                  refreshResult.success &&
-                  !refreshResult.data?.data_provider
-                ) {
-                  // Refresh completed but data_provider is still null — the site
-                  // has no active device and no network field. It will re-trigger
-                  // every REFRESH_TTL_MS with the same result. Log once per TTL
-                  // window so the data team can identify and fix stuck sites.
-                  logger.warn(
-                    `background refresh: data_provider still null for site ${siteId} [reason: no-active-device-no-network]`,
+                  if (refreshResult && refreshResult.success === false) {
+                    logger.warn(
+                      `background refresh failed for site ${siteId}: ${refreshResult.message || "unknown error"}`,
+                    );
+                  } else if (
+                    refreshResult &&
+                    refreshResult.success &&
+                    !refreshResult.data?.data_provider
+                  ) {
+                    // Refresh completed but data_provider is still null — the site
+                    // has no active device and no network field. It will re-trigger
+                    // every REFRESH_TTL_MS with the same result. Log once per TTL
+                    // window so the data team can identify and fix stuck sites.
+                    logger.warn(
+                      `background refresh: data_provider still null for site ${siteId} [reason: no-active-device-no-network]`,
+                    );
+                  }
+                } else {
+                  // Only data_provider is missing — skip reverse-geocoding entirely.
+                  // refreshSiteDataProvider calls computeSiteDataProvider which falls
+                  // back to site.network, so no external API calls are made.
+                  await siteUtil.refreshSiteDataProvider(
+                    req.query.tenant,
+                    siteId,
                   );
                 }
               } catch (err) {
