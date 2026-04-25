@@ -50,13 +50,12 @@ try {
 }
 
 // Run startup migrations
-// const runStartupMigrations = require("@bin/jobs/run-migrations");
-// runStartupMigrations().catch((error) => {
-//   // Use deduplicated logger for critical startup errors
-//   global.dedupLogger.error(
-//     `🐛🐛 Failed to run startup migrations: ${error.message}`
-//   );
-// });
+const runStartupMigrations = require("@bin/jobs/run-migrations");
+runStartupMigrations().catch((error) => {
+  global.dedupLogger.error(
+    `🐛🐛 Failed to run startup migrations: ${error.message}`,
+  );
+});
 
 const morgan = require("morgan");
 const compression = require("compression");

@@ -11,6 +11,12 @@ const siteUtil = require("@utils/site.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-controller`);
+
+// Dedupe guard: prevents concurrent background refreshes for the same site.
+// TTL matches the minimum meaningful geocoding gap — no point re-enqueuing a
+// site that was just refreshed within the last 5 minutes.
+const REFRESH_TTL_MS = 5 * 60 * 1000;
+const refreshInFlight = new Set();
 function handleResponse({
   result,
   key = "data",
@@ -139,6 +145,43 @@ const siteController = {
       const result = await siteUtil.getSiteById(req, next);
 
       handleResponse({ result, res });
+
+      // After the response is sent, trigger a background refresh when the
+      // site is missing key geocoding fields. Fire-and-forget: the caller
+      // already has their response and this runs outside the request lifecycle.
+      if (result && result.success && result.data) {
+        const site = result.data;
+        if (!site.country || !site.city || !site.district) {
+          const siteId = site._id.toString();
+          if (!refreshInFlight.has(siteId)) {
+            refreshInFlight.add(siteId);
+            setTimeout(() => refreshInFlight.delete(siteId), REFRESH_TTL_MS);
+            setImmediate(async () => {
+              try {
+                const refreshResult = await siteUtil.refresh(
+                  { query: { id: siteId, tenant: req.query.tenant } },
+                  (err) => {
+                    if (err) {
+                      logger.warn(
+                        `background refresh failed for site ${siteId}: ${err.message}`,
+                      );
+                    }
+                  },
+                );
+                if (refreshResult && refreshResult.success === false) {
+                  logger.warn(
+                    `background refresh failed for site ${siteId}: ${refreshResult.message || "unknown error"}`,
+                  );
+                }
+              } catch (err) {
+                logger.warn(
+                  `background refresh threw for site ${siteId}: ${err.message}`,
+                );
+              }
+            });
+          }
+        }
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
