@@ -134,7 +134,18 @@ const computeSiteDataProvider = async (tenant, siteId) => {
       .select("network")
       .lean();
 
-    if (!devices || devices.length === 0) return null;
+    if (!devices || devices.length === 0) {
+      // No active (deployed) device at this site — fall back to the site's own
+      // network field. This covers recalled-device sites: the device is gone
+      // but the site still belongs to the same organisation.
+      const site = await SiteModel(tenant)
+        .findById(siteId)
+        .select("network")
+        .lean();
+      if (!site || !site.network) return null;
+      const label = constants.DATA_PROVIDER_MAPPINGS(site.network.trim());
+      return label || null;
+    }
 
     // Step 1: map raw network ids → display labels via the mapping fn.
     // Step 2: filter out any unmappable values.
@@ -179,9 +190,8 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
     const SiteModel = require("@models/Site");
     const dataProvider = await computeSiteDataProvider(tenant, siteId);
 
-    // Write the result unconditionally:
-    // - non-null  → sets the correct derived value
-    // - null      → clears a stale value when the last device is recalled
+    // Write the result unconditionally. null is only possible if the site
+    // document has no network field, which should not happen in practice.
     await SiteModel(tenant).findByIdAndUpdate(
       siteId,
       { $set: { data_provider: dataProvider } },
