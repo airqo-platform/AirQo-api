@@ -1670,6 +1670,7 @@ UserSchema.methods = {
       loginCount: this.loginCount,
       timezone: this.timezone,
       cohorts: this.cohorts,
+      cohort_ids: this.cohorts,
     };
   },
 };
