@@ -249,6 +249,15 @@ const backfillSiteMetadata = async (tenant) => {
             { country: { $in: [null, ""] } },
             { district: { $in: [null, ""] } },
             { city: { $in: [null, ""] } },
+            // Include altitude-only gaps while the failure counter is below the
+            // threshold so exhausted sites are not repeatedly selected.
+            {
+              altitude: null,
+              $or: [
+                { _altitudeFailedCount: { $exists: false } },
+                { _altitudeFailedCount: { $lt: ALTITUDE_FAILURE_THRESHOLD } },
+              ],
+            },
           ],
         },
         null,

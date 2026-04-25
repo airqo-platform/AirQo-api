@@ -189,6 +189,7 @@ class ProjectionFactory {
           generated_name: 1,
           county: 1,
           altitude: 1,
+          _altitudeFailedCount: 1,
           greenness: 1,
           landform_270: 1,
           landform_90: 1,

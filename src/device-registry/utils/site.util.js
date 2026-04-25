@@ -199,6 +199,12 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
   }
 };
 
+// After this many consecutive altitude failures for a single site neither the
+// backfill job nor the refresh utility will call getAltitude for that site,
+// preventing repeated credit burn on coordinates that consistently return nothing.
+// Reset to 0 whenever altitude is successfully written.
+const ALTITUDE_FAILURE_THRESHOLD = 3;
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -1259,9 +1265,10 @@ const createSite = {
       // failures against the same coordinates burn credits without result.
       // The counter is written into setFields so it is persisted in the same
       // updateOne batch at the end of refresh with no extra DB round-trip.
-      const ALTITUDE_FAILURE_THRESHOLD = 3;
+      // Uses explicit null/undefined check so a valid sea-level altitude of 0
+      // is not treated as missing.
       try {
-        if (!isEmpty(site.altitude)) {
+        if (site.altitude != null) {
           stepResults.altitude = "skipped (already present)";
         } else if (
           (site._altitudeFailedCount || 0) >= ALTITUDE_FAILURE_THRESHOLD
