@@ -490,14 +490,26 @@ const createCohort = {
           message: "Bad Request Error",
           errors: { message: "Invalid Cohort ID provided" },
         };
-      } else {
+      }
+
+      const protectedNames = (
+        constants.PROTECTED_COHORT_NAMES || [constants.DEFAULT_COHORT_NAME]
+      ).map((n) => n.toLowerCase());
+      if (response.name && protectedNames.includes(response.name.toLowerCase())) {
         return {
-          success: true,
-          status: httpStatus.OK,
-          message: "Cohort ID is Valid!!",
-          data: response, // Directly return the cohort object
+          success: false,
+          status: httpStatus.FORBIDDEN,
+          message: "Forbidden",
+          errors: { message: "This cohort is not available for assignment" },
         };
       }
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        message: "Cohort ID is Valid!!",
+        data: response,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

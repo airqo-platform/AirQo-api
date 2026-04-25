@@ -11,6 +11,14 @@ const prodConfig = {
   API_TOKEN: process.env.PROD_API_TOKEN,
   API_BASE_URL: process.env.PROD_API_BASE_URL,
   DEFAULT_COHORT: process.env.PROD_DEFAULT_COHORT,
+  PROTECTED_COHORT_NAMES: [
+    "airqo",
+    ...(process.env.PROD_PROTECTED_COHORT_NAMES
+      ? process.env.PROD_PROTECTED_COHORT_NAMES.split(",").filter(
+          (v) => v.trim() !== "",
+        )
+      : []),
+  ],
   MONGO_URI: process.env.MONGO_URI_PROD,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_PROD,
   QUERY_MONGO_URI: process.env.QUERY_MONGO_URI_PROD,
