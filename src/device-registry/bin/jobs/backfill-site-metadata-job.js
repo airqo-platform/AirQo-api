@@ -24,6 +24,11 @@ const BATCH_SIZE = 30;
 // Hard cap on total geocoding attempts per run. Sites are processed in
 // BATCH_SIZE chunks; the job stops once this many have been attempted.
 const MAX_GEOCODING_ATTEMPTS_PER_RUN = 300;
+// After this many consecutive altitude failures for a single site, the job
+// skips the getAltitude API call for that site rather than burning credits
+// on coordinates that repeatedly return nothing. The counter resets to 0
+// whenever altitude is successfully written.
+const ALTITUDE_FAILURE_THRESHOLD = 3;
 const JOB_NAME = "backfill-site-metadata";
 const LOCK_TTL_SECONDS = 90 * 60; // 90 minutes
 const POD_ID = process.env.HOSTNAME || os.hostname();
@@ -193,7 +198,14 @@ const GEOCODED_FIELDS = [
   "search_name",
   "data_provider",
   "site_tags",
+  "altitude",
 ];
+
+// Fields in GEOCODED_FIELDS that are NOT altitude — used to decide whether
+// altitude is the sole reason a site needs geocoding.
+const NON_ALTITUDE_GEOCODED_FIELDS = GEOCODED_FIELDS.filter(
+  (f) => f !== "altitude",
+);
 
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
@@ -237,6 +249,15 @@ const backfillSiteMetadata = async (tenant) => {
             { country: { $in: [null, ""] } },
             { district: { $in: [null, ""] } },
             { city: { $in: [null, ""] } },
+            // Include altitude-only gaps while the failure counter is below the
+            // threshold so exhausted sites are not repeatedly selected.
+            {
+              altitude: null,
+              $or: [
+                { _altitudeFailedCount: { $exists: false } },
+                { _altitudeFailedCount: { $lt: ALTITUDE_FAILURE_THRESHOLD } },
+              ],
+            },
           ],
         },
         null,
@@ -289,17 +310,34 @@ const backfillSiteMetadata = async (tenant) => {
           }
 
           // Step 2: Skip geocoding if all missing fields were local-only.
-          const needsGeocoding = GEOCODED_FIELDS.some((field) => {
-            const v = site[field];
-            return v === undefined || v === null || v === "";
-          });
+          const isMissing = (v) => v === undefined || v === null || v === "";
+          const needsGeocoding = GEOCODED_FIELDS.some((f) => isMissing(site[f]));
 
           if (!needsGeocoding) {
             sitesProcessed++;
             continue;
           }
 
-          // Step 3: Reverse geocode. Altitude skipped to control API costs.
+          // If altitude is the only missing geocoded field and this site has
+          // already exceeded the failure threshold, count it as done rather
+          // than burning an API credit on a coordinate that repeatedly fails.
+          const altitudeExhausted =
+            (site._altitudeFailedCount || 0) >= ALTITUDE_FAILURE_THRESHOLD;
+          const needsNonAltitudeGeocoding = NON_ALTITUDE_GEOCODED_FIELDS.some(
+            (f) => isMissing(site[f]),
+          );
+
+          if (!needsNonAltitudeGeocoding && altitudeExhausted) {
+            sitesProcessed++;
+            continue;
+          }
+
+          // Step 3: Reverse geocode + altitude.
+          // Skip the altitude API call for sites whose failure counter is at
+          // the threshold — still geocode the other missing fields normally.
+          const altitudeNeeded = isMissing(site.altitude);
+          const skipAltitude = !altitudeNeeded || altitudeExhausted;
+
           const metadataResponse = await createSiteUtil.generateMetadata(
             {
               query: { tenant },
@@ -307,7 +345,7 @@ const backfillSiteMetadata = async (tenant) => {
                 latitude: site.latitude,
                 longitude: site.longitude,
                 network: site.network || "airqo",
-                skipAltitude: true,
+                skipAltitude,
               },
             },
             (err) => {
@@ -335,6 +373,7 @@ const backfillSiteMetadata = async (tenant) => {
               search_name,
               data_provider,
               site_tags,
+              altitude,
               description,
             } = metadataResponse.data;
 
@@ -357,12 +396,26 @@ const backfillSiteMetadata = async (tenant) => {
               search_name,
               data_provider,
               site_tags,
+              altitude,
               description: description || site.name || undefined,
             });
 
-            if (Object.keys(missingFields).length > 0) {
+            // Track altitude success/failure so future runs can skip the
+            // getAltitude call for coordinates that consistently return nothing.
+            const altitudeTracker = {};
+            if (altitudeNeeded && !skipAltitude) {
+              if (missingFields.altitude !== undefined) {
+                altitudeTracker._altitudeFailedCount = 0;
+              } else {
+                altitudeTracker._altitudeFailedCount =
+                  (site._altitudeFailedCount || 0) + 1;
+              }
+            }
+
+            const allUpdates = { ...missingFields, ...altitudeTracker };
+            if (Object.keys(allUpdates).length > 0) {
               await SiteModel(tenant).findByIdAndUpdate(site._id, {
-                $set: missingFields,
+                $set: allUpdates,
               });
             }
             sitesProcessed++;

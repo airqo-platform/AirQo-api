@@ -199,6 +199,12 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
   }
 };
 
+// After this many consecutive altitude failures for a single site neither the
+// backfill job nor the refresh utility will call getAltitude for that site,
+// preventing repeated credit burn on coordinates that consistently return nothing.
+// Reset to 0 whenever altitude is successfully written.
+const ALTITUDE_FAILURE_THRESHOLD = 3;
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -1254,16 +1260,35 @@ const createSite = {
       }
 
       // ── Step 3: Altitude ────────────────────────────────────────────────────
+      // Skip the external API call when altitude is already present, or when
+      // the per-site failure counter has reached the threshold — repeated
+      // failures against the same coordinates burn credits without result.
+      // The counter is written into setFields so it is persisted in the same
+      // updateOne batch at the end of refresh with no extra DB round-trip.
+      // Uses explicit null/undefined check so a valid sea-level altitude of 0
+      // is not treated as missing.
       try {
-        const altRes = await createSite.getAltitude(latitude, longitude, next);
-        if (altRes && altRes.success) {
-          setIfMissing("altitude", altRes.data);
-          stepResults.altitude = "ok";
+        if (site.altitude != null) {
+          stepResults.altitude = "skipped (already present)";
+        } else if (
+          (site._altitudeFailedCount || 0) >= ALTITUDE_FAILURE_THRESHOLD
+        ) {
+          stepResults.altitude = "skipped (failure threshold exceeded)";
         } else {
-          stepResults.altitude =
-            altRes?.errors?.message || altRes?.message || "failed";
+          const altRes = await createSite.getAltitude(latitude, longitude, next);
+          if (altRes && altRes.success) {
+            setIfMissing("altitude", altRes.data);
+            setFields._altitudeFailedCount = 0;
+            stepResults.altitude = "ok";
+          } else {
+            setFields._altitudeFailedCount =
+              (site._altitudeFailedCount || 0) + 1;
+            stepResults.altitude =
+              altRes?.errors?.message || altRes?.message || "failed";
+          }
         }
       } catch (err) {
+        setFields._altitudeFailedCount = (site._altitudeFailedCount || 0) + 1;
         logger.error(
           `refresh: altitude step failed for site ${id}: ${err.message}`,
         );

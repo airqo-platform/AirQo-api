@@ -164,6 +164,15 @@ const siteSchema = new Schema(
     altitude: {
       type: Number,
     },
+    // Tracks how many times the altitude API has failed for this site.
+    // When the count reaches ALTITUDE_FAILURE_THRESHOLD the backfill job
+    // and the refresh utility both skip the getAltitude call rather than
+    // burning API credits on a coordinate that repeatedly returns nothing.
+    // Reset to 0 whenever altitude is successfully written.
+    _altitudeFailedCount: {
+      type: Number,
+      default: 0,
+    },
     distance_to_nearest_road: {
       type: Number,
       trim: true,
