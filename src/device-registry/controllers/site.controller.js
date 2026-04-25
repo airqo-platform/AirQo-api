@@ -139,6 +139,33 @@ const siteController = {
       const result = await siteUtil.getSiteById(req, next);
 
       handleResponse({ result, res });
+
+      // After the response is sent, trigger a background refresh when the
+      // site is missing key geocoding fields. Fire-and-forget: the caller
+      // already has their response and this runs outside the request lifecycle.
+      if (result && result.success && result.data) {
+        const site = result.data;
+        if (!site.country || !site.city || !site.district) {
+          setImmediate(async () => {
+            try {
+              await siteUtil.refresh(
+                { query: { id: site._id.toString(), tenant: req.query.tenant } },
+                (err) => {
+                  if (err) {
+                    logger.warn(
+                      `background refresh failed for site ${site._id}: ${err.message}`,
+                    );
+                  }
+                },
+              );
+            } catch (err) {
+              logger.warn(
+                `background refresh threw for site ${site._id}: ${err.message}`,
+              );
+            }
+          });
+        }
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

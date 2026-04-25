@@ -20,17 +20,10 @@ const jobLogger = log4js.getLogger(
 const createSiteUtil = require("@utils/site.util");
 const os = require("os");
 
-const BATCH_SIZE = 100;
-// Hard cap on total sites geocoded per run to control Google Maps API costs.
-// Sites are processed in BATCH_SIZE chunks; the job stops once this many
-// sites have been attempted regardless of how many remain.
+const BATCH_SIZE = 30;
+// Hard cap on total geocoding attempts per run. Sites are processed in
+// BATCH_SIZE chunks; the job stops once this many have been attempted.
 const MAX_GEOCODING_ATTEMPTS_PER_RUN = 300;
-// A single geocoding failure permanently excludes the site from this automated
-// job. Coordinates that cannot be resolved (bad GPS, water, sparse coverage)
-// are unlikely to resolve on a retry, and re-attempting wastes API credits.
-// Manual refresh via the site-refresh endpoint is still available for one-off
-// corrections and is not affected by this limit.
-const MAX_GEOCODING_FAILURES = 1;
 const JOB_NAME = "backfill-site-metadata";
 const LOCK_TTL_SECONDS = 90 * 60; // 90 minutes
 const POD_ID = process.env.HOSTNAME || os.hostname();
@@ -182,10 +175,24 @@ const repairGeneratedName = async (tenant, site) => {
 // Defined once at module level — avoids recreating this array for every
 // site in every batch during the job run.
 const GEOCODED_FIELDS = [
-  "country", "district", "city", "region", "town", "village",
-  "parish", "county", "sub_county", "division", "street",
-  "formatted_name", "geometry", "google_place_id", "location_name",
-  "search_name", "data_provider", "site_tags",
+  "country",
+  "district",
+  "city",
+  "region",
+  "town",
+  "village",
+  "parish",
+  "county",
+  "sub_county",
+  "division",
+  "street",
+  "formatted_name",
+  "geometry",
+  "google_place_id",
+  "location_name",
+  "search_name",
+  "data_provider",
+  "site_tags",
 ];
 
 const backfillSiteMetadata = async (tenant) => {
@@ -203,26 +210,15 @@ const backfillSiteMetadata = async (tenant) => {
     // using an indexed range scan on _id.
     let lastProcessedId = null;
 
-    // Primary cost-control filter: only sites created in the last 30 days.
-    // Older sites are either already complete, permanently excluded, or
-    // were deployed without devices and remain orphaned.
+    // Guards: online sites created in the last 30 days only.
+    // isOnline: true implies an active deployed device — no separate device
+    // lookup needed. Older sites are expected to be complete already.
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    // Hard ceiling on the number of batches regardless of candidate set size.
-    // Derived from the per-run cap so it is always consistent: even if the
-    // cap check inside the loop is somehow skipped, this prevents an infinite
-    // loop. The +1 accounts for a partial final batch.
-    const MAX_BATCHES = Math.ceil(MAX_GEOCODING_ATTEMPTS_PER_RUN / BATCH_SIZE) + 1;
+    const MAX_BATCHES =
+      Math.ceil(MAX_GEOCODING_ATTEMPTS_PER_RUN / BATCH_SIZE) + 1;
     let batchesRun = 0;
 
-    // Three explicit termination conditions in the while guard — no hidden
-    // breaks needed for the primary exit paths:
-    //   1. batchesRun < MAX_BATCHES  — hard structural ceiling (safety net)
-    //   2. sitesProcessed + sitesFailedCount < MAX_GEOCODING_ATTEMPTS_PER_RUN
-    //      — per-run cost cap
-    // The third condition (natural exhaustion) is handled by breaking when
-    // sitesToUpdate.length === 0, since an empty result cannot be expressed
-    // as a pre-condition without an extra query.
     while (
       batchesRun < MAX_BATCHES &&
       sitesProcessed + sitesFailedCount < MAX_GEOCODING_ATTEMPTS_PER_RUN
@@ -230,103 +226,37 @@ const backfillSiteMetadata = async (tenant) => {
       batchesRun++;
       const idCursor = lastProcessedId ? { _id: { $gt: lastProcessedId } } : {};
 
-      // Single aggregation pipeline replacing the previous two-query + merge
-      // approach. Key design decisions:
-      //
-      // 1. $match first with the 30-day + exclusion + cursor filters —
-      //    MongoDB can use compound indexes on (createdAt, _id) to satisfy
-      //    this cheaply before touching any other stage.
-      //
-      // 2. $lookup on "devices" happens BEFORE $limit so that BATCH_SIZE
-      //    reflects sites-with-devices, not raw candidates. The 30-day
-      //    filter keeps the pre-lookup set small so this is not expensive.
-      //
-      // 3. $lookup uses a correlated sub-pipeline with $limit:1 — MongoDB
-      //    stops scanning devices as soon as one match is found per site.
-      //    No site IDs are loaded into pod memory.
-      //
-      // 4. Cursor advances by the last _id that passed all filters, so
-      //    sites without devices are skipped cleanly without being added
-      //    to any in-memory exclusion list.
-      const sitesToUpdate = await SiteModel(tenant).aggregate([
+      const sitesToUpdate = await SiteModel(tenant).find(
         {
-          $match: {
-            createdAt: { $gte: thirtyDaysAgo },
-            _geocodingPermanentlyExcluded: { $ne: true },
-            ...idCursor,
-            $or: [
-              // Branch A: local-only missing fields — no API call needed,
-              // so these are always retried regardless of geocoding history.
-              { generated_name: { $in: [null, ""] } },
-              { generated_name: { $exists: false } },
-              { search_name: { $in: [null, ""] } },
-              { search_name: { $exists: false } },
-              { description: { $in: [null, ""] } },
-              { description: { $exists: false } },
-              // Branch B: geocoded missing fields — only attempt for sites
-              // that have NEVER been geocoded before (_geocodingFailedCount
-              // absent or 0). A single past failure is treated as permanent
-              // for this automated job; manual refresh remains available.
-              {
-                $and: [
-                  {
-                    $or: [
-                      { _geocodingFailedCount: { $exists: false } },
-                      { _geocodingFailedCount: 0 },
-                    ],
-                  },
-                  {
-                    $or: [
-                      { country: { $in: [null, ""] } },
-                      { country: { $exists: false } },
-                      { district: { $in: [null, ""] } },
-                      { district: { $exists: false } },
-                      { city: { $in: [null, ""] } },
-                      { city: { $exists: false } },
-                      { data_provider: { $in: [null, ""] } },
-                      { data_provider: { $exists: false } },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
+          isOnline: true,
+          createdAt: { $gte: thirtyDaysAgo },
+          ...idCursor,
+          $or: [
+            { generated_name: { $in: [null, ""] } },
+            { generated_name: { $exists: false } },
+            { description: { $in: [null, ""] } },
+            { description: { $exists: false } },
+            { country: { $in: [null, ""] } },
+            { country: { $exists: false } },
+            { district: { $in: [null, ""] } },
+            { district: { $exists: false } },
+            { city: { $in: [null, ""] } },
+            { city: { $exists: false } },
+          ],
         },
-        { $sort: { _id: 1 } },
-        {
-          $lookup: {
-            from: "devices",
-            let: { siteId: "$_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
-              { $limit: 1 },
-              { $project: { _id: 1 } },
-            ],
-            as: "_deviceCheck",
-          },
-        },
-        // Discard sites with no devices — orphaned/undeployed sites must
-        // not consume geocoding quota.
-        { $match: { _deviceCheck: { $ne: [] } } },
-        { $unset: "_deviceCheck" },
-        { $limit: BATCH_SIZE },
-      ]);
+        null,
+        { sort: { _id: 1 }, limit: BATCH_SIZE, lean: true },
+      );
 
       if (sitesToUpdate.length === 0) break;
 
-      // Advance cursor to the last _id in this batch.
       lastProcessedId = sitesToUpdate[sitesToUpdate.length - 1]._id;
 
-      // Process sites sequentially — one Google Maps API call at a time.
-      // This is a nightly job where throughput latency is irrelevant but
-      // API cost and rate-limit safety are critical. Parallel execution
-      // (Promise.allSettled) would fire up to BATCH_SIZE concurrent requests,
-      // risking quota violations and inflating cost even on failures.
+      // Sequential processing — one geocoding call at a time to stay within
+      // API rate limits and keep costs predictable across 3 daily runs.
       for (const site of sitesToUpdate) {
         try {
-          // Step 1: Local-only repairs — generated_name and description.
-          // No external API calls. Sites needing only these repairs never
-          // reach the Google Maps call below.
+          // Step 1: Local-only repairs — no external API calls.
           if (!site.generated_name) {
             const repairedName = await repairGeneratedName(tenant, site);
             if (repairedName) {
@@ -351,24 +281,19 @@ const backfillSiteMetadata = async (tenant) => {
               },
               { $set: { description: site.name } },
             );
-            if (!descWriteResult) {
-              logger.error(
-                `[${POD_ID}] collection.updateOne returned no result for description on site ${site._id}`,
-              );
-            } else if (descWriteResult.matchedCount === 0) {
+            if (descWriteResult && descWriteResult.matchedCount === 0) {
               const current = await SiteModel(tenant)
                 .findById(site._id)
                 .select("description")
                 .lean();
               if (current && current.description)
                 site.description = current.description;
-            } else {
+            } else if (descWriteResult) {
               site.description = site.name;
             }
           }
 
-          // Step 2: Skip Google Maps call if all missing fields were local
-          // and have now been repaired. Altitude is permanently excluded.
+          // Step 2: Skip geocoding if all missing fields were local-only.
           const needsGeocoding = GEOCODED_FIELDS.some((field) => {
             const v = site[field];
             return v === undefined || v === null || v === "";
@@ -379,15 +304,7 @@ const backfillSiteMetadata = async (tenant) => {
             continue;
           }
 
-          // Flag used by the outer catch to distinguish geocoding errors from
-          // local-repair errors. Only geocoding failures should increment the
-          // persistent failure counter — a transient DB error in Steps 1-2
-          // must not permanently exclude a valid site.
-          let attemptedGeocoding = false;
-
-          // Step 3: Reverse geocode. Altitude permanently skipped — the
-          // Elevation API was the primary driver of runaway API costs.
-          attemptedGeocoding = true;
+          // Step 3: Reverse geocode. Altitude skipped to control API costs.
           const metadataResponse = await createSiteUtil.generateMetadata(
             {
               query: { tenant },
@@ -398,21 +315,52 @@ const backfillSiteMetadata = async (tenant) => {
                 skipAltitude: true,
               },
             },
-            (err) => { throw err; },
+            (err) => {
+              throw err;
+            },
           );
 
           if (metadataResponse.success) {
             const {
-              country, district, city, region, town, village, parish, county,
-              sub_county, division, street, formatted_name, geometry,
-              google_place_id, location_name, search_name, data_provider,
-              site_tags, description,
+              country,
+              district,
+              city,
+              region,
+              town,
+              village,
+              parish,
+              county,
+              sub_county,
+              division,
+              street,
+              formatted_name,
+              geometry,
+              google_place_id,
+              location_name,
+              search_name,
+              data_provider,
+              site_tags,
+              description,
             } = metadataResponse.data;
 
             const missingFields = buildMissingFieldsUpdate(site, {
-              country, district, city, region, town, village, parish, county,
-              sub_county, division, street, formatted_name, geometry,
-              google_place_id, location_name, search_name, data_provider,
+              country,
+              district,
+              city,
+              region,
+              town,
+              village,
+              parish,
+              county,
+              sub_county,
+              division,
+              street,
+              formatted_name,
+              geometry,
+              google_place_id,
+              location_name,
+              search_name,
+              data_provider,
               site_tags,
               description: description || site.name || undefined,
             });
@@ -424,68 +372,29 @@ const backfillSiteMetadata = async (tenant) => {
             }
             sitesProcessed++;
           } else {
-            // Geocoding failure — bad GPS, sparse Maps coverage, or water.
-            // Not a job crash: downgraded to warn.
             logger.warn(
-              `[${POD_ID}] Geocoding returned no results for site ${site.name}: ${metadataResponse.message}`,
+              `[${POD_ID}] Geocoding failed for site ${site.name} (${site._id}): ${metadataResponse.message}`,
             );
-            // Increment failure counter. At MAX_GEOCODING_FAILURES the site
-            // is permanently excluded — written to the schema field in MongoDB,
-            // survives pod restarts and rolling deployments.
-            const newCount = (site._geocodingFailedCount || 0) + 1;
-            const stampFields = { _geocodingFailedCount: newCount };
-            if (newCount >= MAX_GEOCODING_FAILURES) {
-              stampFields._geocodingPermanentlyExcluded = true;
-              logger.warn(
-                `[${POD_ID}] Site ${site.name} (${site._id}) permanently excluded after ${newCount} failed geocoding attempts.`,
-              );
-            }
-            await SiteModel(tenant).findByIdAndUpdate(site._id, {
-              $set: stampFields,
-            });
             sitesFailedCount++;
           }
         } catch (error) {
           logger.error(
             `[${POD_ID}] Error processing site ${site._id}: ${error.message}`,
           );
-          // Only stamp the geocoding failure counter if the error was thrown
-          // during Step 3. Errors from Steps 1-2 (local DB repairs) are
-          // transient and must not permanently exclude a valid site.
-          if (attemptedGeocoding) {
-            try {
-              const newCount = (site._geocodingFailedCount || 0) + 1;
-              const stampFields = { _geocodingFailedCount: newCount };
-              if (newCount >= MAX_GEOCODING_FAILURES) {
-                stampFields._geocodingPermanentlyExcluded = true;
-                logger.warn(
-                  `[${POD_ID}] Site ${site.name} (${site._id}) permanently excluded after ${newCount} failed geocoding attempts (exception path).`,
-                );
-              }
-              await SiteModel(tenant).findByIdAndUpdate(site._id, {
-                $set: stampFields,
-              });
-            } catch (stampError) {
-              logger.error(
-                `[${POD_ID}] Failed to stamp geocoding failure for site ${site._id}: ${stampError.message}`,
-              );
-            }
-          }
           sitesFailedCount++;
         }
       }
-
     }
 
-    // Diagnose which exit condition terminated the loop.
-    // All messages below use jobLogger (ops-alerts) — one Slack notification
-    // per run summarising the outcome, never one per site.
     if (batchesRun >= MAX_BATCHES) {
       jobLogger.warn(
-        `[${POD_ID}] ${jobName} hit structural batch ceiling (${MAX_BATCHES} batches). ` +
-        `This should not happen under normal load — review MAX_GEOCODING_ATTEMPTS_PER_RUN and BATCH_SIZE.`,
+        `[${POD_ID}] ${jobName} hit batch ceiling (${MAX_BATCHES} batches). ` +
+          `Review MAX_GEOCODING_ATTEMPTS_PER_RUN and BATCH_SIZE.`,
       );
-    } else if (sitesProcessed + sitesFailedCount >= MAX_GEOCODING_ATTEMPTS_PER_RUN) {
+    } else if (
+      sitesProcessed + sitesFailedCount >=
+      MAX_GEOCODING_ATTEMPTS_PER_RUN
+    ) {
       jobLogger.info(
         `[${POD_ID}] ${jobName} reached per-run cap of ${MAX_GEOCODING_ATTEMPTS_PER_RUN}. Remaining sites deferred to next run.`,
       );
@@ -493,11 +402,12 @@ const backfillSiteMetadata = async (tenant) => {
 
     if (sitesFailedCount > 0) {
       jobLogger.warn(
-        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, ` +
-        `Geocoding unresolvable (permanent exclusion after ${MAX_GEOCODING_FAILURES} failures): ${sitesFailedCount}.`,
+        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
       );
     } else {
-      jobLogger.info(`[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}.`);
+      jobLogger.info(
+        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}.`,
+      );
     }
   } catch (error) {
     logger.error(`🐛🐛 Error in ${jobName}: ${error.message}`);
@@ -506,7 +416,7 @@ const backfillSiteMetadata = async (tenant) => {
   }
 };
 
-const schedule = "0 2 * * *"; // Once daily at 02:00 Nairobi time
+const schedule = "0 2,10,18 * * *"; // 3× daily: 02:00, 10:00, 18:00 Nairobi time
 
 if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
   cron.schedule(
