@@ -19,20 +19,23 @@ async function resetGeocodingExclusionFields() {
 
   for (const tenant of tenants) {
     try {
-      const result = await SiteModel(tenant).collection.updateMany(
-        {
-          $or: [
-            { _geocodingPermanentlyExcluded: { $exists: true } },
-            { _geocodingFailedCount: { $exists: true } },
-          ],
+      const filter = {
+        $or: [
+          { _geocodingPermanentlyExcluded: { $exists: true } },
+          { _geocodingFailedCount: { $exists: true } },
+        ],
+      };
+      const probe = await SiteModel(tenant).collection.findOne(filter, {
+        projection: { _id: 1 },
+      });
+      if (!probe) continue;
+
+      const result = await SiteModel(tenant).collection.updateMany(filter, {
+        $unset: {
+          _geocodingPermanentlyExcluded: "",
+          _geocodingFailedCount: "",
         },
-        {
-          $unset: {
-            _geocodingPermanentlyExcluded: "",
-            _geocodingFailedCount: "",
-          },
-        },
-      );
+      });
       if (result.modifiedCount > 0) {
         logger.info(
           `resetGeocodingExclusionFields [${tenant}]: cleared ${result.modifiedCount} site(s)`,

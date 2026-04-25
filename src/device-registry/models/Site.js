@@ -581,9 +581,10 @@ siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 // Without this, every $lookup on GET /grids/summary requires a full sites
 // collection scan for each matched grid document.
 siteSchema.index({ grids: 1 });
-// Backfill job: supports the isOnline + createdAt range filter with _id
-// cursor pagination used by backfill-site-metadata-job.
-siteSchema.index({ isOnline: 1, createdAt: 1, _id: 1 });
+// Backfill job: equality on isOnline, cursor on _id, range on createdAt.
+// Placing _id before createdAt lets MongoDB satisfy the _id sort from the
+// index without an in-memory SORT stage.
+siteSchema.index({ isOnline: 1, _id: 1, createdAt: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
