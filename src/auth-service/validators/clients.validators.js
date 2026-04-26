@@ -161,6 +161,28 @@ const update = [
         }
         return true;
       }),
+    body("require_secret")
+      .optional()
+      .isBoolean()
+      .withMessage("require_secret must be a boolean value")
+      .toBoolean()
+      .custom(async (value, { req }) => {
+        if (value !== true) return true;
+        const tenant =
+          (req.query && req.query.tenant) || constants.DEFAULT_TENANT;
+        const client_id = req.params && req.params.client_id;
+        if (!client_id) throw new Error("client_id param is required");
+        const client = await ClientModel(tenant).findOne(
+          { _id: client_id },
+          { client_secret: 1 },
+        );
+        if (!client || !client.client_secret) {
+          throw new Error(
+            "A client_secret must exist before enabling require_secret — call PATCH /:client_id/secret first",
+          );
+        }
+        return true;
+      }),
   ],
 ];
 

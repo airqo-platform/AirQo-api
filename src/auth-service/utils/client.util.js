@@ -28,6 +28,10 @@ const client = {
       const { tenant } = query;
       const filter = generateFilter.clients(request, next);
       let update = Object.assign({}, body);
+      if (update.require_secret !== undefined) {
+        update.requireClientSecret = update.require_secret;
+        delete update.require_secret;
+      }
       if (update.client_secret) {
         delete update.client_secret;
       }
