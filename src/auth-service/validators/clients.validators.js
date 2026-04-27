@@ -95,6 +95,30 @@ const validateClientIdParam = oneOf([
 
 const updateClientSecret = [validateTenant, validateClientIdParam];
 
+const makeRequireSecretValidator = (fieldName) =>
+  body(fieldName)
+    .optional()
+    .isBoolean()
+    .withMessage(`${fieldName} must be a boolean value`)
+    .toBoolean()
+    .custom(async (value, { req }) => {
+      if (value !== true) return true;
+      const tenant =
+        (req.query && req.query.tenant) || constants.DEFAULT_TENANT;
+      const client_id = req.params && req.params.client_id;
+      if (!client_id) throw new Error("client_id param is required");
+      const client = await ClientModel(tenant).findOne(
+        { _id: client_id },
+        { client_secret: 1 },
+      );
+      if (!client || !client.client_secret) {
+        throw new Error(
+          `A client_secret must exist before enabling ${fieldName} — call PATCH /:client_id/secret first`,
+        );
+      }
+      return true;
+    });
+
 const update = [
   validateTenant,
   validateClientIdParam,
@@ -139,28 +163,8 @@ const update = [
       .isURL()
       .withMessage("the redirect_url is not a valid URL")
       .trim(),
-    body("requireClientSecret")
-      .optional()
-      .isBoolean()
-      .withMessage("requireClientSecret must be a boolean value")
-      .toBoolean()
-      .custom(async (value, { req }) => {
-        if (value !== true) return true;
-        const tenant =
-          (req.query && req.query.tenant) || constants.DEFAULT_TENANT;
-        const client_id = req.params && req.params.client_id;
-        if (!client_id) throw new Error("client_id param is required");
-        const client = await ClientModel(tenant).findOne(
-          { _id: client_id },
-          { client_secret: 1 },
-        );
-        if (!client || !client.client_secret) {
-          throw new Error(
-            "A client_secret must exist before enabling requireClientSecret — call PATCH /:client_id/secret first",
-          );
-        }
-        return true;
-      }),
+    makeRequireSecretValidator("requireClientSecret"),
+    makeRequireSecretValidator("require_secret"),
   ],
 ];
 
