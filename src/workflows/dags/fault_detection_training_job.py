@@ -26,7 +26,11 @@ def airqo_fault_detection_model_training_dag():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         return BigQueryApi().fetch_fault_detection_raw_readings(
-            lookback_days=configuration.FAULT_DETECTION_TRAINING_LOOKBACK_DAYS
+            lookback_days=configuration.FAULT_DETECTION_TRAINING_LOOKBACK_DAYS,
+            device_limit=configuration.FAULT_DETECTION_TRAINING_DEVICE_LIMIT,
+            minimum_hourly_records=(
+                configuration.FAULT_DETECTION_TRAINING_MIN_HOURLY_RECORDS
+            ),
         )
 
     @task(doc_md=prepare_pattern_detection_features_doc)
@@ -37,13 +41,16 @@ def airqo_fault_detection_model_training_dag():
 
     @task(doc_md=train_fault_detection_model_doc)
     def train_isolation_forest_model(data):
-        return FaultDetectionUtils.train_and_save_isolation_forest(
-            data, Frequency.HOURLY
-        )
+        return FaultDetectionUtils.train_isolation_forest(data, Frequency.HOURLY)
+
+    @task()
+    def save_isolation_forest_model(trained_model):
+        return FaultDetectionUtils.save_isolation_forest_model(trained_model)
 
     raw_data = fetch_training_data()
     pattern_features = prepare_pattern_detection_features(raw_data)
-    train_isolation_forest_model(pattern_features)
+    trained_model = train_isolation_forest_model(pattern_features)
+    save_isolation_forest_model(trained_model)
 
 
 airqo_fault_detection_model_training_dag()

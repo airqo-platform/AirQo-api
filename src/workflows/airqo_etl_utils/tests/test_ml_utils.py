@@ -1095,6 +1095,20 @@ def test_initialize_device_fault_status_returns_one_row_per_device():
     assert list(status["device_name"]) == ["device-a", "device-b"]
 
 
+def test_fault_detection_utils_accept_airflow_record_payloads():
+    raw = _build_fault_detection_frame("device-a", periods=3).assign(
+        s1_pm2_5=10.0,
+        s2_pm2_5=20.0,
+    )
+    records = raw.to_dict(orient="records")
+
+    status = ml_utils_module.FaultDetectionUtils.initialize_device_fault_status(records)
+    faults = ml_utils_module.FaultDetectionUtils.flag_rule_based_faults(records)
+
+    assert list(status["device_id"]) == ["device-a"]
+    assert list(faults["device_id"]) == ["device-a"]
+
+
 def test_flag_pattern_based_faults_is_deterministic_for_same_input():
     raw = pd.concat(
         [
@@ -1146,6 +1160,139 @@ def test_flag_pattern_based_faults_requires_saved_model_when_fallback_disabled(
         ml_utils_module.FaultDetectionUtils.flag_pattern_based_faults(
             features, train_if_missing=False
         )
+
+
+def test_train_isolation_forest_drops_sparse_feature_rows():
+    raw = _build_fault_detection_frame("device-a", periods=36)
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+
+    trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
+        features, Frequency.HOURLY
+    )
+
+    assert trained_model["model_artifact"]
+    assert trained_model["training_rows"] == 12
+    assert trained_model["feature_count"] > 0
+
+
+def test_train_isolation_forest_drops_rows_with_feature_nan():
+    raw = _build_fault_detection_frame("device-a", periods=36)
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+    features.loc[30, "pm2_5"] = pd.NA
+
+    trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
+        features, Frequency.HOURLY
+    )
+
+    assert trained_model["training_rows"] == 11
+
+
+def test_save_isolation_forest_model_persists_trained_artifact(monkeypatch):
+    raw = _build_fault_detection_frame("device-a", periods=36)
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+    trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
+        features, Frequency.HOURLY
+    )
+    captured = {}
+
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "FAULT_DETECTION_MODELS_BUCKET",
+        "fault-models",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "FAULT_DETECTION_MODEL_PATH",
+        "isolation_forest.pkl",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.FaultDetectionUtils,
+        "_save_model_object",
+        staticmethod(
+            lambda obj, destination_file: captured.update(
+                {"obj": obj, "destination_file": destination_file}
+            )
+            or destination_file
+        ),
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.save_isolation_forest_model(
+        trained_model
+    )
+
+    assert result["bucket"] == "fault-models"
+    assert result["model_path"] == "isolation_forest.pkl"
+    assert result["deployed"] is True
+    assert result["deployment_reason"] == "no_previous_model_metrics"
+    assert captured["destination_file"] == "isolation_forest.pkl"
+    assert "model" in captured["obj"]
+    assert captured["obj"]["feature_columns"]
+    assert captured["obj"]["metrics"]["best_model_score"] > 0
+
+
+def test_save_isolation_forest_model_keeps_existing_when_score_is_not_better(
+    monkeypatch,
+):
+    raw = _build_fault_detection_frame("device-a", periods=36)
+    features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
+        raw
+    )
+    trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
+        features, Frequency.HOURLY
+    )
+    trained_model["metrics"]["best_model_score"] = 0.5
+    saved = {}
+
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "FAULT_DETECTION_MODELS_BUCKET",
+        "fault-models",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "FAULT_DETECTION_MODEL_PATH",
+        "isolation_forest.pkl",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.FaultDetectionUtils,
+        "_load_existing_isolation_forest_metrics",
+        staticmethod(lambda: {"best_model_score": 0.6}),
+    )
+    monkeypatch.setattr(
+        ml_utils_module.FaultDetectionUtils,
+        "_save_model_object",
+        staticmethod(
+            lambda obj, destination_file: saved.update(
+                {"obj": obj, "destination_file": destination_file}
+            )
+        ),
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.save_isolation_forest_model(
+        trained_model
+    )
+
+    assert result["deployed"] is False
+    assert result["deployment_reason"] == "candidate_not_better_than_best_historical"
+    assert saved == {}
+
+
+def test_unsupervised_deployment_decision_uses_highest_best_model_score():
+    should_deploy, reason = (
+        ml_utils_module.FaultDetectionUtils._get_unsupervised_deployment_decision(
+            {"best_model_score": 0.7},
+            {"best_model_score": 0.6},
+        )
+    )
+
+    assert should_deploy is True
+    assert reason == "candidate_beats_best_historical"
 
 
 def test_flag_rule_based_faults_marks_missing_data_and_nan_correlation_as_faults():

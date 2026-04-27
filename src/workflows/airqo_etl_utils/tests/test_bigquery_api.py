@@ -214,6 +214,33 @@ def test_fetch_fault_detection_raw_readings_uses_configured_lookback_days(
     assert isinstance(result["timestamp"].dtype, pd.DatetimeTZDtype)
 
 
+def test_fetch_fault_detection_raw_readings_applies_training_device_filters(
+    monkeypatch, synthetic_fault_detection_raw_readings_df
+):
+    captured = {}
+
+    with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
+        api = BigQueryApi()
+
+    def fake_execute_data_query(query):
+        captured["rendered_query"] = query
+        return synthetic_fault_detection_raw_readings_df.copy()
+
+    monkeypatch.setattr(api, "execute_data_query", fake_execute_data_query)
+    api.raw_measurements_table = "project.dataset.raw_measurements"
+
+    api.fetch_fault_detection_raw_readings(
+        lookback_days=90,
+        device_limit=50,
+        minimum_hourly_records=48,
+    )
+
+    assert "INTERVAL 90 DAY" in captured["rendered_query"]
+    assert "HAVING COUNT(*) >= 48" in captured["rendered_query"]
+    assert "ORDER BY RAND()" in captured["rendered_query"]
+    assert "LIMIT 50" in captured["rendered_query"]
+
+
 def test_fetch_fault_detection_raw_readings_empty_raises(monkeypatch):
     with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
         api = BigQueryApi()
