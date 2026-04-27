@@ -13,10 +13,14 @@ failures return HTTP 500.
 
 from flask import jsonify, request
 import logging
-import math
 logger = logging.getLogger(__name__)
 
-from models.source_metadata_model import SourceMetadataModel
+from configure import Config
+from models.source_metadata_model import (
+    SourceMetadataModel,
+    parse_boolean,
+    validate_coordinates,
+)
 
 
 class SourceMetadataView:
@@ -28,7 +32,7 @@ class SourceMetadataView:
     """
 
     @staticmethod
-    def _parse_boolean(value, default=True):
+    def _parse_boolean(value, default=False):
         """Parse a user-provided value into a boolean.
 
         Args:
@@ -39,9 +43,7 @@ class SourceMetadataView:
             ``True`` for common truthy inputs (``1``, ``true``, ``yes``, ``y``),
             otherwise ``False``. If ``value`` is ``None``, returns ``default``.
         """
-        if value is None:
-            return default
-        return str(value).strip().lower() in {"1", "true", "yes", "y"}
+        return parse_boolean(value, default=default)
 
     @staticmethod
     def _parse_pollutants(value):
@@ -70,20 +72,19 @@ class SourceMetadataView:
             - ``lat`` and ``lon`` are floats when valid, else ``None``.
             - ``error`` is ``None`` when valid, else a user-safe message.
         """
+        return validate_coordinates(latitude, longitude)
+
+    @staticmethod
+    def _validate_buffer_radius(value):
+        if value is None:
+            return 1000, None
         try:
-            lat = float(latitude)
-            lon = float(longitude)
+            radius = int(value)
         except (TypeError, ValueError):
-            return None, None, "Latitude and longitude must be numbers."
-
-        if not math.isfinite(lat) or not math.isfinite(lon):
-            return None, None, "Latitude and longitude must be finite numbers."
-
-        if lat < -90 or lat > 90:
-            return None, None, "Latitude must be between -90 and 90."
-        if lon < -180 or lon > 180:
-            return None, None, "Longitude must be between -180 and 180."
-        return lat, lon, None
+            return None, "buffer_radius_m must be an integer."
+        if radius <= 0 or radius > 50000:
+            return None, "buffer_radius_m must be between 1 and 50000."
+        return radius, None
 
     @staticmethod
     def get_source_metadata():
@@ -92,28 +93,27 @@ class SourceMetadataView:
         Expected query parameters:
         - ``latitude`` (required): float in [-90, 90]
         - ``longitude`` (required): float in [-180, 180]
-        - ``start_date`` (optional): ``YYYY-MM-DD``
-        - ``end_date`` (optional): ``YYYY-MM-DD``
-        - ``pollutants`` (optional): comma-separated list, e.g. ``NO2,SO2,CO``
-        - ``include_satellite`` (optional): boolean-like value, default ``true``
+        - ``satellite`` (optional): boolean-like value, default ``false``
+        - ``buffer_radius_m`` (optional): integer, default ``1000``
 
         Responses:
-        - ``200``: ``{"message": "Operation successful", "data": ...}``
+        - ``200``: source metadata JSON
         - ``400``: validation error (coordinates)
         - ``500``: unexpected server-side error
         """
         latitude = request.args.get("latitude")
         longitude = request.args.get("longitude")
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
-        pollutants = SourceMetadataView._parse_pollutants(
-            request.args.get("pollutants")
-        )
-        include_satellite = SourceMetadataView._parse_boolean(
-            request.args.get("include_satellite"), default=True
+        satellite = SourceMetadataView._parse_boolean(
+            request.args.get("satellite"),
+            default=Config.SOURCE_METADATA_SATELLITE_DEFAULT,
         )
 
         lat, lon, error = SourceMetadataView._validate_coordinates(latitude, longitude)
+        if error:
+            return jsonify({"error": error}), 400
+        buffer_radius_m, error = SourceMetadataView._validate_buffer_radius(
+            request.args.get("buffer_radius_m")
+        )
         if error:
             return jsonify({"error": error}), 400
 
@@ -121,13 +121,11 @@ class SourceMetadataView:
             data = SourceMetadataModel().build_source_metadata(
                 latitude=lat,
                 longitude=lon,
-                start_date=start_date,
-                end_date=end_date,
-                pollutants=pollutants,
-                include_satellite=include_satellite,
+                buffer_radius_m=buffer_radius_m,
+                satellite=satellite,
             )
            
-            return jsonify({"message": "Operation successful", "data": data}), 200
+            return jsonify(data), 200
         except Exception:
             logger.exception("Failed to build source metadata")
             return jsonify({"error": "An internal error occurred while processing this request."}), 500
@@ -141,10 +139,8 @@ class SourceMetadataView:
           - ``latitude`` (required)
           - ``longitude`` (required)
           - ``id`` (optional request identifier echoed as ``request_id``)
-        - ``start_date`` (optional): ``YYYY-MM-DD``
-        - ``end_date`` (optional): ``YYYY-MM-DD``
-        - ``pollutants`` (optional): list of pollutant strings
-        - ``include_satellite`` (optional): boolean-like value, default ``true``
+        - ``satellite`` (optional): boolean-like value, default ``false``
+        - ``buffer_radius_m`` (optional): integer, default ``1000``
 
         Behavior:
         - Invalid top-level payload structure returns ``400``.
@@ -159,15 +155,15 @@ class SourceMetadataView:
 
         payload = request.get_json() or {}
         items = payload.get("items", [])
-        include_satellite = SourceMetadataView._parse_boolean(
-            payload.get("include_satellite"), default=True
+        satellite = SourceMetadataView._parse_boolean(
+            payload.get("satellite"),
+            default=Config.SOURCE_METADATA_SATELLITE_DEFAULT,
         )
-        start_date = payload.get("start_date")
-        end_date = payload.get("end_date")
-        pollutants = payload.get("pollutants", [])
-        if not isinstance(pollutants, list):
-            return jsonify({"error": "'pollutants' must be a list."}), 400
-        pollutants = [str(p).strip().upper() for p in pollutants if str(p).strip()]
+        buffer_radius_m, error = SourceMetadataView._validate_buffer_radius(
+            payload.get("buffer_radius_m")
+        )
+        if error:
+            return jsonify({"error": error}), 400
 
         MAX_BATCH_SIZE = 100
         if not isinstance(items, list) or len(items) == 0:
@@ -192,10 +188,8 @@ class SourceMetadataView:
                 result = model.build_source_metadata(
                     latitude=lat,
                     longitude=lon,
-                    start_date=start_date,
-                    end_date=end_date,
-                    pollutants=pollutants,
-                    include_satellite=include_satellite,
+                    buffer_radius_m=buffer_radius_m,
+                    satellite=satellite,
                 )
                 result["request_id"] = item.get("id", idx)
                 results.append(result)

@@ -35,6 +35,47 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    SOURCE_METADATA_SATELLITE_PROVIDER = os.getenv(
+        "SOURCE_METADATA_SATELLITE_PROVIDER", "cams"
+    )
+    SOURCE_METADATA_SATELLITE_DEFAULT = (
+        os.getenv("SOURCE_METADATA_SATELLITE_DEFAULT", "false").strip().lower()
+        in {"1", "true", "yes", "y", "on"}
+    )
+    SOURCE_METADATA_TIMEOUT = int(os.getenv("SOURCE_METADATA_TIMEOUT", "30"))
+    CAMS_BASE_URL = os.getenv("CAMS_BASE_URL", "https://atmosphere.copernicus.eu")
+    CAMS_ADS_API_URL = os.getenv(
+        "CAMS_ADS_API_URL", "https://ads.atmosphere.copernicus.eu/api"
+    )
+    CAMS_POINT_DATA_URL = os.getenv("CAMS_POINT_DATA_URL")
+    CAMS_API_KEY = os.getenv("CAMS_API_KEY")
+    CAMS_DATASET = os.getenv(
+        "CAMS_DATASET", "cams-global-atmospheric-composition-forecasts"
+    )
+    CAMS_VARIABLES = [
+        value.strip()
+        for value in os.getenv(
+            "CAMS_VARIABLES",
+            ",".join(
+                [
+                    "nitrogen_dioxide",
+                    "sulphur_dioxide",
+                    "carbon_monoxide",
+                    "ozone",
+                    "methane",
+                    "formaldehyde",
+                    "aerosol_optical_depth_550nm",
+                    "dust_aerosol_optical_depth_550nm",
+                ]
+            ),
+        ).split(",")
+        if value.strip()
+    ]
+    CAMS_TIMEOUT_SECONDS = int(os.getenv("CAMS_TIMEOUT_SECONDS", "20"))
+    CAMS_USE_MOCK_DATA = (
+        os.getenv("CAMS_USE_MOCK_DATA", "false").strip().lower()
+        in {"1", "true", "yes", "y", "on"}
+    )
     OVERPASS_API_URLS = os.getenv(
         "OVERPASS_API_URLS",
         ",".join(

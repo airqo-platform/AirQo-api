@@ -4,7 +4,8 @@ Flask service for spatial air-quality analytics used by the AirQo platform. It e
 
 ## Prerequisites
 - Python 3.11 and `pip`.
-- Google Cloud/Earth Engine service account JSON with access to BigQuery and Storage (`GOOGLE_APPLICATION_CREDENTIALS`).
+- Copernicus Atmosphere Monitoring Service (CAMS) / Atmosphere Data Store access for source metadata satellite evidence.
+- Google Cloud service account JSON is only required for legacy BigQuery/GCS-backed endpoints, not for source metadata CAMS evidence.
 - AirQo API token for upstream data access.
 - Redis (optional but recommended) for caching heatmap responses.
 
@@ -15,7 +16,7 @@ Flask service for spatial air-quality analytics used by the AirQo platform. It e
    - Windows: `py -3.11 -m venv venv && venv\Scripts\activate`
 3. Install dependencies:  
    `python -m pip install --upgrade pip && pip install -r requirements.txt`
-4. Create a `.env` in `src/spatial` (example values below) and place your Google credentials JSON where `GOOGLE_APPLICATION_CREDENTIALS` points.
+4. Create a `.env` in `src/spatial` (example values below). Configure CAMS values for source metadata satellite evidence.
 
 ```
 AIRQO_API_TOKEN=your-platform-token
@@ -28,6 +29,15 @@ PROJECT_BUCKET=your-gcs-bucket
 SPATIAL_PROJECT_BUCKET=your-spatial-gcs-bucket
 BIGQUERY_HOURLY_CONSOLIDATED=project.dataset.hourly_consolidated
 BIGQUERY_SATELLITE_MODEL_PREDICTIONS=project.dataset.satellite_predictions
+SOURCE_METADATA_SATELLITE_PROVIDER=cams
+SOURCE_METADATA_SATELLITE_DEFAULT=false
+CAMS_BASE_URL=https://atmosphere.copernicus.eu
+CAMS_ADS_API_URL=https://ads.atmosphere.copernicus.eu/api
+CAMS_DATASET=cams-global-atmospheric-composition-forecasts
+CAMS_VARIABLES=nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,ozone,methane,formaldehyde,aerosol_optical_depth_550nm,dust_aerosol_optical_depth_550nm
+CAMS_POINT_DATA_URL=
+CAMS_API_KEY=
+CAMS_TIMEOUT_SECONDS=20
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
@@ -193,7 +203,7 @@ curl "http://127.0.0.1:5000/api/v2/spatial/categorize_site?latitude=0.322502&lon
 Source metadata without satellite lookup:
 
 ```bash
-curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=false"
+curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&satellite=false"
 ```
 
 Heatmaps:
@@ -221,7 +231,7 @@ docker inspect airqo-spatial-test
 
 - `curl` cannot connect: confirm the container is running and port `5000` is published.
 - Health check fails: inspect container logs and confirm the Flask app started successfully.
-- Google credential errors: verify that `GOOGLE_APPLICATION_CREDENTIALS` in `.env` points to `/app/google_application_credentials.json` and that the file is mounted into the container.
+- Google credential errors on legacy BigQuery/GCS endpoints: verify that `GOOGLE_APPLICATION_CREDENTIALS` in `.env` points to `/app/google_application_credentials.json` and that the file is mounted into the container. Source metadata CAMS evidence does not require Google credentials.
 - OSM or Overpass errors such as `Server load too high`: this is an upstream OpenStreetMap service issue; retry later or use a different Overpass endpoint if needed.
 
 ## API authentication
@@ -235,7 +245,7 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/site_location` | POST | Legacy sensor placement endpoint using a `polygon` request body. |
 | `/polygon_site_location` | POST | Polygon-based sensor optimization using a GeoJSON-style `geometry` request body. |
 | `/categorize_site` | GET | Classify a site by latitude/longitude. |
-| `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
+| `/source_metadata` | GET | Infer likely air-pollution source metadata for a point, optionally using CAMS atmospheric evidence from Copernicus Atmosphere. |
 | `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
 | `/derived_pm2_5` | GET | Derived PM2.5 from satellite AOD for a point and date range (JSON body). |
 | `/derived_pm2_5_daily` | GET | Daily MODIS AOD data for a point and date range (JSON body). |
@@ -475,15 +485,24 @@ curl "http://127.0.0.1:5000/api/v2/spatial/categorize_site?latitude=0.322502&lon
 
 Source metadata (single point):
 ```bash
-curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=false"
+curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&satellite=true"
 ```
+
+When `satellite=true`, source metadata uses Copernicus Atmosphere Monitoring
+Service (CAMS) atmospheric composition fields for pollutant evidence. This
+endpoint does not use Google Earth Engine. The public Atmosphere Data Store is
+free, but it is file/job based, so configure `CAMS_POINT_DATA_URL` to an
+AirQo-hosted preprocessed CAMS point-summary service for low-latency API
+requests. If that provider is unavailable, the request still succeeds with
+`satellite_metadata.status` set to `unavailable`.
 
 Source metadata (batch):
 ```bash
 curl -X POST http://127.0.0.1:5000/api/v2/spatial/source_metadata/batch \
   -H "Content-Type: application/json" \
   -d '{
-    "include_satellite": false,
+    "satellite": false,
+    "buffer_radius_m": 1000,
     "items": [
       {"id": "site-1", "latitude": 0.322502, "longitude": 32.584726},
       {"id": "site-2", "latitude": 0.347596, "longitude": 32.582520}
@@ -511,6 +530,6 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 
 ## Notes and troubleshooting
 - `must_have_locations` must fall inside the supplied polygon for site selection.
-- BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
+- Legacy BigQuery/GCS operations require valid service account credentials and access to the configured datasets and buckets. Source metadata satellite evidence uses CAMS configuration instead.
 - Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
 - OSMnx request cache files are stored in `src/spatial/cache`. Old cache files are pruned automatically based on `OSMNX_CACHE_MAX_FILES` and `OSMNX_CACHE_MAX_AGE_HOURS`.
