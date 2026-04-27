@@ -28,6 +28,22 @@ const client = {
       const { tenant } = query;
       const filter = generateFilter.clients(request, next);
       let update = Object.assign({}, body);
+      const hasAlias = Object.prototype.hasOwnProperty.call(update, "require_secret");
+      const hasCanonical = Object.prototype.hasOwnProperty.call(update, "requireClientSecret");
+      if (hasAlias && hasCanonical) {
+        if (update.require_secret !== update.requireClientSecret) {
+          return next(
+            new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+              message:
+                "Conflicting values for require_secret and requireClientSecret",
+            }),
+          );
+        }
+        delete update.require_secret;
+      } else if (hasAlias) {
+        update.requireClientSecret = update.require_secret;
+        delete update.require_secret;
+      }
       if (update.client_secret) {
         delete update.client_secret;
       }
