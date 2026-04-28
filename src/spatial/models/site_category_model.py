@@ -422,7 +422,7 @@ class SiteCategoryModel:
 
                 if distance < 50 and highway in categories["Major Highway"]:
                     final_result = (
-                        "Urban Commercial",
+                        "Major Highway",
                         distance,
                         area_name if area_name != "Unnamed" else fallback_name(),
                         landuse,

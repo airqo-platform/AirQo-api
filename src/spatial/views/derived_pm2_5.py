@@ -5,6 +5,7 @@ from models.pull_satellite_model import (
     Sentinel5PModel,
     SatelliteData,
 )
+from configure import Config
 import numpy as np
 import logging
 
@@ -45,7 +46,7 @@ class PM25View:
 
             # Return the data with appropriate JSON format and headers
             response_data = {
-                "Title": "Derived PM2.5 from satellite AOD",
+                "Title": "PM2.5 from configured satellite/model provider",
                 "determined_pm2_5": data.to_dict(orient="records")[0],
             }
             # Return the response with appropriate JSON format and headers
@@ -108,7 +109,7 @@ class PM25_aod_Model_daily:
 
             # Prepare the response data
             response_data = {
-                "Title": "Daily MODIS AOD Data",
+                "Title": "Daily PM2.5/PM10 from configured satellite/model provider",
                 "columns": columns,
                 "rows": rows,
             }
@@ -126,6 +127,8 @@ class PM25_aod_Model_daily:
 
 
 class Sentinel5PView:
+    DEFAULT_NOAA_POLLUTANTS = ["NO2", "SO2", "CO", "O3", "HCHO", "AOD", "PM2_5", "PM10"]
+
     @staticmethod
     def get_pollutants_data():
         # Check if request has JSON content type
@@ -139,13 +142,7 @@ class Sentinel5PView:
         data = request.get_json()
 
         # Check if all required parameters are present in the JSON data
-        required_params = [
-            "longitude",
-            "latitude",
-            "start_date",
-            "end_date",
-            "pollutants",
-        ]
+        required_params = ["longitude", "latitude", "start_date", "end_date"]
         for param in required_params:
             if param not in data:
                 return jsonify({"error": f"Missing parameter: {param}"}), 400
@@ -156,7 +153,11 @@ class Sentinel5PView:
             latitude = float(data["latitude"])
             start_date = data["start_date"]
             end_date = data["end_date"]
-            pollutants = data["pollutants"]
+            pollutants = data.get("pollutants") or (
+                Sentinel5PView.DEFAULT_NOAA_POLLUTANTS
+                if Config.SOURCE_METADATA_SATELLITE_PROVIDER == "noaa_nomads"
+                else ["SO2", "HCHO", "CO", "NO2", "O3"]
+            )
 
             # Call the model to get pollutant data
             model = Sentinel5PModel()
@@ -170,7 +171,12 @@ class Sentinel5PView:
 
             # Prepare the response data
             response_data = {
-                "Title": "Daily Sentinel-5P Pollutant Data",
+                "Title": (
+                    "NOAA NOMADS GEFS-Chem + gas model pollutant data"
+                    if Config.SOURCE_METADATA_SATELLITE_PROVIDER == "noaa_nomads"
+                    else "Daily Sentinel-5P Pollutant Data"
+                ),
+                "provider": Config.SOURCE_METADATA_SATELLITE_PROVIDER,
                 "columns": columns,
                 "rows": rows,
             }

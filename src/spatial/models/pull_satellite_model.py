@@ -1,37 +1,58 @@
-import ee
 import pandas as pd
 from configure import Config  # Assuming this is a configuration file or object
 from datetime import datetime, timedelta
-from google.oauth2 import service_account
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import concurrent.futures
+from utils.noaa_nomads_fetcher import NOAANOMADSFetcher
+
+ee = None
 
 
 class BasePM25Model:
     def __init__(self):
-        """Initialize the BasePM25Model class with necessary configurations and Earth Engine initialization."""
+        """Initialize satellite provider resources."""
         self.data_path = None
-        self.credentials = self._get_service_account_credentials()
-        self.initialize_earth_engine()
+        self.provider = Config.SOURCE_METADATA_SATELLITE_PROVIDER
+        self.noaa_fetcher = NOAANOMADSFetcher()
+        self.credentials = None
+        if self.provider == "gee":
+            self.credentials = self._get_service_account_credentials()
+            self.initialize_earth_engine()
 
     def _get_service_account_credentials(self):
         """Retrieve service account credentials for Google Earth Engine."""
+        self._load_earth_engine()
         return ee.ServiceAccountCredentials(
             email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL,
             key_file=Config.CREDENTIALS,
         )
 
+    def _load_earth_engine(self):
+        global ee
+        if ee is None:
+            try:
+                import ee as earth_engine
+            except Exception as ex:
+                raise RuntimeError("earthengine-api is not installed") from ex
+            ee = earth_engine
+        if ee is None:
+            raise RuntimeError("earthengine-api is not installed")
+
     def initialize_earth_engine(self):
         """Initialize Earth Engine with provided credentials."""
+        self._load_earth_engine()
         ee.Initialize(
             credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID
         )
+
+    def _using_noaa_nomads(self):
+        return self.provider == "noaa_nomads"
 
 
 class PM25Model(BasePM25Model):
     def get_pm25_from_satellite(self, longitude, latitude, start_date, end_date):
         """
-        Fetch PM2.5 data from the MODIS satellite for a given location and time period.
+        Fetch PM2.5 data for a given location and time period.
 
         Args:
             longitude (float): Longitude of the location.
@@ -42,6 +63,34 @@ class PM25Model(BasePM25Model):
         Returns:
             pandas.DataFrame: A DataFrame containing the PM2.5 data.
         """
+        if self._using_noaa_nomads():
+            df = self.noaa_fetcher.get_pollutant_data(
+                longitude=longitude,
+                latitude=latitude,
+                start_date=start_date,
+                end_date=end_date,
+                pollutants=["PM2_5", "PM10"],
+            )
+            pm25_value = (
+                df["PM2_5"].mean() if "PM2_5" in df.columns and not df.empty else None
+            )
+            pm10_value = (
+                df["PM10"].mean() if "PM10" in df.columns and not df.empty else None
+            )
+            result = pd.DataFrame(
+                {
+                    "longitude": [longitude],
+                    "latitude": [latitude],
+                    "start_date": [start_date],
+                    "end_date": [end_date],
+                    "pm2_5": [pm25_value],
+                    "pm10": [pm10_value],
+                    "pm2_5_source": ["NOAA NOMADS GEFS-Chem PM2.5"],
+                }
+            )
+            result["derived_pm2_5"] = pm25_value
+            return result
+
         # Define the geometry of the point
         point = ee.Geometry.Point(longitude, latitude)
 
@@ -121,7 +170,7 @@ class PM25Model(BasePM25Model):
 class PM25ModelDaily(BasePM25Model):
     def get_aod_for_dates(self, longitude, latitude, start_date, end_date):
         """
-        Fetches AOD data from the MODIS satellite for each day in a given time period.
+        Fetches daily PM2.5/PM10 data for a given time period.
 
         Args:
             longitude (float): Longitude of the location.
@@ -130,8 +179,25 @@ class PM25ModelDaily(BasePM25Model):
             end_date (str): End date in the format 'YYYY-MM-DD'.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the daily AOD data and derived PM2.5 data.
+            pandas.DataFrame: A DataFrame containing daily PM2.5 and PM10 data.
         """
+        if self._using_noaa_nomads():
+            df = self.noaa_fetcher.get_pollutant_data(
+                longitude=longitude,
+                latitude=latitude,
+                start_date=start_date,
+                end_date=end_date,
+                pollutants=["PM2_5", "PM10"],
+            )
+            if "PM2_5" in df.columns:
+                df["pm2_5"] = df["PM2_5"]
+            if "PM10" in df.columns:
+                df["pm10"] = df["PM10"]
+
+            df["derived_pm2_5"] = df["PM2_5"] if "PM2_5" in df.columns else None
+            df["pm2_5_source"] = "NOAA NOMADS GEFS-Chem PM2.5"
+            return df
+
         # Define the geometry of the point
         point = ee.Geometry.Point(longitude, latitude)
 
@@ -214,6 +280,15 @@ class Sentinel5PModel(BasePM25Model):
         Returns:
             pandas.DataFrame: A dataframe containing the daily pollutant data for all pollutants.
         """
+        if self._using_noaa_nomads():
+            return self.noaa_fetcher.get_pollutant_data(
+                longitude=longitude,
+                latitude=latitude,
+                start_date=start_date,
+                end_date=end_date,
+                pollutants=pollutants,
+            )
+
         point = ee.Geometry.Point(longitude, latitude)
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
@@ -313,6 +388,17 @@ class SatelliteData(BasePM25Model):
     def get_sate_pollutant_data(
         self, longitude, latitude, start_date, end_date, pollutant
     ):
+        if self._using_noaa_nomads():
+            df = self.noaa_fetcher.get_pollutant_data(
+                longitude=longitude,
+                latitude=latitude,
+                start_date=start_date,
+                end_date=end_date,
+                pollutants=[pollutant],
+            )
+            df.dropna(subset=[pollutant], inplace=True)
+            return df
+
         # Define the geometry of the point
         point = ee.Geometry.Point(longitude, latitude)
 
@@ -399,6 +485,20 @@ class SatelliteData(BasePM25Model):
             pandas.DataFrame: A DataFrame containing the merged pollutant data.
         """
         pollutants = ["SO2", "HCHO", "CO", "NO2", "O3", "CH4"]
+
+        if self._using_noaa_nomads():
+            pollutants = ["AOD", "PM2_5", "PM10"]
+            merged_df = self.noaa_fetcher.get_pollutant_data(
+                longitude=longitude,
+                latitude=latitude,
+                start_date=start_date,
+                end_date=end_date,
+                pollutants=pollutants,
+            )
+            if "PM2_5" in merged_df.columns:
+                merged_df["derived_pm2_5"] = merged_df["PM2_5"]
+            return merged_df
+
         data_frames = {}
 
         with ThreadPoolExecutor() as executor:

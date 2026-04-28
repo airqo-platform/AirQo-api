@@ -52,6 +52,27 @@ class Config:
     )  # JSON file for city list
     ENVIRONMENT = "base"
 
+    # NOAA NOMADS GEFS-Chem aerosol data.
+    NOAA_NOMADS_BASE_URL = os.getenv(
+        "NOAA_NOMADS_BASE_URL", "https://nomads.ncep.noaa.gov"
+    )
+    NOAA_NOMADS_DATASET = os.getenv("NOAA_NOMADS_DATASET", "gefs_chem_0p25")
+    NOAA_NOMADS_TIMEOUT_SECONDS = int(os.getenv("NOAA_NOMADS_TIMEOUT_SECONDS", "20"))
+    NOAA_NOMADS_FORECAST_HOUR = os.getenv("NOAA_NOMADS_FORECAST_HOUR", "000")
+    NOAA_NOMADS_POINT_PADDING = float(os.getenv("NOAA_NOMADS_POINT_PADDING", "0.25"))
+    AIR_QUALITY_GAS_API_URL = os.getenv(
+        "AIR_QUALITY_GAS_API_URL",
+        "https://air-quality-api.open-meteo.com/v1/air-quality",
+    )
+    AIR_QUALITY_GAS_TIMEOUT_SECONDS = int(
+        os.getenv("AIR_QUALITY_GAS_TIMEOUT_SECONDS", "10")
+    )
+
+    # Satellite provider selection (noaa_nomads or gee)
+    SOURCE_METADATA_SATELLITE_PROVIDER = os.getenv(
+        "SOURCE_METADATA_SATELLITE_PROVIDER", "noaa_nomads"
+    ).lower()
+
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
