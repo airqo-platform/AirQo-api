@@ -1,0 +1,4 @@
+.env
+libenv/
+venv/
+.pypirc
