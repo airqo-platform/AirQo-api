@@ -440,9 +440,16 @@ def calculate_daily_uptime_per_device(final_df, aq_data, start, end):
 
     # Ensure that we have a complete set of dates for each device
     all_devices = final_df[device_number_literal].unique()
-    # Use dropna() so that NaT rows (missing created_at) do not extend the range to 1970-01-01
+    # Use dropna() so that NaT rows (missing created_at) do not extend the range to 1970-01-01.
+    # If every row has a missing created_at (no telemetry), fall back to the overall frame bounds.
     valid_dates = final_df['Date'].dropna()
-    date_range = pd.date_range(start=valid_dates.min(), end=valid_dates.max())
+    if valid_dates.empty:
+        date_range_start = pd.to_datetime(first_date_in_df)
+        date_range_end = pd.to_datetime(last_date_in_df)
+    else:
+        date_range_start = pd.to_datetime(valid_dates.min())
+        date_range_end = pd.to_datetime(valid_dates.max())
+    date_range = pd.date_range(start=date_range_start, end=date_range_end)
 
     # Create a MultiIndex from all combinations of devices and dates
     all_index = pd.MultiIndex.from_product([all_devices, date_range], names=[device_number_literal, 'Date'])

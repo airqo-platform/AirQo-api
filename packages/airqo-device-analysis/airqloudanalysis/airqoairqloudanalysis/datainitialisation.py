@@ -359,6 +359,12 @@ def airqloudlist_api(token, air_qlouds):
         data_list = _collect_device_grid_entries(device_data.get("devices", []), air_qlouds)
 
     df = pd.DataFrame(data_list)
+
+    # Guard: if data_list was empty the DataFrame has no columns, so skip
+    # column-dependent operations and return an empty result immediately.
+    if df.empty:
+        return df
+
     df = df.dropna(subset=[device_id_literal])
     df = df.dropna(subset=[read_key_literal])
 
@@ -573,7 +579,8 @@ def _process_single_airqloud(airqloud_df, airqloud, startdate, enddate, airqloud
     """Process one airqloud, returning the resulting DataFrame or None to skip."""
     matching_file = glob.glob(os.path.join(airqlouds_csv, f"*{airqloud}*"))
     if not matching_file:
-        return None
+        # Cache miss: no existing file for this AirQloud, fetch the full range from scratch.
+        return process_data(airqloud_df, startdate, enddate)
 
     existing_data = pd.read_csv(matching_file[0])
     existing_start = existing_data['Date'].min()

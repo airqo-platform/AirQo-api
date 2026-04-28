@@ -32,8 +32,14 @@ import matplotlib.pyplot as plt
 from plotly import __version__
 from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot#importing libraries from plotly offline
 import cufflinks as cf
-init_notebook_mode(connected=True)#connecting javascript to notebook to allow access visualization
-cf.go_offline()
+
+def setup_plotting():
+    """Initialise notebook/offline plotting. Call this once from a notebook
+    or test that needs interactive Plotly/Cufflinks output; do not call at
+    import time to avoid side-effects in non-notebook environments."""
+    init_notebook_mode(connected=True)
+    cf.go_offline()
+
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
