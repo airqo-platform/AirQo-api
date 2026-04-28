@@ -1926,9 +1926,13 @@ const createSite = {
       let types = results.types;
       let retrievedAddress = {};
       address_components.forEach((object) => {
-        if (object.types.includes("locality") || object.types.includes("administrative_area_level_3")) {
+        if (object.types.includes("locality")) {
           retrievedAddress.town = object.long_name;
           retrievedAddress.city = object.long_name;
+        }
+        if (object.types.includes("administrative_area_level_3")) {
+          if (!retrievedAddress.town) retrievedAddress.town = object.long_name;
+          if (!retrievedAddress.city) retrievedAddress.city = object.long_name;
         }
         if (object.types.includes("administrative_area_level_2")) {
           retrievedAddress.district = object.long_name;
