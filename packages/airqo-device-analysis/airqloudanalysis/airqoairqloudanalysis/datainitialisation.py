@@ -8,8 +8,6 @@ import glob
 import os
 from os import read
 
-from .datainitialisation import create_dates
-
 #Other important libaries for datetime + timezone, OS for interacting with the operating system, requests for sending HTTP requests, BeautifulSoup for web scrapping
 #Str to datetime library
 from pytz import all_timezones
@@ -209,8 +207,9 @@ def fetch_all_records(channel_id, api_key, start_date, end_date):
             print("Fetched all records up to the start date.")
             break
 
-        # Update the end time for the next request
-        current_end = first_datetime.strftime("%Y-%m-%dT%H:%M:%S")
+        # Update the end date for the next request (date-only so the URL builder
+        # can safely append T23:59:59Z without producing a double time component)
+        current_end = first_datetime.strftime("%Y-%m-%d")
         print(f"Fetching next chunk up to {current_end}")
 
     # Convert the collected data into a Pandas DataFrame
@@ -592,14 +591,17 @@ def _process_single_airqloud(airqloud_df, airqloud, startdate, enddate, airqloud
 
 
 def process_data_function(df, startdate, enddate, airqlouds_csv):
+    results = []
     for airqloud in df[airqloud_number_literal].unique():
         airqloud_df = df[df[airqloud_number_literal] == airqloud]
         result = _process_single_airqloud(
             airqloud_df, airqloud, startdate, enddate, airqlouds_csv
         )
         if result is not None:
-            return result
-    return None
+            results.append(result)
+    if not results:
+        return None
+    return pd.concat(results, ignore_index=True)
 
 """## Device time off"""
 def time_last_post(df):
@@ -613,8 +615,9 @@ def time_last_post(df):
 
         # Fetch data from the API
         try:
-            last_data = requests.get(last)
-            last_data = last_data.json()
+            last_response = requests.get(last, timeout=REQUEST_TIMEOUT)
+            last_response.raise_for_status()
+            last_data = last_response.json()
         except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
             print(f"Error fetching data for Device ID {device_id}: {e}")
             continue  # Skip to the next row

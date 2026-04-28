@@ -150,9 +150,17 @@ def export_summary_csv(summary_df, output_file, air_qlouds, device_names):
     # Fill NaN values in Average Uptime with 0
     summary_df[average_uptime_literal] = summary_df[average_uptime_literal].fillna(0)
 
+    # Filter to only the requested air_qlouds or device_names before aggregating
+    if len(air_qlouds) > 0:
+        filtered_df = summary_df[summary_df[air_qloud_literal].isin(air_qlouds)]
+    elif len(device_names) > 0:
+        filtered_df = summary_df[summary_df[device_number_literal].isin(device_names)]
+    else:
+        filtered_df = summary_df
+
     # Group by AirQloud or Device Number and calculate the required metrics
     if len(air_qlouds) > 0:
-        summary_grouped = summary_df.groupby(air_qloud_literal).agg(
+        summary_grouped = filtered_df.groupby(air_qloud_literal).agg(
             Off=(time_difference_flag_literal, lambda x: (x == 0).sum()),
             On=(time_difference_flag_literal, lambda x: (x == 1).sum()),
             Uptime=(average_uptime_literal, lambda x: round((x.mean() / 24) * 100, 2)),
@@ -165,7 +173,7 @@ def export_summary_csv(summary_df, output_file, air_qlouds, device_names):
         ).reset_index()
 
     elif len(device_names) > 0:
-        summary_grouped = summary_df.groupby(device_number_literal).agg(
+        summary_grouped = filtered_df.groupby(device_number_literal).agg(
             Uptime=(average_uptime_literal, lambda x: round((x.mean() / 24) * 100, 2)),
             Off=(time_difference_flag_literal, lambda x: (x == 0).sum()),
             On=(time_difference_flag_literal, lambda x: (x == 1).sum()),
@@ -220,9 +228,16 @@ def export_summary_csv_api(summary_df, air_qlouds, device_names):
     # Ensure summary_df is a DataFrame
     if not isinstance(summary_df, pd.DataFrame):
         raise ValueError(summary_df_must_be_a_pandas_dataframe_error)
+    # Filter to only the requested air_qlouds or device_names before aggregating
+    if len(air_qlouds) > 0:
+        filtered_df = summary_df[summary_df[air_qloud_literal].isin(air_qlouds)]
+    elif len(device_names) > 0:
+        filtered_df = summary_df[summary_df[device_number_literal].isin(device_names)]
+    else:
+        filtered_df = summary_df
     # Group by AirQloud or device Number and calculate the required metrics
     if len(air_qlouds) > 0:
-      summary_grouped = summary_df.groupby(air_qloud_literal).agg(
+      summary_grouped = filtered_df.groupby(air_qloud_literal).agg(
         Off=(time_difference_flag_literal, lambda x: (x == 0).sum()),
         On=(time_difference_flag_literal, lambda x: (x == 1).sum()),
         Uptime=(average_uptime_literal, lambda x: round((x.mean() / 24) * 100, 2)),
@@ -234,7 +249,7 @@ def export_summary_csv_api(summary_df, air_qlouds, device_names):
         Poor=(poor_completeness_literal, 'mean')
       ).reset_index()
     elif len(device_names) > 0:
-      summary_grouped = summary_df.groupby(device_number_literal).agg(
+      summary_grouped = filtered_df.groupby(device_number_literal).agg(
         Uptime=(average_uptime_literal, lambda x: round((x.mean() / 24) * 100, 2)),
         Off=(time_difference_flag_literal, lambda x: (x == 0).sum()),
         On=(time_difference_flag_literal, lambda x: (x == 1).sum()),
@@ -403,8 +418,11 @@ def calculate_daily_uptime_per_device(final_df, aq_data, start, end):
     # Merging the dataframes on device_number_literal
     final_df = pd.merge(final_df, aq_data, on=device_number_literal, how='right')
 
-    # Filling NaN values with zero
-    final_df.fillna(0, inplace=True)
+    # Filling NaN values with zero for numeric/measurement columns only;
+    # 'created_at' is intentionally excluded so it stays NaT after conversion
+    # and does not produce a spurious 1970-01-01 epoch date.
+    numeric_cols = final_df.select_dtypes(include='number').columns.tolist()
+    final_df[numeric_cols] = final_df[numeric_cols].fillna(0)
 
     # Ensure 'created_at' is in datetime format
     # final_df['created_at'] = pd.to_datetime(final_df['created_at'], errors='coerce')
@@ -422,7 +440,9 @@ def calculate_daily_uptime_per_device(final_df, aq_data, start, end):
 
     # Ensure that we have a complete set of dates for each device
     all_devices = final_df[device_number_literal].unique()
-    date_range = pd.date_range(start=final_df['Date'].min(), end=final_df['Date'].max())
+    # Use dropna() so that NaT rows (missing created_at) do not extend the range to 1970-01-01
+    valid_dates = final_df['Date'].dropna()
+    date_range = pd.date_range(start=valid_dates.min(), end=valid_dates.max())
 
     # Create a MultiIndex from all combinations of devices and dates
     all_index = pd.MultiIndex.from_product([all_devices, date_range], names=[device_number_literal, 'Date'])

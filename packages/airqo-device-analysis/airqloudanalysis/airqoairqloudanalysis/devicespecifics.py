@@ -793,7 +793,7 @@ def get_sensor_health_counts(df):
     green_count = np.sum(error_margin <= 5)
     yellow_count = np.sum((error_margin >= 6) & (error_margin <= 10))
     orange_count = np.sum((error_margin >= 11) & (error_margin <= 12))
-    poor_count = np.sum(error_margin >= 12)
+    poor_count = np.sum(error_margin > 12)
 
     return green_count, yellow_count, orange_count, poor_count
 # get_sensor_health_counts(final_df)
@@ -803,6 +803,7 @@ def sensor_health(df, air_qlouds, device_names):
     if len(air_qlouds) > 0 and len(device_names) > 0:
       return air_qlouds_and_device_names_error
     if len(air_qlouds) > 0:
+      df = df[df[air_qloud_literal].isin(air_qlouds)]
       airqlouds = df[air_qloud_literal].unique()
       num_airqlouds = len(airqlouds)
 
@@ -843,9 +844,11 @@ def air_qloud_battery(df,start , end, aq_data, air_qlouds, device_names):
     if len(air_qlouds) > 0 and len(device_names) > 0:
       return air_qlouds_and_device_names_error
     if len(air_qlouds) > 0:
+      df = df[df[air_qloud_literal].isin(air_qlouds)]
+      aq_data = aq_data[aq_data[air_qloud_literal].isin(air_qlouds)]
       # time span
       weekly_df, analysis_duration_days, first_date_in_df, last_date_in_df = create_dates(start, end)
-      analysis_duration_hours = analysis_duration_days * 24
+      analysis_duration_hours = (analysis_duration_days + 1) * 24
 
       # Initialize lists to store results
       device_list = []
@@ -930,9 +933,11 @@ def air_qloud_completeness(df,start , end, aq_data, air_qlouds, device_names):
     if len(air_qlouds) > 0 and len(device_names) > 0:
       return air_qlouds_and_device_names_error
     if len(air_qlouds) > 0:
+      df = df[df[air_qloud_literal].isin(air_qlouds)]
+      aq_data = aq_data[aq_data[air_qloud_literal].isin(air_qlouds)]
       # time span
       weekly_df, analysis_duration_days, first_date_in_df, last_date_in_df = create_dates(start, end)
-      analysis_duration_hours = analysis_duration_days * 24
+      analysis_duration_hours = (analysis_duration_days + 1) * 24
 
       # Initialize lists to store results
       device_list = []

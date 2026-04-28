@@ -192,8 +192,19 @@ def fetch_all_records(channel_id, api_key, start_date, end_date):
             f"https://thingspeak.com/channels/{channel_id}/feeds.json?"
             f"start={start_date}T00:00:00Z&end={current_end}T23:59:59Z&api_key={api_key}&results=8000"
         )
-        response = requests.get(url)
-        data = response.json()
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.Timeout:
+            print(f"Request timed out for URL: {url}")
+            break
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP error fetching data: {e}")
+            break
+        except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+            print(f"Error fetching data: {e}")
+            break
 
         # Get the feeds from the response
         feeds = data.get("feeds", [])
@@ -218,8 +229,9 @@ def fetch_all_records(channel_id, api_key, start_date, end_date):
             print("Fetched all records up to the start date.")
             break
 
-        # Update the end time for the next request
-        current_end = first_datetime.strftime("%Y-%m-%dT%H:%M:%S")
+        # Update the end date for the next request (date-only so the URL builder
+        # can safely append T23:59:59Z without producing a double time component)
+        current_end = first_datetime.strftime("%Y-%m-%d")
         print(f"Fetching next chunk up to {current_end}")
 
     # Convert the collected data into a Pandas DataFrame
@@ -267,17 +279,37 @@ baseApiURL = "https://api.airqo.net/api/v2/devices"
 
 def getDeviceData(token):
   url = f"{baseApiURL}?token={token}"
-  response = requests.request("GET", url)
-  # print(response.json())
-  return response.json()
+  try:
+      response = requests.get(url, timeout=10)
+      response.raise_for_status()
+      return response.json()
+  except requests.exceptions.Timeout:
+      print(f"Request timed out for getDeviceData")
+      raise
+  except requests.exceptions.HTTPError as e:
+      print(f"HTTP error in getDeviceData: {e}")
+      raise
+  except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+      print(f"Error in getDeviceData: {e}")
+      raise
 #getDeviceData("your_token")
 
 def getSiteData(token):
 #   url = str(baseApiURL) + "/metadata/grids?token=" + str(token)
   url = str(baseApiURL) + "/grids/summary?token=" + str(token)
-  response = requests.request("GET", url)
-  # print(response.json())
-  return response.json()
+  try:
+      response = requests.get(url, timeout=10)
+      response.raise_for_status()
+      return response.json()
+  except requests.exceptions.Timeout:
+      print(f"Request timed out for getSiteData")
+      raise
+  except requests.exceptions.HTTPError as e:
+      print(f"HTTP error in getSiteData: {e}")
+      raise
+  except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+      print(f"Error in getSiteData: {e}")
+      raise
 #getSiteData("your_token")
 
 def decryptData(token, data):
@@ -500,12 +532,19 @@ def process_data_function(df, startdate, enddate, airqlouds_csv):
                 updated_data = pd.concat([new_data_start, existing_data, new_data_end])
 
             # data starts before startdate and ends after enddate
+            # existing data is fully within the requested range; no extension needed
             elif startdate < existing_start and enddate > existing_end:
                 pass
 
             finaldf = pd.concat([existing_data] + additional_data) if additional_data else existing_data
             # get the data in the range of the startdate and enddate
             finaldf = finaldf[(finaldf['Date'] >= startdate) & (finaldf['Date'] <= enddate)]
+            return finaldf
+
+        else:
+            # cache miss: no existing file, fetch the full range from scratch
+            finaldf = process_data(airqloud_df, startdate, enddate)
+            return finaldf
 
 # def process_data_function(df, startdate, enddate, airqlouds_csv):
 #     #  for deviceNumber in df['Device Number'].unique():
@@ -584,8 +623,15 @@ def timeLastPost(df):
 
         # Fetch data from the API
         try:
-            lastData = requests.get(last)
-            lastData = lastData.json()
+            lastResponse = requests.get(last, timeout=10)
+            lastResponse.raise_for_status()
+            lastData = lastResponse.json()
+        except requests.exceptions.Timeout:
+            print(f"Request timed out for Device ID {deviceID}")
+            continue  # Skip to the next row
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP error fetching data for Device ID {deviceID}: {e}")
+            continue  # Skip to the next row
         except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
             print(f"Error fetching data for Device ID {deviceID}: {e}")
             continue  # Skip to the next row
