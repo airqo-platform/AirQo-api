@@ -1960,10 +1960,13 @@ const createSite = {
       retrievedAddress.google_place_id = google_place_id;
 
       if (retrievedAddress.country) {
-        retrievedAddress.location_name =
+        const qualifier =
           retrievedAddress.country !== "Uganda"
-            ? `${retrievedAddress.region}, ${retrievedAddress.country}`
-            : `${retrievedAddress.district}, ${retrievedAddress.country}`;
+            ? retrievedAddress.region
+            : retrievedAddress.district;
+        retrievedAddress.location_name = qualifier
+          ? `${qualifier}, ${retrievedAddress.country}`
+          : retrievedAddress.country;
       }
 
       if (!retrievedAddress.search_name) {
