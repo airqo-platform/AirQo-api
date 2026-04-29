@@ -1,6 +1,7 @@
 """Utility functions and classes for ML training, forecasting, and fault detection."""
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Any, Sequence, Optional, Tuple
 import logging
 
@@ -745,7 +746,10 @@ class FaultDetectionUtils(BaseMlUtils):
 
     @staticmethod
     def _get_isolation_forest_model_path() -> str:
-        return configuration.FAULT_DETECTION_MODEL_PATH
+        model_path = configuration.FAULT_DETECTION_MODEL_PATH
+        if not model_path:
+            raise ValueError("Missing required config: FAULT_DETECTION_MODEL_PATH.")
+        return model_path
 
     @staticmethod
     def _save_model_object(obj: Any, destination_file: str) -> str:
@@ -1393,11 +1397,17 @@ class FaultDetectionUtils(BaseMlUtils):
             logger.warning(str(exc))
             return None
 
-        model_path = FaultDetectionUtils._get_isolation_forest_model_path()
+        try:
+            model_path = FaultDetectionUtils._get_isolation_forest_model_path()
+        except ValueError as exc:
+            logger.warning(str(exc))
+            return None
+
+        cache_path = Path("/tmp") / Path(model_path).name
         try:
             model = FaultDetectionUtils._load_model_object(
                 source_file=model_path,
-                local_cache_path=f"/tmp/{model_path}",
+                local_cache_path=str(cache_path),
             )
             logger.info(f"Loaded Isolation Forest model from {bucket}/{model_path}")
             return model

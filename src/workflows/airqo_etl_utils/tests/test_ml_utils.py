@@ -1162,6 +1162,43 @@ def test_flag_pattern_based_faults_requires_saved_model_when_fallback_disabled(
         )
 
 
+def test_load_isolation_forest_uses_configured_model_path(monkeypatch):
+    captured = {}
+    expected_model = {"model": object()}
+
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "FAULT_DETECTION_MODELS_BUCKET",
+        "fault-models",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "FAULT_DETECTION_MODEL_PATH",
+        "models/fault_detection/isolation_forest.pkl",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.FaultDetectionUtils,
+        "_load_model_object",
+        staticmethod(
+            lambda source_file, local_cache_path=None: captured.update(
+                {
+                    "source_file": source_file,
+                    "local_cache_path": local_cache_path,
+                }
+            )
+            or expected_model
+        ),
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.load_isolation_forest(
+        Frequency.HOURLY
+    )
+
+    assert result is expected_model
+    assert captured["source_file"] == "models/fault_detection/isolation_forest.pkl"
+    assert captured["local_cache_path"].endswith("isolation_forest.pkl")
+
+
 def test_train_isolation_forest_drops_sparse_feature_rows():
     raw = _build_fault_detection_frame("device-a", periods=36)
     features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(

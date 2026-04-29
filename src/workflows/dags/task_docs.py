@@ -165,6 +165,7 @@ Score pattern-based anomalies for device readings.
 #### Notes
 - Uses Isolation Forest on numeric fault-detection features.
 - Requires a trained model saved by `AirQo-fault-detection-model-training`.
+- Loads the trained model from `FAULT_DETECTION_MODELS_BUCKET` using `FAULT_DETECTION_MODEL_PATH`.
 - Returns both `anomaly_value` and `anomaly_score`.
 """
 
