@@ -1926,9 +1926,13 @@ const createSite = {
       let types = results.types;
       let retrievedAddress = {};
       address_components.forEach((object) => {
-        if (object.types.includes("locality", "administrative_area_level_3")) {
+        if (object.types.includes("locality")) {
           retrievedAddress.town = object.long_name;
           retrievedAddress.city = object.long_name;
+        }
+        if (object.types.includes("administrative_area_level_3")) {
+          if (!retrievedAddress.town) retrievedAddress.town = object.long_name;
+          if (!retrievedAddress.city) retrievedAddress.city = object.long_name;
         }
         if (object.types.includes("administrative_area_level_2")) {
           retrievedAddress.district = object.long_name;
@@ -1943,31 +1947,40 @@ const createSite = {
         if (object.types.includes("country")) {
           retrievedAddress.country = object.long_name;
         }
-        if (object.types.includes("sublocality", "sublocality_level_1")) {
+        if (object.types.includes("sublocality") || object.types.includes("sublocality_level_1")) {
           retrievedAddress.parish = object.long_name;
           retrievedAddress.division = object.long_name;
           retrievedAddress.village = object.long_name;
           retrievedAddress.sub_county = object.long_name;
           retrievedAddress.search_name = object.long_name;
         }
-        retrievedAddress.formatted_name = formatted_name;
-        retrievedAddress.geometry = geometry;
-        retrievedAddress.site_tags = types;
-        retrievedAddress.google_place_id = google_place_id;
-        retrievedAddress.location_name =
-          retrievedAddress.country !== "Uganda"
-            ? `${retrievedAddress.region}, ${retrievedAddress.country}`
-            : `${retrievedAddress.district}, ${retrievedAddress.country}`;
-        if (!retrievedAddress.search_name) {
-          retrievedAddress.search_name = retrievedAddress.town
-            ? retrievedAddress.town
-            : retrievedAddress.street
-            ? retrievedAddress.street
-            : retrievedAddress.city
-            ? retrievedAddress.city
-            : retrievedAddress.district;
-        }
       });
+
+      // Computed once after all components are extracted so country/region/district
+      // are fully populated before location_name is built.
+      retrievedAddress.formatted_name = formatted_name;
+      retrievedAddress.geometry = geometry;
+      retrievedAddress.site_tags = types;
+      retrievedAddress.google_place_id = google_place_id;
+
+      if (retrievedAddress.country) {
+        const qualifier =
+          retrievedAddress.country !== "Uganda"
+            ? retrievedAddress.region
+            : retrievedAddress.district;
+        retrievedAddress.location_name = qualifier
+          ? `${qualifier}, ${retrievedAddress.country}`
+          : retrievedAddress.country;
+      }
+
+      if (!retrievedAddress.search_name) {
+        retrievedAddress.search_name =
+          retrievedAddress.town ||
+          retrievedAddress.street ||
+          retrievedAddress.city ||
+          retrievedAddress.district;
+      }
+
       return {
         success: true,
         message: "retrieved the Google address details of this site",

@@ -790,13 +790,30 @@ const gridsValidations = {
       .optional()
       .not()
       .exists()
-      .withMessage("admin level names cannot be updated")
+      .withMessage("admin level names cannot be updated"),
+    body("description")
+      .exists({ checkNull: true, checkFalsy: true })
+      .withMessage(
+        "description is required — it is the only updatable field on an admin level",
+      )
       .bail()
       .trim()
-      .matches(/^[a-zA-Z0-9\s\-_]+$/)
-      .withMessage(
-        "the name can only contain letters, numbers, spaces, hyphens and underscores",
-      ),
+      .notEmpty()
+      .withMessage("description cannot be empty"),
+    (req, res, next) => {
+      const allowed = ["description"];
+      const extra = Object.keys(req.body || {}).filter(
+        (k) => !allowed.includes(k),
+      );
+      if (extra.length > 0) {
+        return next(
+          new HttpError("Validation error", httpStatus.BAD_REQUEST, {
+            message: `unexpected field(s): ${extra.join(", ")} — only 'description' may be updated`,
+          }),
+        );
+      }
+      next();
+    },
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

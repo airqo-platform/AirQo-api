@@ -1,0 +1,15 @@
+.env
+libenv/
+venv/
+.pypirc
+# Python packaging outputs
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# Compiled caches
+__pycache__/
+*.pyc
+*.pyo
