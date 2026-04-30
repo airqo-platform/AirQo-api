@@ -272,6 +272,24 @@ const transactionLimiter = rateLimit({
 });
 app.use("/api/v2/users/transactions", transactionLimiter);
 
+// Rate limit query-token-only endpoints at 10 req/min per IP.
+// Uses the same URI set and matching logic as the JWT-blocking check in
+// passport.js (specificRoutes / matchesRoute) so the two are always in sync.
+const {
+  queryTokenRateLimiter,
+} = require("@middleware/rate-limit.middleware");
+const {
+  specificRouteUris,
+  matchesRoute,
+} = require("@middleware/passport");
+app.use((req, res, next) => {
+  const endpoint = req.headers["x-original-uri"] || req.originalUrl || req.url;
+  if (matchesRoute(endpoint, specificRouteUris)) {
+    return queryTokenRateLimiter(req, res, next);
+  }
+  next();
+});
+
 app.use("/api/v2/users", require("@routes/v2"));
 app.use("/api/v3/users", require("@routes/v3"));
 
