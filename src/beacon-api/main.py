@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import engine, Base
 from app.models import sync  # Import models to register them with Base
 from app.models import device_performance  # noqa: F401 — register with Alembic
+from app.models import device_data  # noqa: F401 — register ThingSpeak data tables
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from fastapi import Request
 from fastapi.responses import JSONResponse

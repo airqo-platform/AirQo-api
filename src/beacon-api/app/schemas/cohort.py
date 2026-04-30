@@ -89,3 +89,54 @@ class SummaryCohortResponse(BaseModel):
     meta: Optional[MetaData] = None
     cohorts: List[SummaryCohortEntry] = []
 
+
+class CohortSyncResponse(BaseModel):
+    success: bool
+    message: str
+    cohorts_synced: Optional[int] = None
+    cohorts_new: Optional[int] = None
+    cohorts_updated: Optional[int] = None
+    cohorts_unchanged: Optional[int] = None
+    devices_backfilled: Optional[int] = None
+
+
+# --- Local sync table read schemas ---
+
+class SyncedCohortDevice(BaseModel):
+    device_id: str
+    device_name: Optional[str] = None
+    is_active: bool = False
+    uptime: Optional[float] = None
+    data_completeness: Optional[float] = None
+    averages: Optional[Dict[str, Any]] = None
+    data: List[Dict[str, Any]] = []
+
+
+class SyncedCohort(BaseModel):
+    cohort_id: str
+    name: Optional[str] = None
+    network: Optional[str] = None
+    visibility: Optional[bool] = None
+    cohort_tags: List[Any] = []
+    cohort_codes: List[str] = []
+    number_of_devices: int = 0
+    devices: List[SyncedCohortDevice] = []
+    uptime: Optional[float] = None
+    data_completeness: Optional[float] = None
+    averages: Optional[Dict[str, Any]] = None
+    data: List[Dict[str, Any]] = []
+
+
+class SyncedCohortResponse(BaseModel):
+    success: bool
+    message: str
+    meta: Optional[MetaData] = None
+    cohorts: List[SyncedCohort] = []
+
+
+class SingleSyncedCohortResponse(BaseModel):
+    success: bool
+    message: str
+    cohort: Optional[SyncedCohort] = None
+
+
