@@ -401,6 +401,7 @@ class DataUtils:
         device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
         device_ids: Optional[List[str]] = None,
+        date_frequency: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Extract sensor measurements from network devices for specified time range.
@@ -410,22 +411,23 @@ class DataUtils:
         Uses parallel processing for efficient data extraction from multiple devices.
 
         Args:
-            start_date_time (str): Start date and time in ISO 8601 format
-            end_date_time (str): End date and time in ISO 8601 format
-            device_category (DeviceCategory): Category of devices (BAM, LOWCOST, or MOBILE)
-            device_network (Optional[DeviceNetwork]): Network filter for devices
-            resolution (Frequency): Data frequency/resolution. Defaults to RAW.
-            device_ids (Optional[List[str]]): Specific device IDs to extract. If None,
-                                            extracts from all devices in category.
+            - start_date_time (str): Start date and time in ISO 8601 format
+            - end_date_time (str): End date and time in ISO 8601 format
+            - device_category (DeviceCategory): Category of devices (BAM, LOWCOST, or MOBILE)
+            - device_network (Optional[DeviceNetwork]): Network filter for devices
+            - resolution (Frequency): Data frequency/resolution. Defaults to RAW.
+            - device_ids (Optional[List[str]]): Specific device IDs to extract. If None, extracts from all devices in category.
+            - date_frequency (Optional[str]): Optional frequency string for data extraction (e.g., "12H").
+                                              If not provided, defaults to internal logic based on data source.
 
         Returns:
-            pd.DataFrame: Combined measurements DataFrame from all specified devices.
-                         Includes timestamp, device metadata, and sensor readings.
+            pd.DataFrame: Combined measurements DataFrame from all specified devices. Includes timestamp, device metadata, and sensor readings.
                          Empty DataFrame if no data found.
 
         Note:
-            MOBILE category is internally mapped to LOWCOST devices with mobility=True
-            and mount_type='vehicle'. Uses ThreadPoolExecutor for parallel processing.
+            - MOBILE category is internally mapped to LOWCOST devices with mobility=True and mount_type='vehicle'.
+              Uses ThreadPoolExecutor for parallel processing.
+            - date_frequency can be used to control the chunking of date ranges for API queries, which can help manage large date ranges and API rate limits.
         """
         # Temporary fix for mobile devices - TODO: Fix after requirements review
         is_mobile_category = device_category == DeviceCategory.MOBILE
@@ -457,6 +459,7 @@ class DataUtils:
             data_source=DataSource.THINGSPEAK,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            frequency_=date_frequency,
         )
 
         data_store: List[pd.DataFrame] = []
@@ -480,7 +483,7 @@ class DataUtils:
                     data_store.append(result)
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
-            # Data could be dropped due to bad datetime entries
+            # Data could be dropped due to bad datetime entries as well as late propagated data.
             # devices_data = devices_data[
             #     devices_data["timestamp"].between(start_date_time, end_date_time)
             # ]
@@ -1020,7 +1023,7 @@ class DataUtils:
         device_network: Optional[DeviceNetwork] = None,
         dynamic_query: Optional[bool] = False,
         remove_outliers: Optional[bool] = True,
-        data_filter: Optional[Dict[str, Any]] = None,
+        data_filter: Optional[Dict[str, Any]] = {},
         use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -1055,6 +1058,9 @@ class DataUtils:
         """
         bigquery_api = BigQueryApi()
         table: str = None
+
+        if datatype == DataType.CONSOLIDATED:
+            data_filter.update({"device_category": device_category.str})
 
         if not device_category or device_category == DeviceCategory.LOWCOST:
             device_category = DeviceCategory.GENERAL
@@ -1508,6 +1514,7 @@ class DataUtils:
         known_mask = data["device_id"].isin(devices.index)
         for dev_id in data.loc[~known_mask, "device_id"].unique():
             logger.exception(f"Device number {dev_id} not found in device list")
+
         data = data[known_mask]
 
         merged = data.merge(

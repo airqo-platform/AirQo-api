@@ -92,6 +92,18 @@ class TestQueryDatesArray:
         assert result[0] == ("2026-01-01T00:00:00Z", "2026-01-04T00:00:00Z")
         assert result[1] == ("2026-01-04T00:00:00Z", "2026-01-06T00:00:00Z")
 
+    def test_24h_custom_frequency(self):
+        # Custom range i.e 24 H; 2 day = 48 H → [0→24h, 24h→48h]
+        result = Utils.query_dates_array(
+            DataSource.THINGSPEAK,
+            "2026-01-01T00:00:00Z",
+            "2026-01-03T00:00:00Z",
+            frequency_="24H",
+        )
+        assert len(result) == 2
+        assert result[0] == ("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")
+        assert result[1] == ("2026-01-02T00:00:00Z", "2026-01-03T00:00:00Z")
+
     def test_equal_start_and_end_returns_single_tuple(self):
         result = Utils.query_dates_array(
             DataSource.AIRQO, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"

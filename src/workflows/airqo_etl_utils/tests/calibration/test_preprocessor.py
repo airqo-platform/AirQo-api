@@ -88,53 +88,99 @@ class TestProcessBam:
         assert isinstance(result.index, pd.DatetimeIndex)
 
 
-class TestMergeHourly:
+class TestBuildWideDataset:
     def test_merge_produces_bam_pm_column(self, lcs_raw_df, bam_raw_df):
-        lcs = CalibrationPreprocessor.process_lcs(lcs_raw_df)
-        bam = CalibrationPreprocessor.process_bam(bam_raw_df)
-        result = CalibrationPreprocessor.merge_hourly(lcs, bam)
+        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
         assert "bam_pm" in result.columns
 
     def test_hour_feature_added(self, lcs_raw_df, bam_raw_df):
-        lcs = CalibrationPreprocessor.process_lcs(lcs_raw_df)
-        bam = CalibrationPreprocessor.process_bam(bam_raw_df)
-        result = CalibrationPreprocessor.merge_hourly(lcs, bam)
+        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
         assert "hour" in result.columns
         assert result["hour"].between(0, 23).all()
 
     def test_no_null_bam_pm_in_output(self, lcs_raw_df, bam_raw_df):
-        lcs = CalibrationPreprocessor.process_lcs(lcs_raw_df)
-        bam = CalibrationPreprocessor.process_bam(bam_raw_df)
-        result = CalibrationPreprocessor.merge_hourly(lcs, bam)
+        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
         assert not result["bam_pm"].isna().any()
 
     def test_returns_empty_for_empty_lcs(self, bam_raw_df):
-        bam = CalibrationPreprocessor.process_bam(bam_raw_df)
-        result = CalibrationPreprocessor.merge_hourly(pd.DataFrame(), bam)
+        result = CalibrationPreprocessor.build_wide_dataset(pd.DataFrame(), bam_raw_df)
         assert result.empty
 
     def test_returns_empty_for_empty_bam(self, lcs_raw_df):
-        lcs = CalibrationPreprocessor.process_lcs(lcs_raw_df)
-        result = CalibrationPreprocessor.merge_hourly(lcs, pd.DataFrame())
+        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, pd.DataFrame())
         assert result.empty
 
     def test_tz_offset_shifts_timestamps(self, lcs_raw_df, bam_raw_df):
-        lcs = CalibrationPreprocessor.process_lcs(lcs_raw_df)
-        bam = CalibrationPreprocessor.process_bam(bam_raw_df)
-        result_no_offset = CalibrationPreprocessor.merge_hourly(
-            lcs, bam, tz_offset_hours=0
+        result_no_offset = CalibrationPreprocessor.build_wide_dataset(
+            lcs_raw_df, bam_raw_df, tz_offset_hours=0
         )
-        result_offset = CalibrationPreprocessor.merge_hourly(
-            lcs, bam, tz_offset_hours=1
+        result_offset = CalibrationPreprocessor.build_wide_dataset(
+            lcs_raw_df, bam_raw_df, tz_offset_hours=1
         )
-        # The offset version should have different (shifted) row counts or timestamps
+        # The offset version should have different (shifted) timestamps
         assert not result_no_offset["timestamp"].equals(result_offset["timestamp"])
 
     def test_timestamp_column_present(self, lcs_raw_df, bam_raw_df):
-        lcs = CalibrationPreprocessor.process_lcs(lcs_raw_df)
-        bam = CalibrationPreprocessor.process_bam(bam_raw_df)
-        result = CalibrationPreprocessor.merge_hourly(lcs, bam)
+        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
         assert "timestamp" in result.columns
+
+    def test_device_columns_are_prefixed(self, lcs_raw_df, bam_raw_df):
+        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
+        prefixed = [c for c in result.columns if c.startswith("AQ_G5341_")]
+        assert len(prefixed) > 0
+
+    def test_bam_device_name_prefixes_extra_cols(self, lcs_raw_df, bam_raw_df):
+        result = CalibrationPreprocessor.build_wide_dataset(
+            lcs_raw_df, bam_raw_df, bam_device_name="BAM_MUK"
+        )
+        assert any(c.startswith("BAM_MUK_") for c in result.columns)
+        assert "bam_pm" in result.columns  # target itself is never prefixed
+
+
+class TestCleanData:
+    def test_returns_empty_for_empty_lcs(self):
+        result = CalibrationPreprocessor.clean_data(pd.DataFrame())
+        assert result.empty
+
+    def test_returns_datetime_index(self, lcs_raw_df):
+        result = CalibrationPreprocessor.clean_data(lcs_raw_df)
+        assert isinstance(result.index, pd.DatetimeIndex)
+
+    def test_happy_path_returns_lcs_feature_columns(self, lcs_raw_df):
+        result = CalibrationPreprocessor.clean_data(lcs_raw_df)
+        assert not result.empty
+        assert "avg_pm2_5" in result.columns
+        assert "error_pm2_5" in result.columns
+        assert "bam_pm" not in result.columns
+
+    def test_out_of_range_lcs_pm25_removed(self):
+        """Only the one row with valid PM values in both sensors survives."""
+        ts = list(pd.date_range("2025-01-01", periods=5, freq="h", tz="UTC"))
+        lcs = pd.DataFrame(
+            {
+                "device_id": ["A"] * 5,
+                "timestamp": ts,
+                "s1_pm2_5": [-5.0, np.nan, 30.0, 600.0, np.nan],
+                "s2_pm2_5": [-5.0, np.nan, 28.0, 590.0, np.nan],
+                "s1_pm10": [10.0] * 5,
+                "s2_pm10": [10.0] * 5,
+            }
+        )
+        result = CalibrationPreprocessor.clean_data(lcs)
+        assert len(result) == 1
+
+    def test_returns_empty_when_all_lcs_pm25_out_of_range(self):
+        ts = list(pd.date_range("2025-01-01", periods=3, freq="h", tz="UTC"))
+        lcs = pd.DataFrame(
+            {
+                "device_id": ["A"] * 3,
+                "timestamp": ts,
+                "s1_pm2_5": [-999.0, -1.0, 600.0],
+                "s2_pm2_5": [-999.0, -1.0, 600.0],
+            }
+        )
+        result = CalibrationPreprocessor.clean_data(lcs)
+        assert result.empty
 
 
 class TestBuildFeatureColumns:
