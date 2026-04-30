@@ -76,10 +76,20 @@ async def fetch_thingspeak_data_bulk(
                     response = await client.get(url)
                     response.raise_for_status()
                     data = response.json()
-                except Exception as e:
+                except httpx.HTTPStatusError as e:
                     logger.error(
-                        f"[ThingSpeak] Failed to fetch channel {channel_id}: {e}"
+                        "[ThingSpeak] Failed to fetch channel %s: HTTP %s",
+                        channel_id,
+                        e.response.status_code,
                     )
+                    break
+                except httpx.RequestError as e:
+                    logger.error(
+                        "[ThingSpeak] Failed to fetch channel %s: %s",
+                        channel_id,
+                        e.__class__.__name__,
+                    )
+                    break
                     break
 
                 feeds = data.get("feeds", [])
