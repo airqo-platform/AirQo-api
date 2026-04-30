@@ -1,6 +1,7 @@
 """Utility functions and classes for ML training, forecasting, and fault detection."""
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Any, Sequence, Optional, Tuple
 import logging
 
@@ -16,7 +17,11 @@ import pymongo as pm
 import lightgbm as lgb
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+)
 
 from .config import configuration, db
 from .constants import Frequency, JobAction, SITE_DAILY_FORECAST_MET_COLUMNS
@@ -681,6 +686,116 @@ class ForecastUtils(BaseMlUtils):
 
 
 class FaultDetectionUtils(BaseMlUtils):
+    SENSOR_DISAGREEMENT_THRESHOLD = 20
+    SENSOR_DISAGREEMENT_SHARE_THRESHOLD = 0.3
+    CONSTANT_VALUE_WINDOW = 24
+    MISSING_DATA_WINDOW = 60
+    LOW_BATTERY_THRESHOLD = 3.3
+    LOW_BATTERY_WINDOW = 24
+    INVALID_VALUE_SHARE_THRESHOLD = 0.05
+    MIN_INVALID_VALUE_COUNT = 3
+    RULE_FAULT_COLUMNS = [
+        "correlation_fault",
+        "missing_data_fault",
+        "sensor_disagreement_fault",
+        "constant_value_fault",
+        "battery_fault",
+        "range_fault",
+    ]
+    ML_FAULT_DEFAULTS = {
+        "anomaly_percentage": 0.0,
+        "anomaly_count": 0,
+        "observation_count": 0,
+        "anomaly_percentage_fault": 0,
+        "fault_count": 0,
+        "anomaly_sequence_fault": 0,
+    }
+    ISOLATION_FOREST_CONTAMINATION = 0.37
+    UNSUPERVISED_SCORE_WEIGHTS = {
+        "consistency": 0.35,
+        "stability": 0.30,
+        "silhouette": 0.20,
+        "anomaly_realism": 0.15,
+    }
+
+    @staticmethod
+    def _ensure_dataframe(data: Any) -> pd.DataFrame:
+        """Normalize Airflow/XCom payloads back to a DataFrame."""
+        if isinstance(data, pd.DataFrame):
+            return data
+        if isinstance(data, list):
+            return pd.DataFrame(data)
+        if isinstance(data, dict):
+            if "data" in data and isinstance(data["data"], list):
+                return pd.DataFrame(data["data"])
+            return pd.DataFrame(data)
+        raise ValueError("Input must be a dataframe")
+
+    @staticmethod
+    def _get_model_bucket() -> str:
+        bucket = configuration.FAULT_DETECTION_MODELS_BUCKET
+        if not bucket:
+            raise ValueError(
+                "Missing required config: FAULT_DETECTION_MODELS_BUCKET."
+            )
+        return bucket
+
+    @staticmethod
+    def _get_model_storage() -> FileStorage:
+        return GCSFileStorage()
+
+    @staticmethod
+    def _get_isolation_forest_model_path() -> str:
+        model_path = configuration.FAULT_DETECTION_MODEL_PATH
+        if not model_path:
+            raise ValueError("Missing required config: FAULT_DETECTION_MODEL_PATH.")
+        return model_path
+
+    @staticmethod
+    def _save_model_object(obj: Any, destination_file: str) -> str:
+        storage = FaultDetectionUtils._get_model_storage()
+        return storage.save_file_object(
+            bucket=FaultDetectionUtils._get_model_bucket(),
+            obj=obj,
+            destination_file=destination_file,
+        )
+
+    @staticmethod
+    def _load_model_object(source_file: str, local_cache_path: Optional[str] = None):
+        storage = FaultDetectionUtils._get_model_storage()
+        return storage.load_file_object(
+            bucket=FaultDetectionUtils._get_model_bucket(),
+            source_file=source_file,
+            local_cache_path=local_cache_path,
+        )
+
+    @staticmethod
+    def _has_sustained_condition(series: pd.Series, window: int) -> bool:
+        if series.empty or len(series) < window:
+            return False
+        return bool((series.astype(int).rolling(window=window).sum() >= window).any())
+
+    @staticmethod
+    def _has_constant_run(series: pd.Series, window: int) -> bool:
+        clean_series = series.dropna()
+        if clean_series.empty or len(clean_series) < window:
+            return False
+        value_groups = clean_series.ne(clean_series.shift()).cumsum()
+        max_run = clean_series.groupby(value_groups).size().max()
+        return bool(max_run >= window)
+
+    @staticmethod
+    def _has_invalid_value_fault(series: pd.Series, lower: float, upper: float) -> bool:
+        clean_series = series.dropna()
+        if clean_series.empty:
+            return False
+        invalid_count = ((clean_series < lower) | (clean_series > upper)).sum()
+        invalid_share = invalid_count / len(clean_series)
+        return bool(
+            invalid_count >= FaultDetectionUtils.MIN_INVALID_VALUE_COUNT
+            or invalid_share >= FaultDetectionUtils.INVALID_VALUE_SHARE_THRESHOLD
+        )
+
     @staticmethod
     def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -691,8 +806,20 @@ class FaultDetectionUtils(BaseMlUtils):
             pandas dataframe
         """
 
-        if not isinstance(df, pd.DataFrame):
-            raise ValueError("Input must be a dataframe")
+        df = FaultDetectionUtils._ensure_dataframe(df)
+
+        result_columns = [
+            "device_id",
+            "correlation_fault",
+            "correlation_value",
+            "missing_data_fault",
+            "sensor_disagreement_fault",
+            "constant_value_fault",
+            "battery_fault",
+            "range_fault",
+        ]
+        if df.empty:
+            return pd.DataFrame(columns=result_columns)
 
         required_columns = ["device_id", "s1_pm2_5", "s2_pm2_5"]
         if not set(required_columns).issubset(set(df.columns.to_list())):
@@ -700,24 +827,73 @@ class FaultDetectionUtils(BaseMlUtils):
                 f"Input must have the following columns: {required_columns}"
             )
 
-        result = pd.DataFrame(
-            columns=[
-                "device_id",
-                "correlation_fault",
-                "correlation_value",
-                "missing_data_fault",
-            ]
-        )
+        df = df.copy()
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df = df.sort_values(["device_id", "timestamp"])
+
+        result = pd.DataFrame(columns=result_columns)
         for device in df["device_id"].unique():
             device_df = df[df["device_id"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
-            correlation_fault = 1 if corr < 0.9 else 0
+            correlation_fault = 1 if pd.isna(corr) or corr < 0.9 else 0
             missing_data_fault = 0
             for col in ["s1_pm2_5", "s2_pm2_5"]:
                 null_series = device_df[col].isna()
-                if (null_series.rolling(window=60).sum() >= 60).any():
+                if FaultDetectionUtils._has_sustained_condition(
+                    null_series, FaultDetectionUtils.MISSING_DATA_WINDOW
+                ):
                     missing_data_fault = 1
                     break
+
+            valid_sensor_delta = (
+                device_df["s1_pm2_5"] - device_df["s2_pm2_5"]
+            ).abs().dropna()
+            sensor_disagreement_fault = 0
+            if not valid_sensor_delta.empty:
+                disagreement_share = (
+                    valid_sensor_delta
+                    > FaultDetectionUtils.SENSOR_DISAGREEMENT_THRESHOLD
+                ).mean()
+                if (
+                    disagreement_share
+                    >= FaultDetectionUtils.SENSOR_DISAGREEMENT_SHARE_THRESHOLD
+                ):
+                    sensor_disagreement_fault = 1
+
+            constant_value_fault = int(
+                any(
+                    FaultDetectionUtils._has_constant_run(
+                        device_df[column], FaultDetectionUtils.CONSTANT_VALUE_WINDOW
+                    )
+                    for column in ["s1_pm2_5", "s2_pm2_5", "pm2_5"]
+                    if column in device_df.columns
+                )
+            )
+
+            battery_fault = 0
+            range_fault = int(
+                any(
+                    FaultDetectionUtils._has_invalid_value_fault(
+                        device_df[column], *valid_range
+                    )
+                    for column, valid_range in {
+                        "s1_pm2_5": configuration.VALID_SENSOR_RANGES["pm2_5"],
+                        "s2_pm2_5": configuration.VALID_SENSOR_RANGES["pm2_5"],
+                        "pm2_5": configuration.VALID_SENSOR_RANGES["pm2_5"],
+                        "battery": configuration.VALID_SENSOR_RANGES["battery"],
+                    }.items()
+                    if column in device_df.columns
+                )
+            )
+            if "battery" in device_df.columns:
+                battery_fault = int(
+                    FaultDetectionUtils._has_sustained_condition(
+                        device_df["battery"].fillna(np.inf)
+                        <= FaultDetectionUtils.LOW_BATTERY_THRESHOLD,
+                        FaultDetectionUtils.LOW_BATTERY_WINDOW,
+                    )
+                )
 
             temp = pd.DataFrame(
                 {
@@ -725,51 +901,562 @@ class FaultDetectionUtils(BaseMlUtils):
                     "correlation_fault": [correlation_fault],
                     "correlation_value": [corr],
                     "missing_data_fault": [missing_data_fault],
+                    "sensor_disagreement_fault": [sensor_disagreement_fault],
+                    "constant_value_fault": [constant_value_fault],
+                    "battery_fault": [battery_fault],
+                    "range_fault": [range_fault],
                 }
             )
             result = pd.concat([result, temp], ignore_index=True)
-        result = result[
-            (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
-        ]
+        result = result[result[FaultDetectionUtils.RULE_FAULT_COLUMNS].any(axis=1)]
         return result
 
     @staticmethod
-    def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Flags pattern-based faults such as high variance, constant values, etc"""
-        from sklearn.ensemble import IsolationForest
+    def initialize_device_fault_status(df: pd.DataFrame) -> pd.DataFrame:
+        """Return one initialized fault-status row per device in the input frame."""
+        df = FaultDetectionUtils._ensure_dataframe(df)
 
-        if not isinstance(df, pd.DataFrame):
-            raise ValueError("Input must be a dataframe")
+        if df.empty or "device_id" not in df.columns:
+            return pd.DataFrame(columns=["device_id", "device_name"])
 
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        columns_to_ignore = ["device_id", "timestamp"]
-        df.dropna(inplace=True)
+        devices = (
+            df[["device_id"]]
+            .dropna(subset=["device_id"])
+            .drop_duplicates(subset=["device_id"])
+            .sort_values("device_id")
+            .reset_index(drop=True)
+        )
+        devices["device_name"] = devices["device_id"]
 
-        isolation_forest = IsolationForest(contamination=0.37)
-        isolation_forest.fit(df.drop(columns=columns_to_ignore))
+        return devices
 
-        df["anomaly_value"] = isolation_forest.predict(
-            df.drop(columns=columns_to_ignore)
+    @staticmethod
+    def prepare_pattern_detection_features(
+        df: pd.DataFrame, freq: Frequency = Frequency.HOURLY
+    ) -> pd.DataFrame:
+        """Prepare richer temporal features for pattern-based fault detection."""
+        df = FaultDetectionUtils._ensure_dataframe(df)
+
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
+
+        required_columns = {"device_id", "timestamp", "pm2_5", "s1_pm2_5", "s2_pm2_5"}
+        if not required_columns.issubset(df.columns):
+            missing_columns = sorted(required_columns.difference(df.columns))
+            raise ValueError(
+                f"Provided dataframe missing necessary columns: {', '.join(missing_columns)}"
+            )
+
+        feature_df = df.copy()
+        feature_df["timestamp"] = pd.to_datetime(feature_df["timestamp"])
+        feature_df = feature_df.sort_values(["device_id", "timestamp"]).reset_index(
+            drop=True
+        )
+        feature_df["sensor_delta"] = (
+            feature_df["s1_pm2_5"] - feature_df["s2_pm2_5"]
+        ).abs()
+        feature_df = FaultDetectionUtils.get_cyclic_features(feature_df, freq)
+        feature_df = FaultDetectionUtils.get_lag_and_roll_features(
+            feature_df, "pm2_5", freq
         )
 
-        return df
+        return feature_df
+
+    @staticmethod
+    def flag_pattern_based_faults(
+        df: pd.DataFrame,
+        frequency: Frequency = Frequency.HOURLY,
+        train_if_missing: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Flags pattern-based faults such as high variance, constant values, etc.
+        Uses a trained Isolation Forest model from GCS when available.
+        """
+        from sklearn.ensemble import IsolationForest
+
+        df = FaultDetectionUtils._ensure_dataframe(df)
+
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
+
+        required_columns = {"device_id", "timestamp"}
+        if not required_columns.issubset(df.columns):
+            raise ValueError(
+                f"Input must have the following columns: {sorted(required_columns)}"
+            )
+
+        df = df.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.sort_values(["device_id", "timestamp"]).reset_index(drop=True)
+        columns_to_ignore = {"device_id", "timestamp", "latitude", "longitude"}
+        feature_columns = [
+            column
+            for column in df.columns
+            if column not in columns_to_ignore
+            and pd.api.types.is_numeric_dtype(df[column])
+        ]
+
+        if not feature_columns:
+            raise ValueError("No numeric feature columns available for anomaly detection")
+
+        model_artifact = FaultDetectionUtils.load_isolation_forest(frequency)
+        if model_artifact is None:
+            if not train_if_missing:
+                raise RuntimeError(
+                    "No trained fault-detection Isolation Forest model is available. "
+                    "Run AirQo-fault-detection-model-training first."
+                )
+            logger.info("Training new Isolation Forest model...")
+            model_df = FaultDetectionUtils._prepare_model_feature_frame(
+                df, feature_columns=feature_columns
+            )
+            if model_df.empty or len(model_df.index) < 2:
+                model_df["anomaly_value"] = pd.Series(dtype=int)
+                model_df["anomaly_score"] = pd.Series(dtype=float)
+                return model_df
+            isolation_forest = IsolationForest(
+                contamination=0.37, random_state=42, n_estimators=100
+            )
+            isolation_forest.fit(model_df[feature_columns])
+        else:
+            logger.info("Using loaded Isolation Forest model for prediction")
+            isolation_forest, feature_columns, feature_medians = (
+                FaultDetectionUtils._resolve_isolation_forest_artifact(
+                    model_artifact, fallback_feature_columns=feature_columns
+                )
+            )
+            model_df = FaultDetectionUtils._prepare_model_feature_frame(
+                df,
+                feature_columns=feature_columns,
+                feature_medians=feature_medians,
+            )
+            if model_df.empty or len(model_df.index) < 2:
+                model_df["anomaly_value"] = pd.Series(dtype=int)
+                model_df["anomaly_score"] = pd.Series(dtype=float)
+                return model_df
+
+        model_df["anomaly_value"] = isolation_forest.predict(model_df[feature_columns])
+        model_df["anomaly_score"] = isolation_forest.decision_function(
+            model_df[feature_columns]
+        )
+
+        return model_df
+
+    @staticmethod
+    def _get_isolation_forest_feature_columns(data: pd.DataFrame) -> List[str]:
+        columns_to_ignore = {"device_id", "timestamp", "latitude", "longitude"}
+        return [
+            column
+            for column in data.columns
+            if column not in columns_to_ignore
+            and pd.api.types.is_numeric_dtype(data[column])
+        ]
+
+    @staticmethod
+    def _prepare_model_feature_frame(
+        data: pd.DataFrame,
+        feature_columns: List[str],
+        feature_medians: Optional[Dict[str, float]] = None,
+    ) -> pd.DataFrame:
+        model_df = data.copy()
+        for column in feature_columns:
+            if column not in model_df.columns:
+                model_df[column] = np.nan
+
+        if not feature_columns:
+            return model_df.iloc[0:0].copy()
+
+        model_df = model_df.dropna(subset=["device_id"]).copy()
+        feature_medians = feature_medians or {}
+        for column in feature_columns:
+            fallback_value = feature_medians.get(column)
+            if fallback_value is None or pd.isna(fallback_value):
+                fallback_value = model_df[column].median()
+            if pd.isna(fallback_value):
+                fallback_value = 0.0
+            model_df[column] = model_df[column].fillna(float(fallback_value))
+
+        return model_df
+
+    @staticmethod
+    def _prepare_isolation_forest_training_data(
+        training_data: pd.DataFrame,
+    ) -> Tuple[pd.DataFrame, List[str], Dict[str, float]]:
+        training_data = FaultDetectionUtils._ensure_dataframe(training_data).copy()
+        training_data.dropna(subset=["device_id"], inplace=True)
+        training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
+
+        feature_columns = FaultDetectionUtils._get_isolation_forest_feature_columns(
+            training_data
+        )
+        if not feature_columns:
+            raise ValueError("No numeric feature columns available for training")
+
+        feature_medians = training_data[feature_columns].median(numeric_only=True)
+        feature_columns = [
+            column for column in feature_columns if not pd.isna(feature_medians[column])
+        ]
+        if not feature_columns:
+            raise ValueError("No usable numeric feature columns available for training")
+
+        training_data = training_data.dropna(subset=feature_columns).copy()
+        if training_data.empty:
+            raise ValueError("No complete feature rows available for training")
+
+        feature_medians = training_data[feature_columns].median(numeric_only=True)
+        train_data = FaultDetectionUtils._prepare_model_feature_frame(
+            training_data,
+            feature_columns=feature_columns,
+            feature_medians=feature_medians[feature_columns].to_dict(),
+        )
+        if train_data.empty:
+            raise ValueError("No rows available for training")
+
+        return train_data, feature_columns, feature_medians[feature_columns].to_dict()
+
+    @staticmethod
+    def _serialize_isolation_forest_artifact(artifact: Dict[str, Any]) -> str:
+        import base64
+        import io
+        import joblib
+
+        buffer = io.BytesIO()
+        joblib.dump(artifact, buffer)
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+    @staticmethod
+    def _deserialize_isolation_forest_artifact(payload: str) -> Dict[str, Any]:
+        import base64
+        import io
+        import joblib
+
+        return joblib.load(io.BytesIO(base64.b64decode(payload.encode("ascii"))))
+
+    @staticmethod
+    def _resolve_isolation_forest_artifact(
+        artifact: Any, fallback_feature_columns: List[str]
+    ) -> Tuple[Any, List[str], Dict[str, float]]:
+        if isinstance(artifact, dict) and "model" in artifact:
+            return (
+                artifact["model"],
+                artifact.get("feature_columns") or fallback_feature_columns,
+                artifact.get("feature_medians") or {},
+            )
+        return artifact, fallback_feature_columns, {}
+
+    @staticmethod
+    def _clip_unit_interval(value: float) -> float:
+        if pd.isna(value):
+            return 0.0
+        return float(np.clip(value, 0.0, 1.0))
+
+    @staticmethod
+    def _calculate_unsupervised_model_metrics(
+        *,
+        model: Any,
+        train_data: pd.DataFrame,
+        feature_columns: List[str],
+        random_state: int = 43,
+    ) -> Dict[str, float]:
+        """Calculate higher-is-better metrics for fault-detection model gating."""
+        from sklearn.ensemble import IsolationForest
+        from sklearn.metrics import silhouette_score
+
+        model_frame = train_data[feature_columns]
+        labels = model.predict(model_frame)
+        anomaly_flags = labels == -1
+        anomaly_rate = float(np.mean(anomaly_flags)) if len(labels) else 0.0
+
+        consistency_model = IsolationForest(
+            contamination=FaultDetectionUtils.ISOLATION_FOREST_CONTAMINATION,
+            random_state=random_state,
+            n_estimators=100,
+            max_samples="auto",
+        )
+        consistency_model.fit(model_frame)
+        consistency_labels = consistency_model.predict(model_frame)
+        consistency = (
+            float(np.mean(labels == consistency_labels)) if len(labels) else 0.0
+        )
+
+        stability = 1.0
+        if "device_id" in train_data.columns and train_data["device_id"].nunique() > 1:
+            device_rates = (
+                pd.DataFrame(
+                    {
+                        "device_id": train_data["device_id"].to_numpy(),
+                        "anomaly": anomaly_flags.astype(float),
+                    }
+                )
+                .groupby("device_id")["anomaly"]
+                .mean()
+            )
+            stability = 1.0 - float(device_rates.std(ddof=0))
+
+        silhouette = 0.0
+        unique_labels = np.unique(labels)
+        if len(unique_labels) > 1 and len(unique_labels) < len(labels):
+            try:
+                silhouette = (
+                    float(silhouette_score(model_frame, labels)) + 1.0
+                ) / 2.0
+            except Exception as exc:
+                logger.warning(f"Failed to calculate fault-detection silhouette: {exc}")
+
+        target_rate = FaultDetectionUtils.ISOLATION_FOREST_CONTAMINATION
+        anomaly_realism = 1.0 - min(abs(anomaly_rate - target_rate) / target_rate, 1.0)
+
+        metrics = {
+            "consistency": FaultDetectionUtils._clip_unit_interval(consistency),
+            "stability": FaultDetectionUtils._clip_unit_interval(stability),
+            "silhouette": FaultDetectionUtils._clip_unit_interval(silhouette),
+            "anomaly_realism": FaultDetectionUtils._clip_unit_interval(
+                anomaly_realism
+            ),
+            "anomaly_rate": float(anomaly_rate),
+        }
+        metrics["best_model_score"] = float(
+            sum(
+                FaultDetectionUtils.UNSUPERVISED_SCORE_WEIGHTS[metric] * metrics[metric]
+                for metric in FaultDetectionUtils.UNSUPERVISED_SCORE_WEIGHTS
+            )
+        )
+        return metrics
+
+    @staticmethod
+    def _load_existing_isolation_forest_metrics() -> Optional[Dict[str, float]]:
+        try:
+            artifact = FaultDetectionUtils._load_model_object(
+                source_file=FaultDetectionUtils._get_isolation_forest_model_path()
+            )
+            if isinstance(artifact, dict) and isinstance(artifact.get("metrics"), dict):
+                return artifact["metrics"]
+        except FileNotFoundError:
+            return None
+        except Exception as exc:
+            logger.warning(f"Failed to load existing fault-detection metrics: {exc}")
+        return None
+
+    @staticmethod
+    def _get_unsupervised_deployment_decision(
+        new_metrics: Dict[str, float], old_metrics: Optional[Dict[str, float]]
+    ) -> Tuple[bool, str]:
+        if not old_metrics:
+            return True, "no_previous_model_metrics"
+
+        score_key = "best_model_score"
+        if score_key not in new_metrics:
+            return False, "new_model_score_missing"
+        if score_key not in old_metrics:
+            return True, "previous_model_score_missing"
+
+        if float(new_metrics[score_key]) > float(old_metrics[score_key]):
+            return True, "candidate_beats_best_historical"
+
+        return False, "candidate_not_better_than_best_historical"
+
+    @staticmethod
+    def train_isolation_forest(
+        training_data: pd.DataFrame, frequency: Frequency
+    ) -> dict:
+        """Train an Isolation Forest model and return a serialized artifact.
+
+        Args:
+            training_data: DataFrame with device_id, timestamp, and feature columns.
+            frequency: Feature-engineering frequency used for training metadata.
+        """
+        from sklearn.ensemble import IsolationForest
+
+        train_data, feature_columns, feature_medians = (
+            FaultDetectionUtils._prepare_isolation_forest_training_data(training_data)
+        )
+
+        logger.info(f"Training Isolation Forest with {len(train_data)} samples")
+        logger.info(f"Features: {feature_columns}")
+
+        isolation_forest = IsolationForest(
+            contamination=FaultDetectionUtils.ISOLATION_FOREST_CONTAMINATION,
+            random_state=42,
+            n_estimators=100,
+            max_samples="auto",
+        )
+        isolation_forest.fit(train_data[feature_columns])
+        metrics = FaultDetectionUtils._calculate_unsupervised_model_metrics(
+            model=isolation_forest,
+            train_data=train_data,
+            feature_columns=feature_columns,
+        )
+
+        artifact = {
+            "model": isolation_forest,
+            "feature_columns": feature_columns,
+            "feature_medians": feature_medians,
+            "frequency": frequency.str,
+            "metrics": metrics,
+        }
+        return {
+            "model_artifact": FaultDetectionUtils._serialize_isolation_forest_artifact(
+                artifact
+            ),
+            "frequency": frequency.str,
+            "feature_count": len(feature_columns),
+            "training_rows": len(train_data),
+            "metrics": metrics,
+        }
+
+    @staticmethod
+    def save_isolation_forest_model(trained_model: Dict[str, Any]) -> dict:
+        """Deploy a serialized Isolation Forest artifact if its score improves."""
+        bucket = FaultDetectionUtils._get_model_bucket()
+        model_path = FaultDetectionUtils._get_isolation_forest_model_path()
+        artifact = FaultDetectionUtils._deserialize_isolation_forest_artifact(
+            trained_model["model_artifact"]
+        )
+        metrics = trained_model.get("metrics") or artifact.get("metrics") or {}
+        old_metrics = FaultDetectionUtils._load_existing_isolation_forest_metrics()
+        deploy_new, decision_reason = (
+            FaultDetectionUtils._get_unsupervised_deployment_decision(
+                new_metrics=metrics,
+                old_metrics=old_metrics,
+            )
+        )
+        if deploy_new:
+            FaultDetectionUtils._save_model_object(
+                obj=artifact,
+                destination_file=model_path,
+            )
+            logger.info(f"Isolation Forest model saved to {bucket}/{model_path}")
+        else:
+            logger.info(
+                f"Keeping existing fault-detection model for {model_path}; "
+                "candidate best_model_score did not improve."
+            )
+
+        tracker = MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=configuration.FAULT_DETECTION_MLFLOW_EXPERIMENT
+            or "fault_detection_training",
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+        tracker.log_run(
+            run_name=f"fault-detection-isolation-forest-{trained_model['frequency']}",
+            params={
+                "frequency": trained_model["frequency"],
+                "feature_count": trained_model["feature_count"],
+                "training_rows": trained_model["training_rows"],
+                "contamination": FaultDetectionUtils.ISOLATION_FOREST_CONTAMINATION,
+            },
+            metrics=metrics,
+            tags={
+                "pipeline": "fault_detection",
+                "model_kind": "isolation_forest",
+                "decision_reason": decision_reason,
+            },
+            deployed=deploy_new,
+            model=artifact.get("model"),
+            model_artifact_path="model",
+        )
+
+        return {
+            "bucket": bucket,
+            "model_path": model_path,
+            "frequency": trained_model["frequency"],
+            "feature_count": trained_model["feature_count"],
+            "training_rows": trained_model["training_rows"],
+            "metrics": metrics,
+            "deployed": deploy_new,
+            "deployment_reason": decision_reason,
+            "old_metrics": old_metrics,
+        }
+
+    @staticmethod
+    def train_and_save_isolation_forest(
+        training_data: pd.DataFrame, frequency: Frequency
+    ) -> dict:
+        """Train an Isolation Forest model and save it to configured storage."""
+        trained_model = FaultDetectionUtils.train_isolation_forest(
+            training_data, frequency
+        )
+        return FaultDetectionUtils.save_isolation_forest_model(trained_model)
+
+    @staticmethod
+    def load_isolation_forest(frequency: Frequency):
+        """Load a trained Isolation Forest model from GCS.
+
+        Args:
+            frequency: Feature-engineering frequency kept for caller compatibility.
+
+        Returns:
+            Trained IsolationForest model.
+        """
+        try:
+            bucket = FaultDetectionUtils._get_model_bucket()
+        except ValueError as exc:
+            logger.warning(str(exc))
+            return None
+
+        try:
+            model_path = FaultDetectionUtils._get_isolation_forest_model_path()
+        except ValueError as exc:
+            logger.warning(str(exc))
+            return None
+
+        cache_path = Path("/tmp") / Path(model_path).name
+        try:
+            model = FaultDetectionUtils._load_model_object(
+                source_file=model_path,
+                local_cache_path=str(cache_path),
+            )
+            logger.info(f"Loaded Isolation Forest model from {bucket}/{model_path}")
+            return model
+        except Exception as e:
+            logger.warning(
+                f"Could not load Isolation Forest model: {e}."
+            )
+            return None
 
     @staticmethod
     def process_faulty_devices_percentage(df: pd.DataFrame):
         """Process faulty devices dataframe and save to MongoDB"""
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
 
-        anomaly_percentage = pd.DataFrame(
-            (
-                df[df["anomaly_value"] == -1].groupby("device_id").size()
-                / df.groupby("device_id").size()
+        if df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "device_id",
+                    "anomaly_percentage",
+                    "anomaly_count",
+                    "observation_count",
+                    "anomaly_percentage_fault",
+                ]
             )
-            * 100,
-            columns=["anomaly_percentage"],
+
+        observation_count = df.groupby("device_id").size().rename("observation_count")
+        anomaly_count = (
+            df[df["anomaly_value"] == -1].groupby("device_id").size().rename("anomaly_count")
         )
+        anomaly_percentage = pd.concat(
+            [anomaly_count, observation_count], axis=1
+        ).fillna(0)
+        anomaly_percentage["anomaly_percentage"] = (
+            anomaly_percentage["anomaly_count"]
+            / anomaly_percentage["observation_count"]
+        ) * 100
+        anomaly_percentage["anomaly_count"] = anomaly_percentage["anomaly_count"].astype(
+            int
+        )
+        anomaly_percentage["observation_count"] = anomaly_percentage[
+            "observation_count"
+        ].astype(int)
+        anomaly_percentage["anomaly_percentage_fault"] = (
+            anomaly_percentage["anomaly_percentage"] > 45
+        ).astype(int)
 
         return anomaly_percentage[
-            anomaly_percentage["anomaly_percentage"] > 45
+            anomaly_percentage["anomaly_percentage_fault"] == 1
         ].reset_index(level=0)
 
     @staticmethod
@@ -786,30 +1473,118 @@ class FaultDetectionUtils(BaseMlUtils):
             DataFrame with 'device_id' and 'fault_count' columns for devices
             exceeding the anomaly sequence threshold.
         """
-        df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
-        df["anomaly_sequence_length"] = (
-            df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        if df.empty:
+            return pd.DataFrame(
+                columns=["device_id", "fault_count", "anomaly_sequence_fault"]
+            )
+
+        required_columns = {"device_id", "timestamp", "anomaly_value"}
+        if not required_columns.issubset(df.columns):
+            raise ValueError(
+                f"Input must have the following columns: {sorted(required_columns)}"
+            )
+
+        df = df.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.sort_values(["device_id", "timestamp"]).reset_index(drop=True)
+        df["is_anomaly"] = df["anomaly_value"].eq(-1).astype(int)
+        df["group"] = df.groupby("device_id")["is_anomaly"].transform(
+            lambda series: series.ne(series.shift()).cumsum()
         )
-        df["anomaly_sequence_length"].fillna(0, inplace=True)
+        anomaly_runs = (
+            df[df["is_anomaly"] == 1]
+            .groupby(["device_id", "group"])
+            .size()
+            .reset_index(name="fault_count")
+        )
+
+        if anomaly_runs.empty:
+            return pd.DataFrame(
+                columns=["device_id", "fault_count", "anomaly_sequence_fault"]
+            )
+
         device_max_anomaly_sequence = (
-            df.groupby("device_id")["anomaly_sequence_length"].max().reset_index()
+            anomaly_runs.groupby("device_id")["fault_count"].max().reset_index()
         )
         faulty_devices_df = device_max_anomaly_sequence[
-            device_max_anomaly_sequence["anomaly_sequence_length"] >= 80
+            device_max_anomaly_sequence["fault_count"] >= 80
         ]
-        faulty_devices_df.columns = ["device_id", "fault_count"]
+        if not faulty_devices_df.empty:
+            faulty_devices_df["anomaly_sequence_fault"] = 1
 
         return faulty_devices_df
 
     @staticmethod
     def save_faulty_devices(*dataframes):
         """Save or update faulty devices to MongoDB"""
-        dataframes = list(dataframes)
+        dataframes = [
+            dataframe.copy().drop_duplicates(subset=["device_id"], keep="last")
+            for dataframe in dataframes
+            if isinstance(dataframe, pd.DataFrame)
+            and not dataframe.empty
+            and "device_id" in dataframe.columns
+        ]
+
+        if not dataframes:
+            logger.info("No faulty devices detected. Skipping MongoDB write.")
+            return None
+
         merged_df = dataframes[0]
         for df in dataframes[1:]:
             merged_df = merged_df.merge(df, on="device_id", how="outer")
+
+        if merged_df.empty:
+            logger.info("No faulty devices detected after merge. Skipping MongoDB write.")
+            return None
+
         merged_df = merged_df.fillna(0)
+        if "device_name" not in merged_df.columns:
+            merged_df["device_name"] = merged_df["device_id"]
+        merged_df["fault_detected"] = 1
+        for column, default_value in FaultDetectionUtils.ML_FAULT_DEFAULTS.items():
+            if column not in merged_df.columns:
+                merged_df[column] = default_value
+        if "anomaly_percentage" in merged_df.columns:
+            merged_df["anomaly_percentage_fault"] = (
+                (merged_df["anomaly_percentage_fault"].astype(int) == 1)
+                | (merged_df["anomaly_percentage"] > 45)
+            ).astype(int)
+        if "fault_count" in merged_df.columns:
+            merged_df["anomaly_sequence_fault"] = (
+                (merged_df["anomaly_sequence_fault"].astype(int) == 1)
+                | (merged_df["fault_count"] >= 80)
+            ).astype(int)
+        fault_flag_columns = [
+            column
+            for column in (
+                FaultDetectionUtils.RULE_FAULT_COLUMNS
+                + ["anomaly_percentage_fault", "anomaly_sequence_fault"]
+            )
+            if column in merged_df.columns
+        ]
+        if fault_flag_columns:
+            merged_df[fault_flag_columns] = merged_df[fault_flag_columns].astype(int)
+            merged_df["fault_types"] = merged_df.apply(
+                lambda row: [
+                    column
+                    for column in fault_flag_columns
+                    if int(row.get(column, 0)) == 1
+                ],
+                axis=1,
+            )
+            merged_df["triggered_fault_count"] = merged_df["fault_types"].map(len)
+            merged_df["fault_detected"] = (
+                merged_df["triggered_fault_count"] > 0
+            ).astype(int)
+        else:
+            merged_df["fault_detected"] = 0
         merged_df["created_at"] = datetime.now().isoformat(timespec="seconds")
+        collection_name = getattr(
+            configuration, "MONGO_FAULTY_DEVICES_COLLECTION", "faulty_devices_1"
+        )
         with pm.MongoClient(configuration.MONGO_URI) as client:
             db = client[configuration.MONGO_DATABASE_NAME]
             records = merged_df.to_dict("records")
@@ -822,12 +1597,21 @@ class FaultDetectionUtils(BaseMlUtils):
                 for record in records
             ]
 
+            if not bulk_ops:
+                logger.info("No faulty device upserts to write. Skipping MongoDB write.")
+                return None
+
             try:
-                db.faulty_devices_1.bulk_write(bulk_ops)
+                db[collection_name].bulk_write(bulk_ops, ordered=False)
             except Exception as e:
                 logger.error(f"Error saving faulty devices to MongoDB: {e}")
+                raise
 
-            logger.info("Faulty devices saved/updated to MongoDB")
+            logger.info(
+                "Faulty devices saved/updated to MongoDB. rows=%s collection=%s",
+                len(bulk_ops),
+                collection_name,
+            )
 
 
 class SatelliteUtils(BaseMlUtils):

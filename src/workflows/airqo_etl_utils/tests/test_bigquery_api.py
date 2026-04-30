@@ -1,10 +1,12 @@
 from unittest import mock
+from pathlib import Path
 import pandas as pd
 import unittest
 from airqo_etl_utils.bigquery_api import BigQueryApi
 import pytest
 
 from airqo_etl_utils.utils import Result
+from airqo_etl_utils.sql.query_manager import Query
 
 
 @pytest.fixture
@@ -133,7 +135,8 @@ def test_fetch_data_bigquery_error(mock_bigquery_client, start_date_time):
 
 
 def test_fetch_raw_readings_empty(mock_bigquery_client):
-    api = BigQueryApi()
+    with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
+        api = BigQueryApi()
     api.client = mock_bigquery_client
     api.client.query.return_value.result.return_value.to_dataframe.return_value = (
         pd.DataFrame()
@@ -141,6 +144,111 @@ def test_fetch_raw_readings_empty(mock_bigquery_client):
     with pytest.raises(Exception) as e:
         df = api.fetch_raw_readings()
         assert "No data found" in str(e.value)
+
+
+@pytest.fixture
+def synthetic_fault_detection_raw_readings_df():
+    return pd.DataFrame(
+        {
+            "timestamp": [
+                "2026-03-01 00:00:00",
+                "2026-03-01 01:00:00",
+                "2026-03-01 00:00:00",
+                "2026-03-01 01:00:00",
+            ],
+            "device_id": ["device-a", "device-a", "device-b", "device-b"],
+            "latitude": [0.3476, 0.3476, 0.3136, 0.3136],
+            "longitude": [32.5825, 32.5825, 32.5811, 32.5811],
+            "s1_pm2_5": [10.0, 14.0, 20.0, 24.0],
+            "s2_pm2_5": [11.0, 13.0, 19.0, 25.0],
+            "pm2_5": [10.5, 13.5, 19.5, 24.5],
+            "battery": [3.9, 3.8, 4.0, 3.9],
+        }
+    )
+
+
+def test_fetch_fault_detection_raw_readings_uses_configured_lookback_days(
+    monkeypatch, synthetic_fault_detection_raw_readings_df
+):
+    captured = {}
+    expected_query = Query(
+        name="fault_detection_raw_device_readings",
+        sql=(
+            "SELECT * FROM {raw_measurements_table} "
+            "WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {lookback_days} DAY)"
+        ),
+        source=Path(
+            "src/workflows/airqo_etl_utils/sql/faultdetection/2026041701fault_detection.sql"
+        ),
+    )
+
+    with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
+        api = BigQueryApi()
+
+    def fake_get_query(name):
+        captured["query_name"] = name
+        captured["source"] = expected_query.source
+        return expected_query
+
+    def fake_execute_data_query(query):
+        captured["rendered_query"] = query
+        return synthetic_fault_detection_raw_readings_df.copy()
+
+    monkeypatch.setattr(
+        "airqo_etl_utils.bigquery_api.query_manager.get_query", fake_get_query
+    )
+    monkeypatch.setattr(api, "execute_data_query", fake_execute_data_query)
+    api.raw_measurements_table = "project.dataset.raw_measurements"
+    monkeypatch.setattr(
+        "airqo_etl_utils.bigquery_api.configuration.FAULT_DETECTION_LOOKBACK_DAYS",
+        14,
+    )
+
+    result = api.fetch_fault_detection_raw_readings()
+
+    assert captured["query_name"] == "fault_detection_raw_device_readings"
+    assert captured["source"].parent.name == "faultdetection"
+    assert "project.dataset.raw_measurements" in captured["rendered_query"]
+    assert "INTERVAL 14 DAY" in captured["rendered_query"]
+    assert list(result["device_id"]) == ["device-a", "device-a", "device-b", "device-b"]
+    assert isinstance(result["timestamp"].dtype, pd.DatetimeTZDtype)
+
+
+def test_fetch_fault_detection_raw_readings_applies_training_device_filters(
+    monkeypatch, synthetic_fault_detection_raw_readings_df
+):
+    captured = {}
+
+    with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
+        api = BigQueryApi()
+
+    def fake_execute_data_query(query):
+        captured["rendered_query"] = query
+        return synthetic_fault_detection_raw_readings_df.copy()
+
+    monkeypatch.setattr(api, "execute_data_query", fake_execute_data_query)
+    api.raw_measurements_table = "project.dataset.raw_measurements"
+
+    api.fetch_fault_detection_raw_readings(
+        lookback_days=90,
+        device_limit=50,
+        minimum_hourly_records=48,
+    )
+
+    assert "INTERVAL 90 DAY" in captured["rendered_query"]
+    assert "HAVING COUNT(*) >= 48" in captured["rendered_query"]
+    assert "ORDER BY RAND()" in captured["rendered_query"]
+    assert "LIMIT 50" in captured["rendered_query"]
+
+
+def test_fetch_fault_detection_raw_readings_empty_raises(monkeypatch):
+    with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
+        api = BigQueryApi()
+
+    monkeypatch.setattr(api, "execute_data_query", lambda _query: pd.DataFrame())
+
+    with pytest.raises(Exception, match="No data found from bigquery"):
+        api.fetch_fault_detection_raw_readings()
 
 
 class TestFetchMaxMinValues(unittest.TestCase):

@@ -1230,6 +1230,55 @@ class BigQueryApi:
 
         return results
 
+    def fetch_fault_detection_raw_readings(
+        self,
+        lookback_days: Optional[int] = None,
+        device_limit: Optional[int] = None,
+        minimum_hourly_records: int = 1,
+    ) -> pd.DataFrame:
+        """
+        Fetch raw device readings for fault detection using the requested lookback.
+        """
+        lookback_days = lookback_days or configuration.FAULT_DETECTION_LOOKBACK_DAYS
+        if minimum_hourly_records <= 0:
+            raise ValueError(
+                f"minimum_hourly_records must be positive, got {minimum_hourly_records}"
+            )
+        device_limit_clause = ""
+        if device_limit is not None:
+            if device_limit <= 0:
+                raise ValueError(f"device_limit must be positive, got {device_limit}")
+            device_limit_clause = f"ORDER BY RAND()\n    LIMIT {int(device_limit)}"
+
+        query = query_manager.get_query("fault_detection_raw_device_readings").format(
+            raw_measurements_table=self.raw_measurements_table,
+            lookback_days=lookback_days,
+            minimum_hourly_records=minimum_hourly_records,
+            device_limit_clause=device_limit_clause,
+        )
+        try:
+            results = self.execute_data_query(f"{query}")
+        except Exception as e:
+            logger.exception(f"Error when fetching data from bigquery, {e}")
+            raise
+
+        if results.empty:
+            raise Exception(
+                "No data found from bigquery for fault-detection "
+                f"for lookback_days={lookback_days}, "
+                f"device_limit={device_limit}, "
+                f"minimum_hourly_records={minimum_hourly_records}"
+            )
+
+        results["timestamp"] = pd.to_datetime(results["timestamp"], utc=True)
+        num_cols = results.select_dtypes(include="number").columns
+        results = (
+            results.groupby("device_id").resample("h", on="timestamp")[num_cols].mean()
+        )
+        results.reset_index(inplace=True)
+
+        return results
+
     def fetch_device_data_for_forecast_job(
         self,
         start_date_time: str,
