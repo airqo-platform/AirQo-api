@@ -1,5 +1,6 @@
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
+from math import ceil
 
 class PerformanceAnalysis:
     def __init__(self, data: List[Dict[str, Any]], expected_frequency_minutes: int = 2):
@@ -9,13 +10,22 @@ class PerformanceAnalysis:
     def _calculate_expected_records(self, start_date_time: str, end_date_time: str) -> int:
         try:
             # Handle typical 'Z' ending or parse from ISO format
-            start_dt = datetime.fromisoformat(start_date_time.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(end_date_time.replace('Z', '+00:00'))
+            start_dt = self._parse_datetime(start_date_time)
+            end_dt = self._parse_datetime(end_date_time)
             duration_minutes = (end_dt - start_dt).total_seconds() / 60.0
             # Can't have less than 0 expected
             return max(1, int(duration_minutes / self.expected_frequency_minutes))
         except Exception:
             # Fallback if parsing fails
+            return 1
+
+    def _calculate_expected_hour_buckets(self, start_date_time: str, end_date_time: str) -> int:
+        try:
+            start_dt = self._parse_datetime(start_date_time)
+            end_dt = self._parse_datetime(end_date_time)
+            duration_hours = (end_dt - start_dt).total_seconds() / 3600.0
+            return max(1, ceil(duration_hours))
+        except Exception:
             return 1
 
     def _calculate_correlation(self, x: List[float], y: List[float]) -> float:
@@ -64,16 +74,20 @@ class PerformanceAnalysis:
         return (sum(values) / len(values)) if values else 0.0
 
     @staticmethod
-    def _extract_hour(dt_str: Any):
-        """Parse an ISO datetime string and return its hour, or None on failure."""
+    def _parse_datetime(dt_str: Any) -> datetime:
+        return datetime.fromisoformat(str(dt_str).replace("Z", "+00:00"))
+
+    def _extract_hour_bucket(self, dt_str: Any) -> Optional[datetime]:
+        """Parse an ISO datetime string and return datetime floored to the hour, or None on failure."""
         if not dt_str:
             return None
         try:
-            return datetime.fromisoformat(str(dt_str).replace("Z", "+00:00")).hour
+            parsed = self._parse_datetime(dt_str)
+            return parsed.replace(minute=0, second=0, microsecond=0)
         except Exception:
             return None
 
-    def _bam_metrics(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _bam_metrics(self, records: List[Dict[str, Any]], expected_hourly_buckets: int) -> Dict[str, Any]:
         """Compute BAM-style metrics for a single device's records."""
         unique_hours: set = set()
         realtime_concs: List[float] = []
@@ -82,9 +96,9 @@ class PerformanceAnalysis:
         complete_records = 0
 
         for r in records:
-            hour = self._extract_hour(r.get("datetime"))
-            if hour is not None:
-                unique_hours.add(hour)
+            hour_bucket = self._extract_hour_bucket(r.get("datetime"))
+            if hour_bucket is not None:
+                unique_hours.add(hour_bucket)
 
             rt = r.get("realtime_conc")
             st = r.get("short_time_conc")
@@ -100,7 +114,7 @@ class PerformanceAnalysis:
 
         total = len(records)
         return {
-            "uptime": len(unique_hours) / 24.0,
+            "uptime": min(1.0, len(unique_hours) / expected_hourly_buckets) if expected_hourly_buckets else 0.0,
             "data_completeness": (complete_records / total) if total > 0 else 0.0,
             "realtime_conc_average": self._avg_or_none(realtime_concs),
             "short_time_conc_average": self._avg_or_none(short_time_concs),
@@ -176,13 +190,14 @@ class PerformanceAnalysis:
         Returns a dict mapping device_name to a dict of metrics.
         """
         expected_records = self._calculate_expected_records(start_date_time, end_date_time)
+        expected_hourly_buckets = self._calculate_expected_hour_buckets(start_date_time, end_date_time)
         device_data = self._group_by_device(self.data)
         is_bam = device_category == "bam"
 
         metrics: Dict[str, Dict[str, float]] = {}
         for dev_name, records in device_data.items():
             metrics[dev_name] = (
-                self._bam_metrics(records) if is_bam
+                self._bam_metrics(records, expected_hourly_buckets) if is_bam
                 else self._lowcost_metrics(records, expected_records)
             )
         return metrics
