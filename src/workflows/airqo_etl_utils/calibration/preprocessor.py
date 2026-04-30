@@ -211,7 +211,7 @@ class CalibrationPreprocessor:
             device_col: Column in *low_cost_data* that identifies each device
                 (default ``"device_number"``).
             bam_device_name: Optional label used to prefix extra BAM columns
-                (e.g. ``"BAM_MUK"``).  ``bam_pm`` is never prefixed.
+                (e.g. ``"bam_loggerA1"``).  ``bam_pm`` is never prefixed.
             tz_offset_hours: Hours to shift all LCS timestamps forward before
                 merging with the BAM reference monitor (default 0).  Use this
                 when the LCS and BAM clocks are in different timezones.
