@@ -6,7 +6,6 @@ import json
 import os
 import ast
 from threading import Thread
-from datetime import timedelta
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple, Coroutine, Optional, Generic, TypeVar, List
 from http.client import HTTPResponse
@@ -146,8 +145,9 @@ class Utils:
     @staticmethod
     def query_dates_array(
         data_source: DataSource,
-        start_date_time,
-        end_date_time,
+        start_date_time: str,
+        end_date_time: str,
+        frequency_: Optional[str] = None,
     ) -> List[Tuple[str, str]]:
         """Generate date ranges based on the specified time period and frequency.
 
@@ -158,6 +158,8 @@ class Utils:
             data_source: The source of data to determine frequency.
             start_date_time: The start date and time for the query range.
             end_date_time: The end date and time for the query range.
+            frequency_: Optional frequency string (e.g., "12H"). If not provided, it will be determined based on the data source.
+                                                                 This allows you create wider date ranges.
 
         Returns:
             List of tuples containing (start_date_str, end_date_str) for each time range.
@@ -165,7 +167,7 @@ class Utils:
         Raises:
             ValueError: If dates cannot be parsed.
         """
-        freq = Utils.query_frequency(data_source)
+        freq = frequency_ or Utils.query_frequency(data_source)
         try:
             start_dt = pd.to_datetime(start_date_time)
             end_dt = pd.to_datetime(end_date_time)
@@ -174,22 +176,22 @@ class Utils:
                 f"Invalid date format for start_date_time or end_date_time: {e}. "
                 "Expected ISO 8601 or pandas-recognized date string."
             )
-        dates = pd.date_range(start_dt, end_dt, freq=freq)
-        frequency = dates.freq
 
-        if dates.values.size == 1:
-            dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
+        breakpoints = list(pd.date_range(start_dt, end_dt, freq=freq))
 
-        dates = [pd.to_datetime(str(date)) for date in dates.values]
-        dates_new = []
+        # If end_dt falls after the last breakpoint (i.e. a remainder chunk exists),
+        # append it so the final partial interval is not dropped.
+        if not breakpoints or breakpoints[-1] < end_dt:
+            breakpoints.append(end_dt)
 
-        array_last_date_time = dates.pop()
-        for date in dates:
-            end = date + timedelta(hours=frequency.n)
-            if end > array_last_date_time:
-                end = array_last_date_time
-            dates_new.append((DateUtils.date_to_str(date), DateUtils.date_to_str(end)))
-        return dates_new
+        pairs = [
+            (DateUtils.date_to_str(a), DateUtils.date_to_str(b))
+            for a, b in zip(breakpoints, breakpoints[1:])
+        ]
+        # Fallback for degenerate case where start == end.
+        return pairs or [
+            (DateUtils.date_to_str(start_dt), DateUtils.date_to_str(end_dt))
+        ]
 
     @staticmethod
     def year_months_query_array(year: int):
