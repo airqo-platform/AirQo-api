@@ -57,17 +57,20 @@ async def get_maintenance_map_view(
     authorization: str = Header(...),
     days: int = Query(default=14, ge=1, le=90, description="Lookback period in days"),
     tags: Optional[str] = Query(default=None, description="Comma-separated cohort tags to filter by"),
-    live: bool = Query(default=False, description="If true, compute in real-time instead of using pre-computed data"),
+    live: bool = Query(default=False, description="Deprecated — always reads from local sync tables"),
+    frequency: str = Query(default="hourly", description="raw | hourly | daily"),
 ):
     """
     Device coordinates with performance metrics for map display.
-    By default, serves pre-computed data from sync_device_performance.
-    Pass live=true to force real-time computation.
+    Always reads from local sync_*_device_data tables.
     """
     token = _extract_token(authorization)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+    freq = (frequency or "hourly").lower()
+    if freq not in {"raw", "hourly", "daily"}:
+        raise HTTPException(status_code=400, detail="Invalid 'frequency'. Must be one of: raw, hourly, daily.")
     try:
-        return await maintenance_service.get_map_view(token, days, tags=tag_list, live=live)
+        return await maintenance_service.get_map_view(token, days, tags=tag_list, live=live, frequency=freq)
     except Exception as e:
         logger.exception(f"Error fetching maintenance map view: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

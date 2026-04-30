@@ -46,6 +46,7 @@ deployed_devices AS (
     FROM {devices_table}
     WHERE network = '{network}'
       AND deployed = TRUE
+      AND device_category = 'lowcost'
       AND device_id IS NOT NULL
 ),
 expected_data_points AS (
@@ -58,12 +59,12 @@ expected_data_points AS (
 actual_data AS (
     SELECT
         device_id,
-        TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
+        TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp,
+        pm2_5_calibrated_value
     FROM {table}
     WHERE timestamp >= TIMESTAMP('{start_date}')
       AND timestamp < TIMESTAMP_ADD(TIMESTAMP('{start_date}'), INTERVAL {n_hours} HOUR)
       AND network = '{network}'
-      AND ({qualifier_query})
 )
 SELECT
     edp.device_id,
@@ -72,5 +73,5 @@ FROM expected_data_points edp
 LEFT JOIN actual_data ad
     ON edp.device_id = ad.device_id
     AND edp.timestamp = ad.timestamp
-WHERE ad.device_id IS NULL
+WHERE  ad.{qualifier_query}
 ORDER BY edp.device_id, edp.timestamp

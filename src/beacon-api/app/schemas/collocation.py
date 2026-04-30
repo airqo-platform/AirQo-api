@@ -66,10 +66,28 @@ class InlabResponse(BaseModel):
 
 class CollocationDeviceData(BaseModel):
     device_name: str
+    device_id: Optional[str] = None
     category: str
     data: List[Dict[str, Any]]
+
+class CollocationSiteInfo(BaseModel):
+    site_id: str
+    name: Optional[str] = None
+    generated_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    network: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    county: Optional[str] = None
+    district: Optional[str] = None
+    region: Optional[str] = None
+    data_provider: Optional[str] = None
+    description: Optional[str] = None
+    number_of_devices: int = 0
 
 class CollocationSiteDetailsResponse(BaseModel):
     success: bool
     message: str
+    site: Optional[CollocationSiteInfo] = None
     data: List[CollocationDeviceData]

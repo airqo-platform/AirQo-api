@@ -25,7 +25,7 @@ from app.db.session import Base
 from sqlmodel import SQLModel
 
 # Import all your models here so their metadata is collected
-from app.models import device_performance, firmware, sync
+from app.models import device_performance, firmware, sync, device_data
 
 # Dynamically override the url in alembic.ini with the one from our .env configuration
 config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)

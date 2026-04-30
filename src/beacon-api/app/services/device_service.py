@@ -84,6 +84,77 @@ def extract_device_category(dev: Dict[str, Any]) -> str:
     return "lowcost"
 
 
+_AUTHORITATIVE_FIELDS = (
+    "category", "site_id", "network_id", "device_name",
+    "device_number", "writeKey", "readKey",
+)
+
+_NON_AUTH_FILL_FIELDS = (
+    "device_name", "network_id", "device_number", "writeKey", "readKey",
+)
+
+
+def _resolve_site_id(dev: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    """Return (site_id, status). site_id is non-None only if status == 'deployed'."""
+    platform_site_id = (
+        dev.get("site", {}).get("_id")
+        or dev.get("site_id")
+        or dev.get("site", {}).get("id")
+    )
+    status = dev.get("status")
+    site_id = platform_site_id if status == "deployed" else None
+    return site_id, status
+
+
+def _build_field_values(
+    dev: Dict[str, Any], read_key: Optional[str], site_id: Optional[str],
+) -> Dict[str, Any]:
+    """Map dev payload + decrypted read key to SyncDevice column values."""
+    return {
+        "category": extract_device_category(dev),
+        "site_id": site_id,
+        "network_id": dev.get("network"),
+        "device_name": dev.get("name"),
+        "device_number": dev.get("device_number"),
+        "writeKey": dev.get("writeKey"),
+        "readKey": read_key or dev.get("readKey"),
+    }
+
+
+def _apply_authoritative_update(
+    db_device: SyncDevice, values: Dict[str, Any],
+) -> bool:
+    """Overwrite all known fields when sources are authoritative. Returns True if changed."""
+    updated = False
+    for field in _AUTHORITATIVE_FIELDS:
+        new_val = values[field]
+        if getattr(db_device, field) != new_val:
+            setattr(db_device, field, new_val)
+            updated = True
+    return updated
+
+
+def _apply_non_authoritative_update(
+    db_device: SyncDevice,
+    values: Dict[str, Any],
+    status: Optional[str],
+) -> bool:
+    """Update only missing/safe fields when source is partial. Returns True if changed."""
+    updated = False
+    if not db_device.category:
+        db_device.category = values["category"]
+        updated = True
+    if status is not None and db_device.site_id != values["site_id"]:
+        db_device.site_id = values["site_id"]
+        updated = True
+    for field in _NON_AUTH_FILL_FIELDS:
+        new_val = values[field]
+        if not getattr(db_device, field) and new_val:
+            setattr(db_device, field, new_val)
+            updated = True
+    return updated
+
+
 def upsert_device_to_sync(
     db: Session,
     dev: Dict[str, Any],
@@ -102,111 +173,39 @@ def upsert_device_to_sync(
     if not device_id:
         return None, False, False
 
-    # Extract common fields
-    device_name = dev.get("name")
-    network_id = dev.get("network")
-    dn = dev.get("device_number")
-    write_key = dev.get("writeKey")
-    # Use provided decrypted read_key if available, else what's in dev
-    read_key_to_store = read_key or dev.get("readKey")
-
-    # site_id logic
-    # In authoritative sync, we have 'status' and 'site' object
-    platform_site_id = (
-        dev.get("site", {}).get("_id") or dev.get("site_id") or dev.get("site", {}).get("id")
-    )
-    status = dev.get("status")
-
-    # Accurate logic: site_id is only valid if device is "deployed"
-    # If status is missing (non-authoritative thin data), we don't know for sure.
-    site_id = platform_site_id if status == "deployed" else None
+    site_id, status = _resolve_site_id(dev)
+    values = _build_field_values(dev, read_key, site_id)
 
     db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
 
     if not db_device:
-        # Brand-new device — derive everything
+        # Brand-new device: if status missing entirely, fall back to platform_site_id.
+        initial_site_id = site_id if status is not None else (
+            dev.get("site", {}).get("_id")
+            or dev.get("site_id")
+            or dev.get("site", {}).get("id")
+        )
         db_device = SyncDevice(
             device_id=device_id,
-            device_name=device_name,
-            network_id=network_id,
-            category=extract_device_category(dev),
-            site_id=site_id if status is not None else platform_site_id,
-            device_number=dn,
-            writeKey=write_key,
-            readKey=read_key_to_store,
+            device_name=values["device_name"],
+            network_id=values["network_id"],
+            category=values["category"],
+            site_id=initial_site_id,
+            device_number=values["device_number"],
+            writeKey=values["writeKey"],
+            readKey=values["readKey"],
         )
         db.add(db_device)
         return db_device, True, False
+
+    if is_authoritative:
+        updated = _apply_authoritative_update(db_device, values)
     else:
-        updated = False
+        updated = _apply_non_authoritative_update(db_device, values, status)
 
-        if is_authoritative:
-            # Full sync — update everything
-            extracted_category = extract_device_category(dev)
-            if db_device.category != extracted_category:
-                db_device.category = extracted_category
-                updated = True
-
-            if db_device.site_id != site_id:
-                db_device.site_id = site_id
-                updated = True
-
-            if db_device.network_id != network_id:
-                db_device.network_id = network_id
-                updated = True
-
-            if db_device.device_name != device_name:
-                db_device.device_name = device_name
-                updated = True
-
-            if db_device.device_number != dn:
-                db_device.device_number = dn
-                updated = True
-
-            if db_device.writeKey != write_key:
-                db_device.writeKey = write_key
-                updated = True
-
-            if db_device.readKey != read_key_to_store:
-                db_device.readKey = read_key_to_store
-                updated = True
-        else:
-            # Non-authoritative sync (e.g. from cohorts) — avoid overwriting valid metadata
-
-            # 1. Category: Only update if missing
-            if not db_device.category:
-                db_device.category = extract_device_category(dev)
-                updated = True
-
-            # 2. Site ID: Only update if status is explicitly provided
-            if status is not None:
-                if db_device.site_id != site_id:
-                    db_device.site_id = site_id
-                    updated = True
-            # If status is None, we TRUST the database's existing site_id
-            # and ignore platform_site_id which might be None or stale in thin data.
-
-            # 3. Other fields: update only if missing in DB
-            if not db_device.device_name and device_name:
-                db_device.device_name = device_name
-                updated = True
-            if not db_device.network_id and network_id:
-                db_device.network_id = network_id
-                updated = True
-            if not db_device.device_number and dn:
-                db_device.device_number = dn
-                updated = True
-            if not db_device.writeKey and write_key:
-                db_device.writeKey = write_key
-                updated = True
-            if not db_device.readKey and read_key_to_store:
-                db_device.readKey = read_key_to_store
-                updated = True
-
-        if updated:
-            db.add(db_device)
-
-        return db_device, False, updated
+    if updated:
+        db.add(db_device)
+    return db_device, False, updated
 
 
 from typing import Optional
@@ -289,6 +288,103 @@ def _map_thingspeak_feeds(
     return records
 
 
+_TS_PAGE_SIZE = 8000
+_TS_MAX_PAGES = 15
+
+
+def _ts_clean_date(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    return value.replace("T", " ").replace("Z", "")
+
+
+def _build_ts_params(
+    read_key: str,
+    min_id: Optional[int],
+    start_date: Optional[str],
+    end_date: Optional[str],
+) -> Dict[str, Any]:
+    params: Dict[str, Any] = {"api_key": read_key, "results": _TS_PAGE_SIZE}
+    if min_id:
+        params["min_id"] = min_id
+    elif start_date:
+        params["start"] = _ts_clean_date(start_date)
+    cleaned_end = _ts_clean_date(end_date)
+    if cleaned_end:
+        params["end"] = cleaned_end
+    return params
+
+
+def _next_min_id(feeds: List[Dict[str, Any]]) -> Optional[int]:
+    """Return next min_id if a full page was returned, else None to signal stop."""
+    if len(feeds) < _TS_PAGE_SIZE:
+        return None
+    last_id = feeds[-1].get("entry_id")
+    if last_id is None:
+        return None
+    return last_id + 1
+
+
+async def _fetch_thingspeak_feeds(
+    device_number: int,
+    device_name: str,
+    read_key: str,
+    start_date: Optional[str],
+    end_date: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Fetch all paginated ThingSpeak feeds for a device. Empty list on failure."""
+    ts_url = f"https://api.thingspeak.com/channels/{device_number}/feeds.json"
+    all_feeds: List[Dict[str, Any]] = []
+    min_id: Optional[int] = None
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for page in range(1, _TS_MAX_PAGES + 1):
+                params = _build_ts_params(read_key, min_id, start_date, end_date)
+                resp = await client.get(ts_url, params=params)
+                if resp.status_code != 200:
+                    logger.warning(
+                        f"[ThingSpeak Direct] API error for {device_name} (page {page}): {resp.status_code}"
+                    )
+                    break
+                feeds = resp.json().get("feeds", [])
+                if not feeds:
+                    break
+                all_feeds.extend(feeds)
+                min_id = _next_min_id(feeds)
+                if min_id is None:
+                    break
+        if all_feeds:
+            logger.info(
+                f"[ThingSpeak Direct] Successfully fetched {len(all_feeds)} total feeds for {device_name}"
+            )
+    except Exception as exc:
+        logger.warning(
+            f"[ThingSpeak Direct] Failed to fetch feeds for {device_name}: {exc}"
+        )
+    return all_feeds
+
+
+async def _fetch_platform_feeds(
+    device_number: Optional[int], device_name: str, token: str,
+) -> List[Dict[str, Any]]:
+    """Fallback to the platform recent-feeds endpoint."""
+    url = f"{settings.PLATFORM_BASE_URL}/devices/feeds/recent/{device_number}"
+    headers = {"Authorization": f"JWT {token}"}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            body = resp.json()
+            return body if isinstance(body, list) else [body]
+    except Exception as exc:
+        logger.warning(
+            f"[Feeds Fallback] Failed to fetch feeds for {device_name} "
+            f"(device_number={device_number}): {exc}"
+        )
+        return []
+
+
 async def fetch_feeds_for_device(
     device_number: int,
     device_name: str,
@@ -303,196 +399,152 @@ async def fetch_feeds_for_device(
     Uses ThingSpeak directly as default, with Platform API as fallback.
     Handles ThingSpeak pagination if records exceed the 8000 limit.
     """
-
-    # 1. Try ThingSpeak Direct (Default)
     if device_number and read_key:
-        ts_url = f"https://api.thingspeak.com/channels/{device_number}/feeds.json"
-        all_feeds = []
-        has_more = True
-        min_id = None
-        pages = 0
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                while has_more and pages < 15:
-                    pages += 1
-                    params = {"api_key": read_key, "results": 8000}
-                    if min_id:
-                        params["min_id"] = min_id
-                    elif start_date:
-                        # ThingSpeak expects YYYY-MM-DD%20HH:NN:SS
-                        params["start"] = start_date.replace("T", " ").replace("Z", "")
-                    
-                    if end_date:
-                        params["end"] = end_date.replace("T", " ").replace("Z", "")
+        feeds = await _fetch_thingspeak_feeds(
+            device_number, device_name, read_key, start_date, end_date,
+        )
+        if feeds:
+            return _map_thingspeak_feeds(feeds, device_name, category)
 
-                    resp = await client.get(ts_url, params=params)
-                    if resp.status_code != 200:
-                        logger.warning(
-                            f"[ThingSpeak Direct] API error for {device_name} (page {pages}): {resp.status_code}"
-                        )
-                        break
-
-                    body = resp.json()
-                    feeds = body.get("feeds", [])
-                    if not feeds:
-                        has_more = False
-                        break
-                    
-                    all_feeds.extend(feeds)
-                    
-                    # If we got exactly 8000, there might be more
-                    if len(feeds) == 8000:
-                        last_id = feeds[-1].get("entry_id")
-                        if last_id is not None:
-                            min_id = last_id + 1
-                        else:
-                            has_more = False
-                    else:
-                        has_more = False
-                
-                if all_feeds:
-                    logger.info(
-                        f"[ThingSpeak Direct] Successfully fetched {len(all_feeds)} total feeds for {device_name} across {pages} pages"
-                    )
-                    return _map_thingspeak_feeds(all_feeds, device_name, category)
-        except Exception as exc:
-            logger.warning(
-                f"[ThingSpeak Direct] Failed to fetch feeds for {device_name}: {exc}"
-            )
-
-    # 2. Fallback to Platform API (requires token)
     if token:
-        # Platform endpoint for recent feeds
-        url = f"{settings.PLATFORM_BASE_URL}/devices/feeds/recent/{device_number}"
-        headers = {"Authorization": f"JWT {token}"}
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(url, headers=headers)
-                resp.raise_for_status()
-                body = resp.json()
-                # The response can be a single object or a list of feed entries
-                entries = body if isinstance(body, list) else [body]
-                return _map_thingspeak_feeds(entries, device_name, category)
-        except Exception as exc:
-            logger.warning(
-                f"[Feeds Fallback] Failed to fetch feeds for {device_name} "
-                f"(device_number={device_number}): {exc}"
-            )
+        entries = await _fetch_platform_feeds(device_number, device_name, token)
+        if entries:
+            return _map_thingspeak_feeds(entries, device_name, category)
 
     return []
 
-async def get_device_details(db: Session, token: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
-    # 1. Fetch data from PLATFORM_BASE_URL/devices
+_DEFAULT_CATEGORY_HIERARCHY = [
+    {
+        "level": "equipment",
+        "category": "lowcost",
+        "description": "Low-cost sensor device",
+    },
+    {
+        "level": "deployment",
+        "category": "static",
+        "description": "Static deployment (fixed location, site-based)",
+    },
+]
+
+
+async def _fetch_platform_devices(
+    token: str, params: Optional[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Fetch /devices from the platform. Returns (payload, error)."""
     headers = {"Authorization": f"JWT {token}"}
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         response = await client.get(
-            f"{settings.PLATFORM_BASE_URL}/devices", 
-            headers=headers,
-            params=params
+            f"{settings.PLATFORM_BASE_URL}/devices", headers=headers, params=params,
         )
-        
-        if response.status_code != 200:
-            logger.error(f"Platform API returned error status: {response.status_code}")
-            logger.error(f"Raw Response Content: {response.text}")
-            return {
-                "success": False, 
-                "message": f"Platform API error: {response.status_code}", 
-                "status_code": response.status_code,
-                "devices": []
-            }
+    if response.status_code != 200:
+        logger.error(f"Platform API returned error status: {response.status_code}")
+        logger.error(f"Raw Response Content: {response.text}")
+        return None, {
+            "success": False,
+            "message": f"Platform API error: {response.status_code}",
+            "status_code": response.status_code,
+            "devices": [],
+        }
+    try:
+        return response.json(), None
+    except Exception as e:
+        logger.error(f"Failed to parse platform API response: {e}")
+        logger.error(f"Raw Response Content: {response.text}")
+        return None, {
+            "success": False,
+            "message": "Failed to parse platform API response",
+            "status_code": 502,
+            "devices": [],
+        }
 
-        try:
-            platform_data = response.json()
-        except Exception as e:
-            logger.error(f"Failed to parse platform API response: {e}")
-            logger.error(f"Raw Response Content: {response.text}")
-            return {
-                "success": False, 
-                "message": "Failed to parse platform API response", 
-                "status_code": 502,
-                "devices": []
-            }
-        
+
+async def _decrypt_keys_for_devices(
+    token: str, devices: List[Dict[str, Any]],
+) -> Dict[int, str]:
+    items = [
+        {"encrypted_key": dev["readKey"], "device_number": dev["device_number"]}
+        for dev in devices
+        if dev.get("readKey") and dev.get("device_number")
+    ]
+    return await decrypt_read_keys(token, items) if items else {}
+
+
+def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
+    return {
+        "network_id": db_device.network_id,
+        "site_id": db_device.site_id,
+        "current_firmware": db_device.current_firmware,
+        "previous_firmware": db_device.previous_firmware,
+        "file_upload_state": db_device.file_upload_state,
+        "firmware_download_state": db_device.firmware_download_state,
+        "device_number": db_device.device_number,
+        "writeKey": db_device.writeKey,
+        "readKey": db_device.readKey,
+    }
+
+
+def _beacon_data_from_platform(
+    dev: Dict[str, Any], read_key_to_store: Optional[str],
+) -> Dict[str, Any]:
+    platform_site_id = dev.get("site", {}).get("_id")
+    return {
+        "network_id": dev.get("network"),
+        "site_id": platform_site_id if dev.get("status") == "deployed" else None,
+        "current_firmware": None,
+        "previous_firmware": None,
+        "file_upload_state": False,
+        "firmware_download_state": None,
+        "device_number": dev.get("device_number"),
+        "writeKey": dev.get("writeKey"),
+        "readKey": read_key_to_store,
+    }
+
+
+def _enrich_device_payload(
+    db: Session, dev: Dict[str, Any], decrypted_keys_map: Dict[int, str],
+) -> None:
+    """Mutate a single platform device dict by attaching beacon_data + category_hierarchy."""
+    device_id = dev.get("_id")
+    if not device_id:
+        return
+
+    dn = dev.get("device_number")
+    raw_read_key = dev.get("readKey")
+    read_key_to_store = (
+        decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
+    )
+
+    db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
+    if db_device:
+        beacon_data = _beacon_data_from_db(db_device)
+    else:
+        beacon_data = _beacon_data_from_platform(dev, read_key_to_store)
+
+    category_hierarchy = (
+        dev.get("device_categories", {}).get("category_hierarchy")
+        or _DEFAULT_CATEGORY_HIERARCHY
+    )
+
+    dev["beacon_data"] = beacon_data
+    dev["category_hierarchy"] = category_hierarchy
+
+
+async def get_device_details(db: Session, token: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    platform_data, error = await _fetch_platform_devices(token, params)
+    if error is not None:
+        return error
+
     devices = platform_data.get("devices", [])
-    
-    # Pre-decrypt read keys in bulk
-    decryption_items = []
-    for dev in devices:
-        rk = dev.get("readKey")
-        dn = dev.get("device_number")
-        if rk and dn:
-            decryption_items.append({"encrypted_key": rk, "device_number": dn})
-    
-    decrypted_keys_map = await decrypt_read_keys(token, decryption_items) if decryption_items else {}
+    decrypted_keys_map = await _decrypt_keys_for_devices(token, devices)
 
     for dev in devices:
         try:
-            device_id = dev.get("_id")
-            if not device_id:
-                continue
-                
-            # Use decrypted key if available
-            dn = dev.get("device_number")
-            raw_read_key = dev.get("readKey")
-            read_key_to_store = decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
-
-            # 2. Fetch beacon_data from sync_device (read-only)
-            # Updates are only allowed via /devices/sync
-            db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
-            
-            if db_device:
-                beacon_data = {
-                    "network_id": db_device.network_id,
-                    "site_id": db_device.site_id,
-                    "current_firmware": db_device.current_firmware,
-                    "previous_firmware": db_device.previous_firmware,
-                    "file_upload_state": db_device.file_upload_state,
-                    "firmware_download_state": db_device.firmware_download_state,
-                    "device_number": db_device.device_number,
-                    "writeKey": db_device.writeKey,
-                    "readKey": db_device.readKey
-                }
-            else:
-                # Device not synced yet — use defaults or platform data
-                platform_site_id = dev.get("site", {}).get("_id")
-                beacon_data = {
-                    "network_id": dev.get("network"),
-                    "site_id": platform_site_id if dev.get("status") == "deployed" else None,
-                    "current_firmware": None,
-                    "previous_firmware": None,
-                    "file_upload_state": False,
-                    "firmware_download_state": None,
-                    "device_number": dev.get("device_number"),
-                    "writeKey": dev.get("writeKey"),
-                    "readKey": decrypted_keys_map.get(dev.get("device_number"), dev.get("readKey"))
-                }
-            
-            # 3. Add category data
-            category_hierarchy = dev.get("device_categories", {}).get("category_hierarchy")
-            if not category_hierarchy:
-                category_hierarchy = [
-                    {
-                        "level": "equipment",
-                        "category": "lowcost",
-                        "description": "Low-cost sensor device"
-                    },
-                    {
-                        "level": "deployment",
-                        "category": "static",
-                        "description": "Static deployment (fixed location, site-based)"
-                    }
-                ]
-            
-            # Merge all data into the device object
-            dev["beacon_data"] = beacon_data
-            dev["category_hierarchy"] = category_hierarchy
+            _enrich_device_payload(db, dev, decrypted_keys_map)
         except Exception as e:
             db.rollback()
             logger.error(f"Error processing device {dev.get('_id', 'unknown')}: {e}")
-            # Continue processing other devices instead of failing the whole request
             continue
-        
+
     return platform_data
 
 async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str, Any]:
@@ -705,160 +757,66 @@ async def get_device_configdata(db: Session, device_id: str, category_name: str,
         }
     }
 
-async def get_device_performance(db: Session, device_names: List[str], startDateTime: str, endDateTime: str) -> Dict[str, Any]:
-    from app.core.config import settings
-    
+async def get_device_performance(
+    db: Session,
+    device_names: List[str],
+    start_date_time: str,
+    end_date_time: str,
+    frequency: str = "raw",
+) -> Dict[str, Any]:
+    """
+    Per-device performance read from local sync_*_device_data tables
+    (the locally-synced ThingSpeak data).
+
+    For ``raw`` (the default) this matches the live ThingSpeak feed at the
+    cadence the local sync job ingested it. ``hourly`` / ``daily`` read from
+    the corresponding aggregate tables.
+    """
+    from app.services import cohort_service
+
     # Flatten comma-separated device names into individual entries
     expanded_names: List[str] = []
-    for name in device_names:
+    for name in device_names or []:
         expanded_names.extend([n.strip() for n in name.split(",") if n.strip()])
-    device_names = expanded_names
-    logger.info(f"Fetching performance for devices: {device_names}")
 
-    # Lookup categories and connection info from DB
-    from app.models.sync import SyncDevice
-    db_devices = db.query(SyncDevice).filter(SyncDevice.device_name.in_(expanded_names)).all()
-    device_info_map = {d.device_name: d for d in db_devices if d.device_name}
-    
-    # Group by category
-    cats_to_names = {}
-    for name in device_names:
-        info = device_info_map.get(name)
-        cat = info.category if info and info.category else "lowcost"
-        cats_to_names.setdefault(cat, []).append(name)
+    if not expanded_names:
+        return {"success": True, "message": "Performance data fetched successfully", "data": []}
 
-    try:
-        token = settings.PLATFORM_API_TOKEN
-    except AttributeError:
-        token = ""
+    logger.info(f"Fetching performance for devices: {expanded_names} (frequency={frequency})")
 
-    # 1. Fetch from Analytics (Backup) in bulk
-    analytics_raw_data = []
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        url = f"{settings.PLATFORM_BASE_URL}/analytics/raw-data?token={token}"
-        for cat, names in cats_to_names.items():
-            payload = {
-                "network": "airqo",
-                "device_category": cat,
-                "device_names": names,
-                "startDateTime": startDateTime,
-                "endDateTime": endDateTime,
-                "frequency": "raw"
-            }
-            if cat == "bam":
-                payload["pollutants"] = ["pm2_5"]
-            else:
-                payload["pollutants"] = ["pm2_5", "pm10"]
-                payload["metaDataFields"] = ["latitude", "longitude", "battery"]
-                payload["weatherFields"] = ["temperature", "humidity"]
+    metrics = cohort_service.compute_device_performance(
+        db, expanded_names, start_date_time, end_date_time, frequency=frequency,
+    )
 
-            has_more = True
-            while has_more:
-                try:
-                    response = await client.post(url, json=payload)
-                    if response.status_code == 200:
-                        platform_data = response.json()
-                        analytics_raw_data.extend(platform_data.get("data", []))
-                        metadata = platform_data.get("metadata", {})
-                        has_more = metadata.get("has_more", False)
-                        cursor = metadata.get("next")
-                        if has_more and cursor:
-                            payload["cursor"] = cursor
-                        else:
-                            has_more = False
-                    else:
-                        logger.error(f"Platform Analytics error for {cat}: {response.status_code}")
-                        has_more = False
-                except Exception as e:
-                    logger.error(f"Failed to fetch Analytics data: {e}")
-                    has_more = False
-
-    # 2. Fetch from ThingSpeak (Primary) in parallel
-    ts_tasks = []
-    for d_name in device_names:
-        info = device_info_map.get(d_name)
-        if info and info.device_number:
-            ts_tasks.append(
-                fetch_feeds_for_device(
-                    info.device_number,
-                    d_name,
-                    token=settings.TOKEN.replace("JWT ", ""), # Use current session token if available
-                    read_key=info.readKey,
-                    category=info.category or "lowcost",
-                    start_date=startDateTime,
-                    end_date=endDateTime
-                )
-            )
-    
-    ts_results = await asyncio.gather(*ts_tasks, return_exceptions=True)
-    ts_data_by_device = {}
-    for d_name, result in zip([n for n in device_names if device_info_map.get(n) and device_info_map[n].device_number], ts_results):
-        if isinstance(result, list) and result:
-            ts_data_by_device[d_name] = result
-
-    # 3. Merge: Prefer ThingSpeak, Fallback to Analytics
-    final_raw_data = []
-    for d_name in device_names:
-        if d_name in ts_data_by_device:
-            final_raw_data.extend(ts_data_by_device[d_name])
-        else:
-            # Fallback to analytics
-            dev_analytics = [r for r in analytics_raw_data if r.get("device_name") == d_name]
-            final_raw_data.extend(dev_analytics)
-
-    # Compute metrics separately per category
-    metrics_map = {}
-    for cat, names in cats_to_names.items():
-        cat_raw_data = [r for r in final_raw_data if r.get("device_name") in names]
-        cat_analysis = PerformanceAnalysis(cat_raw_data)
-        cat_metrics = cat_analysis.compute_device_metrics(startDateTime, endDateTime, device_category=cat)
-        metrics_map.update(cat_metrics)
-
-    # Group final records by device name
-    raw_data_by_device: Dict[str, List[Dict[str, Any]]] = {}
-    for record in final_raw_data:
-        dev_name = record.get("device_name")
-        if dev_name:
-            raw_data_by_device.setdefault(dev_name, []).append(record)
-    
-    data_list = []
-    for d_name in device_names:
-        info = device_info_map.get(d_name)
-        cat = info.category if info and info.category else "lowcost"
-        if d_name in metrics_map:
-            m = metrics_map[d_name]
-            entry = {
-                "device_name": d_name,
-                "uptime": m["uptime"],
-                "data_completeness": m["data_completeness"],
-                "raw_data": raw_data_by_device.get(d_name, [])
-            }
-            if cat == "bam":
-                entry["realtime_conc_average"] = m.get("realtime_conc_average")
-                entry["short_time_conc_average"] = m.get("short_time_conc_average")
-                entry["hourly_conc_average"] = m.get("hourly_conc_average")
-                # Also include default for schema compatibility
-                entry["sensor_error_margin"] = 0.0
-            else:
-                entry["sensor_error_margin"] = m.get("sensor_error_margin", 0.0)
-                entry["s1_pm2_5_average"] = m.get("s1_pm2_5_average")
-                entry["s2_pm2_5_average"] = m.get("s2_pm2_5_average")
-                entry["correlation"] = m.get("correlation")
-            data_list.append(entry)
-        else:
+    data_list: List[Dict[str, Any]] = []
+    for d_name in expanded_names:
+        m = metrics.get(d_name)
+        if not m:
             data_list.append({
                 "device_name": d_name,
+                "category": "lowcost",
                 "uptime": 0.0,
                 "data_completeness": 0.0,
-                "sensor_error_margin": 0.0,
-                "raw_data": []
+                "averages": {},
+                "data": [],
             })
+            continue
+
+        data_list.append({
+            "device_name": d_name,
+            "category": m.get("category", "lowcost"),
+            "uptime": round(float(m.get("uptime") or 0.0), 4),
+            "data_completeness": round(float(m.get("data_completeness") or 0.0), 4),
+            "averages": m.get("averages") or {},
+            "data": m.get("data") or [],
+        })
 
     return {
         "success": True,
         "message": "Performance data fetched successfully",
-        "data": data_list
+        "data": data_list,
     }
+
 
 async def get_device_files(device_id: str) -> Dict[str, Any]:
     # Blank list for now as requested
@@ -949,135 +907,141 @@ async def sync_device_sites(db: Session, token: str) -> Dict[str, Any]:
     }
 
 
+async def _fetch_all_platform_devices(
+    client: httpx.AsyncClient, url: str, headers: Dict[str, str],
+) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Fetch page 1 + remaining pages in parallel. Returns (devices, error)."""
+    response = await client.get(url, headers=headers, params={"limit": 100, "skip": 0})
+    if response.status_code != 200:
+        logger.error(f"Platform API error during device sync: {response.status_code}")
+        return [], {
+            "success": False,
+            "message": f"Platform API error: {response.status_code}",
+            "status_code": response.status_code,
+        }
+
+    data = response.json()
+    all_devices: List[Dict[str, Any]] = list(data.get("devices", []))
+    meta = data.get("meta", {}) or {}
+    total_pages = meta.get("totalPages", 1)
+    actual_limit = meta.get("limit", 100)
+
+    if total_pages > 1:
+        fetch_tasks = [
+            client.get(
+                url, headers=headers,
+                params={"limit": actual_limit, "skip": (p - 1) * actual_limit},
+            )
+            for p in range(2, total_pages + 1)
+        ]
+        for resp in await asyncio.gather(*fetch_tasks):
+            if resp.status_code == 200:
+                all_devices.extend(resp.json().get("devices", []))
+    return all_devices, None
+
+
+def _sync_category_record(db: Session, cat: Dict[str, Any]) -> None:
+    """Upsert a single category row from a category_hierarchy entry."""
+    cat_name = cat.get("category")
+    if not cat_name:
+        return
+    db_cat = db.query(Category).filter(Category.name == cat_name).first()
+    if not db_cat:
+        db.add(Category(
+            name=cat_name,
+            level=cat.get("level"),
+            description=cat.get("description"),
+        ))
+        return
+    cat_updated = False
+    if db_cat.level != cat.get("level"):
+        db_cat.level = cat.get("level")
+        cat_updated = True
+    if db_cat.description != cat.get("description"):
+        db_cat.description = cat.get("description")
+        cat_updated = True
+    if cat_updated:
+        db.add(db_cat)
+
+
+def _sync_device_categories_from_payload(
+    db: Session, dev: Dict[str, Any], categories_synced: set,
+) -> None:
+    hierarchy = dev.get("device_categories", {}).get("category_hierarchy", []) or []
+    for cat in hierarchy:
+        cat_name = cat.get("category")
+        if not cat_name or cat_name in categories_synced:
+            continue
+        _sync_category_record(db, cat)
+        categories_synced.add(cat_name)
+
+
+def _sync_single_device(
+    db: Session,
+    dev: Dict[str, Any],
+    decrypted_keys_map: Dict[int, str],
+    categories_synced: set,
+) -> Tuple[bool, bool]:
+    """Upsert one device + its categories. Returns (is_new, is_updated)."""
+    if not dev.get("_id"):
+        return False, False
+    dn = dev.get("device_number")
+    raw_read_key = dev.get("readKey")
+    read_key_to_store = (
+        decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
+    )
+    _, is_new, is_updated = upsert_device_to_sync(
+        db, dev, read_key=read_key_to_store, is_authoritative=True,
+    )
+    _sync_device_categories_from_payload(db, dev, categories_synced)
+    return is_new, is_updated
+
+
 async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
     """
     Synchronizes both sites and categories of all devices from the Platform API.
     Uses the /devices endpoint which contains both site and category information.
     """
     headers = {"Authorization": f"JWT {token}"}
-    all_devices: List[Dict[str, Any]] = []
-    
-    # 1. Fetch ALL devices from platform (paginated)
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-        url = f"{settings.PLATFORM_BASE_URL}/devices"
-        
-        # Initial request to get metadata
-        try:
-            response = await client.get(url, headers=headers, params={"limit": 100, "skip": 0})
-            if response.status_code != 200:
-                logger.error(f"Platform API error during device sync: {response.status_code}")
-                return {
-                    "success": False, 
-                    "message": f"Platform API error: {response.status_code}", 
-                    "status_code": response.status_code
-                }
-                
-            data = response.json()
-            all_devices.extend(data.get("devices", []))
-            
-            meta = data.get("meta", {})
-            total_pages = meta.get("totalPages", 1)
-            actual_limit = meta.get("limit", 100)
-            
-            # Fetch remaining pages in parallel
-            if total_pages > 1:
-                fetch_tasks = []
-                for p in range(2, total_pages + 1):
-                    params = {"limit": actual_limit, "skip": (p - 1) * actual_limit}
-                    fetch_tasks.append(client.get(url, headers=headers, params=params))
-                
-                paged_responses = await asyncio.gather(*fetch_tasks)
-                for resp in paged_responses:
-                    if resp.status_code == 200:
-                        all_devices.extend(resp.json().get("devices", []))
-        except Exception as e:
-            logger.exception(f"Unexpected error fetching devices for sync: {e}")
-            return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
+    url = f"{settings.PLATFORM_BASE_URL}/devices"
 
-    # 2. Update local database
+    try:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            all_devices, error = await _fetch_all_platform_devices(client, url, headers)
+        if error is not None:
+            return error
+    except Exception as e:
+        logger.exception(f"Unexpected error fetching devices for sync: {e}")
+        return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
+
+    decrypted_keys_map = await _decrypt_keys_for_devices(token, all_devices)
+
     updates_count = 0
     new_count = 0
-    categories_synced = set()
-    
-    # Pre-decrypt read keys in bulk
-    decryption_items = []
-    for dev in all_devices:
-        rk = dev.get("readKey")
-        dn = dev.get("device_number")
-        if rk and dn:
-            decryption_items.append({"encrypted_key": rk, "device_number": dn})
-    
-    decrypted_keys_map = await decrypt_read_keys(token, decryption_items) if decryption_items else {}
+    categories_synced: set = set()
 
     for dev in all_devices:
         try:
-            device_id = dev.get("_id")
-            if not device_id:
-                continue
-
-            dn = dev.get("device_number")
-            raw_read_key = dev.get("readKey")
-            read_key_to_store = (
-                decrypted_keys_map.get(dn, raw_read_key) if dn else raw_read_key
+            is_new, is_updated = _sync_single_device(
+                db, dev, decrypted_keys_map, categories_synced,
             )
-
-            _, is_new, is_updated = upsert_device_to_sync(
-                db, dev, read_key=read_key_to_store, is_authoritative=True
-            )
-
             if is_new:
                 new_count += 1
             elif is_updated:
                 updates_count += 1
-
-            # 3. Synchronize categories table as well (normally done in get_device_details)
-            category_hierarchy = dev.get("device_categories", {}).get("category_hierarchy", [])
-            for cat in category_hierarchy:
-                cat_name = cat.get("category")
-                if not cat_name:
-                    continue
-                
-                # Check if we already synced this category in this run
-                if cat_name in categories_synced:
-                    continue
-                
-                db_cat = db.query(Category).filter(Category.name == cat_name).first()
-                if not db_cat:
-                    db_cat = Category(
-                        name=cat_name,
-                        level=cat.get("level"),
-                        description=cat.get("description")
-                    )
-                    db.add(db_cat)
-                else:
-                    # Update category details if they've changed
-                    cat_updated = False
-                    if db_cat.level != cat.get("level"):
-                        db_cat.level = cat.get("level")
-                        cat_updated = True
-                    if db_cat.description != cat.get("description"):
-                        db_cat.description = cat.get("description")
-                        cat_updated = True
-                    if cat_updated:
-                        db.add(db_cat)
-                
-                categories_synced.add(cat_name)
-            
-            # Commit in batches of 50 to avoid long transactions
             if (updates_count + new_count) % 50 == 0:
                 db.commit()
-                
         except Exception as e:
             logger.error(f"Error syncing device {dev.get('_id')}: {e}")
             db.rollback()
 
     db.commit()
-    
+
     return {
-        "success": True, 
+        "success": True,
         "message": f"Successfully synced devices. {updates_count} updated, {new_count} new devices added.",
         "updates_count": updates_count,
-        "new_count": new_count
+        "new_count": new_count,
     }
 
 async def sync_device_categories(db: Session, token: str) -> Dict[str, Any]:

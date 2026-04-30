@@ -807,7 +807,6 @@ def run_daily_data_quality_checks():
     run_checks()
 
 
-# Temp solution for device registry missing data
 @dag(
     "AirQo-API-missing-measurements-fix",
     schedule="*/40 * * * *",
