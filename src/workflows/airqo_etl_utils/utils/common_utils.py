@@ -159,6 +159,7 @@ class Utils:
             start_date_time: The start date and time for the query range.
             end_date_time: The end date and time for the query range.
             frequency_: Optional frequency string (e.g., "12H"). If not provided, it will be determined based on the data source.
+                                                                 This allows you create wider date ranges.
 
         Returns:
             List of tuples containing (start_date_str, end_date_str) for each time range.
