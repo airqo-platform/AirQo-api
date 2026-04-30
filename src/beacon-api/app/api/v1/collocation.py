@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Depends, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 import logging
@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 @router.get("/sites", response_model=CollocationSitesResponse)
 async def get_collocation_sites(
     authorization: str = Header(...),
-    includePerformance: bool = False,
-    startDateTime: Optional[str] = None,
-    endDateTime: Optional[str] = None,
+    include_performance: bool = Query(False, alias="includePerformance"),
+    start_date_time: Optional[str] = Query(None, alias="startDateTime"),
+    end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     skip: Optional[int] = 0,
     limit: Optional[int] = 100,
     frequency: Optional[str] = "hourly",
@@ -52,10 +52,10 @@ async def get_collocation_sites(
             raise HTTPException(status_code=status_code, detail=message)
 
         # Performance path: read from local sync_*_device_data tables.
-        if includePerformance:
+        if include_performance:
             sites = result.get("sites", [])
             perf_result = collocation_service.apply_local_performance_to_sites(
-                sites, db, startDateTime=startDateTime, endDateTime=endDateTime, frequency=freq,
+                sites, db, start_date_time=start_date_time, end_date_time=end_date_time, frequency=freq,
             )
             perf_result["meta"] = result.get("meta") or {
                 "skip": skip,
@@ -88,8 +88,8 @@ async def get_inlab_collocation(
     authorization: str = Header(...),
     skip: Optional[int] = 0,
     limit: Optional[int] = 100,
-    startDateTime: Optional[str] = None,
-    endDateTime: Optional[str] = None,
+    start_date_time: Optional[str] = Query(None, alias="startDateTime"),
+    end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     frequency: Optional[str] = "daily",
     db: Session = Depends(get_db)
 ):
@@ -113,7 +113,7 @@ async def get_inlab_collocation(
     try:
         result = await collocation_service.get_inlab_collocation(
             token, db, skip=skip, limit=limit,
-            startDateTime=startDateTime, endDateTime=endDateTime,
+            start_date_time=start_date_time, end_date_time=end_date_time,
             frequency=freq,
         )
 
@@ -133,8 +133,8 @@ async def get_inlab_collocation(
 @router.get("/sites/{site_id}", response_model=CollocationSiteDetailsResponse)
 async def get_collocation_site_details(
     site_id: str,
-    startDateTime: Optional[str] = None,
-    endDateTime: Optional[str] = None,
+    start_date_time: Optional[str] = Query(None, alias="startDateTime"),
+    end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     frequency: Optional[str] = "raw",
     authorization: str = Header(...),
     db: Session = Depends(get_db)
@@ -159,8 +159,8 @@ async def get_collocation_site_details(
     try:
         result = collocation_service.get_collocation_site_details(
             site_id, db,
-            startDateTime=startDateTime,
-            endDateTime=endDateTime,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
             frequency=freq,
         )
         return result

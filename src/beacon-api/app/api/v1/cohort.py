@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Header, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Header, Depends, BackgroundTasks, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 import logging
@@ -32,9 +32,9 @@ async def _run_sync_cohorts(token: str):
 async def get_cohorts(
     authorization: str = Header(...),
     tags: Optional[str] = None,
-    includePerformance: bool = False,
-    startDateTime: Optional[str] = None,
-    endDateTime: Optional[str] = None,
+    include_performance: bool = Query(False, alias="includePerformance"),
+    start_date_time: Optional[str] = Query(None, alias="startDateTime"),
+    end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     skip: Optional[int] = 0,
     limit: Optional[int] = 100,
     frequency: Optional[str] = "hourly",
@@ -77,9 +77,9 @@ async def get_cohorts(
 
         cohorts = result.get("cohorts", [])
 
-        if includePerformance and startDateTime and endDateTime:
+        if include_performance and start_date_time and end_date_time:
             cohort_service.apply_local_performance(
-                cohorts, db, startDateTime, endDateTime, frequency=freq
+                cohorts, db, start_date_time, end_date_time, frequency=freq
             )
 
         return result
@@ -127,9 +127,9 @@ def get_synced_cohorts(
     search: Optional[str] = None,
     cohort_ids: Optional[str] = None,
     tags: Optional[str] = None,
-    includePerformance: bool = False,
-    startDateTime: Optional[str] = None,
-    endDateTime: Optional[str] = None,
+    include_performance: bool = Query(False, alias="includePerformance"),
+    start_date_time: Optional[str] = Query(None, alias="startDateTime"),
+    end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     frequency: Optional[str] = "hourly",
     db: Session = Depends(get_db),
 ):
@@ -137,8 +137,8 @@ def get_synced_cohorts(
 
     Optional ``cohort_ids`` (CSV) filters to a specific set of cohorts.
     Optional ``tags`` (CSV) filters cohorts whose ``cohort_tags`` contain
-    every supplied tag. When ``includePerformance=true`` and both
-    ``startDateTime`` / ``endDateTime`` are provided, each cohort and its
+    every supplied tag. When ``include_performance=true`` and both
+    ``start_date_time`` / ``end_date_time`` are provided, each cohort and its
     devices are enriched with locally-computed performance metrics.
     """
     freq = (frequency or "hourly").lower()
@@ -158,12 +158,12 @@ def get_synced_cohorts(
             tags=tags,
         )
 
-        if includePerformance and startDateTime and endDateTime:
+        if include_performance and start_date_time and end_date_time:
             cohort_sync_service.apply_local_performance_synced(
                 result.get("cohorts", []),
                 db,
-                startDateTime,
-                endDateTime,
+                start_date_time,
+                end_date_time,
                 frequency=freq,
             )
 

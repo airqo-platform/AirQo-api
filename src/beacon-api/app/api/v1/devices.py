@@ -194,8 +194,8 @@ from typing import Optional
 @router.get("/performance", response_model=DevicePerformanceResponse)
 async def get_device_performance(
     device_name: List[str] = Query(...),
-    startDateTime: str = Query(...),
-    endDateTime: str = Query(...),
+    start_date_time: str = Query(..., alias="startDateTime"),
+    end_date_time: str = Query(..., alias="endDateTime"),
     frequency: str = Query(default="raw", description="raw | hourly | daily"),
     db: Session = Depends(get_db)
 ):
@@ -207,7 +207,7 @@ async def get_device_performance(
         )
     try:
         return await device_service.get_device_performance(
-            db, device_name, startDateTime, endDateTime, frequency=freq,
+            db, device_name, start_date_time, end_date_time, frequency=freq,
         )
     except HTTPException:
         raise

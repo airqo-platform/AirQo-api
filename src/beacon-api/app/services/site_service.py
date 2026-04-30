@@ -41,8 +41,27 @@ async def sync_sites(db: Session, token: str) -> Dict[str, Any]:
             try:
                 response = await client.get(url, headers=headers, params=params)
                 if response.status_code != 200:
-                    logger.error(f"[Site Sync] Platform API error on page {page}: {response.status_code}")
-                    break
+                    error_body = ""
+                    try:
+                        error_body = response.text
+                    except Exception:
+                        error_body = "<unavailable>"
+                    logger.error(
+                        f"[Site Sync] Platform API error on page {page}: "
+                        f"{response.status_code} - {error_body}"
+                    )
+                    return {
+                        "success": False,
+                        "message": (
+                            f"Platform API returned HTTP {response.status_code} "
+                            f"on page {page}"
+                        ),
+                        "status_code": response.status_code,
+                        "page": page,
+                        "error": error_body,
+                        "sites_synced": 0,
+                        "devices_backfilled": 0,
+                    }
 
                 data = response.json()
                 sites_page = data.get("sites", [])
@@ -65,7 +84,14 @@ async def sync_sites(db: Session, token: str) -> Dict[str, Any]:
 
             except Exception as e:
                 logger.error(f"[Site Sync] Error fetching page {page}: {e}")
-                break
+                return {
+                    "success": False,
+                    "message": f"Platform API request failed on page {page}",
+                    "page": page,
+                    "error": str(e),
+                    "sites_synced": 0,
+                    "devices_backfilled": 0,
+                }
 
     if not all_sites:
         return {
@@ -252,12 +278,26 @@ def get_sites(
             .all()
         )
 
+        # Batch-fetch all SyncDevice rows referenced by these junctions to
+        # avoid an N+1 query (one SyncDevice lookup per junction).
+        device_ids = [j.device_id for j in junctions if j.device_id]
+        device_name_by_id: Dict[str, Optional[str]] = {}
+        if device_ids:
+            sync_devs = (
+                db.query(SyncDevice)
+                .filter(SyncDevice.device_id.in_(device_ids))
+                .all()
+            )
+            device_name_by_id = {
+                sd.device_id: sd.device_name for sd in sync_devs
+            }
+
         devices = []
         for j in junctions:
-            sync_dev = db.query(SyncDevice).filter(SyncDevice.device_id == j.device_id).first()
             devices.append({
                 "device_id": j.device_id,
-                "device_name": sync_dev.device_name if sync_dev else None,
+                # Falls back to None if the referenced SyncDevice row is missing.
+                "device_name": device_name_by_id.get(j.device_id),
                 "is_active": j.is_active or False,
             })
 

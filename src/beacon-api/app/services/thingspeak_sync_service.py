@@ -267,7 +267,6 @@ async def sync_device_data(
     end_date: Optional[str] = None,
     start_time: str = "00:00:00",
     end_time: str = "23:59:59",
-    device_batch_size: int = 20,
 ) -> Dict[str, Any]:
     """
     Main entry point for the ThingSpeak data sync pipeline.
@@ -285,9 +284,14 @@ async def sync_device_data(
         end_date: Optional end date 'YYYY-MM-DD'.
         start_time: Start time 'HH:MM:SS' (default "00:00:00").
         end_time: End time 'HH:MM:SS' (default "23:59:59").
-        device_batch_size: Number of devices to process in each ThingSpeak batch.
 
     Returns a summary dict.
+
+    Devices are processed sequentially (one channel per ThingSpeak request)
+    so that per-device fetch windows can be narrowed to only the dates that
+    are still missing/incomplete. This avoids re-downloading data that has
+    already been marked complete in `sync_daily_device_data`.
+    
     """
     now_utc = datetime.now(timezone.utc)
 
