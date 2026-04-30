@@ -216,11 +216,23 @@ def train_site_forecast_models_quarterly():
     from airqo_etl_utils.ml_utils import ForecastModelTrainer
 
     @task()
-    def fetch_training_data() -> pd.DataFrame:
+    def fetch_training_data(**kwargs) -> pd.DataFrame:
         """
         Fetch site-level historical training data used for quarterly retraining.
+
+        Manual Trigger DAG runs may override the default lookback window with:
+        {
+          "start_date": "YYYY-MM-DD",
+          "end_date": "YYYY-MM-DD"
+        }
         """
-        return ForecastModelTrainer.fetch_site_forecast_training_data()
+        dag_run = kwargs.get("dag_run")
+        dag_run_conf = dag_run.conf if dag_run and dag_run.conf else {}
+
+        return ForecastModelTrainer.fetch_site_forecast_training_data(
+            start_date=dag_run_conf.get("start_date"),
+            end_date=dag_run_conf.get("end_date"),
+        )
 
     @task()
     def build_features(raw_data: pd.DataFrame) -> pd.DataFrame:
