@@ -13,12 +13,22 @@ async def main():
         print("meta:", result.get("meta"))
         sites = result.get("sites", [])
         print("site count:", len(sites))
-        for s in sites[:3]:
-            devs = s.get("devices_info", [])
-            cats = sorted({d.get("category") for d in devs})
-            print(
-                f"  {s['_id']}  name={s.get('name')!r}  devices={len(devs)}  categories={cats}"
-            )
+
+        sample_sites = sites[:3]
+        sample_device_total = sum(len(s.get("devices_info", [])) for s in sample_sites)
+        sample_categories = sorted(
+            {
+                d.get("category")
+                for s in sample_sites
+                for d in s.get("devices_info", [])
+                if d.get("category") is not None
+            }
+        )
+        print("sample summary:", {
+            "sample_size": len(sample_sites),
+            "sample_devices": sample_device_total,
+            "sample_categories": sample_categories,
+        })
     finally:
         db.close()
 
