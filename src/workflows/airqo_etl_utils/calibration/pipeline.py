@@ -185,7 +185,9 @@ class CalibrationPipeline:
         )
 
         lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
-        bam_df = bam_df[CalibrationPipeline.required_bam_cols]
+        bam_df = bam_df[
+            CalibrationPipeline.required_bam_cols_raw
+        ]  # Switch to required_bam_cols_hourly if using hourly data from bigquery.
 
         return lcs_df, bam_df
 
