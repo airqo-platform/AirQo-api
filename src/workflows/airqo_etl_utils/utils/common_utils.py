@@ -145,8 +145,9 @@ class Utils:
     @staticmethod
     def query_dates_array(
         data_source: DataSource,
-        start_date_time,
-        end_date_time,
+        start_date_time: str,
+        end_date_time: str,
+        frequency_: Optional[str] = None,
     ) -> List[Tuple[str, str]]:
         """Generate date ranges based on the specified time period and frequency.
 
@@ -157,6 +158,7 @@ class Utils:
             data_source: The source of data to determine frequency.
             start_date_time: The start date and time for the query range.
             end_date_time: The end date and time for the query range.
+            frequency_: Optional frequency string (e.g., "12H"). If not provided, it will be determined based on the data source.
 
         Returns:
             List of tuples containing (start_date_str, end_date_str) for each time range.
@@ -164,7 +166,7 @@ class Utils:
         Raises:
             ValueError: If dates cannot be parsed.
         """
-        freq = Utils.query_frequency(data_source)
+        freq = frequency_ or Utils.query_frequency(data_source)
         try:
             start_dt = pd.to_datetime(start_date_time)
             end_dt = pd.to_datetime(end_date_time)

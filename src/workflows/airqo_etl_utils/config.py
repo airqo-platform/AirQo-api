@@ -275,8 +275,9 @@ class Config:
     }
 
     AIRQO_BAM_MAPPING_NEW = {
+        "created_at": "timestamp",
         "field8": {
-            0: "timestamp",
+            0: "timestamp_",
             1: "realtime_conc",
             2: "hourly_conc",
             3: "short_time_conc",
@@ -595,7 +596,10 @@ class Config:
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {
                 Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
-            }
+            },
+            DeviceCategory.BAM: {
+                Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
+            },
         },
         DataType.COMPUTEDDATA: {
             DeviceNetwork.AIRQO: {
