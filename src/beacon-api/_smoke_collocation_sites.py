@@ -9,8 +9,7 @@ async def main():
         result = await collocation_service.get_collocation_sites(
             token="unused", db=db, params={"skip": 0, "limit": 5}
         )
-        print("success:", result.get("success"))
-        print("meta:", result.get("meta"))
+        print("collocation sites fetch completed")
         sites = result.get("sites", [])
         print("site count:", len(sites))
 
