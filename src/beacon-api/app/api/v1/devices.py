@@ -196,10 +196,21 @@ async def get_device_performance(
     device_name: List[str] = Query(...),
     startDateTime: str = Query(...),
     endDateTime: str = Query(...),
+    frequency: str = Query(default="raw", description="raw | hourly | daily"),
     db: Session = Depends(get_db)
 ):
+    freq = (frequency or "raw").lower()
+    if freq not in {"raw", "hourly", "daily"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid 'frequency'. Must be one of: raw, hourly, daily.",
+        )
     try:
-        return await device_service.get_device_performance(db, device_name, startDateTime, endDateTime)
+        return await device_service.get_device_performance(
+            db, device_name, startDateTime, endDateTime, frequency=freq,
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Unexpected error fetching performance for devices {device_name}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

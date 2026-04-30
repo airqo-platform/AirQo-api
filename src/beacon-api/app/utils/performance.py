@@ -6,11 +6,11 @@ class PerformanceAnalysis:
         self.data = data
         self.expected_frequency_minutes = expected_frequency_minutes
 
-    def _calculate_expected_records(self, startDateTime: str, endDateTime: str) -> int:
+    def _calculate_expected_records(self, start_date_time: str, end_date_time: str) -> int:
         try:
             # Handle typical 'Z' ending or parse from ISO format
-            start_dt = datetime.fromisoformat(startDateTime.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(endDateTime.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(start_date_time.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end_date_time.replace('Z', '+00:00'))
             duration_minutes = (end_dt - start_dt).total_seconds() / 60.0
             # Can't have less than 0 expected
             return max(1, int(duration_minutes / self.expected_frequency_minutes))
@@ -44,120 +44,147 @@ class PerformanceAnalysis:
             
         return numerator / denominator
 
-    def compute_device_metrics(self, startDateTime: str, endDateTime: str, device_category: str = "lowcost") -> Dict[str, Dict[str, float]]:
+    @staticmethod
+    def _group_by_device(data: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Group raw records by `device_name`, skipping records without one."""
+        device_data: Dict[str, List[Dict[str, Any]]] = {}
+        for record in data:
+            dev_name = record.get("device_name")
+            if not dev_name:
+                continue
+            device_data.setdefault(dev_name, []).append(record)
+        return device_data
+
+    @staticmethod
+    def _avg_or_none(values: List[float]):
+        return (sum(values) / len(values)) if values else None
+
+    @staticmethod
+    def _avg_or_zero(values: List[float]) -> float:
+        return (sum(values) / len(values)) if values else 0.0
+
+    @staticmethod
+    def _extract_hour(dt_str: Any):
+        """Parse an ISO datetime string and return its hour, or None on failure."""
+        if not dt_str:
+            return None
+        try:
+            return datetime.fromisoformat(str(dt_str).replace("Z", "+00:00")).hour
+        except Exception:
+            return None
+
+    def _bam_metrics(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Compute BAM-style metrics for a single device's records."""
+        unique_hours: set = set()
+        realtime_concs: List[float] = []
+        short_time_concs: List[float] = []
+        hourly_concs: List[float] = []
+        complete_records = 0
+
+        for r in records:
+            hour = self._extract_hour(r.get("datetime"))
+            if hour is not None:
+                unique_hours.add(hour)
+
+            rt = r.get("realtime_conc")
+            st = r.get("short_time_conc")
+            hc = r.get("hourly_conc")
+            if rt is not None or st is not None or hc is not None:
+                complete_records += 1
+            if rt is not None:
+                realtime_concs.append(rt)
+            if st is not None:
+                short_time_concs.append(st)
+            if hc is not None:
+                hourly_concs.append(hc)
+
+        total = len(records)
+        return {
+            "uptime": len(unique_hours) / 24.0,
+            "data_completeness": (complete_records / total) if total > 0 else 0.0,
+            "realtime_conc_average": self._avg_or_none(realtime_concs),
+            "short_time_conc_average": self._avg_or_none(short_time_concs),
+            "hourly_conc_average": self._avg_or_none(hourly_concs),
+        }
+
+    @staticmethod
+    def _accumulate_lowcost_record(
+        r: Dict[str, Any],
+        s1_values: List[float],
+        s2_values: List[float],
+        error_margins: List[float],
+        paired_s1: List[float],
+        paired_s2: List[float],
+    ) -> bool:
+        """
+        Update the running aggregates for one lowcost record. Returns True if
+        the record contributed to data-completeness (any pm2_5 reading present).
+        """
+        pm2_5 = r.get("pm2_5")
+        s1 = r.get("s1_pm2_5")
+        s2 = r.get("s2_pm2_5")
+        is_complete = pm2_5 is not None or s1 is not None or s2 is not None
+
+        if s1 is not None and s2 is not None:
+            error_margins.append(abs(s1 - s2))
+            s1_values.append(s1)
+            s2_values.append(s2)
+            paired_s1.append(s1)
+            paired_s2.append(s2)
+        elif s1 is not None:
+            s1_values.append(s1)
+        elif s2 is not None:
+            s2_values.append(s2)
+
+        return is_complete
+
+    def _lowcost_metrics(
+        self, records: List[Dict[str, Any]], expected_records: int,
+    ) -> Dict[str, Any]:
+        """Compute lowcost-style metrics for a single device's records."""
+        error_margins: List[float] = []
+        s1_values: List[float] = []
+        s2_values: List[float] = []
+        paired_s1: List[float] = []
+        paired_s2: List[float] = []
+        complete_records = 0
+
+        for r in records:
+            if self._accumulate_lowcost_record(
+                r, s1_values, s2_values, error_margins, paired_s1, paired_s2,
+            ):
+                complete_records += 1
+
+        total = len(records)
+        return {
+            "uptime": min(1.0, total / expected_records) if expected_records else 0.0,
+            "data_completeness": (complete_records / total) if total > 0 else 0.0,
+            "sensor_error_margin": self._avg_or_zero(error_margins),
+            "s1_pm2_5_average": self._avg_or_zero(s1_values),
+            "s2_pm2_5_average": self._avg_or_zero(s2_values),
+            "correlation": self._calculate_correlation(paired_s1, paired_s2),
+        }
+
+    def compute_device_metrics(self, start_date_time: str, end_date_time: str, device_category: str = "lowcost") -> Dict[str, Dict[str, float]]:
         """
         Group data by device_name and calculate performance metrics:
         - uptime
         - data_completeness
         - sensor_error_margin (for lowcost)
         - concentrations averages (for bam)
-        
+
         Returns a dict mapping device_name to a dict of metrics.
         """
-        expected_records = self._calculate_expected_records(startDateTime, endDateTime)
-        device_data: Dict[str, List[Dict[str, Any]]] = {}
+        expected_records = self._calculate_expected_records(start_date_time, end_date_time)
+        device_data = self._group_by_device(self.data)
+        is_bam = device_category == "bam"
 
-        for record in self.data:
-            dev_name = record.get("device_name")
-            if not dev_name:
-                continue
-            if dev_name not in device_data:
-                device_data[dev_name] = []
-            device_data[dev_name].append(record)
-
-        metrics = {}
+        metrics: Dict[str, Dict[str, float]] = {}
         for dev_name, records in device_data.items():
-            total_records = len(records)
-
-            complete_records = 0
-
-            if device_category == "bam":
-                # BAM uptime = unique hours that have at least one entry / 24
-                unique_hours = set()
-                realtime_concs = []
-                short_time_concs = []
-                hourly_concs = []
-                for r in records:
-                    # Extract the hour from the datetime field
-                    dt_str = r.get("datetime")
-                    if dt_str:
-                        try:
-                            dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-                            unique_hours.add(dt.hour)
-                        except Exception:
-                            pass
-
-                    rt = r.get("realtime_conc")
-                    st = r.get("short_time_conc")
-                    hc = r.get("hourly_conc")
-                    if rt is not None or st is not None or hc is not None:
-                        complete_records += 1
-                    if rt is not None: realtime_concs.append(rt)
-                    if st is not None: short_time_concs.append(st)
-                    if hc is not None: hourly_concs.append(hc)
-
-                uptime = len(unique_hours) / 24.0
-                data_completeness = (complete_records / total_records) if total_records > 0 else 0.0
-                metrics[dev_name] = {
-                    "uptime": uptime,
-                    "data_completeness": data_completeness,
-                    "realtime_conc_average": (sum(realtime_concs) / len(realtime_concs)) if realtime_concs else None,
-                    "short_time_conc_average": (sum(short_time_concs) / len(short_time_concs)) if short_time_concs else None,
-                    "hourly_conc_average": (sum(hourly_concs) / len(hourly_concs)) if hourly_concs else None,
-                }
-            else:
-                error_margins = []
-                s1_values = []
-                s2_values = []
-                for r in records:
-                    pm2_5 = r.get("pm2_5")
-                    s1_pm2_5 = r.get("s1_pm2_5")
-                    s2_pm2_5 = r.get("s2_pm2_5")
-
-                    # Data completeness: Is there some valid pm2_5 measurement?
-                    if pm2_5 is not None or s1_pm2_5 is not None or s2_pm2_5 is not None:
-                        complete_records += 1
-
-                    # Error margin: Absolute diff between s1 and s2
-                    if s1_pm2_5 is not None and s2_pm2_5 is not None:
-                        error_margins.append(abs(s1_pm2_5 - s2_pm2_5))
-                        s1_values.append(s1_pm2_5)
-                        s2_values.append(s2_pm2_5)
-                    elif s1_pm2_5 is not None:
-                        s1_values.append(s1_pm2_5)
-                    elif s2_pm2_5 is not None:
-                        s2_values.append(s2_pm2_5)
-
-                # Lowcost uptime = total records received / expected records for the period
-                uptime = min(1.0, total_records / expected_records)
-                data_completeness = (complete_records / total_records) if total_records > 0 else 0.0
-                sensor_error_margin = (sum(error_margins) / len(error_margins)) if error_margins else 0.0
-                
-                s1_average = (sum(s1_values) / len(s1_values)) if s1_values else 0.0
-                s2_average = (sum(s2_values) / len(s2_values)) if s2_values else 0.0
-                
-                # Correlation needs both s1 and s2 for each record. 
-                # Re-extract pairs to ensure alignment.
-                paired_s1 = []
-                paired_s2 = []
-                for r in records:
-                    s1 = r.get("s1_pm2_5")
-                    s2 = r.get("s2_pm2_5")
-                    if s1 is not None and s2 is not None:
-                        paired_s1.append(s1)
-                        paired_s2.append(s2)
-                
-                correlation = self._calculate_correlation(paired_s1, paired_s2)
-
-                metrics[dev_name] = {
-                    "uptime": uptime,
-                    "data_completeness": data_completeness,
-                    "sensor_error_margin": sensor_error_margin,
-                    "s1_pm2_5_average": s1_average,
-                    "s2_pm2_5_average": s2_average,
-                    "correlation": correlation
-                }
-
+            metrics[dev_name] = (
+                self._bam_metrics(records) if is_bam
+                else self._lowcost_metrics(records, expected_records)
+            )
         return metrics
 
     def compute_cohort_metrics(self, device_metrics: Dict[str, Dict[str, float]]) -> Dict[str, float]:
