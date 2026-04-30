@@ -411,6 +411,19 @@ const tokenVerifyRateLimiter = createSafeRateLimiter({
 });
 
 /**
+ * Rate limiter for query-token-only endpoints (10 req/min per IP).
+ * These endpoints intentionally block JWT — see specificRoutes in passport.js.
+ */
+const queryTokenRateLimiter = createSafeRateLimiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message:
+    "Too many requests. Query-token endpoints are limited to 10 requests per minute per IP.",
+});
+
+/**
  * Custom rate limiter factory
  */
 const createCustomRateLimiter = ({ windowMs, max, message }) => {
@@ -544,6 +557,7 @@ module.exports = {
   readRateLimiter,
   tokenVerifyIpRateLimiter,
   tokenVerifyRateLimiter,
+  queryTokenRateLimiter,
 
   // Subscription tier-aware limiter (apply after JWT auth)
   tierBasedRateLimiter,
