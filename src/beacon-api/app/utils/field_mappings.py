@@ -1,5 +1,5 @@
 """
-Field1–20 → human-readable label mappers per device category.
+Field1-20 -> human-readable label mappers per device category.
 
 The sync_raw_device_data / sync_hourly_device_data / sync_daily_device_data
 tables store every ThingSpeak feed slot as a generic ``fieldN`` column.
