@@ -156,3 +156,79 @@ class SyncItemsStockHistory(Base):
             name="chk_items_stock_history_unit_not_empty"
         ),
     )
+
+
+class SyncCohort(Base):
+    __tablename__ = "sync_cohort"
+
+    cohort_id = Column(String(100), primary_key=True, nullable=False)
+    name = Column(String(255), index=True)
+    network = Column(String(100))
+    visibility = Column(Boolean, server_default="false")
+    cohort_tags = Column(Text)        # JSON-serialized list
+    cohort_codes = Column(Text)       # JSON-serialized list
+    number_of_devices = Column(Integer, server_default="0")
+    platform_created_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SyncSite(Base):
+    __tablename__ = "sync_site"
+
+    site_id = Column(String(100), primary_key=True, nullable=False)
+    name = Column(Text, index=True)
+    latitude = Column(sa.Float)
+    longitude = Column(sa.Float)
+    network = Column(String(100))
+    country = Column(String(100))
+    city = Column(String(100))
+    county = Column(String(100))
+    district = Column(String(100))
+    region = Column(String(100))
+    data_provider = Column(String(100))
+    description = Column(Text)
+    generated_name = Column(String(100))
+    site_tags = Column(Text)          # JSON-serialized list
+    site_codes = Column(Text)         # JSON-serialized list
+    platform_created_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SyncCohortDevice(Base):
+    __tablename__ = "sync_cohort_device"
+
+    cohort_id = Column(
+        String(100),
+        ForeignKey("sync_cohort.cohort_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    device_id = Column(
+        String(100),
+        ForeignKey("sync_device.device_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    is_active = Column(Boolean, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SyncSiteDevice(Base):
+    __tablename__ = "sync_site_device"
+
+    site_id = Column(
+        String(100),
+        ForeignKey("sync_site.site_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    device_id = Column(
+        String(100),
+        ForeignKey("sync_device.device_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    is_active = Column(Boolean, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

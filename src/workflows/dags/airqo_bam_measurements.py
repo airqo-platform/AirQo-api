@@ -85,8 +85,6 @@ airqo_bam_historical_measurements_dag = airqo_bam_historical_measurements()
     tags=["airqo", "bam", "realtime"],
 )
 def airqo_bam_realtime_measurements():
-    import pandas as pd
-
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.date import DateUtils

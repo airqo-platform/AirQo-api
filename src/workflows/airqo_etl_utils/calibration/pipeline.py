@@ -42,6 +42,31 @@ class CalibrationPipeline:
         bucket_name: Override the ``CALIBRATION_MODELS_BUCKET`` config.
     """
 
+    required_lcs_cols: List[str] = [
+        "device_id",
+        "timestamp",
+        "s1_pm2_5",
+        "s2_pm2_5",
+        "s1_pm10",
+        "s2_pm10",
+    ]
+    required_bam_cols_hourly: List[str] = [
+        "device_id",
+        "timestamp",
+        "pm2_5",
+        "temperature",
+        "humidity",
+    ]
+    required_bam_cols_raw: List[str] = [
+        "device_id",
+        "timestamp",
+        "realtime_conc",
+        "short_time_conc",
+        "hourly_conc",
+        "temperature",
+        "humidity",
+    ]
+
     def __init__(
         self,
         start_date: str,
@@ -105,7 +130,11 @@ class CalibrationPipeline:
         """
         Run the pipeline for a single country: fetch → preprocess → feature engineer → train/deploy.
         """
-        lcs_df, bam_df = self._fetch_data(config)
+        # lcs_df, bam_df = self._fetch_data(config) # Use bigquery extraction (default)
+
+        lcs_df, bam_df = self._fetch_data_from_aggregator(
+            config
+        )  # Picks data from aggregator.
 
         if lcs_df.empty:
             raise ValueError(f"No LCS data returned for '{country}'.")
@@ -130,7 +159,10 @@ class CalibrationPipeline:
         )
 
     def _fetch_data(self, config: Dict[str, Any]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Pull raw LCS and BAM data via from data bigquery."""
+        """
+        Pull raw LCS and BAM data via from data bigquery.
+        This is faster but could have unintended biases due to clean up processes.
+        """
         lcs_ids: List[str] = config.get("lcs_devices", [])
         ref_id: Optional[str] = config.get("reference_device")
 
@@ -144,28 +176,28 @@ class CalibrationPipeline:
         )
 
         bam_df = DataUtils.extract_data_from_bigquery(
-            datatype=DataType.RAW,
-            frequency=Frequency.RAW,
+            datatype=DataType.CONSOLIDATED,
             start_date_time=self.start_date,
             end_date_time=self.end_date,
+            frequency=Frequency.HOURLY,
             device_category=DeviceCategory.BAM,
             data_filter={"device_id": [ref_id]} if ref_id else None,
         )
 
+        lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
+        bam_df = bam_df[
+            CalibrationPipeline.required_bam_cols_raw
+        ]  # Switch to required_bam_cols_hourly if using hourly data from bigquery.
+
         return lcs_df, bam_df
 
-    def _fetch_data_from_device_cache(
+    def _fetch_data_from_aggregator(
         self, config: Dict[str, Any]
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Pull raw LCS and BAM data via from device cache.
-            Note: This method is currently unused but can be switched to in the future if bigquery performance becomes an issue.
-            It relies on the device cache being populated with the relevant data, which is typically the case for recent time windows.
-            Raises ValueError if no data is returned for either LCS or BAM, or if required columns are missing.
+        This gets you raw data in it's rawest form available.
         """
-        # Note: This fallback method is currently not performant for the full training window(3 months), but could be used for recent data or in testing.
-        # TODO: Could be improved by parallelizing the LCS and BAM fetches, and/or by fetching all devices together and filtering in-memory.
-        # Might also help to consider cleaning the data using ``DataUtils.clean_low_cost_sensor_data`` and ``DataUtils.clean_bam_data`` after fetching, to ensure consistent formatting and handle any missing columns or other issues early on.
         lcs_ids: List[str] = config.get("lcs_devices", [])
         ref_id: Optional[str] = config.get("reference_device")
 
@@ -174,7 +206,8 @@ class CalibrationPipeline:
             start_date_time=self.start_date,
             end_date_time=self.end_date,
             device_category=DeviceCategory.LOWCOST,
-            frequency=Frequency.RAW,
+            resolution=Frequency.RAW,
+            date_frequency="48H",  # chunk into daily ranges to avoid API timeouts
         )
 
         bam_df = DataUtils.extract_devices_data(
@@ -182,13 +215,19 @@ class CalibrationPipeline:
             start_date_time=self.start_date,
             end_date_time=self.end_date,
             device_category=DeviceCategory.BAM,
-            frequency=Frequency.RAW,
+            resolution=Frequency.RAW,
+            date_frequency="48H",  # chunk into daily ranges to avoid API timeouts
         )
 
-        # Consider cleaning raw data after fetching, to ensure consistent formatting, removal of outliers and handle any missing columns or other issues early on.
-        # lcs_df = DataUtils.clean_low_cost_sensor_data(data=lcs_df, device_category=DeviceCategory.LOWCOST, data_type=DataType.RAW)
-        # bam_df = DataUtils.clean_bam_data(data=bam_df, datatype=DataType.AVERAGED, frequency=Frequency.HOURLY)
+        lcs_df = DataUtils.clean_low_cost_sensor_data(
+            data=lcs_df, device_category=DeviceCategory.LOWCOST, data_type=DataType.RAW
+        )
+        bam_df = DataUtils.clean_bam_data(
+            data=bam_df, datatype=DataType.RAW, frequency=Frequency.RAW
+        )
 
+        lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
+        bam_df = bam_df[CalibrationPipeline.required_bam_cols_raw]
         return lcs_df, bam_df
 
     def _prepare_training_data(
@@ -199,32 +238,104 @@ class CalibrationPipeline:
     ) -> Tuple[pd.DataFrame, List[str]]:
         """Preprocess, merge hourly, and select feature columns.
 
-        Uses only the ``primary_lcs`` device's readings for feature
-        engineering to avoid multicollinearity from duplicate sensors.
+        Enforces an 80 % hourly-coverage gate before merging:
+
+        * BAM data is checked first; if it covers less than 80 % of the
+          expected hourly range a ``ValueError`` is raised to skip the country.
+        * Primary LCS coverage is then checked; if it falls below the threshold
+          the method tries each secondary device listed in ``lcs_devices`` and
+          selects the one with the highest hourly coverage that still meets the
+          threshold.  If none qualify, a ``ValueError`` is raised to skip.
+
+        Uses only the selected LCS device's readings for feature engineering
+        to avoid multicollinearity from duplicate sensors.
         """
-        primary_lcs: Optional[str] = config.get("primary_lcs")
+        primary_lc_device: str = config.get("primary_lcs", "")
         tz_offset: int = int(config.get("tz_offset_hours", 0))
+        bam_device_name: Optional[str] = config.get("reference_device")
 
-        if primary_lcs and "device_id" in lcs_df.columns:
-            primary_df = lcs_df[lcs_df["device_id"] == primary_lcs]
-            if primary_df.empty:
-                logger.warning(
-                    "Primary LCS '%s' not found in fetched data; "
-                    "falling back to all LCS devices.",
-                    primary_lcs,
-                )
-                primary_df = lcs_df
+        _MIN_COVERAGE = 0.8
+        expected_hours = self._expected_hours()
+
+        # 1. BAM sufficiency check
+        bam_hours = self._unique_hours(bam_df)
+        bam_coverage = bam_hours / expected_hours
+        if bam_coverage < _MIN_COVERAGE:
+            raise ValueError(
+                f"BAM data for '{bam_device_name}' covers only {bam_hours}/{expected_hours} "
+                f"hours ({bam_coverage:.0%}); need \u2265{_MIN_COVERAGE:.0%}. Skipping."
+            )
+
+        # 2. LCS sufficiency check – prefer primary, fall back to secondary
+        all_lcs_devices: List[str] = config.get("lcs_devices", [])
+        secondary_devices = [d for d in all_lcs_devices if d != primary_lc_device]
+
+        if primary_lc_device and primary_lc_device in lcs_df["device_id"].unique():
+            primary_df = lcs_df[lcs_df["device_id"] == primary_lc_device]
+            primary_hours = self._unique_hours(primary_df)
+            if primary_hours / expected_hours >= _MIN_COVERAGE:
+                lcs_df = primary_df
+            else:
+                # Can be done more efficiently by precomputing hours/device, but this is clearer and the datasets are small.
+                # TODO: optimize if this becomes a bottleneck.
+                best_device: Optional[str] = None
+                best_hours = 0
+                for device_id in secondary_devices:
+                    device_df = lcs_df[lcs_df["device_id"] == device_id]
+                    device_hours = self._unique_hours(device_df)
+                    if device_hours > best_hours:
+                        best_hours = device_hours
+                        best_device = device_id
+
+                if best_device and best_hours / expected_hours >= _MIN_COVERAGE:
+                    logger.warning(
+                        "Primary LCS '%s' covers only %d/%d hours (%.0f%%); "
+                        "falling back to secondary device '%s'.",
+                        primary_lc_device,
+                        primary_hours,
+                        expected_hours,
+                        (primary_hours / expected_hours) * 100,
+                        best_device,
+                    )
+                    lcs_df = lcs_df[lcs_df["device_id"] == best_device]
+                else:
+                    logger.warning(
+                        "Primary LCS '%s' and all secondary devices have insufficient "
+                        "coverage for the requested date range. Skipping.",
+                        primary_lc_device,
+                    )
+                    raise ValueError(
+                        f"Primary LCS '{primary_lc_device}' covers only "
+                        f"{primary_hours}/{expected_hours} hours "
+                        f"({primary_hours / expected_hours:.0%}), and no secondary "
+                        f"device meets the {_MIN_COVERAGE:.0%} threshold. Skipping."
+                    )
         else:
-            primary_df = lcs_df
+            logger.warning(
+                "Primary LCS device '%s' not found in data; using all devices for feature engineering.",
+                primary_lc_device,
+            )
 
-        processed_lcs = CalibrationPreprocessor.process_lcs(primary_df)
-        processed_bam = CalibrationPreprocessor.process_bam(bam_df)
-
-        merged = CalibrationPreprocessor.merge_hourly(
-            lcs_df=processed_lcs,
-            bam_df=processed_bam,
+        merged = CalibrationPreprocessor.build_wide_dataset(
+            lcs_df,
+            bam_df,
+            device_col="device_id",
+            bam_device_name=bam_device_name,
             tz_offset_hours=tz_offset,
         )
 
+        if merged.empty:
+            raise ValueError("No overlapping hourly data after preprocessing.")
+
         features = CalibrationPreprocessor.build_feature_columns(merged)
         return merged, features
+
+    def _expected_hours(self) -> int:
+        """Return the number of expected hourly slots between start_date and end_date."""
+        delta = pd.Timestamp(self.end_date) - pd.Timestamp(self.start_date)
+        return max(1, int(delta.total_seconds() / 3600))
+
+    @staticmethod
+    def _unique_hours(df: pd.DataFrame) -> int:
+        """Return the number of distinct calendar hours present in *df*'s ``timestamp`` column."""
+        return pd.to_datetime(df["timestamp"]).dt.floor("h").nunique()
