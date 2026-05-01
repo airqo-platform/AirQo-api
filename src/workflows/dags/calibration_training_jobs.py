@@ -33,6 +33,7 @@ def calibration_model_training():
     def compute_training_window(**context) -> dict:
         """Derive [start, end] dates from the DAG logical date."""
         end = context["logical_date"].replace(hour=0, minute=0, second=0, microsecond=0)
+        end = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         start = end - relativedelta(
             months=int(configuration.CALIBRATION_TRAINING_MONTHS)
         )
