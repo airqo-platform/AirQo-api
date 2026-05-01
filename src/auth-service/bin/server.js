@@ -283,8 +283,12 @@ const {
   matchesRoute,
 } = require("@middleware/passport");
 app.use((req, res, next) => {
-  const endpoint = req.headers["x-original-uri"] || req.originalUrl || req.url;
-  if (matchesRoute(endpoint, specificRouteUris)) {
+  const forwardedUri = req.headers["x-original-uri"] || null;
+  const localUri = req.originalUrl || req.url;
+  if (
+    (forwardedUri && matchesRoute(forwardedUri, specificRouteUris)) ||
+    matchesRoute(localUri, specificRouteUris)
+  ) {
     return queryTokenRateLimiter(req, res, next);
   }
   next();

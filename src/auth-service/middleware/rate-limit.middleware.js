@@ -205,14 +205,15 @@ const keyGenerator = (req) => {
  * Custom handler for rate limit exceeded
  * Never throws errors - always returns a response
  */
-const rateLimitHandler = (req, res) => {
+const rateLimitHandler = (req, res, message) => {
   try {
     const ip = extractIp(req);
     logger.warn(`Rate limit exceeded for IP: ${ip} on ${req.path}`);
 
     return res.status(httpStatus.TOO_MANY_REQUESTS).json({
       success: false,
-      message: "Too many requests from this IP, please try again later.",
+      message:
+        message || "Too many requests from this IP, please try again later.",
       errors: {
         message:
           "Rate limit exceeded. Please wait before making more requests.",
@@ -275,13 +276,14 @@ const createSafeRateLimiter = (config) => {
   // IP-based key. Placing ...config last would let callers override store,
   // skip, and handler too, which is undesirable — so we only allow
   // keyGenerator to be customised.
-  const { keyGenerator: configKeyGenerator, ...restConfig } = config;
+  // Extract message so the custom handler can surface it in the 429 body.
+  const { keyGenerator: configKeyGenerator, message: configMessage, ...restConfig } = config;
   try {
     return rateLimit({
       ...restConfig,
       store: rateStore,
       skip: skipFunction,
-      handler: rateLimitHandler,
+      handler: (req, res) => rateLimitHandler(req, res, configMessage),
       keyGenerator: configKeyGenerator || keyGenerator,
       // Suppress the trust-proxy validation error — we use custom x-client-ip
       // headers via keyGenerator so req.ip trustworthiness is irrelevant here.
