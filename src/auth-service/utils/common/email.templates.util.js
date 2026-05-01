@@ -105,7 +105,7 @@ module.exports = {
     email,
     analyticsVersion = 3,
   } = {}) => {
-    const name = firstName;
+    const name = escapeHtml(firstName || "");
     let content = "";
 
     if (analyticsVersion === 4) {
@@ -141,8 +141,8 @@ module.exports = {
                     <tr>
                         <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
                             <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">Vertex</p>
-                            <p style="margin: 0 0 12px 0; color: #667085;">Deploy devices,Share your data</p>
-                            <a href="https://vertex.airqo.net" target="_blank"
+                            <p style="margin: 0 0 12px 0; color: #667085;">Monitor and analyse your device network with advanced tools.</p>
+                            <a href="${constants.VERTEX_BASE_URL}" target="_blank"
                                 style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
                                 Open Vertex
                             </a>
@@ -174,7 +174,7 @@ module.exports = {
                     </tr>
                 </table>
 
-                <p>Your username: <strong>${username}</strong></p>
+                <p>Your username: <strong>${escapeHtml(username || "")}</strong></p>
                 <p>Questions? Reach us at <a href="mailto:support@airqo.net" style="color: #135DFF;">support@airqo.net</a>.</p>
                 <p>The AirQo Team</p>
             </td>
