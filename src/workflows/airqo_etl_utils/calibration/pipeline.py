@@ -137,16 +137,13 @@ class CalibrationPipeline:
         )  # Picks data from aggregator.
 
         if lcs_df.empty:
-            raise ValueError(f"No LCS data returned for '{country}'.")
+            logger.exception(f"No LCS data returned for '{country}'.")
+            return {}
         if bam_df.empty:
-            raise ValueError(f"No BAM data returned for '{country}'.")
+            logger.exception(f"No BAM data returned for '{country}'.")
+            return {}
 
         df, features = self._prepare_training_data(lcs_df, bam_df, config)
-
-        if df.empty:
-            raise ValueError(f"No training data after preprocessing for '{country}'.")
-        if not features:
-            raise ValueError(f"No usable feature columns found for '{country}'.")
 
         blob_name = f"calibration/{country.lower()}_pm2_5_cal_model.pkl"
         return CalibrationModelTrainer.train_and_deploy(
@@ -184,6 +181,17 @@ class CalibrationPipeline:
             data_filter={"device_id": [ref_id]} if ref_id else None,
         )
 
+        if lcs_df.empty:
+            logger.exception(
+                f"No LCS data returned for '{config.get('country', 'unknown')}'."
+            )
+            return lcs_df, bam_df
+        if bam_df.empty:
+            logger.exception(
+                f"No BAM data returned for '{config.get('country', 'unknown')}'."
+            )
+            return lcs_df, bam_df
+
         lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
         bam_df = bam_df[
             CalibrationPipeline.required_bam_cols_raw
@@ -219,15 +227,20 @@ class CalibrationPipeline:
             date_frequency="48H",  # chunk into daily ranges to avoid API timeouts
         )
 
-        lcs_df = DataUtils.clean_low_cost_sensor_data(
-            data=lcs_df, device_category=DeviceCategory.LOWCOST, data_type=DataType.RAW
-        )
-        bam_df = DataUtils.clean_bam_data(
-            data=bam_df, datatype=DataType.RAW, frequency=Frequency.RAW
-        )
+        if not lcs_df.empty:
+            lcs_df = DataUtils.clean_low_cost_sensor_data(
+                data=lcs_df,
+                device_category=DeviceCategory.LOWCOST,
+                data_type=DataType.RAW,
+            )
+            lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
 
-        lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
-        bam_df = bam_df[CalibrationPipeline.required_bam_cols_raw]
+        if not bam_df.empty:
+            bam_df = DataUtils.clean_bam_data(
+                data=bam_df, datatype=DataType.RAW, frequency=Frequency.RAW
+            )
+            bam_df = bam_df[CalibrationPipeline.required_bam_cols_raw]
+
         return lcs_df, bam_df
 
     def _prepare_training_data(
