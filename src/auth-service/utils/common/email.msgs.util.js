@@ -701,14 +701,19 @@ module.exports = {
     const name = firstName + " " + lastName;
     const { maskedToken, tokenLabel, expiryLine, securityTip } =
       buildTokenEmailSegment({ token, tokenName, expires, expiredMode: false });
+    const tokenCallout = `
+      <div style="margin:16px 0; padding:12px 16px; background:#FFF8E7; border-left:4px solid #F5A623; border-radius:4px;">
+        <span style="font-size:14px;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</span>
+      </div>`;
     const content = `
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} is expiring soon.</p>
+          <p>One of your AirQo API tokens is expiring soon. Please regenerate it before it expires to avoid any interruption to your API access.</p>
+          ${tokenCallout}
           ${expiryLine}
-          <p>You can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
-          <p>If you have already refreshed your token, please ignore this message.</p>
+          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client — no need to create a new one.</p>
           <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
+          <p>If you have already regenerated this token, please ignore this message.</p>
           ${securityTip}
         </td>
       </tr>
