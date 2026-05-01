@@ -40,7 +40,7 @@ class CalibrationModelTrainer:
         "max_depth": 50,
         "max_features": "sqrt",
         "bootstrap": True,
-        "random_state": 46,
+        "random_state": 42,
         "n_jobs": -1,
     }
 
@@ -51,7 +51,7 @@ class CalibrationModelTrainer:
         "min_child_samples": 7,
         "num_leaves": 63,
         "subsample": 0.8807341031742756,
-        "random_state": 46,
+        "random_state": 42,
         "n_jobs": -1,
         "verbosity": -1,
     }
@@ -176,7 +176,7 @@ class CalibrationModelTrainer:
             df[features],
             df[target],
             test_size=test_fraction,
-            random_state=44,
+            random_state=42,
         )
 
         candidates: List[Tuple[str, Any, Dict[str, Any], Dict[str, Any]]] = []
@@ -236,15 +236,15 @@ class CalibrationModelTrainer:
         metrics["deployed"] = deployment["deployed"]
         metrics["deployment_reason"] = deployment["reason"]
 
-        CalibrationModelTrainer._log_mlflow(
-            country=country,
-            model=model,
-            model_type=best_label,
-            params=params,
-            metrics=metrics,
-            deployment=deployment,
-            input_example=X_val.head(5) if not X_val.empty else None,
-        )
+        # CalibrationModelTrainer._log_mlflow(
+        #     country=country,
+        #     model=model,
+        #     model_type=best_label,
+        #     params=params,
+        #     metrics=metrics,
+        #     deployment=deployment,
+        #     input_example=X_val.head(5) if not X_val.empty else None,
+        # )
 
         logger.info(
             "Calibration training for %s — R²=%.3f MAE=%.2f RMSE=%.2f deployed=%s (%s)",
