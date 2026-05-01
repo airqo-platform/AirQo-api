@@ -1,6 +1,8 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
+const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
+const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const networkUtil = require("@utils/network.util");
 const isEmpty = require("is-empty");
@@ -488,14 +490,33 @@ const createCohort = {
           message: "Bad Request Error",
           errors: { message: "Invalid Cohort ID provided" },
         };
-      } else {
+      }
+
+      const normalizeCohortName = (name) =>
+        typeof name === "string" ? name.trim().toLowerCase() : "";
+      const protectedNames = [
+        ...new Set(
+          (constants.PROTECTED_COHORT_NAMES || [constants.DEFAULT_COHORT_NAME])
+            .map((n) => normalizeCohortName(String(n)))
+            .filter((n) => n !== ""),
+        ),
+      ];
+      const normalizedResponseName = normalizeCohortName(response.name);
+      if (normalizedResponseName && protectedNames.includes(normalizedResponseName)) {
         return {
-          success: true,
-          status: httpStatus.OK,
-          message: "Cohort ID is Valid!!",
-          data: response, // Directly return the cohort object
+          success: false,
+          status: httpStatus.FORBIDDEN,
+          message: "Forbidden",
+          errors: { message: "This cohort is not available for assignment" },
         };
       }
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        message: "Cohort ID is Valid!!",
+        data: response,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1423,7 +1444,9 @@ const createCohort = {
       };
 
       // Get total count for pagination metadata before applying limit and skip
-      const total = await DeviceModel(tenant).countDocuments(filter);
+      const total = await DeviceModel(tenant)
+        .countDocuments(filter)
+        .maxTimeMS(45000);
 
       const pipeline = [
         { $match: filter },
@@ -1475,14 +1498,32 @@ const createCohort = {
           },
         },
         {
+          // Simple-form $lookup allows MongoDB to use the _id index on the grids
+          // collection. The previous pipeline-form with $expr/$in blocked index
+          // usage, causing a full grids collection scan per device.
           $lookup: {
             from: "grids",
-            let: { gridIds: { $ifNull: ["$site.grids", []] } },
-            pipeline: [
-              { $match: { $expr: { $in: ["$_id", "$$gridIds"] } } },
-              { $project: { _id: 1, name: 1, admin_level: 1, long_name: 1 } },
-            ],
+            localField: "site.grids",
+            foreignField: "_id",
             as: "grids",
+          },
+        },
+        {
+          // Trim grids to the same field subset the previous pipeline-form
+          // $project returned, keeping the response payload unchanged.
+          $addFields: {
+            grids: {
+              $map: {
+                input: "$grids",
+                as: "g",
+                in: {
+                  _id: "$$g._id",
+                  name: "$$g.name",
+                  admin_level: "$$g.admin_level",
+                  long_name: "$$g.long_name",
+                },
+              },
+            },
           },
         },
         {
@@ -1569,8 +1610,11 @@ const createCohort = {
         { $project: exclusionProjection },
       ];
 
+      // Mongoose 5.x ignores a plain-object second argument to .aggregate();
+      // options must be applied via .option() on the returned Aggregate instance.
       const paginatedResults = await DeviceModel(tenant)
         .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       // Post-processing for consistency
@@ -1738,6 +1782,7 @@ const createCohort = {
       const devicesInCohorts = await DeviceModel(tenant)
         .find(deviceFilter)
         .select("site_id deployment_type")
+        .maxTimeMS(45000)
         .lean();
 
       // Extract unique site IDs (only for static deployments with sites)
@@ -1778,7 +1823,9 @@ const createCohort = {
       };
 
       // Get total count for pagination
-      const total = await SiteModel(tenant).countDocuments(siteFilter);
+      const total = await SiteModel(tenant)
+        .countDocuments(siteFilter)
+        .maxTimeMS(45000);
 
       // Build aggregation pipeline for sites
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
@@ -1843,187 +1890,31 @@ const createCohort = {
             as: "activities",
           },
         },
-        // Dedicated lookups for the most-recent activity of each type.
-        // These cannot be derived from the capped activities array above
-        // because that array is limited to the 100 most-recent activities
-        // overall — the latest deployment/maintenance/recall could be older
-        // than position 100.  The compound index on Activity
-        // { site_id, activityType, createdAt } makes each of these an
-        // index-range scan + limit 1, so the cost is negligible.
-        // $project is placed after $match and before $sort/$limit to keep
-        // field parity with the main activities lookup and reduce sort memory.
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      { $eq: ["$activityType", "deployment"] },
-                    ],
-                  },
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_deployment_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      { $eq: ["$activityType", "maintenance"] },
-                    ],
-                  },
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_maintenance_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$site_id", "$$siteId"] },
-                      {
-                        $or: [
-                          { $eq: ["$activityType", "recall"] },
-                          { $eq: ["$activityType", "recallment"] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-              },
-              {
-                $project: {
-                  _id: 1,
-                  site_id: 1,
-                  device_id: 1,
-                  device: 1,
-                  activityType: 1,
-                  maintenanceType: 1,
-                  recallType: 1,
-                  date: 1,
-                  description: 1,
-                  nextMaintenance: 1,
-                  createdAt: 1,
-                  tags: 1,
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_recall_activity",
-          },
-        },
-        // Dedicated count lookup so total_activities reflects all activities
-        // for the site, not just the 100-document cap in the activities array.
-        // The { site_id, createdAt } index makes this an efficient count-scan.
-        // activity_count is an intermediate field; the inclusion $project
-        // below removes it from the final output automatically.
-        {
-          $lookup: {
-            from: "activities",
-            let: { siteId: "$_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
-              { $count: "count" },
-            ],
-            as: "activity_count",
-          },
-        },
-        {
-          $addFields: {
-            // True total across all activities for this site
-            total_activities: {
-              $ifNull: [{ $arrayElemAt: ["$activity_count.count", 0] }, 0],
-            },
-            // Count of activities returned in the capped array (max 100)
-            recent_activities_count: {
-              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
-            },
-          },
-        },
+        // Typed-activity fields (latest_deployment_activity, latest_maintenance_activity,
+        // latest_recall_activity) are derived in JS post-processing from the merged
+        // activities array fetched above. Running 4 separate $lookup stages here
+        // (3 typed + 1 count) adds 40 extra DB sub-queries for a page of 10 sites.
+        // The Sites inclusion $project already unwraps lookup arrays to single objects
+        // via $cond/$arrayElemAt, then the post-processing .length check runs on the
+        // resulting plain objects — always evaluating to null. The lookups were dead.
+        // Deriving in JS from the top-100 activities window is equivalent for all
+        // realistic AirQo site activity histories.
         { $project: inclusionProjection },
         { $project: exclusionProjection },
       ];
 
+      // Mongoose 5.x ignores a plain-object second argument to .aggregate();
+      // options must be applied via .option() on the returned Aggregate instance.
       const paginatedResults = await SiteModel(tenant)
         .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       // Post-processing for consistency
       paginatedResults.forEach((site) => {
-        site.latest_deployment_activity =
-          site.latest_deployment_activity &&
-          site.latest_deployment_activity.length > 0
-            ? site.latest_deployment_activity[0]
-            : null;
-
-        site.latest_maintenance_activity =
-          site.latest_maintenance_activity &&
-          site.latest_maintenance_activity.length > 0
-            ? site.latest_maintenance_activity[0]
-            : null;
-
-        site.latest_recall_activity =
-          site.latest_recall_activity && site.latest_recall_activity.length > 0
-            ? site.latest_recall_activity[0]
-            : null;
-
         if (site.activities && site.activities.length > 0) {
+          // No JS sort needed: the activities $lookup pipeline already applies
+          // { $sort: { createdAt: -1 } } server-side (single source, no merge).
           const activitiesByType = {};
           const latestActivitiesByType = {};
 
@@ -2042,24 +1933,57 @@ const createCohort = {
 
           site.activities_by_type = activitiesByType;
           site.latest_activities_by_type = latestActivitiesByType;
+          // recent_activities_count omitted: total_activities from the inclusion
+          // projection already equals $size(activities) — the two fields would
+          // always be identical, duplicating the same capped-window count.
 
-          const deviceActivitySummary = site.devices.map((device) => {
-            const deviceActivities = site.activities.filter(
-              (activity) =>
-                activity.device === device.name ||
-                (activity.device_id &&
-                  activity.device_id.toString() === device._id.toString()),
-            );
-            return {
-              device_id: device._id,
-              device_name: device.name,
-              activity_count: deviceActivities.length,
-            };
-          });
+          // Derive typed-activity fields from the already-sorted activities array
+          site.latest_deployment_activity =
+            latestActivitiesByType["deployment"] || null;
+          site.latest_maintenance_activity =
+            latestActivitiesByType["maintenance"] || null;
+
+          const latestRecall = latestActivitiesByType["recall"] || null;
+          const latestRecallment =
+            latestActivitiesByType["recallment"] || null;
+          site.latest_recall_activity =
+            latestRecall && latestRecallment
+              ? new Date(latestRecall.createdAt) >=
+                new Date(latestRecallment.createdAt)
+                ? latestRecall
+                : latestRecallment
+              : latestRecall || latestRecallment || null;
+
+          // Build separate count maps (O(n)) to avoid an O(n²) nested filter
+          // across site.devices × site.activities for every site.
+          // Activities with device_id are keyed by id; legacy name-only
+          // activities are keyed by name — matching the original OR logic
+          // without the risk of double-counting an activity that carries both.
+          const activityCountById = {};
+          const activityCountByName = {};
+          for (const activity of site.activities) {
+            if (activity.device_id) {
+              const key = activity.device_id.toString();
+              activityCountById[key] = (activityCountById[key] || 0) + 1;
+            } else if (activity.device) {
+              activityCountByName[activity.device] =
+                (activityCountByName[activity.device] || 0) + 1;
+            }
+          }
+          const deviceActivitySummary = site.devices.map((device) => ({
+            device_id: device._id,
+            device_name: device.name,
+            activity_count:
+              (activityCountById[device._id.toString()] || 0) +
+              (activityCountByName[device.name] || 0),
+          }));
           site.device_activity_summary = deviceActivitySummary;
         } else {
           site.activities_by_type = {};
           site.latest_activities_by_type = {};
+          site.latest_deployment_activity = null;
+          site.latest_maintenance_activity = null;
+          site.latest_recall_activity = null;
           site.device_activity_summary = site.devices.map((device) => ({
             device_id: device._id,
             device_name: device.name,
@@ -2115,6 +2039,304 @@ const createCohort = {
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message },
         ),
+      );
+    }
+  },
+
+
+  /**
+   * Returns true when an error indicates the snapshot collection is temporarily
+   * unreachable — either because the connection pool is exhausted (buffering
+   * timeout) or because bufferCommands:false caused an immediate fast-fail
+   * before a connection was available. In both cases the right response is to
+   * fall back to the live aggregation rather than returning a 500.
+   */
+  _isSnapshotUnavailableError(error) {
+    if (!error) return false;
+    const unavailableNames = new Set([
+      "MongooseError",
+      "MongoServerSelectionError",
+      "MongoNetworkTimeoutError",
+      "MongoPoolClearedError",
+    ]);
+    if (unavailableNames.has(error.name)) return true;
+    const msg = error.message || "";
+    return (
+      msg.includes("buffering timed out") ||
+      msg.includes("before initial connection") ||
+      msg.includes("checking out a connection")
+    );
+  },
+
+  /**
+   * listCachedDevices — serve devices from the pre-computed CohortDeviceSnapshot
+   * collection. Falls back transparently to the live listDevices aggregation when
+   * the snapshot is empty (e.g. new cohort, first run before the job fires).
+   *
+   * Accepts the same request body / query shape as listDevices so callers need
+   * only swap the endpoint URL.
+   */
+  listCachedDevices: async (request, next) => {
+    try {
+      const {
+        body: { cohort_ids = [] } = {},
+        query: {
+          tenant,
+          skip: rawSkip = 0,
+          limit: rawLimit = 10,
+          search,
+          status,
+          category,
+          network,
+        } = {},
+      } = request;
+
+      const _skip = Math.max(0, parseInt(rawSkip, 10) || 0);
+      const _limit = Math.min(Math.max(1, parseInt(rawLimit, 10) || 10), 100);
+
+      if (!cohort_ids.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "cohort_ids is required",
+          errors: { message: "cohort_ids array must not be empty" },
+        };
+      }
+
+      const cohortObjectIds = cohort_ids
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => ObjectId(id));
+
+      if (!cohortObjectIds.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "No valid cohort_ids provided",
+          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+        };
+      }
+
+      // Check whether the snapshot collection has data for ALL requested cohorts.
+      // distinct() returns one entry per cohort that has at least one snapshot,
+      // so comparing the count against cohortObjectIds.length detects partial coverage.
+      const coveredCohortIds = await CohortDeviceSnapshotModel(tenant)
+        .distinct("cohort_id", { cohort_id: { $in: cohortObjectIds }, tenant })
+        .maxTimeMS(5000);
+
+      // Fall back to the live aggregation if any cohort lacks snapshot data
+      if (coveredCohortIds.length < cohortObjectIds.length) {
+        logger.warn(
+          `listCachedDevices -- snapshot incomplete for cohort_ids [${cohort_ids}] (${coveredCohortIds.length}/${cohortObjectIds.length} covered), falling back to live query`
+        );
+        return createCohort.listDevices(request, next);
+      }
+
+      // Build the filter — use top-level indexed fields, not data.*
+      const filter = {
+        cohort_id: { $in: cohortObjectIds },
+        tenant,
+      };
+      if (search) {
+        filter.name = { $regex: search, $options: "i" };
+      }
+      if (status) {
+        filter.status = status;
+      }
+      if (category) {
+        filter.category = category;
+      }
+      if (network) {
+        filter.network = network;
+      }
+
+      const [total, snapshots] = await Promise.all([
+        CohortDeviceSnapshotModel(tenant)
+          .countDocuments(filter)
+          .maxTimeMS(10000),
+        CohortDeviceSnapshotModel(tenant)
+          .find(filter)
+          .skip(_skip)
+          .limit(_limit)
+          .select("device_id data _snapshot_generated_at")
+          .lean()
+          .maxTimeMS(10000),
+      ]);
+
+      // Deduplicate by device_id when a device appears in multiple cohorts
+      const seen = new Map();
+      for (const s of snapshots) {
+        const key = s.device_id.toString();
+        if (!seen.has(key)) seen.set(key, s.data);
+      }
+      const devices = [...seen.values()];
+
+      // Report the oldest snapshot age so the caller knows the cache staleness
+      const cacheGeneratedAt =
+        snapshots.length > 0
+          ? new Date(Math.min(...snapshots.map((s) => +s._snapshot_generated_at)))
+          : null;
+
+      const totalPages = Math.ceil(total / _limit);
+
+      return {
+        success: true,
+        message: "Successfully retrieved cached devices",
+        data: devices,
+        meta: {
+          total,
+          skip: _skip,
+          limit: _limit,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages,
+        },
+        cache_generated_at: cacheGeneratedAt,
+      };
+    } catch (error) {
+      // Snapshot collection unavailable — covers both the legacy "buffering timed
+      // out" message and the fast-fail messages emitted by bufferCommands:false.
+      if (createCohort._isSnapshotUnavailableError(error)) {
+        logger.warn(
+          `listCachedDevices -- snapshot unavailable (${error.name}: ${error.message}), falling back to live query`
+        );
+        return createCohort.listDevices(request, next);
+      }
+      logger.error(`listCachedDevices -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * listCachedSites — serve sites from the pre-computed CohortSiteSnapshot
+   * collection. Falls back to the live listSites aggregation when the snapshot
+   * is not yet populated.
+   */
+  listCachedSites: async (request, next) => {
+    try {
+      const {
+        body: { cohort_ids = [] } = {},
+        query: {
+          tenant,
+          skip: rawSkip = 0,
+          limit: rawLimit = 10,
+          search,
+          country,
+        } = {},
+      } = request;
+
+      const _skip = Math.max(0, parseInt(rawSkip, 10) || 0);
+      const _limit = Math.min(Math.max(1, parseInt(rawLimit, 10) || 10), 100);
+
+      if (!cohort_ids.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "cohort_ids is required",
+          errors: { message: "cohort_ids array must not be empty" },
+        };
+      }
+
+      const cohortObjectIds = cohort_ids
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => ObjectId(id));
+
+      if (!cohortObjectIds.length) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "No valid cohort_ids provided",
+          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+        };
+      }
+
+      // Check whether the snapshot collection has data for ALL requested cohorts
+      const coveredCohortIds = await CohortSiteSnapshotModel(tenant)
+        .distinct("cohort_id", { cohort_id: { $in: cohortObjectIds }, tenant })
+        .maxTimeMS(5000);
+
+      if (coveredCohortIds.length < cohortObjectIds.length) {
+        logger.warn(
+          `listCachedSites -- snapshot incomplete for cohort_ids [${cohort_ids}] (${coveredCohortIds.length}/${cohortObjectIds.length} covered), falling back to live query`
+        );
+        return createCohort.listSites(request, next);
+      }
+
+      const filter = {
+        cohort_id: { $in: cohortObjectIds },
+        tenant,
+      };
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { search_name: { $regex: search, $options: "i" } },
+        ];
+      }
+      if (country) {
+        filter.country = country;
+      }
+
+      const [total, snapshots] = await Promise.all([
+        CohortSiteSnapshotModel(tenant)
+          .countDocuments(filter)
+          .maxTimeMS(10000),
+        CohortSiteSnapshotModel(tenant)
+          .find(filter)
+          .skip(_skip)
+          .limit(_limit)
+          .select("site_id data _snapshot_generated_at")
+          .lean()
+          .maxTimeMS(10000),
+      ]);
+
+      // Deduplicate by site_id when a site appears in multiple cohorts
+      const seen = new Map();
+      for (const s of snapshots) {
+        const key = s.site_id.toString();
+        if (!seen.has(key)) seen.set(key, s.data);
+      }
+      const sites = [...seen.values()];
+
+      // Report the oldest snapshot age so the caller knows the cache staleness
+      const cacheGeneratedAt =
+        snapshots.length > 0
+          ? new Date(Math.min(...snapshots.map((s) => +s._snapshot_generated_at)))
+          : null;
+
+      const totalPages = Math.ceil(total / _limit);
+
+      return {
+        success: true,
+        message: "Successfully retrieved cached sites",
+        data: sites,
+        meta: {
+          total,
+          skip: _skip,
+          limit: _limit,
+          page: Math.floor(_skip / _limit) + 1,
+          totalPages,
+        },
+        cache_generated_at: cacheGeneratedAt,
+      };
+    } catch (error) {
+      // Snapshot collection unavailable — same broadened check as listCachedDevices.
+      if (createCohort._isSnapshotUnavailableError(error)) {
+        logger.warn(
+          `listCachedSites -- snapshot unavailable (${error.name}: ${error.message}), falling back to live query`
+        );
+        return createCohort.listSites(request, next);
+      }
+      logger.error(`listCachedSites -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

@@ -59,10 +59,23 @@ class DeviceConfigDataResponse(BaseModel):
     beacon_data: Dict[str, Any]
 
 class DevicePerformance(BaseModel):
+    """
+    New shape backed by the local sync_*_device_data tables. The legacy
+    fields (`sensor_error_margin`, `s1_pm2_5_average`, ...) are kept
+    optional so older clients keep parsing successfully during the
+    transition period.
+    """
+    model_config = ConfigDict(extra="allow")
+
     device_name: str
-    uptime: float
-    data_completeness: float
-    sensor_error_margin: Optional[float] = 0.0
+    category: Optional[str] = None
+    uptime: float = 0.0
+    data_completeness: float = 0.0
+    averages: Dict[str, Any] = {}
+    data: List[Dict[str, Any]] = []
+
+    # Legacy fields — no longer populated by the new path.
+    sensor_error_margin: Optional[float] = None
     s1_pm2_5_average: Optional[float] = None
     s2_pm2_5_average: Optional[float] = None
     correlation: Optional[float] = None

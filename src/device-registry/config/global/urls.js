@@ -22,6 +22,11 @@ const urls = {
   GET_ADDRESS_URL: (lat, long) => {
     return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
+  NOMINATIM_REVERSE_URL: (lat, lon) => {
+    const base =
+      process.env.NOMINATIM_BASE_URL || "https://nominatim.openstreetmap.org";
+    return `${base}/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`;
+  },
   GET_ELEVATION_URL: (lat, long) => {
     return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
   },

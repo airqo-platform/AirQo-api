@@ -11,6 +11,12 @@ const siteUtil = require("@utils/site.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-controller`);
+
+// Dedupe guard: prevents concurrent background refreshes for the same site.
+// TTL matches the minimum meaningful geocoding gap — no point re-enqueuing a
+// site that was just refreshed within the last 5 minutes.
+const REFRESH_TTL_MS = 5 * 60 * 1000;
+const refreshInFlight = new Set();
 function handleResponse({
   result,
   key = "data",
@@ -139,6 +145,73 @@ const siteController = {
       const result = await siteUtil.getSiteById(req, next);
 
       handleResponse({ result, res });
+
+      // After the response is sent, trigger a background refresh when the
+      // site is missing key geocoding fields. Fire-and-forget: the caller
+      // already has their response and this runs outside the request lifecycle.
+      if (result && result.success && result.data) {
+        const site = result.data;
+        const needsGeocoding =
+          !site.country ||
+          !site.city ||
+          !site.district ||
+          site.altitude == null;
+        const needsDataProvider = !site.data_provider;
+
+        if (needsGeocoding || needsDataProvider) {
+          const siteId = site._id.toString();
+          if (!refreshInFlight.has(siteId)) {
+            refreshInFlight.add(siteId);
+            setTimeout(() => refreshInFlight.delete(siteId), REFRESH_TTL_MS);
+            setImmediate(async () => {
+              try {
+                if (needsGeocoding) {
+                  // Full refresh — reverse-geocoding, altitude, and data_provider.
+                  const refreshResult = await siteUtil.refresh(
+                    { query: { id: siteId, tenant: req.query.tenant } },
+                    (err) => {
+                      if (err) {
+                        logger.warn(
+                          `background refresh failed for site ${siteId}: ${err.message}`,
+                        );
+                      }
+                    },
+                  );
+                  if (refreshResult && refreshResult.success === false) {
+                    logger.warn(
+                      `background refresh failed for site ${siteId}: ${refreshResult.message || "unknown error"}`,
+                    );
+                  } else if (
+                    refreshResult &&
+                    refreshResult.success &&
+                    !refreshResult.data?.data_provider
+                  ) {
+                    // Refresh completed but data_provider is still null — the site
+                    // has no active device and no network field. It will re-trigger
+                    // every REFRESH_TTL_MS with the same result. Log once per TTL
+                    // window so the data team can identify and fix stuck sites.
+                    logger.warn(
+                      `background refresh: data_provider still null for site ${siteId} [reason: no-active-device-no-network]`,
+                    );
+                  }
+                } else {
+                  // Only data_provider is missing — skip reverse-geocoding entirely.
+                  // refreshSiteDataProvider calls computeSiteDataProvider which falls
+                  // back to site.network, so no external API calls are made.
+                  await siteUtil.refreshSiteDataProvider(
+                    req.query.tenant,
+                    siteId,
+                  );
+                }
+              } catch (err) {
+                logger.warn(
+                  `background refresh threw for site ${siteId}: ${err.message}`,
+                );
+              }
+            });
+          }
+        }
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

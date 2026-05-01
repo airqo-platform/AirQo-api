@@ -220,7 +220,7 @@ def fetch_faulty_devices():
             200,
         )
     except Exception as e:
-        current_app.logger.error("Error: ", str(e))
+        current_app.logger.error(f"Error: {e}")
         return (
             jsonify(
                 {"message": "Internal server error", "success": False, "data": None}
@@ -392,6 +392,7 @@ def predictions_for_heatmap():
     limit = int(request.args.get("limit", 1000))
 
     response = {}
+    status_code = 500
 
     try:
         values, total = read_predictions_from_db(airqloud, page, limit)
@@ -408,11 +409,11 @@ def predictions_for_heatmap():
             response["error"] = "No data found."
             status_code = 404
     except Exception as e:
-        response["error"] = f"Unfortunately an error occured"
-        current_app.logger.error("Error: ", str(e), exc_info=True)
+        response["error"] = "Unfortunately an error occured"
+        current_app.logger.error(f"Error: {e}", exc_info=True)
         status_code = 500
-    finally:
-        return jsonify(response), status_code
+
+    return jsonify(response), status_code
 
 @ml_app.route(routes.route["search_predictions"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=geo_coordinates_cache_key)

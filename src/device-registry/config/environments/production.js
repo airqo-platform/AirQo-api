@@ -11,6 +11,14 @@ const prodConfig = {
   API_TOKEN: process.env.PROD_API_TOKEN,
   API_BASE_URL: process.env.PROD_API_BASE_URL,
   DEFAULT_COHORT: process.env.PROD_DEFAULT_COHORT,
+  PROTECTED_COHORT_NAMES: [
+    "airqo",
+    ...(process.env.PROD_PROTECTED_COHORT_NAMES
+      ? process.env.PROD_PROTECTED_COHORT_NAMES.split(",")
+          .map((v) => v.trim().toLowerCase())
+          .filter((v) => v !== "")
+      : []),
+  ],
   MONGO_URI: process.env.MONGO_URI_PROD,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_PROD,
   QUERY_MONGO_URI: process.env.QUERY_MONGO_URI_PROD,
@@ -51,7 +59,7 @@ const prodConfig = {
   SERVICE_JWT_TOKEN: process.env.PROD_SERVICE_JWT_TOKEN,
   ADMIN_SETUP_SECRET: process.env.PROD_ADMIN_SETUP_SECRET,
   HCAPTCHA_SECRET_KEY: process.env.PROD_HCAPTCHA_SECRET_KEY,
-  BACKFILL_SITE_METADATA_SCHEDULER_ENABLED: false,
+  BACKFILL_SITE_METADATA_SCHEDULER_ENABLED: true,
   FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED: true,
 };
 module.exports = prodConfig;

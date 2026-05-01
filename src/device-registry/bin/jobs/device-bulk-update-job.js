@@ -73,9 +73,20 @@ const releaseJobLock = async (tenant, lockName) => {
 
 // ── Core batch processor ──────────────────────────────────────────────────────
 
+// Fields that may only be changed through dedicated activity endpoints
+// (deploy / recall / maintain). Stripping them here prevents a bulk-update
+// job document stored in the DB from silently overriding deployment state.
+const { LIFECYCLE_FIELDS } = constants;
+
 const runSingleJob = async (job) => {
   const { tenant, _id: jobId, name, filter, updateData, batchSize, dryRun } =
     job;
+
+  // Strip lifecycle fields from the stored updateData before it reaches the DB.
+  // A DeviceBulkUpdateJob document could have been created with any payload;
+  // we must enforce the same invariant the API controllers do.
+  const safeUpdateData = Object.assign({}, updateData);
+  LIFECYCLE_FIELDS.forEach((f) => delete safeUpdateData[f]);
   const lockName = `device-bulk-update-${jobId}`;
 
   const lockAcquired = await acquireJobLock(tenant, lockName);
@@ -152,7 +163,7 @@ const runSingleJob = async (job) => {
       if (dryRun) {
         logger.info(
           `[${POD_ID}] [DRY RUN] Job "${name}": would apply ${JSON.stringify(
-            updateData
+            safeUpdateData
           )} to ${deviceIds.length} device(s).`
         );
         await DeviceBulkUpdateJobModel(tenant).findByIdAndUpdate(jobId, {
@@ -167,7 +178,7 @@ const runSingleJob = async (job) => {
       try {
         await DeviceModel(tenant).updateMany(
           { _id: { $in: deviceIds } },
-          { $set: updateData },
+          { $set: safeUpdateData },
           { runValidators: true }
         );
 

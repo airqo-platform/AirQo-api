@@ -12,6 +12,14 @@ const stageConfig = {
   API_TOKEN: process.env.STAGE_API_TOKEN,
   API_BASE_URL: process.env.STAGE_API_BASE_URL,
   DEFAULT_COHORT: process.env.STAGE_DEFAULT_COHORT,
+  PROTECTED_COHORT_NAMES: [
+    "airqo",
+    ...(process.env.STAGE_PROTECTED_COHORT_NAMES
+      ? process.env.STAGE_PROTECTED_COHORT_NAMES.split(",")
+          .map((v) => v.trim().toLowerCase())
+          .filter((v) => v !== "")
+      : []),
+  ],
   MONGO_URI: process.env.MONGO_URI_STAGE,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_STAGE,
   QUERY_MONGO_URI: process.env.QUERY_MONGO_URI_STAGE,

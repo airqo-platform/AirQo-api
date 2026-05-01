@@ -150,6 +150,12 @@ const routes = [
   },
   {
     method: "get",
+    path: "/sites/:site_id/hourly",
+    middlewares: [checkValidation("listHourlySiteReadings")],
+    controller: "getHourlySiteReadings",
+  },
+  {
+    method: "get",
     path: "/sites/:site_id/averages",
     middlewares: [checkValidation("listAverages"), pagination()],
     controller: "listReadingAverages",

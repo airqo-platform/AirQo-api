@@ -164,6 +164,15 @@ const siteSchema = new Schema(
     altitude: {
       type: Number,
     },
+    // Tracks how many times the altitude API has failed for this site.
+    // When the count reaches ALTITUDE_FAILURE_THRESHOLD the backfill job
+    // and the refresh utility both skip the getAltitude call rather than
+    // burning API credits on a coordinate that repeatedly returns nothing.
+    // Reset to 0 whenever altitude is successfully written.
+    _altitudeFailedCount: {
+      type: Number,
+      default: 0,
+    },
     distance_to_nearest_road: {
       type: Number,
       trim: true,
@@ -286,6 +295,10 @@ const siteSchema = new Schema(
       trim: true,
     },
     sub_county: {
+      type: String,
+      trim: true,
+    },
+    division: {
       type: String,
       trim: true,
     },
@@ -573,6 +586,14 @@ siteSchema.index({ isOnline: 1, search_name: 1 });
 siteSchema.index({ isOnline: 1, description: 1 });
 // Index for offline entity checks
 siteSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
+// Index to support $lookup from grids collection (grids._id → sites.grids)
+// Without this, every $lookup on GET /grids/summary requires a full sites
+// collection scan for each matched grid document.
+siteSchema.index({ grids: 1 });
+// Backfill job: equality on isOnline, cursor on _id, range on createdAt.
+// Placing _id before createdAt lets MongoDB satisfy the _id sort from the
+// index without an in-memory SORT stage.
+siteSchema.index({ isOnline: 1, _id: 1, createdAt: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,

@@ -74,3 +74,49 @@ Returns a DataFrame containing:
 - Ensures data completeness for air quality monitoring
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+fetch_site_prediction_data_doc = """
+#### Purpose
+Fetch site-level daily PM2.5 history for the configured forecast lookback window.
+#### Notes
+- Reads from the consolidated site data source in BigQuery.
+- Includes sparse daily rows so newly deployed sites can still receive forecasts.
+"""
+
+generate_site_forecasts_doc = """
+#### Purpose
+Generate forward site-level daily PM2.5 forecasts from prepared historical site data.
+#### Notes
+- Uses deployed site forecast artifacts loaded by `ForecastModelTrainer`.
+- Produces forecast-only rows before MET.no enrichment is applied.
+"""
+
+enrich_site_forecasts_with_met_doc = """
+#### Purpose
+Attach MET.no weather summaries to generated site daily forecast rows.
+#### Notes
+- Rounds coordinates into query buckets before fetching weather data.
+- Fails the task when MET.no enrichment errors occur.
+"""
+
+save_site_forecasts_to_mongodb_doc = """
+#### Purpose
+Persist site-level daily PM2.5 forecasts to MongoDB.
+#### Notes
+- Saves the forecast rows before the MET.no update step runs.
+"""
+
+resolve_site_forecasts_for_met_updates_doc = """
+#### Purpose
+Resolve the forecast rows that should be used for the MET.no update step.
+#### Notes
+- Pulls enriched output from XCom.
+- Returns the rows that are safe to write back after enrichment.
+"""
+
+update_site_forecasts_met_in_mongodb_doc = """
+#### Purpose
+Update stored site daily forecasts with MET.no weather fields when enrichment succeeds.
+#### Notes
+- Skips the update gracefully when MET.no data is unavailable.
+"""

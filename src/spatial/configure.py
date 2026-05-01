@@ -35,6 +35,16 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    OVERPASS_API_URLS = os.getenv(
+        "OVERPASS_API_URLS",
+        ",".join(
+            [
+                "https://overpass-api.de/api/interpreter",
+                "https://overpass.private.coffee/api/interpreter",
+                "https://overpass.osm.jp/api/interpreter",
+            ]
+        ),
+    )
     CACHE_KEY = "airqo:predicted_pm25"
     MODEL_DIR = os.getenv("MODEL_DIR_FILE", "./models")
     CITY_LIST_FILE = os.path.join(

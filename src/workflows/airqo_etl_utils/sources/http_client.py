@@ -18,6 +18,8 @@ class HttpClient:
         backoff_factor: float = 0.3,
         status_forcelist: tuple = (500, 502, 504),
         timeout: int = 10,
+        pool_connections: int = 10,
+        pool_maxsize: int = 10,
     ) -> None:
         self.session = requests.Session()
         retry = Retry(
@@ -26,7 +28,11 @@ class HttpClient:
             status_forcelist=status_forcelist,
             allowed_methods=["GET", "POST", "PUT"],
         )
-        adapter = HTTPAdapter(max_retries=retry)
+        adapter = HTTPAdapter(
+            max_retries=retry,
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize,
+        )
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
         self.timeout = timeout

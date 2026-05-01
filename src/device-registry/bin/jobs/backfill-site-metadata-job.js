@@ -3,13 +3,32 @@ const SiteModel = require("@models/Site");
 const JobLockModel = require("@models/JobLock");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+
+// Per-site operational logger — uses the default category.
+// WARN and ERROR stay in file/console only; ERROR still reaches Slack via the
+// default slackErrors appender. Individual site failures must NOT flood Slack.
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- backfill-site-metadata-job`,
+);
+
+// Job-level summary logger — uses ops-alerts category (WARN and above → Slack).
+// Only job-run summaries and structural alerts are logged here so Slack
+// receives a single consolidated message per nightly run, never per-site noise.
+const jobLogger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- backfill-site-metadata-job -- ops-alerts`,
 );
 const createSiteUtil = require("@utils/site.util");
 const os = require("os");
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 30;
+// Hard cap on total geocoding attempts per run. Sites are processed in
+// BATCH_SIZE chunks; the job stops once this many have been attempted.
+const MAX_GEOCODING_ATTEMPTS_PER_RUN = 300;
+// After this many consecutive altitude failures for a single site, the job
+// skips the getAltitude API call for that site rather than burning credits
+// on coordinates that repeatedly return nothing. The counter resets to 0
+// whenever altitude is successfully written.
+const ALTITUDE_FAILURE_THRESHOLD = 3;
 const JOB_NAME = "backfill-site-metadata";
 const LOCK_TTL_SECONDS = 90 * 60; // 90 minutes
 const POD_ID = process.env.HOSTNAME || os.hostname();
@@ -49,67 +68,6 @@ const releaseLock = async (tenant) => {
     });
   } catch (error) {
     logger.error(`🐛🐛 Lock release error: ${error.message}`);
-  }
-};
-
-/**
- * Runs a single altitude call before each batch fires.
- * If it fails, sets altitudeCircuitOpen = true so that all 100
- * concurrent promises in the batch already have skipAltitude = true
- * before they start — guaranteeing at most ONE altitude error log
- * per batch rather than one per site.
- *
- * Without this, Promise.allSettled fires all 100 promises simultaneously.
- * By the time the first one trips the circuit breaker flag, the other 99
- * have already called generateMetadata with skipAltitude = false,
- * producing 100 identical error logs.
- */
-const runAltitudePreflightCheck = async (site, altitudeCircuitOpen) => {
-  if (altitudeCircuitOpen) return true;
-
-  try {
-    const testResponse = await createSiteUtil.getAltitude(
-      site.latitude,
-      site.longitude,
-      (err) => err,
-    );
-
-    if (!testResponse || typeof testResponse !== "object") {
-      logger.error(
-        `[${POD_ID}] Altitude API pre-flight check returned an unexpected value — ` +
-          `opening circuit breaker for this batch. ` +
-          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
-      );
-      return true;
-    }
-
-    if (testResponse.success === false) {
-      const safeError = {
-        code: testResponse.errors?.message?.code,
-        message: testResponse.errors?.message?.message,
-      };
-      logger.error(
-        `[${POD_ID}] Altitude API pre-flight check failed — skipping altitude ` +
-          `enrichment for this entire batch to suppress duplicate errors. ` +
-          `Safe error: ${JSON.stringify(safeError)}. ` +
-          `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
-      );
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    const safeError = {
-      code: error.code,
-      message: error.message,
-    };
-    logger.error(
-      `[${POD_ID}] Altitude API pre-flight check threw an unexpected error — ` +
-        `opening circuit breaker to suppress duplicate errors for this batch. ` +
-        `Safe error: ${JSON.stringify(safeError)}. ` +
-        `Check GOOGLE_MAPS_API_KEY: kubectl exec -it <pod> -n <namespace> -- printenv GOOGLE_MAPS_API_KEY`,
-    );
-    return true;
   }
 };
 
@@ -219,153 +177,113 @@ const repairGeneratedName = async (tenant, site) => {
   }
 };
 
+// Defined once at module level — avoids recreating this array for every
+// site in every batch during the job run.
+const GEOCODED_FIELDS = [
+  "country",
+  "district",
+  "city",
+  "region",
+  "town",
+  "village",
+  "parish",
+  "county",
+  "sub_county",
+  "division",
+  "street",
+  "formatted_name",
+  "geometry",
+  "google_place_id",
+  "location_name",
+  "search_name",
+  "data_provider",
+  "site_tags",
+  "altitude",
+];
+
+// Fields in GEOCODED_FIELDS that are NOT altitude — used to decide whether
+// altitude is the sole reason a site needs geocoding.
+const NON_ALTITUDE_GEOCODED_FIELDS = GEOCODED_FIELDS.filter(
+  (f) => f !== "altitude",
+);
+
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
 
   const lockAcquired = await acquireLock(tenant);
-  if (!lockAcquired) {
-    return;
-  }
+  if (!lockAcquired) return;
 
   try {
     let sitesProcessed = 0;
     let sitesFailedCount = 0;
-    const attemptedIds = [];
 
-    // Circuit breaker for the Google Maps Elevation API.
-    // Scoped to this job run — resets automatically on the next cron tick.
-    // Tripped by the pre-flight check at the start of each batch so that
-    // all concurrent promises skip altitude before they even start,
-    // guaranteeing at most one error log per batch instead of one per site.
-    let altitudeCircuitOpen = false;
+    // Cursor-based pagination: a single ObjectId in memory instead of a
+    // growing $nin array. Each batch picks up where the last one left off
+    // using an indexed range scan on _id.
+    let lastProcessedId = null;
 
-    while (true) {
-      // -----------------------------------------------------------------
-      // Two-query fetch strategy:
-      //
-      // Query A — local-only candidates: sites missing generated_name,
-      // search_name, or description. These fields can be repaired without
-      // coordinates, so the latitude/longitude gate is intentionally absent.
-      //
-      // Query B — geocoding candidates: sites missing geocoded-dependent
-      // fields (country, district, city, data_provider). These REQUIRE valid
-      // coordinates, so the latitude/longitude gate is applied here only.
-      //
-      // The two result sets are merged and deduplicated by _id before
-      // processing so a site missing both local and geocoded fields is only
-      // processed once.
-      // -----------------------------------------------------------------
-      const idFilter =
-        attemptedIds.length > 0 ? { _id: { $nin: attemptedIds } } : {};
-      const selectFields =
-        "_id latitude longitude name network country district city region " +
-        "town village parish county sub_county division street formatted_name " +
-        "geometry google_place_id location_name search_name altitude " +
-        "data_provider site_tags generated_name description";
+    // Guards: online sites created in the last 30 days only.
+    // isOnline: true implies an active deployed device — no separate device
+    // lookup needed. Older sites are expected to be complete already.
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      // Query A: local-only — no coordinate requirement.
-      const localOnlySites = await SiteModel(tenant)
-        .find({
+    const MAX_BATCHES =
+      Math.ceil(MAX_GEOCODING_ATTEMPTS_PER_RUN / BATCH_SIZE) + 1;
+    let batchesRun = 0;
+
+    while (
+      batchesRun < MAX_BATCHES &&
+      sitesProcessed + sitesFailedCount < MAX_GEOCODING_ATTEMPTS_PER_RUN
+    ) {
+      batchesRun++;
+      const idCursor = lastProcessedId ? { _id: { $gt: lastProcessedId } } : {};
+
+      const sitesToUpdate = await SiteModel(tenant).find(
+        {
+          isOnline: true,
+          createdAt: { $gte: thirtyDaysAgo },
+          ...idCursor,
           $or: [
             { generated_name: { $in: [null, ""] } },
-            { generated_name: { $exists: false } },
-            { search_name: { $in: [null, ""] } },
-            { search_name: { $exists: false } },
             { description: { $in: [null, ""] } },
-            { description: { $exists: false } },
-          ],
-          ...idFilter,
-        })
-        .limit(BATCH_SIZE)
-        .select(selectFields)
-        .lean();
-
-      // Query B: geocoding candidates — coordinate gate required.
-      const geocodingSites = await SiteModel(tenant)
-        .find({
-          $or: [
             { country: { $in: [null, ""] } },
-            { country: { $exists: false } },
             { district: { $in: [null, ""] } },
-            { district: { $exists: false } },
             { city: { $in: [null, ""] } },
-            { city: { $exists: false } },
             { data_provider: { $in: [null, ""] } },
-            { data_provider: { $exists: false } },
-            { search_name: { $in: [null, ""] } },
-            { search_name: { $exists: false } },
+            // Include altitude-only gaps while the failure counter is below the
+            // threshold so exhausted sites are not repeatedly selected.
+            {
+              altitude: null,
+              $or: [
+                { _altitudeFailedCount: { $exists: false } },
+                { _altitudeFailedCount: { $lt: ALTITUDE_FAILURE_THRESHOLD } },
+              ],
+            },
           ],
-          latitude: { $exists: true, $ne: null },
-          longitude: { $exists: true, $ne: null },
-          ...idFilter,
-        })
-        .limit(BATCH_SIZE)
-        .select(selectFields)
-        .lean();
-
-      // Merge and deduplicate by _id — a site appearing in both queries
-      // (missing local AND geocoded fields) is processed only once.
-      const seenIds = new Set();
-      const sitesToUpdate = [];
-      for (const site of [...localOnlySites, ...geocodingSites]) {
-        const id = site._id.toString();
-        if (!seenIds.has(id)) {
-          seenIds.add(id);
-          sitesToUpdate.push(site);
-        }
-      }
-
-      if (sitesToUpdate.length === 0) {
-        break;
-      }
-
-      const batchIds = sitesToUpdate.map((s) => s._id);
-      attemptedIds.push(...batchIds);
-
-      // Run the pre-flight check BEFORE firing Promise.allSettled so that
-      // the circuit breaker state is fully resolved before any of the 100
-      // concurrent promises read it. This is the key guarantee — without
-      // awaiting this first, all promises read altitudeCircuitOpen = false
-      // simultaneously and all 100 make failing altitude calls.
-      altitudeCircuitOpen = await runAltitudePreflightCheck(
-        sitesToUpdate[0],
-        altitudeCircuitOpen,
+        },
+        null,
+        { sort: { _id: 1 }, limit: BATCH_SIZE, lean: true },
       );
 
-      const updatePromises = sitesToUpdate.map(async (site) => {
-        try {
-          // ----------------------------------------------------------------
-          // Step 1: Local-only repairs — no external API calls.
-          //
-          // generated_name comes from UniqueIdentifierCounter (not geocoding).
-          // description is derived from site.name by convention (see
-          // Site.statics.register). Both are resolved and persisted here
-          // so that sites needing only these repairs never reach the
-          // generateMetadata() call below and incur unnecessary geocoding.
-          //
-          // The in-memory site object is only mutated AFTER each write is
-          // confirmed, so buildMissingFieldsUpdate always reflects the true
-          // persisted state.
-          // ----------------------------------------------------------------
+      if (sitesToUpdate.length === 0) break;
 
-          // Repair generated_name if missing.
+      lastProcessedId = sitesToUpdate[sitesToUpdate.length - 1]._id;
+
+      // Sequential processing — one geocoding call at a time to stay within
+      // API rate limits and keep costs predictable across 3 daily runs.
+      for (const site of sitesToUpdate) {
+        try {
+          // Step 1: Local-only repairs — no external API calls.
           if (!site.generated_name) {
             const repairedName = await repairGeneratedName(tenant, site);
             if (repairedName) {
-              // Mutate only after confirmed persistence (repairGeneratedName
-              // returns null if findByIdAndUpdate found no document).
               site.generated_name = repairedName;
             } else {
-              // Cannot proceed without a generated_name — skip this site.
-              return { success: false, siteId: site._id };
+              sitesFailedCount++;
+              continue;
             }
           }
 
-          // Repair description locally if missing — mirrors Site.statics.register.
-          // The filter includes the "still missing" predicate so the write is
-          // a no-op if another process already set description between our
-          // query and this write. matchedCount === 0 means "already repaired
-          // elsewhere" and is treated as success — re-fetch to get the value.
           if ((!site.description || site.description === "") && site.name) {
             const descWriteResult = await SiteModel(
               tenant,
@@ -380,81 +298,58 @@ const backfillSiteMetadata = async (tenant) => {
               },
               { $set: { description: site.name } },
             );
-            // Only mutate in-memory site after confirmed persistence so that
-            // buildMissingFieldsUpdate does not skip description when the
-            // DB write failed.
-            if (!descWriteResult) {
-              logger.error(
-                `[${POD_ID}] collection.updateOne returned no result for description on site ${site._id}`,
-              );
-            } else if (descWriteResult.matchedCount === 0) {
-              // Already repaired by another process — re-fetch current value.
+            if (descWriteResult && descWriteResult.matchedCount === 0) {
               const current = await SiteModel(tenant)
                 .findById(site._id)
                 .select("description")
                 .lean();
               if (current && current.description)
                 site.description = current.description;
-            } else {
+            } else if (descWriteResult) {
               site.description = site.name;
             }
           }
 
-          // ----------------------------------------------------------------
-          // Step 2: Check whether geocoding is still needed.
-          //
-          // If the only missing fields were generated_name and/or description
-          // and both are now repaired, skip the Google Maps call entirely.
-          // ----------------------------------------------------------------
-          const GEOCODED_FIELDS = [
-            "country",
-            "district",
-            "city",
-            "region",
-            "town",
-            "village",
-            "parish",
-            "county",
-            "sub_county",
-            "division",
-            "street",
-            "formatted_name",
-            "geometry",
-            "google_place_id",
-            "location_name",
-            "search_name",
-            "altitude",
-            "data_provider",
-            "site_tags",
-          ];
-
-          const needsGeocoding = GEOCODED_FIELDS.some((field) => {
-            const v = site[field];
-            return v === undefined || v === null || v === "";
-          });
+          // Step 2: Skip geocoding if all missing fields were local-only.
+          const isMissing = (v) => v === undefined || v === null || v === "";
+          const needsGeocoding = GEOCODED_FIELDS.some((f) => isMissing(site[f]));
 
           if (!needsGeocoding) {
-            // All remaining missing fields were local — already resolved above.
-            return { success: true };
+            sitesProcessed++;
+            continue;
           }
 
-          // ----------------------------------------------------------------
-          // Step 3: Generate geocoding metadata (reverse geocode + altitude).
-          // Only reached by sites that still have missing geocoded fields
-          // after local repairs have been applied.
-          // ----------------------------------------------------------------
-          const request = {
-            query: { tenant },
-            body: {
-              latitude: site.latitude,
-              longitude: site.longitude,
-              network: site.network || "airqo",
-              skipAltitude: altitudeCircuitOpen,
-            },
-          };
+          // If altitude is the only missing geocoded field and this site has
+          // already exceeded the failure threshold, count it as done rather
+          // than burning an API credit on a coordinate that repeatedly fails.
+          const altitudeExhausted =
+            (site._altitudeFailedCount || 0) >= ALTITUDE_FAILURE_THRESHOLD;
+          const needsNonAltitudeGeocoding = NON_ALTITUDE_GEOCODED_FIELDS.some(
+            (f) => isMissing(site[f]),
+          );
+
+          if (!needsNonAltitudeGeocoding && altitudeExhausted) {
+            sitesProcessed++;
+            continue;
+          }
+
+          // Step 3: Reverse geocode + altitude.
+          // Skip the altitude API call for sites whose failure counter is at
+          // the threshold — still geocode the other missing fields normally.
+          const altitudeNeeded = isMissing(site.altitude);
+          const skipAltitude = !altitudeNeeded || altitudeExhausted;
 
           const metadataResponse = await createSiteUtil.generateMetadata(
-            request,
+            {
+              query: { tenant },
+              body: {
+                latitude: site.latitude,
+                longitude: site.longitude,
+                network: site.network || "airqo",
+                skipAltitude,
+                siteId: site._id.toString(),
+              },
+            },
             (err) => {
               throw err;
             },
@@ -478,13 +373,13 @@ const backfillSiteMetadata = async (tenant) => {
               google_place_id,
               location_name,
               search_name,
-              altitude,
               data_provider,
               site_tags,
+              altitude,
               description,
             } = metadataResponse.data;
 
-            const allMetadataFields = {
+            const missingFields = buildMissingFieldsUpdate(site, {
               country,
               district,
               city,
@@ -501,66 +396,67 @@ const backfillSiteMetadata = async (tenant) => {
               google_place_id,
               location_name,
               search_name,
-              altitude,
               data_provider,
               site_tags,
-              // retrieveInformationFromAddress in site.util.js never sets a
-              // description field on its return object, so the destructured
-              // description above will always be undefined here and the
-              // site.name fallback will always be exercised.
+              altitude,
               description: description || site.name || undefined,
-            };
+            });
 
-            // Only write fields that are currently missing on this site.
-            // This prevents overwriting search_name, location_name, or
-            // formatted_name that update-duplicate-site-fields-job has
-            // already carefully renamed to resolve uniqueness conflicts.
-            const missingFields = buildMissingFieldsUpdate(
-              site,
-              allMetadataFields,
-            );
-
-            if (Object.keys(missingFields).length === 0) {
-              return { success: true };
+            // Track altitude success/failure so future runs can skip the
+            // getAltitude call for coordinates that consistently return nothing.
+            const altitudeTracker = {};
+            if (altitudeNeeded && !skipAltitude) {
+              if (missingFields.altitude !== undefined) {
+                altitudeTracker._altitudeFailedCount = 0;
+              } else {
+                altitudeTracker._altitudeFailedCount =
+                  (site._altitudeFailedCount || 0) + 1;
+              }
             }
 
-            await SiteModel(tenant).findByIdAndUpdate(site._id, {
-              $set: missingFields,
-            });
-            return { success: true };
+            const allUpdates = { ...missingFields, ...altitudeTracker };
+            if (Object.keys(allUpdates).length > 0) {
+              await SiteModel(tenant).findByIdAndUpdate(site._id, {
+                $set: allUpdates,
+              });
+            }
+            sitesProcessed++;
           } else {
-            logger.error(
-              `[${POD_ID}] Failed to generate metadata for site ${site.name}: ${metadataResponse.message}`,
+            logger.warn(
+              `[${POD_ID}] Geocoding failed for site ${site.name} (${site._id}): ${metadataResponse.message}`,
             );
-            return { success: false, siteId: site._id };
+            sitesFailedCount++;
           }
         } catch (error) {
           logger.error(
             `[${POD_ID}] Error processing site ${site._id}: ${error.message}`,
           );
-          return { success: false, siteId: site._id };
+          sitesFailedCount++;
         }
-      });
-
-      const results = await Promise.allSettled(updatePromises);
-      const batchSuccesses = results.filter(
-        (r) => r.status === "fulfilled" && r.value.success,
-      ).length;
-      const batchFailures = results.length - batchSuccesses;
-      sitesProcessed += batchSuccesses;
-      sitesFailedCount += batchFailures;
+      }
     }
 
-    if (sitesFailedCount > 0) {
-      logger.error(
-        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
+    if (batchesRun >= MAX_BATCHES) {
+      jobLogger.warn(
+        `[${POD_ID}] ${jobName} hit batch ceiling (${MAX_BATCHES} batches). ` +
+          `Review MAX_GEOCODING_ATTEMPTS_PER_RUN and BATCH_SIZE.`,
+      );
+    } else if (
+      sitesProcessed + sitesFailedCount >=
+      MAX_GEOCODING_ATTEMPTS_PER_RUN
+    ) {
+      jobLogger.info(
+        `[${POD_ID}] ${jobName} reached per-run cap of ${MAX_GEOCODING_ATTEMPTS_PER_RUN}. Remaining sites deferred to next run.`,
       );
     }
 
-    if (altitudeCircuitOpen) {
-      logger.error(
-        `[${POD_ID}] Altitude enrichment was skipped for this entire run. ` +
-          `Fix GOOGLE_MAPS_API_KEY and altitude data will be populated on the next run.`,
+    if (sitesFailedCount > 0) {
+      jobLogger.warn(
+        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
+      );
+    } else {
+      jobLogger.info(
+        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}.`,
       );
     }
   } catch (error) {
@@ -570,7 +466,7 @@ const backfillSiteMetadata = async (tenant) => {
   }
 };
 
-const schedule = "20 * * * *"; // Every hour at minute 20
+const schedule = "0 2,10,18 * * *"; // 3× daily: 02:00, 10:00, 18:00 Nairobi time
 
 if (constants.BACKFILL_SITE_METADATA_SCHEDULER_ENABLED === true) {
   cron.schedule(

@@ -1820,4 +1820,82 @@ describe("generateFilter", () => {
       expect(result.skip).to.be.undefined;
     });
   });
+
+  describe("verify", () => {
+    const tenant = "airqo";
+    const request = { query: { tenant } };
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return 200 for a valid, non-protected cohort", async () => {
+      sinon.stub(generateFilter, "cohorts").returns({ _id: "some-id" });
+      sinon.stub(createCohort, "CohortModel").returns({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().returns({
+            select: sinon.stub().resolves({ _id: "some-id", name: "my-cohort" }),
+          }),
+        }),
+      });
+
+      const result = await createCohort.verify(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data.name).to.equal("my-cohort");
+    });
+
+    it("should return 400 when no cohort matches the given ID", async () => {
+      sinon.stub(generateFilter, "cohorts").returns({ _id: "nonexistent" });
+      sinon.stub(createCohort, "CohortModel").returns({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().returns({
+            select: sinon.stub().resolves(null),
+          }),
+        }),
+      });
+
+      const result = await createCohort.verify(request);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.equal("Invalid Cohort ID provided");
+    });
+
+    it('should return 403 when the cohort name is "airqo" (exact case)', async () => {
+      sinon.stub(generateFilter, "cohorts").returns({ _id: "airqo-id" });
+      sinon.stub(createCohort, "CohortModel").returns({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().returns({
+            select: sinon.stub().resolves({ _id: "airqo-id", name: "airqo" }),
+          }),
+        }),
+      });
+
+      const result = await createCohort.verify(request);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.FORBIDDEN);
+      expect(result.errors.message).to.equal(
+        "This cohort is not available for assignment"
+      );
+    });
+
+    it('should return 403 for protected cohort name regardless of case ("AirQo")', async () => {
+      sinon.stub(generateFilter, "cohorts").returns({ _id: "airqo-id" });
+      sinon.stub(createCohort, "CohortModel").returns({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().returns({
+            select: sinon.stub().resolves({ _id: "airqo-id", name: "AirQo" }),
+          }),
+        }),
+      });
+
+      const result = await createCohort.verify(request);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.FORBIDDEN);
+    });
+  });
 });

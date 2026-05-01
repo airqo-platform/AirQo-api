@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "main": "./bin",
+  "engines": {
+    "node": ">=18.19.0"
+  },
   "scripts": {
     "start": "NODE_ENV=production node --max-old-space-size=4096 ./bin",
     "stage": "NODE_ENV=staging node --max-old-space-size=4096 ./bin",
@@ -123,7 +126,7 @@
     "point-in-polygon": "^1.1.0",
     "qrcode": "^1.4.4",
     "qs": "^6.9.4",
-    "redis": "^4.7.1",
+    "redis": "^5.11.0",
     "request": "^2.88.2",
     "retry-request": "^4.1.1",
     "serve-favicon": "~2.4.5",

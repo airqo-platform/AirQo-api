@@ -11,6 +11,14 @@ const devConfig = {
   API_TOKEN: process.env.DEV_API_TOKEN,
   API_BASE_URL: process.env.DEV_API_BASE_URL,
   DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
+  PROTECTED_COHORT_NAMES: [
+    "airqo",
+    ...(process.env.DEV_PROTECTED_COHORT_NAMES
+      ? process.env.DEV_PROTECTED_COHORT_NAMES.split(",")
+          .map((v) => v.trim().toLowerCase())
+          .filter((v) => v !== "")
+      : []),
+  ],
   MONGO_URI: process.env.MONGO_URI_DEV,
   COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_DEV,
   QUERY_MONGO_URI: process.env.QUERY_MONGO_URI_DEV,

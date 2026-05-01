@@ -15,8 +15,9 @@ from geoalchemy2 import Geometry
 
 import config
 
-app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "staging"))
 load_dotenv()
+environment = os.getenv("FLASK_ENV", "staging")
+app_configuration = config.app_config.get(environment, config.app_config["staging"])
 
 
 def setup_logging():
@@ -45,10 +46,11 @@ def create_app(environment):
     setup_logging()
 
     app = Flask(__name__)
-    app.config.from_object(config.app_config[environment])
+    selected_config = config.app_config.get(environment, config.app_config["staging"])
+    app.config.from_object(selected_config)
     cache.init_app(app)
     mongo.init_app(app)
-    app.config["SQLALCHEMY_DATABASE_URI"] = app_configuration.POSTGRES_CONNECTION_URL
+    app.config["SQLALCHEMY_DATABASE_URI"] = selected_config.POSTGRES_CONNECTION_URL
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     CORS(app)
     app.register_blueprint(ml_app)
@@ -56,7 +58,7 @@ def create_app(environment):
     return app
 
 
-application = create_app(os.getenv("FLASK_ENV", "staging"))
+application = create_app(environment)
 application.logger.removeHandler(default_handler)
 postgres_db = SQLAlchemy(application)
 

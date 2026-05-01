@@ -6293,6 +6293,25 @@ const createEvent = {
       );
     }
   },
+  getHourlySiteReadings: async (request, next) => {
+    try {
+      const { site_id } = request.params;
+      const { tenant, date } = request.query;
+      const effectiveTenant = isEmpty(tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : tenant;
+      return await ReadingModel(effectiveTenant).hourlyForSite(site_id, date);
+    } catch (error) {
+      logger.error(`🐛🐛 getHourlySiteReadings error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
 };
 
 module.exports = createEvent;

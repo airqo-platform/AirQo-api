@@ -6,7 +6,7 @@ const GridModel = require("@models/Grid");
 const AirQloudModel = require("@models/Airqloud");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
-const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+const { logObject, logElement, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -84,7 +84,10 @@ const getSiteCountSummary = async (request, next) => {
       },
     ];
 
-    const results = await SiteModel(tenant).aggregate(pipeline);
+    const results = await SiteModel(tenant)
+      .aggregate(pipeline)
+      .option({ maxTimeMS: 45000 })
+      .allowDiskUse(true);
     const defaultSummary = {
       total_sites: 0,
       operational: 0,
@@ -111,13 +114,14 @@ const getSiteCountSummary = async (request, next) => {
 };
 
 /**
- * Derives a display-ready data_provider string from the networks of all
- * devices currently deployed at a given site.
+ * Derives a display-ready data_provider string for a site.
  *
  * Rules:
- *   - No devices at the site → returns null (callers such as refreshSiteDataProvider() should clear any stale stored value)
- *   - Single network       → e.g. "AIRQO"
- *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
+ *   - Active devices found  → map each device's network through DATA_PROVIDER_MAPPINGS,
+ *                             deduplicate, sort, and join (e.g. "AIRQO / METONE")
+ *   - No active devices     → fall back to the site's own network field via
+ *                             DATA_PROVIDER_MAPPINGS (covers recalled-device sites)
+ *   - No active devices AND no site.network → returns null
  *
  * @param {string}   tenant  - The tenant identifier
  * @param {ObjectId} siteId  - The site whose devices will be queried
@@ -131,7 +135,18 @@ const computeSiteDataProvider = async (tenant, siteId) => {
       .select("network")
       .lean();
 
-    if (!devices || devices.length === 0) return null;
+    if (!devices || devices.length === 0) {
+      // No active (deployed) device at this site — fall back to the site's own
+      // network field. This covers recalled-device sites: the device is gone
+      // but the site still belongs to the same organisation.
+      const site = await SiteModel(tenant)
+        .findById(siteId)
+        .select("network")
+        .lean();
+      if (!site || !site.network) return null;
+      const label = constants.DATA_PROVIDER_MAPPINGS(site.network);
+      return label || null;
+    }
 
     // Step 1: map raw network ids → display labels via the mapping fn.
     // Step 2: filter out any unmappable values.
@@ -176,9 +191,8 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
     const SiteModel = require("@models/Site");
     const dataProvider = await computeSiteDataProvider(tenant, siteId);
 
-    // Write the result unconditionally:
-    // - non-null  → sets the correct derived value
-    // - null      → clears a stale value when the last device is recalled
+    // Write the result unconditionally. null is only possible if the site
+    // document has no network field, which should not happen in practice.
     await SiteModel(tenant).findByIdAndUpdate(
       siteId,
       { $set: { data_provider: dataProvider } },
@@ -195,6 +209,12 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
     );
   }
 };
+
+// After this many consecutive altitude failures for a single site neither the
+// backfill job nor the refresh utility will call getAltitude for that site,
+// preventing repeated credit burn on coordinates that consistently return nothing.
+// Reset to 0 whenever altitude is successfully written.
+const ALTITUDE_FAILURE_THRESHOLD = 3;
 
 const createSite = {
   getSiteById: async (req, next) => {
@@ -1101,50 +1121,360 @@ const createSite = {
   },
   refresh: async (req, next) => {
     try {
-      logObject("the req coming in...", req);
       const { tenant, id } = req.query;
 
+      // Step 0: Fetch current site — required before any enrichment
       const siteDetails = await createSite.fetchSiteDetails(tenant, req, next);
       if (!siteDetails.success) return siteDetails;
 
-      const requestBody = createSite.prepareSiteRequestBody(
-        siteDetails.data[0],
-        tenant,
-        next,
-      );
+      const site = siteDetails.data[0];
+      const { latitude, longitude, _id: siteDbId } = site;
 
-      const airQloudsAndWeatherStations = await createSite.fetchAdditionalSiteDetails(
-        tenant,
-        id,
-        next,
-      );
-      Object.assign(requestBody, airQloudsAndWeatherStations);
+      // setFields  → written via $set  (collection.updateOne bypasses pre-hook)
+      // tagsToAdd  → written via $addToSet so existing tags are never removed
+      const setFields = {};
+      const tagsToAdd = [];
+      const stepResults = {};
 
-      // Pass the site's id in body so generateMetadata can resolve the
-      // correct data_provider from deployed devices rather than body.network.
-      const metadataResponse = await createSite.generateMetadata(
-        { query: { tenant }, body: { ...requestBody, siteId: id } },
-        next,
-      );
-
-      if (!metadataResponse.success) return metadataResponse;
-
-      const updateRequest = {
-        ...req,
-        body: { ...metadataResponse.data },
+      // Queue a scalar field only when the site is currently missing it
+      const setIfMissing = (field, value) => {
+        if (
+          value !== undefined &&
+          value !== null &&
+          value !== "" &&
+          isEmpty(site[field])
+        ) {
+          setFields[field] = value;
+        }
       };
 
-      const updateResponse = await createSite.update(updateRequest, next);
-
-      return updateResponse.success
-        ? {
-            success: true,
-            message: "Site details successfully refreshed",
-            data: updateResponse.data,
+      // ── Step 1: Local fields (no external API calls) ────────────────────────
+      try {
+        if (isEmpty(site.name)) {
+          const { name, parish, county, district } = site;
+          const avail = createSite.pickAvailableValue(
+            { name, parish, county, district },
+            next,
+          );
+          if (avail) {
+            const valid = createSite.validateSiteName(avail, next);
+            setFields.name = valid
+              ? avail
+              : createSite.sanitiseName(avail, next);
           }
-        : updateResponse;
+        }
+
+        if (
+          isEmpty(site.lat_long) &&
+          latitude !== undefined &&
+          latitude !== null &&
+          latitude !== "" &&
+          longitude !== undefined &&
+          longitude !== null &&
+          longitude !== ""
+        ) {
+          setFields.lat_long = createSite.generateLatLong(latitude, longitude);
+        }
+
+        if (isEmpty(site.generated_name)) {
+          const nameRes = await createSite.generateName(tenant, next);
+          if (nameRes && nameRes.success) {
+            setFields.generated_name = nameRes.data;
+          }
+        }
+
+        stepResults.localFields = "ok";
+      } catch (err) {
+        logger.error(
+          `refresh: localFields step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.localFields = err.message;
+      }
+
+      // ── Step 2: Reverse geocoding ───────────────────────────────────────────
+      try {
+        const geoRes = await createSite.reverseGeoCode(
+          latitude,
+          longitude,
+          next,
+        );
+        if (geoRes && geoRes.success) {
+          const geo = geoRes.data;
+          [
+            "country",
+            "district",
+            "city",
+            "region",
+            "town",
+            "village",
+            "parish",
+            "sub_county",
+            "division",
+            "street",
+            "formatted_name",
+            "google_place_id",
+            "location_name",
+            "search_name",
+            "geometry",
+          ].forEach((f) => setIfMissing(f, geo[f]));
+
+          if (Array.isArray(geo.site_tags) && geo.site_tags.length > 0) {
+            tagsToAdd.push(...geo.site_tags);
+          }
+
+          // search_name fallback when geocoder had no sublocality data
+          if (isEmpty(site.search_name) && isEmpty(setFields.search_name)) {
+            const fallback =
+              geo.town || geo.street || geo.city || geo.district;
+            if (fallback) setFields.search_name = fallback;
+          }
+
+          stepResults.geocoding = "ok";
+        } else {
+          stepResults.geocoding =
+            geoRes?.errors?.message || geoRes?.message || "failed";
+        }
+
+        // ── Description (built after geocoding so location data is available) ─
+        // Only written when the site has no description at all.
+        // Strategy: "{name}, {locality}, {country}" — each part is optional
+        // so a partial geocode still produces a useful description.
+        if (isEmpty(site.description) && isEmpty(setFields.description)) {
+          const namePart =
+            setFields.name ||
+            site.name ||
+            setFields.generated_name ||
+            site.generated_name;
+          const localityPart =
+            setFields.search_name ||
+            site.search_name ||
+            setFields.parish ||
+            site.parish ||
+            setFields.city ||
+            site.city ||
+            setFields.district ||
+            site.district;
+          const countryPart = setFields.country || site.country;
+
+          const descParts = [namePart, localityPart, countryPart].filter(
+            (p) => !isEmpty(p),
+          );
+          if (descParts.length > 0) {
+            setFields.description = descParts.join(", ");
+          }
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: geocoding step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.geocoding = err.message;
+      }
+
+      // ── Step 3: Altitude ────────────────────────────────────────────────────
+      // Skip the external API call when altitude is already present, or when
+      // the per-site failure counter has reached the threshold — repeated
+      // failures against the same coordinates burn credits without result.
+      // The counter is written into setFields so it is persisted in the same
+      // updateOne batch at the end of refresh with no extra DB round-trip.
+      // Uses explicit null/undefined check so a valid sea-level altitude of 0
+      // is not treated as missing.
+      try {
+        if (site.altitude != null) {
+          stepResults.altitude = "skipped (already present)";
+        } else if (
+          (site._altitudeFailedCount || 0) >= ALTITUDE_FAILURE_THRESHOLD
+        ) {
+          stepResults.altitude = "skipped (failure threshold exceeded)";
+        } else {
+          const altRes = await createSite.getAltitude(latitude, longitude, next);
+          if (altRes && altRes.success) {
+            setIfMissing("altitude", altRes.data);
+            setFields._altitudeFailedCount = 0;
+            stepResults.altitude = "ok";
+          } else {
+            setFields._altitudeFailedCount =
+              (site._altitudeFailedCount || 0) + 1;
+            stepResults.altitude =
+              altRes?.errors?.message || altRes?.message || "failed";
+          }
+        }
+      } catch (err) {
+        setFields._altitudeFailedCount = (site._altitudeFailedCount || 0) + 1;
+        logger.error(
+          `refresh: altitude step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.altitude = err.message;
+      }
+
+      // ── Step 4: Grid membership ─────────────────────────────────────────────
+      // Use $geoIntersects against the 2dsphere index on shape — handles both
+      // Polygon and MultiPolygon without client-side iteration or geolib.
+      // Only overwrite setFields.grids when we have at least one match; an
+      // empty result is treated as "no matching grids" rather than clearing
+      // existing memberships, in case the grids collection is empty/misconfigured.
+      try {
+        const matchedGrids = await GridModel(tenant)
+          .find({
+            shape: {
+              $geoIntersects: {
+                $geometry: {
+                  type: "Point",
+                  coordinates: [longitude, latitude],
+                },
+              },
+            },
+          })
+          .select("_id")
+          .lean();
+
+        if (matchedGrids.length > 0) {
+          setFields.grids = matchedGrids.map((g) => g._id);
+          stepResults.grids = "ok";
+        } else {
+          const hasAnyGrid = await GridModel(tenant).exists({});
+          if (!hasAnyGrid) {
+            logger.warn(
+              `refresh: grids collection appears empty for tenant ${tenant} — skipping grid assignment`,
+            );
+            stepResults.grids = "skipped (grids collection empty)";
+          } else {
+            stepResults.grids = "no matching grids for site coordinates";
+          }
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: grids step failed for site ${siteDbId}: ${err.message}`,
+        );
+        stepResults.grids = err.message;
+      }
+
+      // ── Step 5: Nearest TAHMO weather station ───────────────────────────────
+      try {
+        if (isEmpty(site.nearest_tahmo_station)) {
+          const stationsRes = await createSite.listWeatherStations(next);
+          if (stationsRes && stationsRes.success && !isEmpty(stationsRes.data)) {
+            const nearest = geolib.findNearest(
+              { latitude, longitude },
+              stationsRes.data,
+            );
+            if (nearest) {
+              setFields.nearest_tahmo_station =
+                createSite.cleanWeatherStationData(nearest);
+            }
+            stepResults.weatherStation = "ok";
+          } else {
+            stepResults.weatherStation =
+              stationsRes?.errors?.message ||
+              stationsRes?.message ||
+              "failed";
+          }
+        } else {
+          stepResults.weatherStation = "skipped (already set)";
+        }
+      } catch (err) {
+        logger.error(
+          `refresh: weatherStation step failed for site ${id}: ${err.message}`,
+        );
+        stepResults.weatherStation = err.message;
+      }
+
+      // ── Step 6: Data provider (always recomputed) ───────────────────────────
+      try {
+        const dataProvider = await computeSiteDataProvider(tenant, siteDbId);
+        if (dataProvider !== undefined) {
+          setFields.data_provider = dataProvider;
+        }
+        stepResults.dataProvider = "ok";
+      } catch (err) {
+        logger.error(
+          `refresh: dataProvider step failed for site ${siteDbId}: ${err.message}`,
+        );
+        stepResults.dataProvider = err.message;
+      }
+
+      // ── Step 7: Persist ─────────────────────────────────────────────────────
+      // Use collection.updateOne to bypass the Mongoose pre-hook which:
+      //   a) strips generated_name and lat_long from $set (restricted fields)
+      //   b) converts top-level grids array to $addToSet (unwanted here — we
+      //      want a full replace so stale grid memberships are removed)
+      const normalizeStepResult = (v) => {
+        if (typeof v === "string") return v;
+        if (v instanceof Error) return v.message;
+        return String(v);
+      };
+
+      const failedSteps = Object.entries(stepResults)
+        .filter(([, v]) => {
+          const s = normalizeStepResult(v);
+          return s !== "ok" && !s.startsWith("skipped");
+        })
+        .map(([k, v]) => `${k}: ${normalizeStepResult(v)}`);
+
+      const hasChanges = !isEmpty(setFields) || tagsToAdd.length > 0;
+
+      if (!hasChanges) {
+        return {
+          success: true,
+          message: failedSteps.length
+            ? `Site metadata unchanged — some enrichment steps were unsuccessful: ${failedSteps.join("; ")}`
+            : "Site metadata is already complete — nothing to update",
+          data: site,
+          status: httpStatus.OK,
+        };
+      }
+
+      const updateOp = {};
+      if (!isEmpty(setFields)) {
+        updateOp.$set = setFields;
+      }
+      if (tagsToAdd.length > 0) {
+        updateOp.$addToSet = {
+          site_tags: { $each: [...new Set(tagsToAdd)] },
+        };
+      }
+      updateOp.$currentDate = { updatedAt: true };
+
+      try {
+        await SiteModel(tenant).collection.updateOne(
+          { _id: siteDbId },
+          updateOp,
+        );
+      } catch (persistErr) {
+        if (persistErr.code === 11000) {
+          logger.error(
+            `refresh: duplicate-key conflict persisting site ${siteDbId}: ${persistErr.message}`,
+          );
+          stepResults.persist = `duplicate-key conflict: ${persistErr.message}`;
+        } else {
+          throw persistErr;
+        }
+      }
+
+      // Re-fetch so the response reflects the persisted state
+      const refreshedDetails = await createSite.fetchSiteDetails(
+        tenant,
+        req,
+        next,
+      );
+      const updatedSite =
+        refreshedDetails.success ? refreshedDetails.data[0] : site;
+
+      const allFailedSteps = Object.entries(stepResults)
+        .filter(([, v]) => {
+          const s = normalizeStepResult(v);
+          return s !== "ok" && !s.startsWith("skipped");
+        })
+        .map(([k, v]) => `${k}: ${normalizeStepResult(v)}`);
+
+      return {
+        success: true,
+        message: allFailedSteps.length
+          ? `Site partially refreshed — some steps were unsuccessful: ${allFailedSteps.join("; ")}`
+          : "Site details successfully refreshed",
+        data: updatedSite,
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logObject("util errors", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -1357,6 +1687,7 @@ const createSite = {
 
       const results = await SiteModel(tenant)
         .aggregate(facetPipeline)
+        .option({ maxTimeMS: 45000 })
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;
@@ -1489,6 +1820,102 @@ const createSite = {
       logElement("server error", { message: error.message });
     }
   },
+  // Transforms a Nominatim reverse-geocoding response into the same field
+  // shape that retrieveInformationFromAddress produces for Google responses.
+  // Callers of reverseGeoCode never need to know which provider was used.
+  _parseNominatimAddress: (nominatimData) => {
+    const addr = nominatimData.address || {};
+
+    const city = addr.city || addr.town || addr.municipality || undefined;
+    const suburb =
+      addr.suburb || addr.neighbourhood || addr.quarter || undefined;
+    const district = addr.county || addr.state_district || undefined;
+    const country = addr.country || undefined;
+    const region = addr.state || undefined;
+
+    const qualifier =
+      country && country.toLowerCase() === "uganda"
+        ? district || region
+        : region || district;
+    const locationName =
+      country && qualifier ? `${qualifier}, ${country}` : undefined;
+
+    const searchName =
+      suburb ||
+      city ||
+      addr.village ||
+      addr.hamlet ||
+      addr.road ||
+      district ||
+      undefined;
+
+    const lat = parseFloat(nominatimData.lat);
+    const lng = parseFloat(nominatimData.lon);
+    const geometry =
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? { location: { lat, lng } }
+        : undefined;
+
+    const parsed = {
+      country,
+      region,
+      district,
+      county: district,
+      city,
+      town: city,
+      village: addr.village || addr.hamlet || suburb || undefined,
+      parish: suburb,
+      division: suburb,
+      sub_county: suburb,
+      street: addr.road || undefined,
+      formatted_name: nominatimData.display_name || undefined,
+      geometry,
+      site_tags: [nominatimData.type, nominatimData.class].filter(Boolean),
+      location_name: locationName,
+      search_name: searchName,
+    };
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, v]) => v !== undefined),
+    );
+  },
+
+  // Calls the Nominatim (OpenStreetMap) reverse-geocoding API and returns the
+  // same success/failure envelope as the Google path in reverseGeoCode.
+  // Used as a fallback when Google Geocoding is unavailable or over quota.
+  _reverseGeoCodeNominatim: async (latitude, longitude) => {
+    const url = constants.NOMINATIM_REVERSE_URL(latitude, longitude);
+
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        // Nominatim usage policy requires a descriptive User-Agent.
+        "User-Agent": "AirQo-DeviceRegistry/1.0 (support@airqo.net)",
+        "Accept-Language": "en",
+      },
+    });
+
+    const data = response.data;
+
+    if (data.error) {
+      return {
+        success: false,
+        message: "unable to get the site address details",
+        status: httpStatus.NOT_FOUND,
+        errors: {
+          message: `review the GPS coordinates provided, we cannot get corresponding metadata`,
+        },
+      };
+    }
+
+    const addressData = createSite._parseNominatimAddress(data);
+    return {
+      success: true,
+      message: "retrieved the address details of this site",
+      data: addressData,
+    };
+  },
+
   retrieveInformationFromAddress: (address, next) => {
     try {
       let results = address.results[0];
@@ -1499,9 +1926,13 @@ const createSite = {
       let types = results.types;
       let retrievedAddress = {};
       address_components.forEach((object) => {
-        if (object.types.includes("locality", "administrative_area_level_3")) {
+        if (object.types.includes("locality")) {
           retrievedAddress.town = object.long_name;
           retrievedAddress.city = object.long_name;
+        }
+        if (object.types.includes("administrative_area_level_3")) {
+          if (!retrievedAddress.town) retrievedAddress.town = object.long_name;
+          if (!retrievedAddress.city) retrievedAddress.city = object.long_name;
         }
         if (object.types.includes("administrative_area_level_2")) {
           retrievedAddress.district = object.long_name;
@@ -1516,31 +1947,40 @@ const createSite = {
         if (object.types.includes("country")) {
           retrievedAddress.country = object.long_name;
         }
-        if (object.types.includes("sublocality", "sublocality_level_1")) {
+        if (object.types.includes("sublocality") || object.types.includes("sublocality_level_1")) {
           retrievedAddress.parish = object.long_name;
           retrievedAddress.division = object.long_name;
           retrievedAddress.village = object.long_name;
           retrievedAddress.sub_county = object.long_name;
           retrievedAddress.search_name = object.long_name;
         }
-        retrievedAddress.formatted_name = formatted_name;
-        retrievedAddress.geometry = geometry;
-        retrievedAddress.site_tags = types;
-        retrievedAddress.google_place_id = google_place_id;
-        retrievedAddress.location_name =
-          retrievedAddress.country !== "Uganda"
-            ? `${retrievedAddress.region}, ${retrievedAddress.country}`
-            : `${retrievedAddress.district}, ${retrievedAddress.country}`;
-        if (!retrievedAddress.search_name) {
-          retrievedAddress.search_name = retrievedAddress.town
-            ? retrievedAddress.town
-            : retrievedAddress.street
-            ? retrievedAddress.street
-            : retrievedAddress.city
-            ? retrievedAddress.city
-            : retrievedAddress.district;
-        }
       });
+
+      // Computed once after all components are extracted so country/region/district
+      // are fully populated before location_name is built.
+      retrievedAddress.formatted_name = formatted_name;
+      retrievedAddress.geometry = geometry;
+      retrievedAddress.site_tags = types;
+      retrievedAddress.google_place_id = google_place_id;
+
+      if (retrievedAddress.country) {
+        const qualifier =
+          retrievedAddress.country !== "Uganda"
+            ? retrievedAddress.region
+            : retrievedAddress.district;
+        retrievedAddress.location_name = qualifier
+          ? `${qualifier}, ${retrievedAddress.country}`
+          : retrievedAddress.country;
+      }
+
+      if (!retrievedAddress.search_name) {
+        retrievedAddress.search_name =
+          retrievedAddress.town ||
+          retrievedAddress.street ||
+          retrievedAddress.city ||
+          retrievedAddress.district;
+      }
+
       return {
         success: true,
         message: "retrieved the Google address details of this site",
@@ -1559,43 +1999,75 @@ const createSite = {
   },
   reverseGeoCode: async (latitude, longitude, next) => {
     try {
-      logText("reverseGeoCode...........");
-      let url = constants.GET_ADDRESS_URL(latitude, longitude);
-      return await axios
-        .get(url)
-        .then(async (response) => {
-          let responseJSON = response.data;
-          if (!isEmpty(responseJSON.results)) {
-            const responseFromTransformAddress = createSite.retrieveInformationFromAddress(
-              responseJSON,
-              next,
-            );
-            return responseFromTransformAddress;
-          } else {
-            return {
-              success: false,
-              message: "unable to get the site address details",
-              status: httpStatus.NOT_FOUND,
-              errors: {
-                message:
-                  "review the GPS coordinates provided, we cannot get corresponding metadata",
-              },
-            };
-          }
-        })
-        .catch((error) => {
-          logObject("error in the reverse Geocode util", error);
-          try {
-            logger.error(`internal server error -- ${JSON.stringify(error)}`);
-          } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
-          }
-          return {
-            success: false,
-            errors: { message: error },
-            message: "constants server side error",
-          };
-        });
+      logger.debug(`reverseGeoCode: (${latitude}, ${longitude})`);
+
+      // ── Primary: Google Geocoding ────────────────────────────────────
+      let googleFailReason = null;
+      try {
+        const url = constants.GET_ADDRESS_URL(latitude, longitude);
+        const response = await axios.get(url, { timeout: 10000 });
+        const responseJSON = response.data;
+        const googleStatus = responseJSON.status;
+
+        // Non-OK statuses (REQUEST_DENIED, OVER_QUERY_LIMIT, INVALID_REQUEST,
+        // etc.) must fall through to Nominatim — they are not bad-coordinate
+        // errors, they reflect API availability problems on Google's side.
+        if (googleStatus && googleStatus !== "OK" && googleStatus !== "ZERO_RESULTS") {
+          googleFailReason = `Google status: ${googleStatus} — ${responseJSON.error_message || googleStatus}`;
+          logger.warn(`reverseGeoCode: ${googleFailReason} — trying Nominatim fallback`);
+        } else if (!isEmpty(responseJSON.results)) {
+          return createSite.retrieveInformationFromAddress(responseJSON, next);
+        } else {
+          // ZERO_RESULTS or truly empty — Nominatim may still resolve it
+          googleFailReason = "Google returned no results";
+          logger.warn(
+            `reverseGeoCode: Google returned no results for (${latitude}, ${longitude}) — trying Nominatim fallback`,
+          );
+        }
+      } catch (googleError) {
+        const isTimeout =
+          googleError.code === "ECONNABORTED" ||
+          googleError.code === "ETIMEDOUT";
+        googleFailReason = isTimeout
+          ? "Google request timed out after 10s"
+          : googleError.message;
+        logger.warn(
+          `reverseGeoCode: Google failed (${googleFailReason}) — trying Nominatim fallback`,
+        );
+      }
+
+      // ── Fallback: Nominatim (OpenStreetMap) ──────────────────────────
+      try {
+        const nominatimResult = await createSite._reverseGeoCodeNominatim(
+          latitude,
+          longitude,
+        );
+        if (nominatimResult.success) {
+          logger.info(
+            `reverseGeoCode: Nominatim fallback succeeded for (${latitude}, ${longitude})`,
+          );
+        } else {
+          logger.warn(
+            `reverseGeoCode: both providers failed for (${latitude}, ${longitude}). ` +
+              `Google: ${googleFailReason}. Nominatim: ${nominatimResult.message}`,
+          );
+        }
+        return nominatimResult;
+      } catch (nominatimError) {
+        logger.error(
+          `reverseGeoCode: Nominatim fallback threw: ${nominatimError.message}`,
+        );
+        return {
+          success: false,
+          message: "unable to get the site address details",
+          status: httpStatus.BAD_GATEWAY,
+          errors: {
+            message:
+              `All geocoding providers failed. ` +
+              `Google: ${googleFailReason}. Nominatim: ${nominatimError.message}`,
+          },
+        };
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

@@ -8,7 +8,7 @@ images:
     reportJob: airqoacr.azurecr.io/airqo-stage-analytics-report-job
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     devicesSummaryJob: airqoacr.azurecr.io/airqo-stage-analytics-devices-summary-job
-  tag: stage-9be8f03c-1776072916
+  tag: stage-881ebc6d-1776846893
 externalSecret:
   enabled: true
 api:

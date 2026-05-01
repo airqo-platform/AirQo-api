@@ -26,6 +26,39 @@ SELECT *
 FROM site_daily
 ORDER BY day, site_id;
 
+
+-- name: site_daily_aggregated_for_forecast_jobs
+-- Daily aggregated site PM2.5 for site-forecast prediction jobs with site metadata backfill.
+-- Placeholders:
+-- {consolidated_table} -> consolidated data table (e.g. project.dataset.table)
+-- {sites_table} -> sites metadata table (e.g. project.dataset.table)
+-- {start_date} / {end_date} -> date strings (YYYY-MM-DD)
+-- {min_hours} -> minimum hourly points per day (INT)
+
+SELECT
+    DATE(t1.timestamp) AS day,
+    t1.site_id,
+    ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
+    ANY_VALUE(
+        COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
+    ) AS site_latitude,
+    ANY_VALUE(
+        COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
+    ) AS site_longitude,
+    AVG(t1.pm2_5_calibrated_value) AS pm25_mean,
+    MIN(t1.pm2_5_calibrated_value) AS pm25_min,
+    MAX(t1.pm2_5_calibrated_value) AS pm25_max,
+    COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
+FROM {consolidated_table} AS t1
+LEFT JOIN {sites_table} AS t2
+    ON t1.site_id = t2.id
+WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
+    AND t1.site_id IS NOT NULL
+    AND t1.pm2_5_calibrated_value IS NOT NULL
+GROUP BY day, t1.site_id
+HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
+ORDER BY day, t1.site_id;
+
 -- name: fetches_device_data_satellite_based_job
 -- Fetches device data for a satellite-based job from BigQuery.
 -- Placeholders:
@@ -100,3 +133,5 @@ FROM {hourly_measurements_table} t1
 WHERE DATE(t1.timestamp) >= DATE('{start_date}')
     AND t1.device_id IS NOT NULL
 ORDER BY t1.device_id, t1.timestamp;
+
+

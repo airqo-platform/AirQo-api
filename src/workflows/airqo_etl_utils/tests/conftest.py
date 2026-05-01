@@ -1,9 +1,12 @@
 from datetime import datetime
 from unittest.mock import MagicMock
-import os
 import numpy as np
 import pandas as pd
 import pytest
+
+from airqo_etl_utils.tests._test_dependency_stubs import apply_common_import_stubs
+
+apply_common_import_stubs()
 
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.data_validator import DataValidationUtils

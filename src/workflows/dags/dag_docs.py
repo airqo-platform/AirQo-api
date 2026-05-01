@@ -393,3 +393,35 @@ calibration_model_training_doc = """
     | `CALIBRATION_TRAINING_MONTHS` | Look-back window in months (default 3) |
     | `MLFLOW_CALIBRATION_MLFLOW_EXPERIMENT` | MLflow experiment name |
 """
+
+device_forecasting_doc = """
+### AirQo device forecasting
+#### Purpose
+Generate hourly and daily device-level PM2.5 forecasts from recent BigQuery history.
+
+#### Notes
+Data sources:
+- BigQuery: device forecast input history
+- GCS: deployed forecast model artifacts
+
+Data Destinations:
+- BigQuery: hourly and daily forecast tables
+- MongoDB: hourly and daily forecast collections
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+site_daily_forecasting_doc = """
+### AirQo site daily forecasting
+#### Purpose
+Generate site-level daily PM2.5 forecasts and enrich them with MET.no weather summaries.
+
+#### Notes
+Data sources:
+- BigQuery: consolidated site daily aggregates
+- GCS: deployed site forecast model artifacts
+- MET.no: daily weather summaries for rounded site coordinates
+
+Data Destinations:
+- MongoDB: site daily forecast collection
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
