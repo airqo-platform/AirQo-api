@@ -122,19 +122,61 @@ module.exports = {
         </tr>`;
     } else {
       // other user types (web app)
-      content = ` <tr>
+      content = `<tr>
             <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                <p>Congratulations! Your AirQo account has been successfully verified.</p>
-                <p>We are pleased to inform you that you can now fully access all of the features and services offered by AirQo.</p>
-                <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
-                <ul>
-                    <li>YOUR USERNAME: ${username}</li>
-                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/user/login</li>
-                </ul>
-                <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
-                <p>Thank you for choosing AirQo, and we look forward to helping you achieve your goals</p>
-                <p>Sincerely,</p>
-                <p>The AirQo Data Team</p>
+                <p>Your email is verified — you're all set.</p>
+                <p>Here's what you can explore with your AirQo account:</p>
+
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                    <tr>
+                        <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
+                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">AirQo Analytics</p>
+                            <p style="margin: 0 0 12px 0; color: #667085;">Explore air quality trends and insights across Africa.</p>
+                            <a href="${constants.ANALYTICS_BASE_URL}/user/login" target="_blank"
+                                style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
+                                Open Analytics
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
+                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">Vertex</p>
+                            <p style="margin: 0 0 12px 0; color: #667085;">Deploy devices,Share your data</p>
+                            <a href="https://vertex.airqo.net" target="_blank"
+                                style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
+                                Open Vertex
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
+                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">AirQo Mobile App</p>
+                            <p style="margin: 0 0 12px 0; color: #667085;">Check air quality on the go — available on Android and iOS.</p>
+                            <a href="https://play.google.com/store/apps/details?id=com.airqo.app" target="_blank"
+                                style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400; margin-right: 8px;">
+                                Get on Android
+                            </a>
+                            <a href="https://apps.apple.com/ug/app/airqo-air-quality/id1337573091" target="_blank"
+                                style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
+                                Get on iOS
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
+                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">AirQo API</p>
+                            <p style="margin: 0 0 12px 0; color: #667085;">Plug our air quality data into your own tools and integrations.</p>
+                            <a href="https://airqo.net/products/api" target="_blank"
+                                style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
+                                View API Docs
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+
+                <p>Your username: <strong>${username}</strong></p>
+                <p>Questions? Reach us at <a href="mailto:support@airqo.net" style="color: #135DFF;">support@airqo.net</a>.</p>
+                <p>The AirQo Team</p>
             </td>
         </tr>`;
     }
