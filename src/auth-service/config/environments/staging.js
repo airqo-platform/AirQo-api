@@ -25,6 +25,7 @@ const stageConfig = {
   FORGOT_PAGE: `${process.env.ANALYTICS_STAGING_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.ANALYTICS_STAGING_BASE_URL,
   ANALYTICS_BASE_URL: "https://staging-analytics.airqo.net",
+  VERTEX_BASE_URL: "https://staging-vertex.airqo.net",
   ENVIRONMENT: "STAGING ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(

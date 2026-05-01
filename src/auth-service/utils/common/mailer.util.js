@@ -695,7 +695,7 @@ const getEmailSubject = (functionName, params) => {
     verifyEmail: "Verify Your AirQo Account",
     sendVerificationEmail: `Email Verification Code: ${params.token || ""}`,
     verifyMobileEmail: "Your Login Code for AirQo Mobile",
-    afterEmailVerification: "Welcome to AirQo!",
+    afterEmailVerification: "You're in — here's what to explore first",
     forgot: "Link To Reset Password",
     sendPasswordResetEmail: `Password Reset Code: ${params.token || ""}`,
     updateForgottenPassword: "Your AirQo Account Password Reset Successful",

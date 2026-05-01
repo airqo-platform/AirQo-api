@@ -25,6 +25,7 @@ const prodConfig = {
   FORGOT_PAGE: `${process.env.ANALYTICS_PRODUCTION_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.ANALYTICS_PRODUCTION_BASE_URL,
   ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+  VERTEX_BASE_URL: "https://vertex.airqo.net",
   ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
