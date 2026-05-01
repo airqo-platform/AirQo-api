@@ -586,6 +586,9 @@ describe("mailer", () => {
       expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "You're in — here's what to explore first"
+      );
       expect(sendMailStub.firstCall.args[0].html).to.equal(
         msgs.afterEmailVerification(firstName, username, email, password)
       );
