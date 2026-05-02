@@ -1036,9 +1036,10 @@ class FaultDetectionUtils(BaseMlUtils):
                 model_df["anomaly_score"] = pd.Series(dtype=float)
                 return model_df
 
-        model_df["anomaly_value"] = isolation_forest.predict(model_df[feature_columns])
-        model_df["anomaly_score"] = isolation_forest.decision_function(
-            model_df[feature_columns]
+        model_df["anomaly_value"], model_df["anomaly_score"] = (
+            FaultDetectionUtils._score_isolation_forest_in_batches(
+                isolation_forest, model_df, feature_columns
+            )
         )
 
         if compact_output:
@@ -1072,6 +1073,201 @@ class FaultDetectionUtils(BaseMlUtils):
             train_if_missing=train_if_missing,
             compact_output=True,
         )
+
+    @staticmethod
+    def fetch_fault_detection_raw_data() -> pd.DataFrame:
+        """Fetch raw data for the scheduled fault-detection DAG."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        return BigQueryApi().fetch_fault_detection_raw_readings()
+
+    @staticmethod
+    def process_pattern_fault_summaries(pattern_based_faults: pd.DataFrame) -> dict:
+        """Build percentage and sequence fault summaries from anomaly output."""
+        return {
+            "faulty_devices_percentage": (
+                FaultDetectionUtils.process_faulty_devices_percentage(
+                    pattern_based_faults
+                )
+            ),
+            "faulty_devices_sequence": (
+                FaultDetectionUtils.process_faulty_devices_fault_sequence(
+                    pattern_based_faults
+                )
+            ),
+        }
+
+    @staticmethod
+    def save_fault_detection_results(
+        raw_data: pd.DataFrame,
+        rule_based_faults: pd.DataFrame,
+        pattern_fault_summaries: dict,
+    ) -> None:
+        """Initialize device state and persist combined fault outputs."""
+        device_fault_status = FaultDetectionUtils.initialize_device_fault_status(
+            raw_data
+        )
+        FaultDetectionUtils.save_faulty_devices(
+            device_fault_status,
+            rule_based_faults,
+            pattern_fault_summaries.get("faulty_devices_percentage"),
+            pattern_fault_summaries.get("faulty_devices_sequence"),
+        )
+
+    @staticmethod
+    def run_rule_based_fault_detection() -> dict:
+        """Run rule-based fault detection and immediately update MongoDB."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        raw_data = BigQueryApi().fetch_fault_detection_raw_readings()
+        device_fault_status = FaultDetectionUtils.initialize_device_fault_status(
+            raw_data
+        )
+        rule_based_faults = FaultDetectionUtils.flag_rule_based_faults(raw_data)
+        FaultDetectionUtils.save_faulty_devices(
+            device_fault_status,
+            rule_based_faults,
+        )
+
+        return {
+            "raw_rows": len(raw_data.index),
+            "device_count": raw_data["device_id"].nunique(),
+            "rule_fault_devices": len(rule_based_faults.index),
+        }
+
+    @staticmethod
+    def run_pattern_based_fault_detection(
+        frequency: Frequency = Frequency.DAILY,
+        train_if_missing: bool = False,
+    ) -> dict:
+        """Run full fault detection and update MongoDB with pattern results."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        raw_data = BigQueryApi().fetch_fault_detection_raw_readings()
+        device_fault_status = FaultDetectionUtils.initialize_device_fault_status(
+            raw_data
+        )
+        rule_based_faults = FaultDetectionUtils.flag_rule_based_faults(raw_data)
+        pattern_based_faults = FaultDetectionUtils.detect_pattern_based_faults(
+            raw_data,
+            frequency=frequency,
+            train_if_missing=train_if_missing,
+        )
+        faulty_devices_percentage = (
+            FaultDetectionUtils.process_faulty_devices_percentage(
+                pattern_based_faults
+            )
+        )
+        faulty_devices_sequence = (
+            FaultDetectionUtils.process_faulty_devices_fault_sequence(
+                pattern_based_faults
+            )
+        )
+        FaultDetectionUtils.save_faulty_devices(
+            device_fault_status,
+            rule_based_faults,
+            faulty_devices_percentage,
+            faulty_devices_sequence,
+        )
+
+        return {
+            "raw_rows": len(raw_data.index),
+            "device_count": raw_data["device_id"].nunique(),
+            "frequency": frequency.str,
+            "rule_fault_devices": len(rule_based_faults.index),
+            "pattern_scored_rows": len(pattern_based_faults.index),
+            "anomaly_percentage_fault_devices": len(
+                faulty_devices_percentage.index
+            ),
+            "anomaly_sequence_fault_devices": len(faulty_devices_sequence.index),
+        }
+
+    @staticmethod
+    def run_anomaly_percentage_fault_detection(
+        frequency: Frequency = Frequency.DAILY,
+        train_if_missing: bool = False,
+    ) -> dict:
+        """Run anomaly percentage detection and update MongoDB."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        raw_data = BigQueryApi().fetch_fault_detection_raw_readings()
+        device_fault_status = FaultDetectionUtils.initialize_device_fault_status(
+            raw_data
+        )
+        rule_based_faults = FaultDetectionUtils.flag_rule_based_faults(raw_data)
+        pattern_based_faults = FaultDetectionUtils.detect_pattern_based_faults(
+            raw_data,
+            frequency=frequency,
+            train_if_missing=train_if_missing,
+        )
+        faulty_devices_percentage = (
+            FaultDetectionUtils.process_faulty_devices_percentage(
+                pattern_based_faults
+            )
+        )
+        FaultDetectionUtils.save_faulty_devices(
+            device_fault_status,
+            rule_based_faults,
+            faulty_devices_percentage,
+        )
+
+        return {
+            "raw_rows": len(raw_data.index),
+            "device_count": raw_data["device_id"].nunique(),
+            "frequency": frequency.str,
+            "rule_fault_devices": len(rule_based_faults.index),
+            "pattern_scored_rows": len(pattern_based_faults.index),
+            "anomaly_percentage_fault_devices": len(
+                faulty_devices_percentage.index
+            ),
+        }
+
+    @staticmethod
+    def run_anomaly_sequence_fault_detection(
+        frequency: Frequency = Frequency.DAILY,
+        train_if_missing: bool = False,
+    ) -> dict:
+        """Run anomaly sequence detection and update MongoDB with all faults."""
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        raw_data = BigQueryApi().fetch_fault_detection_raw_readings()
+        device_fault_status = FaultDetectionUtils.initialize_device_fault_status(
+            raw_data
+        )
+        rule_based_faults = FaultDetectionUtils.flag_rule_based_faults(raw_data)
+        pattern_based_faults = FaultDetectionUtils.detect_pattern_based_faults(
+            raw_data,
+            frequency=frequency,
+            train_if_missing=train_if_missing,
+        )
+        faulty_devices_percentage = (
+            FaultDetectionUtils.process_faulty_devices_percentage(
+                pattern_based_faults
+            )
+        )
+        faulty_devices_sequence = (
+            FaultDetectionUtils.process_faulty_devices_fault_sequence(
+                pattern_based_faults
+            )
+        )
+        FaultDetectionUtils.save_faulty_devices(
+            device_fault_status,
+            rule_based_faults,
+            faulty_devices_percentage,
+            faulty_devices_sequence,
+        )
+
+        return {
+            "raw_rows": len(raw_data.index),
+            "device_count": raw_data["device_id"].nunique(),
+            "frequency": frequency.str,
+            "rule_fault_devices": len(rule_based_faults.index),
+            "pattern_scored_rows": len(pattern_based_faults.index),
+            "anomaly_percentage_fault_devices": len(
+                faulty_devices_percentage.index
+            ),
+            "anomaly_sequence_fault_devices": len(faulty_devices_sequence.index),
+        }
 
     @staticmethod
     def _get_isolation_forest_feature_columns(data: pd.DataFrame) -> List[str]:
@@ -1108,6 +1304,26 @@ class FaultDetectionUtils(BaseMlUtils):
             model_df[column] = model_df[column].fillna(float(fallback_value))
 
         return model_df
+
+    @staticmethod
+    def _score_isolation_forest_in_batches(
+        model: Any,
+        model_df: pd.DataFrame,
+        feature_columns: List[str],
+        batch_size: int = 10000,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Score Isolation Forest rows in batches to avoid worker memory spikes."""
+        row_count = len(model_df.index)
+        anomaly_values = np.empty(row_count, dtype=np.int8)
+        anomaly_scores = np.empty(row_count, dtype=float)
+
+        for start in range(0, row_count, batch_size):
+            stop = min(start + batch_size, row_count)
+            batch = model_df.iloc[start:stop][feature_columns]
+            anomaly_values[start:stop] = model.predict(batch)
+            anomaly_scores[start:stop] = model.decision_function(batch)
+
+        return anomaly_values, anomaly_scores
 
     @staticmethod
     def _prepare_isolation_forest_training_data(
