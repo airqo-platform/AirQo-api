@@ -1,5 +1,5 @@
 -- name: fault_detection_raw_device_readings
--- Hourly sensor readings for fault detection from the configured lookback window.
+-- Daily sensor readings for fault detection from the configured lookback window.
 -- Placeholders:
 -- raw_measurements_table -> fully-qualified raw events table (project.dataset.table)
 -- lookback_days -> number of recent days to evaluate for fault detection
@@ -28,7 +28,7 @@ selected_devices AS (
     {device_limit_clause}
 )
 SELECT
-    TIMESTAMP_TRUNC(t.timestamp, HOUR) AS timestamp,
+    TIMESTAMP_TRUNC(t.timestamp, DAY) AS timestamp,
     t.device_id AS device_id,
     AVG(t.latitude) AS latitude,
     AVG(t.longitude) AS longitude,
@@ -38,5 +38,5 @@ SELECT
     AVG(t.battery) AS battery
 FROM filtered_readings AS t
 INNER JOIN selected_devices AS d USING (device_id)
-GROUP BY t.device_id, TIMESTAMP_TRUNC(t.timestamp, HOUR)
+GROUP BY t.device_id, TIMESTAMP_TRUNC(t.timestamp, DAY)
 ORDER BY device_id, timestamp

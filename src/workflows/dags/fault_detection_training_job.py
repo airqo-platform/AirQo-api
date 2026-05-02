@@ -36,12 +36,12 @@ def airqo_fault_detection_model_training_dag():
     @task(doc_md=prepare_pattern_detection_features_doc)
     def prepare_pattern_detection_features(data):
         return FaultDetectionUtils.prepare_pattern_detection_features(
-            data, Frequency.HOURLY
+            data, Frequency.DAILY
         )
 
     @task(doc_md=train_fault_detection_model_doc)
     def train_isolation_forest_model(data):
-        return FaultDetectionUtils.train_isolation_forest(data, Frequency.HOURLY)
+        return FaultDetectionUtils.train_isolation_forest(data, Frequency.DAILY)
 
     @task()
     def save_isolation_forest_model(trained_model):

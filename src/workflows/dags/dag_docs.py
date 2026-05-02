@@ -436,9 +436,10 @@ This DAG does not train the ML model. It expects the `AirQo-fault-detection-mode
 #### Workflow Steps
 1. **Raw Data Extraction** (`fetch_raw_data`)
    - Fetches recent raw device readings from BigQuery using the dedicated fault-detection SQL query
-   - Resamples numeric fields to hourly resolution per device
+   - Aggregates numeric fields to daily resolution per device
+   - Runs the scheduled detection flow inside one task to avoid passing large DataFrames through XCom
 
-2. **Rule-Based Fault Detection** (`flag_rule_based_faults`)
+2. **Rule-Based Fault Detection**
    - Flags devices with poor inter-sensor correlation
    - Flags devices with sustained missing raw sensor values
    - Flags devices with sustained sensor disagreement
@@ -446,11 +447,11 @@ This DAG does not train the ML model. It expects the `AirQo-fault-detection-mode
    - Flags sustained low-battery behavior
    - Flags persistent out-of-range raw values
 
-3. **Pattern Feature Preparation** (`prepare_pattern_detection_features`)
+3. **Pattern Feature Preparation**
    - Builds temporal, cyclic, lag, rolling, and sensor-delta features
    - Sorts readings by device and timestamp before anomaly scoring
 
-4. **Pattern-Based Fault Detection** (`flag_pattern_based_faults`)
+4. **Pattern-Based Fault Detection**
    - Scores devices with the trained Isolation Forest model from GCS
    - Loads the object configured by `FAULT_DETECTION_MODEL_PATH` from `FAULT_DETECTION_MODELS_BUCKET`
    - Fails when the trained model is unavailable, instead of retraining inside the detection DAG
@@ -462,7 +463,7 @@ This DAG does not train the ML model. It expects the `AirQo-fault-detection-mode
    - Consolidated records include rule flags, ML flags, triggered fault types, and total triggered-fault count
    - ML fields are still written with zero defaults when no ML threshold is triggered
 
-6. **Persistence** (`save_to_mongo`)
+6. **Persistence**
    - Merges rule-based and pattern-based outputs
    - Upserts consolidated fault records into MongoDB
 
@@ -503,7 +504,7 @@ This DAG is intentionally separate from weekly detection because the model does 
 1. **Training Data Extraction** (`fetch_training_data`)
    - Fetches historical raw device readings from BigQuery
    - Uses the configured `FAULT_DETECTION_TRAINING_LOOKBACK_DAYS` window
-   - Resamples numeric fields to hourly resolution per device
+   - Aggregates numeric fields to daily resolution per device
 
 2. **Pattern Feature Preparation** (`prepare_pattern_detection_features`)
    - Builds the same temporal, cyclic, lag, rolling, and sensor-delta features used during scoring

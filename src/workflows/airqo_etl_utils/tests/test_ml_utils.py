@@ -1048,8 +1048,10 @@ def test_aggregate_met_no_hourly_payload_to_daily():
     assert daily.loc[0, "precipitation_amount"] == 0.0
 
 
-def _build_fault_detection_frame(device_id: str, periods: int = 48) -> pd.DataFrame:
-    timestamps = pd.date_range("2026-03-01", periods=periods, freq="h")
+def _build_fault_detection_frame(
+    device_id: str, periods: int = 48, freq: str = "h"
+) -> pd.DataFrame:
+    timestamps = pd.date_range("2026-03-01", periods=periods, freq=freq)
     base = pd.Series(range(periods), dtype=float)
     return pd.DataFrame(
         {
@@ -1143,6 +1145,27 @@ def test_flag_pattern_based_faults_is_deterministic_for_same_input():
     )
 
 
+def test_detect_pattern_based_faults_returns_portable_anomaly_output():
+    raw = pd.concat(
+        [
+            _build_fault_detection_frame("device-a", periods=72),
+            _build_fault_detection_frame("device-b", periods=72),
+        ],
+        ignore_index=True,
+    )
+
+    result = ml_utils_module.FaultDetectionUtils.detect_pattern_based_faults(raw)
+
+    assert list(result.columns) == [
+        "device_id",
+        "timestamp",
+        "anomaly_value",
+        "anomaly_score",
+    ]
+    assert len(result) == len(raw)
+    assert set(result["device_id"]) == {"device-a", "device-b"}
+
+
 def test_flag_pattern_based_faults_requires_saved_model_when_fallback_disabled(
     monkeypatch,
 ):
@@ -1200,41 +1223,41 @@ def test_load_isolation_forest_uses_configured_model_path(monkeypatch):
 
 
 def test_train_isolation_forest_drops_sparse_feature_rows():
-    raw = _build_fault_detection_frame("device-a", periods=36)
+    raw = _build_fault_detection_frame("device-a", periods=12, freq="D")
     features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
-        raw
+        raw, Frequency.DAILY
     )
 
     trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
-        features, Frequency.HOURLY
+        features, Frequency.DAILY
     )
 
     assert trained_model["model_artifact"]
-    assert trained_model["training_rows"] == 12
+    assert trained_model["training_rows"] == 5
     assert trained_model["feature_count"] > 0
 
 
 def test_train_isolation_forest_drops_rows_with_feature_nan():
-    raw = _build_fault_detection_frame("device-a", periods=36)
+    raw = _build_fault_detection_frame("device-a", periods=12, freq="D")
     features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
-        raw
+        raw, Frequency.DAILY
     )
-    features.loc[30, "pm2_5"] = pd.NA
+    features.loc[10, "pm2_5"] = pd.NA
 
     trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
-        features, Frequency.HOURLY
+        features, Frequency.DAILY
     )
 
-    assert trained_model["training_rows"] == 11
+    assert trained_model["training_rows"] == 4
 
 
 def test_save_isolation_forest_model_persists_trained_artifact(monkeypatch):
-    raw = _build_fault_detection_frame("device-a", periods=36)
+    raw = _build_fault_detection_frame("device-a", periods=12, freq="D")
     features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
-        raw
+        raw, Frequency.DAILY
     )
     trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
-        features, Frequency.HOURLY
+        features, Frequency.DAILY
     )
     captured = {}
 
@@ -1276,12 +1299,12 @@ def test_save_isolation_forest_model_persists_trained_artifact(monkeypatch):
 def test_save_isolation_forest_model_keeps_existing_when_score_is_not_better(
     monkeypatch,
 ):
-    raw = _build_fault_detection_frame("device-a", periods=36)
+    raw = _build_fault_detection_frame("device-a", periods=12, freq="D")
     features = ml_utils_module.FaultDetectionUtils.prepare_pattern_detection_features(
-        raw
+        raw, Frequency.DAILY
     )
     trained_model = ml_utils_module.FaultDetectionUtils.train_isolation_forest(
-        features, Frequency.HOURLY
+        features, Frequency.DAILY
     )
     trained_model["metrics"]["best_model_score"] = 0.5
     saved = {}

@@ -1237,7 +1237,7 @@ class BigQueryApi:
         minimum_hourly_records: int = 1,
     ) -> pd.DataFrame:
         """
-        Fetch raw device readings for fault detection using the requested lookback.
+        Fetch daily raw device readings for fault detection using the requested lookback.
         """
         lookback_days = lookback_days or configuration.FAULT_DETECTION_LOOKBACK_DAYS
         if minimum_hourly_records <= 0:
@@ -1273,7 +1273,9 @@ class BigQueryApi:
         results["timestamp"] = pd.to_datetime(results["timestamp"], utc=True)
         num_cols = results.select_dtypes(include="number").columns
         results = (
-            results.groupby("device_id").resample("h", on="timestamp")[num_cols].mean()
+            results.groupby("device_id")
+            .resample("D", on="timestamp")[num_cols]
+            .mean()
         )
         results.reset_index(inplace=True)
 

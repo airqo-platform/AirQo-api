@@ -123,11 +123,13 @@ Update stored site daily forecasts with MET.no weather fields when enrichment su
 
 fetch_fault_detection_raw_data_doc = """
 #### Purpose
-Fetch recent raw device readings for the fault-detection workflow from BigQuery.
+Fetch recent raw device readings from BigQuery and run the scheduled fault-detection workflow.
 #### Notes
 - Uses the dedicated SQL query under `airqo_etl_utils/sql/faultdetection`.
 - Uses the configured `FAULT_DETECTION_LOOKBACK_DAYS` window. Default is 14 days.
-- Resamples numeric readings to hourly resolution for each device.
+- Aggregates scheduled fault-detection readings to daily resolution for each device.
+- Keeps raw readings and engineered features inside the task to avoid large XCom uploads.
+- Returns a small execution summary instead of the raw DataFrame.
 """
 
 fetch_fault_detection_training_data_doc = """
@@ -136,7 +138,7 @@ Fetch historical raw device readings for fault-detection model training from Big
 #### Notes
 - Uses the dedicated SQL query under `airqo_etl_utils/sql/faultdetection`.
 - Uses the configured `FAULT_DETECTION_TRAINING_LOOKBACK_DAYS` window. Default is 90 days.
-- Resamples numeric readings to hourly resolution for each device.
+- Aggregates numeric readings to daily resolution for each device.
 """
 
 flag_rule_based_faults_doc = """
@@ -156,7 +158,8 @@ prepare_pattern_detection_features_doc = """
 Prepare model features for pattern-based fault detection.
 #### Notes
 - Sorts readings by device and timestamp.
-- Builds `sensor_delta`, cyclic time features, and hourly lag/rolling features.
+- Builds `sensor_delta`, cyclic time features, and lag/rolling features for the selected frequency.
+- Keeps the engineered feature matrix inside the task and returns only portable anomaly-score columns to XCom.
 """
 
 flag_pattern_based_faults_doc = """
@@ -167,6 +170,7 @@ Score pattern-based anomalies for device readings.
 - Requires a trained model saved by `AirQo-fault-detection-model-training`.
 - Loads the trained model from `FAULT_DETECTION_MODELS_BUCKET` using `FAULT_DETECTION_MODEL_PATH`.
 - Returns both `anomaly_value` and `anomaly_score`.
+- In the scheduled fault-detection DAG, this receives the compact anomaly output from feature preparation.
 """
 
 train_fault_detection_model_doc = """

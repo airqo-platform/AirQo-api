@@ -967,6 +967,7 @@ class FaultDetectionUtils(BaseMlUtils):
         df: pd.DataFrame,
         frequency: Frequency = Frequency.HOURLY,
         train_if_missing: bool = True,
+        compact_output: bool = False,
     ) -> pd.DataFrame:
         """
         Flags pattern-based faults such as high variance, constant values, etc.
@@ -1040,7 +1041,37 @@ class FaultDetectionUtils(BaseMlUtils):
             model_df[feature_columns]
         )
 
+        if compact_output:
+            compact_columns = [
+                "device_id",
+                "timestamp",
+                "anomaly_value",
+                "anomaly_score",
+            ]
+            return model_df[compact_columns].copy()
+
         return model_df
+
+    @staticmethod
+    def detect_pattern_based_faults(
+        df: pd.DataFrame,
+        frequency: Frequency = Frequency.HOURLY,
+        train_if_missing: bool = True,
+    ) -> pd.DataFrame:
+        """Prepare pattern features and return only anomaly-scoring columns.
+
+        This keeps the large engineered feature matrix inside one task and avoids
+        passing it through Airflow XCom.
+        """
+        features = FaultDetectionUtils.prepare_pattern_detection_features(
+            df, frequency
+        )
+        return FaultDetectionUtils.flag_pattern_based_faults(
+            features,
+            frequency=frequency,
+            train_if_missing=train_if_missing,
+            compact_output=True,
+        )
 
     @staticmethod
     def _get_isolation_forest_feature_columns(data: pd.DataFrame) -> List[str]:

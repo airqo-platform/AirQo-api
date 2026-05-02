@@ -174,7 +174,8 @@ def test_fetch_fault_detection_raw_readings_uses_configured_lookback_days(
     expected_query = Query(
         name="fault_detection_raw_device_readings",
         sql=(
-            "SELECT * FROM {raw_measurements_table} "
+            "SELECT TIMESTAMP_TRUNC(timestamp, DAY) AS timestamp "
+            "FROM {raw_measurements_table} "
             "WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {lookback_days} DAY)"
         ),
         source=Path(
@@ -210,7 +211,8 @@ def test_fetch_fault_detection_raw_readings_uses_configured_lookback_days(
     assert captured["source"].parent.name == "faultdetection"
     assert "project.dataset.raw_measurements" in captured["rendered_query"]
     assert "INTERVAL 14 DAY" in captured["rendered_query"]
-    assert list(result["device_id"]) == ["device-a", "device-a", "device-b", "device-b"]
+    assert "TIMESTAMP_TRUNC(timestamp, DAY)" in captured["rendered_query"]
+    assert list(result["device_id"]) == ["device-a", "device-b"]
     assert isinstance(result["timestamp"].dtype, pd.DatetimeTZDtype)
 
 
@@ -239,6 +241,45 @@ def test_fetch_fault_detection_raw_readings_applies_training_device_filters(
     assert "HAVING COUNT(*) >= 48" in captured["rendered_query"]
     assert "ORDER BY RAND()" in captured["rendered_query"]
     assert "LIMIT 50" in captured["rendered_query"]
+
+
+def test_fetch_fault_detection_raw_readings_returns_daily_aggregates(
+    monkeypatch, synthetic_fault_detection_raw_readings_df
+):
+    captured = {}
+    expected_query = Query(
+        name="fault_detection_raw_device_readings",
+        sql=(
+            "SELECT TIMESTAMP_TRUNC(timestamp, DAY) AS timestamp "
+            "FROM {raw_measurements_table} "
+            "WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {lookback_days} DAY)"
+        ),
+        source=Path(
+            "src/workflows/airqo_etl_utils/sql/faultdetection/2026041701fault_detection.sql"
+        ),
+    )
+
+    with mock.patch("airqo_etl_utils.bigquery_api.bigquery.Client"):
+        api = BigQueryApi()
+
+    monkeypatch.setattr(
+        "airqo_etl_utils.bigquery_api.query_manager.get_query",
+        lambda _name: expected_query,
+    )
+
+    def fake_execute_data_query(query):
+        captured["rendered_query"] = query
+        return synthetic_fault_detection_raw_readings_df.copy()
+
+    monkeypatch.setattr(api, "execute_data_query", fake_execute_data_query)
+    api.raw_measurements_table = "project.dataset.raw_measurements"
+
+    result = api.fetch_fault_detection_raw_readings()
+
+    assert "TIMESTAMP_TRUNC(timestamp, DAY)" in captured["rendered_query"]
+    assert list(result["device_id"]) == ["device-a", "device-b"]
+    assert result["timestamp"].dt.hour.eq(0).all()
+    assert result.loc[result["device_id"] == "device-a", "pm2_5"].iloc[0] == 12.0
 
 
 def test_fetch_fault_detection_raw_readings_empty_raises(monkeypatch):
