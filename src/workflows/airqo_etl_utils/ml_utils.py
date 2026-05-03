@@ -1,6 +1,6 @@
 """Utility functions and classes for ML training, forecasting, and fault detection."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Sequence, Optional, Tuple
 import logging
@@ -648,7 +648,7 @@ class ForecastUtils(BaseMlUtils):
         else:
             raise ValueError("Invalid frequency argument. Must be 'hourly' or 'daily'.")
 
-        created_at = pd.Timestamp.now().isoformat()
+        created_at = datetime.now(timezone.utc)
         forecast_results: List[Dict[str, Any]] = [
             {
                 "device_id": device_id,
@@ -1828,7 +1828,7 @@ class FaultDetectionUtils(BaseMlUtils):
             ).astype(int)
         else:
             merged_df["fault_detected"] = 0
-        merged_df["created_at"] = datetime.now().isoformat(timespec="seconds")
+        merged_df["created_at"] = datetime.now(timezone.utc)
         collection_name = getattr(
             configuration, "MONGO_FAULTY_DEVICES_COLLECTION", "faulty_devices_1"
         )
@@ -3536,6 +3536,7 @@ class ForecastModelTrainer(BaseMlUtils):
                         pd.DataFrame(existing_docs), prepared
                     )
 
+            run_timestamp = datetime.now(timezone.utc)
             bulk_operations = []
             for row in prepared.to_dict(orient="records"):
                 bulk_operations.append(
@@ -3545,7 +3546,7 @@ class ForecastModelTrainer(BaseMlUtils):
                             "date": str(row["date"]),
                         },
                         {
-                        "$set": {
+                            "$set": {
                                 "site_name": row.get("site_name"),
                                 "site_latitude": row.get("site_latitude"),
                                 "site_longitude": row.get("site_longitude"),
@@ -3570,17 +3571,23 @@ class ForecastModelTrainer(BaseMlUtils):
                                     "wind_from_direction"
                                 ),
                                 "wind_speed": row.get("wind_speed"),
-                                "created_at": pd.Timestamp(
-                                    row["created_at"]
-                                ).to_pydatetime(),
+                                "created_at": run_timestamp,
                             }
                         },
                         upsert=True,
                     )
                 )
 
-            if bulk_operations:
-                collection.bulk_write(bulk_operations, ordered=False)
+            bulk_batch_size = max(
+                1,
+                int(getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 500)),
+            )
+            bulk_batches = 0
+            for start in range(0, len(bulk_operations), bulk_batch_size):
+                batch = bulk_operations[start : start + bulk_batch_size]
+                if batch:
+                    collection.bulk_write(batch, ordered=False)
+                    bulk_batches += 1
 
             deleted_rows = 0
             if site_ids:
@@ -3607,6 +3614,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "rows": int(len(prepared)),
             "collection": collection_name,
             "deleted_rows": int(deleted_rows),
+            "bulk_batches": int(bulk_batches),
+            "bulk_batch_size": int(bulk_batch_size),
         }
 
     @staticmethod

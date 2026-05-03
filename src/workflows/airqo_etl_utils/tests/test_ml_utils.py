@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 import pytest
 from unittest.mock import MagicMock
@@ -815,6 +815,11 @@ def test_save_site_daily_forecasts_to_mongo_preserves_existing_met_on_pm_only_up
     assert update_document["pm2_5_mean"] == 12.3
     assert update_document["relative_humidity"] == 80.9
     assert update_document["wind_speed"] == 4.6
+    assert isinstance(update_document["created_at"], datetime)
+    assert update_document["created_at"].tzinfo == timezone.utc
+    assert update_document["created_at"] != pd.Timestamp(
+        "2026-03-27T00:00:00Z"
+    ).to_pydatetime()
 
 
 def test_save_site_daily_forecasts_to_mongo_uses_bulk_write_and_cleans_old_rows(
@@ -1511,6 +1516,8 @@ def test_save_faulty_devices_writes_device_name_alias_and_summary_flags(monkeypa
     update_document = bulk_operations[0]._doc["$set"]
     assert update_document["device_id"] == "device-a"
     assert update_document["device_name"] == "device-a"
+    assert isinstance(update_document["created_at"], datetime)
+    assert update_document["created_at"].tzinfo == timezone.utc
     assert update_document["fault_detected"] == 1
     assert update_document["anomaly_percentage"] == 52.5
     assert update_document["fault_types"] == ["correlation_fault", "anomaly_percentage_fault"]
@@ -1586,11 +1593,15 @@ def test_save_faulty_devices_persists_one_row_per_device_without_duplicates(monk
     updated_records = [operation._doc["$set"] for operation in bulk_operations]
     updated_records = sorted(updated_records, key=lambda record: record["device_id"])
     assert updated_records[0]["device_id"] == "device-a"
+    assert isinstance(updated_records[0]["created_at"], datetime)
+    assert updated_records[0]["created_at"].tzinfo == timezone.utc
     assert updated_records[0]["fault_detected"] == 1
     assert updated_records[0]["anomaly_percentage_fault"] == 0
     assert updated_records[0]["anomaly_sequence_fault"] == 0
     assert updated_records[0]["anomaly_percentage"] == 0.0
     assert updated_records[1]["device_id"] == "device-b"
+    assert isinstance(updated_records[1]["created_at"], datetime)
+    assert updated_records[1]["created_at"].tzinfo == timezone.utc
     assert updated_records[1]["fault_detected"] == 0
     assert updated_records[1]["anomaly_percentage_fault"] == 0
     assert updated_records[1]["anomaly_sequence_fault"] == 0
