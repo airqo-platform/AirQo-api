@@ -1,6 +1,5 @@
-from fastapi import APIRouter, HTTPException, Header, Query, BackgroundTasks
-from typing import Optional, List
-from datetime import date
+from fastapi import APIRouter, HTTPException, Header, Query
+from typing import Optional
 import logging
 import json
 
@@ -149,43 +148,4 @@ async def get_maintenance_stats(
         return await maintenance_service.get_stats(token, request)
     except Exception as e:
         logger.exception(f"Error fetching maintenance stats: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-@router.post("/sync-performance")
-async def sync_performance(
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(...),
-    force: bool = Query(default=False, description="Force recompute even if today's data exists"),
-    platform: bool = Query(default=False, description="If true, use Platform as primary data source"),
-    days: int = Query(default=14, ge=1, le=90, description="Lookback period in days"),
-    tags: Optional[str] = Query(default=None, description="Comma-separated cohort tags to filter by"),
-    start_date: Optional[date] = Query(default=None, description="Start date for performance sync (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(default=None, description="End date for performance sync (YYYY-MM-DD)"),
-):
-    """
-    Manually trigger the daily device performance sync.
-    Computes uptime, error margin, and data completeness for all devices
-    (or filtered by tags/dates) and stores results in sync_device_performance.
-    """
-    _extract_token(authorization)  # Validate auth
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
-    
-    try:
-        from app.services.scheduler_service import compute_and_store_performance
-        background_tasks.add_task(
-            compute_and_store_performance,
-            days=days,
-            force=force,
-            tags=tag_list,
-            start_date=start_date,
-            end_date=end_date,
-            use_platform=platform
-        )
-        return {
-            "success": True, 
-            "message": "Performance sync process started in the background. It may take a few minutes to complete."
-        }
-    except Exception as e:
-        logger.exception(f"Error triggering background performance sync: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
