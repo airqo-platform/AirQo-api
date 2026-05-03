@@ -406,18 +406,28 @@ def _build_inlab_device(
     metrics: Dict[str, Any],
     frequency: str,
 ) -> Dict[str, Any]:
-    """Build a single inlab-device output entry."""
+    """Build a single inlab-device output entry in data.json format."""
     mapped = metrics.get("data", []) or []
     overall_uptime = float(metrics.get("uptime") or 0.0)
     overall_error = _lowcost_error_margin(mapped)
+    averages = metrics.get("averages", {})
+    data_completeness = float(metrics.get("data_completeness") or overall_uptime)
+    device_id = metrics.get("device_id") or (d_meta.device_id if d_meta else None)
+
     return {
+        "device_id": device_id,
         "name": name,
+        "device_name": name,
+        "is_active": True,
         "category": d_meta.category if d_meta else "lowcost",
         "network_id": d_meta.network_id if d_meta else None,
         "firmware": d_meta.current_firmware if d_meta else None,
         "uptime": round(overall_uptime, 4),
+        "data_completeness": round(data_completeness, 4),
         "error_margin": overall_error,
         "correlation": None,
+        "averages": averages,
+        "data": mapped,
         "daily": _build_inlab_daily_breakdown(mapped, frequency),
     }
 
@@ -430,6 +440,7 @@ async def get_inlab_collocation(
     start_date_time: Optional[str] = None,
     end_date_time: Optional[str] = None,
     frequency: str = "daily",
+    search: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Inlab lowcost devices with performance from local sync_*_device_data tables.
@@ -465,15 +476,14 @@ async def get_inlab_collocation(
         return {"success": True, "message": "No inlab devices found", "meta": empty_meta, "devices": []}
 
     # 2. Filter to lowcost via local SyncDevice table & paginate.
-    devices_meta = (
-        db.query(SyncDevice)
-        .filter(
-            SyncDevice.device_name.in_(list(candidate_names)),
-            SyncDevice.category == "lowcost",
-        )
-        .order_by(SyncDevice.device_name.asc())
-        .all()
+    query = db.query(SyncDevice).filter(
+        SyncDevice.device_name.in_(list(candidate_names)),
+        SyncDevice.category == "lowcost",
     )
+    if search:
+        query = query.filter(SyncDevice.device_name.ilike(f"%{search}%"))
+        
+    devices_meta = query.order_by(SyncDevice.device_name.asc()).all()
     page_names, meta_map, meta = _build_inlab_pagination(devices_meta, skip, limit)
     if not page_names:
         return {"success": True, "message": "No inlab lowcost devices found in this page",

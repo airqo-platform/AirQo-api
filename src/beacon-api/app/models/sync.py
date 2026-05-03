@@ -232,3 +232,40 @@ class SyncSiteDevice(Base):
     )
     is_active = Column(Boolean, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SyncInlabBatch(Base):
+    """A named batch of devices undergoing inlab collocation."""
+    __tablename__ = "sync_inlab_batch"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    name = Column(String(255), nullable=False, unique=True, index=True)
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    is_deleted = Column(Boolean, server_default="false", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SyncInlabBatchDevice(Base):
+    """Junction: device membership in a batch, with per-device date overrides."""
+    __tablename__ = "sync_inlab_batch_device"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    batch_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("sync_inlab_batch.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    device_id = Column(
+        String(100),
+        ForeignKey("sync_device.device_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    firmware_version = Column(String(100), nullable=True)  # snapshot at time of addition
+    start_date = Column(DateTime(timezone=True), nullable=True)  # per-device override
+    end_date = Column(DateTime(timezone=True), nullable=True)    # per-device override
+    is_removed = Column(Boolean, server_default="false", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

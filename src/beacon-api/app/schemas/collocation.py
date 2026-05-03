@@ -49,13 +49,19 @@ class InlabDeviceData(BaseModel):
     correlation: Optional[float] = None
 
 class InlabDevice(BaseModel):
+    device_id: Optional[str] = None
     name: str
+    device_name: Optional[str] = None
+    is_active: Optional[bool] = True
     category: Optional[str] = None
     network_id: Optional[str] = None
     firmware: Optional[str] = None
     uptime: float = 0.0
+    data_completeness: float = 0.0
     error_margin: float = 0.0
     correlation: Optional[float] = None
+    averages: Dict[str, Any] = {}
+    data: List[Dict[str, Any]] = []
     daily: List[InlabDeviceData] = []
 
 class InlabResponse(BaseModel):
@@ -91,3 +97,58 @@ class CollocationSiteDetailsResponse(BaseModel):
     message: str
     site: Optional[CollocationSiteInfo] = None
     data: List[CollocationDeviceData]
+
+
+# ── Inlab Batch schemas ────────────────────────────────────────────
+
+class InlabBatchCreate(BaseModel):
+    name: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    device_ids: List[str] = []
+
+class InlabBatchUpdate(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+class InlabBatchDeviceAdd(BaseModel):
+    device_ids: List[str]
+
+class InlabBatchDeviceUpdate(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+class InlabBatchDeviceEntry(BaseModel):
+    device_id: str
+    device_name: Optional[str] = None
+    firmware_version: Optional[str] = None
+    category: Optional[str] = None
+    network_id: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    # Performance fields (populated on detail view)
+    uptime: Optional[float] = None
+    error_margin: Optional[float] = None
+    data: Optional[List[Dict[str, Any]]] = None
+
+class InlabBatchEntry(BaseModel):
+    id: str
+    name: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    device_count: int = 0
+    devices: List[InlabBatchDeviceEntry] = []
+    created_at: Optional[str] = None
+
+class InlabBatchListResponse(BaseModel):
+    success: bool
+    message: str
+    meta: Optional[MetaData] = None
+    batches: List[InlabBatchEntry] = []
+
+class InlabBatchDetailResponse(BaseModel):
+    success: bool
+    message: str
+    batch: Optional[InlabBatchEntry] = None
+
