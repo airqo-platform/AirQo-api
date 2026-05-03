@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError
 
 from app.models.sync import SyncDevice, SyncInlabBatch, SyncInlabBatchDevice
 from app.services import cohort_service
@@ -102,6 +103,9 @@ def create_batch(
     skipped: List[str] = []
     added: List[str] = []
     for did in (device_ids or []):
+        # Pre-check is best-effort; the partial unique index on
+        # sync_inlab_batch_device(device_id) WHERE is_removed = false is the
+        # source of truth and protects against concurrent inserts.
         conflict = _active_batch_for_device(db, did)
         if conflict:
             skipped.append(did)
@@ -111,8 +115,17 @@ def create_batch(
             device_id=did,
             firmware_version=_snapshot_firmware(db, did),
         )
-        db.add(link)
-        added.append(did)
+        try:
+            with db.begin_nested():
+                db.add(link)
+                db.flush()
+            added.append(did)
+        except IntegrityError:
+            logger.info(
+                "Device %s already linked to an active batch; skipping insert.",
+                did,
+            )
+            skipped.append(did)
 
     db.commit()
     db.refresh(batch)
@@ -198,6 +211,33 @@ def _build_batch_detail_dict(
     device_ids = [lnk.device_id for lnk in links]
     info_map = _device_info_map(db, device_ids)
 
+    # Pre-compute the effective window per link and group device names by window
+    # so we issue one performance query per distinct (eff_start, eff_end) window
+    # instead of one per device.
+    link_windows: Dict[Any, tuple] = {}
+    grouped_names: Dict[tuple, List[str]] = {}
+    for lnk in links:
+        dev = info_map.get(lnk.device_id)
+        d_name = dev.device_name if dev else None
+
+        eff_start = _iso(lnk.start_date) or _iso(batch.start_date) or start_date_time
+        eff_end = _iso(lnk.end_date) or _iso(batch.end_date) or end_date_time
+        eff_start, eff_end = _default_window(eff_start, eff_end)
+
+        link_windows[lnk.id] = (eff_start, eff_end)
+        if d_name:
+            names = grouped_names.setdefault((eff_start, eff_end), [])
+            if d_name not in names:
+                names.append(d_name)
+
+    # One performance query per distinct window, returning a name -> perf map.
+    perf_by_window: Dict[tuple, Dict[str, Any]] = {}
+    for window, names in grouped_names.items():
+        eff_start, eff_end = window
+        perf_by_window[window] = cohort_service.compute_device_performance(
+            db, names, eff_start, eff_end, frequency=frequency,
+        ) or {}
+
     # Build per-device entries with performance data
     devices_out: List[Dict[str, Any]] = []
 
@@ -205,18 +245,12 @@ def _build_batch_detail_dict(
         dev = info_map.get(lnk.device_id)
         d_name = dev.device_name if dev else None
 
-        # Resolve effective date range: per-device overrides > batch-level > default
-        eff_start = _iso(lnk.start_date) or _iso(batch.start_date) or start_date_time
-        eff_end = _iso(lnk.end_date) or _iso(batch.end_date) or end_date_time
-        eff_start, eff_end = _default_window(eff_start, eff_end)
+        eff_start, eff_end = link_windows[lnk.id]
 
-        # Compute performance from local tables
+        # Hydrate performance from the pre-computed per-window map
         perf: Dict[str, Any] = {}
         if d_name:
-            perf_map = cohort_service.compute_device_performance(
-                db, [d_name], eff_start, eff_end, frequency=frequency,
-            )
-            perf = perf_map.get(d_name) or {}
+            perf = (perf_by_window.get((eff_start, eff_end)) or {}).get(d_name) or {}
 
         mapped_data = perf.get("data", [])
         uptime = float(perf.get("uptime") or 0.0)
@@ -294,6 +328,17 @@ def delete_batch(db: Session, batch_id: str) -> Dict[str, Any]:
     if not batch:
         return {"success": False, "message": "Batch not found"}
     batch.is_deleted = True
+    # Soft-deleting a batch must also release its devices; otherwise the
+    # partial unique index on sync_inlab_batch_device(device_id)
+    # WHERE is_removed = false would block re-linking those devices.
+    (
+        db.query(SyncInlabBatchDevice)
+        .filter(
+            SyncInlabBatchDevice.batch_id == batch.id,
+            SyncInlabBatchDevice.is_removed.is_(False),
+        )
+        .update({SyncInlabBatchDevice.is_removed: True}, synchronize_session=False)
+    )
     db.commit()
     return {"success": True, "message": f"Batch '{batch.name}' deleted"}
 
@@ -329,7 +374,10 @@ def add_devices_to_batch(
             skipped.append(did)
             continue
 
-        # Re-activate a previously removed link, or create new
+        # Re-activate a previously removed link, or create new. Both paths
+        # are protected by the partial unique index on (device_id) WHERE
+        # is_removed = false; we use a SAVEPOINT so a concurrent winner
+        # raising IntegrityError doesn't poison the outer transaction.
         removed = (
             db.query(SyncInlabBatchDevice)
             .filter(
@@ -339,17 +387,26 @@ def add_devices_to_batch(
             )
             .first()
         )
-        if removed:
-            removed.is_removed = False
-            removed.firmware_version = _snapshot_firmware(db, did)
-        else:
-            link = SyncInlabBatchDevice(
-                batch_id=batch.id,
-                device_id=did,
-                firmware_version=_snapshot_firmware(db, did),
+        try:
+            with db.begin_nested():
+                if removed:
+                    removed.is_removed = False
+                    removed.firmware_version = _snapshot_firmware(db, did)
+                else:
+                    link = SyncInlabBatchDevice(
+                        batch_id=batch.id,
+                        device_id=did,
+                        firmware_version=_snapshot_firmware(db, did),
+                    )
+                    db.add(link)
+                db.flush()
+            added.append(did)
+        except IntegrityError:
+            logger.info(
+                "Device %s already linked to an active batch; skipping insert.",
+                did,
             )
-            db.add(link)
-        added.append(did)
+            skipped.append(did)
 
     db.commit()
     msg = f"Added {len(added)} device(s)"

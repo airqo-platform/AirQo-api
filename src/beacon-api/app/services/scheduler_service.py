@@ -1,11 +1,17 @@
 import logging
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers import SchedulerAlreadyRunningError
 from app.services.thingspeak_sync_service import sync_device_data
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+# Use an explicit timezone so cron jobs are deterministic across environments
+# and unaffected by host timezone or DST transitions.
+SCHEDULER_TIMEZONE = ZoneInfo(getattr(settings, "SCHEDULER_TIMEZONE", "UTC"))
+
+scheduler = AsyncIOScheduler(timezone=SCHEDULER_TIMEZONE)
 
 async def scheduled_thingspeak_sync():
     logger.info("Starting scheduled ThingSpeak data sync...")
@@ -21,8 +27,12 @@ def start_scheduler():
         logger.info("Scheduler is disabled in settings.")
         return
 
+    if scheduler.running:
+        logger.info("Background scheduler is already running; skipping start.")
+        return
+
     logger.info("Starting background scheduler...")
-    
+
     # Run the ThingSpeak sync every day at 23:00
     scheduler.add_job(
         scheduled_thingspeak_sync,
@@ -30,10 +40,14 @@ def start_scheduler():
         hour=22,
         minute=0,
         id='thingspeak_daily_sync',
-        replace_existing=True
+        replace_existing=True,
+        timezone=SCHEDULER_TIMEZONE,
     )
-    
-    scheduler.start()
+
+    try:
+        scheduler.start()
+    except SchedulerAlreadyRunningError:
+        logger.info("Background scheduler was already running.")
 
 def stop_scheduler():
     if scheduler.running:

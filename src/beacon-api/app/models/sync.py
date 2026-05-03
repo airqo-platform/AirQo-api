@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UUID, Text, CheckConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UUID, Text, CheckConstraint, Index
 from sqlalchemy.sql import func
 import sqlalchemy as sa
 from app.db.session import Base
@@ -269,3 +269,14 @@ class SyncInlabBatchDevice(Base):
     end_date = Column(DateTime(timezone=True), nullable=True)    # per-device override
     is_removed = Column(Boolean, server_default="false", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Enforce one active inlab batch per device at the DB level via a partial
+    # unique index on (device_id) WHERE is_removed = false.
+    __table_args__ = (
+        Index(
+            "uq_sync_inlab_batch_device_active_device",
+            "device_id",
+            unique=True,
+            postgresql_where=sa.text("is_removed = false"),
+        ),
+    )
