@@ -128,7 +128,8 @@ class EventAdmin(NestedModelAdmin):
         'end_date',
         ('start_date', admin.DateFieldListFilter),
     )
-    list_editable = ('order',)
+    # Allow quick edits to both ordering and the event tag from the changelist
+    list_editable = ('event_tag', 'order',)
     ordering = ('order', '-start_date')
     list_per_page = 15
     date_hierarchy = 'start_date'
