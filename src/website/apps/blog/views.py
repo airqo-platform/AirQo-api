@@ -5,6 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema_view, extend_schema
 
 from apps.api.v2.mixins import SlugModelViewSetMixin
+from apps.api.v2.pagination import StandardPageNumberPagination
 
 from .models import BlogPost
 from .serializers import BlogPostDetailSerializer, BlogPostListSerializer
@@ -37,9 +38,10 @@ from .serializers import BlogPostDetailSerializer, BlogPostListSerializer
 class BlogPostViewSet(SlugModelViewSetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = BlogPost.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = StandardPageNumberPagination
     filter_backends = [OrderingFilter]
     ordering_fields = ['order', 'published_at', 'title', 'created']
-    ordering = ['order', '-published_at']
+    ordering = ['order', '-published_at', '-id']
 
     def get_serializer_class(self):
         if self.action == 'list':

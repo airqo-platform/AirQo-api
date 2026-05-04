@@ -37,12 +37,6 @@ class BlogPostBaseSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeri
     def get_has_slug(self, obj):
         return bool(obj.slug)
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if instance.slug:
-            data.pop('id', None)
-        return data
-
 
 class BlogPostListSerializer(BlogPostBaseSerializer):
     class Meta:

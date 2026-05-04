@@ -1,7 +1,7 @@
 import logging
 
 from cloudinary.models import CloudinaryField
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from django_quill.fields import QuillField
 
@@ -86,9 +86,15 @@ class BlogPost(SlugBaseModel):
 
     def delete(self, *args, **kwargs):
         blog_post_id = self.pk
+        author_image = self.author_image
+        cover_image = self.cover_image
         logger.debug("Attempting to delete BlogPost: ID=%s, Title=%s", blog_post_id, self.title)
-        safe_destroy(self.author_image, invalidate=True)
-        safe_destroy(self.cover_image, invalidate=True)
         result = super().delete(*args, **kwargs)
+
+        def cleanup_cloudinary_assets():
+            safe_destroy(author_image, invalidate=True)
+            safe_destroy(cover_image, invalidate=True)
+
+        transaction.on_commit(cleanup_cloudinary_assets)
         logger.info("Deleted BlogPost: ID=%s, Title=%s", blog_post_id, self.title)
         return result

@@ -84,7 +84,7 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
     ]
 
     def get_serializer_class(self):  # type: ignore[override]
-        if self.action == 'list':
+        if self.action in {'list', 'featured', 'upcoming', 'past', 'calendar'}:
             return EventListSerializer
         return EventDetailSerializer
 

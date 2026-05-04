@@ -15,6 +15,7 @@ from apps.event.models import Event
 from apps.event.views import EventViewSet
 
 V2BlogPostViewSet = import_module('apps.api.v2.viewsets.blogs').BlogPostViewSet
+V2EventViewSet = import_module('apps.api.v2.viewsets.event').EventViewSet
 
 
 class BlogApiTests(TestCase):
@@ -54,7 +55,8 @@ class BlogApiTests(TestCase):
         response = BlogPostViewSet.as_view({'get': 'list'})(request)
 
         self.assertEqual(response.status_code, 200)
-        payload = response.data
+        payload = response.data['results']
+        self.assertEqual(response.data['count'], 2)
         self.assertEqual([item['title'] for item in payload], ['First post', 'Second post'])
         self.assertEqual([item['order'] for item in payload], [1, 2])
         self.assertEqual(payload[0]['author_role'], 'Editor')
@@ -62,7 +64,7 @@ class BlogApiTests(TestCase):
         self.assertEqual(payload[0]['meta_description'], 'First post SEO description')
 
     def test_v2_blog_list_exposes_new_fields(self):
-        BlogPost.objects.create(
+        blog_post = BlogPost.objects.create(
             title='V2 blog post',
             summary='Summary',
             author_name='AirQo Team',
@@ -80,6 +82,7 @@ class BlogApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.data['results']
+        self.assertEqual(payload[0]['id'], blog_post.pk)
         self.assertEqual(payload[0]['author_role'], 'Lead Writer')
         self.assertEqual(payload[0]['meta_title'], 'V2 meta title')
         self.assertEqual(payload[0]['meta_description'], 'V2 meta description')
@@ -122,7 +125,8 @@ class BlogApiTests(TestCase):
         post.author_image = 'website/uploads/blog/authors/author.jpg'
         post.cover_image = 'website/uploads/blog/images/cover.jpg'
 
-        post.delete()
+        with mock.patch('django.db.transaction.on_commit', side_effect=lambda func: func()):
+            post.delete()
 
         self.assertEqual(mocked_destroy.call_args_list[0].args[0], 'website/uploads/blog/authors/author.jpg')
         self.assertEqual(mocked_destroy.call_args_list[1].args[0], 'website/uploads/blog/images/cover.jpg')
@@ -169,3 +173,58 @@ class EventApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.data
         self.assertEqual([item['order'] for item in payload], [1, 2])
+
+
+class V2EventApiTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+
+    def _create_event(self, title, start_date_value, order=1, tag=Event.EventTag.UNTAGGED):
+        event = Event.objects.create(
+            title=title,
+            title_subtext=f'{title} subtitle',
+            start_date=start_date_value,
+            event_tag=tag,
+            order=order,
+        )
+        Event.objects.filter(pk=event.pk).update(event_details='legacy plain text')
+        return Event.objects.get(pk=event.pk)
+
+    def test_featured_endpoint_handles_legacy_quill_data(self):
+        featured_event = self._create_event('Featured event', date(2026, 6, 10), tag=Event.EventTag.FEATURED)
+
+        request = self.factory.get(reverse('v2-events-featured'))
+        response = V2EventViewSet.as_view({'get': 'featured'})(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data['results']
+        self.assertEqual([item['title'] for item in payload], [featured_event.title])
+
+    def test_upcoming_endpoint_handles_legacy_quill_data(self):
+        upcoming_event = self._create_event('Upcoming event', date(2026, 6, 11))
+
+        request = self.factory.get(reverse('v2-events-upcoming'))
+        response = V2EventViewSet.as_view({'get': 'upcoming'})(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data['results']
+        self.assertEqual([item['title'] for item in payload], [upcoming_event.title])
+
+    def test_past_endpoint_handles_legacy_quill_data(self):
+        past_event = self._create_event('Past event', date(2026, 4, 1))
+
+        request = self.factory.get(reverse('v2-events-past'))
+        response = V2EventViewSet.as_view({'get': 'past'})(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data['results']
+        self.assertEqual([item['title'] for item in payload], [past_event.title])
+
+    def test_calendar_endpoint_handles_legacy_quill_data(self):
+        calendar_event = self._create_event('Calendar event', date(2026, 6, 12))
+
+        request = self.factory.get(reverse('v2-events-calendar'))
+        response = V2EventViewSet.as_view({'get': 'calendar'})(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(calendar_event.start_date.strftime('%Y-%m-%d'), response.data['calendar'])
