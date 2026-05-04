@@ -72,6 +72,7 @@ urlpatterns = [
 
     # API routes from custom apps with specific prefixes
     path('website/', include('apps.press.urls')),
+    path('website/', include('apps.blog.urls')),
     path('website/', include('apps.impact.urls')),
     path('website/', include('apps.event.urls')),
     path('website/', include('apps.highlights.urls')),

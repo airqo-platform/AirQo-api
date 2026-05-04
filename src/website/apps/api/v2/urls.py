@@ -1,11 +1,12 @@
 """
 v2 API URL Configuration
 
-Single DefaultRouter registering all 13 app resources for the v2 API.
+Single DefaultRouter registering all app resources for the v2 API.
 URL pattern: /website/api/v2/<resource>/
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from importlib import import_module
 
 from .viewsets.africancities import AfricanCountryViewSet
 from .viewsets.board import BoardMemberViewSet
@@ -21,10 +22,12 @@ from .viewsets.press import PressViewSet
 from .viewsets.publications import PublicationViewSet
 from .viewsets.team import MemberViewSet, MemberBiographyViewSet
 
+BlogPostViewSet = import_module('apps.api.v2.viewsets.blogs').BlogPostViewSet
+
 # Create the main router for v2 API
 router = DefaultRouter()
 
-# Register all 13 app resources
+# Register all app resources
 router.register(r'african-countries', AfricanCountryViewSet,
                 basename='v2-african-countries')
 router.register(r'board-members', BoardMemberViewSet,
@@ -45,6 +48,7 @@ router.register(r'event-partner-logos', PartnerLogoViewSet,
                 basename='v2-event-partner-logos')
 router.register(r'event-resources', ResourceViewSet,
                 basename='v2-event-resources')
+router.register(r'blogs', BlogPostViewSet, basename='v2-blogs')
 router.register(r'external-team-members', ExternalTeamMemberViewSet,
                 basename='v2-external-team-members')
 router.register(r'external-team-biographies', ExternalTeamMemberBiographyViewSet,

@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     # Custom Apps
     'apps.externalteams',
     'apps.event',
+    'apps.blog',
     'apps.cleanair',
     'apps.africancities',
     'apps.publications',

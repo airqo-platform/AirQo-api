@@ -78,6 +78,7 @@ class EventListSerializer(serializers.ModelSerializer):
             'start_time',
             'end_time',
             'event_tag',
+            'order',
             'event_image_url',
         ]
         ref_name = 'EventListV1'
