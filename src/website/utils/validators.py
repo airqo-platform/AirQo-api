@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 
 
-DEFAULT_MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+DEFAULT_MAX_UPLOAD_FILE_SIZE = 300 * 1024 * 1024  # 300MB
 
 
 def _max_upload_file_size() -> int:

@@ -4,13 +4,12 @@ import logging
 from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
-from django.core.files.images import get_image_dimensions
 from django.core.validators import FileExtensionValidator
 from cloudinary.models import CloudinaryField
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+DEFAULT_MAX_UPLOAD_FILE_SIZE = 300 * 1024 * 1024  # 300MB
 
 
 def _get_max_upload_file_size() -> int:
@@ -60,18 +59,7 @@ def validate_image_format(file):
     if not is_valid_format:
         raise ValidationError(f"The file '{file.name}' is not a valid image.")
 
-    # For large files (>5MB), skip dimension check to avoid memory issues
-    # Magic number validation above already ensures it's a valid image format
-    if file.size > 5 * 1024 * 1024:
-        return
-
-    # For smaller files, also validate with get_image_dimensions as additional check
-    # This provides extra validation for corrupted files that passed magic number check
-    try:
-        get_image_dimensions(file)
-    except Exception as e:
-        logger.error(f"Invalid image file '{file.name}': {e}")
-        raise ValidationError(f"The file '{file.name}' is not a valid image.")
+    # Magic number validation above is sufficient for upload validation.
 
 
 def optimized_cloudinary_field(folder_path, **kwargs):
