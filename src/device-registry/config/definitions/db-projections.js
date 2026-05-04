@@ -1,3 +1,5 @@
+const { logText, logObject } = require("../../utils/shared");
+
 /**
  * ProjectionFactory - A factory pattern implementation for handling database projections
  */
@@ -1836,9 +1838,9 @@ const dbProjections = {
           .replace(/-/g, "_") // kebab-case → snake_case
           .toUpperCase() + "_EXCLUSION_PROJECTION";
 
-      // If the projection exists as a function, call it
+      // If the projection exists as a function, call it with the path argument.
       if (typeof this[keyName] === "function") {
-        return this[keyName]();
+        return this[keyName](path);
       }
 
       // If it exists as an object, return it
@@ -1995,11 +1997,6 @@ const dbProjections = {
   // Include the fields to exclude constants
   GRID_SHAPE_FIELDS_TO_EXCLUDE: ["coordinates"],
   SITE_FIELDS_TO_EXCLUDE: [
-    "altitude",
-    "greenness",
-    "landform_90",
-    "landform_270",
-    "aspect",
     "altitude",
     "greenness",
     "landform_90",
