@@ -1,3 +1,5 @@
+const { logText, logObject } = require("@utils/shared");
+
 /**
  * ProjectionFactory - A factory pattern implementation for handling database projections
  */
