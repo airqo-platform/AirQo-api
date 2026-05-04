@@ -75,6 +75,27 @@ spec:
 
 ---
 apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: zabbix
+  namespace: production
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: zabbix
+      service: zabbix-external-svc
+      port: 80
+  subroutes:
+    - path: /zabbix/
+      action:
+        pass: zabbix
+    - path: /zabbix
+      action:
+        pass: zabbix
+
+
+---
+apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: platform-virtual-server
@@ -118,6 +139,10 @@ spec:
       route: production/docs
     - path: /website
       route: production/website
+    - path: /zabbix/
+      route: production/zabbix
+    - path: /zabbix
+      route: production/zabbix
     - path: /
       action:
         redirect:
