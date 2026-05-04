@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 from importlib import import_module
 from django.utils import timezone
 from unittest import mock
@@ -201,7 +201,9 @@ class V2EventApiTests(TestCase):
         self.assertEqual([item['title'] for item in payload], [featured_event.title])
 
     def test_upcoming_endpoint_handles_legacy_quill_data(self):
-        upcoming_event = self._create_event('Upcoming event', date(2026, 6, 11))
+        # create an event always in the future relative to today
+        future_date = date.today() + timedelta(days=30)
+        upcoming_event = self._create_event('Upcoming event', future_date)
 
         request = self.factory.get(reverse('v2-events-upcoming'))
         response = V2EventViewSet.as_view({'get': 'upcoming'})(request)
@@ -211,7 +213,9 @@ class V2EventApiTests(TestCase):
         self.assertEqual([item['title'] for item in payload], [upcoming_event.title])
 
     def test_past_endpoint_handles_legacy_quill_data(self):
-        past_event = self._create_event('Past event', date(2026, 4, 1))
+        # create an event always in the past relative to today
+        past_date = date.today() - timedelta(days=30)
+        past_event = self._create_event('Past event', past_date)
 
         request = self.factory.get(reverse('v2-events-past'))
         response = V2EventViewSet.as_view({'get': 'past'})(request)
