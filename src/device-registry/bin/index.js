@@ -1,6 +1,10 @@
 require("module-alias/register");
-const dotenv = require("dotenv");
-dotenv.config();
+// loadEnvironment() replaces dotenv.config(). It loads the environment-specific
+// file first (.env.{NODE_ENV}.json for Azure Key Vault, then .env.{NODE_ENV}
+// flat format), falling back to the base .env. It also keeps both file formats
+// in sync at startup so that Azure KV JSON and legacy flat files never diverge.
+const { loadEnvironment } = require("../config/env-loader");
+loadEnvironment();
 require("app-module-path").addPath(__dirname);
 const kafkaConsumer = require("./jobs/kafka-consumer");
 const createServer = require("./server");

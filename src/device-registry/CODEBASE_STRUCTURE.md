@@ -11,10 +11,9 @@ The project follows a standard MVC structure with additional folders for common 
 ├── bin                       # Scripts for running background jobs (e.g., Kafka consumer)
 │   └── jobs                  # Individual job scripts
 ├── config                    # Configuration files
-│   ├── environments          # Environment-specific configurations (development, staging, production)
-│   │   └── index.js          # Aggregates environment configurations
-│   └── global                # Global configurations used across all environments
-│       └── index.js          # Aggregates global configurations
+│   ├── environments          # (empty — shim files deleted; see Configuration Structure below)
+│   └── definitions           # Static application definitions (AQI constants, mappings, projections …)
+│       └── index.js          # Aggregates all definitions
 ├── controllers               # API controllers (e.g., device.controller.js, site.controller.js)
 ├── models                    # Mongoose models (e.g., Device.js, Site.js)
 ├── routes                    # API routes (e.g., v1, v2)
@@ -46,20 +45,12 @@ Long file or folder names are separated using hyphens (e.g., `health-tips.contro
 
 The `config` folder is structured to manage environment-specific and global configurations effectively:
 
-- **`environments` subfolder:** Contains environment-specific configuration files (e.g., `development.js`, `staging.js`, `production.js`). Each file contains settings unique to that environment. An `index.js` file aggregates these configurations for easy import.
-- **`global` subfolder:** Contains configuration settings that remain consistent across all environments (e.g., database connection strings, API keys, default values). An `index.js` file aggregates these configurations for easy import.
-- **`constants.js` file:** This file imports configurations from both the `environments` and `global` subfolders, selecting the appropriate environment based on the `NODE_ENV` environment variable. This provides a single point of access for all configuration values throughout the application. Example:
-  ```javascript
-  const environments = require("./environments");
-  const global = require("./global");
-  function envConfig(env) {
-    return { ...global, ...environments[env] };
-  }
-  const environment = process.env.NODE_ENV || "production";
-  module.exports = envConfig(environment);
-  ```
+- **`environments` subfolder:** Previously held per-environment prefix→canonical alias shims (`development.js`, `staging.js`, `production.js`). These have been deleted now that each environment loads its own `.env.{NODE_ENV}.json` file with canonical key names directly.
+- **`definitions` subfolder:** Pure static application definitions — AQI constants, device mappings, network adapters, URL builders, DB projections, validation lists, regex patterns. No environment-specific logic. An `index.js` file aggregates everything.
+- **`env-loader.js`:** Loaded at app startup. Reads `.env.{NODE_ENV}.json` (Azure Key Vault — primary) and `.env.{NODE_ENV}` (flat fallback), merges them into `process.env`, auto-syncs the flat file from the JSON, and reports drift between the two.
+- **`constants.js`:** Imports `definitions` and reads directly from `process.env` (populated by `env-loader.js`). Applies computed transformations (boolean parsing, CSV→array, Redis URL construction). All environment variables are accessed as canonical names — no prefix mapping required.
 
-This approach promotes modularity, readability, and maintainability of the configuration settings.
+This approach means adding a new environment variable requires editing only the three `.env.{env}.json` files (one per environment). No JS file changes are needed.
 
 ## Constants Naming Conventions and Organization
 
@@ -69,21 +60,19 @@ To prevent namespace collisions and improve maintainability, the following conve
 
 ```
 config/
-├── constants.js              # Main configuration file that merges environments and global
-├── environments/             # Environment-specific configurations
-│   └── index.js             # Aggregates environment configurations
-└── global/                  # Global configurations and constants
-    ├── index.js             # Aggregates all global constants with conflict detection
-    ├── aqi.js              # Air Quality Index related constants
-    ├── db-projections.js   # Database projection constants
-    ├── mappings.js         # Data mapping constants
-    ├── static-lists.js     # Static validation lists
-    ├── strings.js          # String constants and templates
-    ├── urls.js             # API endpoint constants
-    ├── numericals.js       # Numerical constants and limits
-    ├── query-limits.js     # Database query limits
-    ├── regex-patterns.js   # Regular expression patterns
-    └── envs.js             # Environment variable mappings
+├── constants.js              # Main config — merges process.env + definitions, applies transformations
+├── env-loader.js             # Startup loader: merges .env.{env}.json + .env.{env} flat file
+├── environments/             # (empty — shim files deleted; canonical names now in JSON files)
+└── definitions/              # Static application definitions
+    ├── index.js             # Aggregates all definitions
+    ├── app-constants.js     # String/numeric/regex/list constants (merged from 4 former files)
+    ├── aqi.js               # Air Quality Index constants (ranges, colours, breakpoints)
+    ├── country-flags.js     # ISO country codes + flag URL helper
+    ├── db-projections.js    # MongoDB projection objects
+    ├── envs.js              # env-var-backed constants (CSV→array, defaults)
+    ├── mappings.js          # Field/event/ThingSpeak/BAM mapping tables
+    ├── networks.js          # Network adapter configs (AirGradient, IQAir, etc.)
+    └── urls.js              # URL builder functions (ThingSpeak, Google, Nominatim)
 ```
 
 ### Constant Naming Conventions

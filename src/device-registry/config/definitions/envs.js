@@ -1,10 +1,4 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-const log4js = require("log4js");
-const isEmpty = require("is-empty");
 const moment = require("moment-timezone");
-const { logObject, logText } = require("@utils/shared");
-const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const envs = {
   DEVICE_NAMES_TO_EXCLUDE_FROM_JOB: process.env.DEVICE_NAMES_TO_EXCLUDE_FROM_JOB

@@ -3,6 +3,20 @@ mongoose.set("useNewUrlParser", true);
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
 mongoose.set("debug", false);
+// bufferTimeoutMS is a Mongoose-level setting and must NOT be passed inside
+// the connect() options object — the MongoDB driver does not recognise it and
+// emits a startup warning. Setting it here via mongoose.set() is correct.
+// Replaces the previous bufferMaxEntries: 0 which caused every in-flight
+// operation to fail immediately on a brief disconnect (e.g. replica-set
+// election, TCP keepalive reset). Operations now buffer for up to 10 s before
+// surfacing an error, matching the typical reconnect window.
+mongoose.set(
+  "bufferTimeoutMS",
+  (() => {
+    const val = parseInt(process.env.MONGODB_BUFFER_TIMEOUT_MS, 10);
+    return Number.isFinite(val) && val > 0 ? val : 10000;
+  })(),
+);
 const constants = require("./constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -19,14 +33,19 @@ const options = {
   useFindAndModify: false,
   useUnifiedTopology: true,
   autoIndex: true,
+  // TCP keepalive keeps long-lived connections alive through firewalls and
+  // NAT devices, which is important for self-hosted replica-set deployments.
   keepAlive: true,
   keepAliveInitialDelay: 300000,
-  poolSize: 20,
-  maxPoolSize: 100,
-  bufferMaxEntries: 0,
-  connectTimeoutMS: 1200000,
-  socketTimeoutMS: 600000,
-  serverSelectionTimeoutMS: 3600000,
+  // Configurable via MONGODB_POOL_SIZE; default 100 supports high-throughput
+  // mixed read/write traffic across the command and query pools.
+  poolSize: parseInt(constants.MONGODB_POOL_SIZE || "100", 10),
+  // bufferMaxEntries removed — see bufferTimeoutMS comment above.
+  connectTimeoutMS: 30000,
+  // socketTimeoutMS is intentionally longer than auth-service (120 s vs 60 s)
+  // to accommodate long-running aggregation queries unique to device-registry.
+  socketTimeoutMS: 120000,
+  serverSelectionTimeoutMS: 30000,
 };
 
 // Create separate connection functions for command and query databases
@@ -59,11 +78,12 @@ const createSnapshotConnection = () =>
   mongoose.createConnection(QUERY_URI, {
     ...options,
     dbName: `${constants.DB_NAME}`,
-    // Mongoose 5.x (mongodb driver 3.7.x) uses poolSize, not maxPoolSize.
-    // Explicitly override poolSize here so the spread of options.poolSize (20)
-    // is replaced with the intended 10-connection ceiling for this pool.
+    // Snapshot pool is intentionally capped at 10 regardless of MONGODB_POOL_SIZE
+    // so hourly bulk-write jobs never starve the live aggregation queryDB pool.
+    // Mongoose 5.x uses poolSize; maxPoolSize is included for forward compat
+    // when the service eventually migrates to Mongoose 6+.
     poolSize: 10,
-    maxPoolSize: 10, // forward-compatible for when Mongoose 6+ is adopted
+    maxPoolSize: 10,
   });
 
 // Store database connections

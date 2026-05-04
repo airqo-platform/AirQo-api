@@ -5,6 +5,9 @@ controllers/rsa_private.pem
 .env.development
 .env.production
 .env.staging
+.env.development.json
+.env.staging.json
+.env.production.json
 device-reg-secret.yaml
 log
 airqo-250220-*
