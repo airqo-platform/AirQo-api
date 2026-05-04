@@ -13,7 +13,9 @@ const parseCSV = (val) =>
     : [];
 
 const parseBool = (val, defaultVal) =>
-  val !== undefined ? val !== "false" && val !== "0" : defaultVal;
+  val !== undefined && val !== null && val.trim() !== ""
+    ? val.trim() !== "false" && val.trim() !== "0"
+    : defaultVal;
 
 // ── Config builder ────────────────────────────────────────────────────────────
 function envConfig(env) {

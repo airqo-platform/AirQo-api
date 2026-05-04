@@ -150,7 +150,7 @@ const configurations = {
 **Example constant file structure:**
 
 ```javascript
-// config/global/aqi.js
+// config/definitions/aqi.js
 /**
  * Air Quality Index (AQI) related constants
  * Used for categorizing and displaying air pollution levels

@@ -32,14 +32,10 @@
  * Variables already present in process.env (set by Docker/K8s/shell) are
  * never overwritten — consistent with the default dotenv behaviour.
  *
- * Prefix removal roadmap:
- *   Currently the flat files use environment-prefixed keys (MONGO_URI_DEV,
- *   PROD_AUTH_SERVICE_URL, etc.) because they were all stored in a single shared
- *   file. The JSON files use canonical names (MONGO_URI, AUTH_SERVICE_URL) because
- *   each environment now has its own file. As Azure KV is populated for each
- *   environment, the corresponding prefixed entries in the flat files become
- *   redundant and can be removed, one key at a time. The environments/*.js shim
- *   files in config/ can be deleted once all their keys are in the JSON file.
+ * Flat files now use canonical key names (MONGO_URI, AUTH_SERVICE_URL) — one
+ * file per environment, so environment prefixes are unnecessary. The
+ * KNOWN_FLAT_ALIASES table below is retained to suppress drift warnings for any
+ * legacy-prefixed entries that may still exist in older copies of the flat files.
  *
  * Performance: two small synchronous file reads + at most one write at startup.
  * Typical cost is under 10 ms and does not block the event loop after startup.
@@ -59,7 +55,6 @@ const KNOWN_FLAT_ALIASES = {
   COMMAND_MONGO_URI: ["COMMAND_MONGO_URI_DEV", "COMMAND_MONGO_URI_STAGE", "COMMAND_MONGO_URI_PROD"],
   QUERY_MONGO_URI: ["QUERY_MONGO_URI_DEV", "QUERY_MONGO_URI_STAGE", "QUERY_MONGO_URI_PROD"],
   DB_NAME: ["MONGO_DEV", "MONGO_STAGE", "MONGO_PROD"],
-  REDIS_URL: ["REDIS_URL_DEV", "REDIS_URL_STAGE", "REDIS_URL_PROD"],
   KAFKA_BOOTSTRAP_SERVERS: ["KAFKA_BOOTSTRAP_SERVERS_DEV", "KAFKA_BOOTSTRAP_SERVERS_STAGE", "KAFKA_BOOTSTRAP_SERVERS_PROD"],
   KAFKA_TOPICS: ["KAFKA_TOPICS_DEV", "KAFKA_TOPICS_STAGE", "KAFKA_TOPICS_PROD"],
   KAFKA_CLIENT_ID: ["KAFKA_CLIENT_ID_DEV", "KAFKA_CLIENT_ID_STAGE", "KAFKA_CLIENT_ID_PROD"],
@@ -268,8 +263,11 @@ function reportDrift(jsonPath, flatPath, jsonVars, flatVars) {
     }
     // Skip if the canonical key is already non-empty in JSON.
     if (key in jsonVars && jsonVars[key] !== "" && jsonVars[key] !== null) continue;
-    // Skip if the key isn't even in the JSON template (not yet tracked).
-    if (!(key in jsonVars)) continue;
+    // Key absent from JSON entirely — not yet tracked in Azure KV.
+    if (!(key in jsonVars)) {
+      missingFromJson.push(`  ${key} → present in ${flatBase} but not tracked in ${jsonBase}`);
+      continue;
+    }
     missingFromJson.push(`  ${key} → present in ${flatBase} but empty in ${jsonBase}`);
   }
 
@@ -277,7 +275,7 @@ function reportDrift(jsonPath, flatPath, jsonVars, flatVars) {
   // happen after first sync, but worth catching).
   const missingFromFlat = [];
   for (const [key, value] of Object.entries(jsonVars)) {
-    if (!value) continue;
+    if (value === "" || value === null || value === undefined) continue;
     if (!(key in flatVars)) {
       missingFromFlat.push(`  ${key} → present in ${jsonBase} but absent from ${flatBase}`);
     }
