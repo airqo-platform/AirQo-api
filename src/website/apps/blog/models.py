@@ -85,8 +85,10 @@ class BlogPost(SlugBaseModel):
             logger.info("Updated BlogPost: ID=%s, Title=%s", self.pk, self.title)
 
     def delete(self, *args, **kwargs):
-        logger.debug("Attempting to delete BlogPost: ID=%s, Title=%s", self.pk, self.title)
+        blog_post_id = self.pk
+        logger.debug("Attempting to delete BlogPost: ID=%s, Title=%s", blog_post_id, self.title)
+        safe_destroy(self.author_image, invalidate=True)
         safe_destroy(self.cover_image, invalidate=True)
         result = super().delete(*args, **kwargs)
-        logger.info("Deleted BlogPost: ID=%s, Title=%s", self.pk, self.title)
+        logger.info("Deleted BlogPost: ID=%s, Title=%s", blog_post_id, self.title)
         return result

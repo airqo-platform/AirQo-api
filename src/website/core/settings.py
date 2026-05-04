@@ -444,6 +444,7 @@ APP_LOGGER_NAMES = [
     'apps.event',
     'apps.cleanair',
     'apps.africancities',
+    'apps.blog',
     'apps.publications',
     'apps.press',
     'apps.impact',

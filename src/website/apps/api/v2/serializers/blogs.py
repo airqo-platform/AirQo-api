@@ -90,7 +90,6 @@ class BlogPostDetailSerializer(BlogPostBaseSerializer):
             'content_html',
             'created',
             'modified',
-            'is_deleted',
             'public_identifier',
             'api_url',
             'has_slug',

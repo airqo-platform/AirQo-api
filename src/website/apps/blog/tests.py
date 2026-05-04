@@ -1,9 +1,12 @@
 import json
 from datetime import date
 from importlib import import_module
+from django.utils import timezone
+from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
+from django.core.cache import cache
 from rest_framework.test import APIRequestFactory
 
 from apps.blog.models import BlogPost
@@ -17,6 +20,7 @@ V2BlogPostViewSet = import_module('apps.api.v2.viewsets.blogs').BlogPostViewSet
 class BlogApiTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
+        cache.clear()
 
     def test_blog_list_returns_only_published_posts_in_order(self):
         BlogPost.objects.create(
@@ -79,6 +83,50 @@ class BlogApiTests(TestCase):
         self.assertEqual(payload[0]['author_role'], 'Lead Writer')
         self.assertEqual(payload[0]['meta_title'], 'V2 meta title')
         self.assertEqual(payload[0]['meta_description'], 'V2 meta description')
+
+    def test_v2_blog_list_uses_deterministic_tiebreaker(self):
+        published_at = timezone.now()
+        first = BlogPost.objects.create(
+            title='Earlier row',
+            summary='Summary',
+            author_name='AirQo Team',
+            order=1,
+            published_at=published_at,
+            is_published=True,
+        )
+        second = BlogPost.objects.create(
+            title='Later row',
+            summary='Summary',
+            author_name='AirQo Team',
+            order=1,
+            published_at=published_at,
+            is_published=True,
+        )
+
+        request = self.factory.get(reverse('v2-blogs-list'))
+        response = V2BlogPostViewSet.as_view({'get': 'list'})(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data['results']
+        self.assertEqual([item['title'] for item in payload[:2]], [second.title, first.title])
+
+    @mock.patch('apps.blog.models.safe_destroy')
+    def test_blog_delete_cleans_up_both_images(self, mocked_destroy):
+        post = BlogPost.objects.create(
+            title='Delete me',
+            summary='Summary',
+            author_name='AirQo Team',
+            order=1,
+            is_published=True,
+        )
+        post.author_image = 'website/uploads/blog/authors/author.jpg'
+        post.cover_image = 'website/uploads/blog/images/cover.jpg'
+
+        post.delete()
+
+        self.assertEqual(mocked_destroy.call_args_list[0].args[0], 'website/uploads/blog/authors/author.jpg')
+        self.assertEqual(mocked_destroy.call_args_list[1].args[0], 'website/uploads/blog/images/cover.jpg')
+        self.assertEqual(mocked_destroy.call_count, 2)
 
 
 class EventApiTests(TestCase):

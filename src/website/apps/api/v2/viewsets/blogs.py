@@ -51,7 +51,7 @@ class BlogPostViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQueryS
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields: ClassVar[List[str]] = ['title', 'summary', 'author_name', 'meta_title']
     ordering_fields: ClassVar[List[str]] = ['published_at', 'order', 'title', 'created', 'modified']
-    ordering: ClassVar[List[str]] = ['-published_at', 'order']
+    ordering: ClassVar[List[str]] = ['order', '-published_at', '-id']
     list_only_fields: Optional[List[str]] = [
         'id', 'slug', 'title', 'summary', 'author_name', 'author_role', 'author_image',
         'published_at', 'meta_title', 'meta_description', 'cover_image', 'website_category',
