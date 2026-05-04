@@ -3,7 +3,9 @@ const redis = require("redis");
 const constants = require("./constants");
 const { logText, logElement, logTextWithTimestamp } = require("@utils/shared");
 
-const REDIS_URL = constants.REDIS_URL;
+const REDIS_URL = constants.REDIS_SERVER
+  ? `redis://${constants.REDIS_SERVER}:${constants.REDIS_PORT || 6379}`
+  : undefined;
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- redis-config`,
@@ -11,7 +13,7 @@ const logger = require("log4js").getLogger(
 
 if (!REDIS_URL) {
   logger.error(
-    "REDIS_URL environment variable not set. Redis will be unavailable.",
+    "REDIS_SERVER is not set. Redis will be unavailable.",
   );
 }
 
@@ -87,7 +89,6 @@ const redisConfig = {
   socket: {
     connectTimeout: 10000, // 10 seconds
     keepAlive: 5000, // Send keep-alive packets every 5 seconds
-    tls: REDIS_URL?.startsWith("rediss://") ? true : undefined,
     // ── Reconnect strategy ──────────────────────────────────────────────────
     // reconnectStrategy MUST be inside socket (not at the top level of the
     // config object) — top-level placement is silently ignored by node-redis.
@@ -123,8 +124,8 @@ const redisConfig = {
   disableOfflineQueue: true,
 };
 
-// Create Redis client. If REDIS_URL is not set, create a disconnected client
-// that will rely on the fallback cache.
+// Create Redis client. If REDIS_SERVER is not configured, create a disconnected
+// client that will rely on the fallback cache.
 const client = redis.createClient(REDIS_URL ? redisConfig : {});
 
 // Event handlers
@@ -156,7 +157,7 @@ client.on("reconnecting", () => {
   logTextWithTimestamp(`Redis reconnecting... Attempt ${connectionAttempts}`);
 });
 
-// Initialize connection only if REDIS_URL is provided
+// Initialize connection only if REDIS_SERVER is configured
 if (REDIS_URL) {
   (async () => {
     try {
@@ -195,7 +196,7 @@ const getFallbackCache = (key) => {
 const redisGetAsync = async (key) => {
   const prefixedKey = `${KEY_PREFIX}${key}`;
   if (!client.isOpen) {
-    logger.debug(`Redis not available - using fallback for GET ${prefixedKey}`);
+    logger.debug("Redis not available - using fallback for GET");
     return getFallbackCache(prefixedKey);
   }
 
@@ -219,9 +220,7 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
   setFallbackCache(prefixedKey, value, ttlMs);
 
   if (!client.isOpen) {
-    logger.debug(
-      `Redis not available - SET ${prefixedKey} cached in fallback only`,
-    );
+    logger.debug("Redis not available - SET cached in fallback only");
     return "OK";
   }
 
@@ -246,9 +245,7 @@ const redisExpireAsync = async (key, seconds) => {
   }
 
   if (!client.isOpen) {
-    logger.debug(
-      `Redis not available - EXPIRE ${prefixedKey} applied to fallback only`,
-    );
+    logger.debug("Redis not available - EXPIRE applied to fallback only");
     return 1;
   }
 
@@ -266,9 +263,7 @@ const redisDelAsync = async (key) => {
   fallbackCache.delete(prefixedKey);
 
   if (!client.isOpen) {
-    logger.debug(
-      `Redis not available - DEL ${prefixedKey} removed from fallback only`,
-    );
+    logger.debug("Redis not available - DEL removed from fallback only");
     return hadKey ? 1 : 0;
   }
 
