@@ -1,150 +1,498 @@
-# Predict Microservice Guide..
 
-This repository contains code for the predict microservice, and contains 3 main directories
 
-- API - code for predict API
-- Jobs - This contains code for three machine learning models `forecast model training`, `forecasting job`
+## Running Locally
 
-Guidelines for running these models are indicated in their respective READMEs but will also be included below
+Create and activate a virtual environment.
 
-## Forecast API documentation
+Windows:
 
-### Introduction
-
-This page conatins AirQo’s Forecast API and provides guidelines on how one can use it to access air quality PM2.5 forecasts for any particular location using the `site_id` query parameter, though work is ongoing to allow querying by other parameters such as `city`, `region`, etc.
-
-### Forecasting.
-
-The concept of forecasting involves predicting or estimating a given value of a given variable such as temperature, price of a commodity at a future point in time.
-
-This can involve taking into account a number of factors such as how that value has changed in previous hours, days or weeks, as well as any other factors that may affect the value.
-
-### Forecasting at AirQo
-
-AirQo project has a large network of custom built air quality monitors placed in various locations within Uganda and Africa, We also have devices from other partners both local and international such as KCCA, the US Embassy amongst others.
-
-All these serve as sources for air quality data measured in `µg/m3`. This data is received at an hourly rate. Using this data, we are also able to leverage machine learning techniques to forecast the air quality of a given site / location or even region, using data that has been received so far along with other factors such as the location,etc.
-
-To make air quality forecasts of PM2.5 values, we take into accound details such as the `device_number`, `time`, `previous_day_pm2_5_value`, `previous_1_week_pm_2_5_value`, amongst others.
-
-The code used to train the models for making `hourly_forecasts`(next 24 hours) and `daily_forecasts`(next_1_week) is available [here](https://github.com/airqo-platform/AirQo-api/tree/staging/src/predict/jobs/forecast_training) for the model training and [here](https://github.com/airqo-platform/AirQo-api/tree/staging/src/predict/jobs/forecast) for the job to make the actual forecasts
-
-The ability to accurately predict what air quality will be in the coming days is also essential for empowering everyone from governments to families to make informed decisions to protect health and guide action, just as we do with weather.
-
-### Forecast API usage guidelines
-
-Our forecast APi currently supports 2 endpoints, `hourly_forecast` and `daily_forecast`.
-
-- Hourly forecasts (next 24 hours) - `{base_url}/api/v2/predict/hourly-forecast`
-- Daily-forecasts (next 7 days) - `{base_url}/api/v2/predict/daily-forecast`
-
-Listed below are the query parameters for both endpoints:
-| Query Parameter | Description | Required | Possible value | Constraints
-| ------------- |:-------------:| -----:| --------:|-----:|
-| `site_id` | Site ID for location whose forecast is required | no | "640f19699b912345" | value must be a string & valid site on `airqo` network |
-| `token` | Authorisation token required to use the endpoint | yes| `abcdefgh` | Value must be a string
-
-### Sample Result
-
+```powershell
+python -m venv venv
+venv\Scripts\activate
 ```
+
+Linux/macOS:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+cd src/predict
+pip install -r requirements.txt
+```
+
+Run the API:
+
+```bash
+cd api
+flask run
+```
+
+## Docker
+
+From `src/predict/api`, build and run the image:
+
+```bash
+docker build --target=dev --tag predict-api .
+docker run -p 5000:5000 --env FLASK_ENV=development predict-api:latest
+```
+
+
+# Predict Microservice Guide
+
+The predict microservice contains the Flask API and the jobs used to generate forecast and prediction data.
+
+- `api/`: Predict API application.
+- `jobs/forecast_training/`: Model training jobs for forecasts.
+- `jobs/forecast/`: Forecast generation jobs.
+- `jobs/predict_places_air_quality/`: Place-level air quality prediction jobs.
+
+## API Base URL
+
+All API routes are mounted under:
+
+```text
+/api/v2/predict
+```
+
+For local development, the base URL is usually:
+
+```text
+http://localhost:5000/api/v2/predict
+```
+
+## API Endpoints
+
+### Faulty Devices
+
+Returns faulty devices written by the AirQo fault detection workflow.
+
+```http
+GET /api/v2/predict/faulty-devices
+```
+
+Query parameters:
+
+| Parameter | Required | Description | Example |
+| --- | --- | --- | --- |
+| `device_id` | No | Filter results to one device. | `690-g5137` |
+| `explain` | No | Add human-readable fault explanations. Defaults to `false`. | `true` |
+
+Examples:
+
+```http
+GET /api/v2/predict/faulty-devices
+GET /api/v2/predict/faulty-devices?device_id=690-g5137
+GET /api/v2/predict/faulty-devices?device_id=690-g5137&explain=true
+```
+
+Example response:
+
+```json
 {
-  forecast: {
-            {
-            "health_tips": [
-                {
-                    "_id": "64283ce9e82a77001e55c0b5",
-                    "aqi_category": {
-                        "max": 35.49,
-                        "min": 12.1
-                    },
-                    "description": "Today is a great day for outdoor activity.",
-                    "image":"link to image"
-                    "title": "For Everyone"
-                }
-            ],
-            "pm2_5": 23.405056521739112,
-            "time": "2023-06-22T00:00:00+00:00"
+  "message": "Faulty devices found",
+  "success": true,
+  "data": [
+    {
+      "_id": "69e3c8658036d7234f9e07b0",
+      "device_id": "690-g5137",
+      "device_name": "airqo-g5137",
+      "fault_detected": 1,
+      "fault_types": [
+        "correlation_fault",
+        "anomaly_percentage_fault"
+      ],
+      "correlation_fault": 1,
+      "correlation_value": 0.8492728321091092,
+      "anomaly_percentage_fault": 1,
+      "anomaly_percentage": 100,
+      "anomaly_count": 4,
+      "observation_count": 4,
+      "triggered_fault_count": 2
+    }
+  ],
+  "total": 1
+}
+```
+
+When `explain=true`, each device also includes `fault_explanations`:
+
+```json
+{
+  "fault_explanations": [
+    {
+      "fault_type": "anomaly_percentage_fault",
+      "message": "The ML model marked a high percentage of this device's recent observations as abnormal.",
+      "evidence": {
+        "anomaly_percentage": 100,
+        "anomaly_count": 4,
+        "observation_count": 4,
+        "threshold": 45
+      }
+    }
+  ]
+}
+```
+
+Empty response:
+
+```json
+{
+  "message": "No faulty devices found",
+  "success": true,
+  "data": [],
+  "total": 0
+}
+```
+
+Error response:
+
+```json
+{
+  "message": "Error fetching faulty devices",
+  "success": false,
+  "data": null,
+  "error": "Failed to connect to the faulty devices database."
+}
+```
+
+Fault detection environment variables:
+
+```env
+MONGO_URI=mongodb://localhost:27017/airqo_netmanager
+MONGO_DATABASE_NAME=airqo_netmanager
+MONGO_FAULTY_DEVICES_COLLECTION=faulty_devices_1
+```
+
+### Site Daily Forecasts
+
+Returns grouped 7-day forecasts for all sites or one site. When `site_id` is provided, the response keeps the same outer structure but returns one site group in `data.forecasts`.
+
+```http
+GET /api/v2/predict/daily-forecasting
+```
+
+Query parameters:
+
+| Parameter | Required | Description | Example |
+| --- | --- | --- | --- |
+| `site_id` | No | Filter to one site. | `640f19699b912345` |
+
+Examples:
+
+```http
+GET /api/v2/predict/daily-forecasting
+GET /api/v2/predict/daily-forecasting?site_id=640f19699b912345
+```
+
+Response shape:
+
+```json
+{
+  "success": true,
+  "data": {
+    "start_date": "2026-05-05",
+    "end_date": "2026-05-11",
+    "days": 7,
+    "total": 1,
+    "units": {
+      "pm2_5": "ug/m3",
+      "air_temperature": "degC",
+      "relative_humidity": "%",
+      "air_pressure_at_sea_level": "hPa",
+      "precipitation_amount": "mm",
+      "cloud_area_fraction": "%",
+      "wind_speed": "m/s",
+      "wind_from_direction": "degrees",
+      "forecast_confidence": "%"
+    },
+    "descriptions": {
+      "pm2_5_mean": "Predicted average PM2.5 concentration.",
+      "pm2_5_low": "Lower PM2.5 forecast estimate.",
+      "pm2_5_high": "Upper PM2.5 forecast estimate.",
+      "pm2_5_min": "Minimum predicted PM2.5.",
+      "pm2_5_max": "Maximum predicted PM2.5.",
+      "forecast_confidence": "Confidence level of the forecast."
+    },
+    "forecasts": [
+      {
+        "site_details": {
+          "site_id": "6964bc5bb5a37a00148521df",
+          "site_name": "Collins Owhondah Dr",
+          "site_latitude": 4.785747,
+          "site_longitude": 6.97383
         },
+        "start_date": "2026-05-05",
+        "end_date": "2026-05-11",
+        "days": 7,
+        "total": 7,
+        "forecasts": [
+          {
+            "date": "2026-05-05",
+            "forecast": {
+              "pm2_5_mean": 14.5,
+              "pm2_5_low": 10.8,
+              "pm2_5_high": 18.7,
+              "pm2_5_min": 9.3,
+              "pm2_5_max": 33.3,
+              "forecast_confidence": 79.0
+            },
+            "aqi": {
+              "aqi_value": 14.5,
+              "aqi_category": "Moderate",
+              "aqi_color_name": "Yellow",
+              "aqi_color": "#FFFF00"
+            },
+            "met": {
+              "air_temperature": 27.3,
+              "relative_humidity": 85.2,
+              "air_pressure_at_sea_level": 1010.0,
+              "precipitation_amount": 9.2,
+              "cloud_area_fraction": 89.7,
+              "wind_speed": 1.9,
+              "wind_from_direction": 191.9,
+              "wind_direction_compass": "SSW"
+            },
+            "created_at": "2026-05-05T03:00:56.215000"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-### Guidelines for running the API application
+Important response fields:
 
-#### Create local python environment
+| Field | Description |
+| --- | --- |
+| `data.start_date` | First forecast date in the response. |
+| `data.end_date` | Last forecast date in the response. |
+| `data.days` | Expected forecast window length. |
+| `data.total` | Number of site groups returned. |
+| `data.units` | Units for forecast and meteorology values. |
+| `data.descriptions` | Human-readable descriptions for forecast fields. |
+| `data.forecasts[].site_details` | Site metadata for each forecast group. |
+| `data.forecasts[].forecasts[]` | Daily forecast rows for the site. |
+| `forecast.pm2_5_mean` | Predicted average PM2.5 concentration. |
+| `forecast.pm2_5_low` / `forecast.pm2_5_high` | Lower and upper PM2.5 forecast estimates. |
+| `forecast.pm2_5_min` / `forecast.pm2_5_max` | Minimum and maximum predicted PM2.5 values. |
+| `forecast.forecast_confidence` | Forecast confidence percentage. |
+| `aqi` | AQI category, value, and display color derived from `pm2_5_mean`. |
+| `met` | Meteorological forecast values used alongside the PM2.5 forecast. |
+| `created_at` | Time when the forecast document was generated. |
 
-##### windows
+### Next 24-Hour Forecast
 
-    - ``` python -m venv [local_env_name]```
+Returns the next 24 hourly PM2.5 forecasts for a matching location.
 
-##### linux/mac
+```http
+GET /api/v2/predict/hourly-forecast
+```
 
-    - ``` python3 -m venv [local_env_name]```
+At least one location query parameter is required.
 
-#### Activate the environment
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `site_id` | No | Site identifier. |
+| `site_name` | No | Site name. |
+| `parish` | No | Parish name. |
+| `county` | No | County name. |
+| `city` | No | City name. |
+| `district` | No | District name. |
+| `region` | No | Region name. |
+| `language` | No | Language for health tips. |
 
-    ##### windows
-    -  ```  [local_env_name]\Scripts\activate```
+Example:
 
-    ##### linux/mac
-    -  ```  source [local_env_name]/bin/activate```
+```http
+GET /api/v2/predict/hourly-forecast?site_id=640f19699b912345
+```
 
-#### Install dependencies using the requirements.txt
+### Next 7-Day Forecast
 
-    -  ```  pip install -r requirements.txt ```
+Returns the next 7 daily PM2.5 forecasts for a matching location.
 
-#### Set environment variables
+```http
+GET /api/v2/predict/daily-forecast
+```
 
-    - Navigate to api directory
-    - Add the `.env` file to directory. This can be obtained from secret manager (`predict-env-file`) or any active team member
+At least one location query parameter is required.
 
-- Add the `google_application_credentials.json` (`google-application-credentials`) to ` api directory(current directory)`. Obtain from a team member or GCP.
-- Ensure all the necessary `ENV VARIABLES` are set and available i.e.
-  - DB_NAME_STAGE=db-stage-name
-  - DB_NAME_DEV=db-stage-dev
-  - DB_NAME_PROD=db-production-name
-  - FLASK_APP=filename.py
-  - FLASK_ENV=target-environment
-  - FLASK_RUN_PORT=portnumber
-  - GOOGLE_APPLICATION_CREDENTIALS=credentials-file
-  - MONGO_GCE_URI=connection_string_to_mongodb
-  - MONGO_DEV_URI=connection_string_to_local_db
-    - (local connection to db might need set up of mongodb container)
-  - REDIS_PORT=redis port
-  - REDIS_SERVER_PROD=sample redis server
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `device_id` | No | Device identifier. |
+| `site_id` | No | Site identifier. |
+| `site_name` | No | Site name. |
+| `parish` | No | Parish name. |
+| `county` | No | County name. |
+| `city` | No | City name. |
+| `district` | No | District name. |
+| `region` | No | Region name. |
+| `language` | No | Language for health tips. |
 
-#### Run the Flask App
+Example:
 
-    - ``` flask run```
+```http
+GET /api/v2/predict/daily-forecast?device_id=690-g5137
+```
 
-### To build and run application with docker (Uses dockerfile.)
+### All Hourly Forecasts
 
-1. Ensure you're in `api` directory, if not change directory to it.
+Returns all available hourly forecasts.
 
-#### Environment Setup
+```http
+GET /api/v2/predict/hourly-forecasts
+```
 
-- Add the `.env` file to directory. This can be obtained from secret manager (`predict-env-file`) or any active team member
-- Add the `google_application_credentials.json` (`google-application-credentials`) to ` api directory(current directory)`. Obtain from a team member or GCP.
-- Ensure all the necessary `ENV VARIABLES` are set and available i.e.
-  - DB_NAME_STAGE=db-stage-name
-  - DB_NAME_DEV=db-stage-dev
-  - DB_NAME_PROD=db-production-name
-  - FLASK_APP=filename.py
-  - FLASK_ENV=target-environment
-  - FLASK_RUN_PORT=portnumber
-  - GOOGLE_APPLICATION_CREDENTIALS=credentials-file
-  - MONGO_GCE_URI=connection_string_to_mongodb
-  - MONGO_DEV_URI=connection_string_to_local_db
-    - (local connection to db might need set up of mongodb container)
-  - REDIS_PORT=redis port
-  - REDIS_SERVER_PROD=sample redis server
+Query parameters:
 
-#### Build the image targeting any specified environment
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `language` | No | Language for health tips. |
 
-    - `docker build --target=[img-env-name]-t image-name .`
-    -  `docker run -p 5000:5000 --env FLASK_ENV=[target-env] -it [image-name:latest]`
+### All Daily Forecasts
 
-### e.g
+Returns all available daily forecasts.
 
-     - `docker build --target=dev --tag forecast .`
-     -  `docker run -p 5000:5000 --env FLASK_ENV=development -it forecast:latest`
+```http
+GET /api/v2/predict/daily-forecasts
+```
+
+Query parameters:
+
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `language` | No | Language for health tips. |
+
+### Heatmap Predictions
+
+Returns prediction data formatted as GeoJSON for heatmap rendering.
+
+```http
+GET /api/v2/predict/heatmap
+```
+
+Query parameters:
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `airqloud` | No | None | Filter by AirQloud. |
+| `page` | No | `1` | Page number. |
+| `limit` | No | `1000` | Number of records per page. |
+
+Example:
+
+```http
+GET /api/v2/predict/heatmap?page=1&limit=1000
+```
+
+### Search Predictions
+
+Returns the nearest prediction for provided coordinates.
+
+```http
+GET /api/v2/predict/search
+```
+
+Query parameters:
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `latitude` | Yes | None | Latitude. |
+| `longitude` | Yes | None | Longitude. |
+| `source` | No | `parishes` | Source to search. Use `parishes` for parish predictions. |
+| `distance` | No | `100` | Search distance in metres when source is not `parishes`. |
+
+Example:
+
+```http
+GET /api/v2/predict/search?latitude=0.3476&longitude=32.5825
+```
+
+### Parish Predictions
+
+Returns paginated parish-level predictions.
+
+```http
+GET /api/v2/predict/parishes
+```
+
+Query parameters:
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `page` | No | `1` | Page number. |
+| `page_size` | No | `10` | Records per page. Capped by `PARISH_PREDICTIONS_QUERY_LIMIT`. |
+| `parish` | No | None | Filter by parish. |
+| `district` | No | None | Filter by district. |
+
+Example:
+
+```http
+GET /api/v2/predict/parishes?page=1&page_size=10&district=Kampala
+```
+
+## Fault Fields
+
+Fault records may contain both rule-based and ML-based fault fields.
+
+Rule-based faults:
+
+| Field | Meaning |
+| --- | --- |
+| `correlation_fault` | The two PM2.5 sensor channels are weakly correlated. |
+| `missing_data_fault` | The device has sustained missing PM2.5 readings. |
+| `sensor_disagreement_fault` | The PM2.5 sensor channels disagree significantly. |
+| `constant_value_fault` | The device reports repeated constant values. |
+| `battery_fault` | The device has sustained low battery readings. |
+| `range_fault` | The device reports values outside expected valid ranges. |
+
+ML-based faults:
+
+| Field | Meaning |
+| --- | --- |
+| `anomaly_percentage_fault` | More than 45% of recent observations were marked anomalous by the trained model. |
+| `anomaly_sequence_fault` | The trained model found a long consecutive sequence of anomalous observations. |
+| `anomaly_percentage` | Percentage of observations marked anomalous. |
+| `anomaly_count` | Number of observations marked anomalous. |
+| `observation_count` | Number of observations checked. |
+| `fault_count` | Longest consecutive anomaly count used for sequence faults. |
+
+## Environment Files
+
+Runtime configuration is loaded from `api/.env` and actual environment variables.
+
+`api/.env.local` is a reference file only. It is intended to show developers what values to request or provide after forking the repository. The API does not load `.env.local` automatically.
+
+Important variables:
+
+```env
+FLASK_APP=app.py
+FLASK_ENV=development
+FLASK_RUN_PORT=5000
+
+POSTGRES_CONNECTION_URL=postgresql://postgres:postgres@localhost:5432/airqo
+
+MONGO_GCE_URI=mongodb://localhost:27017/airqo_netmanager
+MONGO_URI=mongodb://localhost:27017/airqo_netmanager
+DB_NAME=airqo_netmanager
+MONGO_DATABASE_NAME=airqo_netmanager
+MONGO_SITE_DAILY_FORECAST_COLLECTION=test_7_days_site_daily_forecast
+MONGO_FAULTY_DEVICES_COLLECTION=faulty_devices_1
+
+REDIS_SERVER=localhost
+REDIS_PORT=6379
+CACHE_TIMEOUT=3600
+
+GOOGLE_APPLICATION_CREDENTIALS=google_application_credentials.json
+BIGQUERY_MEASUREMENTS_PREDICTIONS=airqo-250220.averaged_data.predictions
+BIGQUERY_PLACES_PREDICTIONS=airqo-250220.averaged_data.places_predictions
+
+AIRQO_BASE_URL=https://platform.airqo.net
+AIRQO_API_AUTH_TOKEN=
+```
