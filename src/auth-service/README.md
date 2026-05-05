@@ -58,7 +58,11 @@ For detailed information on the project's code structure and naming conventions,
 
 ### Running Locally
 
-1.  Create a `.env` file in the project root (see `.env.example` if available or create your own) and set the environment variables appropriately.
+1.  Set up your local environment:
+    ```bash
+    cp .env.development.template.json .env.development.json
+    ```
+    Open `.env.development.json` and fill in the required values.
 2.  Start the development server: `npm run dev`
 
 ### Running in Production (Docker)

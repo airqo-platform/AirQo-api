@@ -1,4 +1,4 @@
-// config/global/permissions.js
+// config/core/permissions.js
 
 const generateDescription = (permission) => {
   if (!permission) return "No description available.";
@@ -8,11 +8,7 @@ const generateDescription = (permission) => {
   );
 };
 
-// Direct import of environment config to get AIRQO_GROUP_ID
-const environments = require("../environments");
-const environment = process.env.NODE_ENV || "production";
-const envConfig = environments[environment];
-const AIRQO_GROUP_ID = envConfig.AIRQO_GROUP_ID;
+const AIRQO_GROUP_ID = process.env.DEFAULT_GROUP;
 
 // Step 1: Define the single source of truth for all permissions
 const PERMISSION_DEFINITIONS = [
