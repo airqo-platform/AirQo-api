@@ -1806,6 +1806,11 @@ try {
   logger.error("Failed to validate route configuration:", error);
 }
 
+// Flat list of every URI that blocks JWT and requires query-token auth.
+// Exported so consumers (e.g. rate limiting) can match on the same set
+// without duplicating the route definitions.
+const specificRouteUris = specificRoutes.flatMap((r) => r.uri);
+
 module.exports = {
   setLocalAuth,
   setJWTAuth,
@@ -1823,4 +1828,6 @@ module.exports = {
   refreshTokenAuth,
   authenticateJWT,
   optionalJWTAuth,
+  specificRouteUris,
+  matchesRoute,
 };

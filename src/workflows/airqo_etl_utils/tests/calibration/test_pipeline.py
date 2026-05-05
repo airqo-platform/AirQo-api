@@ -61,16 +61,14 @@ class TestCalibrationPipelineRun:
     @patch(
         "airqo_etl_utils.calibration.pipeline.CalibrationModelTrainer.train_and_deploy"
     )
-    @patch("airqo_etl_utils.calibration.pipeline.CalibrationPreprocessor.merge_hourly")
-    @patch("airqo_etl_utils.calibration.pipeline.CalibrationPreprocessor.process_bam")
-    @patch("airqo_etl_utils.calibration.pipeline.CalibrationPreprocessor.process_lcs")
+    @patch(
+        "airqo_etl_utils.calibration.pipeline.CalibrationPreprocessor.build_wide_dataset"
+    )
     @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
     def test_run_calls_trainer_for_each_country(
         self,
         mock_extract,
-        mock_process_lcs,
-        mock_process_bam,
-        mock_merge,
+        mock_wide,
         mock_train,
         merged_training_df,
     ):
@@ -82,9 +80,7 @@ class TestCalibrationPipelineRun:
                 "s2_pm2_5": [11.0] * 5,
             }
         )
-        mock_process_lcs.return_value = pd.DataFrame({"avg_pm2_5": [10.0]})
-        mock_process_bam.return_value = pd.DataFrame({"bam_pm": [12.0]})
-        mock_merge.return_value = merged_training_df
+        mock_wide.return_value = merged_training_df
         mock_train.return_value = {
             "r2": 0.95,
             "mae": 1.5,

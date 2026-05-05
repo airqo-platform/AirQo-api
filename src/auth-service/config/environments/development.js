@@ -25,6 +25,7 @@ const devConfig = {
   FORGOT_PAGE: `${process.env.ANALYTICS_DEV_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.ANALYTICS_DEV_BASE_URL,
   ANALYTICS_BASE_URL: "http://localhost:5000",
+  VERTEX_BASE_URL: "http://localhost:5001",
   ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(

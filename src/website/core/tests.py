@@ -178,6 +178,17 @@ class UploadValidationTests(SimpleTestCase):
         with self.assertRaises(ValidationError):
             validate_image_format(oversized_file)
 
+    @mock.patch("PIL.Image.open", side_effect=AssertionError("Pillow should not be used for upload validation"))
+    def test_validate_image_format_does_not_depend_on_pillow_for_valid_images(self, mocked_open):
+        valid_image = SimpleUploadedFile(
+            "avatar.jpg",
+            b"\xff\xd8\xff" + (b"a" * 1024),
+            content_type="image/jpeg",
+        )
+
+        validate_image_format(valid_image)
+        mocked_open.assert_not_called()
+
     def test_validate_image_allows_objects_without_size_attribute(self):
         validate_image(self.FileWithoutSize())
 

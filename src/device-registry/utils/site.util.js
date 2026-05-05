@@ -114,13 +114,14 @@ const getSiteCountSummary = async (request, next) => {
 };
 
 /**
- * Derives a display-ready data_provider string from the networks of all
- * devices currently deployed at a given site.
+ * Derives a display-ready data_provider string for a site.
  *
  * Rules:
- *   - No devices at the site → returns null (callers such as refreshSiteDataProvider() should clear any stale stored value)
- *   - Single network       → e.g. "AIRQO"
- *   - Multiple networks    → e.g. "AIRQO / METONE" (sorted for determinism)
+ *   - Active devices found  → map each device's network through DATA_PROVIDER_MAPPINGS,
+ *                             deduplicate, sort, and join (e.g. "AIRQO / METONE")
+ *   - No active devices     → fall back to the site's own network field via
+ *                             DATA_PROVIDER_MAPPINGS (covers recalled-device sites)
+ *   - No active devices AND no site.network → returns null
  *
  * @param {string}   tenant  - The tenant identifier
  * @param {ObjectId} siteId  - The site whose devices will be queried
@@ -134,7 +135,18 @@ const computeSiteDataProvider = async (tenant, siteId) => {
       .select("network")
       .lean();
 
-    if (!devices || devices.length === 0) return null;
+    if (!devices || devices.length === 0) {
+      // No active (deployed) device at this site — fall back to the site's own
+      // network field. This covers recalled-device sites: the device is gone
+      // but the site still belongs to the same organisation.
+      const site = await SiteModel(tenant)
+        .findById(siteId)
+        .select("network")
+        .lean();
+      if (!site || !site.network) return null;
+      const label = constants.DATA_PROVIDER_MAPPINGS(site.network);
+      return label || null;
+    }
 
     // Step 1: map raw network ids → display labels via the mapping fn.
     // Step 2: filter out any unmappable values.
@@ -179,9 +191,8 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
     const SiteModel = require("@models/Site");
     const dataProvider = await computeSiteDataProvider(tenant, siteId);
 
-    // Write the result unconditionally:
-    // - non-null  → sets the correct derived value
-    // - null      → clears a stale value when the last device is recalled
+    // Write the result unconditionally. null is only possible if the site
+    // document has no network field, which should not happen in practice.
     await SiteModel(tenant).findByIdAndUpdate(
       siteId,
       { $set: { data_provider: dataProvider } },
@@ -1915,9 +1926,13 @@ const createSite = {
       let types = results.types;
       let retrievedAddress = {};
       address_components.forEach((object) => {
-        if (object.types.includes("locality", "administrative_area_level_3")) {
+        if (object.types.includes("locality")) {
           retrievedAddress.town = object.long_name;
           retrievedAddress.city = object.long_name;
+        }
+        if (object.types.includes("administrative_area_level_3")) {
+          if (!retrievedAddress.town) retrievedAddress.town = object.long_name;
+          if (!retrievedAddress.city) retrievedAddress.city = object.long_name;
         }
         if (object.types.includes("administrative_area_level_2")) {
           retrievedAddress.district = object.long_name;
@@ -1932,31 +1947,40 @@ const createSite = {
         if (object.types.includes("country")) {
           retrievedAddress.country = object.long_name;
         }
-        if (object.types.includes("sublocality", "sublocality_level_1")) {
+        if (object.types.includes("sublocality") || object.types.includes("sublocality_level_1")) {
           retrievedAddress.parish = object.long_name;
           retrievedAddress.division = object.long_name;
           retrievedAddress.village = object.long_name;
           retrievedAddress.sub_county = object.long_name;
           retrievedAddress.search_name = object.long_name;
         }
-        retrievedAddress.formatted_name = formatted_name;
-        retrievedAddress.geometry = geometry;
-        retrievedAddress.site_tags = types;
-        retrievedAddress.google_place_id = google_place_id;
-        retrievedAddress.location_name =
-          retrievedAddress.country !== "Uganda"
-            ? `${retrievedAddress.region}, ${retrievedAddress.country}`
-            : `${retrievedAddress.district}, ${retrievedAddress.country}`;
-        if (!retrievedAddress.search_name) {
-          retrievedAddress.search_name = retrievedAddress.town
-            ? retrievedAddress.town
-            : retrievedAddress.street
-            ? retrievedAddress.street
-            : retrievedAddress.city
-            ? retrievedAddress.city
-            : retrievedAddress.district;
-        }
       });
+
+      // Computed once after all components are extracted so country/region/district
+      // are fully populated before location_name is built.
+      retrievedAddress.formatted_name = formatted_name;
+      retrievedAddress.geometry = geometry;
+      retrievedAddress.site_tags = types;
+      retrievedAddress.google_place_id = google_place_id;
+
+      if (retrievedAddress.country) {
+        const qualifier =
+          retrievedAddress.country !== "Uganda"
+            ? retrievedAddress.region
+            : retrievedAddress.district;
+        retrievedAddress.location_name = qualifier
+          ? `${qualifier}, ${retrievedAddress.country}`
+          : retrievedAddress.country;
+      }
+
+      if (!retrievedAddress.search_name) {
+        retrievedAddress.search_name =
+          retrievedAddress.town ||
+          retrievedAddress.street ||
+          retrievedAddress.city ||
+          retrievedAddress.district;
+      }
+
       return {
         success: true,
         message: "retrieved the Google address details of this site",

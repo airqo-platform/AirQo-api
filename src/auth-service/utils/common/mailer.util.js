@@ -695,7 +695,7 @@ const getEmailSubject = (functionName, params) => {
     verifyEmail: "Verify Your AirQo Account",
     sendVerificationEmail: `Email Verification Code: ${params.token || ""}`,
     verifyMobileEmail: "Your Login Code for AirQo Mobile",
-    afterEmailVerification: "Welcome to AirQo!",
+    afterEmailVerification: "You're in — here's what to explore first",
     forgot: "Link To Reset Password",
     sendPasswordResetEmail: `Password Reset Code: ${params.token || ""}`,
     updateForgottenPassword: "Your AirQo Account Password Reset Successful",
@@ -708,7 +708,7 @@ const getEmailSubject = (functionName, params) => {
     newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token Has Expired",
-    expiringToken: "Action Required: Your AirQo API Token is Expiring Soon",
+    expiringToken: "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
 
     // ===== SENSOR MANUFACTURER (NETWORK) REQUEST FUNCTIONS =====
     notifyAdminOfSensorManufacturerRequest: `New Sensor Manufacturer Request: ${sanitizeEmailString(
@@ -2304,20 +2304,15 @@ const mailer = {
   ),
   expiredToken: createSecurityEmailFunction(
     "expiredToken", //
-    (params) => {
-      const maskedToken =
-        params.token && params.token.length > 12
-          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
-          : params.token || "";
-      return msgs.tokenExpired({
+    (params) =>
+      msgs.tokenExpired({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-        token: maskedToken,
+        token: params.token,
         tokenName: params.tokenName,
         expires: params.expires,
-      });
-    },
+      }),
     {
       cooldownDays: constants.COMPROMISED_TOKEN_COOLDOWN_DAYS,
       enableCooldown: true,
@@ -2325,20 +2320,15 @@ const mailer = {
   ),
   expiringToken: createSecurityEmailFunction(
     "expiringToken", //
-    (params) => {
-      const maskedToken =
-        params.token && params.token.length > 12
-          ? `${params.token.slice(0, 8)}...${params.token.slice(-4)}`
-          : params.token || "";
-      return msgs.tokenExpiringSoon({
+    (params) =>
+      msgs.tokenExpiringSoon({
         firstName: params.firstName,
         lastName: params.lastName,
         email: params.email,
-        token: maskedToken,
+        token: params.token,
         tokenName: params.tokenName,
         expires: params.expires,
-      });
-    },
+      }),
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,

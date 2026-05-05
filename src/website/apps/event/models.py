@@ -8,6 +8,7 @@ from utils.cloudinary import safe_destroy
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+EMPTY_QUILL_VALUE = '{"delta":"","html":""}'
 
 
 class Event(SlugBaseModel):
@@ -91,11 +92,15 @@ class Event(SlugBaseModel):
 
     location_name = models.CharField(max_length=100, null=True, blank=True)
     location_link = models.URLField(null=True, blank=True)
-    event_details = QuillField(default="No details available yet.")
+    event_details = QuillField(default=EMPTY_QUILL_VALUE)
     order = models.IntegerField(default=1, db_index=True)
 
     class Meta(SlugBaseModel.Meta):
         ordering = ["order", "-start_date"]
+        indexes = [
+            models.Index(fields=["event_tag", "order", "start_date"]),
+            models.Index(fields=["website_category", "order", "start_date"]),
+        ]
 
     def __str__(self):
         return self.title
@@ -192,7 +197,7 @@ class Inquiry(BaseModel):
 
 class Program(BaseModel):
     date = models.DateField()
-    program_details = models.TextField(default="No details available yet.")
+    program_details = QuillField(default=EMPTY_QUILL_VALUE)
     order = models.IntegerField(default=1, db_index=True)
     event = models.ForeignKey(
         Event,
@@ -229,7 +234,7 @@ class Session(BaseModel):
     end_time = models.TimeField()
     venue = models.CharField(max_length=80, null=True, blank=True)
     session_title = models.CharField(max_length=150)
-    session_details = models.TextField(default="No details available yet.")
+    session_details = QuillField(default=EMPTY_QUILL_VALUE)
     order = models.IntegerField(default=1, db_index=True)
     program = models.ForeignKey(
         Program,

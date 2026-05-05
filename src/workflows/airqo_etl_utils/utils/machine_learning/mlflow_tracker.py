@@ -212,9 +212,9 @@ class MlflowTracker:
                 try:
                     mlflow.sklearn.log_model(
                         sk_model=model,
-                        name=model_artifact_path,
+                        artifact_path=model_artifact_path,
                         input_example=input_example,
-                        serialization_format="skops",
+                        serialization_format="pickle",
                     )
                 except Exception as exc:
                     logger.warning(

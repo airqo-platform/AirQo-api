@@ -33,6 +33,7 @@ def calibration_model_training():
     def compute_training_window(**context) -> dict:
         """Derive [start, end] dates from the DAG logical date."""
         end = context["logical_date"].replace(hour=0, minute=0, second=0, microsecond=0)
+        end = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         start = end - relativedelta(
             months=int(configuration.CALIBRATION_TRAINING_MONTHS)
         )
@@ -48,25 +49,7 @@ def calibration_model_training():
             start_date=window["start_date"],
             end_date=window["end_date"],
         )
-        results = pipeline.run()
-
-        # Surface per-country outcomes in the logs for easy inspection
-        for country, metrics in results.items():
-            if "error" in metrics:
-                AirflowUtils.dag_failure_notification  # let the DAG log it
-            else:
-                import logging
-
-                logging.getLogger("airflow.task").info(
-                    "country=%s r2=%.3f mae=%.2f rmse=%.2f deployed=%s",
-                    country,
-                    metrics.get("r2", float("nan")),
-                    metrics.get("mae", float("nan")),
-                    metrics.get("rmse", float("nan")),
-                    metrics.get("deployed"),
-                )
-
-        return results
+        pipeline.run()
 
     window = compute_training_window()
     run_calibration_training(window)
