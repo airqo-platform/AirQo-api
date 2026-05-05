@@ -227,14 +227,14 @@ def fetch_faulty_devices():
             200,
         )
     except Exception as e:
-        current_app.logger.error(f"Error: {e}")
+        current_app.logger.exception("Error fetching faulty devices")
         return (
             jsonify(
                 {
                     "message": "Error fetching faulty devices",
                     "success": False,
                     "data": None,
-                    "error": str(e),
+                    "error": "An internal error occurred",
                 }
             ),
             500,

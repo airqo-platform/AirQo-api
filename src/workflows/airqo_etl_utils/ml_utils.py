@@ -1482,6 +1482,7 @@ class FaultDetectionUtils(BaseMlUtils):
             return None
         except Exception as exc:
             logger.warning(f"Failed to load existing fault-detection metrics: {exc}")
+            raise
         return None
 
     @staticmethod
