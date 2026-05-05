@@ -61,10 +61,9 @@ function loadEnvironment() {
   }
 
   if (!vars || typeof vars !== "object" || Array.isArray(vars)) {
-    console.warn(
-      `[env-loader] ${path.basename(jsonPath)} must be a JSON object, got ${Array.isArray(vars) ? "array" : typeof vars} — skipping.`,
+    throw new Error(
+      `[env-loader] ${path.basename(jsonPath)} must contain a JSON object, got ${Array.isArray(vars) ? "array" : typeof vars}.`,
     );
-    return;
   }
 
   applyToEnv(vars);
