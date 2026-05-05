@@ -85,7 +85,15 @@ Ensure you have the following installed:
    npm install
    ```
 
-4. **Run the service**
+4. **Set up your local environment**
+
+   ```bash
+   cp .env.development.template.json .env.development.json
+   ```
+
+   Open `.env.development.json` and fill in the required values before starting the service.
+
+5. **Run the service**
 
    ```bash
    npm run dev

@@ -4,8 +4,7 @@
 // IMPORTS - All at the top
 // ============================================================================
 require("module-alias/register");
-const dotenv = require("dotenv");
-dotenv.config();
+require("./env-loader").loadEnvironment();
 require("app-module-path").addPath(__dirname + "/..");
 
 // Core imports
