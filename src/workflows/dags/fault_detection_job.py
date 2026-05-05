@@ -4,13 +4,7 @@ from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.ml_utils import FaultDetectionUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from dag_docs import fault_detection_doc
-from task_docs import (
-    fetch_fault_detection_raw_data_doc,
-    flag_pattern_based_faults_doc,
-    flag_rule_based_faults_doc,
-    process_faulty_devices_percentage_doc,
-    save_faulty_devices_doc,
-)
+from task_docs import fetch_fault_detection_raw_data_doc
 
 
 @dag(
@@ -22,50 +16,34 @@ from task_docs import (
 )
 def airqo_fault_detection_dag():
     @task(doc_md=fetch_fault_detection_raw_data_doc)
-    def fetch_raw_data():
-        return FaultDetectionUtils.fetch_fault_detection_raw_data()
-
-    @task(doc_md=flag_rule_based_faults_doc)
-    def flag_rule_based_faults(raw_data):
-        return FaultDetectionUtils.flag_rule_based_faults(raw_data)
-
-    @task(doc_md=flag_pattern_based_faults_doc)
-    def flag_pattern_based_faults(raw_data):
-        return FaultDetectionUtils.detect_pattern_based_faults(
+    def run_fault_detection():
+        raw_data = FaultDetectionUtils.fetch_fault_detection_raw_data()
+        rule_based_faults = FaultDetectionUtils.flag_rule_based_faults(raw_data)
+        pattern_based_faults = FaultDetectionUtils.detect_pattern_based_faults(
             raw_data,
             frequency=Frequency.DAILY,
             train_if_missing=False,
         )
-
-    @task(doc_md=process_faulty_devices_percentage_doc)
-    def process_pattern_fault_summaries(pattern_based_faults):
-        return FaultDetectionUtils.process_pattern_fault_summaries(
+        pattern_fault_summaries = FaultDetectionUtils.process_pattern_fault_summaries(
             pattern_based_faults
         )
-
-    @task(doc_md=save_faulty_devices_doc)
-    def save_to_mongo(
-        raw_data,
-        rule_based_faults,
-        pattern_fault_summaries,
-    ):
         FaultDetectionUtils.save_fault_detection_results(
             raw_data,
             rule_based_faults,
             pattern_fault_summaries,
         )
+        return {
+            "raw_rows": len(raw_data.index),
+            "rule_fault_devices": len(rule_based_faults.index),
+            "pattern_percentage_fault_devices": len(
+                pattern_fault_summaries["faulty_devices_percentage"].index
+            ),
+            "pattern_sequence_fault_devices": len(
+                pattern_fault_summaries["faulty_devices_sequence"].index
+            ),
+        }
 
-    raw_data = fetch_raw_data()
-    rule_based_faults = flag_rule_based_faults(raw_data)
-    pattern_based_faults = flag_pattern_based_faults(raw_data)
-    pattern_fault_summaries = process_pattern_fault_summaries(
-        pattern_based_faults
-    )
-    save_to_mongo(
-        raw_data,
-        rule_based_faults,
-        pattern_fault_summaries,
-    )
+    run_fault_detection()
 
 
 airqo_fault_detection_dag()
