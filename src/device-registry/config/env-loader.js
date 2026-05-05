@@ -45,6 +45,11 @@ function loadEnvironment() {
   const jsonPath = path.join(ROOT, `.env.${env}.json`);
 
   if (!fs.existsSync(jsonPath)) {
+    if (env === "staging" || env === "production") {
+      throw new Error(
+        `[env-loader] ${jsonPath} not found — cannot start in ${env} without a config file.`,
+      );
+    }
     console.warn(
       `[env-loader] ${path.basename(jsonPath)} not found — relying on process.env only.`,
     );
