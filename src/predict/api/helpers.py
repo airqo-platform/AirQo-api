@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 import requests
+from bson import ObjectId
 from dotenv import load_dotenv
 from flask import current_app
 from flask import request
@@ -13,11 +14,17 @@ from pymongo import errors
 from sqlalchemy import func
 
 from app import cache
-from config import connect_mongo, connect_site_forecast_mongo, Config
+from config import (
+    connect_fault_detection_mongo,
+    connect_mongo,
+    connect_site_forecast_mongo,
+    Config,
+)
 
 load_dotenv()
 db = connect_mongo()
 site_forecast_db = connect_site_forecast_mongo()
+fault_detection_db = connect_fault_detection_mongo()
 
 
 def date_to_str(date: datetime):
@@ -40,6 +47,20 @@ def clean_response_value(value: Any):
     except TypeError:
         return serialized
     return serialized
+
+
+def serialize_mongo_document(value: Any):
+    """Convert MongoDB values into JSON-safe response values."""
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, dict):
+        return {
+            key: serialize_mongo_document(document_value)
+            for key, document_value in value.items()
+        }
+    if isinstance(value, list):
+        return [serialize_mongo_document(item) for item in value]
+    return clean_response_value(value)
 
 
 def get_site_daily_forecast_collection_name():
@@ -429,11 +450,13 @@ def get_faults_cache_key():
     args = request.args
     current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     airqloud = args.get("airqloud")
+    device_id = args.get("device_id")
     device_name = args.get("device_name")
+    explain = args.get("explain")
     correlation_fault = args.get("correlation_fault")
     missing_data_fault = args.get("missing_data_fault")
     created_at = args.get("created_at")
-    return f"{airqloud}_{device_name}_{correlation_fault}_{missing_data_fault}_{created_at}"
+    return f"{airqloud}_{device_id}_{device_name}_{explain}_{correlation_fault}_{missing_data_fault}_{created_at}"
 
 
 def geo_coordinates_cache_key():
@@ -734,21 +757,156 @@ def validate_param_values(params):
     return True, None
 
 
-def read_faulty_devices():
+def read_faulty_devices(device_id=None):
     devices = []
     try:
-        collection = db["faulty_devices_1"]
-        devices = list(collection.find({}, {"_id": 0}))
+        collection = fault_detection_db[Config.MONGO_FAULTY_DEVICES_COLLECTION]
+        query = {}
+        if device_id:
+            query["device_id"] = device_id
+        devices = [
+            serialize_mongo_document(device)
+            for device in collection.find(query)
+        ]
     except errors.ServerSelectionTimeoutError as e:
         current_app.logger.error(
              "Error with database connection: %s", e, exc_info=False
             )
+        raise Exception("Failed to connect to the faulty devices database.")
     except errors.PyMongoError as e:
         current_app.logger.error(
             "Error reading faulty devices: %s", e, exc_info=False
             )
         raise Exception("Failed to read faulty devices from the database.")
     return devices
+
+
+def _fault_enabled(device: dict, fault_type: str) -> bool:
+    return int(device.get(fault_type, 0) or 0) == 1
+
+
+def build_fault_explanations(device: dict) -> list[dict]:
+    """Build human-readable explanations for triggered fault flags."""
+    explanations = []
+
+    if _fault_enabled(device, "correlation_fault"):
+        explanations.append(
+            {
+                "fault_type": "correlation_fault",
+                "message": (
+                    "The two PM2.5 sensor channels are weakly correlated, "
+                    "which may indicate inconsistent sensor behavior."
+                ),
+                "evidence": {
+                    "correlation_value": device.get("correlation_value"),
+                    "threshold": 0.9,
+                },
+            }
+        )
+
+    if _fault_enabled(device, "missing_data_fault"):
+        explanations.append(
+            {
+                "fault_type": "missing_data_fault",
+                "message": (
+                    "The device has sustained missing PM2.5 sensor readings."
+                ),
+                "evidence": {"fault_value": device.get("missing_data_fault")},
+            }
+        )
+
+    if _fault_enabled(device, "sensor_disagreement_fault"):
+        explanations.append(
+            {
+                "fault_type": "sensor_disagreement_fault",
+                "message": (
+                    "The PM2.5 sensor channels disagree for a significant "
+                    "share of recent readings."
+                ),
+                "evidence": {"fault_value": device.get("sensor_disagreement_fault")},
+            }
+        )
+
+    if _fault_enabled(device, "constant_value_fault"):
+        explanations.append(
+            {
+                "fault_type": "constant_value_fault",
+                "message": (
+                    "The device reported repeated constant values, which may "
+                    "indicate a stuck sensor."
+                ),
+                "evidence": {"fault_value": device.get("constant_value_fault")},
+            }
+        )
+
+    if _fault_enabled(device, "battery_fault"):
+        explanations.append(
+            {
+                "fault_type": "battery_fault",
+                "message": (
+                    "The device has sustained low battery readings."
+                ),
+                "evidence": {
+                    "fault_value": device.get("battery_fault"),
+                    "threshold": 3.3,
+                },
+            }
+        )
+
+    if _fault_enabled(device, "range_fault"):
+        explanations.append(
+            {
+                "fault_type": "range_fault",
+                "message": (
+                    "The device reported values outside the expected valid "
+                    "sensor range."
+                ),
+                "evidence": {"fault_value": device.get("range_fault")},
+            }
+        )
+
+    if _fault_enabled(device, "anomaly_percentage_fault"):
+        explanations.append(
+            {
+                "fault_type": "anomaly_percentage_fault",
+                "message": (
+                    "The ML model marked a high percentage of this device's "
+                    "recent observations as abnormal."
+                ),
+                "evidence": {
+                    "anomaly_percentage": device.get("anomaly_percentage"),
+                    "anomaly_count": device.get("anomaly_count"),
+                    "observation_count": device.get("observation_count"),
+                    "threshold": 45,
+                },
+            }
+        )
+
+    if _fault_enabled(device, "anomaly_sequence_fault"):
+        explanations.append(
+            {
+                "fault_type": "anomaly_sequence_fault",
+                "message": (
+                    "The ML model found a long consecutive sequence of "
+                    "abnormal observations for this device."
+                ),
+                "evidence": {
+                    "fault_count": device.get("fault_count"),
+                    "threshold": 80,
+                },
+            }
+        )
+
+    return explanations
+
+
+def add_fault_explanations(devices: list[dict]) -> list[dict]:
+    explained_devices = []
+    for device in devices:
+        explained_device = device.copy()
+        explained_device["fault_explanations"] = build_fault_explanations(device)
+        explained_devices.append(explained_device)
+    return explained_devices
 
 
 def add_forecast_health_tips(results: dict, language: str = ""):

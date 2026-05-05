@@ -43,6 +43,10 @@ class Config:
     MONGO_SITE_DAILY_FORECAST_COLLECTION = _env_first(
         "MONGO_SITE_DAILY_FORECAST_COLLECTION"
     )
+    MONGO_FAULTY_DEVICES_COLLECTION = _env_first(
+        "MONGO_FAULTY_DEVICES_COLLECTION",
+        default="faulty_devices_1",
+    )
     REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
     POSTGRES_CONNECTION_URL = os.getenv(
         "POSTGRES_CONNECTION_URL", "postgresql://localhost:5432/test_airqo_db"
@@ -86,6 +90,12 @@ def connect_mongo():
 
 
 def connect_site_forecast_mongo():
+    client = MongoClient(configuration.MONGO_URI)
+    db = client[configuration.MONGO_DATABASE_NAME]
+    return db
+
+
+def connect_fault_detection_mongo():
     client = MongoClient(configuration.MONGO_URI)
     db = client[configuration.MONGO_DATABASE_NAME]
     return db

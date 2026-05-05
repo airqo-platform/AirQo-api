@@ -26,6 +26,7 @@ from helpers import (
     heatmap_cache_key,
     read_faulty_devices,
     get_faults_cache_key,
+    add_fault_explanations,
     add_forecast_health_tips,
     build_site_forecast_response,
 )
@@ -196,14 +197,20 @@ ml_app = Blueprint("ml_app", __name__)
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
-        result = read_faulty_devices()
+        device_id = request.args.get("device_id", default=None, type=str)
+        explain = request.args.get("explain", default="false", type=str).lower()
+        include_explanations = explain in {"1", "true", "yes"}
+        result = read_faulty_devices(device_id=device_id)
+        if include_explanations:
+            result = add_fault_explanations(result)
         if len(result) == 0:
             return (
                 jsonify(
                     {
-                        "message": "Error fetching faulty devices",
+                        "message": "No faulty devices found",
                         "success": True,
-                        "data": None,
+                        "data": [],
+                        "total": 0,
                     }
                 ),
                 200,
@@ -223,7 +230,12 @@ def fetch_faulty_devices():
         current_app.logger.error(f"Error: {e}")
         return (
             jsonify(
-                {"message": "Internal server error", "success": False, "data": None}
+                {
+                    "message": "Error fetching faulty devices",
+                    "success": False,
+                    "data": None,
+                    "error": str(e),
+                }
             ),
             500,
         )
