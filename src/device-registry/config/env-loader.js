@@ -55,8 +55,14 @@ function loadEnvironment() {
   try {
     vars = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
   } catch (err) {
-    console.warn(
+    throw new Error(
       `[env-loader] Failed to parse ${path.basename(jsonPath)}: ${err.message}`,
+    );
+  }
+
+  if (!vars || typeof vars !== "object" || Array.isArray(vars)) {
+    console.warn(
+      `[env-loader] ${path.basename(jsonPath)} must be a JSON object, got ${Array.isArray(vars) ? "array" : typeof vars} — skipping.`,
     );
     return;
   }
