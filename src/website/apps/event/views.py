@@ -1,6 +1,9 @@
 import logging
+from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
 
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from .serializers import (
@@ -22,6 +25,9 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_field = 'id'
+    filter_backends = [OrderingFilter]
+    ordering_fields = ['order', 'start_date', 'end_date', 'title', 'created']
+    ordering = ['order', '-start_date']
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -35,12 +41,12 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         category = self.request.query_params.get('category', None)
         logger.debug(f"Fetching Event queryset with category={category}")
-        queryset = Event.objects.prefetch_related(
+        queryset = Event.objects.filter(is_deleted=False).prefetch_related(
             'inquiries',
             'programs__sessions',
             'partner_logos',
             'resources'
-        ).all()
+        ).order_by('order', '-start_date')
 
         if category in ['airqo', 'cleanair']:
             queryset = queryset.filter(website_category=category)
@@ -49,6 +55,14 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
 
         logger.info(f"Retrieved Event queryset, count={queryset.count()}")
         return queryset
+
+    @action(detail=False, methods=['get'])
+    def featured(self, request, *args, **kwargs):
+        """Return featured events without changing the existing list endpoint."""
+        queryset = self.get_queryset().filter(event_tag=Event.EventTag.FEATURED)
+        queryset = self.filter_queryset(queryset)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def list(self, request, *args, **kwargs):
         logger.debug("Handling Event list request")

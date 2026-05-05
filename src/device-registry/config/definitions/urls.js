@@ -1,12 +1,4 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-const log4js = require("log4js");
-const isEmpty = require("is-empty");
-const { logObject, logText } = require("@utils/shared");
-const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
-
 const urls = {
-  REDIS_URL: process.env.REDIS_URL,
   GET_ROAD_METADATA: ({
     path,
     latitude,

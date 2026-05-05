@@ -16,6 +16,7 @@ from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from ..filters.event import EventFilter, InquiryFilter, ProgramFilter, SessionFilter, PartnerLogoFilter, ResourceFilter
@@ -83,7 +84,7 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
     ]
 
     def get_serializer_class(self):  # type: ignore[override]
-        if self.action == 'list':
+        if self.action in {'list', 'featured', 'upcoming', 'past', 'calendar'}:
             return EventListSerializer
         return EventDetailSerializer
 
@@ -287,6 +288,26 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
             'year': year,
             'month': month
         })
+
+    @extend_schema(
+        summary='List featured events',
+        description='Returns events where event_tag is set to featured.',
+    )
+    @action(detail=False, methods=['get'])
+    def featured(self, request):
+        """Get featured events"""
+        queryset = self.get_queryset().filter(event_tag=Event.EventTag.FEATURED)
+
+        # Apply filters and pagination
+        queryset = self.filter_queryset(queryset)
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class InquiryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
