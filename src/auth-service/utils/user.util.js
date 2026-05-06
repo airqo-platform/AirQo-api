@@ -5335,39 +5335,20 @@ const createUserModule = {
           constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
         ];
         const firebaseDb = getDb();
-        let collectionRef = firebaseDb.collection(
+        const userCollectionRef = firebaseDb.collection(
           `${constants.FIREBASE_COLLECTION_USERS}`,
         );
-        let docRef = collectionRef.doc(userId);
+        await userCollectionRef.doc(userId).delete();
 
-        docRef
-          .delete()
-          .then(async () => {
-            for (var collection of collectionList) {
-              await deleteCollection(
-                firebaseDb,
-                `${collection}/${userId}/${userId}`,
-                100,
-              );
-              collectionRef = firebaseDb.collection(`${collection}`);
-              docRef = collectionRef.doc(userId);
-              docRef.delete();
-            }
-            logText("Document successfully deleted!");
-          })
-          .catch((error) => {
-            logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-
-            next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                {
-                  message: error.message,
-                },
-              ),
-            );
+        for (const collection of collectionList) {
+          await deleteCollection({
+            db: firebaseDb,
+            collectionPath: `${collection}/${userId}/${userId}`,
+            batchSize: 100,
           });
+          await firebaseDb.collection(`${collection}`).doc(userId).delete();
+        }
+        logText("Document successfully deleted!");
 
         return {
           success: true,

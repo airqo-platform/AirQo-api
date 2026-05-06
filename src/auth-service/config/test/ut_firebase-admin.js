@@ -22,9 +22,17 @@ describe("Firebase Admin Configuration", () => {
       firestore: firestoreStub,
     };
 
+    const constantsStub = {
+      FIREBASE_PROJECT_ID: "",
+      FIREBASE_PRIVATE_KEY: "",
+      FIREBASE_CLIENT_EMAIL: "",
+      ENVIRONMENT: "TEST ENVIRONMENT",
+    };
+
     firebaseAdminModule = proxyquire("@config/firebase-admin", {
       "firebase-admin": adminStub,
       "firebase-admin/app": { initializeApp: initializeAppStub },
+      "./constants": constantsStub,
     });
   });
 

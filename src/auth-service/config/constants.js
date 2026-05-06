@@ -1,13 +1,14 @@
 const coreConfig = require("./core");
 const { EnvOnlyValidator } = require("../utils/validation-reporter");
 
-const ENV = process.env.NODE_ENV || "production";
+const ENV = process.env.NODE_ENV || "development";
 
 // ── Transformation helpers ────────────────────────────────────────────────────
-const parseBool = (val, defaultVal) =>
-  val !== undefined && val !== null && val.trim() !== ""
-    ? val.trim() !== "false" && val.trim() !== "0"
-    : defaultVal;
+const parseBool = (val, defaultVal) => {
+  if (val === undefined || val === null || val.trim() === "") return defaultVal;
+  const v = val.trim().toLowerCase();
+  return v !== "false" && v !== "0";
+};
 
 const parseCSV = (val) =>
   val
