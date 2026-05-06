@@ -4,7 +4,12 @@
 // IMPORTS - All at the top
 // ============================================================================
 require("module-alias/register");
-require("./env-loader").loadEnvironment();
+let envLoadError = null;
+try {
+  require("./env-loader").loadEnvironment();
+} catch (err) {
+  envLoadError = err;
+}
 require("app-module-path").addPath(__dirname + "/..");
 
 // Core imports
@@ -53,6 +58,10 @@ try {
   console.log("\n" + "=".repeat(60));
   log(colors.cyan, "🔍 COMPREHENSIVE ENVIRONMENT DIAGNOSTIC");
   console.log("=".repeat(60));
+
+  if (envLoadError) {
+    log(colors.yellow, `⚠️  env-loader warning: ${envLoadError.message}`);
+  }
 
   // 1. Script Information
   log(colors.blue, "\n📁 SCRIPT INFORMATION:");

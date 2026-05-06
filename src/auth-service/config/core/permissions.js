@@ -8,7 +8,7 @@ const generateDescription = (permission) => {
   );
 };
 
-const AIRQO_GROUP_ID = process.env.DEFAULT_GROUP;
+const AIRQO_GROUP_ID = process.env.DEFAULT_GROUP || null;
 
 // Step 1: Define the single source of truth for all permissions
 const PERMISSION_DEFINITIONS = [
@@ -423,7 +423,7 @@ const SYSTEM_ADMIN_CONSTANTS = {
     PERMISSIONS.SUPER_ADMIN,
     PERMISSIONS.DATABASE_ADMIN,
   ],
-  SYSTEM_ADMIN_GROUPS: [AIRQO_GROUP_ID],
+  SYSTEM_ADMIN_GROUPS: [AIRQO_GROUP_ID].filter(Boolean),
 };
 
 const RBAC_CONSTANTS = {
@@ -470,8 +470,9 @@ module.exports = {
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_USER_TYPES.includes(userType);
     },
     isSystemAdminGroup: (groupId) => {
+      if (!groupId) return false;
       return SYSTEM_ADMIN_CONSTANTS.SYSTEM_ADMIN_GROUPS.includes(
-        groupId?.toString(),
+        groupId.toString(),
       );
     },
     isSystemAdminPermission: (permission) => {

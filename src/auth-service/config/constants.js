@@ -1,4 +1,4 @@
-const global = require("./core");
+const coreConfig = require("./core");
 const { EnvOnlyValidator } = require("../utils/validation-reporter");
 
 const ENV = process.env.NODE_ENV || "production";
@@ -81,9 +81,9 @@ function envConfig(env) {
 
   // Priority (highest → lowest):
   //   1. transformations — computed/parsed values always win over raw strings
-  //   2. global          — named globals with their own transforms (envs.js etc.)
+  //   2. coreConfig      — named globals with their own transforms (envs.js etc.)
   //   3. process.env     — canonical values loaded from .env.{NODE_ENV}.json
-  const config = { ...process.env, ...global, ...transformations };
+  const config = { ...process.env, ...coreConfig, ...transformations };
 
   const validator = new EnvOnlyValidator(env);
   if (env === "development") {

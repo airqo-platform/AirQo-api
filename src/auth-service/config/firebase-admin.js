@@ -49,4 +49,13 @@ if (hasFirebaseConfig) {
   );
 }
 
-module.exports = { db };
+function getDb() {
+  if (!db) {
+    throw new Error(
+      "Firebase is not configured — set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL.",
+    );
+  }
+  return db;
+}
+
+module.exports = { db, getDb };

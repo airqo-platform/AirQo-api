@@ -76,4 +76,5 @@ const main = async () => {
 main().catch((error) => {
   console.error("🐛🐛 Error starting the application: ", error);
   logger.error(`🐛🐛 Error starting the application -- ${stringify(error)}`);
+  process.exit(1);
 });
