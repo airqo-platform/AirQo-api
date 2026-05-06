@@ -205,6 +205,7 @@ const envs = {
   DEFAULT_NETWORK_ROLE: process.env.DEFAULT_NETWORK_ROLE,
   DEFAULT_AIRQLOUD: process.env.DEFAULT_AIRQLOUD,
   DEFAULT_GRID: process.env.DEFAULT_GRID,
+  TIMEZONE: process.env.TIMEZONE,
 
   // ── Email / notification routing ───────────────────────────────────────────
   HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
