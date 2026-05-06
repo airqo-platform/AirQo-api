@@ -45,7 +45,8 @@ function loadEnvironment() {
 
   if (!fs.existsSync(jsonPath)) {
     console.warn(
-      `[env-loader] ${path.basename(jsonPath)} not found — relying on process.env only.`,
+      `[env-loader] .env.${env}.json not found (NODE_ENV=${env}) — relying on process.env only. ` +
+        `Running outside K8s? Create .env.${env}.json from .env.development.template.json.`,
     );
     return;
   }
