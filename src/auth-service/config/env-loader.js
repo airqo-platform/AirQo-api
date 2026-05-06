@@ -10,8 +10,8 @@
  *   - Staging     : placed by the CI/CD pipeline from Azure Key Vault
  *   - Production  : placed by the CI/CD pipeline from Azure Key Vault
  *
- * If the JSON file is absent the loader warns and returns for development, but
- * throws for staging and production to prevent a misconfigured deployment.
+ * If the JSON file is absent the loader warns and returns — the app continues
+ * with whatever is already in process.env (e.g. K8s secret mounts).
  *
  * Performance: one synchronous file read at startup, under 5 ms.
  */
@@ -46,11 +46,6 @@ function loadEnvironment() {
   const jsonPath = path.join(ROOT, `.env.${env}.json`);
 
   if (!fs.existsSync(jsonPath)) {
-    if (env === "staging" || env === "production") {
-      throw new Error(
-        `[env-loader] ${jsonPath} not found — cannot start in ${env} without a config file.`,
-      );
-    }
     console.warn(
       `[env-loader] ${path.basename(jsonPath)} not found — relying on process.env only.`,
     );
