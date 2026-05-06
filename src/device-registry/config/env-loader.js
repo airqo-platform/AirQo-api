@@ -1,17 +1,16 @@
 /**
- * Centralized environment loader — JSON only.
+ * Centralized environment loader.
  *
- * Reads .env.{NODE_ENV}.json and applies all non-empty values to process.env.
- * Variables already present in process.env (set by Docker / K8s / shell) are
- * never overwritten — consistent with standard dotenv behaviour.
+ * Reads .env.{NODE_ENV}.json (if present) and applies non-empty values to
+ * process.env without overwriting variables that are already set.
  *
- * The JSON file is the single source of truth for all environments:
+ * The JSON file is a local-development convenience only:
  *   - Development : copy .env.development.template.json → .env.development.json, fill in values
- *   - Staging     : placed by the CI/CD pipeline from Azure Key Vault
- *   - Production  : placed by the CI/CD pipeline from Azure Key Vault
+ *   - Staging     : not present in the image — K8s injects vars via envFrom.secretRef (AKV)
+ *   - Production  : not present in the image — K8s injects vars via envFrom.secretRef (AKV)
  *
- * If the JSON file is absent the loader logs a warning and returns — the app
- * continues with whatever is already in process.env (e.g. K8s secret mounts).
+ * When the file is absent the loader logs a warning and returns; the app
+ * continues with whatever is already in process.env.
  *
  * Performance: one synchronous file read at startup, under 5 ms.
  */
@@ -45,13 +44,9 @@ function loadEnvironment() {
   const jsonPath = path.join(ROOT, `.env.${env}.json`);
 
   if (!fs.existsSync(jsonPath)) {
-    if (env === "staging" || env === "production") {
-      throw new Error(
-        `[env-loader] ${jsonPath} not found — cannot start in ${env} without a config file.`,
-      );
-    }
     console.warn(
-      `[env-loader] ${path.basename(jsonPath)} not found — relying on process.env only.`,
+      `[env-loader] .env.${env}.json not found (NODE_ENV=${env}) — relying on process.env only. ` +
+        `Running outside K8s? Create .env.${env}.json from .env.development.template.json.`,
     );
     return;
   }
