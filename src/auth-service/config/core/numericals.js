@@ -52,5 +52,15 @@ const numericals = {
   EMAIL_QUEUE_INTERVAL_MS: 3000, // 3 seconds
   UNKNOWN_IP_RETENTION_DAYS: 90, // Documents not updated within this window are expired/deleted
   UNKNOWN_IP_COUNTS_MAX_ENTRIES: 30, // Max daily ipCounts entries kept per document
+
+  // ── Security / notification thresholds ────────────────────────────────────
+  COMPROMISED_TOKEN_COOLDOWN_DAYS: 30,
+  EXPIRING_TOKEN_REMINDER_DAYS: 7,
+  MAX_BOT_ALERTS_PER_DAY: 2,
+
+  // ── Validation regex patterns ─────────────────────────────────────────────
+  LATITUDE_REGEX: /^-?([0-8]?\d(\.\d+)?|90(\.0+)?)$/,
+  LONGITUDE_REGEX: /^-?((1[0-7]\d|[0-9]?\d)(\.\d+)?|180(\.0+)?)$/,
+  WHITE_SPACES_REGEX: /^\S+$/,
 };
 module.exports = numericals;

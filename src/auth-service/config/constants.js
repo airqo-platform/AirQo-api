@@ -82,9 +82,8 @@ function envConfig(env) {
 
   // Priority (highest → lowest):
   //   1. transformations — computed/parsed values always win over raw strings
-  //   2. coreConfig      — named globals with their own transforms (envs.js etc.)
-  //   3. process.env     — canonical values loaded from .env.{NODE_ENV}.json
-  const config = { ...process.env, ...coreConfig, ...transformations };
+  //   2. coreConfig      — all named env reads and hardcoded constants
+  const config = { ...coreConfig, ...transformations };
 
   const validator = new EnvOnlyValidator(env);
   if (env === "development") {

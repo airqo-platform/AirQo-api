@@ -93,6 +93,12 @@ const PERMISSION_DEFINITIONS = [
   { name: "DATA_VIEW", description: "View data" },
   { name: "DATA_EXPORT", description: "Export data" },
   { name: "DATA_COMPARE", description: "Compare data" },
+  { name: "DATA_CREATE", description: "Create data entries" },
+  { name: "DATA_UPDATE", description: "Update data entries" },
+
+  // User Profile
+  { name: "PROFILE_VIEW", description: "View own profile" },
+  { name: "PROFILE_UPDATE", description: "Update own profile" },
 
   // Settings and Configuration
   { name: "SETTINGS_VIEW", description: "View system and group settings" },
