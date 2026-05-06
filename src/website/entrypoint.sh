@@ -61,10 +61,11 @@ fi
 echo "Starting Gunicorn server..."
 exec gunicorn core.wsgi:application \
     --bind 0.0.0.0:${PORT:-8000} \
-    --workers 2 \
-    --worker-class sync \
+    --workers 4 \
+    --worker-class gthread \
     --worker-connections 1000 \
     --max-requests 1000 \
+    --threads 4 \
     --max-requests-jitter 100 \
     --timeout 300 \
     --keep-alive 5 \
