@@ -1,9 +1,14 @@
 require("module-alias/register");
-const dotenv = require("dotenv");
-dotenv.config();
+require("../config/env-loader").loadEnvironment();
 require("app-module-path").addPath(__dirname);
 const kafkaConsumer = require("@bin/jobs/kafka-consumer");
-const createServer = require("./server");
+let createServer;
+try {
+  createServer = require("./server");
+} catch (err) {
+  console.error("🔥 Failed to load server module:", err.stack || err.message);
+  process.exit(1);
+}
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const log4jsConfiguration = require("@config/log4js");
@@ -62,11 +67,14 @@ const main = async () => {
 
     createServer();
   } catch (error) {
+    console.error(`🐛🐛 error in the main() -- ${error.stack || error.message}`);
     logger.error(`🐛🐛 error in the main() -- ${stringify(error)}`);
+    process.exit(1);
   }
 };
 
 main().catch((error) => {
   console.error("🐛🐛 Error starting the application: ", error);
   logger.error(`🐛🐛 Error starting the application -- ${stringify(error)}`);
+  process.exit(1);
 });

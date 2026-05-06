@@ -150,6 +150,13 @@ const envs = {
   // skipped entirely (returns null) to avoid plaintext HTTP calls.
   // Example: https://pro.ip-api.com/json/<ip>?fields=status,city,regionName,country&key=<API_KEY>
   IP_API_PRO_URL: process.env.IP_API_PRO_URL || null,
+
+  // Firebase Firestore collection names
+  FIREBASE_COLLECTION_USERS: process.env.FIREBASE_COLLECTION_USERS,
+  FIREBASE_COLLECTION_KYA: process.env.FIREBASE_COLLECTION_KYA,
+  FIREBASE_COLLECTION_ANALYTICS: process.env.FIREBASE_COLLECTION_ANALYTICS,
+  FIREBASE_COLLECTION_NOTIFICATIONS: process.env.FIREBASE_COLLECTION_NOTIFICATIONS,
+  FIREBASE_COLLECTION_FAVORITE_PLACES: process.env.FIREBASE_COLLECTION_FAVORITE_PLACES,
 };
 
 module.exports = envs;

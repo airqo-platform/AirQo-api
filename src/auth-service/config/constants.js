@@ -1,23 +1,98 @@
-const environments = require("./environments");
-const global = require("./global");
+const coreConfig = require("./core");
 const { EnvOnlyValidator } = require("../utils/validation-reporter");
 
-const environment = process.env.NODE_ENV || "production";
+const ENV = process.env.NODE_ENV || "development";
 
+// ── Transformation helpers ────────────────────────────────────────────────────
+const parseBool = (val, defaultVal) => {
+  if (val === undefined || val === null || val.trim() === "") return defaultVal;
+  const v = val.trim().toLowerCase();
+  return v !== "false" && v !== "0";
+};
+
+const parseCSV = (val) =>
+  val
+    ? val
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : [];
+
+// ── Config builder ────────────────────────────────────────────────────────────
 function envConfig(env) {
-  const config = { ...global, ...environments[env] };
+  // All raw env values come from process.env, populated by config/env-loader.js
+  // which reads .env.{NODE_ENV}.json (Azure Key Vault). Keys are canonical
+  // (no environment prefix) — no alias mapping needed here.
 
-  // Minimal validation - only shows problems
+  const analyticsBaseUrl = process.env.ANALYTICS_BASE_URL;
+
+  const transformations = {
+    // ── Boolean flags ─────────────────────────────────────────────────────────
+    BYPASS_CAPTCHA: parseBool(process.env.BYPASS_CAPTCHA, false),
+    BYPASS_RATE_LIMIT: parseBool(process.env.BYPASS_RATE_LIMIT, false),
+    ENABLE_TOKEN_RATE_LIMITING: parseBool(
+      process.env.ENABLE_TOKEN_RATE_LIMITING,
+      false,
+    ),
+    ENABLE_SCOPE_ENFORCEMENT: parseBool(
+      process.env.ENABLE_SCOPE_ENFORCEMENT,
+      false,
+    ),
+    USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
+    ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
+    POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),
+    POSTHOG_TRACK_API_REQUESTS: parseBool(
+      process.env.POSTHOG_TRACK_API_REQUESTS,
+      false,
+    ),
+
+    // ── Array values ──────────────────────────────────────────────────────────
+    KAFKA_BOOTSTRAP_SERVERS: parseCSV(process.env.KAFKA_BOOTSTRAP_SERVERS),
+    SELECTED_SITES: parseCSV(process.env.SELECTED_SITES),
+
+    // ── Derived values ────────────────────────────────────────────────────────
+    // AIRQO_GROUP_ID is an alias for DEFAULT_GROUP used by legacy callers.
+    AIRQO_GROUP_ID: process.env.DEFAULT_GROUP,
+
+    // Platform URLs derived from the single canonical ANALYTICS_BASE_URL.
+    PWD_RESET: analyticsBaseUrl ? `${analyticsBaseUrl}/reset` : undefined,
+    LOGIN_PAGE: analyticsBaseUrl
+      ? `${analyticsBaseUrl}/user/login`
+      : undefined,
+    FORGOT_PAGE: analyticsBaseUrl ? `${analyticsBaseUrl}/forgot` : undefined,
+    PLATFORM_BASE_URL: analyticsBaseUrl,
+
+    // ── Per-environment defaults ──────────────────────────────────────────────
+    ENVIRONMENT:
+      process.env.ENVIRONMENT ||
+      (env === "production"
+        ? "PRODUCTION ENVIRONMENT"
+        : env === "staging"
+          ? "STAGING ENVIRONMENT"
+          : "DEVELOPMENT ENVIRONMENT"),
+
+    GROUPS_TOPIC: process.env.GROUPS_TOPIC || "groups-topic",
+
+    ONBOARDING_BASE_URL:
+      process.env.ONBOARDING_BASE_URL ||
+      (env === "staging"
+        ? "https://staging-analytics.airqo.net/onboarding"
+        : "https://analytics.airqo.net/onboarding"),
+  };
+
+  // Priority (highest → lowest):
+  //   1. transformations — computed/parsed values always win over raw strings
+  //   2. coreConfig      — named globals with their own transforms (envs.js etc.)
+  //   3. process.env     — canonical values loaded from .env.{NODE_ENV}.json
+  const config = { ...process.env, ...coreConfig, ...transformations };
+
   const validator = new EnvOnlyValidator(env);
-
   if (env === "development") {
     console.log("🔍 Environment Validation Check...");
-    validator.validateMinimal(config);
-  } else {
-    validator.validateMinimal(config);
   }
+  validator.validateMinimal(config);
 
   return config;
 }
 
-module.exports = envConfig(environment);
+module.exports = envConfig(ENV);
