@@ -1,6 +1,22 @@
 const mongoose = require("mongoose");
 
+const TOKEN_STRATEGIES = Object.freeze({
+  LEGACY: "legacy",
+  STANDARD: "standard",
+  ULTRA_COMPRESSED: "ultra_compressed",
+  COMPRESSED: "compressed",
+  HASH_BASED: "hash_based",
+  ROLE_ONLY: "role_only",
+  OPTIMIZED_HASH: "optimized_hash",
+  BIT_FLAGS: "bit_flags",
+  OPTIMIZED_BIT_FLAGS: "optimized_bit_flags",
+  OPTIMIZED_ROLE_ONLY: "optimized_role_only",
+  NO_ROLES_AND_PERMISSIONS: "no_roles_and_permissions",
+});
+
 const numericals = {
+  TOKEN_STRATEGIES,
+  PASSWORD_REGEX: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#?!$%^&*,.])[A-Za-z\d@#?!$%^&*,.]{10,}$/,
   JWT_EXPIRES_IN_SECONDS: Number.isFinite(
     Number(process.env.JWT_EXPIRES_IN_SECONDS),
   )
@@ -36,5 +52,15 @@ const numericals = {
   EMAIL_QUEUE_INTERVAL_MS: 3000, // 3 seconds
   UNKNOWN_IP_RETENTION_DAYS: 90, // Documents not updated within this window are expired/deleted
   UNKNOWN_IP_COUNTS_MAX_ENTRIES: 30, // Max daily ipCounts entries kept per document
+
+  // ── Security / notification thresholds ────────────────────────────────────
+  COMPROMISED_TOKEN_COOLDOWN_DAYS: 30,
+  EXPIRING_TOKEN_REMINDER_DAYS: 7,
+  MAX_BOT_ALERTS_PER_DAY: 2,
+
+  // ── Validation regex patterns ─────────────────────────────────────────────
+  LATITUDE_REGEX: /^-?([0-8]?\d(\.\d+)?|90(\.0+)?)$/,
+  LONGITUDE_REGEX: /^-?((1[0-7]\d|[0-9]?\d)(\.\d+)?|180(\.0+)?)$/,
+  WHITE_SPACES_REGEX: /^\S+$/,
 };
 module.exports = numericals;

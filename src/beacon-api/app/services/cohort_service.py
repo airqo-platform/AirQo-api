@@ -471,14 +471,21 @@ async def _fetch_raw_data_for_devices(
     return raw_data
 
 
+def _is_inlab_cohort(cohort: Dict[str, Any]) -> bool:
+    """Return True if the cohort is tagged with 'inlab'."""
+    tags = cohort.get("cohort_tags") or []
+    return "inlab" in tags
+
+
 async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_time: str, end_date_time: str, frequency: str, include_device_data: bool = True) -> None:
     # Group devices by category to fetch raw data correctly
     devices_by_category: Dict[str, Set[str]] = {}
     device_to_category: Dict[str, str] = {}
     
     for cohort in cohorts:
+        inlab = _is_inlab_cohort(cohort)
         for device in cohort.get("devices", []):
-            if device.get("isActive") is True:
+            if inlab or device.get("isActive") is True:
                 name = device.get("name")
                 # Default to lowcost if category is missing
                 cat = device.get("category", "lowcost")
@@ -553,10 +560,11 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
 
     # Map the performance data back to the relevant cohorts
     for cohort in cohorts:
+        inlab = _is_inlab_cohort(cohort)
         cohort_device_metrics = {}
         for dev in cohort.get("devices", []):
             d_name = dev.get("name")
-            if dev.get("isActive") is True:
+            if inlab or dev.get("isActive") is True:
                 dev_raw = device_raw_data.get(d_name, [])
                 if include_device_data:
                     # Add raw data to device level
@@ -591,7 +599,7 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
         
         for dev in cohort.get("devices", []):
             d_name = dev.get("name")
-            if dev.get("isActive") is True:
+            if inlab or dev.get("isActive") is True:
                 dev_raw = device_raw_data.get(d_name, [])
                 for record in dev_raw:
                     dt = record.get("datetime")
@@ -959,11 +967,14 @@ _TIME_SERIES_EXCLUDED_KEYS = frozenset({
 
 
 def _collect_active_device_names(cohorts: List[Dict[str, Any]]) -> Set[str]:
-    """Return the set of names of all active devices across cohorts."""
+    """Return the set of names of all active devices across cohorts.
+    Inlab-tagged cohorts include all devices regardless of isActive.
+    """
     names: Set[str] = set()
     for cohort in cohorts:
+        inlab = _is_inlab_cohort(cohort)
         for dev in cohort.get("devices", []):
-            if dev.get("isActive") is True and dev.get("name"):
+            if (inlab or dev.get("isActive") is True) and dev.get("name"):
                 names.add(dev["name"])
     return names
 
@@ -1014,13 +1025,15 @@ def _enrich_cohort_devices(
     """
     Mutate each active device with data/metrics and return per-device uptimes
     and an averages accumulator for cohort-level aggregation.
+    Inlab-tagged cohorts process all devices regardless of isActive.
     """
+    inlab = _is_inlab_cohort(cohort)
     device_uptimes: List[float] = []
     averages_accumulator: Dict[str, List[float]] = defaultdict(list)
 
     for dev in cohort.get("devices", []):
         d_name = dev.get("name")
-        if dev.get("isActive") is not True or not d_name:
+        if not (inlab or dev.get("isActive") is True) or not d_name:
             continue
 
         dev["data"] = mapped_by_device.get(d_name, [])
@@ -1059,11 +1072,12 @@ def _accumulate_record_into_series(
 def _build_series_map(
     cohort: Dict[str, Any],
 ) -> Dict[str, Dict[str, List[float]]]:
+    inlab = _is_inlab_cohort(cohort)
     series_map: Dict[str, Dict[str, List[float]]] = defaultdict(
         lambda: defaultdict(list)
     )
     for dev in cohort.get("devices", []):
-        if dev.get("isActive") is not True:
+        if not (inlab or dev.get("isActive") is True):
             continue
         for rec in dev.get("data", []) or []:
             _accumulate_record_into_series(rec, series_map)

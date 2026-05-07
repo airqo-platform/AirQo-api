@@ -406,6 +406,7 @@ def _build_mirror_cohort(
     return {
         "_id": synced_cohort.get("cohort_id"),
         "name": synced_cohort.get("name"),
+        "cohort_tags": synced_cohort.get("cohort_tags") or [],
         "devices": mirror_devices,
     }
 

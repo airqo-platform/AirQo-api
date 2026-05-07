@@ -23,7 +23,7 @@ const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
-const { db } = require("@config/firebase-admin");
+const { db, getDb } = require("@config/firebase-admin");
 const {
   redisGetAsync,
   redisSetAsync,
@@ -478,7 +478,7 @@ const createUserModule = {
         isValid: false,
         error: new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
           message:
-            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one number.",
+            "The password does not meet the security requirements. It must be at least 10 characters long and contain at least one uppercase letter, one lowercase letter, one digit, and one special character (@#?!$%^&*,.).",
         }),
       };
     }
@@ -5334,39 +5334,21 @@ const createUserModule = {
           constants.FIREBASE_COLLECTION_NOTIFICATIONS,
           constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
         ];
-        let collectionRef = db.collection(
+        const firebaseDb = getDb();
+        const userCollectionRef = firebaseDb.collection(
           `${constants.FIREBASE_COLLECTION_USERS}`,
         );
-        let docRef = collectionRef.doc(userId);
+        await userCollectionRef.doc(userId).delete();
 
-        docRef
-          .delete()
-          .then(async () => {
-            for (var collection of collectionList) {
-              await deleteCollection(
-                db,
-                `${collection}/${userId}/${userId}`,
-                100,
-              );
-              collectionRef = db.collection(`${collection}`);
-              docRef = collectionRef.doc(userId);
-              docRef.delete();
-            }
-            logText("Document successfully deleted!");
-          })
-          .catch((error) => {
-            logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-
-            next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                {
-                  message: error.message,
-                },
-              ),
-            );
+        for (const collection of collectionList) {
+          await deleteCollection({
+            db: firebaseDb,
+            collectionPath: `${collection}/${userId}/${userId}`,
+            batchSize: 100,
           });
+          await firebaseDb.collection(`${collection}`).doc(userId).delete();
+        }
+        logText("Document successfully deleted!");
 
         return {
           success: true,

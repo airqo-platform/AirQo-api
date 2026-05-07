@@ -3,7 +3,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${(
     process.env.NODE_ENV || "production"
-  ).toUpperCase()} ENVIRONMENT -- config/global/email-template`
+  ).toUpperCase()} ENVIRONMENT -- config/core/email-templates`
 );
 
 const emailTemplates = {

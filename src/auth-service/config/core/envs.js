@@ -150,6 +150,75 @@ const envs = {
   // skipped entirely (returns null) to avoid plaintext HTTP calls.
   // Example: https://pro.ip-api.com/json/<ip>?fields=status,city,regionName,country&key=<API_KEY>
   IP_API_PRO_URL: process.env.IP_API_PRO_URL || null,
+
+  // Firebase Firestore collection names
+  FIREBASE_COLLECTION_USERS: process.env.FIREBASE_COLLECTION_USERS,
+  FIREBASE_COLLECTION_KYA: process.env.FIREBASE_COLLECTION_KYA,
+  FIREBASE_COLLECTION_ANALYTICS: process.env.FIREBASE_COLLECTION_ANALYTICS,
+  FIREBASE_COLLECTION_NOTIFICATIONS: process.env.FIREBASE_COLLECTION_NOTIFICATIONS,
+  FIREBASE_COLLECTION_FAVORITE_PLACES: process.env.FIREBASE_COLLECTION_FAVORITE_PLACES,
+
+  // ── Database ───────────────────────────────────────────────────────────────
+  MONGO_URI: process.env.MONGO_URI,
+  COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI,
+  QUERY_MONGO_URI: process.env.QUERY_MONGO_URI,
+  DB_NAME: process.env.DB_NAME,
+
+  // ── Cache / Redis ──────────────────────────────────────────────────────────
+  REDIS_SERVER: process.env.REDIS_SERVER,
+  REDIS_PORT: parseNumber(process.env.REDIS_PORT, 6379),
+
+  // ── Paddle payments ────────────────────────────────────────────────────────
+  PADDLE_API_KEY: process.env.PADDLE_API_KEY,
+  PADDLE_ENVIRONMENT: process.env.PADDLE_ENVIRONMENT,
+
+  // ── Platform URLs ──────────────────────────────────────────────────────────
+  ANALYTICS_BASE_URL: process.env.ANALYTICS_BASE_URL,
+  VERTEX_BASE_URL: process.env.VERTEX_BASE_URL,
+
+  // ── Security ───────────────────────────────────────────────────────────────
+  ADMIN_SETUP_SECRET: process.env.ADMIN_SETUP_SECRET,
+  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
+  FORCE_SAFE_TOKEN_STRATEGY: parseBoolean(
+    process.env.FORCE_SAFE_TOKEN_STRATEGY,
+    false,
+  ),
+
+  // ── OAuth providers ────────────────────────────────────────────────────────
+  GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+  LINKEDIN_CLIENT_ID: process.env.LINKEDIN_CLIENT_ID,
+  LINKEDIN_CLIENT_SECRET: process.env.LINKEDIN_CLIENT_SECRET,
+  MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
+  MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+  TWITTER_CONSUMER_KEY: process.env.TWITTER_CONSUMER_KEY,
+  TWITTER_CONSUMER_SECRET: process.env.TWITTER_CONSUMER_SECRET,
+
+  // ── Kafka ──────────────────────────────────────────────────────────────────
+  KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
+
+  // ── Platform defaults ──────────────────────────────────────────────────────
+  NODE_ENV: process.env.NODE_ENV,
+  DEFAULT_GROUP: process.env.DEFAULT_GROUP,
+  DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
+  DEFAULT_GROUP_ROLE: process.env.DEFAULT_GROUP_ROLE,
+  DEFAULT_NETWORK_ROLE: process.env.DEFAULT_NETWORK_ROLE,
+  DEFAULT_AIRQLOUD: process.env.DEFAULT_AIRQLOUD,
+  DEFAULT_GRID: process.env.DEFAULT_GRID,
+  TIMEZONE: process.env.TIMEZONE,
+
+  // ── Email / notification routing ───────────────────────────────────────────
+  HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
+  REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
+
+  // ── API / network ──────────────────────────────────────────────────────────
+  API_TOKEN: process.env.API_TOKEN,
+  SERVICE_NAME: process.env.SERVICE_NAME,
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+
+  // Tuning hints for analytics scoring; callers guard with ?.length fallbacks.
+  AVAILABLE_SERVICES: process.env.AVAILABLE_SERVICES,
+  AVAILABLE_ENDPOINTS: process.env.AVAILABLE_ENDPOINTS,
 };
 
 module.exports = envs;

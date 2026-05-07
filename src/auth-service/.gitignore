@@ -7,6 +7,9 @@ node_modules
 .env.development
 .env.staging
 .env.production
+.env.development.json
+.env.staging.json
+.env.production.json
 auth-secret.yaml
 config/firebase-admin-sdk.json
 log

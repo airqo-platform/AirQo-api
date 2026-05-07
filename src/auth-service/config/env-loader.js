@@ -27,6 +27,7 @@ const ROOT = path.resolve(__dirname, "..");
  */
 function applyToEnv(vars) {
   for (const [key, value] of Object.entries(vars)) {
+    if (key.startsWith("_")) continue;
     if (value === "" || value === null || value === undefined) continue;
     if (process.env[key] === undefined) {
       process.env[key] = String(value);
@@ -40,7 +41,7 @@ function applyToEnv(vars) {
  * before any config modules are required.
  */
 function loadEnvironment() {
-  const env = process.env.NODE_ENV || "production";
+  const env = process.env.NODE_ENV || "development";
   const jsonPath = path.join(ROOT, `.env.${env}.json`);
 
   if (!fs.existsSync(jsonPath)) {
