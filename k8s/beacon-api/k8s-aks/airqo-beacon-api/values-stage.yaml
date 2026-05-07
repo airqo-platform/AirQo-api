@@ -7,7 +7,7 @@ app:
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-beacon-api
-  tag: stage-7c63b757-1777837483
+  tag: stage-2460c0e9-1778145573
 resources:
   limits:
     cpu: 300m
