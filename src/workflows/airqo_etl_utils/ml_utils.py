@@ -959,6 +959,7 @@ class ForecastSiteUtils(BaseMlUtils):
         rolling_window: Sequence[int] = (7, 14),
         roll_shift: int = 1,
         dropna: bool = True,
+        include_hour: bool = False,
     ) -> pd.DataFrame:
         """Add time-based, lag, and rolling-window features per site.
 
@@ -1009,6 +1010,8 @@ class ForecastSiteUtils(BaseMlUtils):
         out["day_of_week"] = dt.dayofweek
         out["day_of_year"] = dt.dayofyear
         out["month"] = dt.month
+        if include_hour:
+            out["hour"] = dt.hour
         # out["week_of_year"] = dt.isocalendar().week.astype("int16")
         # out["is_weekend"] = dt.dayofweek >= 5
 
@@ -1043,8 +1046,11 @@ class ForecastSiteUtils(BaseMlUtils):
             )
         # ---- clean up ----
         if dropna:
+            time_feature_cols = ["day_of_week", "day_of_year", "month"]
+            if include_hour:
+                time_feature_cols.append("hour")
             feature_cols = (
-                ["day_of_week", "day_of_year", "month"]
+                time_feature_cols
                 + [f"{target_col}_lag_{lag}" for lag in lags]
                 + [f"roll{w}_mean" for w in roll_windows]
                 + [f"roll{w}_std" for w in roll_windows]
@@ -1364,6 +1370,9 @@ class ForecastModelTrainer(BaseMlUtils):
         project_name: str,
         bucket_name: str,
         blob_name: str,
+        forecast_frequency: str = "daily",
+        forecast_horizon_hours: Optional[int] = None,
+        mlflow_experiment_name: Optional[str] = None,
         # training behavior
         early_stopping_rounds: int = 100,
         log_period: int = 200,
@@ -1405,7 +1414,8 @@ class ForecastModelTrainer(BaseMlUtils):
         tracker = MlflowTracker(
             tracking_uri=configuration.MLFLOW_TRACKING_URI,
             registry_uri=configuration.MLFLOW_REGISTRY_URI,
-            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
+            experiment_name=mlflow_experiment_name
+            or configuration.MLFLOW_EXPERIMENT_NAME
             or f"site_forecast_{environment}",
             model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
             enabled=True,
@@ -1433,6 +1443,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "date_col": date_col,
             "metrics": metrics,
             "params": params,
+            "forecast_frequency": forecast_frequency,
+            "forecast_horizon_hours": forecast_horizon_hours,
             "site_id_mapping": ForecastModelTrainer._build_site_id_mapping(
                 df["site_id"]
             ),
@@ -1452,9 +1464,15 @@ class ForecastModelTrainer(BaseMlUtils):
             metrics=metrics,
             tags={
                 "pipeline": "site_forecast",
+                "forecast_frequency": forecast_frequency,
                 "model_kind": model_kind,
                 "target": target,
                 "decision_reason": deployment["reason"],
+                "forecast_horizon_hours": (
+                    str(forecast_horizon_hours)
+                    if forecast_horizon_hours is not None
+                    else ""
+                ),
             },
             deployed=deployment["deployed"],
             model=model,
@@ -1484,6 +1502,9 @@ class ForecastModelTrainer(BaseMlUtils):
         project_name: str,
         bucket_name: str,
         blob_name: str,
+        forecast_frequency: str = "daily",
+        forecast_horizon_hours: Optional[int] = None,
+        mlflow_experiment_name: Optional[str] = None,
         # training behavior
         early_stopping_rounds: int = 150,
         log_period: int = 200,
@@ -1533,7 +1554,8 @@ class ForecastModelTrainer(BaseMlUtils):
         tracker = MlflowTracker(
             tracking_uri=configuration.MLFLOW_TRACKING_URI,
             registry_uri=configuration.MLFLOW_REGISTRY_URI,
-            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
+            experiment_name=mlflow_experiment_name
+            or configuration.MLFLOW_EXPERIMENT_NAME
             or f"site_forecast_{environment}",
             model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
             enabled=True,
@@ -1563,6 +1585,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "date_col": date_col,
             "metrics": metrics,
             "params": params,
+            "forecast_frequency": forecast_frequency,
+            "forecast_horizon_hours": forecast_horizon_hours,
             "site_id_mapping": ForecastModelTrainer._build_site_id_mapping(
                 df["site_id"]
             ),
@@ -1582,10 +1606,16 @@ class ForecastModelTrainer(BaseMlUtils):
             metrics=metrics,
             tags={
                 "pipeline": "site_forecast",
+                "forecast_frequency": forecast_frequency,
                 "model_kind": "quantile",
                 "target": target,
                 "alpha": str(alpha),
                 "decision_reason": deployment["reason"],
+                "forecast_horizon_hours": (
+                    str(forecast_horizon_hours)
+                    if forecast_horizon_hours is not None
+                    else ""
+                ),
             },
             deployed=deployment["deployed"],
             model=model,
@@ -1630,6 +1660,9 @@ class ForecastModelTrainer(BaseMlUtils):
         blob_name_max: str,  # e.g. "models/daily_pm25_max_model.pkl"
         blob_name_low: str,  # "models/daily_pm25_low_model.pkl",
         blob_name_high: str,  # = "models/daily_pm25_high_model.pkl",
+        forecast_frequency: str = "daily",
+        forecast_horizon_hours: Optional[int] = None,
+        mlflow_experiment_name: Optional[str] = None,
     ) -> Dict[str, Dict]:
         """Train mean, min, max point models and optional quantile bands, deploying each to GCS.
 
@@ -1655,6 +1688,9 @@ class ForecastModelTrainer(BaseMlUtils):
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name=blob_name_mean,
+            forecast_frequency=forecast_frequency,
+            forecast_horizon_hours=forecast_horizon_hours,
+            mlflow_experiment_name=mlflow_experiment_name,
         )
 
         out["min"] = ForecastModelTrainer.train_point_and_save_to_gcs(
@@ -1669,6 +1705,9 @@ class ForecastModelTrainer(BaseMlUtils):
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name=blob_name_min,
+            forecast_frequency=forecast_frequency,
+            forecast_horizon_hours=forecast_horizon_hours,
+            mlflow_experiment_name=mlflow_experiment_name,
         )
 
         out["max"] = ForecastModelTrainer.train_point_and_save_to_gcs(
@@ -1683,6 +1722,9 @@ class ForecastModelTrainer(BaseMlUtils):
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name=blob_name_max,
+            forecast_frequency=forecast_frequency,
+            forecast_horizon_hours=forecast_horizon_hours,
+            mlflow_experiment_name=mlflow_experiment_name,
         )
 
         if train_quantile_bands:
@@ -1698,6 +1740,9 @@ class ForecastModelTrainer(BaseMlUtils):
                 project_name=project_name,
                 bucket_name=bucket_name,
                 blob_name=blob_name_low,
+                forecast_frequency=forecast_frequency,
+                forecast_horizon_hours=forecast_horizon_hours,
+                mlflow_experiment_name=mlflow_experiment_name,
             )
             out["high_q"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
                 df,
@@ -1711,9 +1756,203 @@ class ForecastModelTrainer(BaseMlUtils):
                 project_name=project_name,
                 bucket_name=bucket_name,
                 blob_name=blob_name_high,
+                forecast_frequency=forecast_frequency,
+                forecast_horizon_hours=forecast_horizon_hours,
+                mlflow_experiment_name=mlflow_experiment_name,
             )
 
         return out
+
+    @staticmethod
+    def train_and_save_site_daily_forecast_models(
+        featured_data: pd.DataFrame,
+    ) -> Dict[str, Dict]:
+        """Train and save all site-level daily forecast models."""
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+
+        return ForecastModelTrainer.train_and_save_all_forecast_models(
+            featured_data,
+            features=features,
+            date_col="day",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name_mean="daily_pm25_mean_model.pkl",
+            blob_name_min="daily_pm25_min_model.pkl",
+            blob_name_max="daily_pm25_max_model.pkl",
+            blob_name_low="daily_pm25_low_model.pkl",
+            blob_name_high="daily_pm25_high_model.pkl",
+        )
+
+    @staticmethod
+    def train_site_daily_point_forecast_model(
+        featured_data: pd.DataFrame,
+        *,
+        target: str,
+        model_kind: str,
+        blob_name: str,
+    ) -> Dict:
+        """Train one site-level daily point forecast model and save it to GCS."""
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+
+        return ForecastModelTrainer.train_point_and_save_to_gcs(
+            featured_data,
+            features=features,
+            target=target,
+            model_kind=model_kind,
+            date_col="day",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name=blob_name,
+        )
+
+    @staticmethod
+    def train_site_daily_quantile_forecast_model(
+        featured_data: pd.DataFrame,
+        *,
+        alpha: float,
+        blob_name: str,
+    ) -> Dict:
+        """Train one site-level daily quantile forecast model and save it to GCS."""
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+
+        return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+            featured_data,
+            alpha=alpha,
+            features=features,
+            target="pm25_mean",
+            date_col="day",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name=blob_name,
+        )
+
+    @staticmethod
+    def train_site_hourly_point_forecast_model(
+        featured_data: pd.DataFrame,
+        *,
+        target: str,
+        model_kind: str,
+        blob_name: str,
+    ) -> Dict:
+        """Train one site-level hourly point forecast model and save it to GCS."""
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+
+        return ForecastModelTrainer.train_point_and_save_to_gcs(
+            featured_data,
+            features=features,
+            target=target,
+            model_kind=model_kind,
+            date_col="timestamp",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name=blob_name,
+            forecast_frequency="hourly",
+            forecast_horizon_hours=(
+                ForecastModelTrainer._get_site_hourly_forecast_horizon_hours()
+            ),
+            mlflow_experiment_name=(
+                ForecastModelTrainer._get_site_hourly_mlflow_experiment_name()
+            ),
+        )
+
+    @staticmethod
+    def train_site_hourly_quantile_forecast_model(
+        featured_data: pd.DataFrame,
+        *,
+        alpha: float,
+        blob_name: str,
+    ) -> Dict:
+        """Train one site-level hourly quantile forecast model and save it to GCS."""
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+
+        return ForecastModelTrainer.train_quantile_and_save_to_gcs(
+            featured_data,
+            alpha=alpha,
+            features=features,
+            target="pm25_mean",
+            date_col="timestamp",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name=blob_name,
+            forecast_frequency="hourly",
+            forecast_horizon_hours=(
+                ForecastModelTrainer._get_site_hourly_forecast_horizon_hours()
+            ),
+            mlflow_experiment_name=(
+                ForecastModelTrainer._get_site_hourly_mlflow_experiment_name()
+            ),
+        )
+
+    @staticmethod
+    def _get_site_hourly_forecast_horizon_hours() -> int:
+        """Return configured site-hourly forecast horizon in hours."""
+        try:
+            horizon_days = int(configuration.SITE_HOURLY_FORECAST_HORIZON_DAYS)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_HORIZON_DAYS must be a valid integer."
+            ) from exc
+
+        if horizon_days < 1:
+            raise ValueError("SITE_HOURLY_FORECAST_HORIZON_DAYS must be greater than 0.")
+
+        return horizon_days * 24
+
+    @staticmethod
+    def _get_site_hourly_mlflow_experiment_name() -> str:
+        """Return the MLflow experiment for site-level hourly forecast training."""
+        if configuration.MLFLOW_SITE_HOURLY_FORECAST_EXPERIMENT_NAME:
+            return configuration.MLFLOW_SITE_HOURLY_FORECAST_EXPERIMENT_NAME
+
+        configured_experiment = configuration.MLFLOW_EXPERIMENT_NAME or ""
+        if "daily" in configured_experiment:
+            return configured_experiment.replace("daily", "hourly", 1)
+
+        return f"site_hourly_forecast_{environment}"
+
+    @staticmethod
+    def train_and_save_site_hourly_forecast_models(
+        featured_data: pd.DataFrame,
+    ) -> Dict[str, Dict]:
+        """Train and save all site-level hourly 10-day forecast models."""
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
+        bucket_config = ForecastModelTrainer._get_model_bucket_config()
+
+        return ForecastModelTrainer.train_and_save_all_forecast_models(
+            featured_data,
+            features=features,
+            date_col="timestamp",
+            project_name=bucket_config["project_name"],
+            bucket_name=bucket_config["bucket_name"],
+            blob_name_mean="hourly_10day_pm25_mean_model.pkl",
+            blob_name_min="hourly_10day_pm25_min_model.pkl",
+            blob_name_max="hourly_10day_pm25_max_model.pkl",
+            blob_name_low="hourly_10day_pm25_low_model.pkl",
+            blob_name_high="hourly_10day_pm25_high_model.pkl",
+            forecast_frequency="hourly",
+            forecast_horizon_hours=(
+                ForecastModelTrainer._get_site_hourly_forecast_horizon_hours()
+            ),
+            mlflow_experiment_name=(
+                ForecastModelTrainer._get_site_hourly_mlflow_experiment_name()
+            ),
+        )
+
+    @staticmethod
+    def run_site_hourly_forecast_training() -> Dict[str, Dict]:
+        """Run site-level hourly forecast model training end to end."""
+        raw_data = ForecastModelTrainer.fetch_site_hourly_forecast_training_data()
+        featured_data = ForecastModelTrainer._build_site_hourly_forecast_features(
+            raw_data
+        )
+        return ForecastModelTrainer.train_and_save_site_hourly_forecast_models(
+            featured_data
+        )
 
     @staticmethod
     def fetch_site_forecast_training_data() -> pd.DataFrame:
@@ -1779,12 +2018,67 @@ class ForecastModelTrainer(BaseMlUtils):
         return raw_data
 
     @staticmethod
+    def fetch_site_hourly_forecast_training_data() -> pd.DataFrame:
+        """Fetch site-level hourly aggregates for hourly forecast retraining.
+
+        Uses a dedicated hourly month lookback window and keeps one record per
+        site/hour so hourly models are trained independently from daily forecast
+        models.
+        """
+        storage_adapter = get_configured_storage()
+        if storage_adapter is None:
+            raise ValueError(
+                "Storage adapter is not configured. Set GOOGLE_APPLICATION_CREDENTIALS "
+                "to a valid service account JSON and ensure BigQuery dependencies are installed."
+            )
+
+        current_date = datetime.today()
+        try:
+            lookback_months = int(
+                configuration.SITE_HOURLY_FORECAST_TRAINING_JOB_SCOPE_MONTHS
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be a valid integer."
+            ) from exc
+
+        if lookback_months < 1:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be greater than 0."
+            )
+
+        start_date = current_date - relativedelta(months=lookback_months)
+        start_date_str = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
+        end_date_str = DateUtils.date_to_str(current_date, str_format="%Y-%m-%d")
+
+        if not query_manager.query_exists("consolidated_site_hourly_aggregated"):
+            raise ValueError("Missing SQL query: consolidated_site_hourly_aggregated.")
+
+        if not configuration.BIGQUERY_ANALYTICS_TABLE:
+            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
+
+        query = query_manager.get_query("consolidated_site_hourly_aggregated").format(
+            consolidated_table=configuration.BIGQUERY_ANALYTICS_TABLE,
+            start_date=start_date_str,
+            end_date=end_date_str,
+        )
+
+        raw_data = storage_adapter.download_query(query)
+
+        if raw_data.empty:
+            raise ValueError(
+                "No site hourly forecast training data found in the selected period."
+            )
+
+        return raw_data
+
+    @staticmethod
     def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         """Run quarterly retraining of site-level PM2.5 forecast models.
 
         Pulls site-level consolidated daily data from BigQuery using the
-        configured lookback window, engineers features, and trains mean +
-        quantile (10th/90th) models. Each model is deployed only if it
+        configured lookback window, engineers features, and trains mean, min,
+        max, and quantile (10th/90th) models. Each model is deployed only if it
         outperforms the existing artifact.
 
         Returns:
@@ -1795,60 +2089,9 @@ class ForecastModelTrainer(BaseMlUtils):
         """
         raw_data = ForecastModelTrainer.fetch_site_forecast_training_data()
         featured_data = ForecastModelTrainer._build_site_forecast_features(raw_data)
-
-        excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
-        features = [
-            col
-            for col in featured_data.columns
-            if col not in excluded and pd.api.types.is_numeric_dtype(featured_data[col])
-        ]
-
-        if not features:
-            raise ValueError("No numeric features available for training.")
-
-        project_name = configuration.GOOGLE_CLOUD_PROJECT_ID
-        bucket_name = configuration.FORECAST_MODELS_BUCKET
-        if not project_name or not bucket_name:
-            raise ValueError(
-                "Missing required config: GOOGLE_CLOUD_PROJECT_ID or FORECAST_MODELS_BUCKET."
-            )
-
-        results: Dict[str, Dict] = {}
-
-        results["mean"] = ForecastModelTrainer.train_point_and_save_to_gcs(
-            featured_data,
-            features=features,
-            target="pm25_mean",
-            model_kind="mean",
-            date_col="day",
-            project_name=project_name,
-            bucket_name=bucket_name,
-            blob_name="daily_pm25_mean_model.pkl",
+        return ForecastModelTrainer.train_and_save_site_daily_forecast_models(
+            featured_data
         )
-
-        results["low_q10"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
-            featured_data,
-            alpha=0.1,
-            features=features,
-            target="pm25_mean",
-            date_col="day",
-            project_name=project_name,
-            bucket_name=bucket_name,
-            blob_name="daily_pm25_low_model.pkl",
-        )
-
-        results["high_q90"] = ForecastModelTrainer.train_quantile_and_save_to_gcs(
-            featured_data,
-            alpha=0.9,
-            features=features,
-            target="pm25_mean",
-            date_col="day",
-            project_name=project_name,
-            bucket_name=bucket_name,
-            blob_name="daily_pm25_high_model.pkl",
-        )
-
-        return results
 
     @staticmethod
     def _load_site_forecast_artifacts() -> Dict[str, Dict[str, Any]]:
@@ -2648,6 +2891,31 @@ class ForecastModelTrainer(BaseMlUtils):
         return featured_data
 
     @staticmethod
+    def _build_site_hourly_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
+        """Engineer hourly lag/rolling features for site-level forecast training."""
+        featured_data = ForecastSiteUtils.add_time_lag_roll_features(
+            raw_data,
+            date_col="timestamp",
+            site_col="site_id",
+            target_col="pm25_mean",
+            lags=(1, 2, 6, 12, 24, 48, 72),
+            rolling_window=(24, 72, 168),
+            roll_shift=1,
+            dropna=True,
+            include_hour=True,
+        )
+
+        if featured_data.empty:
+            raise ValueError("Hourly feature engineering produced an empty dataframe.")
+
+        featured_data = featured_data.copy()
+        featured_data["site_id_code"] = (
+            featured_data["site_id"].astype("category").cat.codes
+        )
+
+        return featured_data
+
+    @staticmethod
     def _select_numeric_training_features(featured_data: pd.DataFrame) -> List[str]:
         """Return numeric column names suitable for model training.
 
@@ -2658,6 +2926,7 @@ class ForecastModelTrainer(BaseMlUtils):
         """
         excluded = {
             "day",
+            "timestamp",
             "site_id",
             "site_name",
             "pm25_mean",

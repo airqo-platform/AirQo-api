@@ -351,6 +351,180 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
         assert forecasts[column].equals(rounded)
 
 
+def test_build_site_hourly_forecast_features_includes_hourly_features():
+    raw_data = pd.DataFrame(
+        [
+            {
+                "site_id": site_id,
+                "site_name": f"Site {site_id}",
+                "timestamp": timestamp,
+                "pm25_mean": float(index + site_offset),
+                "pm25_min": float(index + site_offset - 1),
+                "pm25_max": float(index + site_offset + 1),
+                "n_hours": 1,
+            }
+            for site_offset, site_id in enumerate(["site-a", "site-b"])
+            for index, timestamp in enumerate(
+                pd.date_range("2026-01-01", periods=200, freq="h")
+            )
+        ]
+    )
+
+    featured = ForecastModelTrainer._build_site_hourly_forecast_features(raw_data)
+
+    expected_columns = {
+        "day_of_week",
+        "day_of_year",
+        "month",
+        "hour",
+        "pm25_mean_lag_1",
+        "pm25_mean_lag_2",
+        "pm25_mean_lag_6",
+        "pm25_mean_lag_12",
+        "pm25_mean_lag_24",
+        "pm25_mean_lag_48",
+        "pm25_mean_lag_72",
+        "roll24_mean",
+        "roll24_std",
+        "roll72_mean",
+        "roll72_std",
+        "roll168_mean",
+        "roll168_std",
+        "site_id_code",
+    }
+    assert expected_columns.issubset(featured.columns)
+    assert not featured[list(expected_columns)].isna().any().any()
+
+    training_features = ForecastModelTrainer._select_numeric_training_features(featured)
+    assert "hour" in training_features
+    assert "site_id_code" in training_features
+    assert "timestamp" not in training_features
+    assert "pm25_mean" not in training_features
+    assert "pm25_min" not in training_features
+    assert "pm25_max" not in training_features
+
+
+def test_train_site_hourly_point_forecast_model_uses_hourly_settings(monkeypatch):
+    featured_data = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="h"),
+            "site_id": ["site-a", "site-a", "site-a"],
+            "pm25_mean": [10.0, 11.0, 12.0],
+            "hour": [0, 1, 2],
+            "site_id_code": [0, 0, 0],
+        }
+    )
+    captured = {}
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_select_numeric_training_features",
+        staticmethod(lambda data: ["hour", "site_id_code"]),
+    )
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_get_model_bucket_config",
+        staticmethod(lambda: {"project_name": "test-project", "bucket_name": "bucket"}),
+    )
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_get_site_hourly_forecast_horizon_hours",
+        staticmethod(lambda: 240),
+    )
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_get_site_hourly_mlflow_experiment_name",
+        staticmethod(lambda: "hourly-experiment"),
+    )
+
+    def fake_train_point(df, **kwargs):
+        captured.update(kwargs)
+        return {"mae": 1.0}
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "train_point_and_save_to_gcs",
+        staticmethod(fake_train_point),
+    )
+
+    result = ForecastModelTrainer.train_site_hourly_point_forecast_model(
+        featured_data,
+        target="pm25_mean",
+        model_kind="mean",
+        blob_name="hourly_10day_pm25_mean_model.pkl",
+    )
+
+    assert result == {"mae": 1.0}
+    assert captured["features"] == ["hour", "site_id_code"]
+    assert captured["target"] == "pm25_mean"
+    assert captured["model_kind"] == "mean"
+    assert captured["date_col"] == "timestamp"
+    assert captured["blob_name"] == "hourly_10day_pm25_mean_model.pkl"
+    assert captured["forecast_frequency"] == "hourly"
+    assert captured["forecast_horizon_hours"] == 240
+    assert captured["mlflow_experiment_name"] == "hourly-experiment"
+
+
+def test_train_site_hourly_quantile_forecast_model_uses_hourly_settings(monkeypatch):
+    featured_data = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="h"),
+            "site_id": ["site-a", "site-a", "site-a"],
+            "pm25_mean": [10.0, 11.0, 12.0],
+            "hour": [0, 1, 2],
+            "site_id_code": [0, 0, 0],
+        }
+    )
+    captured = {}
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_select_numeric_training_features",
+        staticmethod(lambda data: ["hour", "site_id_code"]),
+    )
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_get_model_bucket_config",
+        staticmethod(lambda: {"project_name": "test-project", "bucket_name": "bucket"}),
+    )
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_get_site_hourly_forecast_horizon_hours",
+        staticmethod(lambda: 240),
+    )
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_get_site_hourly_mlflow_experiment_name",
+        staticmethod(lambda: "hourly-experiment"),
+    )
+
+    def fake_train_quantile(df, **kwargs):
+        captured.update(kwargs)
+        return {"mae": 2.0}
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "train_quantile_and_save_to_gcs",
+        staticmethod(fake_train_quantile),
+    )
+
+    result = ForecastModelTrainer.train_site_hourly_quantile_forecast_model(
+        featured_data,
+        alpha=0.9,
+        blob_name="hourly_10day_pm25_high_model.pkl",
+    )
+
+    assert result == {"mae": 2.0}
+    assert captured["alpha"] == 0.9
+    assert captured["features"] == ["hour", "site_id_code"]
+    assert captured["target"] == "pm25_mean"
+    assert captured["date_col"] == "timestamp"
+    assert captured["blob_name"] == "hourly_10day_pm25_high_model.pkl"
+    assert captured["forecast_frequency"] == "hourly"
+    assert captured["forecast_horizon_hours"] == 240
+    assert captured["mlflow_experiment_name"] == "hourly-experiment"
+
+
 def test_fetch_site_prediction_data_includes_execution_day_and_allows_sparse_rows(
     monkeypatch,
 ):
@@ -1046,6 +1220,3 @@ def test_aggregate_met_no_hourly_payload_to_daily():
     assert daily.loc[0, "met_no_query_longitude"] == 3.36
     assert daily.loc[0, "air_temperature"] == 27.6
     assert daily.loc[0, "precipitation_amount"] == 0.0
-        ForecastUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
-        mock_collection = getattr(mock_db, collection_name)
-        assert mock_collection.update_one.call_count >= 1

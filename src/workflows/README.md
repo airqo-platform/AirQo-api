@@ -50,7 +50,7 @@ source venv/Scripts/activate
 pip install -r dev-requirements.txt
 ```
 
-### Test e.g  quarterly site forecast training locally
+### Test quarterly site forecast training locally
 
 
 ```bash
@@ -61,12 +61,17 @@ Test all
 python -m pytest airqo_etl_utils\tests
 ```
 
+
 Required `.env` values for this test:
 
 - `GOOGLE_APPLICATION_CREDENTIALS`
 - `GOOGLE_CLOUD_PROJECT_ID`
 - `BIGQUERY_ANALYTICS_TABLE`
 - `FORECAST_MODELS_BUCKET`
+- `SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS`
+- `SITE_HOURLY_FORECAST_TRAINING_JOB_SCOPE_MONTHS`
+- `SITE_HOURLY_FORECAST_HORIZON_DAYS`
+- `MLFLOW_SITE_HOURLY_FORECAST_EXPERIMENT_NAME` (optional; falls back to the generic site hourly experiment name)
 
 ## 2. Running using Docker
 

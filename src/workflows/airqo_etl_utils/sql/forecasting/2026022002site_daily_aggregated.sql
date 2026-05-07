@@ -26,6 +26,33 @@ SELECT *
 FROM site_daily
 ORDER BY day, site_id;
 
+-- name: consolidated_site_hourly_aggregated
+-- Hourly aggregated site PM2.5 for site-level hourly forecast training.
+-- Placeholders:
+-- {consolidated_table} -> consolidated data table (e.g. project.dataset.table)
+-- {start_date} / {end_date} -> date strings (YYYY-MM-DD)
+
+WITH site_hourly AS (
+  SELECT
+    TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp,
+    site_id,
+    ANY_VALUE(site_name) AS site_name,
+    ANY_VALUE(site_latitude) AS site_latitude,
+    ANY_VALUE(site_longitude) AS site_longitude,
+    AVG(pm2_5_calibrated_value) AS pm25_mean,
+    MIN(pm2_5_calibrated_value) AS pm25_min,
+    MAX(pm2_5_calibrated_value) AS pm25_max,
+    COUNT(*) AS n_observations
+  FROM {consolidated_table}
+  WHERE DATE(timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
+    AND site_id IS NOT NULL
+    AND pm2_5_calibrated_value IS NOT NULL
+  GROUP BY timestamp, site_id
+)
+SELECT *
+FROM site_hourly
+ORDER BY timestamp, site_id;
+
 
 -- name: site_daily_aggregated_for_forecast_jobs
 -- Daily aggregated site PM2.5 for site-forecast prediction jobs with site metadata backfill.

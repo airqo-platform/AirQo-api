@@ -425,3 +425,48 @@ Data Destinations:
 - MongoDB: site daily forecast collection
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+site_forecast_training_doc = """
+### AirQo site forecast quarterly training
+#### Purpose
+Retrain site-level daily and hourly PM2.5 forecast models on a quarterly schedule.
+
+#### Notes
+Daily and hourly training run as separate Airflow branches so each frequency has
+its own graph visibility. Each branch trains LightGBM mean, min, max, low
+quantile, and high quantile models. The hourly branch uses site-hourly
+consolidated aggregates, hourly lag features, rolling windows, and the configured
+`SITE_HOURLY_FORECAST_TRAINING_JOB_SCOPE_MONTHS` lookback and
+`SITE_HOURLY_FORECAST_HORIZON_DAYS` horizon.
+
+Data sources:
+- BigQuery: consolidated site daily and hourly aggregates
+
+Data Destinations:
+- GCS: deployed site forecast model artifacts
+- MLflow: site forecast training runs and metrics
+"""
+
+site_hourly_forecast_training_doc = """
+### AirQo site hourly forecast quarterly training
+#### Purpose
+Retrain site-level hourly PM2.5 forecast models on a quarterly schedule.
+
+#### Notes
+This DAG trains only hourly site-level forecast models. It fetches 3 months of
+site-hourly consolidated aggregates from BigQuery using
+`SITE_HOURLY_FORECAST_TRAINING_JOB_SCOPE_MONTHS`, builds hourly lag, rolling,
+time, cyclic, and site features, then trains LightGBM mean, min, max, low
+quantile, and high quantile models.
+
+Model training, MLflow logging, and GCS artifact persistence are handled by
+`ForecastModelTrainer`. MLflow is used when configured, and model artifacts are
+saved to the configured `FORECAST_MODELS_BUCKET`.
+
+Data sources:
+- BigQuery: consolidated site hourly aggregates
+
+Data Destinations:
+- GCS: deployed hourly site forecast model artifacts
+- MLflow: hourly site forecast training runs and metrics
+"""
