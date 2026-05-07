@@ -16,6 +16,25 @@ from app.crud.crud_sync_device_data import get_device_data_for_devices
 logger = logging.getLogger(__name__)
 
 
+# Only devices belonging to this network are exposed by the beacon API.
+# Cohort responses (from the platform or local DB) can include devices from
+# other networks; we filter them out at every device-list ingress point.
+AIRQO_NETWORK = "airqo"
+
+
+def _is_airqo_device(dev: Dict[str, Any]) -> bool:
+    """Return True if a device dict belongs to the airqo network."""
+    network = (dev.get("network") or "").strip().lower()
+    return network == AIRQO_NETWORK
+
+
+def _filter_cohort_devices_to_airqo(cohorts: List[Dict[str, Any]]) -> None:
+    """Mutate cohorts so each cohort['devices'] only contains airqo devices."""
+    for cohort in cohorts or []:
+        devices = cohort.get("devices") or []
+        cohort["devices"] = [d for d in devices if _is_airqo_device(d)]
+
+
 # ---------------------------------------------------------------------------
 # Local DB-backed cohort fetchers (no Platform API calls)
 # ---------------------------------------------------------------------------
@@ -90,9 +109,15 @@ def _hydrate_cohort_devices(db: Session, cohort_ids: List[str]) -> Dict[str, Lis
 
     by_cohort: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for j in junctions:
+        sync_dev = sync_devices.get(j.device_id)
+        # Skip devices that aren't on the airqo network. We require a
+        # SyncDevice row with network_id == 'airqo'; rows missing entirely
+        # (orphaned junctions) are also dropped.
+        if not sync_dev or (sync_dev.network_id or "").strip().lower() != AIRQO_NETWORK:
+            continue
         by_cohort[j.cohort_id].append(
             _platform_shape_device(
-                sync_devices.get(j.device_id), j.device_id, bool(j.is_active)
+                sync_dev, j.device_id, bool(j.is_active)
             )
         )
     return by_cohort
@@ -229,6 +254,9 @@ async def get_cohorts(token: str, params: Dict[str, Any] = None) -> Dict[str, An
     if include_performance and start_date_time and end_date_time:
         await _process_performance_data(cohorts, start_date_time, end_date_time, frequency, include_device_data=False)
 
+    # Restrict each cohort's device list to airqo-network devices only.
+    _filter_cohort_devices_to_airqo(cohorts)
+
     # Put it back inside the platform response structure
     platform_response["cohorts"] = cohorts
     
@@ -281,6 +309,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
 
         if total_pages <= 1:
             logger.info(f"Fetched {len(all_cohorts)} cohorts (single page)")
+            _filter_cohort_devices_to_airqo(all_cohorts)
             return {"success": True, "cohorts": all_cohorts}
 
         # Fetch remaining pages in parallel
@@ -303,6 +332,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
             all_cohorts.extend(page_cohorts)
 
     logger.info(f"Fetched {len(all_cohorts)} cohorts across {total_pages} pages (parallel)")
+    _filter_cohort_devices_to_airqo(all_cohorts)
     return {"success": True, "cohorts": all_cohorts}
 
 
