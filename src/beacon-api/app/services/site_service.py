@@ -1,7 +1,7 @@
 import httpx
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -11,6 +11,116 @@ from app.models.sync import SyncSite, SyncSiteDevice, SyncDevice
 from app.services.device_service import upsert_device_to_sync
 
 logger = logging.getLogger(__name__)
+
+
+# Scalar fields to diff (attr_name -> payload_key)
+_SITE_SCALAR_FIELDS = [
+    ("name", "name"),
+    ("latitude", "latitude"),
+    ("longitude", "longitude"),
+    ("network", "network"),
+    ("country", "country"),
+    ("city", "city"),
+    ("county", "county"),
+    ("district", "district"),
+    ("region", "region"),
+    ("data_provider", "data_provider"),
+    ("description", "description"),
+    ("generated_name", "generated_name"),
+]
+
+
+def _normalize_list(value) -> str:
+    """Stable JSON serialization so string compare == semantic compare."""
+    try:
+        return json.dumps(value or [], sort_keys=True)
+    except TypeError:
+        return json.dumps([], sort_keys=True)
+
+
+def _safe_parse_json_list(raw_value: Optional[str]) -> List[Any]:
+    """Parse stored JSON list safely, returning [] for malformed/non-list values."""
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value)
+        return parsed if isinstance(parsed, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
+def upsert_site_to_sync(
+    db: Session,
+    site_data: Dict[str, Any],
+    is_authoritative: bool = False,
+) -> Tuple[Optional[SyncSite], bool, bool]:
+    """
+    Centralized logic to upsert/update a SyncSite record from Platform-shaped data.
+    Returns (db_site, is_new, is_updated).
+
+    - is_authoritative=True: Trust all fields from the input (used by /sites/sync).
+    - is_authoritative=False: Only set missing fields; never overwrite an existing
+      value with one from a "thin" payload (e.g. embedded sites under a grid).
+    """
+    site_id = site_data.get("_id")
+    if not site_id:
+        return None, False, False
+
+    db_site = db.query(SyncSite).filter(SyncSite.site_id == site_id).first()
+    is_new = db_site is None
+    if is_new:
+        db_site = SyncSite(site_id=site_id)
+        db.add(db_site)
+
+    changed = False
+
+    for attr, key in _SITE_SCALAR_FIELDS:
+        new_val = site_data.get(key)
+        current_val = getattr(db_site, attr, None)
+        if is_authoritative:
+            if current_val != new_val:
+                setattr(db_site, attr, new_val)
+                changed = True
+        else:
+            # Non-authoritative: only fill if currently empty and new is provided.
+            if current_val in (None, "") and new_val not in (None, ""):
+                setattr(db_site, attr, new_val)
+                changed = True
+
+    raw_tags = site_data.get("site_tags")
+    raw_codes = site_data.get("site_codes")
+
+    if is_authoritative:
+        new_tags = _normalize_list(raw_tags or [])
+        new_codes = _normalize_list(raw_codes or [])
+        existing_tags = _normalize_list(_safe_parse_json_list(db_site.site_tags))
+        existing_codes = _normalize_list(_safe_parse_json_list(db_site.site_codes))
+        if existing_tags != new_tags:
+            db_site.site_tags = new_tags
+            changed = True
+        if existing_codes != new_codes:
+            db_site.site_codes = new_codes
+            changed = True
+    else:
+        if not db_site.site_tags and raw_tags:
+            db_site.site_tags = _normalize_list(raw_tags)
+            changed = True
+        if not db_site.site_codes and raw_codes:
+            db_site.site_codes = _normalize_list(raw_codes)
+            changed = True
+
+    raw_created = site_data.get("createdAt")
+    if raw_created:
+        try:
+            platform_created = datetime.fromisoformat(raw_created.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            platform_created = None
+        if platform_created and db_site.platform_created_at != platform_created:
+            if is_authoritative or db_site.platform_created_at is None:
+                db_site.platform_created_at = platform_created
+                changed = True
+
+    return db_site, is_new, (changed and not is_new)
 
 
 # ---------------------------------------------------------------------------
