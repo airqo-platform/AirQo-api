@@ -8,6 +8,7 @@ from app.utils.performance import PerformanceAnalysis
 from app.core.config import settings
 from app.crud.crud_sync_device_data import get_latest_raw_timestamps
 from app.db.session import SessionLocal
+from app.models.sync import SyncGrid, SyncGridSite, SyncDevice
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,34 @@ def sanitize_metric(value: Optional[float], ndigits: int = 4) -> float:
     if math.isnan(value) or math.isinf(value):
         return 0.0
     return round(value, ndigits)
+
+
+def _fetch_grids_by_device_ids(
+    db,
+    device_ids: List[str],
+) -> Dict[str, List[str]]:
+    """
+    Given a list of device IDs, return a mapping of device_id -> list of grid names.
+
+    The link is device -> site -> grid:
+        SyncDevice.site_id  ==  SyncGridSite.site_id
+        SyncGridSite.grid_id == SyncGrid.grid_id
+    """
+    if not device_ids:
+        return {}
+    rows = (
+        db.query(SyncDevice.device_id, SyncGrid.name)
+        .join(SyncGridSite, SyncGridSite.site_id == SyncDevice.site_id)
+        .join(SyncGrid, SyncGrid.grid_id == SyncGridSite.grid_id)
+        .filter(SyncDevice.device_id.in_(device_ids))
+        .filter(SyncGridSite.is_active == True)  # noqa: E712
+        .all()
+    )
+    result: Dict[str, List[str]] = {}
+    for device_id, grid_name in rows:
+        if grid_name:
+            result.setdefault(device_id, []).append(grid_name)
+    return result
 
 
 def _error_margin_from_averages(averages: Dict[str, Any]) -> float:
@@ -160,6 +189,7 @@ async def get_map_view(
     output = []
     for d in device_map.values():
         d["cohorts"] = list(d["cohorts"])
+        d.setdefault("grids", [])
         output.append(d)
 
     return {"success": True, "data": output}
@@ -171,6 +201,8 @@ def _build_map_view_devices(
     """Build the device_map + name->channel index from a list of cohorts."""
     device_map: Dict[str, Dict[str, Any]] = {}
     name_to_channel: Dict[str, str] = {}
+    # track device_ids so we can batch-fetch grids (device -> site -> grid)
+    name_to_device_id: Dict[str, str] = {}
 
     for cohort in cohorts:
         cohort_name = cohort.get("name", "")
@@ -178,13 +210,32 @@ def _build_map_view_devices(
             d_name = dev.get("name")
             if not dev.get("isActive") or not d_name:
                 continue
+            # Only include deployed devices
+            if (dev.get("status") or "").lower() != "deployed":
+                continue
 
             if d_name not in device_map:
                 device_map[d_name] = _make_map_view_entry(dev)
                 dn = dev.get("device_number")
                 if dn is not None:
                     name_to_channel[d_name] = str(dn)
+                d_id = dev.get("_id")
+                if d_id:
+                    name_to_device_id[d_name] = d_id
             device_map[d_name]["cohorts"].add(cohort_name)
+
+    # Enrich devices with their grids from the local DB.
+    # Link path: SyncDevice.site_id -> SyncGridSite.site_id -> SyncGrid
+    if name_to_device_id:
+        device_ids = list(set(name_to_device_id.values()))
+        db = SessionLocal()
+        try:
+            device_grids = _fetch_grids_by_device_ids(db, device_ids)
+        finally:
+            db.close()
+        for d_name, d_id in name_to_device_id.items():
+            if d_name in device_map:
+                device_map[d_name]["grids"] = device_grids.get(d_id, [])
 
     return device_map, name_to_channel
 
@@ -202,6 +253,7 @@ def _make_map_view_entry(dev: Dict[str, Any]) -> Dict[str, Any]:
         "data_completeness": sanitize_metric(dev.get("data_completeness")),
         "error_margin": sanitize_metric(err),
         "cohorts": set(),
+        "grids": [],
     }
 
 
