@@ -197,6 +197,40 @@ class SyncSite(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class SyncGrid(Base):
+    __tablename__ = "sync_grid"
+
+    grid_id = Column(String(100), primary_key=True, nullable=False)
+    name = Column(String(255), index=True)
+    visibility = Column(Boolean, server_default="false")
+    admin_level = Column(String(100))
+    network = Column(String(100))
+    long_name = Column(String(255))
+    flag_url = Column(String(255))
+    platform_created_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SyncGridSite(Base):
+    __tablename__ = "sync_grid_site"
+
+    grid_id = Column(
+        String(100),
+        ForeignKey("sync_grid.grid_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    site_id = Column(
+        String(100),
+        ForeignKey("sync_site.site_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    is_active = Column(Boolean, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class SyncCohortDevice(Base):
     __tablename__ = "sync_cohort_device"
 

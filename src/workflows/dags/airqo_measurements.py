@@ -670,10 +670,10 @@ def airqo_bigquery_data_measurements_to_api():
 
 @dag(
     "Re-calibrate-missing-calibrated-data",
-    schedule="0 0 * * *",
+    schedule="0 */6 * * *",
     catchup=False,
     doc_md=re_calibrate_missing_calibrated_data_doc,
-    tags=["2025", "hourly-data", "bigquery"],
+    tags=["2025", "hourly-data", "bigquery", "24h-missing-calibrated-data"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def calibrate_missing_measurements():
@@ -683,11 +683,8 @@ def calibrate_missing_measurements():
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
-    def extract_devices_missing_calibrated_data(**kwargs) -> Tuple[pd.DataFrame, str]:
-        start_date, _ = DateUtils.get_dag_date_time_values(days=1)
-        start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%SZ").strftime(
-            "%Y-%m-%d"
-        )
+    def extract_devices_missing_calibrated_data(**context) -> Tuple[pd.DataFrame, str]:
+        start_date = context["logical_date"].strftime("%Y-%m-%d")
         devices = AirQoDataUtils.extract_devices_with_missing_data(
             start_date=start_date
         )
