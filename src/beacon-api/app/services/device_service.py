@@ -9,6 +9,18 @@ from app.utils.performance import PerformanceAnalysis
 
 logger = logging.getLogger(__name__)
 
+# Only devices belonging to this network are exposed by the beacon API.
+# Platform responses can include devices from other networks; we filter them
+# out at every ingress point (list, single-device, and sync).
+AIRQO_NETWORK = "airqo"
+
+
+def _is_airqo_device(dev: Dict[str, Any]) -> bool:
+    """Return True if a platform device payload belongs to the airqo network."""
+    network = (dev.get("network") or "").strip().lower()
+    return network == AIRQO_NETWORK
+
+
 async def decrypt_read_keys(token: str, items: List[Dict[str, Any]]) -> Dict[int, str]:
     """
     Decrypts multiple read keys in bulk using the platform API.
@@ -86,11 +98,11 @@ def extract_device_category(dev: Dict[str, Any]) -> str:
 
 _AUTHORITATIVE_FIELDS = (
     "category", "site_id", "network_id", "device_name",
-    "device_number", "writeKey", "readKey",
+    "device_number", "writeKey", "readKey", "status",
 )
 
 _NON_AUTH_FILL_FIELDS = (
-    "device_name", "network_id", "device_number", "writeKey", "readKey",
+    "device_name", "network_id", "device_number", "writeKey", "readKey", "status",
 )
 
 
@@ -118,6 +130,7 @@ def _build_field_values(
         "device_number": dev.get("device_number"),
         "writeKey": dev.get("writeKey"),
         "readKey": read_key or dev.get("readKey"),
+        "status": dev.get("status"),
     }
 
 
@@ -194,6 +207,7 @@ def upsert_device_to_sync(
             device_number=values["device_number"],
             writeKey=values["writeKey"],
             readKey=values["readKey"],
+            status=values.get("status"),
         )
         db.add(db_device)
         return db_device, True, False
@@ -480,6 +494,7 @@ def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
         "device_number": db_device.device_number,
         "writeKey": db_device.writeKey,
         "readKey": db_device.readKey,
+        "status": db_device.status,
     }
 
 
@@ -497,6 +512,7 @@ def _beacon_data_from_platform(
         "device_number": dev.get("device_number"),
         "writeKey": dev.get("writeKey"),
         "readKey": read_key_to_store,
+        "status": dev.get("status"),
     }
 
 
@@ -534,7 +550,15 @@ async def get_device_details(db: Session, token: str, params: Dict[str, Any] = N
     if error is not None:
         return error
 
-    devices = platform_data.get("devices", [])
+    devices = platform_data.get("devices", []) or []
+    # Restrict to airqo-network devices only.
+    devices = [d for d in devices if _is_airqo_device(d)]
+    platform_data["devices"] = devices
+    # Keep meta counts consistent with the filtered list when present.
+    meta = platform_data.get("meta")
+    if isinstance(meta, dict):
+        meta["total"] = len(devices)
+
     decrypted_keys_map = await _decrypt_keys_for_devices(token, devices)
 
     for dev in devices:
@@ -585,6 +609,15 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
             platform_data["success"] = True
         return platform_data
 
+    # Restrict to airqo-network devices only.
+    if not _is_airqo_device(device_data):
+        return {
+            "success": False,
+            "message": f"Device {device_id} not found",
+            "status_code": 404,
+            "data": None,
+        }
+
     # Decrypt read key if available
     dn = device_data.get("device_number")
     raw_read_key = device_data.get("readKey")
@@ -611,7 +644,8 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
             "firmware_download_state": db_device.firmware_download_state,
             "device_number": db_device.device_number,
             "writeKey": db_device.writeKey,
-            "readKey": db_device.readKey
+            "readKey": db_device.readKey,
+            "status": db_device.status,
         }
     else:
         # Device not synced yet — use defaults or platform data
@@ -625,7 +659,8 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
             "firmware_download_state": None,
             "device_number": device_data.get("device_number"),
             "writeKey": device_data.get("writeKey"),
-            "readKey": read_key_to_store
+            "readKey": read_key_to_store,
+            "status": device_data.get("status"),
         }
     
     # 3. Add category data
@@ -937,6 +972,15 @@ async def _fetch_all_platform_devices(
         for resp in await asyncio.gather(*fetch_tasks):
             if resp.status_code == 200:
                 all_devices.extend(resp.json().get("devices", []))
+
+    # Restrict to airqo-network devices only — sync_device must never hold
+    # devices from other networks.
+    before = len(all_devices)
+    all_devices = [d for d in all_devices if _is_airqo_device(d)]
+    if before != len(all_devices):
+        logger.info(
+            f"Filtered platform devices to airqo network: {len(all_devices)}/{before}"
+        )
     return all_devices, None
 
 
