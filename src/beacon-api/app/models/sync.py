@@ -63,6 +63,7 @@ class SyncDevice(Base):
     network_id = Column(String(100))
     site_id = Column(String(100), index=True)
     category = Column(String(100))
+    status = Column(String(100))
     current_firmware = Column(String(100))
     previous_firmware = Column(String(100))
     target_firmware = Column(String(100))
