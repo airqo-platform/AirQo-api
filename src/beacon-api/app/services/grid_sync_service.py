@@ -46,8 +46,11 @@ async def _fetch_grid_page(
     return response.json()
 
 
-async def _fetch_all_grids(token: str, limit: int = 100) -> List[Dict[str, Any]]:
-    """Fetch all grids from the platform across paginated requests."""
+async def _fetch_all_grids(token: str, limit: int = 100) -> Optional[List[Dict[str, Any]]]:
+    """Fetch all grids from the platform across paginated requests.
+
+    Returns None when any page fetch fails.
+    """
     headers = {"Authorization": f"JWT {token}"}
     url = f"{settings.PLATFORM_BASE_URL}/devices/grids/summary"
 
@@ -62,11 +65,12 @@ async def _fetch_all_grids(token: str, limit: int = 100) -> List[Dict[str, Any]]
                     client, url, headers, page, (page - 1) * actual_limit, limit
                 )
             except Exception as e:
-                logger.error(f"[Grid Sync] Error fetching page {page}: {e}")
-                break
+                logger.exception(f"[Grid Sync] Error fetching page {page}: {e}")
+                return None
 
             if data is None:
-                break
+                logger.error(f"[Grid Sync] Failed to fetch page {page}; aborting grid sync fetch")
+                return None
 
             grids_page = data.get("grids", [])
             all_grids.extend(grids_page)
@@ -207,6 +211,14 @@ async def sync_grids(db: Session, token: str) -> Dict[str, Any]:
     Embedded sites are backfilled into sync_site non-authoritatively.
     """
     all_grids = await _fetch_all_grids(token)
+
+    if all_grids is None:
+        return {
+            "success": False,
+            "message": "Failed to fetch grids from platform",
+            "grids_synced": 0,
+            "sites_backfilled": 0,
+        }
 
     if not all_grids:
         return {

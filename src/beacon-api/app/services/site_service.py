@@ -38,6 +38,17 @@ def _normalize_list(value) -> str:
         return json.dumps([], sort_keys=True)
 
 
+def _safe_parse_json_list(raw_value: Optional[str]) -> List[Any]:
+    """Parse stored JSON list safely, returning [] for malformed/non-list values."""
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value)
+        return parsed if isinstance(parsed, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
 def upsert_site_to_sync(
     db: Session,
     site_data: Dict[str, Any],
@@ -82,8 +93,8 @@ def upsert_site_to_sync(
     if is_authoritative:
         new_tags = _normalize_list(raw_tags or [])
         new_codes = _normalize_list(raw_codes or [])
-        existing_tags = _normalize_list(json.loads(db_site.site_tags)) if db_site.site_tags else _normalize_list([])
-        existing_codes = _normalize_list(json.loads(db_site.site_codes)) if db_site.site_codes else _normalize_list([])
+        existing_tags = _normalize_list(_safe_parse_json_list(db_site.site_tags))
+        existing_codes = _normalize_list(_safe_parse_json_list(db_site.site_codes))
         if existing_tags != new_tags:
             db_site.site_tags = new_tags
             changed = True
