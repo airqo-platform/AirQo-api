@@ -68,6 +68,9 @@ const FeedbackSchema = new mongoose.Schema(
     app: {
       type: String,
       trim: true,
+      set(value) {
+        return value === "" ? undefined : value;
+      },
       maxlength: [100, "app cannot exceed 100 characters"],
     },
     status: {
