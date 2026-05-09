@@ -180,6 +180,7 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
     )
 
     mock_collection = MagicMock()
+    mock_collection.find.return_value = []
 
     mock_db = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
@@ -223,6 +224,82 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
         "rows": 2,
         "collection": "site_hourly_forecasts",
         "deleted_rows": 0,
+    }
+
+
+def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
+    forecasts = pd.DataFrame(
+        [
+            {
+                "timestamp": pd.Timestamp("2026-03-04T10:00:00Z"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.3123456,
+                "site_longitude": 32.5123456,
+                "pm2_5_mean": 12.1,
+                "pm2_5_q10": 10.2,
+                "pm2_5_q90": 14.8,
+                "forecast_confidence": 80.0,
+                "created_at": pd.Timestamp("2026-03-04T08:00:00Z"),
+            }
+        ]
+    )
+    existing_docs = [
+        {
+            "_id": 1,
+            "site_id": "site-1",
+            "timestamp": pd.Timestamp("2026-03-04T08:00:00Z").to_pydatetime(),
+        },
+        {
+            "_id": 2,
+            "site_id": "site-1",
+            "timestamp": pd.Timestamp("2026-03-04T09:00:00Z").to_pydatetime(),
+        },
+        {
+            "_id": 3,
+            "site_id": "site-1",
+            "timestamp": pd.Timestamp("2026-03-04T10:00:00Z").to_pydatetime(),
+        },
+    ]
+
+    mock_collection = MagicMock()
+    mock_collection.find.return_value = existing_docs
+    mock_collection.delete_many.return_value.deleted_count = 1
+
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+
+    mock_client_manager = MagicMock()
+    mock_client_manager.__enter__.return_value = mock_client
+    mock_client_manager.__exit__.return_value = None
+
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
+    monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "MONGO_SITE_HOURLY_FORECAST_COLLECTION",
+        "site_hourly_forecasts",
+    )
+    monkeypatch.setattr(
+        ml_utils_module.configuration, "SITE_HOURLY_FORECAST_HORIZON_HOURS", "2"
+    )
+    monkeypatch.setattr(
+        ml_utils_module.pm,
+        "MongoClient",
+        lambda *args, **kwargs: mock_client_manager,
+    )
+
+    result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
+
+    mock_collection.bulk_write.assert_called_once()
+    mock_collection.delete_many.assert_called_once_with({"_id": {"$in": [1]}})
+    assert result == {
+        "rows": 1,
+        "collection": "site_hourly_forecasts",
+        "deleted_rows": 1,
     }
 
 

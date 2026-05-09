@@ -3071,6 +3071,7 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("No site hourly forecasts available to persist.")
 
         collection_name = configuration.MONGO_SITE_HOURLY_FORECAST_COLLECTION
+        site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
         records = []
         for row in prepared.to_dict(orient="records"):
             document = {
@@ -3110,6 +3111,8 @@ class ForecastModelTrainer(BaseMlUtils):
             )
             for record in records
         ]
+        retention_hours = int(configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+        deleted_rows = 0
 
         with pm.MongoClient(
             configuration.MONGO_URI, serverSelectionTimeoutMS=5000
@@ -3118,11 +3121,42 @@ class ForecastModelTrainer(BaseMlUtils):
             collection = mongo_db[collection_name]
             if bulk_operations:
                 collection.bulk_write(bulk_operations, ordered=False)
+                if site_ids:
+                    existing_docs = list(
+                        collection.find(
+                            {"site_id": {"$in": site_ids}},
+                            {"_id": 1, "site_id": 1, "timestamp": 1},
+                        )
+                    )
+                    if existing_docs:
+                        existing = pd.DataFrame(existing_docs)
+                        existing["timestamp"] = pd.to_datetime(
+                            existing["timestamp"], utc=True, errors="coerce"
+                        )
+                        retained_ids = set(
+                            existing.dropna(subset=["timestamp"])
+                            .sort_values(
+                                ["site_id", "timestamp"],
+                                ascending=[True, False],
+                            )
+                            .groupby("site_id", group_keys=False)
+                            .head(retention_hours)["_id"]
+                            .tolist()
+                        )
+                        stale_ids = [
+                            doc["_id"]
+                            for doc in existing_docs
+                            if doc["_id"] not in retained_ids
+                        ]
+                        if stale_ids:
+                            deleted_rows = collection.delete_many(
+                                {"_id": {"$in": stale_ids}}
+                            ).deleted_count
 
         return {
             "rows": len(records),
             "collection": collection_name,
-            "deleted_rows": 0,
+            "deleted_rows": deleted_rows,
         }
 
     @staticmethod
