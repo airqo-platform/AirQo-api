@@ -7616,8 +7616,16 @@ const feedbackUtil = {
     try {
       const { body, query } = request;
       const tenant = resolveFeedbackTenant(query);
-      const { email, subject, message, rating, category, platform, metadata } =
-        body;
+      const {
+        email,
+        subject,
+        message,
+        rating,
+        category,
+        platform,
+        app,
+        metadata,
+      } = body;
 
       // U2: safely normalise email — validator guarantees it's present and a
       // string at the HTTP layer, but guard here so a missing value yields a
@@ -7640,6 +7648,7 @@ const feedbackUtil = {
         rating,
         category,
         platform,
+        app,
         metadata,
         tenant,
         userId: request.user ? request.user._id : undefined,
@@ -7697,6 +7706,7 @@ const feedbackUtil = {
       if (query.status) filter.status = query.status;
       if (query.category) filter.category = query.category;
       if (query.platform) filter.platform = query.platform;
+      if (query.app) filter.app = query.app;
       if (query.email) filter.email = query.email.toLowerCase().trim();
 
       return await FeedbackModel(tenant).list({ skip, limit, filter });

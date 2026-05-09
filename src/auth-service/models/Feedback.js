@@ -65,6 +65,11 @@ const FeedbackSchema = new mongoose.Schema(
       },
       default: "web",
     },
+    app: {
+      type: String,
+      trim: true,
+      maxlength: [100, "app cannot exceed 100 characters"],
+    },
     status: {
       type: String,
       enum: {
@@ -94,6 +99,7 @@ const FeedbackSchema = new mongoose.Schema(
 FeedbackSchema.index({ tenant: 1, createdAt: -1 });
 FeedbackSchema.index({ tenant: 1, status: 1 });
 FeedbackSchema.index({ tenant: 1, category: 1 });
+FeedbackSchema.index({ tenant: 1, app: 1 });
 FeedbackSchema.index({ email: 1, tenant: 1 });
 
 FeedbackSchema.statics = {
@@ -208,6 +214,7 @@ FeedbackSchema.methods = {
       rating: this.rating,
       category: this.category,
       platform: this.platform,
+      app: this.app,
       status: this.status,
       userId: this.userId,
       tenant: this.tenant,
