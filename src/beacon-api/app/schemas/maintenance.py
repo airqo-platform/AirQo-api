@@ -92,6 +92,7 @@ class MapViewDeviceEntry(BaseModel):
     data_completeness: float = 0.0
     error_margin: float = 0.0
     cohorts: List[str] = []
+    grids: List[str] = []
 
 
 class MapViewResponse(BaseModel):

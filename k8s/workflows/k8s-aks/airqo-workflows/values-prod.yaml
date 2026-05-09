@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-redis
     containers: airqoacr.azurecr.io/airqo-workflows
-  tag: prod-d6e4d9b9-1777627114
+  tag: prod-00c195a7-1778247542
 nodeSelector:
   workload: airflow
 tolerations:

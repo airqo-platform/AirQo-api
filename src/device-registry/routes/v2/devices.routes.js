@@ -18,7 +18,6 @@ const {
   validateBulkClaim,
   validateGetMyDevices,
   validateDeviceAvailability,
-  validateOrganizationAssignment,
   validateOrganizationSwitch,
   validateQRCodeGeneration,
   validateListOrphanedDevices,
@@ -64,6 +63,7 @@ router.get(
   validateTenant,
   validateGetMyDevices,
   validate,
+  pagination(),
   deviceController.getMyDevices
 );
 
@@ -76,14 +76,6 @@ router.get(
 );
 
 // ORGANIZATION ROUTES
-router.post(
-  "/assign-to-organization",
-  validateTenant,
-  validateOrganizationAssignment,
-  validate,
-  deviceController.assignDeviceToOrganization
-);
-
 router.get(
   "/user-organizations",
   validateTenant,

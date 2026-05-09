@@ -17,11 +17,21 @@ const {
   validateNearestSite,
   validateGetSiteCountSummary,
   validateBulkUpdateSites,
+  validateGetMySites,
 } = require("@validators/site.validators");
 const { validate } = require("@validators/common");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
+
+router.get(
+  "/my-sites",
+  validateTenant,
+  validateGetMySites,
+  validate,
+  pagination(),
+  siteController.getMySites
+);
 
 /****************************** create sites use-case *************** */
 router.get(

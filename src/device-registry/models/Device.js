@@ -455,36 +455,6 @@ const deviceSchema = new mongoose.Schema(
       default: null,
     },
 
-    assigned_organization_id: {
-      type: ObjectId,
-      default: null,
-      index: true,
-    },
-
-    assigned_organization: {
-      id: {
-        type: ObjectId,
-        default: null,
-        index: true,
-      },
-      name: {
-        type: String,
-        trim: true,
-      },
-      type: {
-        type: String,
-        trim: true,
-      },
-      updated_at: {
-        type: Date,
-        default: Date.now,
-      },
-    },
-
-    organization_assigned_at: {
-      type: Date,
-    },
-
     mobility_metadata: {
       route_id: { type: String, trim: true },
       coverage_area: { type: String, trim: true },
@@ -937,10 +907,6 @@ deviceSchema.methods = {
       claim_status: this.claim_status,
       claimed_at: this.claimed_at,
       claim_token_expires_at: this.claim_token_expires_at,
-      assigned_organization_id:
-        this.assigned_organization_id || this.assigned_organization?.id || null,
-      assigned_organization: this.assigned_organization,
-      organization_assigned_at: this.organization_assigned_at,
       onlineStatusAccuracy: this.onlineStatusAccuracy,
       grid_id: this.grid_id,
       deployment_type: this.deployment_type,

@@ -236,15 +236,15 @@ class CalibrationModelTrainer:
         metrics["deployed"] = deployment["deployed"]
         metrics["deployment_reason"] = deployment["reason"]
 
-        # CalibrationModelTrainer._log_mlflow(
-        #     country=country,
-        #     model=model,
-        #     model_type=best_label,
-        #     params=params,
-        #     metrics=metrics,
-        #     deployment=deployment,
-        #     input_example=X_val.head(5) if not X_val.empty else None,
-        # )
+        CalibrationModelTrainer._log_mlflow(
+            country=country,
+            model=model,
+            model_type=best_label,
+            params=params,
+            metrics=metrics,
+            deployment=deployment,
+            input_example=X_val.head(5) if not X_val.empty else None,
+        )
 
         logger.info(
             "Calibration training for %s — R²=%.3f MAE=%.2f RMSE=%.2f deployed=%s (%s)",
