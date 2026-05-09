@@ -1428,6 +1428,14 @@ const submitFeedback = [
     .withMessage(
       `platform must be one of: ${FEEDBACK_PLATFORMS.join(", ")}`,
     ),
+  body("app")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("app must not be empty if provided")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("app cannot exceed 100 characters"),
   body("metadata")
     .optional()
     .isObject()
@@ -1471,6 +1479,14 @@ const listFeedbackSubmissions = [
     .withMessage(
       `platform must be one of: ${FEEDBACK_PLATFORMS.join(", ")}`,
     ),
+  query("app")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("app must not be empty if provided")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("app cannot exceed 100 characters"),
   query("email")
     .optional()
     .trim()
