@@ -3060,7 +3060,7 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _save_site_hourly_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
-        """Replace stored hourly forecasts for affected sites in MongoDB."""
+        """Upsert stored hourly forecasts in MongoDB."""
         if not configuration.MONGO_URI:
             raise ValueError("Missing required config: MONGO_URI.")
 
@@ -3071,7 +3071,6 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("No site hourly forecasts available to persist.")
 
         collection_name = configuration.MONGO_SITE_HOURLY_FORECAST_COLLECTION
-        site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
         records = []
         for row in prepared.to_dict(orient="records"):
             document = {
@@ -3100,24 +3099,30 @@ class ForecastModelTrainer(BaseMlUtils):
                 }
             )
 
+        bulk_operations = [
+            pm.ReplaceOne(
+                {
+                    "site_id": record["site_id"],
+                    "timestamp": record["timestamp"],
+                },
+                record,
+                upsert=True,
+            )
+            for record in records
+        ]
+
         with pm.MongoClient(
             configuration.MONGO_URI, serverSelectionTimeoutMS=5000
         ) as client:
             mongo_db = client[configuration.MONGO_DATABASE_NAME]
             collection = mongo_db[collection_name]
-            deleted_rows = 0
-            if site_ids:
-                deleted_rows = collection.delete_many(
-                    {"site_id": {"$in": site_ids}}
-                ).deleted_count
-            if records:
-                collection.insert_many(records, ordered=False)
-                collection.create_index([("site_id", 1), ("timestamp", 1)])
+            if bulk_operations:
+                collection.bulk_write(bulk_operations, ordered=False)
 
         return {
-            "rows": int(len(records)),
+            "rows": len(records),
             "collection": collection_name,
-            "deleted_rows": int(deleted_rows),
+            "deleted_rows": 0,
         }
 
     @staticmethod

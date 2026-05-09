@@ -180,7 +180,6 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
     )
 
     mock_collection = MagicMock()
-    mock_collection.delete_many.return_value.deleted_count = 5
 
     mock_db = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
@@ -207,14 +206,23 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
 
     result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
-    mock_collection.delete_many.assert_called_once_with({"site_id": {"$in": ["site-1"]}})
-    mock_collection.insert_many.assert_called_once()
-    inserted_records = mock_collection.insert_many.call_args.args[0]
-    assert len(inserted_records) == 2
+    mock_collection.bulk_write.assert_called_once()
+    assert mock_collection.bulk_write.call_args.kwargs["ordered"] is False
+    bulk_operations = mock_collection.bulk_write.call_args.args[0]
+    assert len(bulk_operations) == 2
+    assert all(operation._upsert for operation in bulk_operations)
+    assert bulk_operations[0]._filter == {
+        "site_id": "site-1",
+        "timestamp": pd.Timestamp("2026-03-04T08:00:00Z").to_pydatetime(),
+    }
+    assert bulk_operations[0]._doc["pm2_5_mean"] == 12.1
+    mock_collection.delete_many.assert_not_called()
+    mock_collection.insert_many.assert_not_called()
+    mock_collection.create_index.assert_not_called()
     assert result == {
         "rows": 2,
         "collection": "site_hourly_forecasts",
-        "deleted_rows": 5,
+        "deleted_rows": 0,
     }
 
 
