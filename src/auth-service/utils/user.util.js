@@ -7623,9 +7623,13 @@ const feedbackUtil = {
         rating,
         category,
         platform,
-        app,
+        app: rawApp,
         metadata,
       } = body;
+      const app =
+        typeof rawApp === "string" && rawApp.trim()
+          ? rawApp.trim()
+          : undefined;
 
       // U2: safely normalise email — validator guarantees it's present and a
       // string at the HTTP layer, but guard here so a missing value yields a
@@ -7706,7 +7710,8 @@ const feedbackUtil = {
       if (query.status) filter.status = query.status;
       if (query.category) filter.category = query.category;
       if (query.platform) filter.platform = query.platform;
-      if (query.app) filter.app = query.app;
+      if (typeof query.app === "string" && query.app.trim())
+        filter.app = query.app.trim();
       if (query.email) filter.email = query.email.toLowerCase().trim();
 
       return await FeedbackModel(tenant).list({ skip, limit, filter });
