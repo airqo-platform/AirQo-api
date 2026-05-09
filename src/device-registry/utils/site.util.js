@@ -1,4 +1,6 @@
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
+const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const ActivityModel = require("@models/Activity");
 const DeviceModel = require("@models/Device");
@@ -2373,9 +2375,150 @@ const createSite = {
   },
 };
 
+const getMySites = async (request, next) => {
+  try {
+    const { cohort_ids, group_ids } = request.query;
+    const { tenant } = request.query;
+    const skip = request.query.skip || 0;
+    const limit = request.query.limit || 30;
+
+    const splitAndMapToObjectId = (ids) => {
+      if (!ids) return { valid: true, data: [] };
+      const rawList = Array.isArray(ids) ? ids : ids.split(",");
+      const idList = rawList.map((id) => String(id).trim()).filter(Boolean);
+      const invalidId = idList.find((id) => !isValidObjectId(id));
+      if (invalidId) {
+        return {
+          valid: false,
+          message: `Invalid ID format: ${invalidId}`,
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Invalid ID format: ${invalidId}` },
+        };
+      }
+      return { valid: true, data: idList.map((id) => new ObjectId(id)) };
+    };
+
+    // 1. Resolve group_ids → cohort ObjectIds
+    let groupCohorts = [];
+    if (group_ids) {
+      const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
+      if (!groupObjectIdsResult.valid) {
+        return {
+          success: false,
+          message: groupObjectIdsResult.message,
+          status: groupObjectIdsResult.status,
+          errors: groupObjectIdsResult.errors,
+        };
+      }
+      const groupLinkedCohorts = await CohortModel(tenant)
+        .find({ grp_id: { $in: groupObjectIdsResult.data } })
+        .select("_id")
+        .lean();
+      groupCohorts = groupLinkedCohorts.map((c) => c._id);
+    }
+
+    // 2. Combine direct cohort_ids with group-derived cohorts
+    const directCohortIdsResult = splitAndMapToObjectId(cohort_ids);
+    if (!directCohortIdsResult.valid) {
+      return {
+        success: false,
+        message: directCohortIdsResult.message,
+        status: directCohortIdsResult.status,
+        errors: directCohortIdsResult.errors,
+      };
+    }
+    const allCohortIds = [
+      ...new Set([
+        ...directCohortIdsResult.data.map((id) => id.toString()),
+        ...groupCohorts.map((id) => id.toString()),
+      ]),
+    ].map((id) => new ObjectId(id));
+
+    if (allCohortIds.length === 0) {
+      return {
+        success: true,
+        message: "Sites retrieved successfully",
+        data: [],
+        status: httpStatus.OK,
+        meta: { total: 0, skip, limit, page: 1, totalPages: 0 },
+      };
+    }
+
+    // 3. Get site_ids from CohortSiteSnapshot for all resolved cohorts
+    const snapshots = await CohortSiteSnapshotModel(tenant)
+      .find({ cohort_id: { $in: allCohortIds }, tenant })
+      .select("site_id")
+      .lean();
+
+    const siteIds = [
+      ...new Map(snapshots.map((s) => [s.site_id.toString(), s.site_id])).values(),
+    ];
+
+    if (siteIds.length === 0) {
+      return {
+        success: true,
+        message: "Sites retrieved successfully",
+        data: [],
+        status: httpStatus.OK,
+        meta: { total: 0, skip, limit, page: 1, totalPages: 0 },
+      };
+    }
+
+    // 4. Fetch full site documents (paginated)
+    const siteFilter = { _id: { $in: siteIds } };
+    const [total, sites] = await Promise.all([
+      SiteModel(tenant).countDocuments(siteFilter),
+      SiteModel(tenant)
+        .find(siteFilter)
+        .select(
+          "name search_name generated_name network groups country district latitude longitude status data_provider createdAt",
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    return {
+      success: true,
+      message: "Sites retrieved successfully",
+      data: sites || [],
+      status: httpStatus.OK,
+      meta: {
+        total,
+        skip,
+        limit,
+        page: Math.floor(skip / limit) + 1,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    logObject("Get My Sites Error Details:", error);
+    logger.error(`🪲🪲 Get My Sites Error ${error.message}`);
+
+    if (error.name === "CastError") {
+      return {
+        success: false,
+        message: "Invalid ObjectId format",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "One or more IDs have invalid format" },
+      };
+    }
+
+    next(
+      new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      ),
+    );
+  }
+};
+
 module.exports = {
   ...createSite,
   getSiteCountSummary,
   computeSiteDataProvider,
   refreshSiteDataProvider,
+  getMySites,
 };
