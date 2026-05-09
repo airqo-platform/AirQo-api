@@ -1447,7 +1447,7 @@ class BigQueryApi:
         try:
             return self.execute_data_query(query=query)
         except Exception as e:
-            raise RuntimeError(f"Error fetching consolidated site hourly data: {e}")
+            raise RuntimeError(f"Error fetching consolidated site hourly data: {e}") from e
 
     def fetch_device_data_for_satellite_job(
         self,
