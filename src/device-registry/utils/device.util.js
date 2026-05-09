@@ -3190,19 +3190,10 @@ const deviceUtil = {
         filter.$or.push({ cohorts: { $in: allCohortIds } });
       }
 
-      // Deprecated: Also include devices assigned via the old organization model for backward compatibility
-      if (group_ids) {
-        filter.$or.push({ assigned_organization_id: { $in: groupObjectIds } });
-        filter.$or.push({
-          "assigned_organization.id": { $in: groupObjectIds },
-        });
-      }
-
-      // Query devices with both organization fields
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id assigned_organization claimed_at",
+          "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at",
         )
         .sort({ claimed_at: -1 })
         .lean();
@@ -3284,92 +3275,6 @@ const deviceUtil = {
       );
     }
   },
-  assignDeviceToOrganization: async (request, next) => {
-    try {
-      const {
-        device_name,
-        organization_id,
-        user_id,
-        organization_data,
-      } = request.body;
-      const { tenant } = request.query;
-
-      if (!user_id || !isValidObjectId(user_id)) {
-        return {
-          success: false,
-          message: "Invalid user_id",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "user_id must be a valid MongoDB ObjectId" },
-        };
-      }
-
-      if (!organization_id || !isValidObjectId(organization_id)) {
-        return {
-          success: false,
-          message: "Invalid organization_id",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: "organization_id must be a valid MongoDB ObjectId",
-          },
-        };
-      }
-
-      // Verify user owns the device
-      const device = await DeviceModel(tenant).findOne({
-        name: device_name,
-        owner_id: new ObjectId(user_id),
-      });
-
-      if (!device) {
-        return {
-          success: false,
-          message: "Device not found or not owned by user",
-          status: httpStatus.FORBIDDEN,
-          errors: { message: "Cannot assign device you don't own" },
-        };
-      }
-
-      // Update device with both organization fields
-      const updateData = {
-        assigned_organization_id: new ObjectId(organization_id),
-        assigned_organization: {
-          id: new ObjectId(organization_id),
-          name: organization_data?.name || null,
-          type: organization_data?.type || null,
-          updated_at: new Date(),
-        },
-        organization_assigned_at: new Date(),
-      };
-
-      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
-        { name: device_name, owner_id: new ObjectId(user_id) },
-        { $set: updateData },
-        { new: true },
-      );
-
-      return {
-        success: true,
-        message: "Device assigned to organization successfully",
-        data: {
-          name: updatedDevice.name,
-          assigned_organization_id: updatedDevice.assigned_organization_id,
-          assigned_organization: updatedDevice.assigned_organization,
-          organization_assigned_at: updatedDevice.organization_assigned_at,
-        },
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🪲🪲 Assign Device Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-    }
-  },
-
   generateClaimQRCode: async (request, next) => {
     try {
       const { deviceName } = request.params;
@@ -3481,9 +3386,6 @@ const deviceUtil = {
             owner_id: null,
             claimed_at: null,
             claim_token: null,
-            assigned_organization_id: null,
-            assigned_organization: null,
-            organization_assigned_at: null,
           },
         },
       );

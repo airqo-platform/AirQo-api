@@ -1030,6 +1030,51 @@ const siteController = {
       return;
     }
   },
+  getMySites: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await siteUtil.getMySites(request, next);
+
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          sites: result.data,
+          total_sites: result.data.length,
+        });
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json({
+            success: false,
+            message: result.message,
+            errors: result.errors,
+          });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   findNearestLocations: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

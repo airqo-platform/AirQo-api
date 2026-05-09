@@ -1,4 +1,6 @@
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
+const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const ActivityModel = require("@models/Activity");
 const DeviceModel = require("@models/Device");
@@ -2373,9 +2375,139 @@ const createSite = {
   },
 };
 
+const getMySites = async (request, next) => {
+  try {
+    const { user_id, cohort_ids, group_ids } = request.query;
+    const { tenant } = request.query;
+
+    if (!user_id) {
+      return {
+        success: false,
+        message: "user_id is required",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "user_id parameter is missing" },
+      };
+    }
+
+    if (!isValidObjectId(user_id)) {
+      return {
+        success: false,
+        message: "Invalid user_id format",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "user_id must be a valid MongoDB ObjectId" },
+      };
+    }
+
+    const splitAndMapToObjectId = (ids) => {
+      if (!ids) return { valid: true, data: [] };
+      const idList = ids.split(",").map((id) => id.trim());
+      const invalidId = idList.find((id) => !isValidObjectId(id));
+      if (invalidId) {
+        return {
+          valid: false,
+          message: `Invalid ID format: ${invalidId}`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      return { valid: true, data: idList.map((id) => new ObjectId(id)) };
+    };
+
+    // 1. Resolve group_ids → cohort ObjectIds
+    let groupCohorts = [];
+    if (group_ids) {
+      const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
+      if (!groupObjectIdsResult.valid) {
+        return { success: false, ...groupObjectIdsResult };
+      }
+      const groupLinkedCohorts = await CohortModel(tenant)
+        .find({ grp_id: { $in: groupObjectIdsResult.data } })
+        .select("_id")
+        .lean();
+      groupCohorts = groupLinkedCohorts.map((c) => c._id);
+    }
+
+    // 2. Combine direct cohort_ids with group-derived cohorts
+    const directCohortIdsResult = splitAndMapToObjectId(cohort_ids);
+    if (!directCohortIdsResult.valid) {
+      return { success: false, ...directCohortIdsResult };
+    }
+    const allCohortIds = [
+      ...new Set([
+        ...directCohortIdsResult.data.map((id) => id.toString()),
+        ...groupCohorts.map((id) => id.toString()),
+      ]),
+    ].map((id) => new ObjectId(id));
+
+    if (allCohortIds.length === 0) {
+      return {
+        success: true,
+        message: "Sites retrieved successfully",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+
+    // 3. Get site_ids from CohortSiteSnapshot for all resolved cohorts
+    const snapshots = await CohortSiteSnapshotModel(tenant)
+      .find({ cohort_id: { $in: allCohortIds }, tenant })
+      .select("site_id")
+      .lean();
+
+    const siteIds = [
+      ...new Map(snapshots.map((s) => [s.site_id.toString(), s.site_id])).values(),
+    ];
+
+    if (siteIds.length === 0) {
+      return {
+        success: true,
+        message: "Sites retrieved successfully",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+
+    // 4. Fetch full site documents
+    const sites = await SiteModel(tenant)
+      .find({ _id: { $in: siteIds } })
+      .select(
+        "name search_name generated_name network groups country district latitude longitude status data_provider createdAt",
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return {
+      success: true,
+      message: "Sites retrieved successfully",
+      data: sites || [],
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logObject("Get My Sites Error Details:", error);
+    logger.error(`🪲🪲 Get My Sites Error ${error.message}`);
+
+    if (error.name === "CastError") {
+      return {
+        success: false,
+        message: "Invalid ObjectId format",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "One or more IDs have invalid format" },
+      };
+    }
+
+    next(
+      new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      ),
+    );
+  }
+};
+
 module.exports = {
   ...createSite,
   getSiteCountSummary,
   computeSiteDataProvider,
   refreshSiteDataProvider,
+  getMySites,
 };

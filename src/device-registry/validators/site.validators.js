@@ -527,6 +527,18 @@ const validateBulkUpdateSites = [
   ...validateUpdateSite,
 ];
 
+const validateGetMySites = [
+  query("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+];
+
 const validateGetSiteCountSummary = [
   query("group_id")
     .optional()
@@ -572,4 +584,5 @@ module.exports = {
   validateBulkUpdateSites,
   validateSiteIdParam,
   validateCategoryField,
+  validateGetMySites,
 };
