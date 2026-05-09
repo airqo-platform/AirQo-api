@@ -3121,6 +3121,8 @@ const deviceUtil = {
     try {
       const { user_id, cohort_ids, group_ids } = request.query;
       const { tenant } = request.query;
+      const skip = request.query.skip || 0;
+      const limit = request.query.limit || 30;
 
       if (!user_id) {
         return {
@@ -3190,22 +3192,30 @@ const deviceUtil = {
         filter.$or.push({ cohorts: { $in: allCohortIds } });
       }
 
-      const devices = await DeviceModel(tenant)
-        .find(filter)
-        .select(
-          "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at",
-        )
-        .sort({ claimed_at: -1 })
-        .lean();
+      const [total, devices] = await Promise.all([
+        DeviceModel(tenant).countDocuments(filter),
+        DeviceModel(tenant)
+          .find(filter)
+          .select(
+            "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at",
+          )
+          .sort({ claimed_at: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+      ]);
 
       return {
         success: true,
         message: "Devices retrieved successfully",
         data: devices || [],
         status: httpStatus.OK,
-        metadata: {
-          note:
-            "Device access is determined by direct ownership and cohort/group membership.",
+        meta: {
+          total,
+          skip,
+          limit,
+          page: Math.floor(skip / limit) + 1,
+          totalPages: Math.ceil(total / limit),
         },
       };
     } catch (error) {

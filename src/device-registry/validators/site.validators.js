@@ -529,9 +529,7 @@ const validateBulkUpdateSites = [
 
 const validateGetMySites = [
   query("user_id")
-    .exists()
-    .withMessage("user_id is required")
-    .bail()
+    .optional()
     .trim()
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId")

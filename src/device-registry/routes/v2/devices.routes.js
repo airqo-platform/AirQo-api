@@ -63,6 +63,7 @@ router.get(
   validateTenant,
   validateGetMyDevices,
   validate,
+  pagination(),
   deviceController.getMyDevices
 );
 

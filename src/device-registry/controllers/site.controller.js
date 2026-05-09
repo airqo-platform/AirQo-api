@@ -1052,8 +1052,9 @@ const siteController = {
         return res.status(result.status || httpStatus.OK).json({
           success: true,
           message: result.message,
+          meta: result.meta || {},
           sites: result.data,
-          total_sites: result.data.length,
+          total_sites: result.meta.total,
         });
       } else {
         return res

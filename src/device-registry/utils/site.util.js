@@ -2377,36 +2377,22 @@ const createSite = {
 
 const getMySites = async (request, next) => {
   try {
-    const { user_id, cohort_ids, group_ids } = request.query;
+    const { cohort_ids, group_ids } = request.query;
     const { tenant } = request.query;
-
-    if (!user_id) {
-      return {
-        success: false,
-        message: "user_id is required",
-        status: httpStatus.BAD_REQUEST,
-        errors: { message: "user_id parameter is missing" },
-      };
-    }
-
-    if (!isValidObjectId(user_id)) {
-      return {
-        success: false,
-        message: "Invalid user_id format",
-        status: httpStatus.BAD_REQUEST,
-        errors: { message: "user_id must be a valid MongoDB ObjectId" },
-      };
-    }
+    const skip = request.query.skip || 0;
+    const limit = request.query.limit || 30;
 
     const splitAndMapToObjectId = (ids) => {
       if (!ids) return { valid: true, data: [] };
-      const idList = ids.split(",").map((id) => id.trim());
+      const rawList = Array.isArray(ids) ? ids : ids.split(",");
+      const idList = rawList.map((id) => String(id).trim()).filter(Boolean);
       const invalidId = idList.find((id) => !isValidObjectId(id));
       if (invalidId) {
         return {
           valid: false,
           message: `Invalid ID format: ${invalidId}`,
           status: httpStatus.BAD_REQUEST,
+          errors: { message: `Invalid ID format: ${invalidId}` },
         };
       }
       return { valid: true, data: idList.map((id) => new ObjectId(id)) };
@@ -2417,7 +2403,12 @@ const getMySites = async (request, next) => {
     if (group_ids) {
       const groupObjectIdsResult = splitAndMapToObjectId(group_ids);
       if (!groupObjectIdsResult.valid) {
-        return { success: false, ...groupObjectIdsResult };
+        return {
+          success: false,
+          message: groupObjectIdsResult.message,
+          status: groupObjectIdsResult.status,
+          errors: groupObjectIdsResult.errors,
+        };
       }
       const groupLinkedCohorts = await CohortModel(tenant)
         .find({ grp_id: { $in: groupObjectIdsResult.data } })
@@ -2429,7 +2420,12 @@ const getMySites = async (request, next) => {
     // 2. Combine direct cohort_ids with group-derived cohorts
     const directCohortIdsResult = splitAndMapToObjectId(cohort_ids);
     if (!directCohortIdsResult.valid) {
-      return { success: false, ...directCohortIdsResult };
+      return {
+        success: false,
+        message: directCohortIdsResult.message,
+        status: directCohortIdsResult.status,
+        errors: directCohortIdsResult.errors,
+      };
     }
     const allCohortIds = [
       ...new Set([
@@ -2466,20 +2462,33 @@ const getMySites = async (request, next) => {
       };
     }
 
-    // 4. Fetch full site documents
-    const sites = await SiteModel(tenant)
-      .find({ _id: { $in: siteIds } })
-      .select(
-        "name search_name generated_name network groups country district latitude longitude status data_provider createdAt",
-      )
-      .sort({ createdAt: -1 })
-      .lean();
+    // 4. Fetch full site documents (paginated)
+    const siteFilter = { _id: { $in: siteIds } };
+    const [total, sites] = await Promise.all([
+      SiteModel(tenant).countDocuments(siteFilter),
+      SiteModel(tenant)
+        .find(siteFilter)
+        .select(
+          "name search_name generated_name network groups country district latitude longitude status data_provider createdAt",
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
 
     return {
       success: true,
       message: "Sites retrieved successfully",
       data: sites || [],
       status: httpStatus.OK,
+      meta: {
+        total,
+        skip,
+        limit,
+        page: Math.floor(skip / limit) + 1,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   } catch (error) {
     logObject("Get My Sites Error Details:", error);

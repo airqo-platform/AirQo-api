@@ -29,6 +29,7 @@ router.get(
   validateTenant,
   validateGetMySites,
   validate,
+  pagination(),
   siteController.getMySites
 );
 

@@ -1664,7 +1664,7 @@ const deviceController = {
           message: result.message,
           meta: result.meta || {},
           devices: result.data,
-          total_devices: result.data.length,
+          total_devices: result.meta.total,
           deployed_devices: result.data.filter((d) => d.status === "deployed")
             .length,
         });
