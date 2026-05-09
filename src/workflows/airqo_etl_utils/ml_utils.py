@@ -1876,6 +1876,54 @@ class ForecastModelTrainer(BaseMlUtils):
         return artifacts
 
     @staticmethod
+    def _load_site_hourly_forecast_artifacts() -> Dict[str, Dict[str, Any]]:
+        """Load deployed hourly site-level PM2.5 forecast artifacts from GCS."""
+        bucket_name = configuration.FORECAST_MODELS_BUCKET
+        if not bucket_name:
+            raise ValueError("Missing required config: FORECAST_MODELS_BUCKET.")
+
+        storage: FileStorage = GCSFileStorage()
+        blobs = {
+            "mean": "hourly_10day_pm25_mean_model.pkl",
+            "q10": "hourly_10day_pm25_q10_model.pkl",
+            "q90": "hourly_10day_pm25_q90_model.pkl",
+        }
+
+        artifacts: Dict[str, Dict[str, Any]] = {}
+        for label, blob_name in blobs.items():
+            loaded = storage.load_file_object(bucket=bucket_name, source_file=blob_name)
+            if isinstance(loaded, dict) and "model" in loaded:
+                artifacts[label] = loaded
+            else:
+                artifacts[label] = {
+                    "model": loaded,
+                    "features": ForecastModelTrainer._site_hourly_forecast_features(),
+                }
+
+        return artifacts
+
+    @staticmethod
+    def _site_hourly_forecast_features() -> List[str]:
+        """Return the deployed hourly site forecast feature order."""
+        return [
+            "hour_of_day",
+            "day_of_week",
+            "month",
+            "day_of_year",
+            "site_latitude",
+            "site_longitude",
+            "lag_pm25_hourly_1h",
+            "lag_pm25_hourly_2h",
+            "lag_pm25_hourly_3h",
+            "lag_pm25_hourly_24h",
+            "lag_pm25_hourly_48h",
+            "lag_pm25_hourly_72h",
+            "roll_pm25_6h_mean",
+            "roll_pm25_24h_mean",
+            "roll_pm25_6h_std",
+        ]
+
+    @staticmethod
     def _get_prediction_site_mapping(
         artifacts: Dict[str, Dict[str, Any]], history: pd.DataFrame
     ) -> Dict[str, int]:
@@ -2134,6 +2182,294 @@ class ForecastModelTrainer(BaseMlUtils):
         )
 
     @staticmethod
+    def fetch_site_hourly_prediction_data(
+        execution_date: datetime,
+        lookback_days: Optional[int] = None,
+        min_hours: int = 2,
+    ) -> pd.DataFrame:
+        """Fetch site-level hourly history used for hourly forecast prediction."""
+        from .bigquery_api import BigQueryApi
+
+        end_date = pd.Timestamp(execution_date)
+        if end_date.tzinfo is None:
+            end_date = end_date.tz_localize("UTC")
+        else:
+            end_date = end_date.tz_convert("UTC")
+
+        lookback_window = int(
+            lookback_days or configuration.SITE_HOURLY_FORECAST_LOOKBACK_DAYS or 14
+        )
+        lookback_window = min(14, max(1, lookback_window))
+        start_date = end_date - timedelta(days=lookback_window)
+
+        return BigQueryApi().fetch_hourly_site_data_for_forecast_jobs(
+            start_date_time=start_date.strftime("%Y-%m-%d %H:%M:%S"),
+            end_date_time=end_date.strftime("%Y-%m-%d %H:%M:%S"),
+            min_hours=min_hours,
+        )
+
+    @staticmethod
+    def _resolve_site_hourly_forecast_metadata(history: pd.DataFrame) -> pd.DataFrame:
+        """Keep one metadata row per site, preferring the latest hourly row."""
+        metadata = history[
+            ["site_id", "site_name", "site_latitude", "site_longitude", "timestamp"]
+        ].copy()
+        metadata = metadata.sort_values(["site_id", "timestamp"])
+        return (
+            metadata.groupby("site_id", as_index=False)
+            .agg(
+                site_name=("site_name", "last"),
+                site_latitude=("site_latitude", "last"),
+                site_longitude=("site_longitude", "last"),
+            )
+        )
+
+    @staticmethod
+    def _add_site_hourly_forecast_features(data: pd.DataFrame) -> pd.DataFrame:
+        """Engineer the exact hourly feature set used by deployed models."""
+        featured = data.copy()
+        featured["timestamp"] = pd.to_datetime(
+            featured["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        featured = featured.dropna(subset=["timestamp", "site_id"])
+        featured = featured.sort_values(["site_id", "timestamp"]).reset_index(drop=True)
+
+        dt = featured["timestamp"].dt
+        featured["hour_of_day"] = dt.hour
+        featured["day_of_week"] = dt.dayofweek
+        featured["month"] = dt.month
+        featured["day_of_year"] = dt.dayofyear
+
+        grouped_pm25 = featured.groupby("site_id", sort=False)["pm25_mean"]
+        lag_map = {
+            1: "lag_pm25_hourly_1h",
+            2: "lag_pm25_hourly_2h",
+            3: "lag_pm25_hourly_3h",
+            24: "lag_pm25_hourly_24h",
+            48: "lag_pm25_hourly_48h",
+            72: "lag_pm25_hourly_72h",
+        }
+        for lag, column in lag_map.items():
+            featured[column] = grouped_pm25.shift(lag)
+
+        shifted = grouped_pm25.shift(1)
+        featured["roll_pm25_6h_mean"] = shifted.transform(
+            lambda s: s.rolling(6, min_periods=1).mean()
+        )
+        featured["roll_pm25_24h_mean"] = shifted.transform(
+            lambda s: s.rolling(24, min_periods=1).mean()
+        )
+        featured["roll_pm25_6h_std"] = shifted.transform(
+            lambda s: s.rolling(6, min_periods=2).std()
+        )
+
+        return featured
+
+    @staticmethod
+    def _fill_sparse_site_hourly_features(
+        candidates: pd.DataFrame, recursive_history: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Fill sparse-site feature gaps so sites with at least 2 hours can score."""
+        filled = candidates.copy()
+        historical_mean = recursive_history.groupby("site_id")["pm25_mean"].mean()
+        historical_last = (
+            recursive_history.sort_values(["site_id", "timestamp"])
+            .groupby("site_id")["pm25_mean"]
+            .last()
+        )
+
+        for index, row in filled.iterrows():
+            site_id = row["site_id"]
+            fallback_value = historical_last.get(site_id, np.nan)
+            if pd.isna(fallback_value):
+                fallback_value = historical_mean.get(site_id, 0.0)
+
+            for column in (
+                "lag_pm25_hourly_1h",
+                "lag_pm25_hourly_2h",
+                "lag_pm25_hourly_3h",
+                "lag_pm25_hourly_24h",
+                "lag_pm25_hourly_48h",
+                "lag_pm25_hourly_72h",
+                "roll_pm25_6h_mean",
+                "roll_pm25_24h_mean",
+            ):
+                if pd.isna(filled.at[index, column]):
+                    filled.at[index, column] = fallback_value
+
+            if pd.isna(filled.at[index, "roll_pm25_6h_std"]):
+                filled.at[index, "roll_pm25_6h_std"] = 0.0
+
+        return filled
+
+    @staticmethod
+    def generate_site_hourly_forecasts(
+        raw_data: pd.DataFrame,
+        *,
+        horizon_hours: Optional[int] = None,
+        run_timestamp: Optional[pd.Timestamp] = None,
+        include_met_no_weather: bool = True,
+    ) -> pd.DataFrame:
+        """Generate recursive 10-day hourly site-level PM2.5 forecasts."""
+        if raw_data.empty:
+            raise ValueError("No raw site hourly forecast data provided for prediction.")
+
+        try:
+            horizon_hours = int(
+                horizon_hours or configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_HORIZON_HOURS must be a valid integer."
+            ) from exc
+
+        if horizon_hours < 1:
+            raise ValueError("SITE_HOURLY_FORECAST_HORIZON_HOURS must be greater than 0.")
+
+        required = {"timestamp", "site_id", "site_name", "pm25_mean"}
+        missing = required - set(raw_data.columns)
+        if missing:
+            raise ValueError(
+                f"Missing required columns for site hourly forecasts: {sorted(missing)}"
+            )
+
+        history = raw_data.copy()
+        history["timestamp"] = pd.to_datetime(
+            history["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        history["site_id"] = history["site_id"].astype(str)
+        history["site_name"] = history["site_name"].fillna(history["site_id"])
+        for column in ("site_latitude", "site_longitude"):
+            if column not in history.columns:
+                history[column] = np.nan
+
+        history = BaseMlUtils.round_numeric_columns(
+            history, {"site_latitude": 6, "site_longitude": 6}
+        )
+        history = history.dropna(subset=["timestamp", "site_id", "pm25_mean"])
+        history = history.sort_values(["site_id", "timestamp"]).drop_duplicates(
+            subset=["site_id", "timestamp"], keep="last"
+        )
+
+        site_counts = history.groupby("site_id")["timestamp"].nunique()
+        eligible_sites = site_counts[site_counts >= 2].index
+        history = history[history["site_id"].isin(eligible_sites)]
+        if history.empty:
+            raise ValueError("No site has the minimum 2 hourly records for forecasting.")
+
+        artifacts = ForecastModelTrainer._load_site_hourly_forecast_artifacts()
+        feature_columns = ForecastModelTrainer._site_hourly_forecast_features()
+
+        run_timestamp = pd.Timestamp(run_timestamp or pd.Timestamp.now(tz="UTC"))
+        if run_timestamp.tzinfo is None:
+            run_timestamp = run_timestamp.tz_localize("UTC")
+        else:
+            run_timestamp = run_timestamp.tz_convert("UTC")
+
+        recursive_history = history[
+            ["site_id", "site_name", "timestamp", "pm25_mean"]
+        ].copy()
+        site_meta = ForecastModelTrainer._resolve_site_hourly_forecast_metadata(history)
+        predictions: List[pd.DataFrame] = []
+
+        for _ in range(horizon_hours):
+            next_rows = (
+                recursive_history.groupby("site_id", as_index=False)["timestamp"]
+                .max()
+                .assign(timestamp=lambda df: df["timestamp"] + pd.Timedelta(hours=1))
+                .merge(site_meta, on="site_id", how="left")
+            )
+            next_rows["pm25_mean"] = np.nan
+
+            feature_source = pd.concat(
+                [recursive_history, next_rows], ignore_index=True, sort=False
+            )
+            featured = ForecastModelTrainer._add_site_hourly_forecast_features(
+                feature_source
+            )
+            candidates = featured.merge(
+                next_rows[["site_id", "timestamp"]],
+                on=["site_id", "timestamp"],
+                how="inner",
+            ).copy()
+            if candidates.empty:
+                raise ValueError("Feature engineering produced no hourly candidates.")
+
+            candidates = ForecastModelTrainer._fill_sparse_site_hourly_features(
+                candidates, recursive_history
+            )
+
+            for label, artifact in artifacts.items():
+                model_features = artifact.get("features") or feature_columns
+                scored_frame = candidates.reindex(columns=model_features)
+                predictions_array = artifact["model"].predict(scored_frame)
+                candidates[f"pm2_5_{label}"] = np.maximum(
+                    np.asarray(predictions_array, dtype=float), 0.0
+                )
+
+            candidates["pm2_5_q10"], candidates["pm2_5_q90"] = (
+                np.minimum(candidates["pm2_5_q10"], candidates["pm2_5_q90"]),
+                np.maximum(candidates["pm2_5_q10"], candidates["pm2_5_q90"]),
+            )
+            candidates["forecast_confidence"] = BaseMlUtils.calculate_forecast_confidence(
+                candidates["pm2_5_mean"],
+                candidates["pm2_5_q10"],
+                candidates["pm2_5_q90"],
+            )
+            candidates = BaseMlUtils.round_numeric_columns(
+                candidates,
+                {
+                    "pm2_5_mean": 1,
+                    "pm2_5_q10": 1,
+                    "pm2_5_q90": 1,
+                    "forecast_confidence": 1,
+                    "site_latitude": 6,
+                    "site_longitude": 6,
+                },
+            )
+
+            forecast_step = candidates[
+                [
+                    "site_name",
+                    "site_id",
+                    "site_latitude",
+                    "site_longitude",
+                    "timestamp",
+                    "pm2_5_mean",
+                    "pm2_5_q10",
+                    "pm2_5_q90",
+                    "forecast_confidence",
+                ]
+            ].copy()
+            forecast_step["created_at"] = run_timestamp
+            predictions.append(forecast_step)
+
+            recursive_history = pd.concat(
+                [
+                    recursive_history,
+                    forecast_step[
+                        ["site_id", "site_name", "timestamp", "pm2_5_mean"]
+                    ].rename(columns={"pm2_5_mean": "pm25_mean"}),
+                ],
+                ignore_index=True,
+                sort=False,
+            )
+
+        forecast_df = pd.concat(predictions, ignore_index=True)
+        forecast_df["timestamp"] = pd.to_datetime(
+            forecast_df["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+
+        if include_met_no_weather:
+            forecast_df = (
+                ForecastModelTrainer._enrich_site_hourly_forecasts_with_met_no_weather(
+                    forecast_df
+                )
+            )
+
+        return forecast_df.sort_values(["site_id", "timestamp"]).reset_index(drop=True)
+
+    @staticmethod
     def _build_bigquery_schema(schema_file: str) -> List[bigquery.SchemaField]:
         """Convert a JSON schema definition into BigQuery SchemaField objects."""
         schema_definition = Utils.load_schema(file_name=schema_file)
@@ -2270,6 +2606,83 @@ class ForecastModelTrainer(BaseMlUtils):
         return with_empty_met_columns(enriched)
 
     @staticmethod
+    def _enrich_site_hourly_forecasts_with_met_no_weather(
+        data: pd.DataFrame,
+        *,
+        fail_on_error: bool = False,
+    ) -> pd.DataFrame:
+        """Attach hourly MET.no forecast details to site hourly forecast rows."""
+        if data.empty:
+            return data
+
+        enriched = data.copy()
+        enriched["timestamp"] = pd.to_datetime(
+            enriched["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        enriched["met_no_query_latitude"] = pd.to_numeric(
+            enriched["site_latitude"], errors="coerce"
+        ).round(2)
+        enriched["met_no_query_longitude"] = pd.to_numeric(
+            enriched["site_longitude"], errors="coerce"
+        ).round(2)
+
+        def with_empty_met_columns(frame: pd.DataFrame) -> pd.DataFrame:
+            fallback = frame.copy()
+            for column in SITE_DAILY_FORECAST_MET_COLUMNS:
+                if column not in fallback.columns:
+                    fallback[column] = np.nan
+            return fallback.drop(
+                columns=["met_no_query_latitude", "met_no_query_longitude", "date"],
+                errors="ignore",
+            )
+
+        try:
+            met_hourly = WeatherDataUtils.fetch_met_no_hourly_data_for_sites(
+                enriched[
+                    [
+                        "site_id",
+                        "site_name",
+                        "site_latitude",
+                        "site_longitude",
+                        "timestamp",
+                    ]
+                ].drop_duplicates()
+            )
+        except Exception as exc:
+            if fail_on_error:
+                raise
+            logger.exception(
+                "MET.no enrichment failed for site hourly forecasts. "
+                "Continuing with forecast-only output: %s",
+                exc,
+            )
+            return with_empty_met_columns(enriched)
+
+        if met_hourly.empty:
+            return with_empty_met_columns(enriched)
+
+        try:
+            met_hourly["timestamp"] = pd.to_datetime(
+                met_hourly["timestamp"], utc=True, errors="coerce"
+            ).dt.floor("h")
+            enriched = enriched.merge(
+                met_hourly.drop(columns=["date"], errors="ignore"),
+                on=["timestamp", "met_no_query_latitude", "met_no_query_longitude"],
+                how="left",
+            )
+        except Exception as exc:
+            if fail_on_error:
+                raise
+            logger.exception(
+                "MET.no merge failed for site hourly forecasts. "
+                "Continuing with forecast-only output: %s",
+                exc,
+            )
+            return with_empty_met_columns(enriched)
+
+        return with_empty_met_columns(enriched)
+
+    @staticmethod
     def _has_site_forecast_met_data(data: pd.DataFrame) -> bool:
         """Return True when site forecast output contains at least one MET value."""
         if data is None or getattr(data, "empty", True):
@@ -2293,6 +2706,22 @@ class ForecastModelTrainer(BaseMlUtils):
 
         logger.warning(
             "MET enrichment failed or returned no MET values. Keeping PM forecast already saved in MongoDB."
+        )
+        return None
+
+    @staticmethod
+    def resolve_site_hourly_forecasts_for_met_updates(
+        enriched_data: Optional[pd.DataFrame],
+    ) -> Optional[pd.DataFrame]:
+        """Keep enriched hourly forecasts only when MET fields were populated."""
+        if (
+            enriched_data is not None
+            and ForecastModelTrainer._has_site_forecast_met_data(enriched_data)
+        ):
+            return enriched_data
+
+        logger.warning(
+            "MET enrichment failed or returned no MET values. Keeping hourly PM forecast already saved in MongoDB."
         )
         return None
 
@@ -2355,6 +2784,57 @@ class ForecastModelTrainer(BaseMlUtils):
         standardized = standardized.sort_values(["site_id", "date", "created_at"])
         standardized = standardized.drop_duplicates(
             subset=["site_id", "date"], keep="last"
+        )
+        return standardized.reset_index(drop=True)
+
+    @staticmethod
+    def _prepare_site_hourly_forecasts_for_persistence(
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Apply persistence-level rounding for site hourly forecast outputs."""
+        prepared = ForecastModelTrainer._ensure_site_daily_forecast_met_columns(data)
+        return BaseMlUtils.round_numeric_columns(
+            prepared,
+            {
+                "pm2_5_mean": 1,
+                "pm2_5_q10": 1,
+                "pm2_5_q90": 1,
+                "forecast_confidence": 1,
+                "site_latitude": 6,
+                "site_longitude": 6,
+                "air_pressure_at_sea_level": 1,
+                "air_temperature": 1,
+                "cloud_area_fraction": 1,
+                "precipitation_amount": 1,
+                "relative_humidity": 1,
+                "wind_from_direction": 1,
+                "wind_speed": 1,
+            },
+        )
+
+    @staticmethod
+    def _standardize_site_hourly_forecasts_for_persistence(
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Normalize hourly forecast rows to one valid row per site/timestamp key."""
+        standardized = ForecastModelTrainer._prepare_site_hourly_forecasts_for_persistence(
+            data
+        )
+        if standardized.empty:
+            return standardized
+
+        standardized = standardized.dropna(subset=["site_id"]).copy()
+        standardized["site_id"] = standardized["site_id"].astype(str)
+        standardized["timestamp"] = pd.to_datetime(
+            standardized["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        standardized["created_at"] = pd.to_datetime(
+            standardized["created_at"], utc=True, errors="coerce"
+        )
+        standardized = standardized.dropna(subset=["timestamp", "created_at"])
+        standardized = standardized.sort_values(["site_id", "timestamp", "created_at"])
+        standardized = standardized.drop_duplicates(
+            subset=["site_id", "timestamp"], keep="last"
         )
         return standardized.reset_index(drop=True)
 
@@ -2579,11 +3059,80 @@ class ForecastModelTrainer(BaseMlUtils):
         }
 
     @staticmethod
+    def _save_site_hourly_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+        """Replace stored hourly forecasts for affected sites in MongoDB."""
+        if not configuration.MONGO_URI:
+            raise ValueError("Missing required config: MONGO_URI.")
+
+        prepared = ForecastModelTrainer._standardize_site_hourly_forecasts_for_persistence(
+            data
+        )
+        if prepared.empty:
+            raise ValueError("No site hourly forecasts available to persist.")
+
+        collection_name = configuration.MONGO_SITE_HOURLY_FORECAST_COLLECTION
+        site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
+        records = []
+        for row in prepared.to_dict(orient="records"):
+            document = {
+                "site_name": row.get("site_name"),
+                "site_id": row.get("site_id"),
+                "site_latitude": row.get("site_latitude"),
+                "site_longitude": row.get("site_longitude"),
+                "timestamp": pd.Timestamp(row["timestamp"]).to_pydatetime(),
+                "pm2_5_mean": row.get("pm2_5_mean"),
+                "pm2_5_q10": row.get("pm2_5_q10"),
+                "pm2_5_q90": row.get("pm2_5_q90"),
+                "forecast_confidence": row.get("forecast_confidence"),
+                "air_pressure_at_sea_level": row.get("air_pressure_at_sea_level"),
+                "air_temperature": row.get("air_temperature"),
+                "cloud_area_fraction": row.get("cloud_area_fraction"),
+                "precipitation_amount": row.get("precipitation_amount"),
+                "relative_humidity": row.get("relative_humidity"),
+                "wind_from_direction": row.get("wind_from_direction"),
+                "wind_speed": row.get("wind_speed"),
+                "created_at": pd.Timestamp(row["created_at"]).to_pydatetime(),
+            }
+            records.append(
+                {
+                    key: (None if pd.isna(value) else value)
+                    for key, value in document.items()
+                }
+            )
+
+        with pm.MongoClient(
+            configuration.MONGO_URI, serverSelectionTimeoutMS=5000
+        ) as client:
+            mongo_db = client[configuration.MONGO_DATABASE_NAME]
+            collection = mongo_db[collection_name]
+            deleted_rows = 0
+            if site_ids:
+                deleted_rows = collection.delete_many(
+                    {"site_id": {"$in": site_ids}}
+                ).deleted_count
+            if records:
+                collection.insert_many(records, ordered=False)
+                collection.create_index([("site_id", 1), ("timestamp", 1)])
+
+        return {
+            "rows": int(len(records)),
+            "collection": collection_name,
+            "deleted_rows": int(deleted_rows),
+        }
+
+    @staticmethod
     def save_site_daily_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
         """Public wrapper for persisting site forecasts to MongoDB only."""
         if data.empty:
             raise ValueError("No site forecasts available to persist.")
         return ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
+
+    @staticmethod
+    def save_site_hourly_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+        """Public wrapper for persisting site hourly forecasts to MongoDB only."""
+        if data.empty:
+            raise ValueError("No site hourly forecasts available to persist.")
+        return ForecastModelTrainer._save_site_hourly_forecasts_to_mongo(data)
 
     @staticmethod
     def save_site_daily_forecasts_best_effort(data: pd.DataFrame) -> Dict[str, Any]:
