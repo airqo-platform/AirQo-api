@@ -2440,6 +2440,7 @@ const getMySites = async (request, next) => {
         message: "Sites retrieved successfully",
         data: [],
         status: httpStatus.OK,
+        meta: { total: 0, skip, limit, page: 1, totalPages: 0 },
       };
     }
 
@@ -2459,6 +2460,7 @@ const getMySites = async (request, next) => {
         message: "Sites retrieved successfully",
         data: [],
         status: httpStatus.OK,
+        meta: { total: 0, skip, limit, page: 1, totalPages: 0 },
       };
     }
 
