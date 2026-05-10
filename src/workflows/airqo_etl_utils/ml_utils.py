@@ -1,6 +1,7 @@
 """Utility functions and classes for ML training, forecasting, and fault detection."""
 
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import Dict, List, Any, Sequence, Optional, Tuple
 import logging
 
@@ -1876,6 +1877,7 @@ class ForecastModelTrainer(BaseMlUtils):
         return artifacts
 
     @staticmethod
+    @lru_cache(maxsize=1)
     def _load_site_hourly_forecast_artifacts() -> Dict[str, Dict[str, Any]]:
         """Load deployed hourly site-level PM2.5 forecast artifacts from GCS."""
         bucket_name = configuration.FORECAST_MODELS_BUCKET
@@ -2202,11 +2204,28 @@ class ForecastModelTrainer(BaseMlUtils):
         lookback_window = min(14, max(1, lookback_window))
         start_date = end_date - timedelta(days=lookback_window)
 
-        return BigQueryApi().fetch_hourly_site_data_for_forecast_jobs(
+        data = BigQueryApi().fetch_hourly_site_data_for_forecast_jobs(
             start_date_time=start_date.strftime("%Y-%m-%d %H:%M:%S"),
             end_date_time=end_date.strftime("%Y-%m-%d %H:%M:%S"),
             min_hours=min_hours,
         )
+        if data is None:
+            raise RuntimeError(
+                "Hourly site forecast fetch returned no dataframe. Check the BigQuery "
+                "query, configured storage backend, and Airflow XCom backend."
+            )
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError(
+                "Hourly site forecast fetch must return a pandas DataFrame, got "
+                f"{type(data).__name__}."
+            )
+        if data.empty:
+            raise ValueError(
+                "Hourly site forecast fetch returned no rows for the configured "
+                f"{lookback_window}-day lookback window."
+            )
+
+        return data
 
     @staticmethod
     def _resolve_site_hourly_forecast_metadata(history: pd.DataFrame) -> pd.DataFrame:
@@ -2278,29 +2297,95 @@ class ForecastModelTrainer(BaseMlUtils):
             .last()
         )
 
-        for index, row in filled.iterrows():
-            site_id = row["site_id"]
-            fallback_value = historical_last.get(site_id, np.nan)
-            if pd.isna(fallback_value):
-                fallback_value = historical_mean.get(site_id, 0.0)
+        fallback_values = (
+            filled["site_id"]
+            .map(historical_last)
+            .fillna(filled["site_id"].map(historical_mean))
+            .fillna(0.0)
+        )
 
-            for column in (
-                "lag_pm25_hourly_1h",
-                "lag_pm25_hourly_2h",
-                "lag_pm25_hourly_3h",
-                "lag_pm25_hourly_24h",
-                "lag_pm25_hourly_48h",
-                "lag_pm25_hourly_72h",
-                "roll_pm25_6h_mean",
-                "roll_pm25_24h_mean",
-            ):
-                if pd.isna(filled.at[index, column]):
-                    filled.at[index, column] = fallback_value
+        fill_with_fallback = (
+            "lag_pm25_hourly_1h",
+            "lag_pm25_hourly_2h",
+            "lag_pm25_hourly_3h",
+            "lag_pm25_hourly_24h",
+            "lag_pm25_hourly_48h",
+            "lag_pm25_hourly_72h",
+            "roll_pm25_6h_mean",
+            "roll_pm25_24h_mean",
+        )
+        for column in fill_with_fallback:
+            if column in filled.columns:
+                filled[column] = filled[column].fillna(fallback_values)
 
-            if pd.isna(filled.at[index, "roll_pm25_6h_std"]):
-                filled.at[index, "roll_pm25_6h_std"] = 0.0
+        if "roll_pm25_6h_std" in filled.columns:
+            filled["roll_pm25_6h_std"] = filled["roll_pm25_6h_std"].fillna(0.0)
 
         return filled
+
+    @staticmethod
+    def _initialize_site_hourly_forecast_state(
+        history: pd.DataFrame,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Build compact per-site recursive state for hourly forecasting."""
+        state: Dict[str, Dict[str, Any]] = {}
+        for site_id, group in history.groupby("site_id", sort=False):
+            ordered = group.sort_values("timestamp")
+            values = ordered["pm25_mean"].astype(float).tolist()
+            state[str(site_id)] = {
+                "timestamp": ordered["timestamp"].iloc[-1],
+                "values": values,
+                "fallback": values[-1] if values else 0.0,
+            }
+
+        return state
+
+    @staticmethod
+    def _build_next_site_hourly_forecast_candidates(
+        site_meta: pd.DataFrame,
+        recursive_state: Dict[str, Dict[str, Any]],
+    ) -> pd.DataFrame:
+        """Build next-hour candidate features from compact per-site state."""
+        candidates = site_meta.copy()
+        candidates["timestamp"] = candidates["site_id"].map(
+            lambda site_id: recursive_state[str(site_id)]["timestamp"]
+            + pd.Timedelta(hours=1)
+        )
+        candidates["pm25_mean"] = np.nan
+
+        dt = pd.to_datetime(candidates["timestamp"], utc=True).dt
+        candidates["hour_of_day"] = dt.hour
+        candidates["day_of_week"] = dt.dayofweek
+        candidates["month"] = dt.month
+        candidates["day_of_year"] = dt.dayofyear
+
+        lag_map = {
+            1: "lag_pm25_hourly_1h",
+            2: "lag_pm25_hourly_2h",
+            3: "lag_pm25_hourly_3h",
+            24: "lag_pm25_hourly_24h",
+            48: "lag_pm25_hourly_48h",
+            72: "lag_pm25_hourly_72h",
+        }
+        feature_rows: List[Dict[str, float]] = []
+        for site_id in candidates["site_id"]:
+            values = recursive_state[str(site_id)]["values"]
+            fallback = recursive_state[str(site_id)]["fallback"]
+            row: Dict[str, float] = {}
+            for lag, column in lag_map.items():
+                row[column] = values[-lag] if len(values) >= lag else fallback
+
+            last_6 = values[-6:]
+            last_24 = values[-24:]
+            row["roll_pm25_6h_mean"] = float(np.mean(last_6)) if last_6 else fallback
+            row["roll_pm25_24h_mean"] = float(np.mean(last_24)) if last_24 else fallback
+            row["roll_pm25_6h_std"] = (
+                float(np.std(last_6, ddof=1)) if len(last_6) >= 2 else 0.0
+            )
+            feature_rows.append(row)
+
+        feature_frame = pd.DataFrame(feature_rows, index=candidates.index)
+        return pd.concat([candidates, feature_frame], axis=1)
 
     @staticmethod
     def generate_site_hourly_forecasts(
@@ -2311,6 +2396,11 @@ class ForecastModelTrainer(BaseMlUtils):
         include_met_no_weather: bool = True,
     ) -> pd.DataFrame:
         """Generate recursive 10-day hourly site-level PM2.5 forecasts."""
+        if raw_data is None:
+            raise ValueError(
+                "No raw site hourly forecast data was passed to generation. "
+                "The upstream fetch_site_prediction_data task returned None."
+            )
         if raw_data.empty:
             raise ValueError("No raw site hourly forecast data provided for prediction.")
 
@@ -2370,34 +2460,19 @@ class ForecastModelTrainer(BaseMlUtils):
             ["site_id", "site_name", "timestamp", "pm25_mean"]
         ].copy()
         site_meta = ForecastModelTrainer._resolve_site_hourly_forecast_metadata(history)
+        recursive_state = ForecastModelTrainer._initialize_site_hourly_forecast_state(
+            recursive_history
+        )
         predictions: List[pd.DataFrame] = []
 
         for _ in range(horizon_hours):
-            next_rows = (
-                recursive_history.groupby("site_id", as_index=False)["timestamp"]
-                .max()
-                .assign(timestamp=lambda df: df["timestamp"] + pd.Timedelta(hours=1))
-                .merge(site_meta, on="site_id", how="left")
+            candidates = (
+                ForecastModelTrainer._build_next_site_hourly_forecast_candidates(
+                    site_meta, recursive_state
+                )
             )
-            next_rows["pm25_mean"] = np.nan
-
-            feature_source = pd.concat(
-                [recursive_history, next_rows], ignore_index=True, sort=False
-            )
-            featured = ForecastModelTrainer._add_site_hourly_forecast_features(
-                feature_source
-            )
-            candidates = featured.merge(
-                next_rows[["site_id", "timestamp"]],
-                on=["site_id", "timestamp"],
-                how="inner",
-            ).copy()
             if candidates.empty:
                 raise ValueError("Feature engineering produced no hourly candidates.")
-
-            candidates = ForecastModelTrainer._fill_sparse_site_hourly_features(
-                candidates, recursive_history
-            )
 
             for label, artifact in artifacts.items():
                 model_features = artifact.get("features") or feature_columns
@@ -2444,16 +2519,13 @@ class ForecastModelTrainer(BaseMlUtils):
             forecast_step["created_at"] = run_timestamp
             predictions.append(forecast_step)
 
-            recursive_history = pd.concat(
-                [
-                    recursive_history,
-                    forecast_step[
-                        ["site_id", "site_name", "timestamp", "pm2_5_mean"]
-                    ].rename(columns={"pm2_5_mean": "pm25_mean"}),
-                ],
-                ignore_index=True,
-                sort=False,
-            )
+            for row in forecast_step[["site_id", "timestamp", "pm2_5_mean"]].itertuples(
+                index=False
+            ):
+                site_state = recursive_state[str(row.site_id)]
+                site_state["timestamp"] = row.timestamp
+                site_state["values"].append(float(row.pm2_5_mean))
+                site_state["fallback"] = float(row.pm2_5_mean)
 
         forecast_df = pd.concat(predictions, ignore_index=True)
         forecast_df["timestamp"] = pd.to_datetime(

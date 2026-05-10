@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -114,6 +115,27 @@ def test_generate_site_hourly_forecasts_includes_sparse_sites(monkeypatch):
     assert forecasts["pm2_5_q10"].le(forecasts["pm2_5_mean"]).all()
     assert forecasts["pm2_5_mean"].le(forecasts["pm2_5_q90"]).all()
     assert forecasts["forecast_confidence"].between(0, 100).all()
+
+
+def test_generate_site_hourly_forecasts_rejects_none_input():
+    with pytest.raises(ValueError, match="fetch_site_prediction_data task returned None"):
+        ForecastModelTrainer.generate_site_hourly_forecasts(None)
+
+
+def test_fetch_site_hourly_prediction_data_rejects_none_fetch(monkeypatch):
+    class DummyBigQueryApi:
+        def fetch_hourly_site_data_for_forecast_jobs(self, **kwargs):
+            return None
+
+    import airqo_etl_utils.bigquery_api as bigquery_api_module
+
+    monkeypatch.setattr(bigquery_api_module, "BigQueryApi", DummyBigQueryApi)
+
+    with pytest.raises(RuntimeError, match="returned no dataframe"):
+        ForecastModelTrainer.fetch_site_hourly_prediction_data(
+            execution_date=datetime(2026, 5, 9, 3, tzinfo=timezone.utc),
+            lookback_days=1,
+        )
 
 
 def test_enrich_site_hourly_forecasts_with_met_no_weather(monkeypatch):
