@@ -470,6 +470,7 @@ router.get(
   "/feedback/upload-url",
   userValidations.getFeedbackUploadUrl,
   validate,
+  rateLimiter.apiGeneral,
   userController.getFeedbackUploadUrl,
 );
 
@@ -796,6 +797,7 @@ router.use("*", (req, res) => {
       "GET /auth/google/callback",
       "GET /auth/:provider",
       "GET /auth/callback/:provider",
+      "GET /feedback/upload-url",
       "POST /feedback/submit",
       "GET /feedback/submissions",
       "GET /feedback/submissions/:feedback_id",

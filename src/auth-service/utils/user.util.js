@@ -7798,11 +7798,19 @@ const feedbackUtil = {
 
   getFeedbackUploadUrl: async (request, next) => {
     try {
-      if (
-        !constants.CLOUDINARY_API_SECRET ||
-        !constants.CLOUDINARY_API_KEY ||
-        !constants.CLOUD_NAME
-      ) {
+      const missingCreds = [
+        "CLOUDINARY_API_SECRET",
+        "CLOUDINARY_API_KEY",
+        "CLOUD_NAME",
+      ].filter((k) => !constants[k]);
+
+      const invalidConfig =
+        !constants.FEEDBACK_SCREENSHOT_FOLDER ||
+        !constants.FEEDBACK_SCREENSHOT_TAG ||
+        !Array.isArray(constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS) ||
+        constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS.length === 0;
+
+      if (missingCreds.length > 0 || invalidConfig) {
         return {
           success: false,
           message: "Screenshot uploads are not configured",
@@ -7818,6 +7826,7 @@ const feedbackUtil = {
         allowed_formats: constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS.join(
           ",",
         ),
+        max_file_size: constants.FEEDBACK_SCREENSHOT_MAX_BYTES,
         timestamp,
       };
 
@@ -7838,7 +7847,7 @@ const feedbackUtil = {
           folder: uploadParams.folder,
           tags: uploadParams.tags,
           allowed_formats: uploadParams.allowed_formats,
-          max_file_size: constants.FEEDBACK_SCREENSHOT_MAX_BYTES,
+          max_file_size: uploadParams.max_file_size,
           upload_url: `https://api.cloudinary.com/v1_1/${constants.CLOUD_NAME}/image/upload`,
         },
       };

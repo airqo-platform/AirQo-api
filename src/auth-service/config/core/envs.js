@@ -146,13 +146,17 @@ const envs = {
   // document limit and avoids storage/query cost surprises.
   FEEDBACK_METADATA_MAX_BYTES: 4096,
   // Cloudinary folder, tag and size constraints for feedback screenshots.
-  // The tag is used to identify assets for the 30-day auto-deletion rule
-  // configured in the Cloudinary dashboard (Settings → Upload → Upload presets
-  // / Rules: delete assets tagged "feedback-screenshot" after 30 days).
+  // Assets are tagged FEEDBACK_SCREENSHOT_TAG on upload. The daily cron job in
+  // bin/jobs/feedback-screenshot-cleanup-job.js uses cloudinary.api to delete
+  // assets with that tag after FEEDBACK_SCREENSHOT_RETENTION_DAYS days.
   FEEDBACK_SCREENSHOT_FOLDER: "feedback-screenshots",
   FEEDBACK_SCREENSHOT_TAG: "feedback-screenshot",
   FEEDBACK_SCREENSHOT_ALLOWED_FORMATS: ["jpg", "jpeg", "png", "gif", "webp"],
   FEEDBACK_SCREENSHOT_MAX_BYTES: 2097152, // 2 MB
+  FEEDBACK_SCREENSHOT_RETENTION_DAYS: parseNumber(
+    process.env.FEEDBACK_SCREENSHOT_RETENTION_DAYS,
+    30,
+  ),
 
   // ── Cloudinary ─────────────────────────────────────────────────────────────
   CLOUD_NAME: process.env.CLOUD_NAME,

@@ -7,7 +7,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/feedback-screenshot-cleanup-job`,
 );
 
-const RETENTION_DAYS = 30;
+const RETENTION_DAYS = constants.FEEDBACK_SCREENSHOT_RETENTION_DAYS;
 const BATCH_SIZE = 100;
 const TAG = constants.FEEDBACK_SCREENSHOT_TAG;
 

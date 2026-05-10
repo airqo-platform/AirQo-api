@@ -93,7 +93,7 @@ const FeedbackSchema = new mongoose.Schema(
     screenshot_url: {
       type: String,
       trim: true,
-      maxlength: [500, "screenshot_url cannot exceed 500 characters"],
+      maxlength: [1000, "screenshot_url cannot exceed 1000 characters"],
     },
     // Optional freeform metadata for context (e.g. page URL, browser, app version).
     // Byte size is validated at the HTTP layer (see validators/users.validators.js).

@@ -1447,19 +1447,30 @@ const submitFeedback = [
     .withMessage("screenshot_url must be a valid HTTPS URL")
     .bail()
     .custom((value) => {
-      if (CLOUD_NAME) {
-        const expectedHost = `res.cloudinary.com/${CLOUD_NAME}`;
-        if (!value.includes(expectedHost)) {
-          throw new Error(
-            "screenshot_url must be a valid Cloudinary URL for this account",
-          );
-        }
+      let url;
+      try {
+        url = new URL(value);
+      } catch {
+        throw new Error("screenshot_url must be a valid URL");
+      }
+      if (url.protocol !== "https:") {
+        throw new Error("screenshot_url must use HTTPS");
+      }
+      if (url.hostname !== "res.cloudinary.com") {
+        throw new Error(
+          "screenshot_url must be a valid Cloudinary URL for this account",
+        );
+      }
+      if (CLOUD_NAME && !url.pathname.startsWith(`/${CLOUD_NAME}/`)) {
+        throw new Error(
+          "screenshot_url must be a valid Cloudinary URL for this account",
+        );
       }
       return true;
     })
     .bail()
-    .isLength({ max: 500 })
-    .withMessage("screenshot_url cannot exceed 500 characters"),
+    .isLength({ max: 1000 })
+    .withMessage("screenshot_url cannot exceed 1000 characters"),
   body("metadata")
     .optional()
     .isObject()
