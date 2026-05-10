@@ -7596,6 +7596,7 @@ const createUserModule = {
 // Separated from createUserModule to keep concerns clear; exported individually.
 // ─────────────────────────────────────────────────────────────────────────────
 const FeedbackModel = require("@models/Feedback");
+const cloudinary = require("@config/cloudinary");
 
 // N1: single helper so all four methods share identical tenant resolution logic.
 const resolveFeedbackTenant = (query) =>
@@ -7624,6 +7625,7 @@ const feedbackUtil = {
         category,
         platform,
         app: rawApp,
+        screenshot_url,
         metadata,
       } = body;
       const app =
@@ -7653,6 +7655,7 @@ const feedbackUtil = {
         category,
         platform,
         app,
+        screenshot_url,
         metadata,
         tenant,
         userId: request.user ? request.user._id : undefined,
@@ -7781,6 +7784,64 @@ const feedbackUtil = {
 
       const filter = { _id: params.feedback_id, tenant };
       return await FeedbackModel(tenant).modify({ filter, update: { status: requestedStatus } });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getFeedbackUploadUrl: async (request, next) => {
+    try {
+      if (
+        !constants.CLOUDINARY_API_SECRET ||
+        !constants.CLOUDINARY_API_KEY ||
+        !constants.CLOUD_NAME
+      ) {
+        return {
+          success: false,
+          message: "Screenshot uploads are not configured",
+          status: httpStatus.SERVICE_UNAVAILABLE,
+          errors: { message: "Cloudinary credentials are missing" },
+        };
+      }
+
+      const timestamp = Math.round(Date.now() / 1000);
+      const uploadParams = {
+        folder: constants.FEEDBACK_SCREENSHOT_FOLDER,
+        tags: constants.FEEDBACK_SCREENSHOT_TAG,
+        allowed_formats: constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS.join(
+          ",",
+        ),
+        timestamp,
+      };
+
+      const signature = cloudinary.utils.api_sign_request(
+        uploadParams,
+        constants.CLOUDINARY_API_SECRET,
+      );
+
+      return {
+        success: true,
+        message: "Upload credentials generated successfully",
+        status: httpStatus.OK,
+        data: {
+          signature,
+          timestamp,
+          api_key: constants.CLOUDINARY_API_KEY,
+          cloud_name: constants.CLOUD_NAME,
+          folder: uploadParams.folder,
+          tags: uploadParams.tags,
+          allowed_formats: uploadParams.allowed_formats,
+          max_file_size: constants.FEEDBACK_SCREENSHOT_MAX_BYTES,
+          upload_url: `https://api.cloudinary.com/v1_1/${constants.CLOUD_NAME}/image/upload`,
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       return next(

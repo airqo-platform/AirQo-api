@@ -459,11 +459,19 @@ router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 
 // ================================
 // PERSISTENT FEEDBACK / RATING ROUTES
+// GET    /feedback/upload-url   – public; returns signed Cloudinary upload params
 // POST   /feedback/submit      – public; saves to DB and dispatches support email
 // GET    /feedback/submissions  – admin; list all feedback with filtering
 // GET    /feedback/submissions/:feedback_id – admin; get single submission
 // PATCH  /feedback/submissions/:feedback_id/status – admin; update status
 // ================================
+
+router.get(
+  "/feedback/upload-url",
+  userValidations.getFeedbackUploadUrl,
+  validate,
+  userController.getFeedbackUploadUrl,
+);
 
 router.post(
   "/feedback/submit",

@@ -145,6 +145,19 @@ const envs = {
   // this byte count. Keeps individual documents well under MongoDB's 16 MB
   // document limit and avoids storage/query cost surprises.
   FEEDBACK_METADATA_MAX_BYTES: 4096,
+  // Cloudinary folder, tag and size constraints for feedback screenshots.
+  // The tag is used to identify assets for the 30-day auto-deletion rule
+  // configured in the Cloudinary dashboard (Settings → Upload → Upload presets
+  // / Rules: delete assets tagged "feedback-screenshot" after 30 days).
+  FEEDBACK_SCREENSHOT_FOLDER: "feedback-screenshots",
+  FEEDBACK_SCREENSHOT_TAG: "feedback-screenshot",
+  FEEDBACK_SCREENSHOT_ALLOWED_FORMATS: ["jpg", "jpeg", "png", "gif", "webp"],
+  FEEDBACK_SCREENSHOT_MAX_BYTES: 2097152, // 2 MB
+
+  // ── Cloudinary ─────────────────────────────────────────────────────────────
+  CLOUD_NAME: process.env.CLOUD_NAME,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
   // uses this URL for login location lookups; when absent, geolocation is
   // skipped entirely (returns null) to avoid plaintext HTTP calls.

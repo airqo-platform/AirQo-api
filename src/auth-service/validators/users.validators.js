@@ -1372,6 +1372,7 @@ const FEEDBACK_CATEGORIES = constants.FEEDBACK_CATEGORIES;
 const FEEDBACK_STATUSES = constants.FEEDBACK_STATUSES;
 const FEEDBACK_PLATFORMS = constants.FEEDBACK_PLATFORMS;
 const FEEDBACK_METADATA_MAX_BYTES = constants.FEEDBACK_METADATA_MAX_BYTES;
+const CLOUD_NAME = constants.CLOUD_NAME;
 
 const submitFeedback = [
   validateTenant,
@@ -1436,6 +1437,29 @@ const submitFeedback = [
     .bail()
     .isLength({ max: 100 })
     .withMessage("app cannot exceed 100 characters"),
+  body("screenshot_url")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("screenshot_url must not be empty if provided")
+    .bail()
+    .isURL({ protocols: ["https"], require_protocol: true })
+    .withMessage("screenshot_url must be a valid HTTPS URL")
+    .bail()
+    .custom((value) => {
+      if (CLOUD_NAME) {
+        const expectedHost = `res.cloudinary.com/${CLOUD_NAME}`;
+        if (!value.includes(expectedHost)) {
+          throw new Error(
+            "screenshot_url must be a valid Cloudinary URL for this account",
+          );
+        }
+      }
+      return true;
+    })
+    .bail()
+    .isLength({ max: 500 })
+    .withMessage("screenshot_url cannot exceed 500 characters"),
   body("metadata")
     .optional()
     .isObject()
@@ -1451,6 +1475,8 @@ const submitFeedback = [
       return true;
     }),
 ];
+
+const getFeedbackUploadUrl = [validateTenant];
 
 const listFeedbackSubmissions = [
   validateTenant,
@@ -1588,6 +1614,7 @@ module.exports = {
   updateConsent,
   assignCohorts,
   submitFeedback,
+  getFeedbackUploadUrl,
   listFeedbackSubmissions,
   getFeedbackById,
   updateFeedbackStatus,
