@@ -1260,55 +1260,6 @@ const validateDeviceAvailability = [
     ),
 ];
 
-const validateOrganizationAssignment = [
-  body("device_name")
-    .exists()
-    .withMessage("device_name is required")
-    .bail()
-    .trim()
-    .notEmpty()
-    .withMessage("device_name cannot be empty"),
-
-  body("organization_id")
-    .exists()
-    .withMessage("organization_id is required")
-    .bail()
-    .trim()
-    .isMongoId()
-    .withMessage("organization_id must be a valid MongoDB ObjectId")
-    .customSanitizer((value) => ObjectId(value)),
-
-  body("user_id")
-    .exists()
-    .withMessage("user_id is required")
-    .bail()
-    .trim()
-    .isMongoId()
-    .withMessage("user_id must be a valid MongoDB ObjectId")
-    .customSanitizer((value) => ObjectId(value)),
-
-  body("organization_data")
-    .optional()
-    .custom((value) => {
-      if (typeof value !== "object" || Array.isArray(value)) {
-        throw new Error("organization_data must be an object");
-      }
-      return true;
-    }),
-
-  body("organization_data.name")
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 100 })
-    .withMessage("organization name must be between 1 and 100 characters"),
-
-  body("organization_data.type")
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("organization type must be between 1 and 50 characters"),
-];
-
 const validateOrganizationSwitch = [
   param("organization_id")
     .exists()
@@ -1663,7 +1614,6 @@ module.exports = {
   validateTransferDevice,
   validateGetMyDevices,
   validateDeviceAvailability,
-  validateOrganizationAssignment,
   validateOrganizationSwitch,
   validateQRCodeGeneration,
   validateMigrationRequest,
