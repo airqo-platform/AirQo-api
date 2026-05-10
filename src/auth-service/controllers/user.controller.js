@@ -1726,6 +1726,17 @@ const userController = {
 
   // ── FEEDBACK (persistent) ───────────────────────────────────────────────────
 
+  getFeedbackUploadUrl: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getFeedbackUploadUrl(request, next);
+      sendResponse(res, result, "upload credentials");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   submitFeedback: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);
