@@ -290,11 +290,11 @@ let blacklistQueue = async.queue(async (task, callback) => {
       .then(() => {
         logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
         // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        callback();
+        if (typeof callback === "function") callback();
       })
       .catch((error) => {
         logObject("kafka producer send error", error);
-        callback();
+        if (typeof callback === "function") callback();
       });
     await kafkaProducer.disconnect().catch((error) => {
       logObject("kafka producer disconnect error", error);
@@ -305,7 +305,7 @@ let blacklistQueue = async.queue(async (task, callback) => {
     // logger.error(
     //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
     // );
-    callback();
+    if (typeof callback === "function") callback();
   }
 }, 1); // Limit the number of concurrent tasks to 1
 
@@ -1048,7 +1048,7 @@ const token = {
                 ),
               );
           }
-          winstonLogger.info("verify token", {
+          winstonLogger.debug("verify token", {
             token: token,
             service: "verify-token",
             clientIp: ip,
