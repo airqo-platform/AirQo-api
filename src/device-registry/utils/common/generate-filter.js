@@ -119,19 +119,19 @@ const generateFilter = {
       active,
     } = { ...query, ...params };
 
-    const DEFAULT_QUERY_RANGE_DAYS = 3;
+    const DEFAULT_QUERY_RANGE_DAYS = constants.DEFAULT_QUERY_RANGE_DAYS;
     // Constants for date calculations
     const today = monthsInfront(0);
-    const threeDaysBack = addDays(-DEFAULT_QUERY_RANGE_DAYS);
+    const defaultLookback = addDays(-DEFAULT_QUERY_RANGE_DAYS);
 
     // Initial filter object
     const filter = {
       day: {
-        $gte: generateDateFormatWithoutHrs(threeDaysBack),
+        $gte: generateDateFormatWithoutHrs(defaultLookback),
         $lte: generateDateFormatWithoutHrs(today),
       },
       "values.time": {
-        $gte: threeDaysBack,
+        $gte: defaultLookback,
         $lte: today,
       },
       "values.device": {},
@@ -1231,11 +1231,11 @@ const generateFilter = {
     // Initial filter object
     const filter = {
       day: {
-        $gte: generateDateFormatWithoutHrs(threeDaysBack),
+        $gte: generateDateFormatWithoutHrs(defaultLookback),
         $lte: generateDateFormatWithoutHrs(today),
       },
       "values.time": {
-        $gte: threeDaysBack,
+        $gte: defaultLookback,
         $lte: today,
       },
       "values.device": {},

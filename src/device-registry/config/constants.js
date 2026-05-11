@@ -80,6 +80,26 @@ function envConfig(env) {
       const val = parseInt(process.env.MONGODB_SOCKET_TIMEOUT_MS, 10);
       return Number.isFinite(val) && val > 0 ? val : 600000;
     })(),
+
+    // Temporary diagnostic window for ReadingModel.recent().
+    // Revert to 3 once the root cause of the empty readings collection is confirmed.
+    DIAGNOSTIC_WINDOW_DAYS: (() => {
+      const val = parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 3;
+    })(),
+
+    // Default lookback window for event/measurement queries (generate-filter fetch).
+    // Temporarily raised to 7 for diagnosis — revert to 3 when data pipeline is healthy.
+    DEFAULT_QUERY_RANGE_DAYS: (() => {
+      const val = parseInt(process.env.DEFAULT_QUERY_RANGE_DAYS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 3;
+    })(),
+
+    // How many hours without a successful event insertion before firing a Slack alert.
+    EVENTS_STALENESS_THRESHOLD_HOURS: (() => {
+      const val = parseInt(process.env.EVENTS_STALENESS_THRESHOLD_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 2;
+    })(),
   };
 
   // ── Final merge ─────────────────────────────────────────────────────────────

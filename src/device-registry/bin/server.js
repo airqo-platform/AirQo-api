@@ -146,6 +146,9 @@ global.jobMetrics = {
 // Initialize all background jobs
 // require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
+if (isProd) {
+  require("@bin/jobs/events-health-check-job");
+}
 try {
   require("@bin/jobs/update-raw-online-status-job");
 } catch (err) {
