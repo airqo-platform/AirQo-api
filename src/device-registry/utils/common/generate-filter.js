@@ -1231,11 +1231,11 @@ const generateFilter = {
     // Initial filter object
     const filter = {
       day: {
-        $gte: generateDateFormatWithoutHrs(defaultLookback),
+        $gte: generateDateFormatWithoutHrs(threeDaysBack),
         $lte: generateDateFormatWithoutHrs(today),
       },
       "values.time": {
-        $gte: defaultLookback,
+        $gte: threeDaysBack,
         $lte: today,
       },
       "values.device": {},

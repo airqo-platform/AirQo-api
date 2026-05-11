@@ -127,6 +127,10 @@ const startJob = () => {
   };
 
   console.log(`✅ ${JOB_NAME} started — alerts if readings stale > ${THRESHOLD_HOURS}h`);
+
+  // Fire one immediate check on startup so we don't wait up to 2 hours to
+  // discover a pipeline that was already stalled before deployment.
+  setImmediate(() => { jobWrapper(); });
 };
 
 startJob();
