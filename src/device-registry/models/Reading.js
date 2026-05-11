@@ -981,10 +981,7 @@ ReadingsSchema.statics.latestForMap = async function(
 };
 // Temporary diagnostic window — override via DIAGNOSTIC_WINDOW_DAYS env var.
 // Revert to 3 once the root cause of the empty readings collection is confirmed.
-const DIAGNOSTIC_WINDOW_DAYS =
-  parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10) > 0
-    ? parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10)
-    : 7;
+const DIAGNOSTIC_WINDOW_DAYS = constants.DIAGNOSTIC_WINDOW_DAYS;
 
 ReadingsSchema.statics.recent = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
