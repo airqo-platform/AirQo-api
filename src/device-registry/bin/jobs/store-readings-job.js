@@ -2,7 +2,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`,
+  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job -- ops-alerts`,
 );
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
@@ -297,6 +297,7 @@ async function fetchAndStoreReadings() {
     };
     const filter = generateFilter.fetch(request);
 
+    const jobStartMs = Date.now();
     logText("Starting readings processing job");
 
     let viewEventsResponse;
@@ -307,7 +308,19 @@ async function fetchAndStoreReadings() {
         logText("Ignoring duplicate key error in fetch operation");
         return;
       }
-      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
+      // Surface timeout errors explicitly — a socket/server-selection timeout
+      // here means socketTimeoutMS is too short for the events aggregation.
+      const isTimeout =
+        fetchError.name === "MongoNetworkTimeoutError" ||
+        fetchError.name === "MongoServerSelectionError" ||
+        /timed out|timeout/i.test(fetchError.message);
+      logger.error(
+        `🐛 Error fetching events (${
+          isTimeout
+            ? "TIMEOUT — socketTimeoutMS may be too low"
+            : fetchError.name
+        }): ${fetchError.message}`,
+      );
       return;
     }
 
@@ -315,11 +328,21 @@ async function fetchAndStoreReadings() {
       !viewEventsResponse?.success ||
       !Array.isArray(viewEventsResponse.data?.[0]?.data)
     ) {
-      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
+      logger.warn(
+        `🙀 Invalid or empty response from EventModel.fetch() — success=${
+          viewEventsResponse?.success
+        } dataShape=${JSON.stringify(
+          Object.keys(viewEventsResponse?.data?.[0] || {}),
+        )}`,
+      );
       return;
     }
 
     const data = viewEventsResponse.data[0].data;
+    logger.info(
+      `📦 EventModel.fetch() returned ${data.length} events in ${Date.now() -
+        jobStartMs}ms`,
+    );
     if (data.length === 0) {
       logText("No Events found to process into Readings");
       return;

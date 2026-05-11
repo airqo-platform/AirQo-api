@@ -195,7 +195,7 @@ const getFallbackCache = (key) => {
 // Redis operations with simple fallback
 const redisGetAsync = async (key) => {
   const prefixedKey = `${KEY_PREFIX}${key}`;
-  if (!client.isOpen) {
+  if (!client.isOpen || !client.isReady) {
     logger.debug("Redis not available - using fallback for GET");
     return getFallbackCache(prefixedKey);
   }
@@ -219,7 +219,7 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
   const ttlMs = ttlSeconds ? ttlSeconds * 1000 : FALLBACK_CACHE_TTL;
   setFallbackCache(prefixedKey, value, ttlMs);
 
-  if (!client.isOpen) {
+  if (!client.isOpen || !client.isReady) {
     logger.debug("Redis not available - SET cached in fallback only");
     return "OK";
   }
@@ -244,7 +244,7 @@ const redisExpireAsync = async (key, seconds) => {
     item.expires = Date.now() + seconds * 1000;
   }
 
-  if (!client.isOpen) {
+  if (!client.isOpen || !client.isReady) {
     logger.debug("Redis not available - EXPIRE applied to fallback only");
     return 1;
   }
