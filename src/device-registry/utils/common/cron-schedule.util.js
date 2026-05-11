@@ -10,8 +10,8 @@ const cronParser = require("cron-parser");
  */
 const getSchedule = (baseSchedule, environment) => {
   try {
-    // Validate the cron expression format
-    cronParser.parseExpression(baseSchedule);
+    // Validate the cron expression format (cron-parser v5.x API)
+    cronParser.CronExpressionParser.parse(baseSchedule);
   } catch (err) {
     // Log the error and return the original schedule to prevent crashes.
     console.error(
