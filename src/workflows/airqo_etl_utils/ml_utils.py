@@ -3167,23 +3167,43 @@ class ForecastModelTrainer(BaseMlUtils):
             }
             records.append(
                 {
-                    key: (None if pd.isna(value) else value)
+                    key: value
                     for key, value in document.items()
+                    if not pd.isna(value)
                 }
             )
 
-        bulk_operations = [
-            pm.ReplaceOne(
-                {
-                    "site_id": record["site_id"],
-                    "timestamp": record["timestamp"],
+        insert_only_fields = {"site_id", "timestamp", "site_name", "created_at"}
+        bulk_operations = []
+        for record in records:
+            update_doc = {
+                "$set": {
+                    key: value
+                    for key, value in record.items()
+                    if key not in insert_only_fields
                 },
-                record,
-                upsert=True,
+                "$setOnInsert": {
+                    key: value
+                    for key, value in record.items()
+                    if key in insert_only_fields
+                },
+            }
+            if not update_doc["$set"]:
+                del update_doc["$set"]
+            bulk_operations.append(
+                pm.UpdateOne(
+                    {
+                        "site_id": record["site_id"],
+                        "timestamp": record["timestamp"],
+                    },
+                    update_doc,
+                    upsert=True,
+                )
             )
-            for record in records
-        ]
         retention_hours = int(configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+        retention_cutoff = (
+            pd.Timestamp.utcnow() - pd.Timedelta(hours=retention_hours)
+        ).to_pydatetime()
         deleted_rows = 0
 
         with pm.MongoClient(
@@ -3221,9 +3241,12 @@ class ForecastModelTrainer(BaseMlUtils):
                             if doc["_id"] not in retained_ids
                         ]
                         if stale_ids:
-                            deleted_rows = collection.delete_many(
+                            deleted_rows += collection.delete_many(
                                 {"_id": {"$in": stale_ids}}
                             ).deleted_count
+                deleted_rows += collection.delete_many(
+                    {"timestamp": {"$lt": retention_cutoff}}
+                ).deleted_count
 
         return {
             "rows": len(records),
