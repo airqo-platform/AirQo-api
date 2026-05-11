@@ -110,6 +110,7 @@ const jobs = [
   "@bin/jobs/role-cleanup-job",
   "@bin/jobs/daily-compromise-summary-job",
   "@bin/jobs/unknown-ip-cleanup-job",
+  "@bin/jobs/feedback-screenshot-cleanup-job",
 ];
 
 // Initialize log4js with SAFE configuration

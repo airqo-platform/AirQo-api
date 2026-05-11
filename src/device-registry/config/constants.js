@@ -68,6 +68,18 @@ function envConfig(env) {
       process.env.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED,
       env !== "staging", // default off in staging only
     ),
+
+    // Integer (ms): maximum time the MongoDB driver waits for a response on an
+    // open socket before aborting the operation.  Must be long enough to cover
+    // the heaviest aggregation in the service — EventModel.fetch(recent=yes)
+    // runs multi-$lookup + $facet across the full events collection.
+    // Default: 600 000 ms (10 min) — matches the original pre-refactor value and
+    // gives the heavy EventModel.fetch(recent=yes) aggregation full headroom.
+    // Override via MONGODB_SOCKET_TIMEOUT_MS in the environment JSON.
+    MONGODB_SOCKET_TIMEOUT_MS: (() => {
+      const val = parseInt(process.env.MONGODB_SOCKET_TIMEOUT_MS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 600000;
+    })(),
   };
 
   // ── Final merge ─────────────────────────────────────────────────────────────

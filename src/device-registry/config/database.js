@@ -42,9 +42,13 @@ const options = {
   poolSize: parseInt(constants.MONGODB_POOL_SIZE || "100", 10),
   // bufferMaxEntries removed — see bufferTimeoutMS comment above.
   connectTimeoutMS: 30000,
-  // socketTimeoutMS is intentionally longer than auth-service (120 s vs 60 s)
-  // to accommodate long-running aggregation queries unique to device-registry.
-  socketTimeoutMS: 120000,
+  // socketTimeoutMS must be long enough to cover the heaviest aggregations
+  // (EventModel.fetch with recent=yes runs multi-$lookup $facet pipelines over
+  // the full events collection). The previous value of 600 000 ms was set for
+  // this reason; 300 000 ms (5 min) is the minimum safe floor. Reducing this
+  // further causes store-readings-job to time out mid-aggregation, leaving the
+  // readings collection empty and breaking all readings/* endpoints.
+  socketTimeoutMS: constants.MONGODB_SOCKET_TIMEOUT_MS,
   serverSelectionTimeoutMS: 30000,
 };
 

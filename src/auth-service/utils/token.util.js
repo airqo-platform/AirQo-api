@@ -282,30 +282,23 @@ let blacklistQueue = async.queue(async (task, callback) => {
       groupId: constants.UNIQUE_PRODUCER_GROUP,
     });
     await kafkaProducer.connect();
-    await kafkaProducer
-      .send({
+    try {
+      await kafkaProducer.send({
         topic: "ip-address",
         messages: [{ value: stringify({ ip }) }],
-      })
-      .then(() => {
-        logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        callback();
-      })
-      .catch((error) => {
-        logObject("kafka producer send error", error);
-        callback();
       });
-    await kafkaProducer.disconnect().catch((error) => {
-      logObject("kafka producer disconnect error", error);
-    });
-    // callback();
+      logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
+    } catch (sendError) {
+      logObject("kafka producer send error", sendError);
+    } finally {
+      await kafkaProducer.disconnect().catch((error) => {
+        logObject("kafka producer disconnect error", error);
+      });
+    }
   } catch (error) {
     logObject("error", error);
-    // logger.error(
-    //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
-    // );
-    callback();
+  } finally {
+    if (typeof callback === "function") callback();
   }
 }, 1); // Limit the number of concurrent tasks to 1
 
@@ -1048,8 +1041,8 @@ const token = {
                 ),
               );
           }
-          winstonLogger.info("verify token", {
-            token: token,
+          winstonLogger.debug("verify token", {
+            clientId: accessToken.client_id,
             service: "verify-token",
             clientIp: ip,
             clientOriginalIp: ip,

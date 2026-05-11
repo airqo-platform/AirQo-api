@@ -7596,6 +7596,7 @@ const createUserModule = {
 // Separated from createUserModule to keep concerns clear; exported individually.
 // ─────────────────────────────────────────────────────────────────────────────
 const FeedbackModel = require("@models/Feedback");
+const cloudinary = require("@config/cloudinary");
 
 // N1: single helper so all four methods share identical tenant resolution logic.
 const resolveFeedbackTenant = (query) =>
@@ -7616,8 +7617,21 @@ const feedbackUtil = {
     try {
       const { body, query } = request;
       const tenant = resolveFeedbackTenant(query);
-      const { email, subject, message, rating, category, platform, metadata } =
-        body;
+      const {
+        email,
+        subject,
+        message,
+        rating,
+        category,
+        platform,
+        app: rawApp,
+        screenshot_url,
+        metadata,
+      } = body;
+      const app =
+        typeof rawApp === "string" && rawApp.trim()
+          ? rawApp.trim()
+          : undefined;
 
       // U2: safely normalise email — validator guarantees it's present and a
       // string at the HTTP layer, but guard here so a missing value yields a
@@ -7640,6 +7654,8 @@ const feedbackUtil = {
         rating,
         category,
         platform,
+        app,
+        screenshot_url,
         metadata,
         tenant,
         userId: request.user ? request.user._id : undefined,
@@ -7697,6 +7713,8 @@ const feedbackUtil = {
       if (query.status) filter.status = query.status;
       if (query.category) filter.category = query.category;
       if (query.platform) filter.platform = query.platform;
+      if (typeof query.app === "string" && query.app.trim())
+        filter.app = query.app.trim();
       if (query.email) filter.email = query.email.toLowerCase().trim();
 
       return await FeedbackModel(tenant).list({ skip, limit, filter });
@@ -7766,6 +7784,73 @@ const feedbackUtil = {
 
       const filter = { _id: params.feedback_id, tenant };
       return await FeedbackModel(tenant).modify({ filter, update: { status: requestedStatus } });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getFeedbackUploadUrl: async (request, next) => {
+    try {
+      const missingCreds = [
+        "CLOUDINARY_API_SECRET",
+        "CLOUDINARY_API_KEY",
+        "CLOUD_NAME",
+      ].filter((k) => !constants[k]);
+
+      const invalidConfig =
+        !constants.FEEDBACK_SCREENSHOT_FOLDER ||
+        !constants.FEEDBACK_SCREENSHOT_TAG ||
+        !Array.isArray(constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS) ||
+        constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS.length === 0;
+
+      if (missingCreds.length > 0 || invalidConfig) {
+        return {
+          success: false,
+          message: "Screenshot uploads are not configured",
+          status: httpStatus.SERVICE_UNAVAILABLE,
+          errors: { message: "Cloudinary credentials are missing" },
+        };
+      }
+
+      const timestamp = Math.round(Date.now() / 1000);
+      const uploadParams = {
+        folder: constants.FEEDBACK_SCREENSHOT_FOLDER,
+        tags: constants.FEEDBACK_SCREENSHOT_TAG,
+        allowed_formats: constants.FEEDBACK_SCREENSHOT_ALLOWED_FORMATS.join(
+          ",",
+        ),
+        max_file_size: constants.FEEDBACK_SCREENSHOT_MAX_BYTES,
+        timestamp,
+      };
+
+      const signature = cloudinary.utils.api_sign_request(
+        uploadParams,
+        constants.CLOUDINARY_API_SECRET,
+      );
+
+      return {
+        success: true,
+        message: "Upload credentials generated successfully",
+        status: httpStatus.OK,
+        data: {
+          signature,
+          timestamp,
+          api_key: constants.CLOUDINARY_API_KEY,
+          cloud_name: constants.CLOUD_NAME,
+          folder: uploadParams.folder,
+          tags: uploadParams.tags,
+          allowed_formats: uploadParams.allowed_formats,
+          max_file_size: uploadParams.max_file_size,
+          upload_url: `https://api.cloudinary.com/v1_1/${constants.CLOUD_NAME}/image/upload`,
+        },
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       return next(

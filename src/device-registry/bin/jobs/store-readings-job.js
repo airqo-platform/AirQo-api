@@ -2,7 +2,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`,
+  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job -- ops-alerts`,
 );
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
@@ -297,7 +297,10 @@ async function fetchAndStoreReadings() {
     };
     const filter = generateFilter.fetch(request);
 
-    logText("Starting readings processing job");
+    const jobStartMs = Date.now();
+    logger.warn(
+      `⏰ store-readings-job STARTED at ${new Date().toISOString()}`,
+    );
 
     let viewEventsResponse;
     try {
@@ -307,7 +310,19 @@ async function fetchAndStoreReadings() {
         logText("Ignoring duplicate key error in fetch operation");
         return;
       }
-      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
+      // Surface timeout errors explicitly — a socket/server-selection timeout
+      // here means socketTimeoutMS is too short for the events aggregation.
+      const isTimeout =
+        fetchError.name === "MongoNetworkTimeoutError" ||
+        fetchError.name === "MongoServerSelectionError" ||
+        /timed out|timeout/i.test(fetchError.message);
+      logger.error(
+        `🐛 store-readings-job FAILED fetching events (${
+          isTimeout
+            ? "TIMEOUT — socketTimeoutMS may be too low"
+            : fetchError.name
+        }): ${fetchError.message}`,
+      );
       return;
     }
 
@@ -315,13 +330,29 @@ async function fetchAndStoreReadings() {
       !viewEventsResponse?.success ||
       !Array.isArray(viewEventsResponse.data?.[0]?.data)
     ) {
-      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
+      logger.warn(
+        `🙀 store-readings-job: invalid or empty response from EventModel.fetch() — success=${
+          viewEventsResponse?.success
+        } dataShape=${JSON.stringify(
+          Object.keys(viewEventsResponse?.data?.[0] || {}),
+        )}`,
+      );
       return;
     }
 
     const data = viewEventsResponse.data[0].data;
+    const fetchDuration = Date.now() - jobStartMs;
+    logger.warn(
+      `📦 store-readings-job: EventModel.fetch() returned ${
+        data.length
+      } events in ${fetchDuration}ms`,
+    );
+
     if (data.length === 0) {
-      logText("No Events found to process into Readings");
+      logger.warn(
+        `⚠️ store-readings-job: 0 events returned — readings collection will NOT be updated. ` +
+          `Check EventModel.fetch() filter and whether the events collection has data in the last 3 days.`,
+      );
       return;
     }
 
@@ -364,16 +395,26 @@ async function fetchAndStoreReadings() {
     // Generate processing report
     const report = batchProcessor.getProcessingReport();
 
-    // Simple success logging
+    // Always surface the final result to Slack so we can confirm the job is healthy
+    const totalDuration = Date.now() - jobStartMs;
     if (report.summary.successRate >= 95) {
-      logText(
-        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`,
+      logger.warn(
+        `✅ store-readings-job DONE — ${report.summary.readingsProcessed}/${
+          report.summary.totalDocuments
+        } readings stored (${
+          report.summary.successRate
+        }% success) | fetch ${fetchDuration}ms | total ${totalDuration}ms`,
       );
     } else {
       logger.warn(
-        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`,
+        `⚠️ store-readings-job DONE WITH ISSUES — ${
+          report.summary.readingsProcessed
+        }/${report.summary.totalDocuments} readings stored (${
+          report.summary.successRate
+        }% success) | fetch ${fetchDuration}ms | total ${totalDuration}ms` +
+          ` | timestampFailures=${report.details.timestampValidationFailures}` +
+          ` | avgCalcFailures=${report.details.averageCalculationFailures}`,
       );
-      logger.info(`📊 Processing details: ${stringify(report.details)}`);
     }
   } catch (error) {
     if (isDuplicateKeyError(error)) {
