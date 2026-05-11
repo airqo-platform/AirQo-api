@@ -3048,9 +3048,29 @@ const createEvent = {
                 `readRecentWithFilter: events fallback succeeded —` +
                   ` ${eventsData.length} records returned for tenant=${tenant}`,
               );
+
+              // Apply language translation to fallback data, mirroring the normal path.
+              if (language !== undefined) {
+                for (const event of eventsData) {
+                  try {
+                    const translatedHealthTips = await translate.translateTips(
+                      { healthTips: event.health_tips, targetLanguage: language },
+                      next,
+                    );
+                    if (translatedHealthTips.success === true) {
+                      event.health_tips = translatedHealthTips.data;
+                    }
+                  } catch (translationError) {
+                    logger.warn(
+                      `Translation failed in fallback: ${translationError.message}`,
+                    );
+                  }
+                }
+              }
+
               return {
                 success: true,
-                message: readingsResponse.message,
+                message: `successfully retrieved ${eventsData.length} measurements`,
                 data: eventsData,
                 status: httpStatus.OK,
                 isCache: false,

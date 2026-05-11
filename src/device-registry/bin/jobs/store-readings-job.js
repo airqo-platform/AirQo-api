@@ -351,7 +351,7 @@ async function fetchAndStoreReadings() {
     if (data.length === 0) {
       logger.warn(
         `⚠️ store-readings-job: 0 events returned — readings collection will NOT be updated. ` +
-          `Check EventModel.fetch() filter and whether the events collection has data in the last 7 days.`,
+          `Check EventModel.fetch() filter and whether the events collection has data in the last 3 days.`,
       );
       return;
     }
