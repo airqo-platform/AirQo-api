@@ -298,7 +298,9 @@ async function fetchAndStoreReadings() {
     const filter = generateFilter.fetch(request);
 
     const jobStartMs = Date.now();
-    logText("Starting readings processing job");
+    logger.warn(
+      `⏰ store-readings-job STARTED at ${new Date().toISOString()}`,
+    );
 
     let viewEventsResponse;
     try {
@@ -315,7 +317,7 @@ async function fetchAndStoreReadings() {
         fetchError.name === "MongoServerSelectionError" ||
         /timed out|timeout/i.test(fetchError.message);
       logger.error(
-        `🐛 Error fetching events (${
+        `🐛 store-readings-job FAILED fetching events (${
           isTimeout
             ? "TIMEOUT — socketTimeoutMS may be too low"
             : fetchError.name
@@ -329,7 +331,7 @@ async function fetchAndStoreReadings() {
       !Array.isArray(viewEventsResponse.data?.[0]?.data)
     ) {
       logger.warn(
-        `🙀 Invalid or empty response from EventModel.fetch() — success=${
+        `🙀 store-readings-job: invalid or empty response from EventModel.fetch() — success=${
           viewEventsResponse?.success
         } dataShape=${JSON.stringify(
           Object.keys(viewEventsResponse?.data?.[0] || {}),
@@ -339,12 +341,18 @@ async function fetchAndStoreReadings() {
     }
 
     const data = viewEventsResponse.data[0].data;
-    logger.info(
-      `📦 EventModel.fetch() returned ${data.length} events in ${Date.now() -
-        jobStartMs}ms`,
+    const fetchDuration = Date.now() - jobStartMs;
+    logger.warn(
+      `📦 store-readings-job: EventModel.fetch() returned ${
+        data.length
+      } events in ${fetchDuration}ms`,
     );
+
     if (data.length === 0) {
-      logText("No Events found to process into Readings");
+      logger.warn(
+        `⚠️ store-readings-job: 0 events returned — readings collection will NOT be updated. ` +
+          `Check EventModel.fetch() filter and whether the events collection has data in the last 3 days.`,
+      );
       return;
     }
 
@@ -387,16 +395,26 @@ async function fetchAndStoreReadings() {
     // Generate processing report
     const report = batchProcessor.getProcessingReport();
 
-    // Simple success logging
+    // Always surface the final result to Slack so we can confirm the job is healthy
+    const totalDuration = Date.now() - jobStartMs;
     if (report.summary.successRate >= 95) {
-      logText(
-        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`,
+      logger.warn(
+        `✅ store-readings-job DONE — ${report.summary.readingsProcessed}/${
+          report.summary.totalDocuments
+        } readings stored (${
+          report.summary.successRate
+        }% success) | fetch ${fetchDuration}ms | total ${totalDuration}ms`,
       );
     } else {
       logger.warn(
-        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`,
+        `⚠️ store-readings-job DONE WITH ISSUES — ${
+          report.summary.readingsProcessed
+        }/${report.summary.totalDocuments} readings stored (${
+          report.summary.successRate
+        }% success) | fetch ${fetchDuration}ms | total ${totalDuration}ms` +
+          ` | timestampFailures=${report.details.timestampValidationFailures}` +
+          ` | avgCalcFailures=${report.details.averageCalculationFailures}`,
       );
-      logger.info(`📊 Processing details: ${stringify(report.details)}`);
     }
   } catch (error) {
     if (isDuplicateKeyError(error)) {

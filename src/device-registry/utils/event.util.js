@@ -2955,11 +2955,16 @@ const createEvent = {
       }
 
       // Proceed with database query
+      logger.warn(
+        `readRecentWithFilter: cache MISS — querying ReadingModel.recent() for tenant=${tenant}`,
+      );
+      const dbQueryStart = Date.now();
       const readingsResponse = await ReadingModel(tenant).recent({
         filter,
         skip,
         limit,
       });
+      const dbQueryDuration = Date.now() - dbQueryStart;
 
       if (!readingsResponse) {
         logger.error(
@@ -3003,16 +3008,100 @@ const createEvent = {
 
       if (readingsResponse.success === true) {
         const data = readingsResponse.data;
+        const resultCount = Array.isArray(data) ? data.length : 0;
 
-        // Attempt to set cache but don't let failure affect the response
-        logText("Attempting to set cache...");
-        try {
-          await createEvent.handleCacheOperation("set", data, request, next);
-        } catch (error) {
-          logger.warn(`Cache set operation failed: ${stringify(error)}`);
+        if (resultCount === 0) {
+          // Log the exact DB+collection being queried to help diagnose
+          // whether the wrong collection is being accessed in production.
+          const expectedDb = `${constants.DB_NAME}_${tenant}`;
+          logger.warn(
+            `⚠️ readRecentWithFilter: ReadingModel.recent() returned 0 readings` +
+              ` for tenant=${tenant} in ${dbQueryDuration}ms` +
+              ` (queried db=${expectedDb} collection=readings)` +
+              ` — falling back to events collection`,
+          );
+
+          // Fallback: query the events collection directly so callers always
+          // get data while the readings pipeline issue is being investigated.
+          try {
+            const fallbackRequest = {
+              query: {
+                ...request.query,
+                recent: "yes",
+                metadata: "site_id",
+                active: "yes",
+                brief: "yes",
+              },
+            };
+            const fallbackFilter = generateFilter.fetch(fallbackRequest);
+            const eventsResponse = await EventModel(tenant).fetch(
+              fallbackFilter,
+            );
+
+            if (
+              eventsResponse?.success &&
+              Array.isArray(eventsResponse.data?.[0]?.data) &&
+              eventsResponse.data[0].data.length > 0
+            ) {
+              const eventsData = eventsResponse.data[0].data;
+              logger.warn(
+                `readRecentWithFilter: events fallback succeeded —` +
+                  ` ${eventsData.length} records returned for tenant=${tenant}`,
+              );
+
+              // Apply language translation to fallback data, mirroring the normal path.
+              if (language !== undefined) {
+                for (const event of eventsData) {
+                  try {
+                    const translatedHealthTips = await translate.translateTips(
+                      { healthTips: event.health_tips, targetLanguage: language },
+                      next,
+                    );
+                    if (translatedHealthTips.success === true) {
+                      event.health_tips = translatedHealthTips.data;
+                    }
+                  } catch (translationError) {
+                    logger.warn(
+                      `Translation failed in fallback: ${translationError.message}`,
+                    );
+                  }
+                }
+              }
+
+              return {
+                success: true,
+                message: `successfully retrieved ${eventsData.length} measurements`,
+                data: eventsData,
+                status: httpStatus.OK,
+                isCache: false,
+              };
+            }
+
+            logger.warn(
+              `readRecentWithFilter: events fallback also returned 0 records` +
+                ` for tenant=${tenant} — both readings and events collections appear empty`,
+            );
+          } catch (fallbackError) {
+            logger.warn(
+              `readRecentWithFilter: events fallback threw for tenant=${tenant}: ${fallbackError.message}`,
+            );
+          }
+        } else {
+          logger.warn(
+            `readRecentWithFilter: ReadingModel.recent() returned ${resultCount} readings` +
+              ` for tenant=${tenant} in ${dbQueryDuration}ms`,
+          );
         }
 
-        logText("Cache operation completed (success or failure ignored).");
+        // Only cache a non-empty readings result — caching empty data would
+        // cause subsequent requests within the TTL to serve stale zero results.
+        if (resultCount > 0) {
+          try {
+            await createEvent.handleCacheOperation("set", data, request, next);
+          } catch (error) {
+            logger.warn(`Cache set operation failed: ${stringify(error)}`);
+          }
+        }
 
         return {
           success: true,
