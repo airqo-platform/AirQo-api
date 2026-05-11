@@ -985,7 +985,7 @@ ReadingsSchema.statics.recent = async function(
 ) {
   try {
     let threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 7);
 
     let groupBy = "$site_id";
     if (filter.device || filter.device_id) {
