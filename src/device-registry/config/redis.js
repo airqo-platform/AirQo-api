@@ -262,7 +262,7 @@ const redisDelAsync = async (key) => {
   const hadKey = fallbackCache.has(prefixedKey);
   fallbackCache.delete(prefixedKey);
 
-  if (!client.isOpen) {
+  if (!client.isOpen || !client.isReady) {
     logger.debug("Redis not available - DEL removed from fallback only");
     return hadKey ? 1 : 0;
   }
