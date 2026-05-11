@@ -979,13 +979,20 @@ ReadingsSchema.statics.latestForMap = async function(
     };
   }
 };
+// Temporary diagnostic window — override via DIAGNOSTIC_WINDOW_DAYS env var.
+// Revert to 3 once the root cause of the empty readings collection is confirmed.
+const DIAGNOSTIC_WINDOW_DAYS =
+  parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10) > 0
+    ? parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10)
+    : 3;
+
 ReadingsSchema.statics.recent = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
   next,
 ) {
   try {
-    let sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    let lookbackStart = new Date();
+    lookbackStart.setDate(lookbackStart.getDate() - DIAGNOSTIC_WINDOW_DAYS);
 
     let groupBy = "$site_id";
     if (filter.device || filter.device_id) {
@@ -996,7 +1003,7 @@ ReadingsSchema.statics.recent = async function(
       .match({
         ...filter,
         time: {
-          $gte: sevenDaysAgo,
+          $gte: lookbackStart,
         },
       })
       .sort({ time: -1 })
