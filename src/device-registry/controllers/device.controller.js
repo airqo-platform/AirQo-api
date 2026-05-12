@@ -1481,6 +1481,84 @@ const deviceController = {
       return;
     }
   },
+  bulkCreateOnPlatform: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
+      const { network_override, cohort_id, user_id } = req.body;
+
+      let devices;
+
+      if (req.file) {
+        try {
+          devices = await createDeviceUtil.parseDeviceCSV(req.file.buffer, network_override);
+        } catch (parseError) {
+          return next(
+            new HttpError(
+              `CSV processing failed: ${parseError.message}`,
+              parseError.status || httpStatus.BAD_REQUEST,
+              parseError.errors || { message: parseError.message },
+            ),
+          );
+        }
+
+        if (!devices || devices.length === 0) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: "CSV file is empty or contains no valid device rows",
+            errors: { message: "No valid rows found" },
+          });
+        }
+
+        if (devices.length > 500) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: `CSV contains ${devices.length} rows. Maximum allowed per upload is 500.`,
+            errors: { message: "Too many rows" },
+          });
+        }
+      } else {
+        devices = req.body.devices;
+        // Apply network_override to every row when supplied in JSON mode
+        if (network_override) {
+          devices = devices.map((d) => ({ ...d, network: network_override }));
+        }
+      }
+
+      const results = await createDeviceUtil.createDevicesBatch(devices, {
+        tenant,
+        user_id,
+        cohort_id,
+      });
+
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+
+      return res.status(207).json({
+        success: true,
+        message: `${succeeded.length} device(s) imported successfully, ${failed.length} failed`,
+        imported: succeeded.length,
+        failed: failed.length,
+        total: results.length,
+        results,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+      return;
+    }
+  },
+
   listOnGCP: (req, res, next) => {
     let device = req.params.name;
     const formattedName = client.devicePath(

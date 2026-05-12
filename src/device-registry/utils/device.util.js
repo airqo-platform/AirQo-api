@@ -5298,6 +5298,174 @@ const deviceUtil = {
       );
     }
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // BULK SOFT-CREATE HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  parseDeviceCSV: async (buffer, networkOverride) => {
+    // csv-parse/sync is the synchronous API shipped with csv-parse v5.x.
+    // Using it inside an async wrapper keeps callers in promise chains.
+    const { parse } = require("csv-parse/sync");
+
+    let rows;
+    try {
+      rows = parse(buffer, {
+        columns: true,       // first row is the header
+        skip_empty_lines: true,
+        trim: true,
+        bom: true,           // strip UTF-8 BOM that Excel often writes
+        relax_column_count: true, // tolerate rows with fewer columns
+      });
+    } catch (parseErr) {
+      throw new HttpError(
+        `CSV parse error: ${parseErr.message}`,
+        httpStatus.BAD_REQUEST,
+        { message: parseErr.message },
+      );
+    }
+
+    const devices = [];
+    const rowErrors = [];
+
+    rows.forEach((row, idx) => {
+      const rowNum = idx + 2; // account for header row
+
+      // Support both AirQo template column names and AirGradient-style names
+      const longName = (row.long_name || row.locationName || "").trim();
+      const network = (networkOverride || row.network || "").trim();
+      const serialNumber = String(row.serial_number || row.locationId || "").trim();
+
+      if (!longName) {
+        rowErrors.push(`Row ${rowNum}: long_name (or locationName) is required`);
+        return;
+      }
+      if (!network) {
+        rowErrors.push(`Row ${rowNum}: network is required (or pass network_override)`);
+        return;
+      }
+      if (!serialNumber) {
+        rowErrors.push(`Row ${rowNum}: serial_number (or locationId) is required`);
+        return;
+      }
+
+      const device = {
+        long_name: longName,
+        network,
+        serial_number: serialNumber,
+        category: (row.category || "lowcost").trim(),
+      };
+
+      if (row.latitude) {
+        const lat = parseFloat(row.latitude);
+        if (!isNaN(lat) && lat >= -90 && lat <= 90) device.latitude = lat;
+      }
+      if (row.longitude) {
+        const lng = parseFloat(row.longitude);
+        if (!isNaN(lng) && lng >= -180 && lng <= 180) device.longitude = lng;
+      }
+      if (row.api_code && row.api_code.trim()) {
+        device.api_code = row.api_code.trim();
+      }
+      if (row.description && row.description.trim()) {
+        device.description = row.description.trim();
+      }
+      if (row.device_number && row.device_number.trim()) {
+        const num = parseInt(row.device_number, 10);
+        if (!isNaN(num)) device.device_number = num;
+      }
+      if (row.tags && row.tags.trim()) {
+        device.tags = row.tags
+          .split("|")
+          .map((t) => t.trim())
+          .filter(Boolean);
+      }
+
+      devices.push(device);
+    });
+
+    if (rowErrors.length > 0) {
+      throw new HttpError(
+        `CSV validation failed: ${rowErrors.slice(0, 5).join("; ")}${rowErrors.length > 5 ? ` … and ${rowErrors.length - 5} more` : ""}`,
+        httpStatus.BAD_REQUEST,
+        { message: rowErrors.join("; "), row_errors: rowErrors },
+      );
+    }
+
+    return devices;
+  },
+
+  createDevicesBatch: async (devices, { tenant, user_id, cohort_id }, batchSize = 25) => {
+    const results = [];
+
+    for (let i = 0; i < devices.length; i += batchSize) {
+      const chunk = devices.slice(i, i + batchSize);
+
+      const chunkOutcomes = await Promise.allSettled(
+        chunk.map(async (device) => {
+          // Capture errors that createOnPlatform routes through next() rather
+          // than throwing, so they don't disappear silently.
+          let capturedError = null;
+          const capturingNext = (err) => {
+            if (err) capturedError = err;
+          };
+
+          const mockRequest = {
+            query: { tenant },
+            body: {
+              ...device,
+              ...(user_id && { user_id }),
+              ...(cohort_id && { cohort_id }),
+            },
+          };
+
+          const outcome = await deviceUtil.createOnPlatform(mockRequest, capturingNext);
+
+          if (capturedError) {
+            return {
+              success: false,
+              message: capturedError.message || "Device creation failed",
+            };
+          }
+
+          return outcome || { success: false, message: "No result returned" };
+        }),
+      );
+
+      chunkOutcomes.forEach((settled, idx) => {
+        const deviceRow = chunk[idx];
+        const identifier = deviceRow.serial_number || deviceRow.long_name || `row_${i + idx + 1}`;
+
+        if (settled.status === "fulfilled") {
+          const outcome = settled.value;
+          if (outcome && outcome.success) {
+            results.push({
+              serial_number: identifier,
+              long_name: deviceRow.long_name,
+              success: true,
+              created_device: outcome.data || null,
+            });
+          } else {
+            results.push({
+              serial_number: identifier,
+              long_name: deviceRow.long_name,
+              success: false,
+              error: outcome?.message || "Device creation failed",
+            });
+          }
+        } else {
+          results.push({
+            serial_number: identifier,
+            long_name: deviceRow.long_name,
+            success: false,
+            error: settled.reason?.message || "Unknown error",
+          });
+        }
+      });
+    }
+
+    return results;
+  },
 };
 
 module.exports = {

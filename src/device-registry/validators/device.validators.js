@@ -1586,6 +1586,78 @@ const validateRemoveDevicesFromBatch = [
     }),
 ];
 
+const validateBulkSoftCreate = [
+  // user_id is always required (sets owner and personal cohort)
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+
+  // cohort_id is optional
+  body("cohort_id")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+
+  // network_override is optional — forces all rows to a single network value
+  body("network_override")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("network_override cannot be an empty string"),
+
+  // JSON body mode: require a devices array when no file is uploaded
+  body("devices")
+    .if((_, { req }) => !req.file)
+    .exists()
+    .withMessage("devices array is required when not uploading a CSV file")
+    .bail()
+    .isArray({ min: 1, max: 500 })
+    .withMessage("devices must be an array of 1–500 items"),
+
+  body("devices.*.long_name")
+    .if((_, { req }) => !req.file)
+    .trim()
+    .notEmpty()
+    .withMessage("long_name is required for each device"),
+
+  body("devices.*.network")
+    .if((_, { req }) => !req.file && !req.body.network_override)
+    .trim()
+    .notEmpty()
+    .withMessage(
+      "network is required for each device (or supply network_override in the request body)",
+    ),
+
+  body("devices.*.serial_number")
+    .if((_, { req }) => !req.file)
+    .trim()
+    .notEmpty()
+    .withMessage("serial_number is required for each device"),
+
+  body("devices.*.latitude")
+    .optional()
+    .isFloat({ min: -90, max: 90 })
+    .withMessage("latitude must be a number between -90 and 90"),
+
+  body("devices.*.longitude")
+    .optional()
+    .isFloat({ min: -180, max: 180 })
+    .withMessage("longitude must be a number between -180 and 180"),
+
+  body("devices.*.category")
+    .optional()
+    .isIn(["lowcost", "bam", "gas"])
+    .withMessage("category must be one of: lowcost, bam, gas"),
+];
+
 const validateUserIdBody = [
   body("user_id")
     .exists()
@@ -1631,4 +1703,5 @@ module.exports = {
   validateUserIdBody,
   validateCreateShippingBatch,
   validateRemoveDevicesFromBatch,
+  validateBulkSoftCreate,
 };
