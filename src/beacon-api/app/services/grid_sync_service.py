@@ -493,10 +493,19 @@ def get_synced_grid(
             "status_code": 404,
         }
 
+    serialized_grid = _serialize_grid_scoped(db, g, group_device_ids=group_device_ids)
+
+    if group_device_ids is not None and not serialized_grid.get("sites"):
+        return {
+            "success": False,
+            "message": "Grid not found in group scope",
+            "status_code": 404,
+        }
+
     return {
         "success": True,
         "message": "Synced grid fetched successfully",
-        "grid": _serialize_grid_scoped(db, g, group_device_ids=group_device_ids),
+        "grid": serialized_grid,
     }
 
 

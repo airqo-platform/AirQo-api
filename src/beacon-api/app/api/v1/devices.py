@@ -277,14 +277,32 @@ async def get_devices(
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
     cohort_ids = resolve_group_cohort_ids(db, group)
     group_device_ids = resolve_group_device_ids(db, cohort_ids)
+    group_device_id_set = set(group_device_ids or [])
     
     try:
+        # Supergroup (`group_device_ids is None`) means unrestricted devices.
+        # Empty list means restricted group with no devices.
+        if group_device_ids == []:
+            return {
+                "success": True,
+                "message": "Devices fetched successfully",
+                "meta": {
+                    "total": 0,
+                    "limit": limit,
+                    "skip": skip,
+                },
+                "devices": [],
+            }
+
         params = {
             "limit": limit,
-            "skip": skip
+            "skip": skip,
         }
+        if group_device_ids is not None:
+            params["device_id__in"] = ",".join(group_device_ids)
         if search:
             params["search"] = search
+
         result = await device_service.get_device_details(db, token, params)
         
         if not result.get("success", True):
@@ -292,15 +310,37 @@ async def get_devices(
             message = result.get("message", "Error fetching data from platform")
             raise HTTPException(status_code=status_code, detail=message)
 
-        # Filter to only devices in the group's cohorts
-        if group_device_ids:
-            devices = result.get("devices", [])
-            result["devices"] = [
-                d for d in devices if d.get("_id") in group_device_ids
+        devices = result.get("devices", []) or []
+        supports_in_filter = True
+        if group_device_ids is not None:
+            supports_in_filter = all(
+                device.get("_id") in group_device_id_set for device in devices
+            )
+
+        if group_device_ids is not None and not supports_in_filter:
+            fallback_params = {}
+            if search:
+                fallback_params["search"] = search
+
+            fallback_result = await device_service.get_device_details(db, token, fallback_params)
+            if not fallback_result.get("success", True):
+                status_code = fallback_result.get("status_code", 400)
+                message = fallback_result.get("message", "Error fetching data from platform")
+                raise HTTPException(status_code=status_code, detail=message)
+
+            filtered_devices = [
+                device for device in (fallback_result.get("devices", []) or [])
+                if device.get("_id") in group_device_id_set
             ]
+            result["devices"] = filtered_devices[skip: skip + limit]
+
             meta = result.get("meta")
-            if isinstance(meta, dict):
-                meta["total"] = len(result["devices"])
+            if not isinstance(meta, dict):
+                meta = {}
+                result["meta"] = meta
+            meta["total"] = len(filtered_devices)
+            meta["limit"] = limit
+            meta["skip"] = skip
             
         return result
     except HTTPException:

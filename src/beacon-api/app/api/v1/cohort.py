@@ -166,7 +166,7 @@ def get_synced_cohorts(
         if cohort_ids:
             explicit = {c.strip() for c in cohort_ids.split(",") if c.strip()}
             group_cohort_ids = [c for c in group_cohort_ids if c in explicit]
-        merged_cohort_ids = ",".join(group_cohort_ids) if group_cohort_ids else None
+        merged_cohort_ids = ",".join(group_cohort_ids) if group_cohort_ids else "__empty_scope__"
 
     try:
         result = cohort_sync_service.get_synced_cohorts(

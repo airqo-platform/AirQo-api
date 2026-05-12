@@ -4,6 +4,7 @@ import logging
 from typing import List
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.sync import SyncGroup, SyncGroupCohort
@@ -25,16 +26,17 @@ def resolve_group_cohort_ids(db: Session, group_titles_csv: str):
         HTTPException 400  if the resolved groups have zero cohorts.
     """
     titles = [t.strip() for t in group_titles_csv.split(",") if t.strip()]
+    lowered_titles = [t.lower() for t in titles]
     if not titles:
         raise HTTPException(status_code=400, detail="group parameter must not be empty")
 
     # Supergroup: unrestricted access
-    if SUPERGROUP_TITLES & set(titles):
+    if SUPERGROUP_TITLES & set(lowered_titles):
         return None
 
     groups = (
         db.query(SyncGroup)
-        .filter(SyncGroup.grp_title.in_(titles))
+        .filter(func.lower(SyncGroup.grp_title).in_(lowered_titles))
         .all()
     )
 
