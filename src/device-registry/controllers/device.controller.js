@@ -1481,6 +1481,115 @@ const deviceController = {
       return;
     }
   },
+  bulkCreateOnPlatform: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
+      const { network_override, cohort_id, user_id } = req.body;
+
+      let devices;
+
+      // Pre-batch results for rows that failed before reaching createDevicesBatch
+      // (CSV row-level validation errors, JSON array guard failures).
+      const preResults = [];
+
+      if (req.file) {
+        let parsed;
+        try {
+          parsed = await createDeviceUtil.parseDeviceCSV(req.file.buffer, network_override);
+        } catch (parseError) {
+          return next(
+            new HttpError(
+              `CSV processing failed: ${parseError.message}`,
+              parseError.status || httpStatus.BAD_REQUEST,
+              parseError.errors || { message: parseError.message },
+            ),
+          );
+        }
+
+        // Fold CSV row-level validation errors into pre-results as failures
+        if (parsed.row_errors && parsed.row_errors.length > 0) {
+          parsed.row_errors.forEach((msg) => {
+            preResults.push({ success: false, error: msg });
+          });
+        }
+
+        devices = parsed.devices;
+
+        if (!devices || devices.length === 0) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: "CSV file contains no valid device rows",
+            errors: { message: "No valid rows found", row_errors: parsed.row_errors },
+          });
+        }
+
+        if (devices.length > 500) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: `CSV contains ${devices.length} valid rows. Maximum allowed per upload is 500.`,
+            errors: { message: "Too many rows" },
+          });
+        }
+      } else {
+        const raw = req.body.devices;
+
+        if (!Array.isArray(raw)) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: "devices must be an array",
+            errors: { message: "devices field is not an array" },
+          });
+        }
+
+        if (raw.length > 500) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: `devices array contains ${raw.length} items. Maximum allowed is 500.`,
+            errors: { message: "Too many devices" },
+          });
+        }
+
+        devices = network_override
+          ? raw.map((d) => ({ ...d, network: network_override }))
+          : raw;
+      }
+
+      const batchResults = await createDeviceUtil.createDevicesBatch(devices, {
+        tenant,
+        user_id,
+        cohort_id,
+      });
+
+      const results = [...preResults, ...batchResults];
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+
+      return res.status(207).json({
+        success: true,
+        message: `${succeeded.length} device(s) imported successfully, ${failed.length} failed`,
+        imported: succeeded.length,
+        failed: failed.length,
+        total: results.length,
+        results,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+      return;
+    }
+  },
+
   listOnGCP: (req, res, next) => {
     let device = req.params.name;
     const formattedName = client.devicePath(
