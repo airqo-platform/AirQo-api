@@ -47,10 +47,16 @@ def get_grids_from_local(
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
+    group_device_ids: Optional[list] = None,
 ) -> Dict[str, Any]:
-    """Fetch grids from the local sync table and format them like the platform API."""
+    """Fetch grids from the local sync table and format them like the platform API.
+
+    When ``group_device_ids`` is provided, only grids whose sites contain at
+    least one of the given device IDs are returned.
+    """
     result = grid_sync_service.get_synced_grids(
-        db, skip=skip, limit=limit, search=search
+        db, skip=skip, limit=limit, search=search,
+        group_device_ids=group_device_ids,
     )
 
     if not result.get("success"):
@@ -70,10 +76,15 @@ def get_grids_from_local(
 def get_grids_by_ids_from_local(
     db: Session,
     grid_ids: str,
+    group_device_ids: Optional[list] = None,
 ) -> Dict[str, Any]:
-    """Fetch specific grids by ID from the local sync table and format them like the platform API."""
+    """Fetch specific grids by ID from the local sync table and format them like the platform API.
+
+    When ``group_device_ids`` is provided, returned grids are scoped to sites
+    containing devices from that set.
+    """
     result = grid_sync_service.get_synced_grids(
-        db, skip=0, limit=1000, grid_ids=grid_ids
+        db, skip=0, limit=1000, grid_ids=grid_ids, group_device_ids=group_device_ids,
     )
 
     if not result.get("success"):

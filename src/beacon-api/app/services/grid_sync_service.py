@@ -277,13 +277,16 @@ async def sync_grids(db: Session, token: str) -> Dict[str, Any]:
 # Read: Local DB (source of truth)
 # ---------------------------------------------------------------------------
 
-def _build_grid_site_devices(db: Session, site_id: str) -> List[Dict[str, Any]]:
+def _build_grid_site_devices(
+    db: Session,
+    site_id: str,
+    group_device_ids: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """Return junction-derived device dicts for a single site."""
-    junctions = (
-        db.query(SyncSiteDevice)
-        .filter(SyncSiteDevice.site_id == site_id)
-        .all()
-    )
+    query = db.query(SyncSiteDevice).filter(SyncSiteDevice.site_id == site_id)
+    if group_device_ids is not None:
+        query = query.filter(SyncSiteDevice.device_id.in_(group_device_ids))
+    junctions = query.all()
     devices = []
     for j in junctions:
         sync_dev = (
@@ -298,7 +301,11 @@ def _build_grid_site_devices(db: Session, site_id: str) -> List[Dict[str, Any]]:
     return devices
 
 
-def _build_grid_sites(db: Session, grid_id: str) -> List[Dict[str, Any]]:
+def _build_grid_sites(
+    db: Session,
+    grid_id: str,
+    group_device_ids: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """Return junction-derived site dicts for a single grid, including underlying devices."""
     junctions = (
         db.query(SyncGridSite)
@@ -311,7 +318,9 @@ def _build_grid_sites(db: Session, grid_id: str) -> List[Dict[str, Any]]:
             db.query(SyncSite).filter(SyncSite.site_id == j.site_id).first()
         )
         if sync_site:
-            devices = _build_grid_site_devices(db, sync_site.site_id)
+            devices = _build_grid_site_devices(db, sync_site.site_id, group_device_ids=group_device_ids)
+            if group_device_ids is not None and not devices:
+                continue
             sites.append({
                 "site_id": sync_site.site_id,
                 "name": sync_site.name,
@@ -337,6 +346,26 @@ def _build_grid_sites(db: Session, grid_id: str) -> List[Dict[str, Any]]:
 def _serialize_grid(db: Session, g: SyncGrid) -> Dict[str, Any]:
     """Serialize a SyncGrid plus its sites into the public dict shape."""
     sites = _build_grid_sites(db, g.grid_id)
+    return {
+        "grid_id": g.grid_id,
+        "name": g.name,
+        "visibility": g.visibility,
+        "admin_level": g.admin_level,
+        "network": g.network,
+        "long_name": g.long_name,
+        "flag_url": g.flag_url,
+        "number_of_sites": len(sites),
+        "sites": sites,
+    }
+
+
+def _serialize_grid_scoped(
+    db: Session,
+    g: SyncGrid,
+    group_device_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Serialize a SyncGrid with optional device-level group scoping."""
+    sites = _build_grid_sites(db, g.grid_id, group_device_ids=group_device_ids)
     return {
         "grid_id": g.grid_id,
         "name": g.name,
@@ -396,14 +425,30 @@ def get_synced_grids(
     grid_ids: Optional[str] = None,
     tags: Optional[str] = None,
     admin_level: Optional[str] = None,
+    group_device_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Read grids from the local sync_grid table."""
+    """Read grids from the local sync_grid table.
+
+    When ``group_device_ids`` is provided, only grids whose sites contain
+    at least one of the given device IDs are returned.
+    """
     safe_skip = max(skip, 0)
     safe_limit = max(limit, 1)
 
     query = _apply_grid_query_filters(
         db.query(SyncGrid), search, grid_ids, tags, admin_level
     )
+
+    # Group-scoped filtering: keep only grids that have at least one site
+    # containing a device from the group's cohorts.
+    if group_device_ids is not None:
+        matching_grid_ids = (
+            db.query(SyncGridSite.grid_id)
+            .join(SyncSiteDevice, SyncSiteDevice.site_id == SyncGridSite.site_id)
+            .filter(SyncSiteDevice.device_id.in_(group_device_ids))
+            .distinct()
+        )
+        query = query.filter(SyncGrid.grid_id.in_(matching_grid_ids))
 
     total = query.count()
     grids = query.order_by(SyncGrid.name).offset(safe_skip).limit(safe_limit).all()
@@ -430,11 +475,15 @@ def get_synced_grids(
             "usedCache": False,
             "nextPage": next_page,
         },
-        "grids": [_serialize_grid(db, g) for g in grids],
+        "grids": [_serialize_grid_scoped(db, g, group_device_ids=group_device_ids) for g in grids],
     }
 
 
-def get_synced_grid(db: Session, grid_id: str) -> Dict[str, Any]:
+def get_synced_grid(
+    db: Session,
+    grid_id: str,
+    group_device_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     """Read a single grid from the local sync_grid table."""
     g = db.query(SyncGrid).filter(SyncGrid.grid_id == grid_id).first()
     if not g:
@@ -444,10 +493,19 @@ def get_synced_grid(db: Session, grid_id: str) -> Dict[str, Any]:
             "status_code": 404,
         }
 
+    serialized_grid = _serialize_grid_scoped(db, g, group_device_ids=group_device_ids)
+
+    if group_device_ids is not None and not serialized_grid.get("sites"):
+        return {
+            "success": False,
+            "message": "Grid not found in group scope",
+            "status_code": 404,
+        }
+
     return {
         "success": True,
         "message": "Synced grid fetched successfully",
-        "grid": _serialize_grid(db, g),
+        "grid": serialized_grid,
     }
 
 

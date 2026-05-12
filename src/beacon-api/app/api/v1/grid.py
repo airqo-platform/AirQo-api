@@ -46,13 +46,19 @@ def _validate_jwt_header(authorization: str) -> str:
 @router.get("/")
 async def get_grids(
     authorization: str = Header(...),
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     skip: Optional[int] = 0,
     limit: Optional[int] = 100,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    """Fetch grids from the local sync tables."""
+    """Fetch grids from the local sync tables, filtered to the specified group."""
     _validate_jwt_header(authorization)
+
+    # Resolve group → device IDs for filtering grids
+    from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
+    cohort_ids = resolve_group_cohort_ids(db, group)
+    group_device_ids = resolve_group_device_ids(db, cohort_ids)
 
     try:
         result = grid_service.get_grids_from_local(
@@ -60,6 +66,7 @@ async def get_grids(
             skip=skip or 0,
             limit=limit or 100,
             search=search,
+            group_device_ids=group_device_ids,
         )
 
         if not result.get("success", True):
@@ -94,6 +101,7 @@ async def sync_grids(
 
 @router.get("/synced", response_model=SyncedGridResponse)
 def get_synced_grids(
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
@@ -106,9 +114,11 @@ def get_synced_grids(
     admin_level: Annotated[Optional[str], Query(alias="admin_level")] = None,
     db: Annotated[Session, Depends(get_db)] = None,
 ):
-    """List grids from the local sync table (source of truth).
+    """List grids from the local sync table (source of truth), filtered by group.
 
-    Optional ``grid_ids`` (CSV) filters to a specific set of grids.
+    Requires ``group`` (CSV) to scope grids to those whose sites contain devices
+    belonging to the group's cohorts.
+    Optional ``grid_ids`` (CSV) further narrows results.
     Optional ``tags`` (CSV) filters grids whose sites contain every supplied tag.
     Optional ``admin_level`` filters grids by admin level.
     When ``includePerformance=true`` and both date bounds are provided, each
@@ -121,6 +131,11 @@ def get_synced_grids(
             detail="Invalid frequency. Expected one of: raw, hourly, daily.",
         )
 
+    # Resolve group → device IDs for filtering grids
+    from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
+    cohort_ids = resolve_group_cohort_ids(db, group)
+    group_device_ids = resolve_group_device_ids(db, cohort_ids)
+
     try:
         result = grid_sync_service.get_synced_grids(
             db,
@@ -130,6 +145,7 @@ def get_synced_grids(
             grid_ids=grid_ids,
             tags=tags,
             admin_level=admin_level,
+            group_device_ids=group_device_ids,
         )
 
         if include_performance and start_date_time and end_date_time:
@@ -142,6 +158,8 @@ def get_synced_grids(
             )
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Unexpected error fetching synced grids: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -150,6 +168,7 @@ def get_synced_grids(
 @router.get("/synced/{grid_id}", response_model=SingleSyncedGridResponse)
 def get_synced_grid(
     grid_id: str,
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     include_performance: Annotated[bool, Query(alias="includePerformance")] = False,
     start_date_time: Annotated[Optional[str], Query(alias="startDateTime")] = None,
     end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
@@ -164,8 +183,12 @@ def get_synced_grid(
             detail="Invalid frequency. Expected one of: raw, hourly, daily.",
         )
 
+    from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
+    cohort_ids = resolve_group_cohort_ids(db, group)
+    group_device_ids = resolve_group_device_ids(db, cohort_ids)
+
     try:
-        result = grid_sync_service.get_synced_grid(db, grid_id)
+        result = grid_sync_service.get_synced_grid(db, grid_id, group_device_ids=group_device_ids)
         if not result.get("success", True):
             status_code = result.get("status_code", 400)
             raise HTTPException(status_code=status_code, detail=result.get("message"))
@@ -200,13 +223,22 @@ def get_synced_grid(
 async def get_grids_by_ids(
     grid_ids: str,
     authorization: str = Header(...),
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     db: Session = Depends(get_db),
 ):
     """Fetch specific grids by ID (CSV) from the local sync tables."""
     _validate_jwt_header(authorization)
 
+    from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
+    cohort_ids = resolve_group_cohort_ids(db, group)
+    group_device_ids = resolve_group_device_ids(db, cohort_ids)
+
     try:
-        result = grid_service.get_grids_by_ids_from_local(db, grid_ids)
+        result = grid_service.get_grids_by_ids_from_local(
+            db,
+            grid_ids,
+            group_device_ids=group_device_ids,
+        )
 
         if not result.get("success", True):
             status_code = result.get("status_code", 400)

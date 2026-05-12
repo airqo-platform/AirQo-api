@@ -315,3 +315,38 @@ class SyncInlabBatchDevice(Base):
             postgresql_where=sa.text("is_removed = false"),
         ),
     )
+
+
+class SyncGroup(Base):
+    __tablename__ = "sync_group"
+
+    group_id = Column(String(100), primary_key=True, nullable=False)
+    grp_title = Column(String(255), unique=True, index=True, nullable=False)
+    grp_status = Column(String(50))
+    organization_slug = Column(String(255))
+    grp_website = Column(String(255))
+    grp_industry = Column(String(255))
+    grp_country = Column(String(255))
+    grp_timezone = Column(String(255))
+    grp_profile_picture = Column(String(500))
+    number_of_users = Column(Integer, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SyncGroupCohort(Base):
+    __tablename__ = "sync_group_cohort"
+
+    group_id = Column(
+        String(100),
+        ForeignKey("sync_group.group_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    cohort_id = Column(
+        String(100),
+        ForeignKey("sync_cohort.cohort_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,12 +1,16 @@
 import uvicorn
 import logging
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
 from app.db.session import engine, Base
+from app.db.session import SessionLocal
 from app.models import sync  # Import models to register them with Base
+from app.models.sync import SyncGroup
 from app.models import device_data  # noqa: F401 — register ThingSpeak data tables
+from app.services import group_sync_service
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -52,10 +56,53 @@ app = FastAPI(
 )
 
 
+def _startup_sync_groups_if_needed():
+    db = SessionLocal()
+    try:
+        groups_count = db.query(SyncGroup).count()
+        if groups_count > 0:
+            return {
+                "status": "skipped",
+                "message": f"sync_group already has {groups_count} row(s). Skipping startup group sync.",
+            }
+
+        jwt_from_env = (settings.TOKEN or "").strip()
+        if not jwt_from_env:
+            return {
+                "status": "missing_token",
+                "message": "sync_group is empty but TOKEN is not set. Skipping startup group sync.",
+            }
+
+        token = jwt_from_env.split(" ", 1)[1] if jwt_from_env.startswith("JWT ") else jwt_from_env
+        result = asyncio.run(group_sync_service.sync_groups(db, token))
+        return {
+            "status": "synced",
+            "result": result,
+        }
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     logger.info("Application starting up...")
     start_scheduler()
+
+    try:
+        startup_sync = await asyncio.to_thread(_startup_sync_groups_if_needed)
+        if startup_sync.get("status") == "skipped":
+            logger.info(startup_sync.get("message"))
+        elif startup_sync.get("status") == "missing_token":
+            logger.warning(startup_sync.get("message"))
+        else:
+            result = startup_sync.get("result", {})
+            if result.get("success"):
+                logger.info(f"Startup group sync completed: {result.get('message')}")
+            else:
+                logger.warning(f"Startup group sync failed: {result.get('message')}")
+    except Exception as e:
+        logger.exception(f"Error during startup group sync check: {e}")
+
     logger.info("Application startup complete and ready to serve requests.")
 
 
