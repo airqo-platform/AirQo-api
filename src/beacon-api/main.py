@@ -1,5 +1,6 @@
 import uvicorn
 import logging
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
@@ -55,32 +56,52 @@ app = FastAPI(
 )
 
 
+def _startup_sync_groups_if_needed():
+    db = SessionLocal()
+    try:
+        groups_count = db.query(SyncGroup).count()
+        if groups_count > 0:
+            return {
+                "status": "skipped",
+                "message": f"sync_group already has {groups_count} row(s). Skipping startup group sync.",
+            }
+
+        jwt_from_env = (settings.TOKEN or "").strip()
+        if not jwt_from_env:
+            return {
+                "status": "missing_token",
+                "message": "sync_group is empty but TOKEN is not set. Skipping startup group sync.",
+            }
+
+        token = jwt_from_env.split(" ", 1)[1] if jwt_from_env.startswith("JWT ") else jwt_from_env
+        result = asyncio.run(group_sync_service.sync_groups(db, token))
+        return {
+            "status": "synced",
+            "result": result,
+        }
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 async def on_startup():
     logger.info("Application starting up...")
     start_scheduler()
 
-    db = SessionLocal()
     try:
-        groups_count = db.query(SyncGroup).count()
-        if groups_count == 0:
-            jwt_from_env = (settings.TOKEN or "").strip()
-            if not jwt_from_env:
-                logger.warning("sync_group is empty but TOKEN is not set. Skipping startup group sync.")
-            else:
-                token = jwt_from_env.split(" ", 1)[1] if jwt_from_env.startswith("JWT ") else jwt_from_env
-                logger.info("sync_group is empty. Running startup group sync from platform.")
-                result = await group_sync_service.sync_groups(db, token)
-                if result.get("success"):
-                    logger.info(f"Startup group sync completed: {result.get('message')}")
-                else:
-                    logger.warning(f"Startup group sync failed: {result.get('message')}")
+        startup_sync = await asyncio.to_thread(_startup_sync_groups_if_needed)
+        if startup_sync.get("status") == "skipped":
+            logger.info(startup_sync.get("message"))
+        elif startup_sync.get("status") == "missing_token":
+            logger.warning(startup_sync.get("message"))
         else:
-            logger.info(f"sync_group already has {groups_count} row(s). Skipping startup group sync.")
+            result = startup_sync.get("result", {})
+            if result.get("success"):
+                logger.info(f"Startup group sync completed: {result.get('message')}")
+            else:
+                logger.warning(f"Startup group sync failed: {result.get('message')}")
     except Exception as e:
         logger.exception(f"Error during startup group sync check: {e}")
-    finally:
-        db.close()
 
     logger.info("Application startup complete and ready to serve requests.")
 
