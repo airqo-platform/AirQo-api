@@ -106,19 +106,30 @@ POST /api/v2/devices/prepare-for-shipping
 | Field | Required | Values | Notes |
 |---|---|---|---|
 | `device_name` | Yes | String | Must already exist in the system |
-| `token_type` | Yes | `"hex"` or `"readable"` | `readable` produces a human-friendly token (easier to type); `hex` is a compact hex string |
+| `token_type` | No | `"hex"` or `"readable"` | Optional; defaults to `"hex"` when omitted. `readable` produces a human-friendly token (easier to type); `hex` is a compact hex string |
 
 **Response (200):**
 
 ```json
 {
   "success": true,
-  "message": "Device prepared for shipping",
-  "data": {
+  "message": "Device prepared for shipping successfully",
+  "device_preparation": {
+    "device_id": "64a1f2e3b4c5d6e7f8a9b0ff",
     "device_name": "aq_device_001",
     "claim_token": "BLUE-RIVER-42",
-    "claim_token_expires_at": "2026-06-12T00:00:00.000Z",
-    "claim_status": "unclaimed"
+    "token_type": "readable",
+    "qr_code_data": {
+      "device_id": "aq_device_001",
+      "claim_url": "https://platform.airqo.net/claim-device?id=aq_device_001&token=BLUE-RIVER-42"
+    },
+    "qr_code_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+    "label_data": {
+      "device_name": "aq_device_001",
+      "claim_token": "BLUE-RIVER-42",
+      "token_type": "readable"
+    },
+    "shipping_prepared_at": "2026-05-12T10:00:00.000Z"
   }
 }
 ```
@@ -143,7 +154,7 @@ POST /api/v2/devices/prepare-bulk-for-shipping
 | Field | Required | Notes |
 |---|---|---|
 | `device_names` | Yes | Array of 1–50 device names |
-| `token_type` | Yes | `"hex"` or `"readable"` |
+| `token_type` | No | Optional; defaults to `"hex"`. `"hex"` or `"readable"` |
 
 ---
 
@@ -169,21 +180,30 @@ POST /api/v2/devices/shipping-batches
 |---|---|---|
 | `batch_name` | Yes | Human-readable label for this shipment |
 | `device_names` | Yes | Array of device names to include |
-| `token_type` | Yes | `"hex"` or `"readable"` |
+| `token_type` | No | Optional; defaults to `"hex"`. `"hex"` or `"readable"` |
 
-**Response (200):**
+**Response (201):**
 
 ```json
 {
   "success": true,
-  "message": "Shipping batch created",
-  "data": {
-    "batch_id": "64a1f2e3b4c5d6e7f8a9b0c1",
-    "batch_name": "Uganda Schools Q2 2026",
-    "devices": [
-      { "device_name": "aq_device_001", "claim_token": "BLUE-RIVER-42" },
-      { "device_name": "aq_device_002", "claim_token": "GOLD-STORM-17" }
-    ]
+  "message": "Shipping batch 'Uganda Schools Q2 2026' created successfully. 2 devices prepared, 0 failed.",
+  "batch_creation_results": {
+    "batch": {
+      "_id": "64a1f2e3b4c5d6e7f8a9b0c1",
+      "batch_name": "Uganda Schools Q2 2026",
+      "device_names": ["aq_device_001", "aq_device_002"]
+    },
+    "successful_preparations": [
+      { "device_name": "aq_device_001", "claim_token": "BLUE-RIVER-42", "token_type": "readable" },
+      { "device_name": "aq_device_002", "claim_token": "GOLD-STORM-17", "token_type": "readable" }
+    ],
+    "failed_preparations": [],
+    "summary": {
+      "total_requested": 2,
+      "successful_count": 2,
+      "failed_count": 0
+    }
   }
 }
 ```
@@ -256,16 +276,29 @@ DELETE /api/v2/devices/shipping-batches/:id/devices
 
 ### 3.9 Generate a Claim QR Code for a Device
 
-Produces a QR code image or data URI that a user can scan to claim the device without typing the token manually.
+Generates a QR code for a device that a user can scan to claim it.
 
 ```http
 GET /api/v2/devices/qr-code/:deviceName
 ```
 
-**Example:**
+**Query parameters:**
+
+| Parameter | Values | Default | Notes |
+|---|---|---|---|
+| `format` | `"data"` \| `"image"` | `"data"` | `"data"` returns a JSON response with QR code metadata; `"image"` streams a raw `image/png` binary directly — suitable for `<img src="...">` |
+| `include_token` | `"true"` \| `"false"` | `"false"` | When `"true"`, embeds the device's claim token in the QR code payload and claim URL |
+
+**Example — JSON response (default):**
 
 ```http
-GET /api/v2/devices/qr-code/aq_device_001
+GET /api/v2/devices/qr-code/aq_device_001?include_token=true
+```
+
+**Example — raw PNG image:**
+
+```http
+GET /api/v2/devices/qr-code/aq_device_001?format=image
 ```
 
 ---
@@ -327,7 +360,7 @@ POST /api/v2/devices/claim
 
 ### 4.2 Bulk Claim Multiple Devices
 
-Claim up to 30 devices in a single request. Useful for organisation admins taking ownership of a whole shipment at once.
+Claim multiple devices in a single request. The API does not enforce a hard maximum — the "up to 30" guidance is a UI recommendation to keep response times reasonable. Useful for organisation admins taking ownership of a whole shipment at once.
 
 ```http
 POST /api/v2/devices/claim/bulk
@@ -514,12 +547,12 @@ POST /api/v2/devices/soft
 | `device_number` | No | Integer |
 | `tags` | No | Array of strings |
 
-**Response (200):**
+**Response (201):**
 
 ```json
 {
   "success": true,
-  "message": "successfully created the device",
+  "message": "Successfully created the device",
   "created_device": {
     "_id": "64a1f2e3b4c5d6e7f8a9b0ff",
     "name": "cap_ple_kzn_za",
@@ -884,25 +917,29 @@ PUT /api/v2/devices/cohorts/:cohort_id
 DELETE /api/v2/devices/cohorts/:cohort_id
 ```
 
-#### Get a user's cohorts
+#### List personal cohorts
 
 ```http
-GET /api/v2/devices/cohorts/users?user_id=64a1f2e3b4c5d6e7f8a9b0c1
+GET /api/v2/devices/cohorts/users
 ```
+
+Returns a paginated list of all personal cohorts (those whose names start with `coh_user_`). This endpoint does not support filtering by `user_id` or `name` — use the general `GET /cohorts` endpoint with a `name` filter if you need to target a specific user's cohort.
 
 ---
 
 ### 6.6 Can Any Organisation Member Add Devices or Cohorts?
 
-Permission enforcement is handled by the **auth-service**, not the device registry. The device registry trusts the JWT presented in the request and will execute any operation the caller requests. This means:
+**There is no server-side role-based access control for device-registry operations.** The Nginx gateway calls the auth-service (`/api/v2/users/verify`) only to confirm the JWT is valid — it does not enforce organisational roles. The device registry itself also does not check roles. Any authenticated user can call any endpoint.
 
-- **Access control is the responsibility of your frontend and the auth-service.** Only surface cohort-assignment or import UI to users who have the appropriate role (e.g. `org_admin` or `device_manager`) for their organisation.
+This means:
+
+- **All role-based gating is the frontend's responsibility exclusively.** Only render cohort-assignment, device import, and other admin actions for users whose org role permits them.
 - A regular member of an organisation should not be shown the "Assign Device to Cohort" action unless their role permits it.
-- The device registry will not reject a request from a regular member — the auth-service gate must be applied upstream.
+- The device registry will not reject a request from a regular member; there is no upstream server-side gate to rely on.
 
 In practice, in the vertex frontend, the pattern is:
 
-1. Check the user's role in the organisation via the auth-service
+1. Check the user's role in the organisation via the auth-service (client-side, after login)
 2. If the role is `org_admin` or equivalent, render the device import and cohort assignment UI
 3. If the role is `member`, render read-only views scoped to the org's cohort
 
@@ -942,6 +979,18 @@ Returns a list of organisations the user belongs to.
 ```http
 POST /api/v2/devices/switch-organization/:organization_id
 ```
+
+**Request body:**
+
+```json
+{
+  "user_id": "64a1f2e3b4c5d6e7f8a9b0c1"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `user_id` | Yes | MongoDB ObjectId of the user switching context |
 
 After switching, queries that filter by the user's context will apply the selected organisation's cohort scope.
 
@@ -1066,7 +1115,7 @@ Yes — but only if the devices have been added to the org's cohort. Joining an 
 
 **Q: Can any organisation member import devices or assign cohorts?**
 
-The device registry API does not enforce role-based restrictions internally. It is up to the frontend and auth-service to gate these actions behind role checks. In the vertex frontend, only users with an admin role for their organisation should see the import and cohort-assignment UI.
+There is no server-side role enforcement at any layer — the Nginx gateway only validates the JWT, and the device registry itself does not check roles. All role-based gating must be implemented in the frontend. In the vertex frontend, only users with an admin role for their organisation should see the import and cohort-assignment UI.
 
 ---
 
@@ -1125,7 +1174,7 @@ It is a convenience field that sets the same `network` value for every device in
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/claim` | Claim a single device |
-| `POST` | `/claim/bulk` | Claim up to 30 devices at once |
+| `POST` | `/claim/bulk` | Claim multiple devices at once (no hard API limit) |
 | `POST` | `/transfer` | Transfer device ownership between users |
 | `GET` | `/my-devices` | List a user's claimed devices |
 | `GET` | `/sites/my-sites` | List sites associated with a user's devices |
@@ -1146,7 +1195,7 @@ It is a convenience field that sets the same `network` value for every device in
 | `GET` | `/cohorts/:cohort_id` | Get a single cohort |
 | `PUT` | `/cohorts/:cohort_id` | Update a cohort |
 | `DELETE` | `/cohorts/:cohort_id` | Delete a cohort |
-| `GET` | `/cohorts/users` | Get cohorts for a user |
+| `GET` | `/cohorts/users` | List all personal cohorts (`coh_user_*`); no per-user filtering |
 | `PUT` | `/cohorts/:cohort_id/assign-device/:device_id` | Assign one device to a cohort |
 | `POST` | `/cohorts/:cohort_id/assign-devices` | Assign many devices to a cohort |
 | `DELETE` | `/cohorts/:cohort_id/unassign-device/:device_id` | Unassign one device |
