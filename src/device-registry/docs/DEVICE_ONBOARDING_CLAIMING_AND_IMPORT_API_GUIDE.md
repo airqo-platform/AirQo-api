@@ -3,7 +3,7 @@
 **Audience:** Frontend engineers consuming the AirQo Device Registry API  
 **Base URL:** `/api/v2/devices`  
 **Auth:** All endpoints require a valid JWT in the `Authorization: JWT <token>` header  
-**Tenant:** Pass `?tenant=airqo` as a query parameter on every request (optional; defaults to `airqo`)
+**Tenant:** Recommended: include `?tenant=airqo` on every request; if omitted, the server defaults to `airqo`
 
 ---
 
@@ -34,7 +34,7 @@ A device is a physical air-quality sensor registered in the system. Every device
 
 A network is the sensor manufacturer or data-source provider that made the device. Every device belongs to exactly one network. Devices made by AirQo have `network = "airqo"`; devices from third-party sources have their manufacturer's network key (e.g. `"airgradient"`). The list of registered networks is fetched from:
 
-```
+```http
 GET /api/v2/devices/networks
 ```
 
@@ -56,7 +56,7 @@ An organisation (also called a group) is an entity in the auth-service that user
 
 ## 2. Device Lifecycle at a Glance
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  SHIPPING PREP          CLAIMING              DEPLOYMENT     │
 │                                                             │
@@ -90,7 +90,7 @@ Shipping preparation is the step where AirQo registers physical devices in the s
 
 Registers one device and generates its claim token.
 
-```
+```http
 POST /api/v2/devices/prepare-for-shipping
 ```
 
@@ -127,7 +127,7 @@ POST /api/v2/devices/prepare-for-shipping
 
 ### 3.2 Prepare Multiple Devices for Shipping (up to 50)
 
-```
+```http
 POST /api/v2/devices/prepare-bulk-for-shipping
 ```
 
@@ -151,7 +151,7 @@ POST /api/v2/devices/prepare-bulk-for-shipping
 
 A shipping batch lets you prepare a set of devices and group them under a named batch for tracking and label printing.
 
-```
+```http
 POST /api/v2/devices/shipping-batches
 ```
 
@@ -192,7 +192,7 @@ POST /api/v2/devices/shipping-batches
 
 ### 3.4 Check Shipping Preparation Status
 
-```
+```http
 GET /api/v2/devices/shipping-status?device_names=aq_device_001,aq_device_002
 ```
 
@@ -202,7 +202,7 @@ Returns preparation status for the specified devices.
 
 ### 3.5 Generate Shipping Labels for Printing
 
-```
+```http
 POST /api/v2/devices/generate-shipping-labels
 ```
 
@@ -220,7 +220,7 @@ Returns label data (device name, claim token, QR code data) ready for a print la
 
 ### 3.6 List All Shipping Batches
 
-```
+```http
 GET /api/v2/devices/shipping-batches
 ```
 
@@ -230,8 +230,8 @@ Returns a paginated list of all shipping batches. Use `?limit=25&skip=0` for pag
 
 ### 3.7 Get Details of a Specific Shipping Batch
 
-```
-GET /api/v2/devices/shipping-batches/:batch_id
+```http
+GET /api/v2/devices/shipping-batches/:id
 ```
 
 Returns full details of one batch including all devices and their claim tokens.
@@ -240,8 +240,8 @@ Returns full details of one batch including all devices and their claim tokens.
 
 ### 3.8 Remove Devices from a Batch
 
-```
-DELETE /api/v2/devices/shipping-batches/:batch_id/devices
+```http
+DELETE /api/v2/devices/shipping-batches/:id/devices
 ```
 
 **Request body:**
@@ -258,13 +258,13 @@ DELETE /api/v2/devices/shipping-batches/:batch_id/devices
 
 Produces a QR code image or data URI that a user can scan to claim the device without typing the token manually.
 
-```
+```http
 GET /api/v2/devices/qr-code/:deviceName
 ```
 
 **Example:**
 
-```
+```http
 GET /api/v2/devices/qr-code/aq_device_001
 ```
 
@@ -278,7 +278,7 @@ Claiming is the act of a user establishing **personal ownership** of a physical 
 
 ### 4.1 Claim a Single Device
 
-```
+```http
 POST /api/v2/devices/claim
 ```
 
@@ -329,7 +329,7 @@ POST /api/v2/devices/claim
 
 Claim up to 30 devices in a single request. Useful for organisation admins taking ownership of a whole shipment at once.
 
-```
+```http
 POST /api/v2/devices/claim/bulk
 ```
 
@@ -377,7 +377,7 @@ POST /api/v2/devices/claim/bulk
 
 Moves a device from one user to another. The device's `owner_id` is updated and it is removed from the original user's personal cohort and added to the new user's personal cohort.
 
-```
+```http
 POST /api/v2/devices/transfer
 ```
 
@@ -405,7 +405,7 @@ POST /api/v2/devices/transfer
 
 Returns all devices where `owner_id` matches the specified user. This is the "My Devices" feed.
 
-```
+```http
 GET /api/v2/devices/my-devices?user_id=64a1f2e3b4c5d6e7f8a9b0c1
 ```
 
@@ -420,7 +420,47 @@ GET /api/v2/devices/my-devices?user_id=64a1f2e3b4c5d6e7f8a9b0c1
 
 ---
 
-### 4.5 Individual Claiming vs Organisation Claiming
+### 4.5 List a User's Sites (My Sites)
+
+Returns all deployment sites associated with a user. A site is a physical location where one or more devices are installed. This is the "My Sites" feed — the site-level counterpart to "My Devices".
+
+```http
+GET /api/v2/devices/sites/my-sites?user_id=64a1f2e3b4c5d6e7f8a9b0c1
+```
+
+**Query parameters:**
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `user_id` | No | MongoDB ObjectId. When provided, scopes results to sites associated with that user's devices |
+| `limit` | No | Defaults to 1000 |
+| `skip` | No | Defaults to 0 |
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "successfully retrieved the sites",
+  "sites": [
+    {
+      "_id": "64a1f2e3b4c5d6e7f8a9b200",
+      "name": "makerere_university",
+      "description": "Makerere University main campus",
+      "latitude": 0.33354,
+      "longitude": 32.56861,
+      "country": "Uganda",
+      "city": "Kampala"
+    }
+  ]
+}
+```
+
+> **Relationship between Sites and Devices:** A site is a deployment location; a device is the physical sensor installed at that location. When a device is deployed, it is linked to a site. Fetching a user's sites gives an overview of all physical locations where their devices are active. If you need the devices at a specific site, filter the device list by `site_id`.
+
+---
+
+### 4.6 Individual Claiming vs Organisation Claiming
 
 | Scenario | What to do |
 |---|---|
@@ -438,7 +478,7 @@ External device import is for onboarding sensors manufactured by third parties (
 
 ### 5.1 Import a Single External Device
 
-```
+```http
 POST /api/v2/devices/soft
 ```
 
@@ -498,7 +538,7 @@ POST /api/v2/devices/soft
 
 Imports multiple external devices in a single call. Returns a `207 Multi-Status` response so you can see which rows succeeded and which failed without retrying the whole batch.
 
-```
+```http
 POST /api/v2/devices/soft/bulk
 Content-Type: application/json
 ```
@@ -562,7 +602,7 @@ Content-Type: application/json
 
 Accepts a `.csv` file instead of a JSON body. Ideal for importing from spreadsheets (Excel, Google Sheets).
 
-```
+```http
 POST /api/v2/devices/soft/bulk
 Content-Type: multipart/form-data
 ```
@@ -674,7 +714,7 @@ Cohorts are **separate from claiming**. Claiming is about physical ownership (wh
 
 #### Assign a single device
 
-```
+```http
 PUT /api/v2/devices/cohorts/:cohort_id/assign-device/:device_id
 ```
 
@@ -689,7 +729,7 @@ No request body required.
 
 #### Assign multiple devices at once
 
-```
+```http
 POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 ```
 
@@ -709,7 +749,7 @@ POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 
 #### Unassign a single device from a cohort
 
-```
+```http
 DELETE /api/v2/devices/cohorts/:cohort_id/unassign-device/:device_id
 ```
 
@@ -717,7 +757,7 @@ DELETE /api/v2/devices/cohorts/:cohort_id/unassign-device/:device_id
 
 #### Unassign multiple devices from a cohort
 
-```
+```http
 DELETE /api/v2/devices/cohorts/:cohort_id/unassign-many-devices
 ```
 
@@ -735,31 +775,84 @@ DELETE /api/v2/devices/cohorts/:cohort_id/unassign-many-devices
 
 #### List assigned devices
 
-```
-POST /api/v2/devices/cohorts/:cohort_id/assigned-devices
+```http
+GET /api/v2/devices/cohorts/:cohort_id/assigned-devices
 ```
 
-or the pre-computed (faster) snapshot version:
+Accepts standard pagination query parameters (`limit`, `skip`). Returns a paginated list of devices belonging to the cohort.
 
-```
+Or the pre-computed (faster) snapshot version, which accepts an optional JSON body for filtering:
+
+```http
 POST /api/v2/devices/cohorts/cached-devices
 ```
 
-Both accept an optional request body for filtering and return a paginated list of devices belonging to the cohort.
-
 #### List devices available to assign (not yet in the cohort)
 
-```
+```http
 GET /api/v2/devices/cohorts/:cohort_id/available-devices
 ```
 
 ---
 
-### 6.4 Managing Cohorts
+### 6.4 Listing Sites in a Cohort
+
+Just as a cohort groups devices, the same cohort scope can be used to list the **sites** (deployment locations) associated with those devices. This is particularly useful for building map views or location dashboards scoped to an organisation's fleet.
+
+#### List sites for a cohort (live query)
+
+```http
+POST /api/v2/devices/cohorts/sites
+```
+
+**Request body:**
+
+```json
+{
+  "cohorts": ["64a1f2e3b4c5d6e7f8a9b0c2"]
+}
+```
+
+Returns all sites that contain at least one device belonging to the specified cohort(s). Accepts standard pagination query parameters (`limit`, `skip`).
+
+#### List sites for a cohort (pre-computed snapshot — faster)
+
+```http
+POST /api/v2/devices/cohorts/cached-sites
+```
+
+Same request body shape as the live endpoint above. Serves results from a pre-populated snapshot collection, avoiding the aggregation pipeline at request time. Falls back to the live query automatically when the snapshot is not yet populated. Prefer this endpoint in production UI views for performance.
+
+**Response (200 — both endpoints):**
+
+```json
+{
+  "success": true,
+  "message": "successfully retrieved the sites",
+  "sites": [
+    {
+      "_id": "64a1f2e3b4c5d6e7f8a9b200",
+      "name": "makerere_university",
+      "description": "Makerere University main campus",
+      "latitude": 0.33354,
+      "longitude": 32.56861,
+      "country": "Uganda",
+      "city": "Kampala"
+    }
+  ],
+  "meta": { "total": 12, "limit": 1000, "skip": 0 }
+}
+```
+
+> **When to use sites vs devices from a cohort:** Use the cohort-devices endpoint when you need sensor-level data (readings, status, serial numbers). Use the cohort-sites endpoint when you need location-level data for map pins, site summaries, or deployment overviews. A single site can have multiple devices; the sites endpoint de-duplicates and returns one entry per physical location.
+
+---
+
+### 6.5 Managing Cohorts
 
 #### Create a cohort
 
-```
+```http
 POST /api/v2/devices/cohorts
 ```
 
@@ -775,31 +868,31 @@ POST /api/v2/devices/cohorts
 
 #### List cohorts
 
-```
+```http
 GET /api/v2/devices/cohorts
 ```
 
 #### Update a cohort
 
-```
+```http
 PUT /api/v2/devices/cohorts/:cohort_id
 ```
 
 #### Delete a cohort
 
-```
+```http
 DELETE /api/v2/devices/cohorts/:cohort_id
 ```
 
 #### Get a user's cohorts
 
-```
+```http
 GET /api/v2/devices/cohorts/users?user_id=64a1f2e3b4c5d6e7f8a9b0c1
 ```
 
 ---
 
-### 6.5 Can Any Organisation Member Add Devices or Cohorts?
+### 6.6 Can Any Organisation Member Add Devices or Cohorts?
 
 Permission enforcement is handled by the **auth-service**, not the device registry. The device registry trusts the JWT presented in the request and will execute any operation the caller requests. This means:
 
@@ -823,7 +916,7 @@ When a user is logged in as part of an organisation (the auth-service indicates 
 
 The data flow is:
 
-```
+```text
 User belongs to Org A (auth-service)
   → Org A has cohort: "coh_org_a_devices"
   → "coh_org_a_devices" contains 47 devices
@@ -838,7 +931,7 @@ A user can belong to multiple organisations. The context switch call tells the d
 
 #### Get the user's organisations
 
-```
+```http
 GET /api/v2/devices/user-organizations?user_id=64a1f2e3b4c5d6e7f8a9b0c1
 ```
 
@@ -846,7 +939,7 @@ Returns a list of organisations the user belongs to.
 
 #### Switch active organisation context
 
-```
+```http
 POST /api/v2/devices/switch-organization/:organization_id
 ```
 
@@ -862,13 +955,13 @@ When calling `POST /devices/soft` or `POST /devices/soft/bulk`, include the orga
 **Option B — After the fact:**  
 If the device is already in the system (imported or AirQo-manufactured), call:
 
-```
+```http
 PUT /api/v2/devices/cohorts/:cohort_id/assign-device/:device_id
 ```
 
 or for many devices at once:
 
-```
+```http
 POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 ```
 
@@ -878,7 +971,7 @@ POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 
 ### Workflow A: AirQo ships a device to an individual user
 
-```
+```text
 1. Admin: POST /devices/prepare-for-shipping
    → Device gets claim_token "BLUE-RIVER-42"
 
@@ -898,7 +991,7 @@ POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 
 ### Workflow B: Organisation admin onboards an AirGradient fleet
 
-```
+```text
 1. Partner provides a spreadsheet of AirGradient sensor locations
 
 2. Admin prepares CSV using the template (or uses AirGradient column names as-is)
@@ -923,7 +1016,7 @@ POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 
 ### Workflow C: Admin manually assigns an existing device to an org
 
-```
+```text
 1. Fetch the device to get its _id:
    GET /devices?name=cap_ple_kzn_za
 
@@ -937,7 +1030,7 @@ POST /api/v2/devices/cohorts/:cohort_id/assign-devices
 
 ### Workflow D: Transfer a device from one user to another
 
-```
+```text
 1. Verify current ownership:
    GET /devices/my-devices?user_id=<original_owner_id>
 
@@ -1035,6 +1128,7 @@ It is a convenience field that sets the same `network` value for every device in
 | `POST` | `/claim/bulk` | Claim up to 30 devices at once |
 | `POST` | `/transfer` | Transfer device ownership between users |
 | `GET` | `/my-devices` | List a user's claimed devices |
+| `GET` | `/sites/my-sites` | List sites associated with a user's devices |
 
 ### Importing External Devices
 
@@ -1060,6 +1154,8 @@ It is a convenience field that sets the same `network` value for every device in
 | `GET` | `/cohorts/:cohort_id/assigned-devices` | List devices in a cohort |
 | `GET` | `/cohorts/:cohort_id/available-devices` | List devices not yet in the cohort |
 | `POST` | `/cohorts/cached-devices` | Fast snapshot of devices in a cohort |
+| `POST` | `/cohorts/sites` | List sites for one or more cohorts (live) |
+| `POST` | `/cohorts/cached-sites` | Fast snapshot of sites for a cohort |
 
 ### Organisation Context
 
