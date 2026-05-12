@@ -59,6 +59,8 @@ cp .env.example .env
 
 # Run the service
 source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+./entrypoint.sh uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Docker Deployment

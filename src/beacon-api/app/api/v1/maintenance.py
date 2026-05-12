@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Header, Query
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Header, Query, Depends
+from typing import Optional, List, Annotated
+from sqlalchemy.orm import Session
 import logging
 import json
 
@@ -13,6 +14,7 @@ from app.schemas.maintenance import (
     MapViewResponse,
 )
 from app.services import maintenance_service
+from app.db.session import get_db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -108,6 +110,53 @@ async def stream_maintenance_map_view(
             }
 
     return EventSourceResponse(event_generator())
+
+
+@router.get(
+    "/map-view/synced",
+    response_model=MapViewResponse,
+    responses={
+        400: {"description": "Invalid frequency or empty group"},
+        404: {"description": "Group not found"},
+        500: {"description": "Internal Server Error"},
+    },
+)
+def get_maintenance_map_view_synced(
+    group: Annotated[Optional[str], Query(description="Comma-separated group title(s) to filter by")] = None,
+    days: Annotated[int, Query(ge=1, le=90, description="Lookback period in days")] = 14,
+    frequency: Annotated[str, Query(description="raw | hourly | daily")] = "hourly",
+    db: Annotated[Session, Depends(get_db)] = None,
+):
+    """Device coordinates with performance metrics for map display.
+
+    Reads entirely from local sync tables. When ``group`` is provided,
+    results are scoped to devices belonging to the group's cohorts.
+    """
+    freq = (frequency or "hourly").lower()
+    if freq not in {"raw", "hourly", "daily"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid 'frequency'. Must be one of: raw, hourly, daily.",
+        )
+
+    group_cohort_ids = None
+    if group:
+        from app.services.group_filter import resolve_group_cohort_ids
+        group_cohort_ids = resolve_group_cohort_ids(db, group)
+
+    try:
+        result = maintenance_service.get_synced_map_view(
+            db,
+            cohort_ids=group_cohort_ids,
+            days=days,
+            frequency=freq,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error fetching synced maintenance map view: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/routes", response_model=RouteResponse)

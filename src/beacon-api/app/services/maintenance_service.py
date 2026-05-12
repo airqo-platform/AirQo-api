@@ -195,6 +195,43 @@ async def get_map_view(
     return {"success": True, "data": output}
 
 
+def get_synced_map_view(
+    db,
+    cohort_ids: Optional[List[str]],
+    days: int = 14,
+    frequency: str = "hourly",
+) -> Dict[str, Any]:
+    """Device coordinates + performance from local sync tables only.
+
+    Unlike ``get_map_view`` which calls the Platform API for cohorts, this
+    function reads entirely from ``sync_cohort`` / ``sync_cohort_device`` /
+    ``sync_device`` and enriches via the ``sync_*_device_data`` tables.
+    """
+    start_dt, end_dt = _compute_date_range(days)
+
+    # Get cohorts from local sync tables, filtered to the group's set
+    result = cohort_service.get_cohorts_from_local(
+        db, skip=0, limit=10000, cohort_ids=cohort_ids,
+    )
+    cohorts = result.get("cohorts", [])
+
+    if cohorts:
+        cohort_service.apply_local_performance(
+            cohorts, db, start_dt, end_dt, frequency=frequency,
+        )
+
+    device_map, name_to_channel = _build_map_view_devices(cohorts)
+    _override_last_active_from_local(device_map, name_to_channel)
+
+    output = []
+    for d in device_map.values():
+        d["cohorts"] = list(d["cohorts"])
+        d.setdefault("grids", [])
+        output.append(d)
+
+    return {"success": True, "data": output}
+
+
 def _build_map_view_devices(
     cohorts: List[Dict[str, Any]],
 ) -> tuple:
