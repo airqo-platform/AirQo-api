@@ -1889,10 +1889,14 @@ const deviceUtil = {
 
       if (responseFromRegisterDevice.success === true) {
         try {
-          const kafkaProducer = kafka.producer({
+          // In bulk mode createDevicesBatch attaches a single pre-connected
+          // producer to avoid N connect/disconnect cycles for N devices.
+          // When present, skip lifecycle management entirely.
+          const sharedProducer = request._sharedKafkaProducer || null;
+          const kafkaProducer = sharedProducer || kafka.producer({
             groupId: constants.UNIQUE_PRODUCER_GROUP,
           });
-          await kafkaProducer.connect();
+          if (!sharedProducer) await kafkaProducer.connect();
           let deviceDataString = responseFromRegisterDevice.data
             ? JSON.stringify(responseFromRegisterDevice.data)
             : "";
@@ -1905,7 +1909,7 @@ const deviceUtil = {
               },
             ],
           });
-          await kafkaProducer.disconnect();
+          if (!sharedProducer) await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error);
         }
@@ -5384,84 +5388,99 @@ const deviceUtil = {
       devices.push(device);
     });
 
-    if (rowErrors.length > 0) {
-      throw new HttpError(
-        `CSV validation failed: ${rowErrors.slice(0, 5).join("; ")}${rowErrors.length > 5 ? ` … and ${rowErrors.length - 5} more` : ""}`,
-        httpStatus.BAD_REQUEST,
-        { message: rowErrors.join("; "), row_errors: rowErrors },
-      );
-    }
-
-    return devices;
+    // Return valid devices alongside any row-level validation errors so the
+    // controller can still process good rows and fold failures into the 207
+    // response, rather than aborting the whole import on a single bad row.
+    return { devices, row_errors: rowErrors };
   },
 
   createDevicesBatch: async (devices, { tenant, user_id, cohort_id }, batchSize = 25) => {
     const results = [];
 
-    for (let i = 0; i < devices.length; i += batchSize) {
-      const chunk = devices.slice(i, i + batchSize);
-
-      const chunkOutcomes = await Promise.allSettled(
-        chunk.map(async (device) => {
-          // Capture errors that createOnPlatform routes through next() rather
-          // than throwing, so they don't disappear silently.
-          let capturedError = null;
-          const capturingNext = (err) => {
-            if (err) capturedError = err;
-          };
-
-          const mockRequest = {
-            query: { tenant },
-            body: {
-              ...device,
-              ...(user_id && { user_id }),
-              ...(cohort_id && { cohort_id }),
-            },
-          };
-
-          const outcome = await deviceUtil.createOnPlatform(mockRequest, capturingNext);
-
-          if (capturedError) {
-            return {
-              success: false,
-              message: capturedError.message || "Device creation failed",
-            };
-          }
-
-          return outcome || { success: false, message: "No result returned" };
-        }),
+    // One shared Kafka producer for the whole batch avoids N connect/disconnect
+    // cycles. Falls back to null so createOnPlatform manages its own lifecycle.
+    let sharedProducer = null;
+    try {
+      sharedProducer = kafka.producer({ groupId: constants.UNIQUE_PRODUCER_GROUP });
+      await sharedProducer.connect();
+    } catch (kafkaErr) {
+      logger.warn(
+        `createDevicesBatch: could not connect shared Kafka producer: ${kafkaErr.message}. Per-device fallback will be used.`,
       );
+      sharedProducer = null;
+    }
 
-      chunkOutcomes.forEach((settled, idx) => {
-        const deviceRow = chunk[idx];
-        const identifier = deviceRow.serial_number || deviceRow.long_name || `row_${i + idx + 1}`;
+    try {
+      for (let i = 0; i < devices.length; i += batchSize) {
+        const chunk = devices.slice(i, i + batchSize);
 
-        if (settled.status === "fulfilled") {
-          const outcome = settled.value;
-          if (outcome && outcome.success) {
-            results.push({
-              serial_number: identifier,
-              long_name: deviceRow.long_name,
-              success: true,
-              created_device: outcome.data || null,
-            });
+        const chunkOutcomes = await Promise.allSettled(
+          chunk.map(async (device) => {
+            // Capture errors that createOnPlatform routes through next() rather
+            // than throwing, so they don't disappear silently.
+            let capturedError = null;
+            const capturingNext = (err) => {
+              if (err) capturedError = err;
+            };
+
+            const mockRequest = {
+              query: { tenant },
+              body: {
+                ...device,
+                ...(user_id && { user_id }),
+                ...(cohort_id && { cohort_id }),
+              },
+              _sharedKafkaProducer: sharedProducer,
+            };
+
+            const outcome = await deviceUtil.createOnPlatform(mockRequest, capturingNext);
+
+            if (capturedError) {
+              return {
+                success: false,
+                message: capturedError.message || "Device creation failed",
+              };
+            }
+
+            return outcome || { success: false, message: "No result returned" };
+          }),
+        );
+
+        chunkOutcomes.forEach((settled, idx) => {
+          const deviceRow = chunk[idx];
+          const identifier = deviceRow.serial_number || deviceRow.long_name || `row_${i + idx + 1}`;
+
+          if (settled.status === "fulfilled") {
+            const outcome = settled.value;
+            if (outcome && outcome.success) {
+              results.push({
+                serial_number: identifier,
+                long_name: deviceRow.long_name,
+                success: true,
+                created_device: outcome.data || null,
+              });
+            } else {
+              results.push({
+                serial_number: identifier,
+                long_name: deviceRow.long_name,
+                success: false,
+                error: outcome?.message || "Device creation failed",
+              });
+            }
           } else {
             results.push({
               serial_number: identifier,
               long_name: deviceRow.long_name,
               success: false,
-              error: outcome?.message || "Device creation failed",
+              error: settled.reason?.message || "Unknown error",
             });
           }
-        } else {
-          results.push({
-            serial_number: identifier,
-            long_name: deviceRow.long_name,
-            success: false,
-            error: settled.reason?.message || "Unknown error",
-          });
-        }
-      });
+        });
+      }
+    } finally {
+      if (sharedProducer) {
+        try { await sharedProducer.disconnect(); } catch (_) {}
+      }
     }
 
     return results;

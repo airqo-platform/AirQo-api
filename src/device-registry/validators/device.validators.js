@@ -1606,10 +1606,12 @@ const validateBulkSoftCreate = [
     .withMessage("cohort_id must be a valid MongoDB ObjectId")
     .customSanitizer((value) => ObjectId(value)),
 
-  // network_override is optional — forces all rows to a single network value
+  // network_override is optional — forces all rows to a single network value.
+  // Normalised to lowercase so "AirGradient" and "airgradient" are equivalent.
   body("network_override")
     .optional()
     .trim()
+    .toLowerCase()
     .notEmpty()
     .withMessage("network_override cannot be an empty string"),
 
@@ -1628,9 +1630,13 @@ const validateBulkSoftCreate = [
     .notEmpty()
     .withMessage("long_name is required for each device"),
 
+  // Normalised to lowercase for the same reason as network_override.
+  // Static whitelist validation is intentionally omitted: valid networks are
+  // DB-driven (Network collection) and cannot be checked at validator level.
   body("devices.*.network")
     .if((_, { req }) => !req.file && !req.body.network_override)
     .trim()
+    .toLowerCase()
     .notEmpty()
     .withMessage(
       "network is required for each device (or supply network_override in the request body)",
@@ -1642,17 +1648,22 @@ const validateBulkSoftCreate = [
     .notEmpty()
     .withMessage("serial_number is required for each device"),
 
+  // Guard optional per-item fields with !req.file so they don't fire when
+  // the CSV file is the source of truth and devices may appear in form fields.
   body("devices.*.latitude")
+    .if((_, { req }) => !req.file)
     .optional()
     .isFloat({ min: -90, max: 90 })
     .withMessage("latitude must be a number between -90 and 90"),
 
   body("devices.*.longitude")
+    .if((_, { req }) => !req.file)
     .optional()
     .isFloat({ min: -180, max: 180 })
     .withMessage("longitude must be a number between -180 and 180"),
 
   body("devices.*.category")
+    .if((_, { req }) => !req.file)
     .optional()
     .isIn(["lowcost", "bam", "gas"])
     .withMessage("category must be one of: lowcost, bam, gas"),

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const path = require("path");
 const multer = require("multer");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
@@ -44,21 +45,23 @@ const _bulkUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
-    const allowed = [
+    // text/plain is intentionally excluded: the error message promises ".csv
+    // only" and a plain-text file is not guaranteed to be CSV-structured.
+    const allowedMimetypes = [
       "text/csv",
-      "text/plain",
       "application/csv",
       "text/comma-separated-values",
       "application/vnd.ms-excel",
     ];
-    if (allowed.includes(file.mimetype)) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedMimetypes.includes(file.mimetype) && ext === ".csv") {
       cb(null, true);
     } else {
       cb(
         new HttpError(
           "Only .csv files are accepted for bulk import",
           httpStatus.BAD_REQUEST,
-          { message: `Unsupported file type: ${file.mimetype}` },
+          { message: `Unsupported file: mimetype=${file.mimetype}, extension=${ext}` },
         ),
         false,
       );

@@ -1495,9 +1495,14 @@ const deviceController = {
 
       let devices;
 
+      // Pre-batch results for rows that failed before reaching createDevicesBatch
+      // (CSV row-level validation errors, JSON array guard failures).
+      const preResults = [];
+
       if (req.file) {
+        let parsed;
         try {
-          devices = await createDeviceUtil.parseDeviceCSV(req.file.buffer, network_override);
+          parsed = await createDeviceUtil.parseDeviceCSV(req.file.buffer, network_override);
         } catch (parseError) {
           return next(
             new HttpError(
@@ -1508,35 +1513,61 @@ const deviceController = {
           );
         }
 
+        // Fold CSV row-level validation errors into pre-results as failures
+        if (parsed.row_errors && parsed.row_errors.length > 0) {
+          parsed.row_errors.forEach((msg) => {
+            preResults.push({ success: false, error: msg });
+          });
+        }
+
+        devices = parsed.devices;
+
         if (!devices || devices.length === 0) {
           return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
-            message: "CSV file is empty or contains no valid device rows",
-            errors: { message: "No valid rows found" },
+            message: "CSV file contains no valid device rows",
+            errors: { message: "No valid rows found", row_errors: parsed.row_errors },
           });
         }
 
         if (devices.length > 500) {
           return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
-            message: `CSV contains ${devices.length} rows. Maximum allowed per upload is 500.`,
+            message: `CSV contains ${devices.length} valid rows. Maximum allowed per upload is 500.`,
             errors: { message: "Too many rows" },
           });
         }
       } else {
-        devices = req.body.devices;
-        // Apply network_override to every row when supplied in JSON mode
-        if (network_override) {
-          devices = devices.map((d) => ({ ...d, network: network_override }));
+        const raw = req.body.devices;
+
+        if (!Array.isArray(raw)) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: "devices must be an array",
+            errors: { message: "devices field is not an array" },
+          });
         }
+
+        if (raw.length > 500) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: `devices array contains ${raw.length} items. Maximum allowed is 500.`,
+            errors: { message: "Too many devices" },
+          });
+        }
+
+        devices = network_override
+          ? raw.map((d) => ({ ...d, network: network_override }))
+          : raw;
       }
 
-      const results = await createDeviceUtil.createDevicesBatch(devices, {
+      const batchResults = await createDeviceUtil.createDevicesBatch(devices, {
         tenant,
         user_id,
         cohort_id,
       });
 
+      const results = [...preResults, ...batchResults];
       const succeeded = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
 
