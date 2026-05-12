@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks, Query
 import logging
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -257,6 +257,7 @@ async def get_device(
 @router.get("/", response_model=DeviceResponse)
 async def get_devices(
     authorization: str = Header(...),
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     db: Session = Depends(get_db),
     limit: int = 30,
     skip: int = 0,
@@ -271,6 +272,11 @@ async def get_devices(
         raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
     
     token = parts[1]
+
+    # Resolve group → device IDs
+    from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
+    cohort_ids = resolve_group_cohort_ids(db, group)
+    group_device_ids = resolve_group_device_ids(db, cohort_ids)
     
     try:
         params = {
@@ -285,6 +291,16 @@ async def get_devices(
             status_code = result.get("status_code", 400)
             message = result.get("message", "Error fetching data from platform")
             raise HTTPException(status_code=status_code, detail=message)
+
+        # Filter to only devices in the group's cohorts
+        if group_device_ids:
+            devices = result.get("devices", [])
+            result["devices"] = [
+                d for d in devices if d.get("_id") in group_device_ids
+            ]
+            meta = result.get("meta")
+            if isinstance(meta, dict):
+                meta["total"] = len(result["devices"])
             
         return result
     except HTTPException:

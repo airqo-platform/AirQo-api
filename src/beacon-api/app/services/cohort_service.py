@@ -8,7 +8,7 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.core.config import settings
-from app.models.sync import SyncCohort, SyncCohortDevice, SyncDevice
+from app.models.sync import SyncCohort, SyncCohortDevice, SyncDevice, SyncSite
 from app.utils.performance import PerformanceAnalysis
 from app.utils.field_mappings import map_record, get_category_mapping
 from app.crud.crud_sync_device_data import get_device_data_for_devices
@@ -39,14 +39,24 @@ def _filter_cohort_devices_to_airqo(cohorts: List[Dict[str, Any]]) -> None:
 # Local DB-backed cohort fetchers (no Platform API calls)
 # ---------------------------------------------------------------------------
 
-def _platform_shape_device(sync_dev: Optional[SyncDevice], device_id: str, is_active: bool) -> Dict[str, Any]:
+def _platform_shape_device(
+    sync_dev: Optional[SyncDevice],
+    device_id: str,
+    is_active: bool,
+    sync_site: Optional[SyncSite] = None,
+) -> Dict[str, Any]:
     """Map a SyncDevice row to the platform-style CohortDevice shape."""
+    status = sync_dev.status if sync_dev else None
     return {
         "_id": device_id,
         "name": sync_dev.device_name if sync_dev else device_id,
         "device_number": sync_dev.device_number if sync_dev else None,
         "network": sync_dev.network_id if sync_dev else None,
         "category": (sync_dev.category if sync_dev else None) or "lowcost",
+        "status": status or ("deployed" if sync_dev and sync_dev.site_id else None),
+        "latitude": sync_site.latitude if sync_site else None,
+        "longitude": sync_site.longitude if sync_site else None,
+        "lastActive": None,
         "isActive": bool(is_active),
         "data": [],
     }
@@ -107,6 +117,12 @@ def _hydrate_cohort_devices(db: Session, cohort_ids: List[str]) -> Dict[str, Lis
         for d in db.query(SyncDevice).filter(SyncDevice.device_id.in_(device_ids)).all():
             sync_devices[d.device_id] = d
 
+    site_ids = {d.site_id for d in sync_devices.values() if d.site_id}
+    sync_sites: Dict[str, SyncSite] = {}
+    if site_ids:
+        for site in db.query(SyncSite).filter(SyncSite.site_id.in_(site_ids)).all():
+            sync_sites[site.site_id] = site
+
     by_cohort: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for j in junctions:
         sync_dev = sync_devices.get(j.device_id)
@@ -117,7 +133,10 @@ def _hydrate_cohort_devices(db: Session, cohort_ids: List[str]) -> Dict[str, Lis
             continue
         by_cohort[j.cohort_id].append(
             _platform_shape_device(
-                sync_dev, j.device_id, bool(j.is_active)
+                sync_dev,
+                j.device_id,
+                bool(j.is_active),
+                sync_sites.get(sync_dev.site_id) if sync_dev else None,
             )
         )
     return by_cohort
@@ -129,13 +148,20 @@ def get_cohorts_from_local(
     limit: int = 100,
     search: Optional[str] = None,
     tags: Optional[str] = None,
+    cohort_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     List cohorts from the local sync tables in the platform-compatible shape
     expected by ``CohortResponse``. Source of truth: ``sync_cohort`` /
     ``sync_cohort_device`` / ``sync_device``.
+
+    When ``cohort_ids`` is provided, only cohorts whose IDs are in the list
+    are returned (used by group-based filtering).
     """
     query = db.query(SyncCohort)
+
+    if cohort_ids is not None:
+        query = query.filter(SyncCohort.cohort_id.in_(cohort_ids))
 
     if search:
         like = f"%{search}%"

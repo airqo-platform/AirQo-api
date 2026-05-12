@@ -31,6 +31,7 @@ async def _run_sync_cohorts(token: str):
 @router.get("/")
 async def get_cohorts(
     authorization: str = Header(...),
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     tags: Optional[str] = None,
     include_performance: bool = Query(False, alias="includePerformance"),
     start_date_time: Optional[str] = Query(None, alias="startDateTime"),
@@ -58,6 +59,10 @@ async def get_cohorts(
             detail="Invalid frequency. Expected one of: raw, hourly, daily.",
         )
 
+    # Resolve group → cohort IDs
+    from app.services.group_filter import resolve_group_cohort_ids
+    group_cohort_ids = resolve_group_cohort_ids(db, group)
+
     try:
         # Cohorts + devices come from local sync tables (sync_cohort,
         # sync_cohort_device, sync_device). Performance is also computed
@@ -68,6 +73,7 @@ async def get_cohorts(
             limit=limit or 100,
             search=search,
             tags=tags,
+            cohort_ids=group_cohort_ids,
         )
 
         if not result.get("success", True):
@@ -122,6 +128,7 @@ async def sync_cohorts(
 
 @router.get("/synced", response_model=SyncedCohortResponse)
 def get_synced_cohorts(
+    group: str = Query(..., description="Comma-separated group title(s) — required"),
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
@@ -135,7 +142,8 @@ def get_synced_cohorts(
 ):
     """List cohorts from the local sync table (source of truth).
 
-    Optional ``cohort_ids`` (CSV) filters to a specific set of cohorts.
+    Requires ``group`` (CSV) to filter cohorts to those belonging to the
+    given group(s). Optional ``cohort_ids`` (CSV) further narrows results.
     Optional ``tags`` (CSV) filters cohorts whose ``cohort_tags`` contain
     every supplied tag. When ``include_performance=true`` and both
     ``start_date_time`` / ``end_date_time`` are provided, each cohort and its
@@ -148,13 +156,25 @@ def get_synced_cohorts(
             detail="Invalid frequency. Expected one of: raw, hourly, daily.",
         )
 
+    # Resolve group → cohort IDs, then intersect with explicit cohort_ids if provided
+    from app.services.group_filter import resolve_group_cohort_ids
+    group_cohort_ids = resolve_group_cohort_ids(db, group)
+    if group_cohort_ids is None:
+        # Supergroup: no restriction — pass through explicit cohort_ids as-is
+        merged_cohort_ids = cohort_ids
+    else:
+        if cohort_ids:
+            explicit = {c.strip() for c in cohort_ids.split(",") if c.strip()}
+            group_cohort_ids = [c for c in group_cohort_ids if c in explicit]
+        merged_cohort_ids = ",".join(group_cohort_ids) if group_cohort_ids else None
+
     try:
         result = cohort_sync_service.get_synced_cohorts(
             db,
             skip=skip,
             limit=limit,
             search=search,
-            cohort_ids=cohort_ids,
+            cohort_ids=merged_cohort_ids,
             tags=tags,
         )
 
