@@ -32,7 +32,7 @@
 
 ## Overview
 
-The Device Activities API manages the full lifecycle of AirQo monitoring devices — from their initial deployment in the field, through scheduled maintenance, to eventual recall. Every action against a device creates an immutable **Activity** record and simultaneously updates the **Device** document.
+The Device Activities API manages the full lifecycle of AirQo monitoring devices — from their initial deployment in the field, through scheduled maintenance, to eventual recall. Lifecycle actions such as deployment, recall, and maintenance create **Activity** records and simultaneously update the **Device** document. These records are not universally immutable — separate admin endpoints (`PUT` and `DELETE /api/v2/devices/activities`) can edit or remove existing activity records.
 
 There are two fundamentally different deployment modes:
 
@@ -49,7 +49,7 @@ There are two fundamentally different deployment modes:
 
 All activity endpoints share the same base path:
 
-```
+```http
 POST/GET /api/v2/devices/activities/...
 ```
 
@@ -68,7 +68,7 @@ POST/GET /api/v2/devices/activities/...
 
 All endpoints accept an optional `tenant` query parameter. For all AirQo platform operations, this is always `airqo` — you do not need to expose this in the UI; just append it to every request.
 
-```
+```http
 POST /api/v2/devices/activities/deploy?tenant=airqo&deviceName=aq_g5_19
 ```
 
@@ -76,15 +76,15 @@ POST /api/v2/devices/activities/deploy?tenant=airqo&deviceName=aq_g5_19
 
 For single-device operations (deploy, recall, maintain) the device's name is passed as a **query parameter**, not in the request body.
 
-```
+```http
 POST /api/v2/devices/activities/deploy?tenant=airqo&deviceName=aq_g5_19
 ```
 
 ### Date Format
 
-All `date` values must be ISO 8601 with milliseconds:
+All `date` values must be a valid ISO 8601 datetime with the `T` separator (fractional seconds are allowed but not required):
 
-```
+```json
 "date": "2025-05-12T10:30:00.000Z"
 ```
 
@@ -96,7 +96,7 @@ Constraints enforced server-side:
 
 All ID fields (`site_id`, `grid_id`, `user_id`, `host_id`, `device_id`) must be 24-character hexadecimal MongoDB ObjectIds:
 
-```
+```json
 "site_id": "507f1f77bcf86cd799439011"
 ```
 
@@ -121,7 +121,7 @@ A static deployment anchors a device to a known, fixed monitoring site.
 
 **Endpoint**
 
-```
+```http
 POST /api/v2/devices/activities/deploy/static?tenant=airqo&deviceName={deviceName}
 ```
 
@@ -152,21 +152,20 @@ POST /api/v2/devices/activities/deploy/static?tenant=airqo&deviceName={deviceNam
 | Field | Type | Notes |
 |-------|------|-------|
 | `site_id` | ObjectId | The site where the device will be installed |
-| `height` | Number | Mounting height in metres (0–100) |
+| `height` | Number | Mounting height in metres (>0 and <100, exclusive) |
 | `mountType` | String | Any value except `"vehicle"` — see [Enums](#enums--allowed-values) |
 | `powerType` | String | `"solar"` or `"mains"` — `"alternator"` is **not allowed** for static |
-| `date` | ISO 8601 string | When the deployment took place |
 
 **Optional fields**
 
 | Field | Type | Notes |
 |-------|------|-------|
+| `date` | ISO 8601 string | When the deployment took place; defaults to current date/time if omitted |
 | `isPrimaryInLocation` | Boolean | Whether this is the primary device at the site |
 | `user_id` | ObjectId | ID of the user performing the deployment |
 | `firstName`, `lastName`, `userName`, `email` | String | Identity of the person performing deployment |
 | `host_id` | ObjectId | Host/owner entity for the device |
 | `network` | String | Defaults to the device's existing network |
-| `description` | String | Free-text notes |
 
 **What happens server-side**
 
@@ -196,7 +195,7 @@ A mobile deployment attaches a device to a **grid** (a geographic area) rather t
 
 **Endpoint**
 
-```
+```http
 POST /api/v2/devices/activities/deploy/mobile?tenant=airqo&deviceName={deviceName}
 ```
 
@@ -231,15 +230,15 @@ POST /api/v2/devices/activities/deploy/mobile?tenant=airqo&deviceName={deviceNam
 | Field | Type | Notes |
 |-------|------|-------|
 | `grid_id` | ObjectId | The grid (geographic area) the device operates within |
-| `height` | Number | Mounting height on the vehicle, metres (0–100) |
+| `height` | Number | Mounting height on the vehicle, metres (>0 and <100, exclusive) |
 | `mountType` | String | **Must be `"vehicle"`** — the API rejects any other value |
 | `powerType` | String | **Must be `"alternator"`** — the API rejects `"solar"` or `"mains"` |
-| `date` | ISO 8601 string | When the deployment took place |
 
 **Mobile-specific optional fields**
 
 | Field | Type | Notes |
 |-------|------|-------|
+| `date` | ISO 8601 string | When the deployment took place; defaults to current date/time if omitted |
 | `mobility_metadata` | Object | Structured info about the device's movement pattern |
 | `mobility_metadata.route_id` | String | Identifier for the route the vehicle follows |
 | `mobility_metadata.coverage_area` | String | Human-readable description of the area covered |
@@ -295,7 +294,7 @@ Deploy multiple devices in a single request. The batch can contain a mix of stat
 
 **Endpoint**
 
-```
+```http
 POST /api/v2/devices/activities/deploy/batch?tenant=airqo
 ```
 
@@ -340,7 +339,7 @@ An array where each item includes the `deviceName` and all fields for that devic
 | `site_name` | String | Used to create or match a site |
 | `latitude` | Number | Finite number, must be provided |
 | `longitude` | Number | Finite number, must be provided |
-| `height` | Number | 0–100 |
+| `height` | Number | >0 and <100 (exclusive) |
 | `mountType` | String | Not `"vehicle"` |
 | `powerType` | String | `"solar"` or `"mains"` |
 
@@ -351,7 +350,7 @@ An array where each item includes the `deviceName` and all fields for that devic
 | `deviceName` | String | Device name |
 | `deployment_type` | String | `"mobile"` |
 | `grid_id` | ObjectId | Must already exist |
-| `height` | Number | 0–100 |
+| `height` | Number | >0 and <100 (exclusive) |
 | `mountType` | String | Must be `"vehicle"` |
 | `powerType` | String | Must be `"alternator"` |
 
@@ -386,7 +385,7 @@ Fetch a summary of how many devices are deployed, broken down by type.
 
 **Endpoint**
 
-```
+```http
 GET /api/v2/devices/activities/deploy/stats?tenant=airqo
 ```
 
@@ -416,14 +415,13 @@ GET /api/v2/devices/activities/deploy/stats?tenant=airqo
       "active_rate": "72.50"
     },
     "generated_at": "2025-05-12T10:30:00.000Z"
-  },
-  "status": 200
+  }
 }
 ```
 
 **Devices by Deployment Type**
 
-```
+```http
 GET /api/v2/devices/activities/devices/by-type/{deploymentType}?tenant=airqo&limit=20&skip=0
 ```
 
@@ -437,7 +435,7 @@ Recalling a device removes it from its current location and marks it as inactive
 
 **Endpoint**
 
-```
+```http
 POST /api/v2/devices/activities/recall?tenant=airqo&deviceName={deviceName}
 ```
 
@@ -462,17 +460,18 @@ POST /api/v2/devices/activities/recall?tenant=airqo&deviceName={deviceName}
 | Field | Type | Notes |
 |-------|------|-------|
 | `recallType` | String | Must be a valid recall type (see [Enums](#enums--allowed-values)) |
-| `date` | ISO 8601 string | When the recall occurred |
 
 **Optional fields**
 
 | Field | Type | Notes |
 |-------|------|-------|
+| `date` | ISO 8601 string | When the recall occurred; defaults to current date/time if omitted |
 | `user_id` | ObjectId | Who performed the recall |
 | `firstName`, `lastName`, `userName`, `email` | String | Identity of person performing recall |
 | `host_id` | ObjectId | Host/owner entity |
 | `network` | String | Defaults to device's existing network |
-| `description` | String | Free-text notes on reason for recall |
+
+> **Note:** `description` is not accepted on recall requests — the server always sets it to `"device recalled"` internally.
 
 **What happens server-side**
 
@@ -505,7 +504,7 @@ Record a maintenance event for a currently-deployed device. Maintenance does **n
 
 **Endpoint**
 
-```
+```http
 POST /api/v2/devices/activities/maintain?tenant=airqo&deviceName={deviceName}
 ```
 
@@ -533,12 +532,12 @@ POST /api/v2/devices/activities/maintain?tenant=airqo&deviceName={deviceName}
 | Field | Type | Notes |
 |-------|------|-------|
 | `maintenanceType` | String | Must be a valid maintenance type (see [Enums](#enums--allowed-values)) |
-| `date` | ISO 8601 string | When the maintenance occurred |
 
 **Optional fields**
 
 | Field | Type | Notes |
 |-------|------|-------|
+| `date` | ISO 8601 string | When the maintenance occurred; defaults to current date/time if omitted |
 | `description` | String | Free-text description of work done |
 | `tags` | String[] | Categorisation tags (e.g., `["battery", "sensor"]`) |
 | `user_id` | ObjectId | Who performed the maintenance |
@@ -559,7 +558,7 @@ POST /api/v2/devices/activities/maintain?tenant=airqo&deviceName={deviceName}
 
 **Recalculate Next Maintenance**
 
-```
+```http
 POST /api/v2/devices/activities/recalculate-next-maintenance?tenant=airqo
 ```
 
@@ -582,38 +581,38 @@ Used to bulk-recalculate the `nextMaintenance` date across devices. This is typi
 
 **List all activities (paginated)**
 
-```
-GET /api/v2/devices/activities?tenant=airqo&limit=20&skip=0&sortBy=date&order=desc
+```http
+GET /api/v2/devices/activities?tenant=airqo&limit=30&skip=0&sortBy=createdAt&order=desc
 ```
 
 | Query param | Type | Default | Notes |
 |-------------|------|---------|-------|
-| `limit` | Number | 20 | Max records per page |
+| `limit` | Number | 30 (max 80) | Max records per page |
 | `skip` | Number | 0 | Offset for pagination |
-| `sortBy` | String | `date` | Field to sort by |
+| `sortBy` | String | `createdAt` | Field to sort by |
 | `order` | String | `desc` | `asc` or `desc` |
 
-You can also filter by device, site, or activity type by passing additional query parameters matching the Activity schema fields (e.g., `activityType=deployment`, `device=aq_g5_19`).
+You can also filter by device, site, or activity type by passing additional query parameters (e.g., `activity_type=deployment`, `maintenance_type=battery_replacement`, `recall_type=damaged`, `device=aq_g5_19`).
 
 **Update an activity**
 
-```
-PUT /api/v2/devices/activities?tenant=airqo
+```http
+PUT /api/v2/devices/activities?tenant=airqo&id={activityId}
 ```
 
-Send a filter body plus the fields to update.
+The filter (e.g., `id`, `device`, `activity_type`) goes in the **query string**. The request body contains only the fields to update.
 
 **Delete an activity**
 
-```
-DELETE /api/v2/devices/activities?tenant=airqo
+```http
+DELETE /api/v2/devices/activities?tenant=airqo&id={activityId}
 ```
 
-Send a filter body identifying the activity to remove.
+The filter goes in the **query string** — no request body is needed.
 
 **Refresh caches**
 
-```
+```http
 POST /api/v2/devices/activities/refresh-caches?tenant=airqo
 ```
 
@@ -632,11 +631,11 @@ Body:
 
 ### Shared Fields (All Activities)
 
-These fields apply to every activity type (deployment, recall, maintenance).
+These identity and network fields are accepted by every endpoint.
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `date` | ISO 8601 string | Yes | When the activity occurred |
+| `date` | ISO 8601 string | No | When the activity occurred; defaults to current date/time |
 | `user_id` | ObjectId | No | User performing the action |
 | `firstName` | String | No | Person's first name |
 | `lastName` | String | No | Person's last name |
@@ -644,9 +643,8 @@ These fields apply to every activity type (deployment, recall, maintenance).
 | `email` | String | No | Email (validated format) |
 | `host_id` | ObjectId | No | Host/owner entity |
 | `network` | String | No | Defaults to device's network |
-| `description` | String | No | Free-text notes |
-| `tags` | String[] | No | Categorisation tags |
-| `activity_codes` | String[] | No | Internal reference codes |
+
+> **`description` and `tags`:** These fields are only accepted by the **maintenance** endpoint. For deploy and recall, the server sets `description` to a fixed internal string (`"device deployed"` / `"device recalled"`) — any client-provided value is ignored. `tags` and `activity_codes` are similarly not read from the request body for deploy or recall.
 
 ### Deployment-Only Fields
 
@@ -654,7 +652,7 @@ These fields apply to every activity type (deployment, recall, maintenance).
 |-------|------|----------|-------|
 | `site_id` | ObjectId | Yes (static) | Fixed site reference |
 | `grid_id` | ObjectId | Yes (mobile) | Grid area reference |
-| `height` | Number | Yes | Metres above ground (0–100) |
+| `height` | Number | Yes | Metres above ground (>0 and <100, exclusive) |
 | `mountType` | String | Yes | How device is mounted |
 | `powerType` | String | Yes | Device's power source |
 | `isPrimaryInLocation` | Boolean | No | Static only — is this the main device at the site? |
@@ -691,13 +689,13 @@ These fields apply to every activity type (deployment, recall, maintenance).
 
 | Rule | Error if violated |
 |------|-------------------|
-| Device must exist | `404 Not Found` |
-| Device must not already be deployed | `400 Bad Request` |
-| `date` must be ISO 8601 | `400 Bad Request` |
+| Device must exist | `400 Bad Request` |
+| Device must not already be deployed | `409 Conflict` |
+| `date` (if provided) must be valid ISO 8601 with T separator | `400 Bad Request` |
 | `date` must not be more than 1 month in the past | `400 Bad Request` |
-| `date` must not be in the future (>5 min buffer) | `400 Bad Request` |
+| `date` must not be in the future (5-minute buffer allowed) | `400 Bad Request` |
 | IDs must be 24-char hex ObjectIds | `400 Bad Request` |
-| `height` must be between 0 and 100 | `400 Bad Request` |
+| `height` must be strictly greater than 0 and strictly less than 100 | `400 Bad Request` |
 
 ### Static-Specific Rules
 
@@ -735,7 +733,7 @@ These fields apply to every activity type (deployment, recall, maintenance).
 
 The following Device fields are **protected** and can only be changed through dedicated activity endpoints — attempting to update them directly via the Device update API will silently ignore those fields:
 
-```
+```text
 mobility, deployment_type, site_id, grid_id,
 status, deployment_date, recall_date, isActive
 ```
@@ -746,7 +744,7 @@ status, deployment_date, recall_date, isActive
 
 A device moves through these states, each requiring a specific API call:
 
-```
+```text
 [not deployed / new]
         │
         │  POST /deploy or /deploy/static or /deploy/mobile
@@ -777,12 +775,12 @@ After **maintenance**: `status` unchanged (stays `"deployed"`)
 ## Enums & Allowed Values
 
 ### `deploymentType`
-```
+```text
 "static" | "mobile"
 ```
 
 ### `mountType`
-```
+```text
 "pole" | "wall" | "faceboard" | "rooftop" | "suspended" | "vehicle"
 ```
 
@@ -790,7 +788,7 @@ After **maintenance**: `status` unchanged (stays `"deployed"`)
 > For **mobile** deployments, use only `"vehicle"`.
 
 ### `powerType`
-```
+```text
 "solar" | "mains" | "alternator"
 ```
 
@@ -807,7 +805,7 @@ Configured per environment. Common values include: `"user_requested"`, `"damaged
 Configured per environment. Common values include: `"battery_replacement"`, `"sensor_cleaning"`, `"calibration"`, `"firmware_update"`. Fetch the current list from environment config or ask the backend team.
 
 ### `status` (Device)
-```
+```text
 "recalled" | "ready" | "deployed" | "undeployed" |
 "decommissioned" | "assembly" | "testing" | "not deployed"
 ```
