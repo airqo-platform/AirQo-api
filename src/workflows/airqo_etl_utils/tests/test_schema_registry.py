@@ -1,13 +1,18 @@
 import pandas as pd
 
 from airqo_etl_utils.storage import schema_registry
-from airqo_etl_utils.config import configuration
 
 
 def test_validate_dataframe_missing_columns(monkeypatch):
-    # Inject a simple schema mapping into configuration
-    mapping = {"my.table": ["col1", "col2", "col3"]}
-    monkeypatch.setattr(configuration, "SCHEMA_FILE_MAPPING", mapping, raising=False)
+    # validate_dataframe calls get_columns_by_type; mock that directly since
+    # SCHEMA_FILE_MAPPING maps table names to JSON file paths, not column lists.
+    monkeypatch.setattr(
+        schema_registry,
+        "get_columns_by_type",
+        lambda table, column_types=None: (
+            ["col1", "col2", "col3"] if table == "my.table" else []
+        ),
+    )
 
     df = pd.DataFrame({"col1": [1], "col3": [3]})
     ok, missing = schema_registry.validate_dataframe("my.table", df)
@@ -16,8 +21,11 @@ def test_validate_dataframe_missing_columns(monkeypatch):
 
 
 def test_validate_dataframe_all_present(monkeypatch):
-    mapping = {"my.table": ["a", "b"]}
-    monkeypatch.setattr(configuration, "SCHEMA_FILE_MAPPING", mapping, raising=False)
+    monkeypatch.setattr(
+        schema_registry,
+        "get_columns_by_type",
+        lambda table, column_types=None: ["a", "b"] if table == "my.table" else [],
+    )
     df = pd.DataFrame({"a": [1], "b": [2]})
     ok, missing = schema_registry.validate_dataframe("my.table", df)
     assert ok is True

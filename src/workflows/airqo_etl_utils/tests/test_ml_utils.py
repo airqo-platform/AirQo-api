@@ -10,7 +10,11 @@ apply_ml_utils_import_stubs()
 
 import airqo_etl_utils.bigquery_api as bigquery_api_module
 import airqo_etl_utils.ml_utils as ml_utils_module
-from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastModelTrainer, ForecastUtils
+from airqo_etl_utils.ml_utils import (
+    BaseMlUtils as FUtils,
+    ForecastModelTrainer,
+    ForecastUtils,
+)
 
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.ml_utils import BaseMlUtils as FUtils, ForecastUtils
@@ -167,9 +171,9 @@ class TestsForecasts(ForecastFixtures):
         narrow_confidence = FUtils.calculate_forecast_confidence(
             [20.0], [18.0], [22.0]
         )[0]
-        wide_confidence = FUtils.calculate_forecast_confidence(
-            [20.0], [10.0], [30.0]
-        )[0]
+        wide_confidence = FUtils.calculate_forecast_confidence([20.0], [10.0], [30.0])[
+            0
+        ]
 
         assert 0.0 <= wide_confidence <= 100.0
         assert 0.0 <= narrow_confidence <= 100.0
@@ -284,9 +288,9 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
                         "wind_from_direction": 210.4,
                         "wind_speed": 4.9,
                     }
-                    for _, site in sites[
-                        ["site_id", "site_latitude", "site_longitude"]
-                    ].drop_duplicates().iterrows()
+                    for _, site in sites[["site_id", "site_latitude", "site_longitude"]]
+                    .drop_duplicates()
+                    .iterrows()
                     for forecast_date in pd.date_range(
                         start=sites["date"].min(),
                         periods=7,
@@ -503,7 +507,9 @@ def test_enrich_site_daily_forecasts_with_met_falls_back_on_failure(monkeypatch)
         forecasts
     )
 
-    assert list(enriched[expected_forecast_columns].columns) == expected_forecast_columns
+    assert (
+        list(enriched[expected_forecast_columns].columns) == expected_forecast_columns
+    )
     assert enriched[expected_forecast_columns].equals(forecasts)
     for column in [
         "air_pressure_at_sea_level",
@@ -964,9 +970,7 @@ def test_save_site_daily_forecasts_to_mongo_batches_bulk_operations(monkeypatch)
 
     monkeypatch.setattr(ml_utils_module.configuration, "MONGO_URI", "mongodb://test")
     monkeypatch.setattr(ml_utils_module.configuration, "MONGO_DATABASE_NAME", "airqo")
-    monkeypatch.setattr(
-        ml_utils_module.configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 1
-    )
+    monkeypatch.setattr(ml_utils_module.configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 1)
     monkeypatch.setattr(
         ml_utils_module.configuration,
         "MONGO_SITE_DAILY_FORECAST_COLLECTION",
@@ -1008,9 +1012,7 @@ def test_aggregate_met_no_hourly_payload_to_daily():
                                     "wind_speed": 4.6,
                                 }
                             },
-                            "next_1_hours": {
-                                "details": {"precipitation_amount": 0.0}
-                            },
+                            "next_1_hours": {"details": {"precipitation_amount": 0.0}},
                         },
                     },
                     {
@@ -1026,9 +1028,7 @@ def test_aggregate_met_no_hourly_payload_to_daily():
                                     "wind_speed": 4.7,
                                 }
                             },
-                            "next_1_hours": {
-                                "details": {"precipitation_amount": 0.0}
-                            },
+                            "next_1_hours": {"details": {"precipitation_amount": 0.0}},
                         },
                     },
                 ]
@@ -1046,6 +1046,3 @@ def test_aggregate_met_no_hourly_payload_to_daily():
     assert daily.loc[0, "met_no_query_longitude"] == 3.36
     assert daily.loc[0, "air_temperature"] == 27.6
     assert daily.loc[0, "precipitation_amount"] == 0.0
-        ForecastUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
-        mock_collection = getattr(mock_db, collection_name)
-        assert mock_collection.update_one.call_count >= 1

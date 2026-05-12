@@ -484,6 +484,7 @@ class ForecastUtils(BaseMlUtils):
                 )
                 # daily frequency
                 if frequency == "daily":
+                    # NOTE: Investigate bug.
                     df_tmp.tail(1)["timestamp"] += timedelta(days=1)
                     shifts1 = [1, 2, 3, 7]
                     for s in shifts1:
@@ -2485,8 +2486,15 @@ class ForecastModelTrainer(BaseMlUtils):
                     )
                 )
 
-            if bulk_operations:
-                collection.bulk_write(bulk_operations, ordered=False)
+            batch_size = int(
+                getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 500) or 500
+            )
+            bulk_batches = 0
+            for i in range(0, len(bulk_operations), batch_size):
+                collection.bulk_write(
+                    bulk_operations[i : i + batch_size], ordered=False
+                )
+                bulk_batches += 1
 
             deleted_rows = 0
             if site_ids:
@@ -2515,6 +2523,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "rows": int(len(prepared)),
             "collection": collection_name,
             "deleted_rows": int(deleted_rows),
+            "bulk_batches": bulk_batches,
+            "bulk_batch_size": batch_size,
         }
 
     @staticmethod

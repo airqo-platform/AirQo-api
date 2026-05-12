@@ -223,7 +223,10 @@ class TestGCSFileStorage:
         )
 
         assert result == original
-        blob.download_to_filename.assert_called_once_with(cache_path)
+        # Implementation downloads atomically: writes to a .tmp sibling first,
+        # then renames to the final path to avoid corrupt cache files on failure.
+        expected_tmp = str(Path(cache_path).with_suffix(".tmp"))
+        blob.download_to_filename.assert_called_once_with(expected_tmp)
         assert Path(cache_path).exists()
 
     def test_load_file_object_not_found(self):
