@@ -363,56 +363,35 @@ class ForecastUtils(BaseMlUtils):
             frequency: Model frequency label (e.g. 'hourly', 'daily') used
                 for artifact naming and MLflow experiment.
         """
-        filestorage: FileStorage = GCSFileStorage()
-        training_data.dropna(subset=["device_id"], inplace=True)
-        training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
-        features = [
-            c
-            for c in training_data.columns
-            if c not in ["timestamp", "pm2_5", "latitude", "longitude", "device_id"]
-        ]
-        logger.info(features)
+        data = training_data.dropna(subset=["device_id"]).copy()
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         target_col = "pm2_5"
-        train_parts: List[pd.DataFrame] = []
-        val_parts: List[pd.DataFrame] = []
-        test_parts: List[pd.DataFrame] = []
-        for device in training_data["device_id"].unique():
-            device_df = training_data[training_data["device_id"] == device]
-            months = device_df["timestamp"].dt.month.unique()
-            train_months = months[:8]
-            val_months = months[8:9]
-            test_months = months[9:]
+        exclude = {"timestamp", "pm2_5", "latitude", "longitude", "device_id"}
+        features = [c for c in data.columns if c not in exclude]
 
-            train_parts.append(
-                device_df[device_df["timestamp"].dt.month.isin(train_months)]
+        # Assign each row a per-device month rank (0-based, ordered by first
+        # appearance). Rank 0–7 → train; 8 → validation; 9+ → test.
+        def _month_rank(s: pd.Series) -> pd.Series:
+            unique_months = s.dt.month.unique()
+            return s.dt.month.map({m: i for i, m in enumerate(unique_months)})
+
+        month_rank = data.groupby("device_id")["timestamp"].transform(_month_rank)
+
+        keep = features + [target_col]
+        train_df = data.loc[month_rank < 8, keep].reset_index(drop=True)
+        val_df = data.loc[month_rank == 8, keep].reset_index(drop=True)
+        test_df = data.loc[month_rank >= 9, keep].reset_index(drop=True)
+
+        if train_df.empty or val_df.empty or test_df.empty:
+            raise ValueError(
+                "Insufficient data: one or more month-based splits are empty. "
+                "Ensure training data spans at least 10 distinct calendar months per device."
             )
-            val_parts.append(
-                device_df[device_df["timestamp"].dt.month.isin(val_months)]
-            )
-            test_parts.append(
-                device_df[device_df["timestamp"].dt.month.isin(test_months)]
-            )
 
-        train_data = (
-            pd.concat(train_parts, ignore_index=True) if train_parts else pd.DataFrame()
-        )
-        validation_data = (
-            pd.concat(val_parts, ignore_index=True) if val_parts else pd.DataFrame()
-        )
-        test_data = (
-            pd.concat(test_parts, ignore_index=True) if test_parts else pd.DataFrame()
-        )
-
-        train_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-        validation_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-        test_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-
-        train_target, validation_target, test_target = (
-            train_data[target_col],
-            validation_data[target_col],
-            test_data[target_col],
-        )
+        train_X, train_y = train_df[features], train_df[target_col]
+        val_X, val_y = val_df[features], val_df[target_col]
+        test_X, test_y = test_df[features], test_df[target_col]
 
         sampler = optuna.samplers.TPESampler()
         pruner = optuna.pruners.SuccessiveHalvingPruner(
@@ -423,7 +402,7 @@ class ForecastUtils(BaseMlUtils):
         )
 
         def objective(trial):
-            param_grid = {
+            params = {
                 "colsample_bytree": trial.suggest_float("colsample_bytree", 0.1, 1),
                 "reg_alpha": trial.suggest_float("reg_alpha", 0, 10),
                 "reg_lambda": trial.suggest_float("reg_lambda", 0, 10),
@@ -432,28 +411,30 @@ class ForecastUtils(BaseMlUtils):
                 "num_leaves": trial.suggest_int("num_leaves", 20, 50),
                 "max_depth": trial.suggest_int("max_depth", 4, 7),
             }
-            #
+
+            def _report_and_prune(env) -> None:
+                """Feed per-round validation score to Optuna so the pruner can act."""
+                if env.evaluation_result_list:
+                    _, _, value, _ = env.evaluation_result_list[-1]
+                    trial.report(float(value), env.iteration)
+                    if trial.should_prune():
+                        raise optuna.TrialPruned()
+
             lgb_reg = LGBMRegressor(
-                objective="regression",
-                random_state=42,
-                **param_grid,
-                verbosity=2,
+                objective="regression", random_state=42, verbosity=2, **params
             )
             lgb_reg.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
+                train_X,
+                train_y,
+                eval_set=[(test_X, test_y)],
                 eval_metric="rmse",
-                callbacks=[early_stopping(stopping_rounds=150)],
+                callbacks=[early_stopping(stopping_rounds=150), _report_and_prune],
             )
-            val_preds = lgb_reg.predict(validation_data[features])
-            score = mean_squared_error(validation_target, val_preds)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
-            return score
+            return mean_squared_error(val_y, lgb_reg.predict(val_X))
 
         study.optimize(objective, n_trials=15)
 
+        logger.info("Best Optuna params: %s", study.best_params)
         mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
         mlflow.set_experiment(f"{frequency}_forecast_model_{environment}")
         registered_model_name = f"{frequency}_forecast_model_{environment}"
@@ -462,27 +443,20 @@ class ForecastUtils(BaseMlUtils):
             registered_model_name=registered_model_name, log_datasets=False
         )
         with mlflow.start_run():
-            best_params = study.best_params
-            logger.info(f"Best params: {best_params}")
             clf = LGBMRegressor(
-                n_estimators=best_params["n_estimators"],
-                learning_rate=best_params["learning_rate"],
-                colsample_bytree=best_params["colsample_bytree"],
-                reg_alpha=best_params["reg_alpha"],
-                reg_lambda=best_params["reg_lambda"],
-                max_depth=best_params["max_depth"],
+                objective="regression",
                 random_state=42,
                 verbosity=2,
+                **study.best_params,
             )
-
             clf.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
+                train_X,
+                train_y,
+                eval_set=[(test_X, test_y)],
                 eval_metric="rmse",
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
-            filestorage.save_file_object(
+            GCSFileStorage().save_file_object(
                 bucket=bucket,
                 obj=clf,
                 destination_file=f"{frequency}_forecast_model.pkl",
@@ -584,28 +558,31 @@ class ForecastUtils(BaseMlUtils):
 
             return df_tmp.iloc[-int(horizon) :, :]
 
-        forecasts = pd.DataFrame()
         forecast_model = filestorage.load_file_object(
             bucket=bucket_name,
             source_file=f"{frequency.str}_forecast_model.pkl",
         )
+        horizon = (
+            configuration.HOURLY_FORECAST_HORIZON
+            if frequency.str == "hourly"
+            else configuration.DAILY_FORECAST_HORIZON
+        )
 
-        df_tmp = data.copy()
-        for device in df_tmp["device_id"].unique():
-            test_copy = df_tmp[df_tmp["device_id"] == device]
-            horizon = (
-                configuration.HOURLY_FORECAST_HORIZON
-                if frequency.str == "hourly"
-                else configuration.DAILY_FORECAST_HORIZON
+        forecast_parts: List[pd.DataFrame] = []
+        for device in data["device_id"].unique():
+            forecast_parts.append(
+                get_forecasts(
+                    data[data["device_id"] == device],
+                    forecast_model,
+                    frequency.str,
+                    horizon,
+                )
             )
-            device_forecasts = get_forecasts(
-                test_copy,
-                forecast_model,
-                frequency.str,
-                horizon,
-            )
-
-            forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
+        forecasts = (
+            pd.concat(forecast_parts, ignore_index=True)
+            if forecast_parts
+            else pd.DataFrame()
+        )
 
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
 
@@ -959,9 +936,8 @@ class ForecastSiteUtils(BaseMlUtils):
             raise ValueError(f"Missing required columns: {missing}")
 
         out = df.copy()
-        out = out.sort_values([site_col, date_col])
 
-        # Parse dates safely
+        # Parse dates safely before sorting so datetime ordering is correct.
         out[date_col] = pd.to_datetime(out[date_col], errors="coerce")
         if out[date_col].isna().any():
             bad = out.loc[out[date_col].isna(), [site_col, date_col]].head(5)
@@ -969,7 +945,6 @@ class ForecastSiteUtils(BaseMlUtils):
                 f"Some rows have invalid {date_col}. Example rows:\n{bad.to_string(index=False)}"
             )
 
-        # Sort for correct lag/rolling behavior
         out = out.sort_values([site_col, date_col]).reset_index(drop=True)
 
         # ---- time features ----
@@ -977,8 +952,6 @@ class ForecastSiteUtils(BaseMlUtils):
         out["day_of_week"] = dt.dayofweek
         out["day_of_year"] = dt.dayofyear
         out["month"] = dt.month
-        # out["week_of_year"] = dt.isocalendar().week.astype("int16")
-        # out["is_weekend"] = dt.dayofweek >= 5
 
         # ---- group object once ----
         g = out.groupby(site_col, sort=False)[target_col]
@@ -1041,6 +1014,26 @@ class ForecastModelTrainer(BaseMlUtils):
     # -------------------------
     # helpers
     # -------------------------
+    @staticmethod
+    def _make_site_forecast_tracker() -> MlflowTracker:
+        """Return a configured MlflowTracker for the site forecast experiment."""
+        return MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
+            or f"site_forecast_{environment}",
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+
+    @staticmethod
+    def _get_input_example(
+        df: pd.DataFrame, features: List[str]
+    ) -> Optional[pd.DataFrame]:
+        """Return up to 5 non-null feature rows, or None when none exist."""
+        sample = df[features].dropna().head(5)
+        return sample if not sample.empty else None
+
     @staticmethod
     def _build_site_id_mapping(site_ids: pd.Series) -> Dict[str, int]:
         """Build a deterministic numeric encoding for site IDs."""
@@ -1220,23 +1213,18 @@ class ForecastModelTrainer(BaseMlUtils):
             otherwise None.
         """
         try:
-            filestorage: FileStorage = GCSFileStorage()
-            artifact = filestorage.load_file_object(
+            artifact = GCSFileStorage().load_file_object(
                 bucket=bucket_name, source_file=blob_name
             )
-            if isinstance(artifact, dict):
-                metrics = artifact.get("metrics")
-                if isinstance(metrics, dict):
-                    return metrics
+            metrics = artifact.get("metrics") if isinstance(artifact, dict) else None
+            return metrics if isinstance(metrics, dict) else None
         except FileNotFoundError:
             return None
         except Exception as exc:
             logger.warning(
-                f"Failed to load existing model metrics for {blob_name}: {exc}"
+                "Failed to load existing model metrics for %s: %s", blob_name, exc
             )
             return None
-
-        return None
 
     @staticmethod
     def _get_deployment_decision(
@@ -1370,17 +1358,8 @@ class ForecastModelTrainer(BaseMlUtils):
         }
         if lgb_params:
             params.update(lgb_params)
-        tracker = MlflowTracker(
-            tracking_uri=configuration.MLFLOW_TRACKING_URI,
-            registry_uri=configuration.MLFLOW_REGISTRY_URI,
-            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
-            or f"site_forecast_{environment}",
-            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
-            enabled=True,
-        )
-        input_example = df[features].dropna().head(5)
-        if input_example.empty:
-            input_example = None
+        tracker = ForecastModelTrainer._make_site_forecast_tracker()
+        input_example = ForecastModelTrainer._get_input_example(df, features)
         model, metrics = ForecastModelTrainer._fit_model(
             df=df,
             features=features,
@@ -1498,17 +1477,8 @@ class ForecastModelTrainer(BaseMlUtils):
         }
         if lgb_params:
             params.update(lgb_params)
-        tracker = MlflowTracker(
-            tracking_uri=configuration.MLFLOW_TRACKING_URI,
-            registry_uri=configuration.MLFLOW_REGISTRY_URI,
-            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
-            or f"site_forecast_{environment}",
-            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
-            enabled=True,
-        )
-        input_example = df[features].dropna().head(5)
-        if input_example.empty:
-            input_example = None
+        tracker = ForecastModelTrainer._make_site_forecast_tracker()
+        input_example = ForecastModelTrainer._get_input_example(df, features)
         model, metrics = ForecastModelTrainer._fit_model(
             df=df,
             features=features,
