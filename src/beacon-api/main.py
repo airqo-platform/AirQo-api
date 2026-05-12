@@ -5,8 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
 from app.db.session import engine, Base
+from app.db.session import SessionLocal
 from app.models import sync  # Import models to register them with Base
+from app.models.sync import SyncGroup
 from app.models import device_data  # noqa: F401 — register ThingSpeak data tables
+from app.services import group_sync_service
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -53,9 +56,32 @@ app = FastAPI(
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     logger.info("Application starting up...")
     start_scheduler()
+
+    db = SessionLocal()
+    try:
+        groups_count = db.query(SyncGroup).count()
+        if groups_count == 0:
+            jwt_from_env = (settings.TOKEN or "").strip()
+            if not jwt_from_env:
+                logger.warning("sync_group is empty but TOKEN is not set. Skipping startup group sync.")
+            else:
+                token = jwt_from_env.split(" ", 1)[1] if jwt_from_env.startswith("JWT ") else jwt_from_env
+                logger.info("sync_group is empty. Running startup group sync from platform.")
+                result = await group_sync_service.sync_groups(db, token)
+                if result.get("success"):
+                    logger.info(f"Startup group sync completed: {result.get('message')}")
+                else:
+                    logger.warning(f"Startup group sync failed: {result.get('message')}")
+        else:
+            logger.info(f"sync_group already has {groups_count} row(s). Skipping startup group sync.")
+    except Exception as e:
+        logger.exception(f"Error during startup group sync check: {e}")
+    finally:
+        db.close()
+
     logger.info("Application startup complete and ready to serve requests.")
 
 
