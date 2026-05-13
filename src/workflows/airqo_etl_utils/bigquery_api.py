@@ -455,7 +455,9 @@ class BigQueryApi:
         )
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+        up_to_date_data.drop_duplicates(
+            subset=["cohort_id", "device_id"], inplace=True, keep="first"
+        )
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -1387,7 +1389,9 @@ class BigQueryApi:
         if not self.sites_table:
             raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
 
-        query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs").format(
+        query = query_manager.get_query(
+            "site_daily_aggregated_for_forecast_jobs"
+        ).format(
             consolidated_table=f"`{self.consolidated_data_table}`",
             sites_table=f"`{self.sites_table}`",
             start_date=str(start_date),
