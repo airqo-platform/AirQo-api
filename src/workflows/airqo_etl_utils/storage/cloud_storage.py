@@ -212,7 +212,7 @@ class GCSFileStorage(FileStorage):
                 # Download atomically: write to a temp file then rename so the
                 # cache path is never left in a partial/corrupt state on failure.
                 cache_path = Path(local_cache_path)
-                tmp_path = cache_path.with_suffix(".tmp")
+                tmp_path = Path(str(cache_path) + ".tmp")
                 try:
                     blob.download_to_filename(str(tmp_path))
                     tmp_path.rename(cache_path)
