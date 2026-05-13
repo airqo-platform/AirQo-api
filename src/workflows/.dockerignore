@@ -46,26 +46,3 @@ MANIFEST
 *.docx
 *.json
 !airqo_etl_utils/**/*.json
-
-# Test / scratch files
-test_*.py
-testtest.py
-TODO
-tracking_measuring_datadrift.md
-copilot-instructions.md
-README.md
-performance_report_*.json
-user_search_history.json
-
-# Local / dev configs
-Dockerfile.local
-dev-docker-compose.yaml
-dev-requirements.txt
-deploy.local.sh
-pipeline-local/
-devices_files_20th/
-madagascar/
-meta_data/
-meta-data/
-cities_country_data/
-include/
