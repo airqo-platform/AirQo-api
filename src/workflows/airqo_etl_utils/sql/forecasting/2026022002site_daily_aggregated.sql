@@ -59,6 +59,47 @@ GROUP BY day, t1.site_id
 HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
 ORDER BY day, t1.site_id;
 
+-- name: site_hourly_measurements_for_forecast_jobs
+-- Hourly site PM2.5 history for recursive site-hourly forecast prediction jobs.
+-- Placeholders:
+-- {consolidated_table} -> consolidated hourly measurements table (e.g. project.dataset.table)
+-- {sites_table} -> sites metadata table (e.g. project.dataset.table)
+-- {start_timestamp} / {end_timestamp} -> timestamp strings
+-- {min_hours} -> minimum hourly points per site over the full lookback window
+
+WITH site_hourly AS (
+    SELECT
+        TIMESTAMP_TRUNC(t1.timestamp, HOUR) AS timestamp,
+        t1.site_id,
+        ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
+        ANY_VALUE(
+            COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
+        ) AS site_latitude,
+        ANY_VALUE(
+            COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
+        ) AS site_longitude,
+        AVG(t1.pm2_5_calibrated_value) AS pm25_mean
+    FROM {consolidated_table} AS t1
+    LEFT JOIN {sites_table} AS t2
+        ON t1.site_id = t2.id
+    WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
+        AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
+        AND t1.site_id IS NOT NULL
+        AND t1.pm2_5_calibrated_value IS NOT NULL
+    GROUP BY timestamp, t1.site_id
+),
+eligible_sites AS (
+    SELECT site_id
+    FROM site_hourly
+    GROUP BY site_id
+    HAVING COUNT(DISTINCT timestamp) >= {min_hours}
+)
+SELECT site_hourly.*
+FROM site_hourly
+INNER JOIN eligible_sites
+    USING (site_id)
+ORDER BY site_id, timestamp;
+
 -- name: fetches_device_data_satellite_based_job
 -- Fetches device data for a satellite-based job from BigQuery.
 -- Placeholders:

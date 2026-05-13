@@ -120,3 +120,51 @@ Update stored site daily forecasts with MET.no weather fields when enrichment su
 #### Notes
 - Skips the update gracefully when MET.no data is unavailable.
 """
+
+fetch_site_hourly_prediction_data_doc = """
+#### Purpose
+Fetch site-level hourly PM2.5 history for the hourly forecast lookback window.
+#### Notes
+- Reads from the consolidated hourly BigQuery table configured in `.env`.
+- Caps the lookback at 14 days.
+- Keeps sites with at least 2 hourly measurements so sparse sites still receive forecasts.
+"""
+
+generate_site_hourly_forecasts_doc = """
+#### Purpose
+Generate recursive 10-day hourly site-level PM2.5 forecasts.
+#### Notes
+- Loads `hourly_10day_pm25_mean_model.pkl`, `hourly_10day_pm25_q10_model.pkl`, and `hourly_10day_pm25_q90_model.pkl` from GCS.
+- Produces forecast-only rows before MET.no enrichment is applied.
+"""
+
+enrich_site_hourly_forecasts_with_met_doc = """
+#### Purpose
+Attach hourly MET.no weather forecast fields to generated site hourly PM2.5 forecasts.
+#### Notes
+- Rounds coordinates into MET.no query buckets.
+- Fails the task when MET.no enrichment errors occur so the resolver can keep the already saved PM forecast.
+"""
+
+save_site_hourly_forecasts_to_mongodb_doc = """
+#### Purpose
+Persist site-level hourly PM2.5 forecasts to MongoDB.
+#### Notes
+- Deletes old hourly forecasts for each incoming site before inserting the new forecast horizon.
+- Runs before MET.no enrichment so PM forecasts are still available if the weather API fails.
+"""
+
+resolve_site_hourly_forecasts_for_met_updates_doc = """
+#### Purpose
+Resolve hourly forecast rows that are safe for the MET.no MongoDB update step.
+#### Notes
+- Pulls enriched output from XCom.
+- Returns `None` when no MET.no values were populated.
+"""
+
+update_site_hourly_forecasts_met_in_mongodb_doc = """
+#### Purpose
+Replace stored site hourly forecasts with MET.no-enriched rows when enrichment succeeds.
+#### Notes
+- Skips gracefully when MET.no data is unavailable.
+"""
