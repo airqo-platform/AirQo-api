@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const path = require("path");
+const multer = require("multer");
+const { HttpError } = require("@utils/shared");
+const httpStatus = require("http-status");
 const deviceController = require("@controllers/device.controller");
 const { headers, pagination, validate } = require("@validators/common");
 const {
@@ -32,8 +36,55 @@ const {
   validateGetDeviceCountSummary,
   validateTransferDevice,
   validateRemoveDevicesFromBatch,
+  validateBulkSoftCreate,
 } = require("@validators/device.validators");
 const constants = require("@config/constants");
+
+// ── Multer setup for CSV bulk import ────────────────────────────────────────
+const _bulkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    // text/plain is intentionally excluded: the error message promises ".csv
+    // only" and a plain-text file is not guaranteed to be CSV-structured.
+    const allowedMimetypes = [
+      "text/csv",
+      "application/csv",
+      "text/comma-separated-values",
+      "application/vnd.ms-excel",
+    ];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedMimetypes.includes(file.mimetype) && ext === ".csv") {
+      cb(null, true);
+    } else {
+      cb(
+        new HttpError(
+          "Only .csv files are accepted for bulk import",
+          httpStatus.BAD_REQUEST,
+          { message: `Unsupported file: mimetype=${file.mimetype}, extension=${ext}` },
+        ),
+        false,
+      );
+    }
+  },
+});
+
+// Wraps multer errors into proper HttpErrors so the global error handler
+// formats them consistently with the rest of the API.
+const uploadBulkCSV = (req, res, next) => {
+  _bulkUpload.single("file")(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      const status = err.code === "LIMIT_FILE_SIZE" ? 413 : httpStatus.BAD_REQUEST;
+      return next(new HttpError(err.message, status, { message: err.message }));
+    }
+    return next(
+      err instanceof HttpError
+        ? err
+        : new HttpError(err.message, httpStatus.BAD_REQUEST, { message: err.message }),
+    );
+  });
+};
 
 router.use(headers);
 
@@ -215,6 +266,19 @@ router.get(
 );
 
 // SOFT OPERATIONS
+
+// Bulk soft-create — accepts a JSON array of devices OR a multipart CSV file.
+// Returns 207 Multi-Status with a per-device result array so the caller can
+// see which rows succeeded and which failed without retrying the whole batch.
+router.post(
+  "/soft/bulk",
+  validateTenant,
+  uploadBulkCSV,
+  validateBulkSoftCreate,
+  validate,
+  deviceController.bulkCreateOnPlatform
+);
+
 router.post(
   "/soft",
   validateTenant,
