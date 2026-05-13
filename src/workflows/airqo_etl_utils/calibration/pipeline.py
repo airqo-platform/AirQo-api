@@ -127,21 +127,13 @@ class CalibrationPipeline:
         return results
 
     def _run_country(self, country: str, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Run the pipeline for a single country: fetch → preprocess → feature engineer → train/deploy.
-        """
-        # lcs_df, bam_df = self._fetch_data(config) # Use bigquery extraction (default)
-
-        lcs_df, bam_df = self._fetch_data_from_aggregator(
-            config
-        )  # Picks data from aggregator.
+        """Run the pipeline for a single country: fetch → preprocess → feature engineer → train/deploy."""
+        lcs_df, bam_df = self._fetch_data_from_aggregator(config)
 
         if lcs_df.empty:
-            logger.exception(f"No LCS data returned for '{country}'.")
-            return {}
+            raise ValueError(f"No LCS data returned for '{country}'.")
         if bam_df.empty:
-            logger.exception(f"No BAM data returned for '{country}'.")
-            return {}
+            raise ValueError(f"No BAM data returned for '{country}'.")
 
         df, features = self._prepare_training_data(lcs_df, bam_df, config)
 
@@ -182,14 +174,10 @@ class CalibrationPipeline:
         )
 
         if lcs_df.empty:
-            logger.exception(
-                f"No LCS data returned for '{config.get('country', 'unknown')}'."
-            )
+            logger.warning("No LCS data returned from BigQuery.")
             return lcs_df, bam_df
         if bam_df.empty:
-            logger.exception(
-                f"No BAM data returned for '{config.get('country', 'unknown')}'."
-            )
+            logger.warning("No BAM data returned from BigQuery.")
             return lcs_df, bam_df
 
         lcs_df = lcs_df[CalibrationPipeline.required_lcs_cols]
@@ -203,8 +191,8 @@ class CalibrationPipeline:
         self, config: Dict[str, Any]
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Pull raw LCS and BAM data via from device cache.
-        This gets you raw data in it's rawest form available.
+        Pull raw LCS and BAM data from the device cache.
+        This gets you raw data in its rawest form available.
         """
         lcs_ids: List[str] = config.get("lcs_devices", [])
         ref_id: Optional[str] = config.get("reference_device")
@@ -284,21 +272,29 @@ class CalibrationPipeline:
         secondary_devices = [d for d in all_lcs_devices if d != primary_lc_device]
 
         if primary_lc_device and primary_lc_device in lcs_df["device_id"].unique():
-            primary_df = lcs_df[lcs_df["device_id"] == primary_lc_device]
-            primary_hours = self._unique_hours(primary_df)
+            # Pre-compute hourly coverage for primary and all secondaries in one pass.
+            relevant = [primary_lc_device] + secondary_devices
+            device_hours = (
+                lcs_df[lcs_df["device_id"].isin(relevant)]
+                .groupby("device_id")["timestamp"]
+                .apply(lambda s: pd.to_datetime(s).dt.floor("h").nunique())
+            )
+            primary_hours = int(device_hours.get(primary_lc_device, 0))
+
             if primary_hours / expected_hours >= _MIN_COVERAGE:
-                lcs_df = primary_df
+                lcs_df = lcs_df[lcs_df["device_id"] == primary_lc_device]
             else:
-                # Can be done more efficiently by precomputing hours/device, but this is clearer and the datasets are small.
-                # TODO: optimize if this becomes a bottleneck.
-                best_device: Optional[str] = None
-                best_hours = 0
-                for device_id in secondary_devices:
-                    device_df = lcs_df[lcs_df["device_id"] == device_id]
-                    device_hours = self._unique_hours(device_df)
-                    if device_hours > best_hours:
-                        best_hours = device_hours
-                        best_device = device_id
+                secondary_coverage = device_hours[
+                    device_hours.index.isin(secondary_devices)
+                ]
+                best_device: Optional[str] = (
+                    secondary_coverage.idxmax()
+                    if not secondary_coverage.empty
+                    else None
+                )
+                best_hours = (
+                    int(secondary_coverage.max()) if not secondary_coverage.empty else 0
+                )
 
                 if best_device and best_hours / expected_hours >= _MIN_COVERAGE:
                     logger.warning(
@@ -332,8 +328,6 @@ class CalibrationPipeline:
         merged = CalibrationPreprocessor.build_wide_dataset(
             lcs_df,
             bam_df,
-            device_col="device_id",
-            bam_device_name=bam_device_name,
             tz_offset_hours=tz_offset,
         )
 

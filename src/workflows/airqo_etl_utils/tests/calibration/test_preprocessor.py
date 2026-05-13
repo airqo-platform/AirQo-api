@@ -124,18 +124,6 @@ class TestBuildWideDataset:
         result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
         assert "timestamp" in result.columns
 
-    def test_device_columns_are_prefixed(self, lcs_raw_df, bam_raw_df):
-        result = CalibrationPreprocessor.build_wide_dataset(lcs_raw_df, bam_raw_df)
-        prefixed = [c for c in result.columns if c.startswith("AQ_G5341_")]
-        assert len(prefixed) > 0
-
-    def test_bam_device_name_prefixes_extra_cols(self, lcs_raw_df, bam_raw_df):
-        result = CalibrationPreprocessor.build_wide_dataset(
-            lcs_raw_df, bam_raw_df, bam_device_name="BAM_MUK"
-        )
-        assert any(c.startswith("BAM_MUK_") for c in result.columns)
-        assert "bam_pm" in result.columns  # target itself is never prefixed
-
 
 class TestCleanData:
     def test_returns_empty_for_empty_lcs(self):

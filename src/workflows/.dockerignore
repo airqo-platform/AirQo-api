@@ -1,12 +1,25 @@
-runFunctions.py
-venv/
+# IDE / OS
 .idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Python caches / venvs
 __pycache__/
+*.pyc
+venv/
 env/
+.Python
+.pytest_cache/
+.coverage
+
+# Environment / secrets
 .env
+.env.*
+secrets.json
+open_secrets.json
 
 # Distribution / packaging
-.Python
 build/
 develop-eggs/
 dist/
@@ -25,5 +38,11 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Data files (not needed in image)
+*.csv
+*.pkl
 *.ipynb
 *.html
+*.docx
+*.json
+!airqo_etl_utils/**/*.json

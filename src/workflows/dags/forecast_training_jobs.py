@@ -12,6 +12,7 @@ from dateutil.relativedelta import relativedelta
 import pandas as pd
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.ml_utils import ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
@@ -23,7 +24,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     default_args={
         **AirflowUtils.dag_default_configs(),
         "retries": 3,  # Retry failed tasks up to 3 times
-        "retry_delay": timedelta(minutes=10),  # Wait 10 minutes before retry        
+        "retry_delay": timedelta(minutes=10),  # Wait 10 minutes before retry
         "retry_exponential_backoff": True,  # Use exponential backoff for retries
         "max_retry_delay": timedelta(minutes=60),  # Maximum delay between retries
     },
@@ -60,21 +61,21 @@ def train_forecasting_models():
         """
         Clean and standardize hourly raw data before feature engineering.
         """
-        return ForecastUtils.preprocess_data(data, "hourly", "train")
+        return ForecastUtils.preprocess_data(data, Frequency.HOURLY, "train")
 
     @task()
     def get_hourly_lag_and_rolling_features(data):
         """
         Create lag and rolling statistics for hourly PM2.5.
         """
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.HOURLY)
 
     @task()
     def get_hourly_time_features(data):
         """
         Add time-based features such as hour, day, month, weekday, etc.
         """
-        return ForecastUtils.get_time_features(data, "hourly")
+        return ForecastUtils.get_time_features(data, Frequency.HOURLY)
 
     @task()
     def get_hourly_cyclic_features(data):
@@ -82,7 +83,7 @@ def train_forecasting_models():
         Add cyclic encodings for periodic variables such as hour-of-day
         and day-of-week.
         """
-        return ForecastUtils.get_cyclic_features(data, "hourly")
+        return ForecastUtils.get_cyclic_features(data, Frequency.HOURLY)
 
     @task()
     def get_hourly_location_features(data):
@@ -120,28 +121,28 @@ def train_forecasting_models():
         """
         Clean and standardize daily raw data before feature engineering.
         """
-        return ForecastUtils.preprocess_data(data, "daily", job_type="train")
+        return ForecastUtils.preprocess_data(data, Frequency.DAILY, job_type="train")
 
     @task()
     def get_daily_lag_and_rolling_features(data):
         """
         Create lag and rolling statistics for daily PM2.5.
         """
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.DAILY)
 
     @task()
     def get_daily_time_features(data):
         """
         Add time-based features such as day, month, weekday, season, etc.
         """
-        return ForecastUtils.get_time_features(data, "daily")
+        return ForecastUtils.get_time_features(data, Frequency.DAILY)
 
     @task()
     def get_daily_cyclic_features(data):
         """
         Add cyclic encodings for periodic daily variables.
         """
-        return ForecastUtils.get_cyclic_features(data, "daily")
+        return ForecastUtils.get_cyclic_features(data, Frequency.DAILY)
 
     @task()
     def get_daily_location_features(data):

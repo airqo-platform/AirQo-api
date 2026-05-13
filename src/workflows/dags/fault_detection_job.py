@@ -1,5 +1,6 @@
 from airflow.decorators import dag, task
 
+from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.ml_utils import FaultDetectionUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
@@ -23,11 +24,11 @@ def airqo_fault_detection_dag():
 
     @task()
     def get_time_features(data):
-        return FaultDetectionUtils.get_time_features(data, "hourly")
+        return FaultDetectionUtils.get_time_features(data, Frequency.HOURLY)
 
     @task()
     def get_cyclic_features(data):
-        return FaultDetectionUtils.get_cyclic_features(data, "hourly")
+        return FaultDetectionUtils.get_cyclic_features(data, Frequency.HOURLY)
 
     @task()
     def flag_pattern_based_faults(data):

@@ -103,9 +103,11 @@ class BaseMlUtils:
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-        data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
-            lambda x: x.interpolate(method="linear", limit_direction="both")
-        )
+            # Re-interpolate after daily resampling, which can introduce new NaNs
+            # for sparse days that had no readings before aggregation.
+            data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
+                lambda x: x.interpolate(method="linear", limit_direction="both")
+            )
         data = data.dropna(subset=["pm2_5"])
         return data
 
@@ -151,38 +153,24 @@ class BaseMlUtils:
 
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-        df1 = df.copy()  # use copy to prevent terminal warning
+        df1 = df.copy()
+        g = df1.groupby("device_id")[target_col]
+
         if freq.str == "daily":
-            shifts = [1, 2, 3, 7]
-            for s in shifts:
-                df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
-                    target_col
-                ].shift(s)
-            shifts = [2, 3, 7]
-            functions = ["mean", "std", "max", "min"]
-            for s in shifts:
-                for f in functions:
-                    df1[f"pm2_5_{f}_{s}_day"] = (
-                        df1.groupby(["device_id"])[target_col]
-                        .shift(1)
-                        .rolling(s)
-                        .agg(f)
+            for s in [1, 2, 3, 7]:
+                df1[f"pm2_5_last_{s}_day"] = g.shift(s)
+            for s in [2, 3, 7]:
+                for f in ["mean", "std", "max", "min"]:
+                    df1[f"pm2_5_{f}_{s}_day"] = g.transform(
+                        lambda x, _s=s, _f=f: x.shift(1).rolling(_s).agg(_f)
                     )
         elif freq.str == "hourly":
-            shifts = [1, 2, 6, 12]
-            for s in shifts:
-                df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
-                    target_col
-                ].shift(s)
-            shifts = [3, 6, 12, 24]
-            functions = ["mean", "std", "median", "skew"]
-            for s in shifts:
-                for f in functions:
-                    df1[f"pm2_5_{f}_{s}_hour"] = (
-                        df1.groupby(["device_id"])[target_col]
-                        .shift(1)
-                        .rolling(s)
-                        .agg(f)
+            for s in [1, 2, 6, 12]:
+                df1[f"pm2_5_last_{s}_hour"] = g.shift(s)
+            for s in [3, 6, 12, 24]:
+                for f in ["mean", "std", "median", "skew"]:
+                    df1[f"pm2_5_{f}_{s}_hour"] = g.transform(
+                        lambda x, _s=s, _f=f: x.shift(1).rolling(_s).agg(_f)
                     )
         else:
             raise ValueError("Invalid frequency")
@@ -223,10 +211,6 @@ class BaseMlUtils:
             raise ValueError(
                 f"Invalid frequency '{freq.str}', must be 'daily' or 'hourly'"
             )
-
-        attributes = ["year", "month", "day", "dayofweek"]
-        if freq.str == "hourly":
-            attributes.append("hour")
 
         attributes = {
             "year": df["timestamp"].dt.year,
@@ -379,42 +363,35 @@ class ForecastUtils(BaseMlUtils):
             frequency: Model frequency label (e.g. 'hourly', 'daily') used
                 for artifact naming and MLflow experiment.
         """
-        filestorage: FileStorage = GCSFileStorage()
-        training_data.dropna(subset=["device_id"], inplace=True)
-        training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
-        features = [
-            c
-            for c in training_data.columns
-            if c not in ["timestamp", "pm2_5", "latitude", "longitude", "device_id"]
-        ]
-        logger.info(features)
+        data = training_data.dropna(subset=["device_id"]).copy()
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         target_col = "pm2_5"
-        train_data = validation_data = test_data = pd.DataFrame()
-        for device in training_data["device_id"].unique():
-            device_df = training_data[training_data["device_id"] == device]
-            months = device_df["timestamp"].dt.month.unique()
-            train_months = months[:8]
-            val_months = months[8:9]
-            test_months = months[9:]
+        exclude = {"timestamp", "pm2_5", "latitude", "longitude", "device_id"}
+        features = [c for c in data.columns if c not in exclude]
 
-            train_df = device_df[device_df["timestamp"].dt.month.isin(train_months)]
-            val_df = device_df[device_df["timestamp"].dt.month.isin(val_months)]
-            test_df = device_df[device_df["timestamp"].dt.month.isin(test_months)]
+        # Assign each row a per-device month rank (0-based, ordered by first
+        # appearance). Rank 0–7 → train; 8 → validation; 9+ → test.
+        def _month_rank(s: pd.Series) -> pd.Series:
+            unique_months = s.dt.month.unique()
+            return s.dt.month.map({m: i for i, m in enumerate(unique_months)})
 
-            train_data = pd.concat([train_data, train_df])
-            validation_data = pd.concat([validation_data, val_df])
-            test_data = pd.concat([test_data, test_df])
+        month_rank = data.groupby("device_id")["timestamp"].transform(_month_rank)
 
-        train_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-        validation_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
-        test_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
+        keep = features + [target_col]
+        train_df = data.loc[month_rank < 8, keep].reset_index(drop=True)
+        val_df = data.loc[month_rank == 8, keep].reset_index(drop=True)
+        test_df = data.loc[month_rank >= 9, keep].reset_index(drop=True)
 
-        train_target, validation_target, test_target = (
-            train_data[target_col],
-            validation_data[target_col],
-            test_data[target_col],
-        )
+        if train_df.empty or val_df.empty or test_df.empty:
+            raise ValueError(
+                "Insufficient data: one or more month-based splits are empty. "
+                "Ensure training data spans at least 10 distinct calendar months per device."
+            )
+
+        train_X, train_y = train_df[features], train_df[target_col]
+        val_X, val_y = val_df[features], val_df[target_col]
+        test_X, test_y = test_df[features], test_df[target_col]
 
         sampler = optuna.samplers.TPESampler()
         pruner = optuna.pruners.SuccessiveHalvingPruner(
@@ -425,7 +402,7 @@ class ForecastUtils(BaseMlUtils):
         )
 
         def objective(trial):
-            param_grid = {
+            params = {
                 "colsample_bytree": trial.suggest_float("colsample_bytree", 0.1, 1),
                 "reg_alpha": trial.suggest_float("reg_alpha", 0, 10),
                 "reg_lambda": trial.suggest_float("reg_lambda", 0, 10),
@@ -434,31 +411,30 @@ class ForecastUtils(BaseMlUtils):
                 "num_leaves": trial.suggest_int("num_leaves", 20, 50),
                 "max_depth": trial.suggest_int("max_depth", 4, 7),
             }
-            score = 0
-            for step in range(4):
-                lgb_reg = LGBMRegressor(
-                    objective="regression",
-                    random_state=42,
-                    **param_grid,
-                    verbosity=2,
-                )
-                lgb_reg.fit(
-                    train_data[features],
-                    train_target,
-                    eval_set=[(test_data[features], test_target)],
-                    eval_metric="rmse",
-                    callbacks=[early_stopping(stopping_rounds=150)],
-                )
 
-                val_preds = lgb_reg.predict(validation_data[features])
-                score = mean_squared_error(validation_target, val_preds)
-                if trial.should_prune():
-                    raise optuna.TrialPruned()
+            def _report_and_prune(env) -> None:
+                """Feed per-round validation score to Optuna so the pruner can act."""
+                if env.evaluation_result_list:
+                    _, _, value, _ = env.evaluation_result_list[-1]
+                    trial.report(float(value), env.iteration)
+                    if trial.should_prune():
+                        raise optuna.TrialPruned()
 
-            return score
+            lgb_reg = LGBMRegressor(
+                objective="regression", random_state=42, verbosity=2, **params
+            )
+            lgb_reg.fit(
+                train_X,
+                train_y,
+                eval_set=[(test_X, test_y)],
+                eval_metric="rmse",
+                callbacks=[early_stopping(stopping_rounds=150), _report_and_prune],
+            )
+            return mean_squared_error(val_y, lgb_reg.predict(val_X))
 
         study.optimize(objective, n_trials=15)
 
+        logger.info("Best Optuna params: %s", study.best_params)
         mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
         mlflow.set_experiment(f"{frequency}_forecast_model_{environment}")
         registered_model_name = f"{frequency}_forecast_model_{environment}"
@@ -467,27 +443,20 @@ class ForecastUtils(BaseMlUtils):
             registered_model_name=registered_model_name, log_datasets=False
         )
         with mlflow.start_run():
-            best_params = study.best_params
-            logger.info(f"Best params: {best_params}")
             clf = LGBMRegressor(
-                n_estimators=best_params["n_estimators"],
-                learning_rate=best_params["learning_rate"],
-                colsample_bytree=best_params["colsample_bytree"],
-                reg_alpha=best_params["reg_alpha"],
-                reg_lambda=best_params["reg_lambda"],
-                max_depth=best_params["max_depth"],
+                objective="regression",
                 random_state=42,
                 verbosity=2,
+                **study.best_params,
             )
-
             clf.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
+                train_X,
+                train_y,
+                eval_set=[(test_X, test_y)],
                 eval_metric="rmse",
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
-            filestorage.save_file_object(
+            GCSFileStorage().save_file_object(
                 bucket=bucket,
                 obj=clf,
                 destination_file=f"{frequency}_forecast_model.pkl",
@@ -515,6 +484,7 @@ class ForecastUtils(BaseMlUtils):
                 )
                 # daily frequency
                 if frequency == "daily":
+                    # NOTE: Investigate bug.
                     df_tmp.tail(1)["timestamp"] += timedelta(days=1)
                     shifts1 = [1, 2, 3, 7]
                     for s in shifts1:
@@ -589,28 +559,31 @@ class ForecastUtils(BaseMlUtils):
 
             return df_tmp.iloc[-int(horizon) :, :]
 
-        forecasts = pd.DataFrame()
         forecast_model = filestorage.load_file_object(
             bucket=bucket_name,
             source_file=f"{frequency.str}_forecast_model.pkl",
         )
+        horizon = (
+            configuration.HOURLY_FORECAST_HORIZON
+            if frequency.str == "hourly"
+            else configuration.DAILY_FORECAST_HORIZON
+        )
 
-        df_tmp = data.copy()
-        for device in df_tmp["device_id"].unique():
-            test_copy = df_tmp[df_tmp["device_id"] == device]
-            horizon = (
-                configuration.HOURLY_FORECAST_HORIZON
-                if frequency.str == "hourly"
-                else configuration.DAILY_FORECAST_HORIZON
+        forecast_parts: List[pd.DataFrame] = []
+        for device in data["device_id"].unique():
+            forecast_parts.append(
+                get_forecasts(
+                    data[data["device_id"] == device],
+                    forecast_model,
+                    frequency.str,
+                    horizon,
+                )
             )
-            device_forecasts = get_forecasts(
-                test_copy,
-                forecast_model,
-                frequency.str,
-                horizon,
-            )
-
-            forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
+        forecasts = (
+            pd.concat(forecast_parts, ignore_index=True)
+            if forecast_parts
+            else pd.DataFrame()
+        )
 
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
 
@@ -695,43 +668,42 @@ class FaultDetectionUtils(BaseMlUtils):
             raise ValueError("Input must be a dataframe")
 
         required_columns = ["device_id", "s1_pm2_5", "s2_pm2_5"]
-        if not set(required_columns).issubset(set(df.columns.to_list())):
+        if not set(required_columns).issubset(df.columns):
             raise ValueError(
                 f"Input must have the following columns: {required_columns}"
             )
 
-        result = pd.DataFrame(
-            columns=[
-                "device_id",
-                "correlation_fault",
-                "correlation_value",
-                "missing_data_fault",
-            ]
-        )
+        rows = []
         for device in df["device_id"].unique():
             device_df = df[df["device_id"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
             correlation_fault = 1 if corr < 0.9 else 0
             missing_data_fault = 0
             for col in ["s1_pm2_5", "s2_pm2_5"]:
-                null_series = device_df[col].isna()
-                if (null_series.rolling(window=60).sum() >= 60).any():
+                if (device_df[col].isna().rolling(window=60).sum() >= 60).any():
                     missing_data_fault = 1
                     break
-
-            temp = pd.DataFrame(
+            rows.append(
                 {
-                    "device_id": [device],
-                    "correlation_fault": [correlation_fault],
-                    "correlation_value": [corr],
-                    "missing_data_fault": [missing_data_fault],
+                    "device_id": device,
+                    "correlation_fault": correlation_fault,
+                    "correlation_value": corr,
+                    "missing_data_fault": missing_data_fault,
                 }
             )
-            result = pd.concat([result, temp], ignore_index=True)
-        result = result[
+
+        result = pd.DataFrame(
+            rows,
+            columns=[
+                "device_id",
+                "correlation_fault",
+                "correlation_value",
+                "missing_data_fault",
+            ],
+        )
+        return result[
             (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
         ]
-        return result
 
     @staticmethod
     def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
@@ -904,34 +876,8 @@ class SatelliteUtils(BaseMlUtils):
         model = LGBMRegressor(
             random_state=42, n_estimators=200, max_depth=10, objective="mse"
         )
-
-        model.fit(data.drop(columns="pm2_5"), data["pm2_5"])
-
         # TODO: add mlflow stuff after cluster issues handled
-
-        # n_splits = 4
-        # cv = GroupKFold(n_splits=n_splits)
-        # groups = data['city']
-        # stds = []
-        # rmse = []
-        #
-        # def validate(trainset, testset, t, origin):
-        #     with mlflow.start_run():
-        #         model.fit(data.drop(columns=t), trainset[t])
-        #         pred = model.predict(np.array(testset.drop(columns=t)))
-        #         origin['pm2_5'] = pred
-        #         origin['date'] = pd.to_datetime(origin['date'])
-        #         origin['date_day'] = origin['date'].dt.dayofyear
-        #         pred = origin['date_day'].map(origin[['date_day', 'pm_5']].groupby('date_day')['pm_5'].mean())
-        #         stds.append(testset[t].std())
-        #         score = mean_squared_error(pred, testset[t], squared=False)
-        #         mlflow.log_metric("rmse", score)
-        #         mlflow.sklearn.log_model(model, "model")
-        #
-        # for v_train, v_test in cv.split(data, groups=groups):
-        #     train_v, test_v = data.iloc[v_train], data.iloc[v_test]
-        #     origin = data.iloc[v_test]
-        #     rmse.append(validate(train_v, test_v, 'pm2_5', origin))
+        model.fit(data.drop(columns="pm2_5"), data["pm2_5"])
 
         filestorage: FileStorage = GCSFileStorage()
         filestorage.save_file_object(
@@ -991,9 +937,8 @@ class ForecastSiteUtils(BaseMlUtils):
             raise ValueError(f"Missing required columns: {missing}")
 
         out = df.copy()
-        out = out.sort_values([site_col, date_col])
 
-        # Parse dates safely
+        # Parse dates safely before sorting so datetime ordering is correct.
         out[date_col] = pd.to_datetime(out[date_col], errors="coerce")
         if out[date_col].isna().any():
             bad = out.loc[out[date_col].isna(), [site_col, date_col]].head(5)
@@ -1001,7 +946,6 @@ class ForecastSiteUtils(BaseMlUtils):
                 f"Some rows have invalid {date_col}. Example rows:\n{bad.to_string(index=False)}"
             )
 
-        # Sort for correct lag/rolling behavior
         out = out.sort_values([site_col, date_col]).reset_index(drop=True)
 
         # ---- time features ----
@@ -1009,8 +953,6 @@ class ForecastSiteUtils(BaseMlUtils):
         out["day_of_week"] = dt.dayofweek
         out["day_of_year"] = dt.dayofyear
         out["month"] = dt.month
-        # out["week_of_year"] = dt.isocalendar().week.astype("int16")
-        # out["is_weekend"] = dt.dayofweek >= 5
 
         # ---- group object once ----
         g = out.groupby(site_col, sort=False)[target_col]
@@ -1073,6 +1015,26 @@ class ForecastModelTrainer(BaseMlUtils):
     # -------------------------
     # helpers
     # -------------------------
+    @staticmethod
+    def _make_site_forecast_tracker() -> MlflowTracker:
+        """Return a configured MlflowTracker for the site forecast experiment."""
+        return MlflowTracker(
+            tracking_uri=configuration.MLFLOW_TRACKING_URI,
+            registry_uri=configuration.MLFLOW_REGISTRY_URI,
+            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
+            or f"site_forecast_{environment}",
+            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
+            enabled=True,
+        )
+
+    @staticmethod
+    def _get_input_example(
+        df: pd.DataFrame, features: List[str]
+    ) -> Optional[pd.DataFrame]:
+        """Return up to 5 non-null feature rows, or None when none exist."""
+        sample = df[features].dropna().head(5)
+        return sample if not sample.empty else None
+
     @staticmethod
     def _build_site_id_mapping(site_ids: pd.Series) -> Dict[str, int]:
         """Build a deterministic numeric encoding for site IDs."""
@@ -1252,23 +1214,18 @@ class ForecastModelTrainer(BaseMlUtils):
             otherwise None.
         """
         try:
-            filestorage: FileStorage = GCSFileStorage()
-            artifact = filestorage.load_file_object(
+            artifact = GCSFileStorage().load_file_object(
                 bucket=bucket_name, source_file=blob_name
             )
-            if isinstance(artifact, dict):
-                metrics = artifact.get("metrics")
-                if isinstance(metrics, dict):
-                    return metrics
+            metrics = artifact.get("metrics") if isinstance(artifact, dict) else None
+            return metrics if isinstance(metrics, dict) else None
         except FileNotFoundError:
             return None
         except Exception as exc:
             logger.warning(
-                f"Failed to load existing model metrics for {blob_name}: {exc}"
+                "Failed to load existing model metrics for %s: %s", blob_name, exc
             )
             return None
-
-        return None
 
     @staticmethod
     def _get_deployment_decision(
@@ -1402,17 +1359,8 @@ class ForecastModelTrainer(BaseMlUtils):
         }
         if lgb_params:
             params.update(lgb_params)
-        tracker = MlflowTracker(
-            tracking_uri=configuration.MLFLOW_TRACKING_URI,
-            registry_uri=configuration.MLFLOW_REGISTRY_URI,
-            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
-            or f"site_forecast_{environment}",
-            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
-            enabled=True,
-        )
-        input_example = df[features].dropna().head(5)
-        if input_example.empty:
-            input_example = None
+        tracker = ForecastModelTrainer._make_site_forecast_tracker()
+        input_example = ForecastModelTrainer._get_input_example(df, features)
         model, metrics = ForecastModelTrainer._fit_model(
             df=df,
             features=features,
@@ -1530,17 +1478,8 @@ class ForecastModelTrainer(BaseMlUtils):
         }
         if lgb_params:
             params.update(lgb_params)
-        tracker = MlflowTracker(
-            tracking_uri=configuration.MLFLOW_TRACKING_URI,
-            registry_uri=configuration.MLFLOW_REGISTRY_URI,
-            experiment_name=configuration.MLFLOW_EXPERIMENT_NAME
-            or f"site_forecast_{environment}",
-            model_gating_enabled=configuration.MLFLOW_ENABLE_MODEL_GATING,
-            enabled=True,
-        )
-        input_example = df[features].dropna().head(5)
-        if input_example.empty:
-            input_example = None
+        tracker = ForecastModelTrainer._make_site_forecast_tracker()
+        input_example = ForecastModelTrainer._get_input_example(df, features)
         model, metrics = ForecastModelTrainer._fit_model(
             df=df,
             features=features,
@@ -1738,9 +1677,7 @@ class ForecastModelTrainer(BaseMlUtils):
         query: str = ""
         current_date = datetime.today()
         try:
-            lookback_months = int(
-                configuration.SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS
-            )
+            lookback_months = int(configuration.SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 "SITE_FORECAST_TRAINING_JOB_SCOPE_MONTHS must be a valid integer."
@@ -1795,16 +1732,7 @@ class ForecastModelTrainer(BaseMlUtils):
         """
         raw_data = ForecastModelTrainer.fetch_site_forecast_training_data()
         featured_data = ForecastModelTrainer._build_site_forecast_features(raw_data)
-
-        excluded = {"day", "site_id", "site_name", "pm25_mean", "pm25_min", "pm25_max"}
-        features = [
-            col
-            for col in featured_data.columns
-            if col not in excluded and pd.api.types.is_numeric_dtype(featured_data[col])
-        ]
-
-        if not features:
-            raise ValueError("No numeric features available for training.")
+        features = ForecastModelTrainer._select_numeric_training_features(featured_data)
 
         project_name = configuration.GOOGLE_CLOUD_PROJECT_ID
         bucket_name = configuration.FORECAST_MODELS_BUCKET
@@ -1868,9 +1796,13 @@ class ForecastModelTrainer(BaseMlUtils):
 
         artifacts: Dict[str, Dict[str, Any]] = {}
         for label, blob_name in blobs.items():
-            artifact = storage.load_file_object(bucket=bucket_name, source_file=blob_name)
+            artifact = storage.load_file_object(
+                bucket=bucket_name, source_file=blob_name
+            )
             if not isinstance(artifact, dict) or "model" not in artifact:
-                raise ValueError(f"Invalid artifact loaded for site forecast model '{label}'.")
+                raise ValueError(
+                    f"Invalid artifact loaded for site forecast model '{label}'."
+                )
             artifacts[label] = artifact
 
         return artifacts
@@ -1937,7 +1869,9 @@ class ForecastModelTrainer(BaseMlUtils):
         required = {"day", "site_id", "site_name", "pm25_mean"}
         missing = required - set(raw_data.columns)
         if missing:
-            raise ValueError(f"Missing required columns for site forecasts: {sorted(missing)}")
+            raise ValueError(
+                f"Missing required columns for site forecasts: {sorted(missing)}"
+            )
 
         history = raw_data.copy()
         history["day"] = pd.to_datetime(history["day"], errors="coerce").dt.normalize()
@@ -2002,11 +1936,15 @@ class ForecastModelTrainer(BaseMlUtils):
             ).copy()
 
             if candidates.empty:
-                raise ValueError("Feature engineering produced no site forecast candidates.")
+                raise ValueError(
+                    "Feature engineering produced no site forecast candidates."
+                )
 
             missing_codes = candidates["site_id"].map(site_mapping).isna()
             if missing_codes.any():
-                unknown_sites = sorted(candidates.loc[missing_codes, "site_id"].unique())
+                unknown_sites = sorted(
+                    candidates.loc[missing_codes, "site_id"].unique()
+                )
                 logger.warning(
                     "Assigning fallback site_id_code values for unseen sites during prediction: %s",
                     unknown_sites,
@@ -2015,7 +1953,9 @@ class ForecastModelTrainer(BaseMlUtils):
                     site_mapping[str(site_id)] = next_unknown_site_code
                     next_unknown_site_code += 1
 
-            candidates["site_id_code"] = candidates["site_id"].map(site_mapping).astype(int)
+            candidates["site_id_code"] = (
+                candidates["site_id"].map(site_mapping).astype(int)
+            )
 
             for label, artifact in artifacts.items():
                 feature_columns = artifact.get("features", [])
@@ -2033,7 +1973,9 @@ class ForecastModelTrainer(BaseMlUtils):
                 np.minimum(candidates["pm2_5_low"], candidates["pm2_5_high"]),
                 np.maximum(candidates["pm2_5_low"], candidates["pm2_5_high"]),
             )
-            candidates["forecast_confidence"] = BaseMlUtils.calculate_forecast_confidence(
+            candidates[
+                "forecast_confidence"
+            ] = BaseMlUtils.calculate_forecast_confidence(
                 candidates["pm2_5_mean"],
                 candidates["pm2_5_low"],
                 candidates["pm2_5_high"],
@@ -2073,9 +2015,9 @@ class ForecastModelTrainer(BaseMlUtils):
             recursive_history = pd.concat(
                 [
                     recursive_history,
-                    forecast_step[["site_id", "site_name", "date", "pm2_5_mean"]].rename(
-                        columns={"date": "day", "pm2_5_mean": "pm25_mean"}
-                    ),
+                    forecast_step[
+                        ["site_id", "site_name", "date", "pm2_5_mean"]
+                    ].rename(columns={"date": "day", "pm2_5_mean": "pm25_mean"}),
                 ],
                 ignore_index=True,
                 sort=False,
@@ -2251,7 +2193,9 @@ class ForecastModelTrainer(BaseMlUtils):
 
         try:
             enriched["date"] = pd.to_datetime(enriched["date"], errors="coerce").dt.date
-            met_daily["date"] = pd.to_datetime(met_daily["date"], errors="coerce").dt.date
+            met_daily["date"] = pd.to_datetime(
+                met_daily["date"], errors="coerce"
+            ).dt.date
             enriched = enriched.merge(
                 met_daily,
                 on=["date", "met_no_query_latitude", "met_no_query_longitude"],
@@ -2337,8 +2281,8 @@ class ForecastModelTrainer(BaseMlUtils):
         data: pd.DataFrame,
     ) -> pd.DataFrame:
         """Normalize site forecast rows to one valid row per site/date key."""
-        standardized = ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(
-            data
+        standardized = (
+            ForecastModelTrainer._prepare_site_daily_forecasts_for_persistence(data)
         )
         if standardized.empty:
             return standardized
@@ -2405,8 +2349,8 @@ class ForecastModelTrainer(BaseMlUtils):
         if max_rows_per_site < 1:
             raise ValueError("max_rows_per_site must be greater than 0.")
 
-        retained = ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
-            data
+        retained = (
+            ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(data)
         )
         retained = retained.sort_values(
             ["site_id", "date", "created_at"],
@@ -2514,7 +2458,7 @@ class ForecastModelTrainer(BaseMlUtils):
                             "date": str(row["date"]),
                         },
                         {
-                        "$set": {
+                            "$set": {
                                 "site_name": row.get("site_name"),
                                 "site_latitude": row.get("site_latitude"),
                                 "site_longitude": row.get("site_longitude"),
@@ -2528,16 +2472,10 @@ class ForecastModelTrainer(BaseMlUtils):
                                     "air_pressure_at_sea_level"
                                 ),
                                 "air_temperature": row.get("air_temperature"),
-                                "cloud_area_fraction": row.get(
-                                    "cloud_area_fraction"
-                                ),
-                                "precipitation_amount": row.get(
-                                    "precipitation_amount"
-                                ),
+                                "cloud_area_fraction": row.get("cloud_area_fraction"),
+                                "precipitation_amount": row.get("precipitation_amount"),
                                 "relative_humidity": row.get("relative_humidity"),
-                                "wind_from_direction": row.get(
-                                    "wind_from_direction"
-                                ),
+                                "wind_from_direction": row.get("wind_from_direction"),
                                 "wind_speed": row.get("wind_speed"),
                                 "created_at": pd.Timestamp(
                                     row["created_at"]
@@ -2548,8 +2486,15 @@ class ForecastModelTrainer(BaseMlUtils):
                     )
                 )
 
-            if bulk_operations:
-                collection.bulk_write(bulk_operations, ordered=False)
+            batch_size = int(
+                getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 500) or 500
+            )
+            bulk_batches = 0
+            for i in range(0, len(bulk_operations), batch_size):
+                collection.bulk_write(
+                    bulk_operations[i : i + batch_size], ordered=False
+                )
+                bulk_batches += 1
 
             deleted_rows = 0
             if site_ids:
@@ -2565,7 +2510,9 @@ class ForecastModelTrainer(BaseMlUtils):
                     )
                     keep_ids = set(retained_docs["_id"].tolist())
                     stale_ids = [
-                        doc["_id"] for doc in existing_docs if doc["_id"] not in keep_ids
+                        doc["_id"]
+                        for doc in existing_docs
+                        if doc["_id"] not in keep_ids
                     ]
                     if stale_ids:
                         deleted_rows = collection.delete_many(
@@ -2576,6 +2523,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "rows": int(len(prepared)),
             "collection": collection_name,
             "deleted_rows": int(deleted_rows),
+            "bulk_batches": bulk_batches,
+            "bulk_batch_size": batch_size,
         }
 
     @staticmethod
@@ -2603,7 +2552,9 @@ class ForecastModelTrainer(BaseMlUtils):
             try:
                 outcomes[target] = writer(data.copy())
             except Exception as exc:
-                logger.exception("Failed to save site daily forecasts to %s: %s", target, exc)
+                logger.exception(
+                    "Failed to save site daily forecasts to %s: %s", target, exc
+                )
                 errors[target] = str(exc)
 
         if not outcomes:
@@ -2611,7 +2562,11 @@ class ForecastModelTrainer(BaseMlUtils):
                 f"Failed to save site daily forecasts to any target. Errors: {errors}"
             )
 
-        return {"saved_to": list(outcomes.keys()), "details": outcomes, "errors": errors}
+        return {
+            "saved_to": list(outcomes.keys()),
+            "details": outcomes,
+            "errors": errors,
+        }
 
     @staticmethod
     def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:

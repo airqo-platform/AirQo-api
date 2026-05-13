@@ -75,6 +75,7 @@ class TestTrainAndDeploy:
             target="bam_pm",
             bucket_name="test-bucket",
             blob_name="calibration/uganda.pkl",
+            model_type="rf",
             rf_params={"n_estimators": 10, "random_state": 0},
         )
         assert "r2" in result
@@ -103,6 +104,7 @@ class TestTrainAndDeploy:
             target="bam_pm",
             bucket_name="my-bucket",
             blob_name="calibration/kenya.pkl",
+            model_type="rf",
             rf_params={"n_estimators": 10, "random_state": 0},
         )
         call_kwargs = mock_deploy.call_args.kwargs
@@ -130,6 +132,7 @@ class TestTrainAndDeploy:
             target="bam_pm",
             bucket_name="b",
             blob_name="b.pkl",
+            model_type="rf",
             rf_params={"n_estimators": 10, "random_state": 0},
         )
         mock_instance.log_run.assert_called_once()
@@ -181,6 +184,8 @@ class TestTrainAndDeploy:
             target="bam_pm",
             bucket_name="b",
             blob_name="b.pkl",
+            model_type="rf",
+            rf_params={"n_estimators": 10, "random_state": 42},
         )
         # Should complete without error using defaults
         assert "r2" in result
