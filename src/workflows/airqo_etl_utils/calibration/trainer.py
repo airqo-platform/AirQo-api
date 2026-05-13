@@ -44,6 +44,8 @@ class CalibrationModelTrainer:
         "n_jobs": -1,
     }
 
+    _MIN_TRAIN_ROWS: int = 50
+
     DEFAULT_LGB_PARAMS: Dict[str, Any] = {
         "n_estimators": 1000,
         "learning_rate": 0.001,
@@ -140,7 +142,7 @@ class CalibrationModelTrainer:
         """Train a calibration model and deploy to GCS if it outperforms the incumbent.
 
         Steps:
-        1. Chronological train/val split via ``ForecastModelTrainer._prep_time_split``.
+        1. Random train/val split via ``sklearn.model_selection.train_test_split``.
         2. Fit one or both of RF / LightGBM on the same split.
            - ``"rf"``: only RandomForestRegressor.
            - ``"lgbm"``: only LightGBM.
@@ -168,9 +170,14 @@ class CalibrationModelTrainer:
             ``deployment_reason`` (str), and ``model_type`` (str) keys.
 
         Raises:
-            ValueError: Propagated from ``_prep_time_split`` when data is
-                insufficient or columns are missing.
+            ValueError: When ``df`` has fewer than ``_MIN_TRAIN_ROWS`` rows or
+                required columns are missing.
         """
+        if len(df) < CalibrationModelTrainer._MIN_TRAIN_ROWS:
+            raise ValueError(
+                f"Insufficient training data: {len(df)} rows "
+                f"(need >= {CalibrationModelTrainer._MIN_TRAIN_ROWS})."
+            )
 
         X_train, X_val, y_train, y_val = train_test_split(
             df[features],

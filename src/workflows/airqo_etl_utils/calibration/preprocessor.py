@@ -7,7 +7,7 @@ emitted by ``DataUtils.extract_devices_data``.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -80,9 +80,6 @@ class CalibrationPreprocessor:
         )
         df = df.set_index(["timestamp"]).sort_index()
         df = df.resample("h").mean(numeric_only=True)
-        for col in ["s1_pm2_5", "s2_pm2_5"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
 
         df = df[
             (
@@ -93,7 +90,6 @@ class CalibrationPreprocessor:
 
         df["avg_pm2_5"] = df[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         df["error_pm2_5"] = (df["s1_pm2_5"] - df["s2_pm2_5"]).abs()
-        # # Eliminate features involving PM10 for now as they don't seem to be adding value and are often missing or zero, which causes issues with the engineered features and model training.  Can revisit if we get more reliable PM10 data in the future.
         if {"s1_pm10", "s2_pm10"}.issubset(df.columns):
             df["avg_pm10"] = df[["s1_pm10", "s2_pm10"]].mean(axis=1)
             df["error_pm10"] = (df["s1_pm10"] - df["s2_pm10"]).abs()
@@ -102,6 +98,16 @@ class CalibrationPreprocessor:
             df["pm2_5_pm10_mod"] = df["pm2_5_pm10"] / denom
 
         return df
+
+    @staticmethod
+    def clean_data(df: pd.DataFrame, tz_offset_hours: int = 0) -> pd.DataFrame:
+        """Clean and derive PM features from a low-cost sensor DataFrame.
+
+        Wraps :meth:`process_lcs` with an early-return guard for empty input.
+        """
+        if df.empty:
+            return pd.DataFrame()
+        return CalibrationPreprocessor.process_lcs(df, tz_offset_hours=tz_offset_hours)
 
     @staticmethod
     def process_bam(df: pd.DataFrame) -> pd.DataFrame:
@@ -119,7 +125,6 @@ class CalibrationPreprocessor:
         Raises:
             ValueError: If no recognised PM2.5 column is found.
         """
-        bam_pm_cols = ["realtime_conc", "short_time_conc"]
         if df is None or df.empty:
             return pd.DataFrame()
 
@@ -140,8 +145,9 @@ class CalibrationPreprocessor:
         df[pm_col] = pd.to_numeric(df[pm_col], errors="coerce")
         df = df.dropna(subset=[pm_col])
 
-        df = df[~df["temperature"].isna() | ~df["humidity"].isna()]
-        # df = df[~(df[bam_pm_cols] >= 500.4).all(axis=1)] # Remove rows where either 'realtime_conc' and 'short_time_conc' exceeds 500.4
+        env_cols = [c for c in ("temperature", "humidity") if c in df.columns]
+        if env_cols:
+            df = df.dropna(subset=env_cols, how="all")
         df = df[(df[pm_col] > 0) & (df[pm_col] <= 500.4)]
         df.rename(columns={pm_col: CalibrationPreprocessor.BAM_PM_TARGET}, inplace=True)
         return df
@@ -157,27 +163,20 @@ class CalibrationPreprocessor:
     def _join_bam_and_finalise(
         lcs_indexed: pd.DataFrame,
         reference_data: pd.DataFrame,
-        bam_device_name: Optional[str] = None,
     ) -> pd.DataFrame:
         """Join a ``DatetimeIndex``-indexed LCS frame with processed BAM data.
 
-        Shared by both the single-device fallback and the multi-device path in
-        :meth:`build_wide_dataset`.  Adds the ``hour`` feature, drops all-NaN
-        columns, and returns a reset-index DataFrame.
+        Adds the ``hour`` feature, drops all-NaN columns, and returns a
+        reset-index DataFrame.
         """
         bam_processed = CalibrationPreprocessor.process_bam(reference_data)
         if bam_processed.empty:
             return pd.DataFrame()
 
-        # if bam_device_name:
-        #     bam_processed = bam_processed.rename(
-        #         columns={
-        #             c: f"{bam_device_name}_{c}"
-        #             for c in bam_processed.columns
-        #             if c != CalibrationPreprocessor.BAM_PM_TARGET
-        #         }
-        #     )
-        merged = lcs_indexed.join(bam_processed, how="inner").dropna(
+        overlap = lcs_indexed.columns.intersection(bam_processed.columns)
+        lcs_clean = lcs_indexed.drop(columns=overlap)
+
+        merged = lcs_clean.join(bam_processed, how="inner").dropna(
             subset=[CalibrationPreprocessor.BAM_PM_TARGET]
         )
 
@@ -193,44 +192,29 @@ class CalibrationPreprocessor:
         low_cost_data: pd.DataFrame,
         reference_data: pd.DataFrame,
         *,
-        device_col: str = "device_id",
-        bam_device_name: Optional[str] = None,
         tz_offset_hours: int = 0,
     ) -> pd.DataFrame:
-        """Process multiple LCS devices into a wide (horizontal) DataFrame.
-
-        Each device's features are prefixed with its device ID so that one row
-        per timestamp contains all devices' readings side by side, followed by
-        ensemble averages across all devices and the BAM reference columns.
+        """Clean LCS data, derive PM features, and inner-join with BAM reference.
 
         Args:
-            low_cost_data: Raw multi-device LCS DataFrame with a device
-                identifier column (``device_col``).  Must contain at least
-                ``timestamp``, ``s1_pm2_5``, ``s2_pm2_5``, and ``device_col``.
+            low_cost_data: Raw LCS DataFrame.  Must contain at least
+                ``device_id``, ``timestamp``, ``s1_pm2_5``, ``s2_pm2_5``.
             reference_data: Raw BAM reference DataFrame.
-            device_col: Column in *low_cost_data* that identifies each device
-                (default ``"device_number"``).
-            bam_device_name: Optional label used to prefix extra BAM columns
-                (e.g. ``"bam_loggerA1"``).  ``bam_pm`` is never prefixed.
             tz_offset_hours: Hours to shift all LCS timestamps forward before
                 merging with the BAM reference monitor (default 0).  Use this
                 when the LCS and BAM clocks are in different timezones.
 
         Returns:
-            Wide DataFrame with one row per timestamp, device-prefixed LCS
-            feature columns, ensemble aggregate columns, ``bam_pm``, and an
-            ``hour`` integer column.  Returns an empty DataFrame when either
-            input is empty, when no common timestamps survive after cleaning,
-            or when the device column is absent (falls back to
-            :meth:`process_lcs` with a warning).
+            DataFrame with one row per overlapping hour containing LCS PM
+            features, ``bam_pm`` target, and an ``hour`` integer column.
+            Returns an empty DataFrame when either input is empty or no
+            common timestamps survive after cleaning.
         """
         if low_cost_data.empty or reference_data.empty:
             return pd.DataFrame()
 
-        if device_col not in low_cost_data.columns:
-            logger.warning(
-                "Column '%s' not found in LCS data; returning empty.", device_col
-            )
+        if "device_id" not in low_cost_data.columns:
+            logger.warning("'device_id' column not found in LCS data; returning empty.")
             return pd.DataFrame()
 
         cleaned = CalibrationPreprocessor.process_lcs(
@@ -240,6 +224,4 @@ class CalibrationPreprocessor:
         if cleaned.empty:
             return pd.DataFrame()
 
-        return CalibrationPreprocessor._join_bam_and_finalise(
-            cleaned, reference_data, bam_device_name
-        )
+        return CalibrationPreprocessor._join_bam_and_finalise(cleaned, reference_data)

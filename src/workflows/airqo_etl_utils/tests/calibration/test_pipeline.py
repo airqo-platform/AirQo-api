@@ -53,7 +53,7 @@ class TestCalibrationPipelineRun:
     def _make_pipeline(self) -> CalibrationPipeline:
         return CalibrationPipeline(
             start_date="2025-01-01T00:00:00Z",
-            end_date="2025-03-01T00:00:00Z",
+            end_date="2025-01-31T00:00:00Z",
             countries=COUNTRY_CONFIG,
             bucket_name=BUCKET,
         )
@@ -62,25 +62,28 @@ class TestCalibrationPipelineRun:
         "airqo_etl_utils.calibration.pipeline.CalibrationModelTrainer.train_and_deploy"
     )
     @patch(
-        "airqo_etl_utils.calibration.pipeline.CalibrationPreprocessor.build_wide_dataset"
+        "airqo_etl_utils.calibration.pipeline.CalibrationPipeline._prepare_training_data"
     )
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
+    @patch(
+        "airqo_etl_utils.calibration.pipeline.CalibrationPipeline._fetch_data_from_aggregator"
+    )
     def test_run_calls_trainer_for_each_country(
         self,
-        mock_extract,
-        mock_wide,
+        mock_fetch,
+        mock_prepare,
         mock_train,
         merged_training_df,
     ):
-        mock_extract.return_value = pd.DataFrame(
-            {
-                "device_id": ["AQ_DEVICE1"] * 5,
-                "timestamp": pd.date_range("2025-01-01", periods=5, freq="h", tz="UTC"),
-                "s1_pm2_5": [10.0] * 5,
-                "s2_pm2_5": [11.0] * 5,
-            }
+        mock_fetch.return_value = (
+            pd.DataFrame({"device_id": ["AQ_DEVICE1"], "x": [1]}),
+            pd.DataFrame({"device_id": ["BAM_DEVICE1"], "x": [1]}),
         )
-        mock_wide.return_value = merged_training_df
+        features = [
+            c
+            for c in ("hour", "avg_pm2_5", "avg_pm10")
+            if c in merged_training_df.columns
+        ]
+        mock_prepare.return_value = (merged_training_df, features)
         mock_train.return_value = {
             "r2": 0.95,
             "mae": 1.5,
@@ -96,13 +99,15 @@ class TestCalibrationPipelineRun:
         assert "r2" in results["uganda"]
         mock_train.assert_called_once()
 
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
-    def test_run_captures_error_per_country_without_crashing(self, mock_extract):
-        mock_extract.side_effect = RuntimeError("API down")
+    @patch(
+        "airqo_etl_utils.calibration.pipeline.CalibrationPipeline._fetch_data_from_aggregator"
+    )
+    def test_run_captures_error_per_country_without_crashing(self, mock_fetch):
+        mock_fetch.side_effect = RuntimeError("API down")
 
         pipeline = CalibrationPipeline(
             start_date="2025-01-01T00:00:00Z",
-            end_date="2025-03-01T00:00:00Z",
+            end_date="2025-01-31T00:00:00Z",
             countries={
                 "uganda": COUNTRY_CONFIG["uganda"],
                 "kenya": {
@@ -119,10 +124,14 @@ class TestCalibrationPipelineRun:
         assert "error" in results["uganda"]
         assert "error" in results["kenya"]
 
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
-    def test_run_returns_error_for_empty_lcs_data(self, mock_extract):
-        # lcs returns empty, bam returns something
-        mock_extract.side_effect = [pd.DataFrame(), pd.DataFrame({"pm2_5": [10.0]})]
+    @patch(
+        "airqo_etl_utils.calibration.pipeline.CalibrationPipeline._fetch_data_from_aggregator"
+    )
+    def test_run_returns_error_for_empty_lcs_data(self, mock_fetch):
+        mock_fetch.return_value = (
+            pd.DataFrame(),
+            pd.DataFrame({"hourly_conc": [10.0]}),
+        )
 
         pipeline = self._make_pipeline()
         results = pipeline.run()
@@ -130,17 +139,15 @@ class TestCalibrationPipelineRun:
 
 
 class TestPrepareTrainingData:
-    @patch("airqo_etl_utils.calibration.pipeline.DataUtils.extract_data_from_bigquery")
-    def test_falls_back_to_all_lcs_when_primary_not_found(
-        self, mock_extract, lcs_raw_df, bam_raw_df
-    ):
+    def test_falls_back_to_all_lcs_when_primary_not_found(self, lcs_raw_df, bam_raw_df):
         pipeline = CalibrationPipeline(
             start_date="2025-01-01T00:00:00Z",
-            end_date="2025-03-01T00:00:00Z",
+            end_date="2025-01-31T00:00:00Z",  # matches 30-day fixtures
             countries=COUNTRY_CONFIG,
             bucket_name=BUCKET,
         )
-        # primary_lcs = "AQ_DEVICE1" but data has "OTHER_DEVICE"
+        # primary_lcs = "AQ_DEVICE1" but the data only contains "OTHER_DEVICE".
+        # The pipeline should log a warning and use all available devices instead.
         lcs_other = lcs_raw_df.copy()
         lcs_other["device_id"] = "OTHER_DEVICE"
 
@@ -149,10 +156,9 @@ class TestPrepareTrainingData:
             bam_raw_df,
             COUNTRY_CONFIG["uganda"],
         )
-        # Should not raise; falls back to all LCS rows
-        assert (
-            not df.empty or df.empty
-        )  # either outcome is valid here; no exception raised
+
+        assert not df.empty, "Fallback should produce usable training data"
+        assert len(features) > 0, "Fallback should produce at least one feature"
 
     def test_blob_name_uses_lowercase_country(self):
         pipeline = CalibrationPipeline(
