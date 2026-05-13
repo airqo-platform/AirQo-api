@@ -244,6 +244,7 @@ def get_synced_devices(
             limit=limit,
             search=search,
             group_device_ids=group_device_ids,
+            query_params={"group": group, "search": search},
         )
     except HTTPException:
         raise

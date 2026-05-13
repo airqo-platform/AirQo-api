@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 import logging
+from urllib.parse import urlencode
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -607,6 +608,7 @@ def get_synced_device_details(
     limit: int = 30,
     search: Optional[str] = None,
     group_device_ids: Optional[List[str]] = None,
+    query_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Read devices from the local sync_device table using the platform-like response shape."""
     safe_skip = max(skip, 0)
@@ -660,11 +662,16 @@ def get_synced_device_details(
 
     total_pages = max(1, (total + safe_limit - 1) // safe_limit)
     current_page = (safe_skip // safe_limit) + 1
-    next_page = (
-        f"skip={safe_skip + safe_limit}&limit={safe_limit}"
-        if (safe_skip + safe_limit) < total
-        else None
-    )
+    next_page = None
+    if (safe_skip + safe_limit) < total:
+        next_params: Dict[str, Any] = {}
+        for key, value in (query_params or {}).items():
+            if value is None or value == "":
+                continue
+            next_params[key] = value
+        next_params["skip"] = safe_skip + safe_limit
+        next_params["limit"] = safe_limit
+        next_page = urlencode(next_params, doseq=True)
 
     return {
         "success": True,
