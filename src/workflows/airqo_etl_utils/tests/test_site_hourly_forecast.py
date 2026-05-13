@@ -23,7 +23,9 @@ class DummyHourlyForecastModel:
         self.offset = offset
 
     def predict(self, frame: pd.DataFrame):
-        base = frame["lag_pm25_hourly_1h"].fillna(frame["roll_pm25_6h_mean"]).fillna(0.0)
+        base = (
+            frame["lag_pm25_hourly_1h"].fillna(frame["roll_pm25_6h_mean"]).fillna(0.0)
+        )
         return (base + self.offset).to_numpy()
 
 
@@ -118,7 +120,9 @@ def test_generate_site_hourly_forecasts_includes_sparse_sites(monkeypatch):
 
 
 def test_generate_site_hourly_forecasts_rejects_none_input():
-    with pytest.raises(ValueError, match="fetch_site_prediction_data task returned None"):
+    with pytest.raises(
+        ValueError, match="fetch_site_prediction_data task returned None"
+    ):
         ForecastModelTrainer.generate_site_hourly_forecasts(None)
 
 
@@ -256,6 +260,8 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
         "rows": 2,
         "collection": "site_hourly_forecasts",
         "deleted_rows": 0,
+        "bulk_batches": 1,
+        "bulk_batch_size": 500,
     }
 
 
@@ -405,6 +411,8 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
         "rows": 1,
         "collection": "site_hourly_forecasts",
         "deleted_rows": 1,
+        "bulk_batches": 1,
+        "bulk_batch_size": 500,
     }
 
 
@@ -468,6 +476,8 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_expired_rows_for_absent_site
         "rows": 1,
         "collection": "site_hourly_forecasts",
         "deleted_rows": 4,
+        "bulk_batches": 1,
+        "bulk_batch_size": 500,
     }
 
 
@@ -489,9 +499,7 @@ def test_met_no_hourly_payload_parser_includes_timestamp():
                                     "wind_speed": 4.6,
                                 }
                             },
-                            "next_1_hours": {
-                                "details": {"precipitation_amount": 0.0}
-                            },
+                            "next_1_hours": {"details": {"precipitation_amount": 0.0}},
                         },
                     }
                 ]
@@ -517,3 +525,102 @@ def test_site_hourly_forecast_query_is_registered():
         "min_hours",
     }.issubset(query.placeholders)
     assert "HAVING COUNT(DISTINCT timestamp) >= {min_hours}" in query.sql
+
+
+def test_generate_site_hourly_forecasts_rejects_empty_input():
+    with pytest.raises(ValueError, match="No raw site hourly forecast data provided"):
+        ForecastModelTrainer.generate_site_hourly_forecasts(pd.DataFrame())
+
+
+def test_resolve_site_hourly_forecasts_for_met_updates_passes_through_when_met_present():
+    forecasts = pd.DataFrame(
+        [
+            {
+                "site_id": "site-1",
+                "timestamp": pd.Timestamp("2026-03-04T08:00:00Z"),
+                "pm2_5_mean": 12.1,
+                "air_temperature": 27.7,
+            }
+        ]
+    )
+    result = ForecastModelTrainer.resolve_site_hourly_forecasts_for_met_updates(
+        forecasts
+    )
+    assert result is not None
+    assert len(result) == 1
+
+
+def test_resolve_site_hourly_forecasts_for_met_updates_returns_none_when_no_met_values():
+    forecasts = pd.DataFrame(
+        [
+            {
+                "site_id": "site-1",
+                "timestamp": pd.Timestamp("2026-03-04T08:00:00Z"),
+                "pm2_5_mean": 12.1,
+                "air_temperature": float("nan"),
+            }
+        ]
+    )
+    result = ForecastModelTrainer.resolve_site_hourly_forecasts_for_met_updates(
+        forecasts
+    )
+    assert result is None
+
+
+def test_resolve_site_hourly_forecasts_for_met_updates_returns_none_for_none_input():
+    assert (
+        ForecastModelTrainer.resolve_site_hourly_forecasts_for_met_updates(None) is None
+    )
+
+
+def test_enrich_site_hourly_forecasts_soft_fail_on_api_error(monkeypatch):
+    forecasts = pd.DataFrame(
+        [
+            {
+                "timestamp": pd.Timestamp("2026-03-04T08:00:00Z"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.3123456,
+                "site_longitude": 32.5123456,
+                "pm2_5_mean": 12.1,
+                "pm2_5_q10": 10.2,
+                "pm2_5_q90": 14.8,
+                "forecast_confidence": 80.0,
+                "created_at": pd.Timestamp("2026-03-04T08:00:00Z"),
+            }
+        ]
+    )
+
+    def _raise_met_error(_: pd.DataFrame) -> pd.DataFrame:
+        raise RuntimeError("MET API down")
+
+    monkeypatch.setattr(
+        WeatherDataUtils,
+        "fetch_met_no_hourly_data_for_sites",
+        staticmethod(_raise_met_error),
+    )
+
+    enriched = ForecastModelTrainer._enrich_site_hourly_forecasts_with_met_no_weather(
+        forecasts,
+        fail_on_error=False,
+    )
+
+    assert not enriched.empty
+    assert set(SITE_DAILY_FORECAST_MET_COLUMNS).issubset(enriched.columns)
+    assert enriched["air_temperature"].isna().all()
+
+
+def test_fetch_site_hourly_prediction_data_rejects_empty_dataframe(monkeypatch):
+    class DummyBigQueryApi:
+        def fetch_hourly_site_data_for_forecast_jobs(self, **_):
+            return pd.DataFrame()
+
+    import airqo_etl_utils.bigquery_api as bigquery_api_module
+
+    monkeypatch.setattr(bigquery_api_module, "BigQueryApi", DummyBigQueryApi)
+
+    with pytest.raises(ValueError, match="returned no rows"):
+        ForecastModelTrainer.fetch_site_hourly_prediction_data(
+            execution_date=datetime(2026, 5, 9, 3, tzinfo=timezone.utc),
+            lookback_days=1,
+        )

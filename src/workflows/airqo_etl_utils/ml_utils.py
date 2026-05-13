@@ -2176,13 +2176,10 @@ class ForecastModelTrainer(BaseMlUtils):
             ["site_id", "site_name", "site_latitude", "site_longitude", "timestamp"]
         ].copy()
         metadata = metadata.sort_values(["site_id", "timestamp"])
-        return (
-            metadata.groupby("site_id", as_index=False)
-            .agg(
-                site_name=("site_name", "last"),
-                site_latitude=("site_latitude", "last"),
-                site_longitude=("site_longitude", "last"),
-            )
+        return metadata.groupby("site_id", as_index=False).agg(
+            site_name=("site_name", "last"),
+            site_latitude=("site_latitude", "last"),
+            site_longitude=("site_longitude", "last"),
         )
 
     @staticmethod
@@ -2344,7 +2341,9 @@ class ForecastModelTrainer(BaseMlUtils):
                 "The upstream fetch_site_prediction_data task returned None."
             )
         if raw_data.empty:
-            raise ValueError("No raw site hourly forecast data provided for prediction.")
+            raise ValueError(
+                "No raw site hourly forecast data provided for prediction."
+            )
 
         try:
             horizon_hours = int(
@@ -2356,7 +2355,9 @@ class ForecastModelTrainer(BaseMlUtils):
             ) from exc
 
         if horizon_hours < 1:
-            raise ValueError("SITE_HOURLY_FORECAST_HORIZON_HOURS must be greater than 0.")
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_HORIZON_HOURS must be greater than 0."
+            )
 
         required = {"timestamp", "site_id", "site_name", "pm25_mean"}
         missing = required - set(raw_data.columns)
@@ -2387,7 +2388,9 @@ class ForecastModelTrainer(BaseMlUtils):
         eligible_sites = site_counts[site_counts >= 2].index
         history = history[history["site_id"].isin(eligible_sites)]
         if history.empty:
-            raise ValueError("No site has the minimum 2 hourly records for forecasting.")
+            raise ValueError(
+                "No site has the minimum 2 hourly records for forecasting."
+            )
 
         artifacts = ForecastModelTrainer._load_site_hourly_forecast_artifacts()
         feature_columns = ForecastModelTrainer._site_hourly_forecast_features()
@@ -2406,7 +2409,7 @@ class ForecastModelTrainer(BaseMlUtils):
             recursive_history
         )
         predictions: List[pd.DataFrame] = []
-
+        # Review operation for optimization. Depending on the number of sites and the forecast horizon, this loop could be a bottleneck. Potential optimizations include vectorizing the candidate generation and prediction steps to handle all sites in bulk rather than iterating through each hour sequentially.
         for _ in range(horizon_hours):
             candidates = (
                 ForecastModelTrainer._build_next_site_hourly_forecast_candidates(
@@ -2415,7 +2418,6 @@ class ForecastModelTrainer(BaseMlUtils):
             )
             if candidates.empty:
                 raise ValueError("Feature engineering produced no hourly candidates.")
-
             for label, artifact in artifacts.items():
                 model_features = artifact.get("features") or feature_columns
                 scored_frame = candidates.reindex(columns=model_features)
@@ -2428,7 +2430,9 @@ class ForecastModelTrainer(BaseMlUtils):
                 np.minimum(candidates["pm2_5_q10"], candidates["pm2_5_q90"]),
                 np.maximum(candidates["pm2_5_q10"], candidates["pm2_5_q90"]),
             )
-            candidates["forecast_confidence"] = BaseMlUtils.calculate_forecast_confidence(
+            candidates[
+                "forecast_confidence"
+            ] = BaseMlUtils.calculate_forecast_confidence(
                 candidates["pm2_5_mean"],
                 candidates["pm2_5_q10"],
                 candidates["pm2_5_q90"],
@@ -2833,8 +2837,8 @@ class ForecastModelTrainer(BaseMlUtils):
         data: pd.DataFrame,
     ) -> pd.DataFrame:
         """Normalize hourly forecast rows to one valid row per site/timestamp key."""
-        standardized = ForecastModelTrainer._prepare_site_hourly_forecasts_for_persistence(
-            data
+        standardized = (
+            ForecastModelTrainer._prepare_site_hourly_forecasts_for_persistence(data)
         )
         if standardized.empty:
             return standardized
@@ -3085,8 +3089,10 @@ class ForecastModelTrainer(BaseMlUtils):
         if not configuration.MONGO_URI:
             raise ValueError("Missing required config: MONGO_URI.")
 
-        prepared = ForecastModelTrainer._standardize_site_hourly_forecasts_for_persistence(
-            data
+        prepared = (
+            ForecastModelTrainer._standardize_site_hourly_forecasts_for_persistence(
+                data
+            )
         )
         if prepared.empty:
             raise ValueError("No site hourly forecasts available to persist.")
@@ -3115,11 +3121,7 @@ class ForecastModelTrainer(BaseMlUtils):
                 "created_at": pd.Timestamp(row["created_at"]).to_pydatetime(),
             }
             records.append(
-                {
-                    key: value
-                    for key, value in document.items()
-                    if not pd.isna(value)
-                }
+                {key: value for key, value in document.items() if not pd.isna(value)}
             )
 
         insert_only_fields = {"site_id", "timestamp", "site_name", "created_at"}
@@ -3153,7 +3155,11 @@ class ForecastModelTrainer(BaseMlUtils):
         retention_cutoff = (
             pd.Timestamp.utcnow() - pd.Timedelta(hours=retention_hours)
         ).to_pydatetime()
+        batch_size = int(
+            getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 500) or 500
+        )
         deleted_rows = 0
+        bulk_batches = 0
 
         with pm.MongoClient(
             configuration.MONGO_URI, serverSelectionTimeoutMS=5000
@@ -3161,7 +3167,11 @@ class ForecastModelTrainer(BaseMlUtils):
             mongo_db = client[configuration.MONGO_DATABASE_NAME]
             collection = mongo_db[collection_name]
             if bulk_operations:
-                collection.bulk_write(bulk_operations, ordered=False)
+                for i in range(0, len(bulk_operations), batch_size):
+                    collection.bulk_write(
+                        bulk_operations[i : i + batch_size], ordered=False
+                    )
+                    bulk_batches += 1
                 if site_ids:
                     existing_docs = list(
                         collection.find(
@@ -3201,6 +3211,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "rows": len(records),
             "collection": collection_name,
             "deleted_rows": deleted_rows,
+            "bulk_batches": bulk_batches,
+            "bulk_batch_size": batch_size,
         }
 
     @staticmethod

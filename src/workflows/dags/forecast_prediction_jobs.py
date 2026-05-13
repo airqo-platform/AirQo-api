@@ -2,6 +2,7 @@
 from airflow.decorators import dag, task
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration as Config
@@ -10,6 +11,17 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from airqo_etl_utils.constants import Frequency
 from airqo_etl_utils.date import DateUtils
+
+from dag_docs import site_hourly_forecasting_doc
+from task_docs import (
+    enrich_site_hourly_forecasts_with_met_doc,
+    fetch_site_hourly_prediction_data_doc,
+    generate_site_hourly_forecasts_doc,
+    resolve_site_hourly_forecasts_for_met_updates_doc,
+    save_site_hourly_forecasts_to_mongodb_doc,
+    update_site_hourly_forecasts_met_in_mongodb_doc,
+)
+
 
 @dag(
     "AirQo-forecasting-job",
@@ -22,7 +34,7 @@ def make_forecasts():
     This DAG is the legacy device forecast flow. It fetches device-level
     prediction history from BigQuery, engineers the full model feature set
     explicitly in the DAG, then persists forecasts to both BigQuery and MongoDB.
-    
+
     """
     bucket = Config.FORECAST_MODELS_BUCKET
     project_id = Config.GOOGLE_CLOUD_PROJECT_ID
@@ -156,7 +168,10 @@ def make_forecasts():
     daily_forecasts = make_daily_forecasts(daily_location_features)
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)
+
+
 make_forecasts()
+
 
 @dag(
     "AirQo-site-daily-forecasting-job_Q",
@@ -182,7 +197,8 @@ def make_site_daily_forecasts():
     - Saves the PM forecast to MongoDB first.
     - Attempts MET.no enrichment afterwards and only applies the update when
       weather fields are actually returned.
-    """    
+    """
+
     @task()
     def fetch_site_prediction_data(**kwargs):
         """Fetch site-level prediction history for the configured lookback window."""
@@ -204,7 +220,6 @@ def make_site_daily_forecasts():
         )
 
     @task()
-    
     def enrich_site_forecasts_with_met(data):
         """Enrich site-level daily forecasts with MET.no weather data."""
         return ForecastModelTrainer._enrich_site_daily_forecasts_with_met_no_weather(
@@ -246,4 +261,95 @@ def make_site_daily_forecasts():
     site_forecasts_with_met >> site_forecasts_for_met_updates
     update_site_forecasts_met_in_mongodb(site_forecasts_for_met_updates)
 
+
 site_daily_forecast_prediction_dag = make_site_daily_forecasts()
+
+
+@dag(
+    "AirQo-site-HOURLY-forecasting-job_Q",
+    schedule="0 3 * * *",  # Runs daily at 3:00 AM
+    default_args={
+        **AirflowUtils.dag_default_configs(),
+        "retries": 3,
+        "retry_delay": timedelta(minutes=10),
+        "retry_exponential_backoff": True,
+        "max_retry_delay": timedelta(minutes=60),
+    },
+    catchup=False,
+    tags=["airqo", "forecast", "site-level", "prediction-job", "hourly"],
+    description="Hourly site-level PM2.5 forecasting pipeline.",
+    doc_md=site_hourly_forecasting_doc,
+)
+def make_site_hourly_forecasts():
+    @task(doc_md=fetch_site_hourly_prediction_data_doc)
+    def fetch_site_prediction_data(**kwargs: Any) -> Any:
+        """Fetch site-level hourly PM2.5 history from BigQuery."""
+        execution_date = kwargs["dag_run"].execution_date
+        lookback_days = int(Config.SITE_HOURLY_FORECAST_LOOKBACK_DAYS or 14)
+        return ForecastModelTrainer.fetch_site_hourly_prediction_data(
+            execution_date=execution_date,
+            lookback_days=lookback_days,
+            min_hours=2,
+        )
+
+    @task(doc_md=generate_site_hourly_forecasts_doc)
+    def generate_site_forecasts(data: Any) -> Any:
+        """Generate recursive hourly PM2.5 forecasts without MET enrichment."""
+        horizon_hours = int(Config.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+        return ForecastModelTrainer.generate_site_hourly_forecasts(
+            data,
+            horizon_hours=horizon_hours,
+            include_met_no_weather=False,
+        )
+
+    @task(doc_md=save_site_hourly_forecasts_to_mongodb_doc)
+    def save_site_forecasts_to_mongodb(data: Any) -> Dict[str, Any]:
+        """Persist PM-only hourly forecasts; runs before MET enrichment."""
+        return ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(data)
+
+    @task(doc_md=enrich_site_hourly_forecasts_with_met_doc)
+    def enrich_site_forecasts_with_met(data: Any) -> Any:
+        """Attach hourly MET.no weather fields; fails task on API error."""
+        return ForecastModelTrainer._enrich_site_hourly_forecasts_with_met_no_weather(
+            data,
+            fail_on_error=True,
+        )
+
+    @task(
+        trigger_rule=TriggerRule.ALL_DONE,
+        doc_md=resolve_site_hourly_forecasts_for_met_updates_doc,
+    )
+    def resolve_site_forecasts_for_met_updates(**kwargs: Any) -> Optional[Any]:
+        """Return enriched forecasts only when MET fields are populated.
+
+        Uses explicit XCom pull with ALL_DONE trigger so this task runs even
+        when the upstream enrich step fails, preserving the PM-only MongoDB state.
+        """
+        taskinstance = kwargs.get("ti") or kwargs.get("task_instance")
+        enriched_data = taskinstance.xcom_pull(
+            task_ids="enrich_site_forecasts_with_met"
+        )
+        return ForecastModelTrainer.resolve_site_hourly_forecasts_for_met_updates(
+            enriched_data
+        )
+
+    @task(doc_md=update_site_hourly_forecasts_met_in_mongodb_doc)
+    def update_site_forecasts_met_in_mongodb(data: Optional[Any]) -> Dict[str, Any]:
+        """Replace stored forecasts with MET-enriched rows; no-op when data is None."""
+        if data is None:
+            return {"updated": False, "reason": "met_unavailable"}
+
+        details = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(data)
+        return {"updated": True, "details": details}
+
+    site_data = fetch_site_prediction_data()
+    site_forecasts = generate_site_forecasts(site_data)
+    mongodb_save = save_site_forecasts_to_mongodb(site_forecasts)
+    site_forecasts_with_met = enrich_site_forecasts_with_met(site_forecasts)
+    mongodb_save >> site_forecasts_with_met
+    site_forecasts_for_met_updates = resolve_site_forecasts_for_met_updates()
+    site_forecasts_with_met >> site_forecasts_for_met_updates
+    update_site_forecasts_met_in_mongodb(site_forecasts_for_met_updates)
+
+
+site_hourly_forecast_prediction_dag = make_site_hourly_forecasts()
