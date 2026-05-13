@@ -146,19 +146,19 @@ class TestPrepareTrainingData:
             countries=COUNTRY_CONFIG,
             bucket_name=BUCKET,
         )
-        # primary_lcs = "AQ_DEVICE1" but data has "OTHER_DEVICE"
+        # primary_lcs = "AQ_DEVICE1" but the data only contains "OTHER_DEVICE".
+        # The pipeline should log a warning and use all available devices instead.
         lcs_other = lcs_raw_df.copy()
         lcs_other["device_id"] = "OTHER_DEVICE"
 
-        # Falls back to all devices when primary is absent — should not raise
-        try:
-            df, features = pipeline._prepare_training_data(
-                lcs_other,
-                bam_raw_df,
-                COUNTRY_CONFIG["uganda"],
-            )
-        except ValueError:
-            pass  # acceptable: no coverage gate met with unknown device
+        df, features = pipeline._prepare_training_data(
+            lcs_other,
+            bam_raw_df,
+            COUNTRY_CONFIG["uganda"],
+        )
+
+        assert not df.empty, "Fallback should produce usable training data"
+        assert len(features) > 0, "Fallback should produce at least one feature"
 
     def test_blob_name_uses_lowercase_country(self):
         pipeline = CalibrationPipeline(
