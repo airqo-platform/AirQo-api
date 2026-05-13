@@ -1,6 +1,8 @@
 import httpx
 import asyncio
 import logging
+from urllib.parse import urlencode
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.sync import SyncDevice, Category, SyncMetadataValues, SyncConfigValues
@@ -498,6 +500,34 @@ def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
     }
 
 
+def _category_hierarchy_from_db(db_device: SyncDevice) -> List[Dict[str, Any]]:
+    category = db_device.category or "lowcost"
+    return [
+        {
+            "level": "equipment",
+            "category": category,
+            "description": f"{category} sensor device",
+        },
+        _DEFAULT_CATEGORY_HIERARCHY[1],
+    ]
+
+
+def _serialize_synced_device(db_device: SyncDevice) -> Dict[str, Any]:
+    return {
+        "_id": db_device.device_id,
+        "name": db_device.device_name,
+        "network": db_device.network_id,
+        "status": db_device.status,
+        "category": db_device.category,
+        "device_number": db_device.device_number,
+        "writeKey": db_device.writeKey,
+        "readKey": db_device.readKey,
+        "site": {"_id": db_device.site_id} if db_device.site_id else None,
+        "beacon_data": _beacon_data_from_db(db_device),
+        "category_hierarchy": _category_hierarchy_from_db(db_device),
+    }
+
+
 def _beacon_data_from_platform(
     dev: Dict[str, Any], read_key_to_store: Optional[str],
 ) -> Dict[str, Any]:
@@ -571,6 +601,95 @@ async def get_device_details(db: Session, token: str, params: Dict[str, Any] = N
 
     return platform_data
 
+
+def get_synced_device_details(
+    db: Session,
+    skip: int = 0,
+    limit: int = 30,
+    search: Optional[str] = None,
+    group_device_ids: Optional[List[str]] = None,
+    query_params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Read devices from the local sync_device table using the platform-like response shape."""
+    safe_skip = max(skip, 0)
+    safe_limit = max(limit, 1)
+
+    query = db.query(SyncDevice).filter(func.lower(SyncDevice.network_id) == AIRQO_NETWORK)
+
+    if group_device_ids is not None:
+        if not group_device_ids:
+            total = 0
+            devices = []
+        else:
+            query = query.filter(SyncDevice.device_id.in_(group_device_ids))
+            if search:
+                search_term = f"%{search.strip()}%"
+                query = query.filter(
+                    or_(
+                        SyncDevice.device_id.ilike(search_term),
+                        SyncDevice.device_name.ilike(search_term),
+                        SyncDevice.site_id.ilike(search_term),
+                        SyncDevice.category.ilike(search_term),
+                        SyncDevice.status.ilike(search_term),
+                    )
+                )
+            total = query.count()
+            devices = (
+                query.order_by(SyncDevice.device_name, SyncDevice.device_id)
+                .offset(safe_skip)
+                .limit(safe_limit)
+                .all()
+            )
+    else:
+        if search:
+            search_term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    SyncDevice.device_id.ilike(search_term),
+                    SyncDevice.device_name.ilike(search_term),
+                    SyncDevice.site_id.ilike(search_term),
+                    SyncDevice.category.ilike(search_term),
+                    SyncDevice.status.ilike(search_term),
+                )
+            )
+        total = query.count()
+        devices = (
+            query.order_by(SyncDevice.device_name, SyncDevice.device_id)
+            .offset(safe_skip)
+            .limit(safe_limit)
+            .all()
+        )
+
+    total_pages = max(1, (total + safe_limit - 1) // safe_limit)
+    current_page = (safe_skip // safe_limit) + 1
+    next_page = None
+    if (safe_skip + safe_limit) < total:
+        next_params: Dict[str, Any] = {}
+        for key, value in (query_params or {}).items():
+            if value is None or value == "":
+                continue
+            next_params[key] = value
+        next_params["skip"] = safe_skip + safe_limit
+        next_params["limit"] = safe_limit
+        next_page = urlencode(next_params, doseq=True)
+
+    return {
+        "success": True,
+        "message": "Synced devices fetched successfully",
+        "meta": {
+            "total": total,
+            "totalResults": total,
+            "limit": safe_limit,
+            "skip": safe_skip,
+            "page": current_page,
+            "totalPages": total_pages,
+            "detailLevel": "local",
+            "usedCache": False,
+            "nextPage": next_page,
+        },
+        "devices": [_serialize_synced_device(device) for device in devices],
+    }
+
 async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str, Any]:
     # 1. Fetch data from PLATFORM_BASE_URL/devices/{device_id}
     headers = {"Authorization": f"JWT {token}"}
@@ -579,7 +698,7 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
             f"{settings.PLATFORM_BASE_URL}/devices/{device_id}", 
             headers=headers
         )
-        
+
         if response.status_code != 200:
             logger.error(f"Platform API returned error status: {response.status_code} for device {device_id}")
             logger.error(f"Raw Response Content: {response.text}")
