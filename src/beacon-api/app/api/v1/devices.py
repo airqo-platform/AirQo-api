@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks, Query
 import logging
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from app.db.session import get_db, SessionLocal
 from app.schemas.device import (
     DeviceResponse, 
@@ -221,6 +221,34 @@ async def get_device_files(device_id: str):
         return await device_service.get_device_files(device_id)
     except Exception as e:
         logger.exception(f"Unexpected error fetching files for device {device_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/synced", response_model=DeviceResponse)
+def get_synced_devices(
+    group: Annotated[str, Query(description="Comma-separated group title(s) — required")],
+    db: Annotated[Session, Depends(get_db)],
+    limit: int = 30,
+    skip: int = 0,
+    search: Optional[str] = None,
+):
+    """List devices from the local sync_device table, filtered by group."""
+    from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
+
+    cohort_ids = resolve_group_cohort_ids(db, group)
+    group_device_ids = resolve_group_device_ids(db, cohort_ids)
+
+    try:
+        return device_service.get_synced_device_details(
+            db,
+            skip=skip,
+            limit=limit,
+            search=search,
+            group_device_ids=group_device_ids,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error fetching synced devices: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.get("/{device_id}", response_model=SingleDeviceResponse)
