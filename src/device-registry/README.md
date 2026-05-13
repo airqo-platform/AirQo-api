@@ -1,4 +1,4 @@
-# Device Registry Microservice..
+# Device Registry Microservice...
 
 ![Coverage Status](https://coveralls.io/repos/github/airqo-platform/AirQo-api/src/device-registry/badge.svg)
 
