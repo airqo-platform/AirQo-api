@@ -150,6 +150,14 @@ const connectToMongoDB = () => {
   }
 };
 
+function ensureModel(db, modelName, schema) {
+  try {
+    db.model(modelName);
+  } catch {
+    db.model(modelName, schema);
+  }
+}
+
 /**
  * Get a tenant-specific command database (for write operations)
  */
@@ -157,7 +165,7 @@ function getCommandTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_command_${tenantId}`;
   if (commandDB) {
     const db = commandDB.useDb(dbName, { useCache: true });
-    db.model(modelName, schema);
+    ensureModel(db, modelName, schema);
     return db;
   }
   throw new Error("Command database connection not established");
@@ -171,7 +179,7 @@ function getQueryTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (queryDB) {
     const db = queryDB.useDb(dbName, { useCache: true });
-    db.model(modelName, schema);
+    ensureModel(db, modelName, schema);
     return db;
   }
   throw new Error("Query database connection not established");
@@ -229,7 +237,7 @@ function getSnapshotTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (snapshotDB) {
     const db = snapshotDB.useDb(dbName, { useCache: true });
-    db.model(modelName, schema);
+    ensureModel(db, modelName, schema);
     return db;
   }
   throw new Error("Snapshot database connection not established");
