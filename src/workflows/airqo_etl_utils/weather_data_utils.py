@@ -301,6 +301,7 @@ class WeatherDataUtils:
 
             rows.append(
                 {
+                    "timestamp": timestamp.floor("h"),
                     "date": timestamp.date(),
                     "met_no_query_latitude": float(query_latitude),
                     "met_no_query_longitude": float(query_longitude),
@@ -447,3 +448,86 @@ class WeatherDataUtils:
         return WeatherDataUtils._aggregate_met_no_daily(
             pd.concat(hourly_frames, ignore_index=True)
         )
+
+    @staticmethod
+    def fetch_met_no_hourly_data_for_sites(sites: pd.DataFrame) -> pd.DataFrame:
+        """Fetch hourly MET.no forecast details for rounded 2-decimal site buckets."""
+        if sites.empty or not Config.MET_NO_BASE_URL:
+            return pd.DataFrame()
+
+        required = {"site_latitude", "site_longitude"}
+        missing = required - set(sites.columns)
+        if missing:
+            raise ValueError(
+                f"Missing required columns for MET.no weather lookup: {sorted(missing)}"
+            )
+
+        coordinate_buckets = sites[["site_latitude", "site_longitude"]].copy()
+        coordinate_buckets["met_no_query_latitude"] = pd.to_numeric(
+            coordinate_buckets["site_latitude"], errors="coerce"
+        ).round(2)
+        coordinate_buckets["met_no_query_longitude"] = pd.to_numeric(
+            coordinate_buckets["site_longitude"], errors="coerce"
+        ).round(2)
+        coordinate_buckets = coordinate_buckets.dropna(
+            subset=["met_no_query_latitude", "met_no_query_longitude"]
+        )[
+            ["met_no_query_latitude", "met_no_query_longitude"]
+        ].drop_duplicates()
+
+        if coordinate_buckets.empty:
+            return pd.DataFrame()
+
+        max_workers = min(8, max(1, len(coordinate_buckets)))
+        client = HttpClient(
+            timeout=20,
+            pool_connections=max_workers,
+            pool_maxsize=max_workers,
+        )
+
+        def fetch_bucket(row: pd.Series) -> pd.DataFrame:
+            try:
+                payload = client.get_json(
+                    Config.MET_NO_BASE_URL,
+                    params={
+                        "lat": row["met_no_query_latitude"],
+                        "lon": row["met_no_query_longitude"],
+                    },
+                    headers=WeatherDataUtils.MET_NO_HEADERS,
+                )
+                return WeatherDataUtils._parse_met_no_hourly_payload(
+                    payload,
+                    query_latitude=row["met_no_query_latitude"],
+                    query_longitude=row["met_no_query_longitude"],
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed MET.no hourly lookup for rounded coordinates: %s",
+                    exc,
+                )
+                return pd.DataFrame()
+
+        hourly_frames: List[pd.DataFrame] = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for frame in executor.map(
+                fetch_bucket,
+                [row for _, row in coordinate_buckets.iterrows()],
+            ):
+                if not frame.empty:
+                    hourly_frames.append(frame)
+
+        if not hourly_frames:
+            return pd.DataFrame()
+
+        hourly_data = pd.concat(hourly_frames, ignore_index=True)
+        hourly_data["timestamp"] = pd.to_datetime(
+            hourly_data["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        hourly_data = hourly_data.dropna(subset=["timestamp"])
+        hourly_data[list(SITE_DAILY_FORECAST_MET_COLUMNS)] = hourly_data[
+            list(SITE_DAILY_FORECAST_MET_COLUMNS)
+        ].round(1)
+        return hourly_data.drop_duplicates(
+            subset=["timestamp", "met_no_query_latitude", "met_no_query_longitude"],
+            keep="last",
+        ).reset_index(drop=True)

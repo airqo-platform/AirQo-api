@@ -230,6 +230,9 @@ const connectToMongoDB = () => {
     try {
       await mongoose.connect(QUERY_URI, options);
       mainConnection = mongoose.connection;
+      // Update eagerly so _resolveTenantDB can serve requests immediately after
+      // the driver connects, without waiting for the slow startup jobs below.
+      mainConnectionInstance = mongoose.connection;
       setupConnectionHandlers(mainConnection, "main");
       connectionOpen = true;
       console.log("✅ MongoDB connected, proceeding with initializations...");
@@ -353,9 +356,12 @@ const getCommandConnection = () => mainConnectionInstance;
  * duplicating the readyState check and model-registration logic.
  */
 function _resolveTenantDB(tenantId, modelName, schema, label) {
-  const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (mainConnectionInstance && mainConnectionInstance.readyState === 1) {
-    const db = mainConnectionInstance.useDb(dbName, { useCache: true });
+  // Use mongoose.connection directly so we always read the live object, even if
+  // Mongoose replaced the internal connection after useUnifiedTopology init.
+  const conn = mongoose.connection;
+  if (conn && conn.readyState === 1) {
+    const dbName = `${constants.DB_NAME}_${tenantId}`;
+    const db = conn.useDb(dbName, { useCache: true });
     try {
       db.model(modelName);
     } catch {

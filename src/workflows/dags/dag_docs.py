@@ -425,3 +425,26 @@ Data Destinations:
 - MongoDB: site daily forecast collection
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+site_hourly_forecasting_doc = """
+### AirQo site hourly forecasting
+#### Purpose
+Generate 10-day hourly site-level PM2.5 forecasts and enrich them with MET.no hourly weather data.
+
+#### Workflow
+1. Fetch up to 14 days of consolidated hourly site PM2.5 history from BigQuery.
+2. Generate recursive hourly mean, q10, and q90 forecasts with the deployed GCS models.
+3. Save forecast-only rows to MongoDB after deleting old rows for the affected sites.
+4. Fetch hourly MET.no weather data by rounded site coordinates.
+5. Replace the MongoDB rows with MET.no-enriched forecasts only when weather fields are available.
+
+#### Notes
+Data sources:
+- BigQuery: consolidated hourly device measurements
+- GCS: hourly 10-day PM2.5 model artifacts
+- MET.no: hourly weather forecasts
+
+Data Destinations:
+- MongoDB: site hourly forecast collection
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
