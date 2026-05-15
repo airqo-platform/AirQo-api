@@ -404,6 +404,14 @@ async function processSitesForCategorization(sitesToProcess) {
 
         // Use retry logic for database updates
         await retryRequest(async () => {
+          if (
+            !categorizedSite.category ||
+            categorizedSite.category === "Unknown"
+          ) {
+            throw new Error(
+              "Spatial API returned no usable category for this site"
+            );
+          }
           await SitesModel("airqo").updateOne(
             { _id: site._id },
             {
