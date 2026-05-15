@@ -173,6 +173,15 @@ const siteSchema = new Schema(
       type: Number,
       default: 0,
     },
+    // Tracks how many job runs have failed to categorize this site via the
+    // Spatial API. Once this reaches CATEGORIZATION_FAILURE_THRESHOLD the
+    // site-categorization job stops attempting it to avoid burning resources
+    // on coordinates that the OSM/Spatial pipeline consistently cannot handle.
+    // Reset to 0 whenever categorization succeeds.
+    _categorizationFailedCount: {
+      type: Number,
+      default: 0,
+    },
     distance_to_nearest_road: {
       type: Number,
       trim: true,
