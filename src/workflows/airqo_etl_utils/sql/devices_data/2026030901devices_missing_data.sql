@@ -73,5 +73,5 @@ FROM expected_data_points edp
 LEFT JOIN actual_data ad
     ON edp.device_id = ad.device_id
     AND edp.timestamp = ad.timestamp
-WHERE  ad.{qualifier_query}
+WHERE ad.{qualifier_query}
 ORDER BY edp.device_id, edp.timestamp

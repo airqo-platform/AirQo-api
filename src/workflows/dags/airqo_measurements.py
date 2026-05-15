@@ -670,7 +670,7 @@ def airqo_bigquery_data_measurements_to_api():
 
 @dag(
     "Re-calibrate-missing-calibrated-data",
-    schedule="0 */6 * * *",
+    schedule="30 */6 * * *",
     catchup=False,
     doc_md=re_calibrate_missing_calibrated_data_doc,
     tags=["2025", "hourly-data", "bigquery", "24h-missing-calibrated-data"],
@@ -683,12 +683,15 @@ def calibrate_missing_measurements():
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
-    def extract_devices_missing_calibrated_data(**context) -> Tuple[pd.DataFrame, str]:
-        start_date = context["logical_date"].strftime("%Y-%m-%d")
-        devices = AirQoDataUtils.extract_devices_with_missing_data(
-            start_date=start_date
-        )
-        return devices
+    def extract_devices_missing_calibrated_data(**context) -> pd.DataFrame:
+        """Identify device-hour pairs with missing calibrated data in the 24 h preceding the current hour."""
+        runtime = context["logical_date"]
+        # Floor to the start of the current (possibly incomplete) hour, then go back 24 h.
+        current_hour = runtime.replace(minute=0, second=0, microsecond=0)
+        window_start = current_hour - timedelta(hours=24)
+        start_date = DateUtils.format_datetime_by_unit_str(window_start, "hours_start")
+
+        return AirQoDataUtils.extract_devices_with_missing_data(start_date=start_date)
 
     @task(retries=3, retry_delay=timedelta(minutes=5), multiple_outputs=True)
     def extract_raw_data(devices: pd.DataFrame) -> dict:
