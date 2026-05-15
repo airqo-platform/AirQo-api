@@ -1000,22 +1000,27 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_with_missing_data(
         start_date: str,
-        end_date: Optional[str] = None,
+        n_hours: int = 24,
         network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ) -> pd.DataFrame:
-        """
-        Extracts devices with missing data by comparing deployed devices with the data in BigQuery.
+        """Identify device-hour pairs with missing or uncalibrated PM2.5 data.
+
         Args:
-            start_date (str): The start of the period to check (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS).
-            end_date (str, optional): The end of the period to check. When provided, the hour
-                difference between start_date and end_date is used to determine the number of
-                hourly slots to inspect. Defaults to None, which covers exactly 24 hours.
-            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.AIRQO.
+            start_date: Window start as an ISO 8601 hour-aligned timestamp
+                (YYYY-MM-DDThh:00:00Z). Typically the current hour minus 24 h.
+            n_hours: Number of consecutive hourly slots to inspect from
+                start_date. Defaults to 24.
+            network: Device network to filter by. Defaults to DeviceNetwork.AIRQO.
+
         Returns:
-            pd.DataFrame: A DataFrame containing the devices with missing data.
+            DataFrame with 'device_id' and 'timestamp' columns for each missing
+            slot, or an empty DataFrame on query failure.
+
+        Raises:
+            RuntimeError: If no storage adapter is configured.
+            ValueError: If the table name cannot be resolved from configuration.
         """
         qualifier_fields = ["pm2_5_calibrated_value"]
-        # Build the qualifier condition for missing data
         qualifier_query = " OR ".join(f"{field} IS NULL" for field in qualifier_fields)
         storage_adapter = get_configured_storage()
         if storage_adapter is None:
@@ -1028,20 +1033,6 @@ class AirQoDataUtils:
         if not table:
             raise ValueError("Table name could not be determined from configuration.")
 
-        if end_date is not None:
-            n_hours = max(
-                1,
-                int(
-                    (
-                        pd.to_datetime(end_date) - pd.to_datetime(start_date)
-                    ).total_seconds()
-                    / 3600
-                ),
-            )
-        else:
-            n_hours = 24
-
-        # Query considers the end data as inclusive.
         query = query_manager.get_query("devices_with_missing_data").format(
             table=table,
             devices_table=Config.BIGQUERY_DEVICES_DEVICES_TABLE,
@@ -1051,16 +1042,13 @@ class AirQoDataUtils:
             network=network.str if isinstance(network, DeviceNetwork) else network,
         )
 
-        data = storage_adapter.execute_query(query=query)
-
-        if not data.error:
-            data = data.data
-        else:
-            logger.error(
-                f"Error executing query for devices with missing data: {data.error}"
-            )
-            data = pd.DataFrame()
-        return data
+        result = storage_adapter.execute_query(query=query)
+        if not result.error:
+            return result.data
+        logger.error(
+            "Error executing query for devices with missing data: %s", result.error
+        )
+        return pd.DataFrame()
 
     @staticmethod
     def extract_devices_with_uncalibrated_data(
