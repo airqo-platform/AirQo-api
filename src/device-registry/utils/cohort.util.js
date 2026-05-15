@@ -350,7 +350,8 @@ const createCohort = {
 
       const results = await CohortModel(tenant)
         .aggregate(pipeline)
-        .allowDiskUse(true);
+        .allowDiskUse(true)
+        .maxTimeMS(30000);
 
       const agg =
         Array.isArray(results) && results[0]
