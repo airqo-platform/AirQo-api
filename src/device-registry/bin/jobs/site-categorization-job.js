@@ -12,7 +12,7 @@ const { logObject, logText } = require("@utils/shared");
 
 // Job configuration
 const JOB_NAME = "site-categorization-job";
-const JOB_SCHEDULE = "0 */5 * * *"; // Every 5 hours starting at midnight EAT
+const JOB_SCHEDULE = "0 2,14 * * *"; // Twice daily at 02:00 and 14:00 EAT
 const TIMEZONE = "Africa/Nairobi"; // East Africa Time
 
 // Processing configuration
@@ -21,6 +21,9 @@ const CATEGORIZATION_DELAY = 2000; // 2 seconds between requests
 const BATCH_DELAY = 5000; // 5 seconds between batches
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000;
+// Sites that have failed this many job runs are skipped to avoid wasting
+// resources on coordinates the Spatial/OSM pipeline consistently rejects.
+const CATEGORIZATION_FAILURE_THRESHOLD = 3;
 
 // Global state management
 let isJobRunning = false;
@@ -188,15 +191,77 @@ async function collectSitesNeedingCategorization() {
     const totalSites = await SitesModel("airqo").estimatedDocumentCount();
     logObject("totalSitesInSystem", totalSites);
 
-    // Find sites that don't have proper categorization
+    // Summarise sites permanently skipped due to repeated Spatial API failures.
+    // Log this before the main query so operators see it at the top of each run.
+    const permanentlySkippedSites = await SitesModel("airqo")
+      .find(
+        {
+          $and: [
+            {
+              $or: [
+                { "site_category.category": { $exists: false } },
+                { "site_category.category": null },
+                { "site_category.category": "Unknown" },
+                { "site_category.category": "" },
+              ],
+            },
+            {
+              _categorizationFailedCount: {
+                $gte: CATEGORIZATION_FAILURE_THRESHOLD,
+              },
+            },
+          ],
+          latitude: { $exists: true, $ne: null },
+          longitude: { $exists: true, $ne: null },
+        },
+        {
+          _id: 1,
+          name: 1,
+          latitude: 1,
+          longitude: 1,
+          _categorizationFailedCount: 1,
+        }
+      )
+      .lean();
+
+    if (permanentlySkippedSites.length > 0) {
+      logText(
+        `⚠️ ${permanentlySkippedSites.length} site(s) skipped — reached ${CATEGORIZATION_FAILURE_THRESHOLD} consecutive categorization failures:`
+      );
+      permanentlySkippedSites.forEach((site) => {
+        logObject("skippedSite", {
+          name: site.name,
+          latitude: site.latitude,
+          longitude: site.longitude,
+          failures: site._categorizationFailedCount,
+        });
+      });
+    }
+
+    // Find sites that don't have proper categorization and have not yet
+    // exceeded the failure threshold.
     const sitesNeedingCategorization = await SitesModel("airqo")
       .find(
         {
-          $or: [
-            { "site_category.category": { $exists: false } },
-            { "site_category.category": null },
-            { "site_category.category": "Unknown" },
-            { "site_category.category": "" },
+          $and: [
+            {
+              $or: [
+                { "site_category.category": { $exists: false } },
+                { "site_category.category": null },
+                { "site_category.category": "Unknown" },
+                { "site_category.category": "" },
+              ],
+            },
+            {
+              $or: [
+                { _categorizationFailedCount: { $exists: false } },
+                {
+                  _categorizationFailedCount: {
+                    $lt: CATEGORIZATION_FAILURE_THRESHOLD,
+                  },
+                },
+              ],
+            },
           ],
           latitude: { $exists: true, $ne: null },
           longitude: { $exists: true, $ne: null },
@@ -210,9 +275,13 @@ async function collectSitesNeedingCategorization() {
       )
       .lean();
 
-    const alreadyCategorized = totalSites - sitesNeedingCategorization.length;
+    const alreadyCategorized =
+      totalSites -
+      sitesNeedingCategorization.length -
+      permanentlySkippedSites.length;
 
     logObject("sitesAlreadyCategorized", alreadyCategorized);
+    logObject("sitesPermanentlySkipped", permanentlySkippedSites.length);
     logObject("sitesNeedingCategorization", sitesNeedingCategorization.length);
 
     // Validate coordinates and filter invalid ones
@@ -335,12 +404,21 @@ async function processSitesForCategorization(sitesToProcess) {
 
         // Use retry logic for database updates
         await retryRequest(async () => {
+          if (
+            !categorizedSite.category ||
+            categorizedSite.category === "Unknown"
+          ) {
+            throw new Error(
+              "Spatial API returned no usable category for this site"
+            );
+          }
           await SitesModel("airqo").updateOne(
             { _id: site._id },
             {
               $set: {
                 site_category: categorizedSite,
                 updated_at: new Date(),
+                _categorizationFailedCount: 0,
               },
             }
           );
@@ -373,6 +451,19 @@ async function processSitesForCategorization(sitesToProcess) {
         logger.error(
           `❌ Failed to categorize site ${site._id}: ${errorReason}`
         );
+
+        // Persist the failure so repeated cross-run failures eventually
+        // exclude this site from future runs (at CATEGORIZATION_FAILURE_THRESHOLD).
+        try {
+          await SitesModel("airqo").updateOne(
+            { _id: site._id },
+            { $inc: { _categorizationFailedCount: 1 } }
+          );
+        } catch (dbError) {
+          logger.error(
+            `Failed to increment _categorizationFailedCount for site ${site._id}: ${dbError.message}`
+          );
+        }
       }
 
       totalProcessed++;
@@ -605,7 +696,9 @@ const startSiteCategorizationJob = () => {
     logText(
       `✅ ${JOB_NAME} registered and started (${JOB_SCHEDULE} ${TIMEZONE})`
     );
-    logText("Site categorization job is now running every 5 hours...");
+    logText(
+      "Site categorization job is now running twice daily at 02:00 and 14:00 EAT..."
+    );
 
     return global.cronJobs[JOB_NAME];
   } catch (error) {
