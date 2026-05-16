@@ -36,7 +36,11 @@ const envs = {
   MAILCHIMP_LIST_ID: process.env.MAILCHIMP_LIST_ID,
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
-  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+  DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
+  SUPPORT_EMAIL:
+    process.env.NODE_ENV === "staging"
+      ? process.env.DEVELOPERS_EMAILS || process.env.SUPPORT_EMAIL
+      : process.env.SUPPORT_EMAIL,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
 
   // ✅ NUMERIC VALUES - Properly converted
@@ -227,6 +231,11 @@ const envs = {
   // ── Email / notification routing ───────────────────────────────────────────
   HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
   REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
+
+  // ── OAuth redirect allowlist ───────────────────────────────────────────────
+  // Comma-separated list of additional origins allowed as redirect_after targets
+  // beyond ANALYTICS_BASE_URL and VERTEX_BASE_URL (which are always included).
+  ALLOWED_REDIRECT_ORIGINS: process.env.ALLOWED_REDIRECT_ORIGINS,
 
   // ── API / network ──────────────────────────────────────────────────────────
   API_TOKEN: process.env.API_TOKEN,

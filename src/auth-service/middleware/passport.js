@@ -1127,6 +1127,47 @@ function setLocalAuth(req, res, next) {
 }
 
 /**
+ * Builds the set of URL origins that are permitted as redirect_after targets.
+ * Always includes ANALYTICS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
+ * (comma-separated) can extend the list. Localhost is added in non-production.
+ */
+function resolveAllowedRedirectOrigins() {
+  const origins = new Set();
+  const candidates = [
+    constants.ANALYTICS_BASE_URL,
+    constants.VERTEX_BASE_URL,
+    constants.ALLOWED_REDIRECT_ORIGINS,
+  ];
+  for (const entry of candidates) {
+    if (!entry) continue;
+    for (const raw of entry.split(",")) {
+      try {
+        origins.add(new URL(raw.trim()).origin);
+      } catch (_) {
+        // skip malformed entries
+      }
+    }
+  }
+  if (process.env.NODE_ENV !== "production") {
+    origins.add("http://localhost:3000");
+    origins.add("http://localhost:5000");
+  }
+  return origins;
+}
+
+// Computed once at module load — inputs are fixed env vars.
+const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
+
+function isAllowedRedirect(url, allowedOrigins) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    return allowedOrigins.has(new URL(url).origin);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Backward-compatible middleware for the legacy /auth/google routes.
  * Persists tenant to session before the OAuth redirect so it can be
  * recovered in makeStrategyCallback on the callback request, where
@@ -1146,6 +1187,21 @@ function setGoogleAuth(req, res, next) {
     // round-trip. req.query.tenant is not present on the callback request.
     if (req.session) {
       req.session.oauthTenant = tenant;
+    }
+
+    // Persist redirect_after so the callback controller can route the user
+    // to the correct app (e.g. Vertex) instead of the default analytics URL.
+    // Clear any stale value from a previous attempt before writing a new one.
+    if (req.session) delete req.session.oauthRedirectAfter;
+    const redirectAfter = req.query.redirect_after;
+    if (redirectAfter && req.session) {
+      if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
+        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+      } else {
+        let rejectedOrigin;
+        try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
+        logger.warn("setGoogleAuth: ignoring redirect_after with disallowed origin", { rejectedOrigin });
+      }
     }
 
     setOAuthStrategies(tenant);
@@ -1191,6 +1247,21 @@ function setOAuthProvider(req, res, next) {
     // because the provider only appends code and state to the redirect URL.
     if (req.session) {
       req.session.oauthTenant = tenant;
+    }
+
+    // Persist redirect_after so the callback controller can route the user
+    // to the correct app (e.g. Vertex) instead of the default analytics URL.
+    // Clear any stale value from a previous attempt before writing a new one.
+    if (req.session) delete req.session.oauthRedirectAfter;
+    const redirectAfter = req.query.redirect_after;
+    if (redirectAfter && req.session) {
+      if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
+        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+      } else {
+        let rejectedOrigin;
+        try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
+        logger.warn("setOAuthProvider: ignoring redirect_after with disallowed origin", { rejectedOrigin });
+      }
     }
 
     req.oauthProvider = provider;
