@@ -1155,6 +1155,9 @@ function resolveAllowedRedirectOrigins() {
   return origins;
 }
 
+// Computed once at module load — inputs are fixed env vars.
+const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
+
 function isAllowedRedirect(url, allowedOrigins) {
   if (!url || typeof url !== "string") return false;
   try {
@@ -1188,12 +1191,16 @@ function setGoogleAuth(req, res, next) {
 
     // Persist redirect_after so the callback controller can route the user
     // to the correct app (e.g. Vertex) instead of the default analytics URL.
+    // Clear any stale value from a previous attempt before writing a new one.
+    if (req.session) delete req.session.oauthRedirectAfter;
     const redirectAfter = req.query.redirect_after;
     if (redirectAfter && req.session) {
-      if (isAllowedRedirect(redirectAfter, resolveAllowedRedirectOrigins())) {
-        req.session.oauthRedirectAfter = redirectAfter;
+      if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
+        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
       } else {
-        logger.warn("setGoogleAuth: ignoring redirect_after with disallowed origin");
+        let rejectedOrigin;
+        try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
+        logger.warn("setGoogleAuth: ignoring redirect_after with disallowed origin", { rejectedOrigin });
       }
     }
 
@@ -1244,12 +1251,16 @@ function setOAuthProvider(req, res, next) {
 
     // Persist redirect_after so the callback controller can route the user
     // to the correct app (e.g. Vertex) instead of the default analytics URL.
+    // Clear any stale value from a previous attempt before writing a new one.
+    if (req.session) delete req.session.oauthRedirectAfter;
     const redirectAfter = req.query.redirect_after;
     if (redirectAfter && req.session) {
-      if (isAllowedRedirect(redirectAfter, resolveAllowedRedirectOrigins())) {
-        req.session.oauthRedirectAfter = redirectAfter;
+      if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
+        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
       } else {
-        logger.warn("setOAuthProvider: ignoring redirect_after with disallowed origin");
+        let rejectedOrigin;
+        try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
+        logger.warn("setOAuthProvider: ignoring redirect_after with disallowed origin", { rejectedOrigin });
       }
     }
 
