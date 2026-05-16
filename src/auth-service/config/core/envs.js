@@ -36,7 +36,11 @@ const envs = {
   MAILCHIMP_LIST_ID: process.env.MAILCHIMP_LIST_ID,
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
-  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+  DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
+  SUPPORT_EMAIL:
+    process.env.NODE_ENV === "staging"
+      ? process.env.DEVELOPERS_EMAILS || process.env.SUPPORT_EMAIL
+      : process.env.SUPPORT_EMAIL,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
 
   // ✅ NUMERIC VALUES - Properly converted
