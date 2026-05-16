@@ -141,7 +141,7 @@ module.exports = {
                     <tr>
                         <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
                             <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">Vertex</p>
-                            <p style="margin: 0 0 12px 0; color: #667085;">Monitor and analyse your device network with advanced tools.</p>
+                            <p style="margin: 0 0 12px 0; color: #667085;">Deploy devices, share your data, and stream live air quality through AirQo's open data channels.</p>
                             <a href="${constants.VERTEX_BASE_URL}" target="_blank"
                                 style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
                                 Open Vertex
