@@ -229,8 +229,14 @@ const userController = {
         }
       })();
 
+      const redirectAfter =
+        (req.session && req.session.oauthRedirectAfter) || null;
+      if (req.session) delete req.session.oauthRedirectAfter;
+      const baseRedirect = (
+        redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
+      ).replace(/\/$/, "");
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google#token=${encodeURIComponent(token)}`,
+        `${baseRedirect}/user/home?success=google#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -322,8 +328,14 @@ const userController = {
         }
       })();
 
+      const redirectAfter =
+        (req.session && req.session.oauthRedirectAfter) || null;
+      if (req.session) delete req.session.oauthRedirectAfter;
+      const baseRedirect = (
+        redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
+      ).replace(/\/$/, "");
       return res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
+        `${baseRedirect}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);

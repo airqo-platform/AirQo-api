@@ -232,6 +232,11 @@ const envs = {
   HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
   REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
 
+  // ── OAuth redirect allowlist ───────────────────────────────────────────────
+  // Comma-separated list of additional origins allowed as redirect_after targets
+  // beyond ANALYTICS_BASE_URL and VERTEX_BASE_URL (which are always included).
+  ALLOWED_REDIRECT_ORIGINS: process.env.ALLOWED_REDIRECT_ORIGINS,
+
   // ── API / network ──────────────────────────────────────────────────────────
   API_TOKEN: process.env.API_TOKEN,
   SERVICE_NAME: process.env.SERVICE_NAME,
