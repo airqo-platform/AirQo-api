@@ -850,6 +850,14 @@ const transactions = {
   },
   getApiUsageStats: async (req, res, next) => {
     try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
       const userId = req.user && req.user._id;
       if (!userId) {
         return next(
