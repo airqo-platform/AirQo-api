@@ -6228,6 +6228,7 @@ const createUserModule = {
     const updatePayload = {
       $set: {
         lastLogin: currentDate,
+        lastActiveAt: currentDate,
         isActive: true,
       },
       $inc: { loginCount: 1 },
