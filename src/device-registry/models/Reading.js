@@ -1011,7 +1011,10 @@ ReadingsSchema.statics.recent = async function(
       .replaceRoot("$doc")
       .skip(skip)
       .limit(limit)
-      .allowDiskUse(true);
+      .option({
+        allowDiskUse: true,
+        maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+      });
 
     const data = await pipeline;
     if (!isEmpty(data)) {

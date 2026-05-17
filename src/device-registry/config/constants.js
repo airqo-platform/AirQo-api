@@ -81,6 +81,13 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 600000;
     })(),
 
+    // MongoDB maxTimeMS for ReadingModel.recent() aggregation.
+    // Must be comfortably below the load-balancer/upstream timeout (~60s).
+    READINGS_AGGREGATE_TIMEOUT_MS: (() => {
+      const val = parseInt(process.env.READINGS_AGGREGATE_TIMEOUT_MS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 55000;
+    })(),
+
     // Temporary diagnostic window for ReadingModel.recent().
     // Revert to 3 once the root cause of the empty readings collection is confirmed.
     DIAGNOSTIC_WINDOW_DAYS: (() => {
