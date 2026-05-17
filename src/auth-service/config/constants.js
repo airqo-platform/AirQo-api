@@ -34,6 +34,18 @@ function envConfig(env) {
       process.env.ENABLE_TOKEN_RATE_LIMITING,
       false,
     ),
+    ENABLE_DAILY_RATE_LIMITING: parseBool(
+      process.env.ENABLE_DAILY_RATE_LIMITING,
+      false,
+    ),
+    ENABLE_WEEKLY_RATE_LIMITING: parseBool(
+      process.env.ENABLE_WEEKLY_RATE_LIMITING,
+      false,
+    ),
+    ENABLE_MONTHLY_RATE_LIMITING: parseBool(
+      process.env.ENABLE_MONTHLY_RATE_LIMITING,
+      false,
+    ),
     ENABLE_SCOPE_ENFORCEMENT: parseBool(
       process.env.ENABLE_SCOPE_ENFORCEMENT,
       false,
