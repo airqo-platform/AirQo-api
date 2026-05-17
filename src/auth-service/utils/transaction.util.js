@@ -5,6 +5,7 @@ const AccessTokenModel = require("@models/AccessToken");
 const { mailer, stringify, generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
@@ -29,41 +30,6 @@ const PADDLE_NOT_CONFIGURED = {
   status: httpStatus.SERVICE_UNAVAILABLE,
 };
 
-// Canonical mapping of subscription tier → granted scopes (cumulative)
-const TIER_SCOPE_MAP = {
-  Free: [
-    "read:recent_measurements",
-    "read:devices",
-    "read:sites",
-    "read:cohorts",
-    "read:grids",
-  ],
-  Standard: [
-    "read:recent_measurements",
-    "read:devices",
-    "read:sites",
-    "read:cohorts",
-    "read:grids",
-    "read:historical_measurements",
-  ],
-  Premium: [
-    "read:recent_measurements",
-    "read:devices",
-    "read:sites",
-    "read:cohorts",
-    "read:grids",
-    "read:historical_measurements",
-    "read:forecasts",
-    "read:insights",
-  ],
-};
-
-// Rate limits per tier (stored on User.apiRateLimits)
-const TIER_RATE_LIMITS = {
-  Free:     { hourlyLimit: 100,  dailyLimit: 1000,  weeklyLimit: 7000,   monthlyLimit: 10000 },
-  Standard: { hourlyLimit: 500,  dailyLimit: 5000,  weeklyLimit: 35000,  monthlyLimit: 50000 },
-  Premium:  { hourlyLimit: 2000, dailyLimit: 20000, weeklyLimit: 140000, monthlyLimit: 200000 },
-};
 
 /**
  * Determine subscription tier from a completed Paddle transaction.
@@ -819,13 +785,18 @@ const transactions = {
 
       const defaultTenant = "airqo";
 
-      // Reset user to Free tier and wipe rate limits back to Free defaults
+      // Reset user to Free tier, wipe rate limits, and clear all subscription
+      // linkage fields so downstream checks (e.g. getSubscription, status polls)
+      // no longer treat this user as an active subscriber.
       await UserModel(defaultTenant).findByIdAndUpdate(user._id, {
         $set: {
           subscriptionStatus: "cancelled",
           subscriptionCancelledAt: new Date(),
           subscriptionTier: "Free",
           apiRateLimits: TIER_RATE_LIMITS.Free,
+          currentSubscriptionId: null,
+          nextBillingDate: null,
+          automaticRenewal: false,
         },
       });
 

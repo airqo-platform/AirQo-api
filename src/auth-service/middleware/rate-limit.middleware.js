@@ -7,16 +7,21 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- rate-limit.middleware.js`
 );
 const httpStatus = require("http-status");
+const { TIER_RATE_LIMITS } = require("@config/tier-limits");
 
 // Lazy-load Redis helpers so the middleware still starts when Redis is absent.
 let _redisGetAsync = null;
 let _redisSetAsync = null;
+let _redisIncrAsync = null;
+let _redisExpireAsync = null;
 const _getRedis = () => {
   if (_redisGetAsync) return true;
   try {
     const redis = require("@config/redis");
     _redisGetAsync = redis.redisGetAsync;
     _redisSetAsync = redis.redisSetAsync;
+    _redisIncrAsync = redis.redisIncrAsync;
+    _redisExpireAsync = redis.redisExpireAsync;
     return !!(redis.redisUtils && redis.redisUtils.isAvailable());
   } catch (_) {
     return false;
@@ -516,17 +521,15 @@ const tierBasedRateLimiter = (req, res, next) => {
 // EXTENDED (DAILY / WEEKLY / MONTHLY) USAGE LIMITERS
 // ============================================
 
-// Must stay in sync with TIER_RATE_LIMITS in utils/transaction.util.js and
-// TOKEN_VERIFY_TIER_LIMITS in utils/token.util.js.
 // Redis key format mirrors token.util.js so a shared counter covers both the
 // JWT-auth path (this middleware) and the token-verify path (token.util.js).
-const _EXTENDED_TIER_LIMITS = {
-  daily:   { Free: 1000,  Standard: 5000,  Premium: 20000 },
-  weekly:  { Free: 7000,  Standard: 35000, Premium: 140000 },
-  monthly: { Free: 10000, Standard: 50000, Premium: 200000 },
-};
 
-// In-memory fallback when Redis is unavailable (same pattern as token.util.js)
+// In-memory fallback when Redis is unavailable (same pattern as token.util.js).
+// NOTE: during a Redis outage this Map and the _rlMemoryStore in token.util.js
+// are separate instances, so a user hitting both the JWT-auth path (here) and
+// the token-verify path (token.util.js) can consume up to 2× their quota from
+// the in-memory stores independently. This is an acceptable trade-off for an
+// outage window; the shared counter is restored as soon as Redis recovers.
 const _extRlMemory = new Map();
 setInterval(() => {
   const now = Date.now();
@@ -537,19 +540,18 @@ setInterval(() => {
 
 /**
  * Increment and check a named rate-limit counter.
- * Redis-first; falls back to _extRlMemory when Redis is unavailable.
- * Never throws — fails open.
+ * Uses atomic INCR+EXPIRE (same pattern as _checkRlCounter in token.util.js).
+ * Falls back to _extRlMemory when Redis is unavailable. Never throws — fails open.
  */
 const _checkExtCounter = async (key, limit, ttlSec, ttlMs) => {
   try {
     _getRedis();
-    if (_redisGetAsync && _redisSetAsync) {
+    if (_redisIncrAsync) {
       try {
-        const stored = await _redisGetAsync(key);
-        const count = stored ? parseInt(stored, 10) : 0;
-        if (count >= limit) return false;
-        await _redisSetAsync(key, count + 1, ttlSec);
-        return true;
+        const count = await _redisIncrAsync(key);
+        if (count === null) throw new Error("Redis unavailable");
+        if (count === 1) await _redisExpireAsync(key, ttlSec);
+        return count <= limit;
       } catch (_) {
         // Redis call failed — fall through to memory
       }
@@ -592,7 +594,7 @@ const extendedUsageLimiter = async (req, res, next) => {
       const daySlot = Math.floor(Date.now() / 86400000);
       const ok = await _checkExtCounter(
         `rl:tv:d:${userId}:${daySlot}`,
-        _EXTENDED_TIER_LIMITS.daily[tier] || _EXTENDED_TIER_LIMITS.daily.Free,
+        (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).dailyLimit,
         86401,
         86400000,
       );
@@ -612,10 +614,12 @@ const extendedUsageLimiter = async (req, res, next) => {
     }
 
     if (constants.ENABLE_WEEKLY_RATE_LIMITING) {
-      const weekSlot = Math.floor(Date.now() / 604800000);
+      // Monday-aligned: subtract 4 days to shift the Thursday-origin epoch
+      // so slot boundaries fall on Mondays (00:00 UTC).
+      const weekSlot = Math.floor((Date.now() - 4 * 86400000) / 604800000);
       const ok = await _checkExtCounter(
         `rl:tv:w:${userId}:${weekSlot}`,
-        _EXTENDED_TIER_LIMITS.weekly[tier] || _EXTENDED_TIER_LIMITS.weekly.Free,
+        (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).weeklyLimit,
         604801,
         604800000,
       );
@@ -639,7 +643,7 @@ const extendedUsageLimiter = async (req, res, next) => {
       const monthSlot = now.getUTCFullYear() * 100 + (now.getUTCMonth() + 1);
       const ok = await _checkExtCounter(
         `rl:tv:m:${userId}:${monthSlot}`,
-        _EXTENDED_TIER_LIMITS.monthly[tier] || _EXTENDED_TIER_LIMITS.monthly.Free,
+        (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).monthlyLimit,
         32 * 86400,
         32 * 86400000,
       );

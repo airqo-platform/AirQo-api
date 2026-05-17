@@ -1,15 +1,30 @@
+// Ensure Paddle initialises as configured — must be set before @config/paddle
+// is evaluated. Without a valid key, isPaddleConfigured is captured as false at
+// module load time and cancelSubscription short-circuits to PADDLE_NOT_CONFIGURED
+// before any business logic runs, making those tests unreachable.
+process.env.PADDLE_API_KEY =
+  process.env.PADDLE_API_KEY || "pdl_live_apikey_test";
+
 require("module-alias/register");
+
+// Force a fresh require of paddle-dependent modules so the env var above takes
+// effect even if another test file already cached them without it.
+[
+  require.resolve("@config/paddle"),
+  require.resolve("@utils/transaction.util"),
+].forEach((k) => {
+  delete require.cache[k];
+});
+
 const chai = require("chai");
 const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 
-// ── Modules under test ────────────────────────────────────────────────────────
 const transactions = require("@utils/transaction.util");
+const paddleConfig  = require("@config/paddle");
 
-// ── Helpers re-exported by the module for test visibility ─────────────────────
-// TIER_SCOPE_MAP and TIER_RATE_LIMITS are internal constants; their values are
-// asserted indirectly through the observable side-effects of each function.
+// ── Scope / rate-limit constants mirrored from transaction.util.js ────────────
 const FREE_SCOPES = [
   "read:recent_measurements",
   "read:devices",
@@ -39,29 +54,27 @@ describe("transactions.cancelSubscription", () => {
   beforeEach(() => {
     sinon.restore();
 
-    // Paddle client — cancel succeeds by default
-    const paddleConfig = require("@config/paddle");
-    paddleStub = sinon.stub(paddleConfig.paddleClient.subscriptions, "cancel").resolves({
-      id: mockSubscriptionId,
-      status: "cancelled",
-    });
-    sinon.stub(paddleConfig, "isPaddleConfigured").value(true);
+    // Paddle client — cancel succeeds by default.
+    // paddleConfig.paddleClient is the same object reference held by the SUT's
+    // local const, so stubbing a method on it affects the SUT directly.
+    paddleStub = sinon
+      .stub(paddleConfig.paddleClient.subscriptions, "cancel")
+      .resolves({ id: mockSubscriptionId, status: "cancelled" });
 
-    // UserModel stub
     const UserModel = require("@models/User");
-    UserModelStub = sinon.stub(UserModel("airqo"), "findByIdAndUpdate").resolves({});
+    UserModelStub = sinon
+      .stub(UserModel("airqo"), "findByIdAndUpdate")
+      .resolves({});
 
-    // ClientModel stub — returns two mock clients
     const ClientModel = require("@models/Client");
-    ClientModelStub = sinon.stub(ClientModel("airqo"), "find").returns({
-      lean: sinon.stub().resolves([{ _id: "client1" }, { _id: "client2" }]),
-    });
+    ClientModelStub = sinon
+      .stub(ClientModel("airqo"), "find")
+      .returns({ lean: sinon.stub().resolves([{ _id: "client1" }, { _id: "client2" }]) });
 
-    // AccessTokenModel stub
     const AccessTokenModel = require("@models/AccessToken");
-    AccessTokenModelStub = sinon.stub(AccessTokenModel("airqo"), "updateMany").resolves({
-      modifiedCount: 2,
-    });
+    AccessTokenModelStub = sinon
+      .stub(AccessTokenModel("airqo"), "updateMany")
+      .resolves({ modifiedCount: 2 });
   });
 
   afterEach(() => sinon.restore());
@@ -81,12 +94,15 @@ describe("transactions.cancelSubscription", () => {
     expect(updateArg.$set.apiRateLimits).to.deep.equal(FREE_RATE_LIMITS);
   });
 
-  it("sets subscriptionStatus to cancelled on the user document", async () => {
+  it("sets subscriptionStatus to cancelled and clears linkage fields", async () => {
     await transactions.cancelSubscription(mockSubscriptionId, mockUser);
 
     const updateArg = UserModelStub.firstCall.args[1];
     expect(updateArg.$set.subscriptionStatus).to.equal("cancelled");
     expect(updateArg.$set.subscriptionCancelledAt).to.be.instanceOf(Date);
+    expect(updateArg.$set.currentSubscriptionId).to.equal(null);
+    expect(updateArg.$set.nextBillingDate).to.equal(null);
+    expect(updateArg.$set.automaticRenewal).to.equal(false);
   });
 
   it("downgrades all user tokens to Free tier and Free scopes", async () => {
@@ -105,13 +121,16 @@ describe("transactions.cancelSubscription", () => {
     expect(result.status).to.equal(httpStatus.OK);
   });
 
-  it("returns error response when Paddle call fails", async () => {
+  it("returns error response and makes no local updates when Paddle call fails", async () => {
     paddleStub.rejects(new Error("Paddle unavailable"));
 
     const result = await transactions.cancelSubscription(mockSubscriptionId, mockUser);
 
     expect(result.success).to.equal(false);
     expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    // No local side-effects should occur when Paddle itself fails
+    sinon.assert.notCalled(UserModelStub);
+    sinon.assert.notCalled(AccessTokenModelStub);
   });
 
   it("still returns success when token downgrade fails (non-fatal)", async () => {
@@ -119,7 +138,6 @@ describe("transactions.cancelSubscription", () => {
 
     const result = await transactions.cancelSubscription(mockSubscriptionId, mockUser);
 
-    // Cancellation itself succeeded — token downgrade failure is non-fatal
     expect(result.success).to.equal(true);
   });
 });
@@ -138,17 +156,19 @@ describe("transactions.performAdditionalBusinessLogic", () => {
     sinon.restore();
 
     const UserModel = require("@models/User");
-    UserModelStub = sinon.stub(UserModel("airqo"), "findByIdAndUpdate").resolves({});
+    UserModelStub = sinon
+      .stub(UserModel("airqo"), "findByIdAndUpdate")
+      .resolves({});
 
     const ClientModel = require("@models/Client");
-    ClientModelStub = sinon.stub(ClientModel("airqo"), "find").returns({
-      lean: sinon.stub().resolves([{ _id: "client1" }]),
-    });
+    ClientModelStub = sinon
+      .stub(ClientModel("airqo"), "find")
+      .returns({ lean: sinon.stub().resolves([{ _id: "client1" }]) });
 
     const AccessTokenModel = require("@models/AccessToken");
-    AccessTokenModelStub = sinon.stub(AccessTokenModel("airqo"), "updateMany").resolves({
-      modifiedCount: 1,
-    });
+    AccessTokenModelStub = sinon
+      .stub(AccessTokenModel("airqo"), "updateMany")
+      .resolves({ modifiedCount: 1 });
   });
 
   afterEach(() => sinon.restore());
@@ -179,7 +199,9 @@ describe("transactions.performAdditionalBusinessLogic", () => {
     const updateArg = UserModelStub.firstCall.args[1];
     expect(updateArg.$set.subscriptionTier).to.equal("Premium");
     expect(updateArg.$set.apiRateLimits.hourlyLimit).to.equal(2000);
+    expect(updateArg.$set.apiRateLimits.dailyLimit).to.equal(20000);
     expect(updateArg.$set.apiRateLimits.weeklyLimit).to.equal(140000);
+    expect(updateArg.$set.apiRateLimits.monthlyLimit).to.equal(200000);
   });
 
   it("updates all user tokens with correct tier and Premium scopes", async () => {
@@ -230,7 +252,6 @@ describe("transactions.performAdditionalBusinessLogic", () => {
   });
 
   it("skips token update when user has no clients", async () => {
-    const ClientModel = require("@models/Client");
     ClientModelStub.returns({ lean: sinon.stub().resolves([]) });
 
     await transactions.performAdditionalBusinessLogic({
@@ -244,24 +265,24 @@ describe("transactions.performAdditionalBusinessLogic", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tier resolution (via handleCompletedTransaction / resolveTierFromEvent)
-// Tested indirectly through performAdditionalBusinessLogic event data shapes
+// Tier resolution (via resolveTierFromEvent — tested through
+// performAdditionalBusinessLogic since the helper is not exported)
 // ─────────────────────────────────────────────────────────────────────────────
 describe("tier resolution from event data", () => {
   let UserModelStub;
-  let ClientModelStub;
-  let AccessTokenModelStub;
 
   beforeEach(() => {
     sinon.restore();
     const UserModel = require("@models/User");
-    UserModelStub = sinon.stub(UserModel("airqo"), "findByIdAndUpdate").resolves({});
+    UserModelStub = sinon
+      .stub(UserModel("airqo"), "findByIdAndUpdate")
+      .resolves({});
     const ClientModel = require("@models/Client");
-    ClientModelStub = sinon.stub(ClientModel("airqo"), "find").returns({
-      lean: sinon.stub().resolves([]),
-    });
+    sinon
+      .stub(ClientModel("airqo"), "find")
+      .returns({ lean: sinon.stub().resolves([]) });
     const AccessTokenModel = require("@models/AccessToken");
-    AccessTokenModelStub = sinon.stub(AccessTokenModel("airqo"), "updateMany").resolves({});
+    sinon.stub(AccessTokenModel("airqo"), "updateMany").resolves({});
   });
 
   afterEach(() => sinon.restore());

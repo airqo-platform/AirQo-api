@@ -15,8 +15,11 @@ const BlockedDomainModel = require("@models/BlockedDomain");
 const {
   redisGetAsync,
   redisSetAsync,
+  redisIncrAsync,
+  redisExpireAsync,
   redisDelAsync,
 } = require("@config/redis");
+const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
@@ -87,14 +90,6 @@ const createRateLimitResponse = (tier, period = "Hourly") => {
   };
 };
 
-// Limits per subscription tier — must stay in sync with TIER_RATE_LIMITS in transaction.util.js
-const TOKEN_VERIFY_TIER_LIMITS = {
-  hourly:  { Free: 100,   Standard: 500,   Premium: 2000 },
-  daily:   { Free: 1000,  Standard: 5000,  Premium: 20000 },
-  weekly:  { Free: 7000,  Standard: 35000, Premium: 140000 },
-  monthly: { Free: 10000, Standard: 50000, Premium: 200000 },
-};
-
 // In-memory fallback store when Redis is unavailable
 // { key: { count: number, expiry: number } }
 const _rlMemoryStore = new Map();
@@ -110,6 +105,8 @@ setInterval(() => {
 
 /**
  * Generic slot-based rate-limit counter backed by Redis with in-memory fallback.
+ * Uses atomic INCR+EXPIRE so two concurrent requests never observe the same
+ * pre-increment value (eliminates the race in the old GET→check→SET pattern).
  * Never throws — fails open to avoid blocking legitimate requests.
  * @param {string} key    - Redis key (must encode user ID + time slot)
  * @param {number} limit  - Maximum count allowed within this slot
@@ -120,11 +117,11 @@ setInterval(() => {
 const _checkRlCounter = async (key, limit, ttlSec, ttlMs) => {
   try {
     try {
-      const stored = await redisGetAsync(key);
-      const count = stored ? parseInt(stored, 10) : 0;
-      if (count >= limit) return false;
-      await redisSetAsync(key, count + 1, ttlSec);
-      return true;
+      const count = await redisIncrAsync(key);
+      if (count === null) throw new Error("Redis unavailable");
+      // First increment creates the key — set TTL once so it auto-expires.
+      if (count === 1) await redisExpireAsync(key, ttlSec);
+      return count <= limit;
     } catch (_redisErr) {
       // Redis unavailable — fall through to memory store
     }
@@ -148,7 +145,7 @@ const _checkRlCounter = async (key, limit, ttlSec, ttlMs) => {
  * Controlled by ENABLE_TOKEN_RATE_LIMITING (default: false).
  */
 const checkTokenVerifyRateLimit = async (userId, tier) => {
-  const limit = TOKEN_VERIFY_TIER_LIMITS.hourly[tier] || TOKEN_VERIFY_TIER_LIMITS.hourly.Free;
+  const limit = (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).hourlyLimit;
   const slot  = Math.floor(Date.now() / 3600000);
   // Key format preserved from original (`rl:tv:`) to avoid resetting existing Redis counters
   // in environments that already run with ENABLE_TOKEN_RATE_LIMITING=true.
@@ -160,7 +157,7 @@ const checkTokenVerifyRateLimit = async (userId, tier) => {
  * Controlled by ENABLE_DAILY_RATE_LIMITING (default: false).
  */
 const checkDailyRateLimit = async (userId, tier) => {
-  const limit = TOKEN_VERIFY_TIER_LIMITS.daily[tier] || TOKEN_VERIFY_TIER_LIMITS.daily.Free;
+  const limit = (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).dailyLimit;
   const slot  = Math.floor(Date.now() / 86400000); // UTC day since epoch
   return _checkRlCounter(`rl:tv:d:${userId}:${slot}`, limit, 86401, 86400000);
 };
@@ -168,11 +165,13 @@ const checkDailyRateLimit = async (userId, tier) => {
 /**
  * Check and increment the weekly rate limit counter for a user.
  * Controlled by ENABLE_WEEKLY_RATE_LIMITING (default: false).
+ * Slot is Monday-aligned: subtracting 4 days shifts the Thursday-origin epoch
+ * so slot boundaries fall on Mondays (00:00 UTC).
  */
 const checkWeeklyRateLimit = async (userId, tier) => {
-  const limit   = TOKEN_VERIFY_TIER_LIMITS.weekly[tier] || TOKEN_VERIFY_TIER_LIMITS.weekly.Free;
-  const slot    = Math.floor(Date.now() / 604800000); // UTC week since epoch
-  const ttlSec  = 604801;                             // slightly over 7 days
+  const limit   = (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).weeklyLimit;
+  const slot    = Math.floor((Date.now() - 4 * 86400000) / 604800000);
+  const ttlSec  = 604801;
   const ttlMs   = 604800000;
   return _checkRlCounter(`rl:tv:w:${userId}:${slot}`, limit, ttlSec, ttlMs);
 };
@@ -183,7 +182,7 @@ const checkWeeklyRateLimit = async (userId, tier) => {
  * Slot key is YYYYMM so it resets on calendar month boundaries.
  */
 const checkMonthlyRateLimit = async (userId, tier) => {
-  const limit  = TOKEN_VERIFY_TIER_LIMITS.monthly[tier] || TOKEN_VERIFY_TIER_LIMITS.monthly.Free;
+  const limit  = (TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free).monthlyLimit;
   const now    = new Date();
   const slot   = now.getUTCFullYear() * 100 + (now.getUTCMonth() + 1);
   const ttlSec = 32 * 86400; // 32 days — covers any calendar month
@@ -262,12 +261,6 @@ const _getScopeRules = () => {
   return _scopeRuleCache ? _scopeRuleCache.rules : _FALLBACK_SCOPE_RULES;
 };
 
-// Canonical tier → scope set (same as in transaction.util.js)
-const _TIER_SCOPE_MAP = {
-  Free:     ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids"],
-  Standard: ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids", "read:historical_measurements"],
-  Premium:  ["read:recent_measurements", "read:devices", "read:sites", "read:cohorts", "read:grids", "read:historical_measurements", "read:forecasts", "read:insights"],
-};
 
 /**
  * Check whether the given URI requires a scope and whether the token grants it.
@@ -1286,7 +1279,7 @@ const token = {
       // stamped with the correct tier and scopes at creation time. Falls back
       // to Free if the user cannot be found — never throws.
       let tokenTier = "Free";
-      let tokenScopes = _TIER_SCOPE_MAP.Free;
+      let tokenScopes = TIER_SCOPE_MAP.Free;
       try {
         if (client.user_id) {
           const user = await UserModel(tenant)
@@ -1294,9 +1287,9 @@ const token = {
             .select("subscriptionTier")
             .lean();
           const resolvedTier = user?.subscriptionTier;
-          if (resolvedTier && _TIER_SCOPE_MAP[resolvedTier]) {
+          if (resolvedTier && TIER_SCOPE_MAP[resolvedTier]) {
             tokenTier = resolvedTier;
-            tokenScopes = _TIER_SCOPE_MAP[resolvedTier];
+            tokenScopes = TIER_SCOPE_MAP[resolvedTier];
           }
         }
       } catch (tierErr) {
