@@ -193,19 +193,9 @@ routes.forEach(({ method, path, middlewares, controller }) => {
       ...middlewares,
       checkController(controller),
       (req, res, next) => {
-        // Wrap controller call in try-catch
-        try {
-          eventController[controller](req, res, next);
-        } catch (error) {
-          console.error(
-            `[CONTROLLER_ERROR] Error in ${controller}:`,
-            error.message,
-          );
-          res.status(500).json({
-            error: "Internal server error",
-            message: "Controller execution failed",
-          });
-        }
+        Promise.resolve(eventController[controller](req, res, next)).catch(
+          next,
+        );
       },
     ];
 

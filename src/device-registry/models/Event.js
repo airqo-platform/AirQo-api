@@ -2258,7 +2258,13 @@ eventSchema.statics.fetch = async function(filter) {
     logger.error(
       `🐛🐛 Internal Server Error --- fetch events -- ${error.message}`,
     );
-    return;
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 eventSchema.statics.signal = async function(filter) {
