@@ -1,4 +1,8 @@
 require("module-alias/register");
+// Provide dummy values for env vars that throw on missing config at require-time.
+process.env.CLOUD_NAME = process.env.CLOUD_NAME || "test";
+process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test";
+process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test";
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
@@ -8,7 +12,7 @@ const { stringify } = require("@utils/shared");
 const redis = require("redis");
 const moment = require("moment-timezone");
 const { ObjectId } = require("mongoose").Types;
-const createUser = require("@utils/create-user");
+const createUser = require("@utils/user.util");
 const mailchimp = require("@config/mailchimp");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
@@ -33,7 +37,7 @@ const { getAuth } = require("firebase-admin/auth");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const rewire = require("rewire");
-const rewireCreateUser = rewire("@utils/create-user");
+const rewireCreateUser = rewire("@utils/user.util");
 const UserModel = require("@models/User");
 const LogModel = require("@models/log");
 const NetworkModel = require("@models/Network");
@@ -2977,6 +2981,45 @@ describe("create-user-util", function () {
       expect(result.success).to.be.true;
       expect(result.syncOperation).to.equal("Updated");
       expect(result.user).to.deep.equal(existingUser);
+    });
+  });
+
+  describe("_constructLoginUpdate", function () {
+    const user = { verified: true, preferredTokenStrategy: null };
+
+    it("sets lastActiveAt to a recent Date so the active-status-job does not immediately deactivate the user", function () {
+      const before = Date.now();
+      const result = createUser._constructLoginUpdate(user);
+      const after = Date.now();
+
+      expect(result.$set.lastActiveAt).to.be.an.instanceOf(Date);
+      expect(result.$set.lastActiveAt.getTime()).to.be.within(before, after);
+    });
+
+    it("sets lastLogin and isActive on every login", function () {
+      const before = Date.now();
+      const result = createUser._constructLoginUpdate(user);
+      const after = Date.now();
+
+      expect(result.$set.lastLogin).to.be.an.instanceOf(Date);
+      expect(result.$set.lastLogin.getTime()).to.be.within(before, after);
+      expect(result.$set.isActive).to.equal(true);
+      expect(result.$inc.loginCount).to.equal(1);
+    });
+
+    it("sets verified when autoVerify is true and user is not yet verified", function () {
+      const unverifiedUser = { verified: false, preferredTokenStrategy: null };
+      const result = createUser._constructLoginUpdate(unverifiedUser, null, {
+        autoVerify: true,
+      });
+      expect(result.$set.verified).to.equal(true);
+    });
+
+    it("does not set verified when autoVerify is false", function () {
+      const result = createUser._constructLoginUpdate(user, null, {
+        autoVerify: false,
+      });
+      expect(result.$set.verified).to.be.undefined;
     });
   });
 });
