@@ -139,6 +139,19 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
   }
 };
 
+const redisIncrAsync = async (key) => {
+  if (!redis.isOpen || !redis.isReady) {
+    console.warn(`[redis] not available for INCR ${key}`);
+    return null;
+  }
+  try {
+    return await redis.incr(key);
+  } catch (error) {
+    console.error(`[redis] INCR failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
 const redisExpireAsync = async (key, seconds) => {
   if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for EXPIRE ${key}`);
@@ -247,6 +260,7 @@ const redisUtils = {
 const redisWrapper = {
   redisGetAsync,
   redisSetAsync,
+  redisIncrAsync,
   redisExpireAsync,
   redisDelAsync,
   redisPingAsync,

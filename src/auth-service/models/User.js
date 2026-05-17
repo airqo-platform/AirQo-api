@@ -475,6 +475,7 @@ const UserSchema = new Schema(
     apiRateLimits: {
       hourlyLimit: { type: Number, default: 100 },
       dailyLimit: { type: Number, default: 1000 },
+      weeklyLimit: { type: Number, default: 7000 },
       monthlyLimit: { type: Number, default: 10000 },
     },
     lastRateLimitCheck: {
@@ -1671,6 +1672,8 @@ UserSchema.methods = {
       timezone: this.timezone,
       cohorts: this.cohorts,
       cohort_ids: this.cohorts,
+      subscriptionTier: this.subscriptionTier,
+      apiRateLimits: this.apiRateLimits,
     };
   },
 };
