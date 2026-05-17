@@ -2830,6 +2830,55 @@ const token = {
       );
     }
   },
+
+  /**
+   * Read current Redis rate-limit counters and return usage stats.
+   * Returns null for a period when Redis is unavailable or the key doesn't exist yet.
+   * The shape matches what the frontend UsageStats component expects.
+   */
+  getApiUsageStats: async (userId, tier) => {
+    const limits  = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free;
+    const now     = Date.now();
+    const nowDate = new Date();
+
+    // ---- hourly ----
+    const hourSlot      = Math.floor(now / 3600000);
+    const hourKeyExpiry = (hourSlot + 1) * 3600000; // next slot start = reset time
+    const hourResetTime = new Date(hourKeyExpiry).toISOString();
+
+    // ---- daily ----
+    const daySlot      = Math.floor(now / 86400000);
+    const dayKeyExpiry = (daySlot + 1) * 86400000;
+    const dayResetTime = new Date(dayKeyExpiry).toISOString();
+
+    // ---- monthly ----
+    const year        = nowDate.getUTCFullYear();
+    const month       = nowDate.getUTCMonth(); // 0-based
+    const monthSlot   = year * 100 + (month + 1);
+    const nextMonth   = new Date(Date.UTC(year, month + 1, 1));
+    const monthResetTime = nextMonth.toISOString();
+
+    const readCounter = async (key) => {
+      try {
+        const raw = await redisGetAsync(key);
+        return raw !== null && raw !== undefined ? parseInt(raw, 10) : null;
+      } catch (_err) {
+        return null;
+      }
+    };
+
+    const [hourUsed, dayUsed, monthUsed] = await Promise.all([
+      readCounter(`rl:tv:${userId}:${hourSlot}`),
+      readCounter(`rl:tv:d:${userId}:${daySlot}`),
+      readCounter(`rl:tv:m:${userId}:${monthSlot}`),
+    ]);
+
+    return {
+      hourly:  { used: hourUsed,  limit: limits.hourlyLimit,  resetTime: hourResetTime  },
+      daily:   { used: dayUsed,   limit: limits.dailyLimit,   resetTime: dayResetTime   },
+      monthly: { used: monthUsed, limit: limits.monthlyLimit, resetTime: monthResetTime },
+    };
+  },
 };
 
 module.exports = token;
