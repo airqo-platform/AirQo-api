@@ -73,30 +73,34 @@ const createValidTokenResponse = () => {
     status: httpStatus.OK,
   };
 };
-const createRateLimitResponse = (tier) => {
+const createRateLimitResponse = (tier, period = "Hourly") => {
   return {
     success: false,
-    message: `Hourly request limit reached for ${tier} tier`,
+    message: `${period} request limit reached for ${tier} tier`,
     status: httpStatus.TOO_MANY_REQUESTS,
     errors: {
       message:
         tier === "Free"
           ? "Upgrade to Standard or Premium for higher API limits"
-          : "You have exceeded your hourly request limit",
+          : `You have exceeded your ${period.toLowerCase()} request limit`,
     },
   };
 };
 
-// Hourly limits per subscription tier
-const TOKEN_VERIFY_TIER_LIMITS = { Free: 100, Standard: 500, Premium: 2000 };
+// Limits per subscription tier — must stay in sync with TIER_RATE_LIMITS in transaction.util.js
+const TOKEN_VERIFY_TIER_LIMITS = {
+  hourly:  { Free: 100,   Standard: 500,   Premium: 2000 },
+  daily:   { Free: 1000,  Standard: 5000,  Premium: 20000 },
+  weekly:  { Free: 7000,  Standard: 35000, Premium: 140000 },
+  monthly: { Free: 10000, Standard: 50000, Premium: 200000 },
+};
 
 // In-memory fallback store when Redis is unavailable
 // { key: { count: number, expiry: number } }
 const _rlMemoryStore = new Map();
 
 // Prune expired entries every 5 minutes so the Map doesn't grow significantly
-// during high-traffic windows where Redis stays unavailable. The previous 1-hour
-// cadence allowed a full hour of unique IPs to accumulate before cleanup.
+// during high-traffic windows where Redis stays unavailable.
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of _rlMemoryStore) {
@@ -105,41 +109,86 @@ setInterval(() => {
 }, 300000).unref();
 
 /**
- * Check and increment the hourly rate limit counter for a user.
- * Uses Redis when available, in-memory Map as fallback.
+ * Generic slot-based rate-limit counter backed by Redis with in-memory fallback.
  * Never throws — fails open to avoid blocking legitimate requests.
+ * @param {string} key    - Redis key (must encode user ID + time slot)
+ * @param {number} limit  - Maximum count allowed within this slot
+ * @param {number} ttlSec - Redis key TTL in seconds
+ * @param {number} ttlMs  - In-memory expiry window in milliseconds
  * @returns {Promise<boolean>} true = within limit, false = limit exceeded
  */
-const checkTokenVerifyRateLimit = async (userId, tier) => {
+const _checkRlCounter = async (key, limit, ttlSec, ttlMs) => {
   try {
-    const limit = TOKEN_VERIFY_TIER_LIMITS[tier] || TOKEN_VERIFY_TIER_LIMITS.Free;
-    const hourSlot = Math.floor(Date.now() / 3600000);
-    const key = `rl:tv:${userId}:${hourSlot}`;
-
     try {
-      // Attempt Redis path (non-atomic GET+SET is acceptable for rate limiting)
       const stored = await redisGetAsync(key);
       const count = stored ? parseInt(stored, 10) : 0;
       if (count >= limit) return false;
-      await redisSetAsync(key, count + 1, 3601); // TTL slightly over 1 hour
+      await redisSetAsync(key, count + 1, ttlSec);
       return true;
-    } catch (redisErr) {
+    } catch (_redisErr) {
       // Redis unavailable — fall through to memory store
     }
 
-    // Memory fallback
     const now = Date.now();
     const entry = _rlMemoryStore.get(key);
     if (!entry || entry.expiry < now) {
-      _rlMemoryStore.set(key, { count: 1, expiry: now + 3600000 });
+      _rlMemoryStore.set(key, { count: 1, expiry: now + ttlMs });
       return true;
     }
     entry.count++;
     return entry.count <= limit;
   } catch (err) {
-    logger.error(`Non-critical: rate limit check failed for ${userId}: ${err.message}`);
-    return true; // Fail open — never block due to rate-limiter error
+    logger.error(`Non-critical: rate limit counter failed for key=${key}: ${err.message}`);
+    return true; // Fail open
   }
+};
+
+/**
+ * Check and increment the hourly rate limit counter for a user.
+ * Controlled by ENABLE_TOKEN_RATE_LIMITING (default: false).
+ */
+const checkTokenVerifyRateLimit = async (userId, tier) => {
+  const limit = TOKEN_VERIFY_TIER_LIMITS.hourly[tier] || TOKEN_VERIFY_TIER_LIMITS.hourly.Free;
+  const slot  = Math.floor(Date.now() / 3600000);
+  // Key format preserved from original (`rl:tv:`) to avoid resetting existing Redis counters
+  // in environments that already run with ENABLE_TOKEN_RATE_LIMITING=true.
+  return _checkRlCounter(`rl:tv:${userId}:${slot}`, limit, 3601, 3600000);
+};
+
+/**
+ * Check and increment the daily rate limit counter for a user.
+ * Controlled by ENABLE_DAILY_RATE_LIMITING (default: false).
+ */
+const checkDailyRateLimit = async (userId, tier) => {
+  const limit = TOKEN_VERIFY_TIER_LIMITS.daily[tier] || TOKEN_VERIFY_TIER_LIMITS.daily.Free;
+  const slot  = Math.floor(Date.now() / 86400000); // UTC day since epoch
+  return _checkRlCounter(`rl:tv:d:${userId}:${slot}`, limit, 86401, 86400000);
+};
+
+/**
+ * Check and increment the weekly rate limit counter for a user.
+ * Controlled by ENABLE_WEEKLY_RATE_LIMITING (default: false).
+ */
+const checkWeeklyRateLimit = async (userId, tier) => {
+  const limit   = TOKEN_VERIFY_TIER_LIMITS.weekly[tier] || TOKEN_VERIFY_TIER_LIMITS.weekly.Free;
+  const slot    = Math.floor(Date.now() / 604800000); // UTC week since epoch
+  const ttlSec  = 604801;                             // slightly over 7 days
+  const ttlMs   = 604800000;
+  return _checkRlCounter(`rl:tv:w:${userId}:${slot}`, limit, ttlSec, ttlMs);
+};
+
+/**
+ * Check and increment the monthly rate limit counter for a user.
+ * Controlled by ENABLE_MONTHLY_RATE_LIMITING (default: false).
+ * Slot key is YYYYMM so it resets on calendar month boundaries.
+ */
+const checkMonthlyRateLimit = async (userId, tier) => {
+  const limit  = TOKEN_VERIFY_TIER_LIMITS.monthly[tier] || TOKEN_VERIFY_TIER_LIMITS.monthly.Free;
+  const now    = new Date();
+  const slot   = now.getUTCFullYear() * 100 + (now.getUTCMonth() + 1);
+  const ttlSec = 32 * 86400; // 32 days — covers any calendar month
+  const ttlMs  = 32 * 86400000;
+  return _checkRlCounter(`rl:tv:m:${userId}:${slot}`, limit, ttlSec, ttlMs);
 };
 
 const ScopeRuleModel = require("@models/ScopeRule");
@@ -971,25 +1020,73 @@ const token = {
         } else {
           const tier = accessToken.tier || "Free";
 
+          const rateLimitUserId = client.user_id || accessToken.client_id;
+
           // Tier-based hourly rate limiting.
           // Controlled by ENABLE_TOKEN_RATE_LIMITING (default: false).
-          // Set to true per-environment only when ready to enforce.
           if (constants.ENABLE_TOKEN_RATE_LIMITING) {
             try {
-              const withinLimit = await checkTokenVerifyRateLimit(
-                client.user_id || accessToken.client_id,
-                tier
-              );
+              const withinLimit = await checkTokenVerifyRateLimit(rateLimitUserId, tier);
               if (!withinLimit) {
                 logger.warn(
-                  `Rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+                  `Hourly rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
                 );
-                return createRateLimitResponse(tier);
+                return createRateLimitResponse(tier, "Hourly");
               }
             } catch (rateLimitErr) {
-              // Fail open — never block a request due to rate limiter error
               logger.error(
-                `Non-critical: rate limit check failed, allowing through: ${rateLimitErr.message}`
+                `Non-critical: hourly rate limit check failed, allowing through: ${rateLimitErr.message}`
+              );
+            }
+          }
+
+          // Daily rate limiting — controlled by ENABLE_DAILY_RATE_LIMITING (default: false).
+          if (constants.ENABLE_DAILY_RATE_LIMITING) {
+            try {
+              const withinDailyLimit = await checkDailyRateLimit(rateLimitUserId, tier);
+              if (!withinDailyLimit) {
+                logger.warn(
+                  `Daily rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+                );
+                return createRateLimitResponse(tier, "Daily");
+              }
+            } catch (rateLimitErr) {
+              logger.error(
+                `Non-critical: daily rate limit check failed, allowing through: ${rateLimitErr.message}`
+              );
+            }
+          }
+
+          // Weekly rate limiting — controlled by ENABLE_WEEKLY_RATE_LIMITING (default: false).
+          if (constants.ENABLE_WEEKLY_RATE_LIMITING) {
+            try {
+              const withinWeeklyLimit = await checkWeeklyRateLimit(rateLimitUserId, tier);
+              if (!withinWeeklyLimit) {
+                logger.warn(
+                  `Weekly rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+                );
+                return createRateLimitResponse(tier, "Weekly");
+              }
+            } catch (rateLimitErr) {
+              logger.error(
+                `Non-critical: weekly rate limit check failed, allowing through: ${rateLimitErr.message}`
+              );
+            }
+          }
+
+          // Monthly rate limiting — controlled by ENABLE_MONTHLY_RATE_LIMITING (default: false).
+          if (constants.ENABLE_MONTHLY_RATE_LIMITING) {
+            try {
+              const withinMonthlyLimit = await checkMonthlyRateLimit(rateLimitUserId, tier);
+              if (!withinMonthlyLimit) {
+                logger.warn(
+                  `Monthly rate limit exceeded: client=${accessToken.client_id} tier=${tier} ip=${ip}`
+                );
+                return createRateLimitResponse(tier, "Monthly");
+              }
+            } catch (rateLimitErr) {
+              logger.error(
+                `Non-critical: monthly rate limit check failed, allowing through: ${rateLimitErr.message}`
               );
             }
           }
@@ -1185,11 +1282,36 @@ const token = {
         client_id: ObjectId(client_id),
       });
 
+      // Resolve the user's current subscription tier so the new token is
+      // stamped with the correct tier and scopes at creation time. Falls back
+      // to Free if the user cannot be found — never throws.
+      let tokenTier = "Free";
+      let tokenScopes = _TIER_SCOPE_MAP.Free;
+      try {
+        if (client.user_id) {
+          const user = await UserModel(tenant)
+            .findById(client.user_id)
+            .select("subscriptionTier")
+            .lean();
+          const resolvedTier = user?.subscriptionTier;
+          if (resolvedTier && _TIER_SCOPE_MAP[resolvedTier]) {
+            tokenTier = resolvedTier;
+            tokenScopes = _TIER_SCOPE_MAP[resolvedTier];
+          }
+        }
+      } catch (tierErr) {
+        logger.error(
+          `Non-critical: could not resolve tier for client ${client_id}, defaulting to Free: ${tierErr.message}`
+        );
+      }
+
       let tokenCreationBody = Object.assign(
         { token, client_id: ObjectId(client_id) },
         request.body,
       );
       tokenCreationBody.category = "api";
+      tokenCreationBody.tier   = tokenTier;
+      tokenCreationBody.scopes = tokenScopes;
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase(),
       ).register(tokenCreationBody, next);

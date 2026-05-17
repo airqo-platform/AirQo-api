@@ -60,9 +60,9 @@ const TIER_SCOPE_MAP = {
 
 // Rate limits per tier (stored on User.apiRateLimits)
 const TIER_RATE_LIMITS = {
-  Free:     { hourlyLimit: 100,  dailyLimit: 1000,  monthlyLimit: 10000 },
-  Standard: { hourlyLimit: 500,  dailyLimit: 5000,  monthlyLimit: 50000 },
-  Premium:  { hourlyLimit: 2000, dailyLimit: 20000, monthlyLimit: 200000 },
+  Free:     { hourlyLimit: 100,  dailyLimit: 1000,  weeklyLimit: 7000,   monthlyLimit: 10000 },
+  Standard: { hourlyLimit: 500,  dailyLimit: 5000,  weeklyLimit: 35000,  monthlyLimit: 50000 },
+  Premium:  { hourlyLimit: 2000, dailyLimit: 20000, weeklyLimit: 140000, monthlyLimit: 200000 },
 };
 
 /**
@@ -817,13 +817,40 @@ const transactions = {
         subscriptionId
       );
 
-      // Update local user record
-      await UserModel("airqo").findByIdAndUpdate(user._id, {
+      const defaultTenant = "airqo";
+
+      // Reset user to Free tier and wipe rate limits back to Free defaults
+      await UserModel(defaultTenant).findByIdAndUpdate(user._id, {
         $set: {
           subscriptionStatus: "cancelled",
           subscriptionCancelledAt: new Date(),
+          subscriptionTier: "Free",
+          apiRateLimits: TIER_RATE_LIMITS.Free,
         },
       });
+
+      // Downgrade all of this user's active tokens to Free tier scopes
+      try {
+        const userClients = await ClientModel(defaultTenant)
+          .find({ user_id: user._id }, { _id: 1 })
+          .lean();
+        if (userClients.length > 0) {
+          const clientIds = userClients.map((c) => c._id);
+          await AccessTokenModel(defaultTenant).updateMany(
+            { client_id: { $in: clientIds } },
+            { $set: { tier: "Free", scopes: TIER_SCOPE_MAP.Free } }
+          );
+        }
+      } catch (downgradeErr) {
+        // Non-fatal — cancellation is already recorded; log and continue
+        logger.error(
+          `Non-critical: token downgrade after cancellation failed for user ${user._id}: ${downgradeErr.message}`
+        );
+      }
+
+      logger.info(
+        `Subscription cancelled and tier reset to Free: user=${user._id}`
+      );
 
       return {
         success: true,

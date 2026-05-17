@@ -8,6 +8,21 @@ const logger = log4js.getLogger(
 );
 const httpStatus = require("http-status");
 
+// Lazy-load Redis helpers so the middleware still starts when Redis is absent.
+let _redisGetAsync = null;
+let _redisSetAsync = null;
+const _getRedis = () => {
+  if (_redisGetAsync) return true;
+  try {
+    const redis = require("@config/redis");
+    _redisGetAsync = redis.redisGetAsync;
+    _redisSetAsync = redis.redisSetAsync;
+    return !!(redis.redisUtils && redis.redisUtils.isAvailable());
+  } catch (_) {
+    return false;
+  }
+};
+
 /**
  * PRODUCTION-HARDENED Rate Limiting Middleware
  *
@@ -498,6 +513,160 @@ const tierBasedRateLimiter = (req, res, next) => {
 };
 
 // ============================================
+// EXTENDED (DAILY / WEEKLY / MONTHLY) USAGE LIMITERS
+// ============================================
+
+// Must stay in sync with TIER_RATE_LIMITS in utils/transaction.util.js and
+// TOKEN_VERIFY_TIER_LIMITS in utils/token.util.js.
+// Redis key format mirrors token.util.js so a shared counter covers both the
+// JWT-auth path (this middleware) and the token-verify path (token.util.js).
+const _EXTENDED_TIER_LIMITS = {
+  daily:   { Free: 1000,  Standard: 5000,  Premium: 20000 },
+  weekly:  { Free: 7000,  Standard: 35000, Premium: 140000 },
+  monthly: { Free: 10000, Standard: 50000, Premium: 200000 },
+};
+
+// In-memory fallback when Redis is unavailable (same pattern as token.util.js)
+const _extRlMemory = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _extRlMemory) {
+    if (v.expiry < now) _extRlMemory.delete(k);
+  }
+}, 300000).unref();
+
+/**
+ * Increment and check a named rate-limit counter.
+ * Redis-first; falls back to _extRlMemory when Redis is unavailable.
+ * Never throws — fails open.
+ */
+const _checkExtCounter = async (key, limit, ttlSec, ttlMs) => {
+  try {
+    _getRedis();
+    if (_redisGetAsync && _redisSetAsync) {
+      try {
+        const stored = await _redisGetAsync(key);
+        const count = stored ? parseInt(stored, 10) : 0;
+        if (count >= limit) return false;
+        await _redisSetAsync(key, count + 1, ttlSec);
+        return true;
+      } catch (_) {
+        // Redis call failed — fall through to memory
+      }
+    }
+
+    const now = Date.now();
+    const entry = _extRlMemory.get(key);
+    if (!entry || entry.expiry < now) {
+      _extRlMemory.set(key, { count: 1, expiry: now + ttlMs });
+      return true;
+    }
+    entry.count++;
+    return entry.count <= limit;
+  } catch (err) {
+    logger.error(`Non-critical: extended rate limit counter error key=${key}: ${err.message}`);
+    return true; // Fail open
+  }
+};
+
+/**
+ * Async middleware that enforces daily, weekly, and monthly request quotas
+ * for subscription-tier-aware endpoints.
+ *
+ * Must be applied AFTER auth middleware so req.user is populated.
+ * Each period is controlled independently by its own feature flag (all default
+ * to false) so they can be turned on one at a time without redeployment risk.
+ *
+ * Redis keys mirror those used in token.util.js (rl:tv:d/w/m) so that a user's
+ * counter is shared across both the JWT-auth path and the token-verify path.
+ */
+const extendedUsageLimiter = async (req, res, next) => {
+  try {
+    // Unauthenticated requests are handled by other limiters; skip here.
+    if (!req.user || !req.user._id) return next();
+
+    const userId = String(req.user._id);
+    const tier   = req.user.subscriptionTier || "Free";
+
+    if (constants.ENABLE_DAILY_RATE_LIMITING) {
+      const daySlot = Math.floor(Date.now() / 86400000);
+      const ok = await _checkExtCounter(
+        `rl:tv:d:${userId}:${daySlot}`,
+        _EXTENDED_TIER_LIMITS.daily[tier] || _EXTENDED_TIER_LIMITS.daily.Free,
+        86401,
+        86400000,
+      );
+      if (!ok) {
+        logger.warn(`Daily limit exceeded: user=${userId} tier=${tier}`);
+        return res.status(httpStatus.TOO_MANY_REQUESTS).json({
+          success: false,
+          message: `Daily request limit reached for ${tier} tier`,
+          errors: {
+            message:
+              tier === "Free"
+                ? "Upgrade to Standard or Premium for higher API limits"
+                : "You have exceeded your daily request limit",
+          },
+        });
+      }
+    }
+
+    if (constants.ENABLE_WEEKLY_RATE_LIMITING) {
+      const weekSlot = Math.floor(Date.now() / 604800000);
+      const ok = await _checkExtCounter(
+        `rl:tv:w:${userId}:${weekSlot}`,
+        _EXTENDED_TIER_LIMITS.weekly[tier] || _EXTENDED_TIER_LIMITS.weekly.Free,
+        604801,
+        604800000,
+      );
+      if (!ok) {
+        logger.warn(`Weekly limit exceeded: user=${userId} tier=${tier}`);
+        return res.status(httpStatus.TOO_MANY_REQUESTS).json({
+          success: false,
+          message: `Weekly request limit reached for ${tier} tier`,
+          errors: {
+            message:
+              tier === "Free"
+                ? "Upgrade to Standard or Premium for higher API limits"
+                : "You have exceeded your weekly request limit",
+          },
+        });
+      }
+    }
+
+    if (constants.ENABLE_MONTHLY_RATE_LIMITING) {
+      const now      = new Date();
+      const monthSlot = now.getUTCFullYear() * 100 + (now.getUTCMonth() + 1);
+      const ok = await _checkExtCounter(
+        `rl:tv:m:${userId}:${monthSlot}`,
+        _EXTENDED_TIER_LIMITS.monthly[tier] || _EXTENDED_TIER_LIMITS.monthly.Free,
+        32 * 86400,
+        32 * 86400000,
+      );
+      if (!ok) {
+        logger.warn(`Monthly limit exceeded: user=${userId} tier=${tier}`);
+        return res.status(httpStatus.TOO_MANY_REQUESTS).json({
+          success: false,
+          message: `Monthly request limit reached for ${tier} tier`,
+          errors: {
+            message:
+              tier === "Free"
+                ? "Upgrade to Standard or Premium for higher API limits"
+                : "You have exceeded your monthly request limit",
+          },
+        });
+      }
+    }
+
+    return next();
+  } catch (err) {
+    // Never block a request due to rate-limiter error
+    logger.error(`extendedUsageLimiter error: ${err.message}`);
+    return next();
+  }
+};
+
+// ============================================
 // HEALTH CHECK & MONITORING
 // ============================================
 
@@ -561,8 +730,9 @@ module.exports = {
   tokenVerifyRateLimiter,
   queryTokenRateLimiter,
 
-  // Subscription tier-aware limiter (apply after JWT auth)
+  // Subscription tier-aware limiters (apply after JWT auth)
   tierBasedRateLimiter,
+  extendedUsageLimiter,
 
   // Factory function
   createCustomRateLimiter,
