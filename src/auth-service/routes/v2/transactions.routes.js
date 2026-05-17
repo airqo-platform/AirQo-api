@@ -105,6 +105,14 @@ router.get(
   TransactionController.getSubscriptionStatus
 );
 
+// API Usage Statistics (user-scoped)
+router.get(
+  "/usage",
+  transactionValidations.tenantOperation,
+  enhancedJWTAuth,
+  TransactionController.getApiUsageStats
+);
+
 // Manual Subscription Renewal (user-scoped, no transaction ID needed)
 router.post(
   "/renew-subscription",
