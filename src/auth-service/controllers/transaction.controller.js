@@ -13,6 +13,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-controller`
 );
 const transactionsUtil = require("@utils/transaction.util");
+const tokenUtil = require("@utils/token.util");
 const { paddleClient, isPaddleConfigured } = require("@config/paddle");
 const UserModel = require("@models/User");
 
@@ -839,6 +840,40 @@ const transactions = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getApiUsageStats: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const userId = req.user && req.user._id;
+      if (!userId) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            auth: "User must be authenticated to access usage statistics",
+          }),
+        );
+      }
+
+      const tier = (req.user && req.user.subscriptionTier) || "Free";
+      const data = await tokenUtil.getApiUsageStats(String(userId), tier);
+
+      return res.status(httpStatus.OK).json({ success: true, data });
+    } catch (error) {
+      logger.error(`🐛 getApiUsageStats error: ${error.message}`);
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
