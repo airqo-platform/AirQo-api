@@ -996,7 +996,6 @@ ReadingsSchema.statics.recent = async function(
       groupBy = "$device_id";
     }
 
-    const AGGREGATE_TIMEOUT_MS = 90000;
     const pipeline = this.aggregate()
       .match({
         ...filter,
@@ -1012,7 +1011,10 @@ ReadingsSchema.statics.recent = async function(
       .replaceRoot("$doc")
       .skip(skip)
       .limit(limit)
-      .option({ allowDiskUse: true, maxTimeMS: AGGREGATE_TIMEOUT_MS });
+      .option({
+        allowDiskUse: true,
+        maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+      });
 
     const data = await pipeline;
     if (!isEmpty(data)) {
