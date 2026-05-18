@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 def batch_not_found_exception(error):
     return (
         AirQoRequests.create_response(error.message, data={}, success=False),
-        AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+        AirQoRequests.Status.HTTP_404_NOT_FOUND,
     )
 
 
@@ -70,7 +70,7 @@ class DataExportResource(Resource):
         try:
             json_data = DataDownloadSchema().load(request.json)
         except ValidationError as err:
-            return ResponseBuilder.error(err.messages, 400)
+            return ResponseBuilder.validation_error(err.messages)
 
         try:
             filter_type, filter_value, error_message = get_validated_filter(json_data)
@@ -83,7 +83,9 @@ class DataExportResource(Resource):
             )
 
             if data_frame.empty:
-                return ResponseBuilder.error("No data found", 400)
+                return ResponseBuilder.success(
+                    [], message="No data found for the specified criteria."
+                )
 
             return DownloadService.format_and_respond(json_data, data_frame)
 
@@ -102,7 +104,7 @@ class RawDataExportResource(Resource):
         try:
             json_data = RawDataSchema().load(request.json)
         except ValidationError as err:
-            return ResponseBuilder.error(err.messages, 400)
+            return ResponseBuilder.validation_error(err.messages)
 
         try:
             filter_type, filter_value, error_message = get_validated_filter(json_data)
@@ -114,7 +116,9 @@ class RawDataExportResource(Resource):
                 json_data, filter_type, filter_value
             )
             if data_frame.empty:
-                return ResponseBuilder.error("No data found", 400)
+                return ResponseBuilder.success(
+                    [], message="No data found for the specified criteria."
+                )
 
             return DownloadService.format_and_respond(json_data, data_frame, metadata)
 
@@ -133,7 +137,7 @@ class DataExportV2Resource(Resource):
         try:
             json_data = DataExportSchema().load(request.json)
         except ValidationError as err:
-            return {"errors": err.messages}, 400
+            return ResponseBuilder.validation_error(err.messages)
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
@@ -175,16 +179,13 @@ class DataExportV2Resource(Resource):
             data_export_request.status = DataExportStatus.SCHEDULED
             data_export_model.create_request(data_export_request)
 
-            return (
-                AirQoRequests.create_response(
-                    "request successfully received",
-                    data=data_export_request.to_api_format(),
-                ),
-                AirQoRequests.Status.HTTP_200_OK,
+            return ResponseBuilder.created(
+                data_export_request.to_api_format(),
+                "Data export request successfully created.",
             )
 
         except Exception as ex:
-            logger.exception(f"An exception occured: {ex}")
+            logger.exception(f"An exception occurred: {ex}")
             return (
                 AirQoRequests.create_response(
                     f"An Error occurred while processing your request. Please contact support",
@@ -287,13 +288,9 @@ class DataSummaryResource(Resource):
             )
 
             if len(summary) == 0:
-                return (
-                    AirQoRequests.create_response(
-                        f"No data found for grid {grid} from {start_date_time} to {end_date_time}",
-                        data={},
-                        success=False,
-                    ),
-                    AirQoRequests.Status.HTTP_200_OK,
+                return ResponseBuilder.success(
+                    {},
+                    message=f"No data found for grid {grid} from {start_date_time} to {end_date_time}",
                 )
 
             return (
