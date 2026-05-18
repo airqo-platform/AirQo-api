@@ -282,10 +282,10 @@ class TestV3RawDataEndpoint:
             "/api/v3/public/analytics/raw-data",
             json=valid_raw_data_request_device_names_v3,
         )
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["status"] == "error"
-        assert data["message"] == "No data found"
+        assert data["status"] == "success"
+        assert data["data"] == []
 
     def test_raw_data_validation_error(
         self, app_client: Any, invalid_raw_data_request_missing_fields: Dict[str, Any]
@@ -299,9 +299,9 @@ class TestV3RawDataEndpoint:
         data = json.loads(response.data)
         assert data["status"] == "error"
         assert (
-            "network" in str(data["message"])
-            or "endDateTime" in str(data["message"])
-            or "pollutants" in str(data["message"])
+            "network" in str(data["errors"])
+            or "endDateTime" in str(data["errors"])
+            or "pollutants" in str(data["errors"])
         )
 
 
@@ -395,7 +395,7 @@ class TestV3DataDownloadEndpoint:
             json=valid_data_download_request_device_names_csv_v3,
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["status"] == "error"
-        assert data["message"] == "No data found"
+        assert data["status"] == "success"
+        assert data["data"] == []

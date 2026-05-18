@@ -322,10 +322,10 @@ class TestRawDataEndpoint:
             "/api/v2/analytics/raw-data", json=valid_raw_data_request_device_names
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["status"] == "error"
-        assert data["message"] == "No data found"
+        assert data["status"] == "success"
+        assert data["data"] == []
 
     def test_raw_data_validation_error(
         self, app_client: Any, invalid_raw_data_request_missing_fields: Dict[str, Any]
@@ -337,9 +337,9 @@ class TestRawDataEndpoint:
         data = json.loads(response.data)
         assert data["status"] == "error"
         assert (
-            "network" in str(data["message"])
-            and "endDateTime" in str(data["message"])
-            and "pollutants" in str(data["message"])
+            "network" in str(data["errors"])
+            and "endDateTime" in str(data["errors"])
+            and "pollutants" in str(data["errors"])
         )
 
     @patch("api.utils.data_formatters.get_validated_filter")
@@ -439,9 +439,9 @@ class TestDataDownloadEndpoint:
         data = json.loads(response.data)
         assert data["status"] == "error"
         assert (
-            "startDateTime" in str(data["message"])
-            and "endDateTime" in str(data["message"])
-            and "pollutants" in str(data["message"])
+            "startDateTime" in str(data["errors"])
+            and "endDateTime" in str(data["errors"])
+            and "pollutants" in str(data["errors"])
         )
 
     @patch("api.utils.data_formatters.get_validated_filter")
@@ -460,7 +460,7 @@ class TestDataDownloadEndpoint:
         response = app_client.post(
             "/api/v2/analytics/data-download", json=valid_data_download_request_sites
         )
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["status"] == "error"
-        assert data["message"] == "No data found"
+        assert data["status"] == "success"
+        assert data["data"] == []
