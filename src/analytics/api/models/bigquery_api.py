@@ -513,14 +513,20 @@ class BigQueryApi:
 
         # Execute the query with ordering and adjusted limit
 
-        measurements = (
-            self.client.query(
-                query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",
-                job_config=job_config,
+        try:
+            measurements = (
+                self.client.query(
+                    query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",
+                    job_config=job_config,
+                )
+                .result()
+                .to_dataframe()
             )
-            .result()
-            .to_dataframe()
-        )
+        except Exception as e:
+            logger.exception("BigQuery query execution failed")
+            raise RuntimeError(
+                "Failed to retrieve data from the data warehouse"
+            ) from None
 
         # Handle pagination logic
         if not measurements.empty:

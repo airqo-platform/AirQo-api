@@ -160,7 +160,14 @@ class D3ChartDataResource(Resource):
                     AirQoRequests.Status.HTTP_400_BAD_REQUEST,
                 )
         except Exception as e:
-            logger.exception(f"An error has occured; {e}")
+            logger.exception(f"An error has occurred; {e}")
+            return (
+                AirQoRequests.create_response(
+                    "An error occurred while processing your request. Please contact support.",
+                    success=False,
+                ),
+                AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         network = json_data.get("network", "airqo")
         start_date = json_data["startDate"]
@@ -422,15 +429,17 @@ class ExceedancesResource2(Resource):
             data, standards_mapping, standard, pollutant
         )
 
-        return AirQoRequests.create_response(
-            message="exceedance data successfully fetched",
-            data=[
-                {
-                    "device_id": device_id,
-                    "total": sum(exceedances.values()),
-                    "exceedances": exceedances,
-                }
-                for device_id, exceedances in device_exceedances.items()
-            ],
-            success=AirQoRequests.Status.HTTP_200_OK,
+        return (
+            AirQoRequests.create_response(
+                message="exceedance data successfully fetched",
+                data=[
+                    {
+                        "device_id": device_id,
+                        "total": sum(exceedances.values()),
+                        "exceedances": exceedances,
+                    }
+                    for device_id, exceedances in device_exceedances.items()
+                ],
+            ),
+            AirQoRequests.Status.HTTP_200_OK,
         )
