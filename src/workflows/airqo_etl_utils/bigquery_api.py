@@ -1401,7 +1401,9 @@ class BigQueryApi:
         try:
             return self.execute_data_query(query=query)
         except Exception as e:
-            raise RuntimeError(f"Error fetching hourly site forecast data: {e}")
+            raise RuntimeError(
+                f"Error fetching hourly site forecast data: {e}"
+                ) from e
 
     def fetch_hourly_site_data_for_forecast_jobs(
         self,
