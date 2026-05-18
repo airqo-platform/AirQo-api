@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 def batch_not_found_exception(error):
     return (
         AirQoRequests.create_response(error.message, data={}, success=False),
-        AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+        AirQoRequests.Status.HTTP_404_NOT_FOUND,
     )
 
 
@@ -65,7 +65,7 @@ class DataExportResource(Resource):
         try:
             json_data = DataDownloadSchema().load(request.json)
         except ValidationError as err:
-            return ResponseBuilder.error(err.messages, 400)
+            return ResponseBuilder.validation_error(err.messages)
 
         try:
             filter_type, filter_value, error_message = get_validated_filter(json_data)
@@ -78,7 +78,9 @@ class DataExportResource(Resource):
             )
 
             if data_frame.empty:
-                return ResponseBuilder.error("No data found", 400)
+                return ResponseBuilder.success(
+                    [], message="No data found for the specified criteria."
+                )
 
             return DownloadService.format_and_respond(json_data, data_frame)
 
@@ -98,7 +100,7 @@ class RawDataExportResource(Resource):
         try:
             json_data = RawDataSchema().load(request.json)
         except ValidationError as err:
-            return ResponseBuilder.error(err.messages, 400)
+            return ResponseBuilder.validation_error(err.messages)
 
         try:
             filter_type, filter_value, error_message = get_validated_filter(json_data)
@@ -110,7 +112,9 @@ class RawDataExportResource(Resource):
                 json_data, filter_type, filter_value
             )
             if data_frame.empty:
-                return ResponseBuilder.error("No data found", 400)
+                return ResponseBuilder.success(
+                    [], message="No data found for the specified criteria."
+                )
 
             return DownloadService.format_and_respond(json_data, data_frame, metadata)
 
@@ -137,7 +141,7 @@ class ForecastDataExportResource(Resource):
         try:
             json_data = ForecastDataSchema().load(request.json)
         except ValidationError as err:
-            return ResponseBuilder.error(err.messages, 400)
+            return ResponseBuilder.validation_error(err.messages)
 
         try:
             filter_type, filter_value, error_message = get_validated_forecast_filter(
@@ -159,7 +163,9 @@ class ForecastDataExportResource(Resource):
             )
 
             if data_frame.empty:
-                return ResponseBuilder.error("No data found", 400)
+                return ResponseBuilder.success(
+                    [], message="No data found for the specified criteria."
+                )
 
             return DownloadService.format_and_respond(json_data, data_frame, metadata)
 
