@@ -210,12 +210,14 @@ def make_site_daily_forecasts():
         )
 
     @task()
-    def generate_site_forecasts(data):
+    def generate_site_forecasts(data, **kwargs):
         """Generate forward site-level daily forecasts without MET enrichment."""
         horizon = int(Config.DAILY_FORECAST_HORIZON or 7)
+        execution_date = kwargs["dag_run"].execution_date
         return ForecastModelTrainer.generate_site_daily_forecasts(
             data,
             horizon=horizon,
+            run_timestamp=execution_date,
             include_met_no_weather=False,
         )
 
@@ -293,12 +295,14 @@ def make_site_hourly_forecasts():
         )
 
     @task(doc_md=generate_site_hourly_forecasts_doc)
-    def generate_site_forecasts(data: Any) -> Any:
+    def generate_site_forecasts(data: Any, **kwargs: Any) -> Any:
         """Generate recursive hourly PM2.5 forecasts without MET enrichment."""
         horizon_hours = int(Config.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+        execution_date = kwargs["dag_run"].execution_date
         return ForecastModelTrainer.generate_site_hourly_forecasts(
             data,
             horizon_hours=horizon_hours,
+            run_timestamp=execution_date,
             include_met_no_weather=False,
         )
 
@@ -339,7 +343,10 @@ def make_site_hourly_forecasts():
         if data is None:
             return {"updated": False, "reason": "met_unavailable"}
 
-        details = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(data)
+        details = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(
+            data,
+            prune_stale_rows=False,
+        )
         return {"updated": True, "details": details}
 
     site_data = fetch_site_prediction_data()

@@ -1331,21 +1331,20 @@ class BigQueryApi:
         end_date_time: str,
         min_hours: int = 16,
     ) -> pd.DataFrame:
-        """Fetch daily site-level forecast input from the consolidated table.
+        """Fetch daily site-level forecast input from the hourly measurements table.
 
-        Despite the legacy method name, this helper now reads from
-        ``BIGQUERY_ANALYTICS_TABLE`` instead of the raw device measurements
-        table. It aggregates hourly consolidated measurements into one row per
-        ``site_id`` and day for site-level forecasting.
+        Despite the legacy method name, this helper reads from
+        ``BIGQUERY_HOURLY_EVENTS_TABLE``. It aggregates hourly measurements into
+        one row per ``site_id`` and day for site-level forecasting.
 
         Data selection rules:
-        - Reads from ``self.consolidated_data_table``.
+        - Reads from ``self.hourly_measurements_table``.
         - Filters to the inclusive date window ``[start_date_time, end_date_time]``.
         - Keeps only rows with non-null ``site_id``.
         - Keeps only rows with non-null ``pm2_5_calibrated_value``.
         - Requires at least ``min_hours`` distinct hourly timestamps per site/day.
         - Left-joins ``self.sites_table`` so missing site names or coordinates on
-          consolidated rows can be backfilled from site metadata.
+          hourly rows can be backfilled from site metadata.
 
         Args:
             start_date_time (str): Start date in a pandas-parseable format,
@@ -1383,8 +1382,8 @@ class BigQueryApi:
                 f"start_date_time must be <= end_date_time, got {start_date} > {end_date}"
             )
 
-        if not self.consolidated_data_table:
-            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
+        if not self.hourly_measurements_table:
+            raise ValueError("Missing required config: BIGQUERY_HOURLY_EVENTS_TABLE.")
 
         if not self.sites_table:
             raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
@@ -1392,17 +1391,17 @@ class BigQueryApi:
         query = query_manager.get_query(
             "site_daily_aggregated_for_forecast_jobs"
         ).format(
-            consolidated_table=f"`{self.consolidated_data_table}`",
+            hourly_measurements_table=f"`{self.hourly_measurements_table}`",
             sites_table=f"`{self.sites_table}`",
             start_date=str(start_date),
             end_date=str(end_date),
-            min_hours=2,
+            min_hours=min_hours,
         )
 
         try:
             return self.execute_data_query(query=query)
         except Exception as e:
-            raise RuntimeError(f"Error fetching consolidated site forecast data: {e}")
+            raise RuntimeError(f"Error fetching hourly site forecast data: {e}")
 
     def fetch_hourly_site_data_for_forecast_jobs(
         self,
@@ -1412,8 +1411,8 @@ class BigQueryApi:
     ) -> pd.DataFrame:
         """Fetch site-level hourly PM2.5 history for hourly forecast prediction.
 
-        The source is the consolidated hourly measurements table configured by
-        ``BIGQUERY_ANALYTICS_TABLE``. A site is eligible when it has at least
+        The source is the hourly measurements table configured by
+        ``BIGQUERY_HOURLY_EVENTS_TABLE``. A site is eligible when it has at least
         ``min_hours`` hourly records in the lookback window.
         """
         if min_hours <= 0:
@@ -1432,8 +1431,8 @@ class BigQueryApi:
                 f"start_date_time must be <= end_date_time, got {start_timestamp} > {end_timestamp}"
             )
 
-        if not self.consolidated_data_table:
-            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
+        if not self.hourly_measurements_table:
+            raise ValueError("Missing required config: BIGQUERY_HOURLY_EVENTS_TABLE.")
 
         if not self.sites_table:
             raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
@@ -1441,7 +1440,7 @@ class BigQueryApi:
         query = query_manager.get_query(
             "site_hourly_measurements_for_forecast_jobs"
         ).format(
-            consolidated_table=f"`{self.consolidated_data_table}`",
+            hourly_measurements_table=f"`{self.hourly_measurements_table}`",
             sites_table=f"`{self.sites_table}`",
             start_timestamp=start_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             end_timestamp=end_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1451,7 +1450,7 @@ class BigQueryApi:
         try:
             return self.execute_data_query(query=query)
         except Exception as e:
-            raise RuntimeError(f"Error fetching consolidated site hourly data: {e}") from e
+            raise RuntimeError(f"Error fetching hourly site data: {e}") from e
 
     def fetch_device_data_for_satellite_job(
         self,

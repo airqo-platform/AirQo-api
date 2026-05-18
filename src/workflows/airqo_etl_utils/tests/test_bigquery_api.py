@@ -132,6 +132,64 @@ def test_fetch_data_bigquery_error(mock_bigquery_client, start_date_time):
     assert df.empty
 
 
+def test_fetch_raw_site_data_for_forecast_jobs_uses_hourly_table(monkeypatch):
+    captured = {}
+
+    def fake_execute_data_query(self, query, *args, **kwargs):
+        captured["query"] = query
+        return pd.DataFrame()
+
+    monkeypatch.setattr(
+        "airqo_etl_utils.bigquery_api.bigquery.Client", lambda: mock.Mock()
+    )
+    monkeypatch.setattr(BigQueryApi, "execute_data_query", fake_execute_data_query)
+
+    api = BigQueryApi()
+    api.hourly_measurements_table = "project.dataset.hourly_device_measurements"
+    api.consolidated_data_table = "project.dataset.consolidated_data"
+    api.sites_table = "project.dataset.sites"
+
+    result = api.fetch_raw_site_data_for_forecast_jobs(
+        start_date_time="2026-03-01",
+        end_date_time="2026-03-31",
+        min_hours=1,
+    )
+
+    assert result.empty
+    assert "`project.dataset.hourly_device_measurements` AS t1" in captured["query"]
+    assert "project.dataset.consolidated_data" not in captured["query"]
+    assert ">= 1" in captured["query"]
+
+
+def test_fetch_hourly_site_data_for_forecast_jobs_uses_hourly_table(monkeypatch):
+    captured = {}
+
+    def fake_execute_data_query(self, query, *args, **kwargs):
+        captured["query"] = query
+        return pd.DataFrame()
+
+    monkeypatch.setattr(
+        "airqo_etl_utils.bigquery_api.bigquery.Client", lambda: mock.Mock()
+    )
+    monkeypatch.setattr(BigQueryApi, "execute_data_query", fake_execute_data_query)
+
+    api = BigQueryApi()
+    api.hourly_measurements_table = "project.dataset.hourly_device_measurements"
+    api.consolidated_data_table = "project.dataset.consolidated_data"
+    api.sites_table = "project.dataset.sites"
+
+    result = api.fetch_hourly_site_data_for_forecast_jobs(
+        start_date_time="2026-03-01 00:00:00",
+        end_date_time="2026-03-02 00:00:00",
+        min_hours=2,
+    )
+
+    assert result.empty
+    assert "`project.dataset.hourly_device_measurements` AS t1" in captured["query"]
+    assert "project.dataset.consolidated_data" not in captured["query"]
+    assert ">= 2" in captured["query"]
+
+
 def test_fetch_raw_readings_empty(mock_bigquery_client):
     api = BigQueryApi()
     api.client = mock_bigquery_client

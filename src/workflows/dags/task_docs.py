@@ -125,7 +125,7 @@ fetch_site_hourly_prediction_data_doc = """
 #### Purpose
 Fetch site-level hourly PM2.5 history for the hourly forecast lookback window.
 #### Notes
-- Reads from the consolidated hourly BigQuery table configured in `.env`.
+- Reads from the hourly measurements BigQuery table configured in `.env`.
 - Caps the lookback at 14 days.
 - Keeps sites with at least 2 hourly measurements so sparse sites still receive forecasts.
 """

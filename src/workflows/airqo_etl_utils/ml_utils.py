@@ -1897,6 +1897,54 @@ class ForecastModelTrainer(BaseMlUtils):
         )
 
     @staticmethod
+    def _extend_site_daily_history_to_forecast_start(
+        history: pd.DataFrame,
+        forecast_start_day: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Carry each site's latest observed value to the day before forecasting."""
+        if history.empty:
+            return history
+
+        forecast_start_day = pd.Timestamp(forecast_start_day).normalize()
+        anchor_day = forecast_start_day - pd.Timedelta(days=1)
+        history = history[history["day"] < forecast_start_day].copy()
+        if history.empty:
+            return history
+
+        padded_rows = []
+        for _, site_history in history.sort_values(["site_id", "day"]).groupby(
+            "site_id",
+            sort=False,
+        ):
+            latest = site_history.iloc[-1]
+            latest_day = pd.Timestamp(latest["day"]).normalize()
+            if latest_day >= anchor_day:
+                continue
+
+            for missing_day in pd.date_range(
+                latest_day + pd.Timedelta(days=1),
+                anchor_day,
+                freq="D",
+            ):
+                padded_rows.append(
+                    {
+                        "site_id": latest["site_id"],
+                        "site_name": latest["site_name"],
+                        "day": missing_day,
+                        "pm25_mean": latest["pm25_mean"],
+                    }
+                )
+
+        if not padded_rows:
+            return history
+
+        return (
+            pd.concat([history, pd.DataFrame(padded_rows)], ignore_index=True)
+            .sort_values(["site_id", "day"])
+            .reset_index(drop=True)
+        )
+
+    @staticmethod
     def generate_site_daily_forecasts(
         raw_data: pd.DataFrame,
         *,
@@ -1954,6 +2002,17 @@ class ForecastModelTrainer(BaseMlUtils):
             run_timestamp = run_timestamp.tz_convert("UTC")
 
         recursive_history = history[["site_id", "site_name", "day", "pm25_mean"]].copy()
+        forecast_start_day = run_timestamp.normalize().tz_localize(None)
+        recursive_history = (
+            ForecastModelTrainer._extend_site_daily_history_to_forecast_start(
+                recursive_history,
+                forecast_start_day,
+            )
+        )
+        if recursive_history.empty:
+            raise ValueError(
+                "No usable historical site data available before the forecast start date."
+            )
         site_meta = ForecastModelTrainer._resolve_site_forecast_metadata(history)
         predictions: List[pd.DataFrame] = []
 
@@ -2280,6 +2339,59 @@ class ForecastModelTrainer(BaseMlUtils):
         return state
 
     @staticmethod
+    def _extend_site_hourly_history_to_forecast_start(
+        history: pd.DataFrame,
+        forecast_start_hour: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Carry each site's latest observed value to the hour before forecasting."""
+        if history.empty:
+            return history
+
+        forecast_start_hour = pd.Timestamp(forecast_start_hour)
+        if forecast_start_hour.tzinfo is None:
+            forecast_start_hour = forecast_start_hour.tz_localize("UTC")
+        else:
+            forecast_start_hour = forecast_start_hour.tz_convert("UTC")
+        forecast_start_hour = forecast_start_hour.floor("h")
+        anchor_hour = forecast_start_hour - pd.Timedelta(hours=1)
+        history = history[history["timestamp"] < forecast_start_hour].copy()
+        if history.empty:
+            return history
+
+        padded_rows = []
+        for _, site_history in history.sort_values(["site_id", "timestamp"]).groupby(
+            "site_id",
+            sort=False,
+        ):
+            latest = site_history.iloc[-1]
+            latest_hour = pd.Timestamp(latest["timestamp"]).floor("h")
+            if latest_hour >= anchor_hour:
+                continue
+
+            for missing_hour in pd.date_range(
+                latest_hour + pd.Timedelta(hours=1),
+                anchor_hour,
+                freq="h",
+            ):
+                padded_rows.append(
+                    {
+                        "site_id": latest["site_id"],
+                        "site_name": latest["site_name"],
+                        "timestamp": missing_hour,
+                        "pm25_mean": latest["pm25_mean"],
+                    }
+                )
+
+        if not padded_rows:
+            return history
+
+        return (
+            pd.concat([history, pd.DataFrame(padded_rows)], ignore_index=True)
+            .sort_values(["site_id", "timestamp"])
+            .reset_index(drop=True)
+        )
+
+    @staticmethod
     def _build_next_site_hourly_forecast_candidates(
         site_meta: pd.DataFrame,
         recursive_state: Dict[str, Dict[str, Any]],
@@ -2404,6 +2516,17 @@ class ForecastModelTrainer(BaseMlUtils):
         recursive_history = history[
             ["site_id", "site_name", "timestamp", "pm25_mean"]
         ].copy()
+        forecast_start_hour = run_timestamp.floor("h")
+        recursive_history = (
+            ForecastModelTrainer._extend_site_hourly_history_to_forecast_start(
+                recursive_history,
+                forecast_start_hour,
+            )
+        )
+        if recursive_history.empty:
+            raise ValueError(
+                "No usable historical site hourly data available before the forecast start hour."
+            )
         site_meta = ForecastModelTrainer._resolve_site_hourly_forecast_metadata(history)
         recursive_state = ForecastModelTrainer._initialize_site_hourly_forecast_state(
             recursive_history
@@ -3084,7 +3207,11 @@ class ForecastModelTrainer(BaseMlUtils):
         }
 
     @staticmethod
-    def _save_site_hourly_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+    def _save_site_hourly_forecasts_to_mongo(
+        data: pd.DataFrame,
+        *,
+        prune_stale_rows: bool = True,
+    ) -> Dict[str, Any]:
         """Upsert stored hourly forecasts in MongoDB."""
         if not configuration.MONGO_URI:
             raise ValueError("Missing required config: MONGO_URI.")
@@ -3098,7 +3225,6 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("No site hourly forecasts available to persist.")
 
         collection_name = configuration.MONGO_SITE_HOURLY_FORECAST_COLLECTION
-        site_ids = prepared["site_id"].dropna().astype(str).unique().tolist()
         records = []
         for row in prepared.to_dict(orient="records"):
             document = {
@@ -3151,6 +3277,22 @@ class ForecastModelTrainer(BaseMlUtils):
                     upsert=True,
                 )
             )
+        prune_operations = []
+        if prune_stale_rows:
+            for site_id, site_frame in prepared.groupby("site_id", dropna=True):
+                timestamps = [
+                    pd.Timestamp(timestamp).to_pydatetime()
+                    for timestamp in site_frame["timestamp"].dropna().unique()
+                ]
+                if timestamps:
+                    prune_operations.append(
+                        pm.DeleteMany(
+                            {
+                                "site_id": str(site_id),
+                                "timestamp": {"$nin": timestamps},
+                            }
+                        )
+                    )
         retention_hours = int(configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
         retention_cutoff = (
             pd.Timestamp.utcnow() - pd.Timedelta(hours=retention_hours)
@@ -3167,45 +3309,32 @@ class ForecastModelTrainer(BaseMlUtils):
             mongo_db = client[configuration.MONGO_DATABASE_NAME]
             collection = mongo_db[collection_name]
             if bulk_operations:
-                for i in range(0, len(bulk_operations), batch_size):
-                    collection.bulk_write(
-                        bulk_operations[i : i + batch_size], ordered=False
+                collection.create_index(
+                    [("site_id", pm.ASCENDING), ("timestamp", pm.ASCENDING)],
+                    name="site_hourly_forecasts_site_timestamp_idx",
+                    background=True,
+                )
+                collection.create_index(
+                    [("timestamp", pm.ASCENDING)],
+                    name="site_hourly_forecasts_timestamp_idx",
+                    background=True,
+                )
+                write_operations = bulk_operations + prune_operations
+                for i in range(0, len(write_operations), batch_size):
+                    bulk_result = collection.bulk_write(
+                        write_operations[i : i + batch_size], ordered=False
                     )
+                    try:
+                        deleted_rows += int(
+                            getattr(bulk_result, "deleted_count", 0) or 0
+                        )
+                    except (TypeError, ValueError):
+                        pass
                     bulk_batches += 1
-                if site_ids:
-                    existing_docs = list(
-                        collection.find(
-                            {"site_id": {"$in": site_ids}},
-                            {"_id": 1, "site_id": 1, "timestamp": 1},
-                        )
-                    )
-                    if existing_docs:
-                        existing = pd.DataFrame(existing_docs)
-                        existing["timestamp"] = pd.to_datetime(
-                            existing["timestamp"], utc=True, errors="coerce"
-                        )
-                        retained_ids = set(
-                            existing.dropna(subset=["timestamp"])
-                            .sort_values(
-                                ["site_id", "timestamp"],
-                                ascending=[True, False],
-                            )
-                            .groupby("site_id", group_keys=False)
-                            .head(retention_hours)["_id"]
-                            .tolist()
-                        )
-                        stale_ids = [
-                            doc["_id"]
-                            for doc in existing_docs
-                            if doc["_id"] not in retained_ids
-                        ]
-                        if stale_ids:
-                            deleted_rows += collection.delete_many(
-                                {"_id": {"$in": stale_ids}}
-                            ).deleted_count
-                deleted_rows += collection.delete_many(
-                    {"timestamp": {"$lt": retention_cutoff}}
-                ).deleted_count
+                if prune_stale_rows:
+                    deleted_rows += collection.delete_many(
+                        {"timestamp": {"$lt": retention_cutoff}}
+                    ).deleted_count
 
         return {
             "rows": len(records),
@@ -3223,11 +3352,18 @@ class ForecastModelTrainer(BaseMlUtils):
         return ForecastModelTrainer._save_site_daily_forecasts_to_mongo(data)
 
     @staticmethod
-    def save_site_hourly_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
+    def save_site_hourly_forecasts_to_mongo(
+        data: pd.DataFrame,
+        *,
+        prune_stale_rows: bool = True,
+    ) -> Dict[str, Any]:
         """Public wrapper for persisting site hourly forecasts to MongoDB only."""
         if data.empty:
             raise ValueError("No site hourly forecasts available to persist.")
-        return ForecastModelTrainer._save_site_hourly_forecasts_to_mongo(data)
+        return ForecastModelTrainer._save_site_hourly_forecasts_to_mongo(
+            data,
+            prune_stale_rows=prune_stale_rows,
+        )
 
     @staticmethod
     def save_site_daily_forecasts_best_effort(data: pd.DataFrame) -> Dict[str, Any]:

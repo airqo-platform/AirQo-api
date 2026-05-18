@@ -474,6 +474,150 @@ def test_generate_site_daily_forecasts_can_skip_met_enrichment(monkeypatch):
     assert "wind_speed" not in forecasts.columns
 
 
+def test_generate_site_daily_forecasts_anchors_sparse_history_to_run_date(monkeypatch):
+    history = pd.DataFrame(
+        [
+            {
+                "day": pd.Timestamp("2026-03-20"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.333333,
+                "site_longitude": 32.555555,
+                "pm25_mean": 12.3,
+                "pm25_min": 10.1,
+                "pm25_max": 15.6,
+                "n_hours": 1,
+            }
+        ]
+    )
+    feature_columns = [
+        "day_of_week",
+        "day_of_year",
+        "month",
+        "pm25_mean_lag_1",
+        "pm25_mean_lag_2",
+        "pm25_mean_lag_3",
+        "pm25_mean_lag_7",
+        "pm25_mean_lag_14",
+        "roll7_mean",
+        "roll7_std",
+        "roll14_mean",
+        "roll14_std",
+        "site_id_code",
+    ]
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_load_site_forecast_artifacts",
+        staticmethod(
+            lambda: {
+                "mean": {
+                    "model": DummyForecastModel(0.5),
+                    "features": feature_columns,
+                    "site_id_mapping": {"site-1": 0},
+                },
+                "min": {
+                    "model": DummyForecastModel(-1.0),
+                    "features": feature_columns,
+                    "site_id_mapping": {"site-1": 0},
+                },
+                "max": {
+                    "model": DummyForecastModel(2.0),
+                    "features": feature_columns,
+                    "site_id_mapping": {"site-1": 0},
+                },
+                "low": {
+                    "model": DummyForecastModel(-0.5),
+                    "features": feature_columns,
+                    "site_id_mapping": {"site-1": 0},
+                },
+                "high": {
+                    "model": DummyForecastModel(1.5),
+                    "features": feature_columns,
+                    "site_id_mapping": {"site-1": 0},
+                },
+            }
+        ),
+    )
+
+    forecasts = ForecastModelTrainer.generate_site_daily_forecasts(
+        history,
+        horizon=2,
+        run_timestamp=pd.Timestamp("2026-03-31T03:00:00Z"),
+        include_met_no_weather=False,
+    )
+
+    assert forecasts["site_id"].tolist() == ["site-1", "site-1"]
+    assert forecasts["date"].tolist() == [
+        pd.Timestamp("2026-03-31").date(),
+        pd.Timestamp("2026-04-01").date(),
+    ]
+
+
+def test_generate_site_daily_forecasts_starts_today_for_stale_lookback_data(
+    monkeypatch,
+):
+    history = pd.DataFrame(
+        [
+            {
+                "day": pd.Timestamp("2026-05-09"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.333333,
+                "site_longitude": 32.555555,
+                "pm25_mean": 12.3,
+            }
+        ]
+    )
+    feature_columns = [
+        "day_of_week",
+        "day_of_year",
+        "month",
+        "pm25_mean_lag_1",
+        "pm25_mean_lag_2",
+        "pm25_mean_lag_3",
+        "pm25_mean_lag_7",
+        "pm25_mean_lag_14",
+        "roll7_mean",
+        "roll7_std",
+        "roll14_mean",
+        "roll14_std",
+        "site_id_code",
+    ]
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_load_site_forecast_artifacts",
+        staticmethod(
+            lambda: {
+                label: {
+                    "model": DummyForecastModel(offset),
+                    "features": feature_columns,
+                    "site_id_mapping": {"site-1": 0},
+                }
+                for label, offset in {
+                    "mean": 0.5,
+                    "min": -1.0,
+                    "max": 2.0,
+                    "low": -0.5,
+                    "high": 1.5,
+                }.items()
+            }
+        ),
+    )
+
+    forecasts = ForecastModelTrainer.generate_site_daily_forecasts(
+        history,
+        horizon=10,
+        run_timestamp=pd.Timestamp("2026-05-18T03:00:00Z"),
+        include_met_no_weather=False,
+    )
+
+    assert forecasts["date"].min() == pd.Timestamp("2026-05-18").date()
+    assert forecasts["date"].max() == pd.Timestamp("2026-05-27").date()
+    assert forecasts["date"].nunique() == 10
+
+
 def test_enrich_site_daily_forecasts_with_met_falls_back_on_failure(monkeypatch):
     forecasts = pd.DataFrame(
         [
