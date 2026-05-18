@@ -8,7 +8,7 @@ images:
     reportJob: airqoacr.azurecr.io/airqo-analytics-report-job
     redisContainer: airqoacr.azurecr.io/airqo-redis
     devicesSummaryJob: airqoacr.azurecr.io/airqo-analytics-devices-summary-job
-  tag: prod-0bd9a683-1776861114
+  tag: prod-2c64229c-1779108339
 externalSecret:
   enabled: true
 api:
