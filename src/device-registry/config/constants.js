@@ -82,10 +82,11 @@ function envConfig(env) {
     })(),
 
     // MongoDB maxTimeMS for ReadingModel.recent() aggregation.
-    // Must be comfortably below the load-balancer/upstream timeout (~60s).
+    // Must be below the Next.js proxy timeout (30s) so MongoDB fails fast
+    // before the proxy aborts the upstream connection.
     READINGS_AGGREGATE_TIMEOUT_MS: (() => {
       const val = parseInt(process.env.READINGS_AGGREGATE_TIMEOUT_MS, 10);
-      return Number.isFinite(val) && val > 0 ? val : 55000;
+      return Number.isFinite(val) && val > 0 ? val : 25000;
     })(),
 
     // Temporary diagnostic window for ReadingModel.recent().
