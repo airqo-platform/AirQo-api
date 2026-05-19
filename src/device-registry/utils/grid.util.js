@@ -91,6 +91,15 @@ const _gridSummaryCountCache = new LRUCache({
   maxAge: GRID_SUMMARY_COUNT_TTL_MS,
 });
 
+// Pod-local LRU cache for GET /grids/countries.
+// Countries and their site counts change infrequently; a 3-minute TTL
+// eliminates redundant full-collection aggregations under concurrent load.
+const COUNTRIES_CACHE_TTL_MS = 3 * 60 * 1000;
+const _countriesCache = new LRUCache({
+  max: 50,
+  maxAge: COUNTRIES_CACHE_TTL_MS,
+});
+
 /**
  * Stable string key for the summary data cache.
  * Includes all parameters that affect the paginated result set.
@@ -1759,6 +1768,23 @@ const createGrid = {
   listCountries: async (request, next) => {
     try {
       const { tenant, cohort_id } = request.query;
+
+      // Stable cache key includes tenant and sorted cohort IDs (if any)
+      const cohortKey = cohort_id
+        ? (Array.isArray(cohort_id) ? cohort_id : cohort_id.split(",").map((s) => s.trim()))
+            .sort()
+            .join(",")
+        : "";
+      const normalizedTenant =
+        (tenant && tenant.toString().trim().toLowerCase()) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+      const cacheKey = `${normalizedTenant}:${cohortKey}`;
+      const cached = _countriesCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       // Use cached helper — avoids a full Cohort→Device join on every request.
       // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
       const privateSiteIds = await getPrivateSiteIds(tenant);
@@ -1782,78 +1808,74 @@ const createGrid = {
         }
       }
 
+      // Build site filter conditions for the $lookup sub-pipeline.
+      // $nin/$in on _id push filtering to the DB level rather than loading
+      // full site documents into memory and filtering with $addFields.$filter.
+      const siteMatchStage = {
+        $expr: { $in: ["$$gridId", { $ifNull: ["$grids", []] }] },
+      };
+      const idCondition = {};
+      if (privateSiteIds.length > 0) idCondition.$nin = privateSiteIds;
+      if (cohort_id && cohortSiteIds.length > 0) idCondition.$in = cohortSiteIds;
+      if (Object.keys(idCondition).length > 0) siteMatchStage._id = idCondition;
+
       const pipeline = [
         {
           $match: { admin_level: "country" },
         },
         {
+          // Use a correlated sub-pipeline so only the count is returned per
+          // country, avoiding loading full site documents into memory.
           $lookup: {
             from: "sites",
-            localField: "_id",
-            foreignField: "grids",
-            as: "sites",
+            let: { gridId: "$_id" },
+            pipeline: [
+              { $match: siteMatchStage },
+              { $count: "n" },
+            ],
+            as: "siteCount",
           },
         },
         {
           $addFields: {
-            sites: {
-              $filter: {
-                input: "$sites",
-                as: "site",
-                cond:
-                  cohort_id && cohortSiteIds.length > 0
-                    ? {
-                        $and: [
-                          { $not: { $in: ["$$site._id", privateSiteIds] } },
-                          { $in: ["$$site._id", cohortSiteIds] },
-                        ],
-                      }
-                    : { $not: { $in: ["$$site._id", privateSiteIds] } },
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            country: { $toLower: "$name" },
-            sites: { $size: "$sites" },
+            sites: { $ifNull: [{ $arrayElemAt: ["$siteCount.n", 0] }, 0] },
           },
         },
         {
           $match: { sites: { $gt: 0 } },
         },
         {
-          $sort: {
-            country: 1,
+          $project: {
+            _id: 0,
+            country: { $toLower: "$name" },
+            sites: 1,
           },
+        },
+        {
+          $sort: { country: 1 },
         },
       ];
 
       const results = await GridModel(tenant)
         .aggregate(pipeline)
-        .option({ maxTimeMS: 45000 })
+        .option({ maxTimeMS: 15000 })
         .allowDiskUse(true);
 
       const countriesWithFlags = results.map((countryData) => {
-        // Safely handle null or undefined country names
         const rawCountryName =
           typeof countryData.country === "string" ? countryData.country : "";
 
-        // Normalize name: handle underscores, hyphens, apostrophes, and extra spaces
-        // before converting to a standardized Title Case format.
         const formattedCountryName = rawCountryName
           .replace(/_/g, " ")
-          .split(/(\s+|-|')/) // Split by spaces, hyphens, or apostrophes, keeping delimiters
-          .filter(Boolean) // Remove empty strings from the result
+          .split(/(\s+|-|')/)
+          .filter(Boolean)
           .map((part) => {
-            // Only capitalize word parts, not delimiters
             if (part.match(/^[a-zA-Z0-9]+$/)) {
               return (
                 part.charAt(0).toLocaleUpperCase() + part.slice(1).toLowerCase()
               );
             }
-            return part; // Return delimiters as is
+            return part;
           })
           .join("")
           .trim();
@@ -1864,12 +1886,15 @@ const createGrid = {
         };
       });
 
-      return {
+      const response = {
         success: true,
         message: "Successfully retrieved countries and site counts.",
         data: countriesWithFlags,
         status: httpStatus.OK,
       };
+
+      _countriesCache.set(cacheKey, response);
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

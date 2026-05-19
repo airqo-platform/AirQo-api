@@ -55,19 +55,15 @@ const countryCodes = {
   Madagascar: "mg",
 };
 
+// Pre-built lowercase Map for O(1) lookup instead of O(n) scan per call.
+const _flagLookup = new Map(
+  Object.entries(countryCodes).map(([k, v]) => [k.toLowerCase(), v])
+);
+
 const getFlagUrl = (countryName) => {
-  if (!countryName) {
-    return null;
-  }
-  const lowerCountryName = countryName.toLowerCase().trim();
-  const countryEntry = Object.entries(countryCodes).find(
-    ([key, value]) => key.toLowerCase() === lowerCountryName
-  );
-  if (countryEntry) {
-    const code = countryEntry[1];
-    return `https://flagcdn.com/w320/${code.toLowerCase()}.png`;
-  }
-  return null;
+  if (!countryName) return null;
+  const code = _flagLookup.get(countryName.toLowerCase().trim());
+  return code ? `https://flagcdn.com/w320/${code}.png` : null;
 };
 
 module.exports = {
