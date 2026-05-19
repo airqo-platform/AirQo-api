@@ -141,6 +141,7 @@ const envs = {
     "feature_request",
     "performance",
     "ux_design",
+    "page_satisfaction",
     "other",
   ],
   FEEDBACK_STATUSES: ["pending", "reviewed", "resolved", "archived"],
