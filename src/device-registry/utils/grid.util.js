@@ -1787,11 +1787,11 @@ const createGrid = {
 
       // Use cached helper — avoids a full Cohort→Device join on every request.
       // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
-      const privateSiteIds = await getPrivateSiteIds(tenant);
+      const privateSiteIds = await getPrivateSiteIds(normalizedTenant);
 
       let cohortSiteIds = [];
       if (cohort_id) {
-        const siteIdsResponse = await getSiteIdsFromCohort(tenant, cohort_id);
+        const siteIdsResponse = await getSiteIdsFromCohort(normalizedTenant, cohort_id);
         if (!siteIdsResponse.success) {
           return siteIdsResponse;
         }
@@ -1856,7 +1856,7 @@ const createGrid = {
         },
       ];
 
-      const results = await GridModel(tenant)
+      const results = await GridModel(normalizedTenant)
         .aggregate(pipeline)
         .option({ maxTimeMS: 15000 })
         .allowDiskUse(true);
@@ -1915,6 +1915,9 @@ createGrid._getPrivateSiteIds = getPrivateSiteIds;
 createGrid._clearPrivateSiteIdsCache = () => {
   _privateSiteIdsCache.clear();
   _inflight.clear();
+};
+createGrid._clearCountriesCache = () => {
+  _countriesCache.clear();
 };
 
 module.exports = createGrid;
