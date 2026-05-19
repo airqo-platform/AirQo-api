@@ -204,6 +204,11 @@ describe("Grid Util", () => {
   });
 
   describe("listCountries", () => {
+    beforeEach(() => {
+      gridUtil._clearPrivateSiteIdsCache();
+      gridUtil._clearCountriesCache();
+    });
+
     it("should list countries with site counts, filtering private sites", async () => {
       const request = { query: { tenant: "airqo" } };
       const privateSiteIds = [new mongoose.Types.ObjectId()];
@@ -213,9 +218,17 @@ describe("Grid Util", () => {
       sandbox
         .stub(CohortModel, "default")
         .returns({ aggregate: cohortAggregateStub });
-      const gridAggregateStub = sandbox
-        .stub()
-        .resolves([{ country: "uganda", sites: 10 }]);
+
+      // Return a chainable aggregate mock so .option().allowDiskUse() don't
+      // throw — Mongoose Aggregate is not a plain Promise.
+      const countryData = [{ country: "uganda", sites: 10 }];
+      const aggregateChain = {
+        option: sandbox.stub().returnsThis(),
+        allowDiskUse: sandbox.stub().returnsThis(),
+        then: (res, rej) => Promise.resolve(countryData).then(res, rej),
+        catch: (fn) => Promise.resolve(countryData).catch(fn),
+      };
+      const gridAggregateStub = sandbox.stub().returns(aggregateChain);
       sandbox
         .stub(GridModel, "default")
         .returns({ aggregate: gridAggregateStub });
@@ -224,15 +237,19 @@ describe("Grid Util", () => {
 
       expect(result.success).to.be.true;
       expect(result.data[0].country).to.equal("uganda");
-      const filterStage = gridAggregateStub
-        .getCall(0)
-        .args[0].find(
-          (stage) => stage.$addFields && stage.$addFields.sites.$filter
-        );
-      expect(filterStage).to.exist;
-      expect(
-        filterStage.$addFields.sites.$filter.cond.$not.$in[1]
-      ).to.deep.equal(privateSiteIds);
+
+      // Assert the new correlated sub-pipeline shape
+      const pipelineArg = gridAggregateStub.getCall(0).args[0];
+      const lookupStage = pipelineArg.find(
+        (s) => s.$lookup && s.$lookup.as === "siteCount"
+      );
+      expect(lookupStage).to.exist;
+      expect(lookupStage.$lookup.let).to.deep.equal({ gridId: "$_id" });
+      const subMatch = lookupStage.$lookup.pipeline.find((s) => s.$match);
+      expect(subMatch.$match.$expr).to.deep.equal({
+        $in: ["$$gridId", { $ifNull: ["$grids", []] }],
+      });
+      expect(subMatch.$match._id.$nin).to.deep.equal(privateSiteIds);
     });
   });
 
