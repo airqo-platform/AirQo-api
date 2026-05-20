@@ -1330,7 +1330,7 @@ const confirmMobileAccountDeletion = [
       .isNumeric()
       .withMessage("token must be a numeric string")
       .isLength({ min: 5, max: 5 })
-      .withMessage("token must be 5 characters long"),
+      .withMessage("token must be 5 digits"),
   ],
 ];
 
