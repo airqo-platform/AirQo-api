@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.sync import SyncCohort, SyncCohortDevice, SyncDevice
+from app.models.sync import SyncCohort, SyncCohortDevice, SyncDevice, SyncSite
 from app.services.device_service import upsert_device_to_sync
 
 logger = logging.getLogger(__name__)
@@ -295,9 +295,18 @@ def _build_cohort_devices(db: Session, cohort_id: str) -> List[Dict[str, Any]]:
         sync_dev = (
             db.query(SyncDevice).filter(SyncDevice.device_id == j.device_id).first()
         )
+        sync_site = None
+        if sync_dev and sync_dev.site_id:
+            sync_site = (
+                db.query(SyncSite)
+                .filter(SyncSite.site_id == sync_dev.site_id)
+                .first()
+            )
         devices.append({
             "device_id": j.device_id,
             "device_name": sync_dev.device_name if sync_dev else None,
+            "latitude": sync_site.latitude if sync_site else None,
+            "longitude": sync_site.longitude if sync_site else None,
             "is_active": j.is_active or False,
         })
     return devices

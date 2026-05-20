@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.core.config import settings
-from app.models.sync import SyncDevice, Category, SyncMetadataValues, SyncConfigValues
+from app.models.sync import SyncDevice, SyncSite, Category, SyncMetadataValues, SyncConfigValues
 from typing import List, Dict, Any, Tuple, Optional
 from app.utils.performance import PerformanceAnalysis
 
@@ -938,6 +938,20 @@ async def get_device_performance(
 
     logger.info(f"Fetching performance for devices: {expanded_names} (frequency={frequency})")
 
+    device_rows = (
+        db.query(SyncDevice.device_name, SyncSite.latitude, SyncSite.longitude)
+        .outerjoin(SyncSite, SyncSite.site_id == SyncDevice.site_id)
+        .filter(SyncDevice.device_name.in_(expanded_names))
+        .all()
+    )
+    coordinates_by_name: Dict[str, Dict[str, Optional[float]]] = {}
+    for device_name, latitude, longitude in device_rows:
+        if device_name and device_name not in coordinates_by_name:
+            coordinates_by_name[device_name] = {
+                "latitude": latitude,
+                "longitude": longitude,
+            }
+
     metrics = cohort_service.compute_device_performance(
         db, expanded_names, start_date_time, end_date_time, frequency=frequency,
     )
@@ -945,10 +959,13 @@ async def get_device_performance(
     data_list: List[Dict[str, Any]] = []
     for d_name in expanded_names:
         m = metrics.get(d_name)
+        coords = coordinates_by_name.get(d_name, {})
         if not m:
             data_list.append({
                 "device_name": d_name,
                 "category": "lowcost",
+                "latitude": coords.get("latitude"),
+                "longitude": coords.get("longitude"),
                 "uptime": 0.0,
                 "data_completeness": 0.0,
                 "averages": {},
@@ -959,6 +976,8 @@ async def get_device_performance(
         data_list.append({
             "device_name": d_name,
             "category": m.get("category", "lowcost"),
+            "latitude": coords.get("latitude"),
+            "longitude": coords.get("longitude"),
             "uptime": round(float(m.get("uptime") or 0.0), 4),
             "data_completeness": round(float(m.get("data_completeness") or 0.0), 4),
             "averages": m.get("averages") or {},
