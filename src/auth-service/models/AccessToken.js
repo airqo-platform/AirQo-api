@@ -35,7 +35,7 @@ const AccessTokenSchema = new mongoose.Schema(
       required: [true, "client_id is required!"],
     },
     permissions: [{ type: ObjectId, ref: "permission" }],
-    scopes: [{ type: ObjectId, ref: "scope" }],
+    scopes: [{ type: String }],
     name: { type: String, required: [true, "name is required!"] },
     token: {
       type: String,
@@ -222,7 +222,7 @@ AccessTokenSchema.statics = {
         .lookup({
           from: "scopes",
           localField: "scopes",
-          foreignField: "_id",
+          foreignField: "scope",
           as: "scopes",
         })
         .lookup({
