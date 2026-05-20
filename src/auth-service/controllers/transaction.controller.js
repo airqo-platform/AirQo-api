@@ -83,9 +83,7 @@ const transactions = {
 
       const result = await transactionsUtil.createCheckoutSession(request, {
         items: resolvedItems,
-        customer: {
-          id: customerId,
-        },
+        ...(customerId && { customer_id: customerId }),
         custom_data: {
           source: "api_subscription_payment",
           ...(tier && { subscription_tier: tier }),
