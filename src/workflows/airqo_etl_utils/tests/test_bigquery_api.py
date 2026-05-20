@@ -158,6 +158,10 @@ def test_fetch_raw_site_data_for_forecast_jobs_uses_hourly_table(monkeypatch):
     assert result.empty
     assert "`project.dataset.hourly_device_measurements` AS t1" in captured["query"]
     assert "project.dataset.consolidated_data" not in captured["query"]
+    assert "t1.site_name" not in captured["query"]
+    assert "t1.site_latitude" not in captured["query"]
+    assert "t1.site_longitude" not in captured["query"]
+    assert "COALESCE(t2.display_name, t2.name, t1.site_id)" in captured["query"]
     assert ">= 1" in captured["query"]
 
 
@@ -187,6 +191,10 @@ def test_fetch_hourly_site_data_for_forecast_jobs_uses_hourly_table(monkeypatch)
     assert result.empty
     assert "`project.dataset.hourly_device_measurements` AS t1" in captured["query"]
     assert "project.dataset.consolidated_data" not in captured["query"]
+    assert "t1.site_name" not in captured["query"]
+    assert "t1.site_latitude" not in captured["query"]
+    assert "t1.site_longitude" not in captured["query"]
+    assert "COALESCE(t2.display_name, t2.name, t1.site_id)" in captured["query"]
     assert ">= 2" in captured["query"]
 
 

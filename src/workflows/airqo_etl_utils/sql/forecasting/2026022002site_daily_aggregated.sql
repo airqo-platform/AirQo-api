@@ -38,13 +38,9 @@ ORDER BY day, site_id;
 SELECT
     DATE(t1.timestamp) AS day,
     t1.site_id,
-    ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
-    ANY_VALUE(
-        COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
-    ) AS site_latitude,
-    ANY_VALUE(
-        COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
-    ) AS site_longitude,
+    ANY_VALUE(COALESCE(t2.display_name, t2.name, t1.site_id)) AS site_name,
+    ANY_VALUE(COALESCE(t2.approximate_latitude, t2.latitude)) AS site_latitude,
+    ANY_VALUE(COALESCE(t2.approximate_longitude, t2.longitude)) AS site_longitude,
     AVG(t1.pm2_5_calibrated_value) AS pm25_mean,
     MIN(t1.pm2_5_calibrated_value) AS pm25_min,
     MAX(t1.pm2_5_calibrated_value) AS pm25_max,
@@ -71,13 +67,9 @@ WITH site_hourly AS (
     SELECT
         TIMESTAMP_TRUNC(t1.timestamp, HOUR) AS timestamp,
         t1.site_id,
-        ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
-        ANY_VALUE(
-            COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
-        ) AS site_latitude,
-        ANY_VALUE(
-            COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
-        ) AS site_longitude,
+        ANY_VALUE(COALESCE(t2.display_name, t2.name, t1.site_id)) AS site_name,
+        ANY_VALUE(COALESCE(t2.approximate_latitude, t2.latitude)) AS site_latitude,
+        ANY_VALUE(COALESCE(t2.approximate_longitude, t2.longitude)) AS site_longitude,
         AVG(t1.pm2_5_calibrated_value) AS pm25_mean
     FROM {hourly_measurements_table} AS t1
     LEFT JOIN {sites_table} AS t2
