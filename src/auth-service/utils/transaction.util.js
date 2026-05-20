@@ -335,12 +335,13 @@ const transactions = {
             resolvedCustomerId = customer.id;
           } catch (error) {
             if (error.code === "customer_already_exists") {
-              // Customer exists from a prior checkout — look them up by email
-              const existing = await paddleClient.customers.list({
+              // customers.list returns an async-iterable Collection; call
+              // next() to fetch the first page before reading .data
+              const collection = paddleClient.customers.list({
                 email: [user.email],
               });
-              const existingCustomer =
-                existing && existing.data && existing.data[0];
+              await collection.next();
+              const existingCustomer = collection.data[0];
               if (existingCustomer) {
                 resolvedCustomerId = existingCustomer.id;
               } else {

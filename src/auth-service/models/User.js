@@ -474,6 +474,7 @@ const UserSchema = new Schema(
     },
     paddle_customer_id: {
       type: String,
+      index: { unique: true, sparse: true },
     },
     apiRateLimits: {
       hourlyLimit: { type: Number, default: 100 },
