@@ -472,6 +472,10 @@ const UserSchema = new Schema(
       enum: ["Free", "Standard", "Premium"],
       default: "Free",
     },
+    paddle_customer_id: {
+      type: String,
+      index: { unique: true, sparse: true },
+    },
     apiRateLimits: {
       hourlyLimit: { type: Number, default: 100 },
       dailyLimit: { type: Number, default: 1000 },

@@ -314,3 +314,119 @@ describe("tier resolution from event data", () => {
     expect(UserModelStub.firstCall.args[1].$set.subscriptionTier).to.equal("Free");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// createCheckoutSession — customer resolution paths
+// ─────────────────────────────────────────────────────────────────────────────
+describe("transactions.createCheckoutSession — customer resolution", () => {
+  let createStub;
+  let listStub;
+  let transactionCreateStub;
+  let UserModelStub;
+
+  const mockSessionData = () => ({
+    items: [{ price: "pri_test", quantity: 1 }],
+    settings: {
+      mode: "transaction",
+      success_url: "https://example.com/success",
+      cancel_url: "https://example.com/cancel",
+    },
+    custom_data: { source: "api_subscription_payment" },
+  });
+
+  const mockRequest = (userOverrides = {}) => ({
+    user: {
+      _id: "user123",
+      email: "test@example.com",
+      firstName: "Test",
+      lastName: "User",
+      paddle_customer_id: null,
+      ...userOverrides,
+    },
+    query: { tenant: "airqo" },
+  });
+
+  beforeEach(() => {
+    sinon.restore();
+
+    createStub = sinon
+      .stub(paddleConfig.paddleClient.customers, "create")
+      .resolves({ id: "ctm_new" });
+
+    const mockCollection = {
+      next: sinon.stub().resolves(),
+      data: [{ id: "ctm_existing" }],
+    };
+    listStub = sinon
+      .stub(paddleConfig.paddleClient.customers, "list")
+      .returns(mockCollection);
+
+    transactionCreateStub = sinon
+      .stub(paddleConfig.paddleClient.transactions, "create")
+      .resolves({ id: "txn_001", url: "https://pay.paddle.com/checkout/txn_001" });
+
+    const UserModel = require("@models/User");
+    UserModelStub = sinon
+      .stub(UserModel("airqo"), "findByIdAndUpdate")
+      .resolves({});
+  });
+
+  afterEach(() => sinon.restore());
+
+  it("uses cached paddle_customer_id and skips all Paddle customer API calls", async () => {
+    const req = mockRequest({ paddle_customer_id: "ctm_cached" });
+    const result = await transactions.createCheckoutSession(req, mockSessionData());
+
+    sinon.assert.notCalled(createStub);
+    sinon.assert.notCalled(listStub);
+    expect(result.success).to.equal(true);
+    const sessionArg = transactionCreateStub.firstCall.args[0];
+    expect(sessionArg.customer_id).to.equal("ctm_cached");
+  });
+
+  it("creates a new Paddle customer when none is cached and persists the ID", async () => {
+    const req = mockRequest();
+    const result = await transactions.createCheckoutSession(req, mockSessionData());
+
+    sinon.assert.calledOnce(createStub);
+    sinon.assert.notCalled(listStub);
+    expect(result.success).to.equal(true);
+    const sessionArg = transactionCreateStub.firstCall.args[0];
+    expect(sessionArg.customer_id).to.equal("ctm_new");
+    // paddle_customer_id should be persisted fire-and-forget
+    sinon.assert.calledOnce(UserModelStub);
+    const updateArg = UserModelStub.firstCall.args[1];
+    expect(updateArg.$set.paddle_customer_id).to.equal("ctm_new");
+  });
+
+  it("recovers via customers.list on customer_already_exists and persists the recovered ID", async () => {
+    const conflictErr = Object.assign(new Error("customer_already_exists"), {
+      code: "customer_already_exists",
+    });
+    createStub.rejects(conflictErr);
+
+    const req = mockRequest();
+    const result = await transactions.createCheckoutSession(req, mockSessionData());
+
+    sinon.assert.calledOnce(listStub);
+    expect(result.success).to.equal(true);
+    const sessionArg = transactionCreateStub.firstCall.args[0];
+    expect(sessionArg.customer_id).to.equal("ctm_existing");
+    sinon.assert.calledOnce(UserModelStub);
+    const updateArg = UserModelStub.firstCall.args[1];
+    expect(updateArg.$set.paddle_customer_id).to.equal("ctm_existing");
+  });
+
+  it("uses caller-supplied customer_id and skips all customer API calls and user update", async () => {
+    const req = mockRequest();
+    const data = { ...mockSessionData(), customer_id: "ctm_supplied" };
+    const result = await transactions.createCheckoutSession(req, data);
+
+    sinon.assert.notCalled(createStub);
+    sinon.assert.notCalled(listStub);
+    sinon.assert.notCalled(UserModelStub);
+    expect(result.success).to.equal(true);
+    const sessionArg = transactionCreateStub.firstCall.args[0];
+    expect(sessionArg.customer_id).to.equal("ctm_supplied");
+  });
+});

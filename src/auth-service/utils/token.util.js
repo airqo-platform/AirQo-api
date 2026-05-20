@@ -1,3 +1,4 @@
+const ApiUsageCounterModel = require("@models/ApiUsageCounter");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const BlacklistedIPPrefixModel = require("@models/BlacklistedIPPrefix");
 const IPPrefixModel = require("@models/IPPrefix");
@@ -140,6 +141,62 @@ const _checkRlCounter = async (key, limit, ttlSec, ttlMs) => {
     logger.error(`Non-critical: rate limit counter failed for key=${key}: ${err.message}`);
     return true; // Fail open
   }
+};
+
+/**
+ * Atomically increment the MongoDB-backed API usage counters for a user.
+ * Writes hourly, daily, and monthly documents in parallel via upsert + $inc.
+ * Fire-and-forget — never throws; errors are logged and swallowed.
+ */
+const _incrementUsageCounters = (userId) => {
+  const now = new Date();
+  const year  = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day   = String(now.getUTCDate()).padStart(2, "0");
+  const hour  = String(now.getUTCHours()).padStart(2, "0");
+
+  const hourKey  = `${year}${month}${day}${hour}`;
+  const dayKey   = `${year}${month}${day}`;
+  const monthKey = `${year}${month}`;
+
+  // expires_at = end of current window + 2-unit buffer.
+  // +1 advances to the next window boundary; +2 adds the post-reset buffer.
+  const hourExpiry  = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + 3));
+  const dayExpiry   = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate() + 3));
+  const monthExpiry = new Date(Date.UTC(year, now.getUTCMonth() + 3, 1));
+
+  const Model = ApiUsageCounterModel("airqo");
+  const uid   = mongoose.Types.ObjectId.isValid(userId)
+    ? new mongoose.Types.ObjectId(String(userId))
+    : userId;
+
+  const upsert = async (period, window_key, expires_at) => {
+    try {
+      await Model.findOneAndUpdate(
+        { user_id: uid, period, window_key },
+        { $inc: { count: 1 }, $setOnInsert: { expires_at } },
+        { upsert: true, new: false }
+      );
+    } catch (err) {
+      if (err.code === 11000) {
+        // Concurrent insert race — document now exists; retry increment without upsert
+        await Model.findOneAndUpdate(
+          { user_id: uid, period, window_key },
+          { $inc: { count: 1 } }
+        ).catch((retryErr) =>
+          logger.error(`Non-critical: usage counter retry failed (${period}): ${retryErr.message}`)
+        );
+      } else {
+        logger.error(`Non-critical: usage counter upsert failed (${period}): ${err.message}`);
+      }
+    }
+  };
+
+  Promise.all([
+    upsert("hourly",  hourKey,  hourExpiry),
+    upsert("daily",   dayKey,   dayExpiry),
+    upsert("monthly", monthKey, monthExpiry),
+  ]).catch(() => {});
 };
 
 /**
@@ -1108,6 +1165,11 @@ const token = {
                 `Non-critical: scope check failed, allowing through: ${scopeErr.message}`
               );
             }
+          }
+
+          // Fire-and-forget: increment MongoDB usage counters (hourly/daily/monthly).
+          if (client.user_id) {
+            _incrementUsageCounters(client.user_id);
           }
 
           // Fire-and-forget: record API token usage as user activity so that
@@ -2860,45 +2922,47 @@ const token = {
   },
 
   /**
-   * Read current Redis rate-limit counters and return usage stats.
-   * Returns null for a period when Redis is unavailable or the key doesn't exist yet.
+   * Read MongoDB usage counters and return usage stats for the billing dashboard.
+   * Returns 0 when no calls have been made in the current window.
+   * Returns null only if the DB query itself fails.
    * The shape matches what the frontend UsageStats component expects.
    */
   getApiUsageStats: async (userId, tier) => {
     const limits  = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free;
-    const now     = Date.now();
-    const nowDate = new Date();
+    const now     = new Date();
+    const year    = now.getUTCFullYear();
+    const month   = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const day     = String(now.getUTCDate()).padStart(2, "0");
+    const hour    = String(now.getUTCHours()).padStart(2, "0");
 
-    // ---- hourly ----
-    const hourSlot      = Math.floor(now / 3600000);
-    const hourKeyExpiry = (hourSlot + 1) * 3600000; // next slot start = reset time
-    const hourResetTime = new Date(hourKeyExpiry).toISOString();
+    const hourKey  = `${year}${month}${day}${hour}`;
+    const dayKey   = `${year}${month}${day}`;
+    const monthKey = `${year}${month}`;
 
-    // ---- daily ----
-    const daySlot      = Math.floor(now / 86400000);
-    const dayKeyExpiry = (daySlot + 1) * 86400000;
-    const dayResetTime = new Date(dayKeyExpiry).toISOString();
+    const hourResetTime  = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + 1)).toISOString();
+    const dayResetTime   = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
+    const monthResetTime = new Date(Date.UTC(year, now.getUTCMonth() + 1, 1)).toISOString();
 
-    // ---- monthly ----
-    const year        = nowDate.getUTCFullYear();
-    const month       = nowDate.getUTCMonth(); // 0-based
-    const monthSlot   = year * 100 + (month + 1);
-    const nextMonth   = new Date(Date.UTC(year, month + 1, 1));
-    const monthResetTime = nextMonth.toISOString();
+    const uid = mongoose.Types.ObjectId.isValid(userId)
+      ? new mongoose.Types.ObjectId(String(userId))
+      : userId;
 
-    const readCounter = async (key) => {
+    const readCounter = async (period, window_key) => {
       try {
-        const raw = await redisGetAsync(key);
-        return raw !== null && raw !== undefined ? parseInt(raw, 10) : null;
+        const doc = await ApiUsageCounterModel("airqo")
+          .findOne({ user_id: uid, period, window_key })
+          .select("count")
+          .lean();
+        return doc ? doc.count : 0;
       } catch (_err) {
         return null;
       }
     };
 
     const [hourUsed, dayUsed, monthUsed] = await Promise.all([
-      readCounter(`rl:tv:${userId}:${hourSlot}`),
-      readCounter(`rl:tv:d:${userId}:${daySlot}`),
-      readCounter(`rl:tv:m:${userId}:${monthSlot}`),
+      readCounter("hourly",  hourKey),
+      readCounter("daily",   dayKey),
+      readCounter("monthly", monthKey),
     ]);
 
     return {
