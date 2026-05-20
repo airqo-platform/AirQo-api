@@ -159,10 +159,11 @@ const _incrementUsageCounters = (userId) => {
   const dayKey   = `${year}${month}${day}`;
   const monthKey = `${year}${month}`;
 
-  // expires_at values — generous buffer beyond the window end
-  const hourExpiry  = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + 2));
-  const dayExpiry   = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate() + 2));
-  const monthExpiry = new Date(Date.UTC(year, now.getUTCMonth() + 2, 1));
+  // expires_at = end of current window + 2-unit buffer.
+  // +1 advances to the next window boundary; +2 adds the post-reset buffer.
+  const hourExpiry  = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + 3));
+  const dayExpiry   = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate() + 3));
+  const monthExpiry = new Date(Date.UTC(year, now.getUTCMonth() + 3, 1));
 
   const Model = ApiUsageCounterModel("airqo");
   const uid   = mongoose.Types.ObjectId.isValid(userId)
