@@ -322,19 +322,57 @@ const transactions = {
       logObject("user.lastName", user.lastName);
 
       if (!customerIdentification) {
-        try {
-          const customer = await paddleClient.customers.create({
-            email: user.email,
-            name: user.firstName || user.lastName,
-          });
-          sessionData.customer_id = customer.id; // Changed from customerId
-        } catch (error) {
-          logger.error(
-            `Unable to generate the transaction client on Paddle -- ${stringify(
-              error
-            )}`
-          );
-          throw error; // Add this to prevent continuing with invalid customer
+        if (user.paddle_customer_id) {
+          // Reuse the cached Paddle customer ID — no API call needed
+          sessionData.customer_id = user.paddle_customer_id;
+        } else {
+          let resolvedCustomerId;
+          try {
+            const customer = await paddleClient.customers.create({
+              email: user.email,
+              name: user.firstName || user.lastName,
+            });
+            resolvedCustomerId = customer.id;
+          } catch (error) {
+            if (error.code === "customer_already_exists") {
+              // Customer exists from a prior checkout — look them up by email
+              const existing = await paddleClient.customers.list({
+                email: [user.email],
+              });
+              const existingCustomer =
+                existing && existing.data && existing.data[0];
+              if (existingCustomer) {
+                resolvedCustomerId = existingCustomer.id;
+              } else {
+                logger.error(
+                  `Unable to retrieve existing Paddle customer for email: ${user.email}`
+                );
+                throw error;
+              }
+            } else {
+              logger.error(
+                `Unable to generate the transaction client on Paddle -- ${stringify(
+                  error
+                )}`
+              );
+              throw error;
+            }
+          }
+          sessionData.customer_id = resolvedCustomerId;
+          // Persist the customer ID so future checkouts skip this lookup
+          const tenant =
+            (request.query && request.query.tenant) || "airqo";
+          UserModel(tenant)
+            .findByIdAndUpdate(
+              user._id,
+              { $set: { paddle_customer_id: resolvedCustomerId } },
+              { new: false }
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to persist paddle_customer_id for user ${user._id}: ${err.message}`
+              )
+            );
         }
       }
 
