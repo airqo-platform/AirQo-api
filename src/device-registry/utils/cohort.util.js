@@ -2272,9 +2272,10 @@ const createCohort = {
         tenant,
       };
       if (search) {
+        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         filter.$or = [
-          { name: { $regex: search, $options: "i" } },
-          { search_name: { $regex: search, $options: "i" } },
+          { name: { $regex: escapedSearch, $options: "i" } },
+          { search_name: { $regex: escapedSearch, $options: "i" } },
         ];
       }
       if (country) {
