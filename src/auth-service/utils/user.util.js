@@ -7669,7 +7669,7 @@ const feedbackUtil = {
       // Also dispatch a support email (best-effort; DB record already saved)
       try {
         await mailer.feedback(
-          { email: normalizedEmail, subject, message },
+          { email: normalizedEmail, subject, message, screenshot_url },
           next,
         );
       } catch (emailError) {
