@@ -1716,15 +1716,21 @@ const mailer = {
         );
       }
 
+      const screenshotHtml = params.screenshot_url
+        ? `<p><strong>Screenshot:</strong><br/><img src="${params.screenshot_url}" alt="Feedback screenshot" style="max-width:100%;border:1px solid #ddd;border-radius:4px;margin-top:8px;" /></p>`
+        : "";
+
       return {
         ...baseMailOptions,
-        to: constants.SUPPORT_EMAIL, // Send to support
-        cc: params.email, // Copy user on their feedback
-        subject: params.subject, // Use provided subject
-        text: params.message, // Use text instead of HTML for feedback
-        html: undefined, // Remove HTML for feedback emails
-        bcc: undefined, // No BCC for feedback
-        attachments: undefined, // No attachments for feedback
+        to: constants.SUPPORT_EMAIL,
+        cc: params.email,
+        subject: params.subject,
+        text: params.screenshot_url
+          ? `${params.message}\n\nScreenshot: ${params.screenshot_url}`
+          : params.message,
+        html: `<p>${params.message.replace(/\n/g, "<br/>")}</p>${screenshotHtml}`,
+        bcc: undefined,
+        attachments: undefined,
       };
     },
   ),
