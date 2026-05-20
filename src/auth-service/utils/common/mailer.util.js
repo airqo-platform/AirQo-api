@@ -29,6 +29,20 @@ const processString = (inputString) => {
   const uppercasedString = stringWithSpaces.toUpperCase();
   return uppercasedString;
 };
+const escapeHtml = (str) =>
+  String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+const isSafeHttpsUrl = (url) => {
+  try {
+    return new URL(url).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 const projectRoot = path.join(__dirname, "..", "..");
 const imagePath = path.join(projectRoot, "config", "images");
 
@@ -1716,19 +1730,27 @@ const mailer = {
         );
       }
 
-      const screenshotHtml = params.screenshot_url
-        ? `<p><strong>Screenshot:</strong><br/><img src="${params.screenshot_url}" alt="Feedback screenshot" style="max-width:100%;border:1px solid #ddd;border-radius:4px;margin-top:8px;" /></p>`
+      const safeScreenshotUrl =
+        params.screenshot_url && isSafeHttpsUrl(params.screenshot_url)
+          ? params.screenshot_url
+          : null;
+      const screenshotHtml = safeScreenshotUrl
+        ? `<p><strong>Screenshot:</strong><br/><img src="${escapeHtml(safeScreenshotUrl)}" alt="Feedback screenshot" style="max-width:100%;border:1px solid #ddd;border-radius:4px;margin-top:8px;" /></p>`
         : "";
+      const escapedMessage = escapeHtml(params.message).replace(
+        /\n/g,
+        "<br/>",
+      );
 
       return {
         ...baseMailOptions,
         to: constants.SUPPORT_EMAIL,
         cc: params.email,
         subject: params.subject,
-        text: params.screenshot_url
-          ? `${params.message}\n\nScreenshot: ${params.screenshot_url}`
+        text: safeScreenshotUrl
+          ? `${params.message}\n\nScreenshot: ${safeScreenshotUrl}`
           : params.message,
-        html: `<p>${params.message.replace(/\n/g, "<br/>")}</p>${screenshotHtml}`,
+        html: `<p>${escapedMessage}</p>${screenshotHtml}`,
         bcc: undefined,
         attachments: undefined,
       };
