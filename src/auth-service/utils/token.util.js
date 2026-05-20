@@ -61,6 +61,8 @@ const getDay = () => {
   return `${year}-${month}-${day}`;
 };
 
+const API_TOKEN_TTL_MS = 5110 * 3600 * 1000; // 7 months (matches AccessToken model)
+
 const createUnauthorizedResponse = () => {
   return {
     success: false,
@@ -1260,21 +1262,6 @@ const token = {
         )
         .toUpperCase();
 
-      // Remove any existing token for this client before creating a new one.
-      // The access_tokens collection enforces a unique index on client_id
-      // (one token per client). Without this, a second call for the same
-      // client hits E11000 from MongoDB. Deleting first makes the endpoint
-      // behave as a token refresh — the old token is immediately invalidated.
-      // Using deleteOne (Mongoose native) rather than the custom remove() static
-      // because remove() emits a logger.error when no document is found, which
-      // would fire on every first-time token creation (normal path).
-      // Note: delete-then-create is not fully atomic. In the unlikely event of
-      // two truly concurrent requests for the same client_id, one will win and
-      // the other will receive a 409 from the E11000 handler in register().
-      await AccessTokenModel(tenant.toLowerCase()).deleteOne({
-        client_id: ObjectId(client_id),
-      });
-
       // Resolve the user's current subscription tier so the new token is
       // stamped with the correct tier and scopes at creation time. Falls back
       // to Free if the user cannot be found — never throws.
@@ -1305,11 +1292,52 @@ const token = {
       tokenCreationBody.category = "api";
       tokenCreationBody.tier   = tokenTier;
       tokenCreationBody.scopes = tokenScopes;
-      const responseFromCreateToken = await AccessTokenModel(
-        tenant.toLowerCase(),
-      ).register(tokenCreationBody, next);
 
-      return responseFromCreateToken;
+      // Use findOneAndReplace with upsert so the old token is replaced
+      // atomically. This avoids the delete-before-create pattern where a
+      // failed register() would leave the user with no token at all.
+      const tokenModel = AccessTokenModel(tenant.toLowerCase());
+      const expires = tokenCreationBody.expires || Date.now() + API_TOKEN_TTL_MS;
+
+      let replacedDoc;
+      try {
+        replacedDoc = await tokenModel.findOneAndReplace(
+          { client_id: ObjectId(client_id) },
+          { ...tokenCreationBody, expires },
+          {
+            upsert: true,
+            new: true,
+            runValidators: true,
+            setDefaultsOnInsert: true,
+          },
+        );
+      } catch (replaceErr) {
+        if (replaceErr.code === 11000) {
+          return {
+            success: false,
+            message: "A token already exists for one of the provided unique fields",
+            status: httpStatus.CONFLICT,
+            errors: { token: "the token must be unique" },
+          };
+        }
+        throw replaceErr;
+      }
+
+      if (!replacedDoc) {
+        return {
+          success: false,
+          message: "Token could not be created",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "findOneAndReplace returned null" },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Token created",
+        status: httpStatus.OK,
+        data: replacedDoc,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
