@@ -382,6 +382,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     expect(result.success).to.equal(true);
     const sessionArg = transactionCreateStub.firstCall.args[0];
     expect(sessionArg.customer_id).to.equal("ctm_cached");
+    expect(sessionArg.settings).to.be.undefined;
   });
 
   it("creates a new Paddle customer when none is cached and persists the ID", async () => {
@@ -393,6 +394,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     expect(result.success).to.equal(true);
     const sessionArg = transactionCreateStub.firstCall.args[0];
     expect(sessionArg.customer_id).to.equal("ctm_new");
+    expect(sessionArg.settings).to.be.undefined;
     // paddle_customer_id should be persisted fire-and-forget
     sinon.assert.calledOnce(UserModelStub);
     const updateArg = UserModelStub.firstCall.args[1];
@@ -412,6 +414,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     expect(result.success).to.equal(true);
     const sessionArg = transactionCreateStub.firstCall.args[0];
     expect(sessionArg.customer_id).to.equal("ctm_existing");
+    expect(sessionArg.settings).to.be.undefined;
     sinon.assert.calledOnce(UserModelStub);
     const updateArg = UserModelStub.firstCall.args[1];
     expect(updateArg.$set.paddle_customer_id).to.equal("ctm_existing");
@@ -428,5 +431,6 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     expect(result.success).to.equal(true);
     const sessionArg = transactionCreateStub.firstCall.args[0];
     expect(sessionArg.customer_id).to.equal("ctm_supplied");
+    expect(sessionArg.settings).to.be.undefined;
   });
 });

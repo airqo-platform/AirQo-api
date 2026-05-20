@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-auth-api
-  tag: stage-50ad226a-1779295401
+  tag: stage-16d3db81-1779297593
   pullPolicy: IfNotPresent
 resources:
   limits:

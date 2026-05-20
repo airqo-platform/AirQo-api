@@ -379,8 +379,8 @@ const transactions = {
 
       // Ensure required fields are present
       if (
-        !sessionData.settings.success_url ||
-        !sessionData.settings.cancel_url
+        !sessionData.settings?.success_url ||
+        !sessionData.settings?.cancel_url
       ) {
         throw new Error("success_url and cancel_url are required in settings");
       }
@@ -389,8 +389,12 @@ const transactions = {
         throw new Error("items array with at least one item is required");
       }
 
+      // Strip internal-only `settings` key — Paddle's transactions.create API
+      // does not accept it (it is a Paddle.js client-side concept only).
+      // Redirect URLs are configured in the Paddle dashboard.
+      const { settings: _settings, ...paddlePayload } = sessionData;
       const checkoutSession = await paddleClient.transactions.create(
-        sessionData
+        paddlePayload
       );
       return {
         success: true,
