@@ -1906,7 +1906,7 @@ const createUserModule = {
       let responseFromSendEmail = {};
       let token = 10000;
       if (email !== constants.EMAIL) {
-        token = Math.floor(Math.random() * (99999 - 10000) + 10000);
+        token = generateNumericToken(5);
       }
       if (purpose === "mobileAccountDelete") {
         responseFromSendEmail = await mailer.deleteMobileAccountEmail(
@@ -3143,7 +3143,7 @@ const createUserModule = {
       try {
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          token: { $regex: /^\d{5}$/ },
+          token: { $regex: /^\d{5,6}$/ },
           expires: { $lt: new Date() },
         });
 
@@ -3291,8 +3291,8 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Token format validation for mobile (5-digit numeric)
-      if (!/^\d{5}$/.test(token)) {
+      // ✅ STEP 2: Token format validation for mobile (5-digit numeric; 6-digit accepted during transition for already-issued codes)
+      if (!/^\d{5,6}$/.test(token)) {
         logger.warn(
           `Invalid mobile verification token format for ${normalizedEmail}`,
           {

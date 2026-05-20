@@ -1048,7 +1048,7 @@ describe("create-user-util", function () {
         status: httpStatus.OK,
         data: {
           link: "your-generated-link",
-          token: 100000,
+          token: 10000,
           email: "test@example.com",
           emailLinkCode: "your-email-link-code",
         },
@@ -1073,7 +1073,7 @@ describe("create-user-util", function () {
       // Ensure that the authenticateEmail function is called with the correct arguments
       expect(authenticateEmailStub).to.have.been.calledOnceWith(
         "test@example.com",
-        100000
+        10000
       );
     });
 
