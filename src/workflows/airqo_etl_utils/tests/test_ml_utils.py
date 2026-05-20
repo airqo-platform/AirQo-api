@@ -355,6 +355,71 @@ def test_generate_site_daily_forecasts_with_synthetic_data(monkeypatch):
         assert forecasts[column].equals(rounded)
 
 
+def test_generate_site_daily_forecasts_starts_on_requested_date_for_all_sites(
+    monkeypatch,
+):
+    synthetic_history = build_synthetic_site_forecast_history(
+        num_sites=2,
+        num_days=30,
+        seed=13,
+        start_date="2026-04-01",
+    )
+    feature_columns = [
+        "day_of_week",
+        "day_of_year",
+        "month",
+        "pm25_mean_lag_1",
+        "pm25_mean_lag_2",
+        "pm25_mean_lag_3",
+        "pm25_mean_lag_7",
+        "pm25_mean_lag_14",
+        "roll7_mean",
+        "roll7_std",
+        "roll14_mean",
+        "roll14_std",
+        "site_id_code",
+    ]
+    site_mapping = {
+        site_id: idx
+        for idx, site_id in enumerate(sorted(synthetic_history["site_id"].unique()))
+    }
+
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_load_site_forecast_artifacts",
+        staticmethod(
+            lambda: {
+                label: {
+                    "model": DummyForecastModel(offset),
+                    "features": feature_columns,
+                    "site_id_mapping": site_mapping,
+                }
+                for label, offset in {
+                    "mean": 0.5,
+                    "min": -1.0,
+                    "max": 2.0,
+                    "low": -0.5,
+                    "high": 1.5,
+                }.items()
+            }
+        ),
+    )
+
+    forecasts = ForecastModelTrainer.generate_site_daily_forecasts(
+        synthetic_history,
+        horizon=2,
+        forecast_start_date="2026-05-20",
+        include_met_no_weather=False,
+    )
+
+    assert forecasts["site_id"].nunique() == 2
+    assert sorted(forecasts["date"].unique()) == [
+        datetime(2026, 5, 20).date(),
+        datetime(2026, 5, 21).date(),
+    ]
+    assert forecasts.groupby("site_id")["date"].nunique().eq(2).all()
+
+
 def test_fetch_site_prediction_data_includes_execution_day_and_allows_sparse_rows(
     monkeypatch,
 ):

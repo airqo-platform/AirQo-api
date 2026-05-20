@@ -1901,6 +1901,7 @@ class ForecastModelTrainer(BaseMlUtils):
         raw_data: pd.DataFrame,
         *,
         horizon: Optional[int] = None,
+        forecast_start_date: Optional[Any] = None,
         run_timestamp: Optional[pd.Timestamp] = None,
         include_met_no_weather: bool = True,
     ) -> pd.DataFrame:
@@ -1953,17 +1954,39 @@ class ForecastModelTrainer(BaseMlUtils):
         else:
             run_timestamp = run_timestamp.tz_convert("UTC")
 
-        recursive_history = history[["site_id", "site_name", "day", "pm25_mean"]].copy()
+        first_forecast_day = None
+        if forecast_start_date is not None:
+            first_forecast_day = pd.Timestamp(forecast_start_date).normalize()
+            if first_forecast_day.tzinfo is not None:
+                first_forecast_day = first_forecast_day.tz_convert("UTC").tz_localize(
+                    None
+                )
+
         site_meta = ForecastModelTrainer._resolve_site_forecast_metadata(history)
+        recursive_history = history[["site_id", "site_name", "day", "pm25_mean"]].copy()
+        if first_forecast_day is not None:
+            recursive_history = recursive_history.loc[
+                recursive_history["day"] < first_forecast_day
+            ].copy()
         predictions: List[pd.DataFrame] = []
 
-        for _ in range(horizon):
-            next_rows = (
-                recursive_history.groupby("site_id", as_index=False)["day"]
-                .max()
-                .assign(day=lambda df: df["day"] + pd.Timedelta(days=1))
-                .merge(site_meta, on="site_id", how="left")
-            )
+        for step in range(horizon):
+            if first_forecast_day is None:
+                next_rows = (
+                    recursive_history.groupby("site_id", as_index=False)["day"]
+                    .max()
+                    .assign(day=lambda df: df["day"] + pd.Timedelta(days=1))
+                    .merge(site_meta, on="site_id", how="left")
+                )
+            else:
+                forecast_day = first_forecast_day + pd.Timedelta(days=step)
+                next_rows = (
+                    site_meta[
+                        ["site_id", "site_name", "site_latitude", "site_longitude"]
+                    ]
+                    .copy()
+                    .assign(day=forecast_day)
+                )
             next_rows["pm25_mean"] = np.nan
 
             feature_source = pd.concat(
@@ -3124,85 +3147,38 @@ class ForecastModelTrainer(BaseMlUtils):
                 {key: value for key, value in document.items() if not pd.isna(value)}
             )
 
-        insert_only_fields = {"site_id", "timestamp", "site_name", "created_at"}
-        bulk_operations = []
-        for record in records:
-            update_doc = {
-                "$set": {
-                    key: value
-                    for key, value in record.items()
-                    if key not in insert_only_fields
-                },
-                "$setOnInsert": {
-                    key: value
-                    for key, value in record.items()
-                    if key in insert_only_fields
-                },
-            }
-            if not update_doc["$set"]:
-                del update_doc["$set"]
-            bulk_operations.append(
-                pm.UpdateOne(
-                    {
-                        "site_id": record["site_id"],
-                        "timestamp": record["timestamp"],
-                    },
-                    update_doc,
-                    upsert=True,
-                )
-            )
         retention_hours = int(configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
         retention_cutoff = (
             pd.Timestamp.utcnow() - pd.Timedelta(hours=retention_hours)
         ).to_pydatetime()
-        batch_size = int(
-            getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 500) or 500
+        configured_batch_size = int(
+            getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 5000) or 5000
         )
+        batch_size = max(configured_batch_size, 5000)
         deleted_rows = 0
-        bulk_batches = 0
+        inserted_rows = 0
+        insert_batches = 0
 
         with pm.MongoClient(
             configuration.MONGO_URI, serverSelectionTimeoutMS=5000
         ) as client:
             mongo_db = client[configuration.MONGO_DATABASE_NAME]
             collection = mongo_db[collection_name]
-            if bulk_operations:
-                for i in range(0, len(bulk_operations), batch_size):
-                    collection.bulk_write(
-                        bulk_operations[i : i + batch_size], ordered=False
+            collection.create_index(
+                [("site_id", 1), ("timestamp", 1)],
+                background=True,
+            )
+            if site_ids:
+                deleted_rows += collection.delete_many(
+                    {"site_id": {"$in": site_ids}}
+                ).deleted_count
+            if records:
+                for i in range(0, len(records), batch_size):
+                    result = collection.insert_many(
+                        records[i : i + batch_size], ordered=False
                     )
-                    bulk_batches += 1
-                if site_ids:
-                    existing_docs = list(
-                        collection.find(
-                            {"site_id": {"$in": site_ids}},
-                            {"_id": 1, "site_id": 1, "timestamp": 1},
-                        )
-                    )
-                    if existing_docs:
-                        existing = pd.DataFrame(existing_docs)
-                        existing["timestamp"] = pd.to_datetime(
-                            existing["timestamp"], utc=True, errors="coerce"
-                        )
-                        retained_ids = set(
-                            existing.dropna(subset=["timestamp"])
-                            .sort_values(
-                                ["site_id", "timestamp"],
-                                ascending=[True, False],
-                            )
-                            .groupby("site_id", group_keys=False)
-                            .head(retention_hours)["_id"]
-                            .tolist()
-                        )
-                        stale_ids = [
-                            doc["_id"]
-                            for doc in existing_docs
-                            if doc["_id"] not in retained_ids
-                        ]
-                        if stale_ids:
-                            deleted_rows += collection.delete_many(
-                                {"_id": {"$in": stale_ids}}
-                            ).deleted_count
+                    inserted_rows += len(result.inserted_ids)
+                    insert_batches += 1
                 deleted_rows += collection.delete_many(
                     {"timestamp": {"$lt": retention_cutoff}}
                 ).deleted_count
@@ -3211,7 +3187,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "rows": len(records),
             "collection": collection_name,
             "deleted_rows": deleted_rows,
-            "bulk_batches": bulk_batches,
+            "inserted_rows": inserted_rows,
+            "insert_batches": insert_batches,
             "bulk_batch_size": batch_size,
         }
 

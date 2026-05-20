@@ -452,7 +452,7 @@ class ForecastFixtures:
     def feat_eng_sample_df_hourly():
         data = {
             "timestamp": pd.date_range(
-                end=pd.Timestamp.now(), periods=24 * 14, freq="H"
+                end=pd.Timestamp.now(), periods=24 * 14, freq="h"
             ).tolist(),
             "device_id": ["device1"] * 24 * 14,
             "pm2_5": range(1, 24 * 14 + 1),
@@ -509,7 +509,7 @@ class ForecastFixtures:
                 "site_id": ["site1", "site1", "site2"],
                 "device_number": [1, 1, 2],
                 "pm2_5": [10.0, 15.0, 20.0],
-                "timestamp": pd.date_range("2023-01-01", periods=3, freq="H").tolist(),
+                "timestamp": pd.date_range("2023-01-01", periods=3, freq="h").tolist(),
             }
         )
 
