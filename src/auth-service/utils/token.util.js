@@ -170,14 +170,27 @@ const _incrementUsageCounters = (userId) => {
     ? new mongoose.Types.ObjectId(String(userId))
     : userId;
 
-  const upsert = (period, window_key, expires_at) =>
-    Model.findOneAndUpdate(
-      { user_id: uid, period, window_key },
-      { $inc: { count: 1 }, $setOnInsert: { expires_at } },
-      { upsert: true, new: false }
-    ).catch((err) =>
-      logger.error(`Non-critical: usage counter upsert failed (${period}): ${err.message}`)
-    );
+  const upsert = async (period, window_key, expires_at) => {
+    try {
+      await Model.findOneAndUpdate(
+        { user_id: uid, period, window_key },
+        { $inc: { count: 1 }, $setOnInsert: { expires_at } },
+        { upsert: true, new: false }
+      );
+    } catch (err) {
+      if (err.code === 11000) {
+        // Concurrent insert race — document now exists; retry increment without upsert
+        await Model.findOneAndUpdate(
+          { user_id: uid, period, window_key },
+          { $inc: { count: 1 } }
+        ).catch((retryErr) =>
+          logger.error(`Non-critical: usage counter retry failed (${period}): ${retryErr.message}`)
+        );
+      } else {
+        logger.error(`Non-critical: usage counter upsert failed (${period}): ${err.message}`);
+      }
+    }
+  };
 
   Promise.all([
     upsert("hourly",  hourKey,  hourExpiry),
