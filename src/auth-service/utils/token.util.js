@@ -61,6 +61,8 @@ const getDay = () => {
   return `${year}-${month}-${day}`;
 };
 
+const API_TOKEN_TTL_MS = 5110 * 3600 * 1000; // 7 months (matches AccessToken model)
+
 const createUnauthorizedResponse = () => {
   return {
     success: false,
@@ -1295,18 +1297,31 @@ const token = {
       // atomically. This avoids the delete-before-create pattern where a
       // failed register() would leave the user with no token at all.
       const tokenModel = AccessTokenModel(tenant.toLowerCase());
-      let expires = tokenCreationBody.expires;
-      if (isEmpty(expires)) {
-        expires =
-          Date.now() +
-          (5110 * 60 * 60 + 0 * 60 + 0) * 1000; // 7 months
-      }
+      const expires = tokenCreationBody.expires || Date.now() + API_TOKEN_TTL_MS;
 
-      const replacedDoc = await tokenModel.findOneAndReplace(
-        { client_id: ObjectId(client_id) },
-        { ...tokenCreationBody, expires },
-        { upsert: true, new: true, runValidators: true },
-      );
+      let replacedDoc;
+      try {
+        replacedDoc = await tokenModel.findOneAndReplace(
+          { client_id: ObjectId(client_id) },
+          { ...tokenCreationBody, expires },
+          {
+            upsert: true,
+            new: true,
+            runValidators: true,
+            setDefaultsOnInsert: true,
+          },
+        );
+      } catch (replaceErr) {
+        if (replaceErr.code === 11000) {
+          return {
+            success: false,
+            message: "A token already exists for one of the provided unique fields",
+            status: httpStatus.CONFLICT,
+            errors: { token: "the token must be unique" },
+          };
+        }
+        throw replaceErr;
+      }
 
       if (!replacedDoc) {
         return {
