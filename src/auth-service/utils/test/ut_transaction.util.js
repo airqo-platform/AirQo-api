@@ -500,9 +500,9 @@ describe("transactions.processWebhook — body normalisation", () => {
 
   afterEach(() => sinon.restore());
 
-  const mockWebhookRequest = (rawBody) => ({
+  const mockWebhookRequest = (body) => ({
     headers: { "paddle-signature": "ts=1234;h1=abcd" },
-    rawBody,
+    body,
     query: { tenant: "airqo" },
   });
 
