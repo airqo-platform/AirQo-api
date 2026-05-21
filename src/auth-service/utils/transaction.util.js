@@ -555,6 +555,34 @@ const transactions = {
       logger.error("Failed to send admin notification", notificationError);
     }
   },
+  handleFailedTransaction: async (eventData) => {
+    try {
+      logObject("Failed Transaction Event", eventData);
+
+      if (!eventData || !eventData.id || !eventData.customer_id) {
+        logger.warn("Invalid transaction data received for payment_failed event");
+        return;
+      }
+
+      logger.warn(`Payment failed for transaction: ${eventData.id}`, {
+        customerId: eventData.customer_id,
+        amount: eventData.total,
+        currency: eventData.currency,
+      });
+
+      await transactions.notifyAdminOfTransactionError(
+        new Error(`Payment failed for transaction ${eventData.id}`),
+        eventData
+      );
+    } catch (error) {
+      logger.error("Failed transaction processing error", {
+        errorMessage: error.message,
+        transactionId: eventData?.id,
+        stack: error.stack,
+      });
+    }
+  },
+
   handleCompletedTransaction: async (eventData) => {
     try {
       // Log the incoming event data for debugging
@@ -623,7 +651,7 @@ const transactions = {
       const { tenant } = query;
 
       // Verify webhook authenticity
-      const event = paddleClient.webhooks.unmarshal(
+      const event = await paddleClient.webhooks.unmarshal(
         body,
         signature,
         constants.PADDLE_WEBHOOK_SECRET
@@ -634,7 +662,7 @@ const transactions = {
           await transactions.handleCompletedTransaction(event.data);
           break;
         case "transaction.payment_failed":
-          await handleFailedTransaction(event.data);
+          await transactions.handleFailedTransaction(event.data);
           break;
         // Add more event handlers
         default:
