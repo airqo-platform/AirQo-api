@@ -437,7 +437,7 @@ const transactions = {
         success: true,
         data: {
           id: checkoutSession.id,
-          url: checkoutSession.url,
+          url: checkoutSession.checkout?.url,
         },
         status: httpStatus.CREATED,
       };

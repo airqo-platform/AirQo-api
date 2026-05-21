@@ -363,7 +363,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
 
     transactionCreateStub = sinon
       .stub(paddleConfig.paddleClient.transactions, "create")
-      .resolves({ id: "txn_001", url: "https://pay.paddle.com/checkout/txn_001" });
+      .resolves({ id: "txn_001", checkout: { url: "https://pay.paddle.com/checkout/txn_001" } });
 
     const UserModel = require("@models/User");
     UserModelStub = sinon
@@ -380,9 +380,19 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     sinon.assert.notCalled(createStub);
     sinon.assert.notCalled(listStub);
     expect(result.success).to.equal(true);
+    expect(result.data.url).to.equal("https://pay.paddle.com/checkout/txn_001");
     const sessionArg = transactionCreateStub.firstCall.args[0];
     expect(sessionArg.customer_id).to.equal("ctm_cached");
     expect(sessionArg.settings).to.be.undefined;
+  });
+
+  it("returns undefined url without error when Paddle returns checkout: null", async () => {
+    transactionCreateStub.resolves({ id: "txn_null", checkout: null });
+    const req = mockRequest({ paddle_customer_id: "ctm_cached" });
+    const result = await transactions.createCheckoutSession(req, mockSessionData());
+
+    expect(result.success).to.equal(true);
+    expect(result.data.url).to.be.undefined;
   });
 
   it("creates a new Paddle customer when none is cached and persists the ID", async () => {
@@ -445,7 +455,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     transactionCreateStub.onFirstCall().rejects(staleErr);
     transactionCreateStub.onSecondCall().resolves({
       id: "txn_retry",
-      url: "https://pay.paddle.com/checkout/txn_retry",
+      checkout: { url: "https://pay.paddle.com/checkout/txn_retry" },
     });
 
     // customers.create succeeds and returns a fresh customer
