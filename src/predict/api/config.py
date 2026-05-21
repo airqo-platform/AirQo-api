@@ -43,6 +43,13 @@ class Config:
     MONGO_SITE_DAILY_FORECAST_COLLECTION = _env_first(
         "MONGO_SITE_DAILY_FORECAST_COLLECTION"
     )
+    MONGO_SITE_HOURLY_FORECAST_COLLECTION = _env_first(
+        "MONGO_SITE_HOURLY_FORECAST_COLLECTION",
+        default="site_10days_hourly_forecasts",
+    )
+    SITE_HOURLY_FORECAST_HORIZON_HOURS = os.getenv(
+        "SITE_HOURLY_FORECAST_HORIZON_HOURS", "240"
+    )
     REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
     POSTGRES_CONNECTION_URL = os.getenv(
         "POSTGRES_CONNECTION_URL", "postgresql://localhost:5432/test_airqo_db"

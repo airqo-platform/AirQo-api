@@ -6,6 +6,7 @@ route = {
     "next_1_week_forecasts": f"{base_url}/predict/daily-forecast",
     "all_1_week_forecasts": f"{base_url}/predict/daily-forecasts",
     "site_daily_forecasts": f"{base_url}/predict/daily-forecasting",
+    "site_hourly_forecasts": f"{base_url}/predict/hourly-forecasting",
     "search_predictions": f"{base_url}/predict/search",
     "predict_for_heatmap": f"{base_url}/predict/heatmap",
     "parish_predictions": f"{base_url}/predict/parishes",
