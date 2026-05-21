@@ -441,7 +441,9 @@ class ForecastFixtures:
     @pytest.fixture
     def feat_eng_sample_df_daily():
         data = {
-            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=365).tolist(),
+            "timestamp": pd.date_range(
+                end=pd.Timestamp("2025-12-31"), periods=365
+            ).tolist(),
             "device_id": ["device1"] * 365,
             "pm2_5": range(1, 366),
         }
@@ -452,7 +454,7 @@ class ForecastFixtures:
     def feat_eng_sample_df_hourly():
         data = {
             "timestamp": pd.date_range(
-                end=pd.Timestamp.now(), periods=24 * 14, freq="h"
+                end=pd.Timestamp("2025-01-14 23:00:00"), periods=24 * 14, freq="h"
             ).tolist(),
             "device_id": ["device1"] * 24 * 14,
             "pm2_5": range(1, 24 * 14 + 1),
@@ -463,7 +465,9 @@ class ForecastFixtures:
     @pytest.fixture
     def sample_dataframe_for_location_features():
         data = {
-            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=100).tolist(),
+            "timestamp": pd.date_range(
+                end=pd.Timestamp("2025-04-10"), periods=100
+            ).tolist(),
             "device_id": ["device1"] * 100,
             "latitude": np.random.uniform(-90, 90, 100),
             "longitude": np.random.uniform(-180, 180, 100),
