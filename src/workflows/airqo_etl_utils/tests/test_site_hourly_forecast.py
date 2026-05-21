@@ -206,7 +206,6 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
     )
 
     mock_collection = MagicMock()
-    mock_collection.find.return_value = []
     mock_collection.delete_many.return_value.deleted_count = 0
 
     mock_db = MagicMock()
@@ -232,36 +231,42 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
         lambda *args, **kwargs: mock_client_manager,
     )
 
+    insert_result = MagicMock()
+    insert_result.inserted_ids = [1, 2]
+    mock_collection.insert_many.return_value = insert_result
+
     result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
-    mock_collection.bulk_write.assert_called_once()
-    assert mock_collection.bulk_write.call_args.kwargs["ordered"] is False
-    bulk_operations = mock_collection.bulk_write.call_args.args[0]
-    assert len(bulk_operations) == 2
-    assert all(operation._upsert for operation in bulk_operations)
-    assert bulk_operations[0]._filter == {
-        "site_id": "site-1",
-        "timestamp": pd.Timestamp("2026-03-04T08:00:00Z").to_pydatetime(),
-    }
-    assert bulk_operations[0]._doc["$set"]["pm2_5_mean"] == 12.1
-    assert bulk_operations[0]._doc["$setOnInsert"] == {
-        "site_name": "Makerere",
-        "site_id": "site-1",
-        "timestamp": pd.Timestamp("2026-03-04T08:00:00Z").to_pydatetime(),
-        "created_at": pd.Timestamp("2026-03-04T08:00:00Z").to_pydatetime(),
-    }
-    mock_collection.delete_many.assert_called_once()
-    delete_filter = mock_collection.delete_many.call_args.args[0]
+    mock_collection.bulk_write.assert_not_called()
+    mock_collection.delete_many.assert_any_call({"site_id": {"$in": ["site-1"]}})
+    mock_collection.insert_many.assert_called_once()
+    assert mock_collection.insert_many.call_args.kwargs["ordered"] is False
+    inserted_documents = mock_collection.insert_many.call_args.args[0]
+    assert len(inserted_documents) == 2
+    assert inserted_documents[0]["site_id"] == "site-1"
+    assert inserted_documents[0]["timestamp"] == pd.Timestamp(
+        "2026-03-04T08:00:00Z"
+    ).to_pydatetime()
+    assert inserted_documents[0]["pm2_5_mean"] == 12.1
+    assert inserted_documents[0]["site_name"] == "Makerere"
+    assert inserted_documents[0]["created_at"] == pd.Timestamp(
+        "2026-03-04T08:00:00Z"
+    ).to_pydatetime()
+    assert mock_collection.delete_many.call_count == 2
+    delete_filter = mock_collection.delete_many.call_args_list[1].args[0]
     assert set(delete_filter.keys()) == {"timestamp"}
     assert set(delete_filter["timestamp"].keys()) == {"$lt"}
-    mock_collection.insert_many.assert_not_called()
-    mock_collection.create_index.assert_not_called()
+    mock_collection.create_index.assert_called_once_with(
+        [("site_id", 1), ("timestamp", 1)],
+        background=True,
+    )
     assert result == {
         "rows": 2,
         "collection": "site_hourly_forecasts",
         "deleted_rows": 0,
-        "bulk_batches": 1,
-        "bulk_batch_size": 500,
+        "inserted_rows": 2,
+        "insert_batches": 1,
+        "bulk_batch_size": 5000,
     }
 
 
@@ -288,7 +293,6 @@ def test_save_site_hourly_forecasts_to_mongo_preserves_existing_met_fields(
     )
 
     mock_collection = MagicMock()
-    mock_collection.find.return_value = []
     mock_collection.delete_many.return_value.deleted_count = 0
 
     mock_db = MagicMock()
@@ -314,16 +318,20 @@ def test_save_site_hourly_forecasts_to_mongo_preserves_existing_met_fields(
         lambda *args, **kwargs: mock_client_manager,
     )
 
+    insert_result = MagicMock()
+    insert_result.inserted_ids = [1]
+    mock_collection.insert_many.return_value = insert_result
+
     ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
-    bulk_operations = mock_collection.bulk_write.call_args.args[0]
-    update_doc = bulk_operations[0]._doc
-    assert "air_temperature" not in update_doc["$set"]
-    assert "relative_humidity" not in update_doc["$set"]
-    assert "site_name" not in update_doc["$set"]
-    assert "created_at" not in update_doc["$set"]
-    assert update_doc["$set"]["pm2_5_mean"] == 12.1
-    assert update_doc["$setOnInsert"]["site_name"] == "Makerere"
+    inserted_documents = mock_collection.insert_many.call_args.args[0]
+    assert "air_temperature" not in inserted_documents[0]
+    assert "relative_humidity" not in inserted_documents[0]
+    assert inserted_documents[0]["site_name"] == "Makerere"
+    assert inserted_documents[0]["created_at"] == pd.Timestamp(
+        "2026-03-04T08:00:00Z"
+    ).to_pydatetime()
+    assert inserted_documents[0]["pm2_5_mean"] == 12.1
 
 
 def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
@@ -343,34 +351,18 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
             }
         ]
     )
-    existing_docs = [
-        {
-            "_id": 1,
-            "site_id": "site-1",
-            "timestamp": pd.Timestamp("2026-03-04T08:00:00Z").to_pydatetime(),
-        },
-        {
-            "_id": 2,
-            "site_id": "site-1",
-            "timestamp": pd.Timestamp("2026-03-04T09:00:00Z").to_pydatetime(),
-        },
-        {
-            "_id": 3,
-            "site_id": "site-1",
-            "timestamp": pd.Timestamp("2026-03-04T10:00:00Z").to_pydatetime(),
-        },
-    ]
-
     mock_collection = MagicMock()
-    mock_collection.find.return_value = existing_docs
     stale_delete_result = MagicMock()
-    stale_delete_result.deleted_count = 1
+    stale_delete_result.deleted_count = 3
     expired_delete_result = MagicMock()
     expired_delete_result.deleted_count = 0
     mock_collection.delete_many.side_effect = [
         stale_delete_result,
         expired_delete_result,
     ]
+    insert_result = MagicMock()
+    insert_result.inserted_ids = [1]
+    mock_collection.insert_many.return_value = insert_result
 
     mock_db = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
@@ -400,9 +392,9 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
 
     result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
-    mock_collection.bulk_write.assert_called_once()
+    mock_collection.bulk_write.assert_not_called()
     assert mock_collection.delete_many.call_args_list[0].args[0] == {
-        "_id": {"$in": [1]}
+        "site_id": {"$in": ["site-1"]}
     }
     timestamp_delete_filter = mock_collection.delete_many.call_args_list[1].args[0]
     assert set(timestamp_delete_filter.keys()) == {"timestamp"}
@@ -410,9 +402,10 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
     assert result == {
         "rows": 1,
         "collection": "site_hourly_forecasts",
-        "deleted_rows": 1,
-        "bulk_batches": 1,
-        "bulk_batch_size": 500,
+        "deleted_rows": 3,
+        "inserted_rows": 1,
+        "insert_batches": 1,
+        "bulk_batch_size": 5000,
     }
 
 
@@ -437,8 +430,10 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_expired_rows_for_absent_site
     )
 
     mock_collection = MagicMock()
-    mock_collection.find.return_value = []
     mock_collection.delete_many.return_value.deleted_count = 4
+    insert_result = MagicMock()
+    insert_result.inserted_ids = [1]
+    mock_collection.insert_many.return_value = insert_result
 
     mock_db = MagicMock()
     mock_db.__getitem__.return_value = mock_collection
@@ -468,16 +463,21 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_expired_rows_for_absent_site
 
     result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
-    mock_collection.delete_many.assert_called_once()
-    delete_filter = mock_collection.delete_many.call_args.args[0]
+    assert mock_collection.delete_many.call_count == 2
+    site_delete_filter = mock_collection.delete_many.call_args_list[0].args[0]
+    assert site_delete_filter == {
+        "site_id": {"$in": ["site-1"]}
+    }
+    delete_filter = mock_collection.delete_many.call_args_list[1].args[0]
     assert set(delete_filter.keys()) == {"timestamp"}
     assert set(delete_filter["timestamp"].keys()) == {"$lt"}
     assert result == {
         "rows": 1,
         "collection": "site_hourly_forecasts",
-        "deleted_rows": 4,
-        "bulk_batches": 1,
-        "bulk_batch_size": 500,
+        "deleted_rows": 8,
+        "inserted_rows": 1,
+        "insert_batches": 1,
+        "bulk_batch_size": 5000,
     }
 
 

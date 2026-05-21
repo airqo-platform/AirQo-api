@@ -213,9 +213,13 @@ def make_site_daily_forecasts():
     def generate_site_forecasts(data):
         """Generate forward site-level daily forecasts without MET enrichment."""
         horizon = int(Config.DAILY_FORECAST_HORIZON or 7)
+        forecast_start_date = DateUtils.date_to_str(
+            datetime.now(timezone.utc), str_format="%Y-%m-%d"
+        )
         return ForecastModelTrainer.generate_site_daily_forecasts(
             data,
             horizon=horizon,
+            forecast_start_date=forecast_start_date,
             include_met_no_weather=False,
         )
 
