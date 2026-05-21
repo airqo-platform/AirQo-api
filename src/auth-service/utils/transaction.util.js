@@ -393,9 +393,38 @@ const transactions = {
       // does not accept it (it is a Paddle.js client-side concept only).
       // Redirect URLs are configured in the Paddle dashboard.
       const { settings: _settings, ...paddlePayload } = sessionData;
-      const checkoutSession = await paddleClient.transactions.create(
-        paddlePayload
-      );
+      let checkoutSession;
+      try {
+        checkoutSession = await paddleClient.transactions.create(paddlePayload);
+      } catch (txnError) {
+        // Stale cached paddle_customer_id — customer was deleted or belongs to
+        // a different sandbox. Clear the cache, create a fresh customer, retry.
+        if (
+          txnError.message &&
+          txnError.message.includes("not found") &&
+          paddlePayload.customer_id
+        ) {
+          const tenant = (request.query && request.query.tenant) || "airqo";
+          UserModel(tenant)
+            .findByIdAndUpdate(user._id, { $unset: { paddle_customer_id: "" } })
+            .catch(() => {});
+          const freshCustomer = await paddleClient.customers.create({
+            email: user.email,
+            name: user.firstName || user.lastName,
+          });
+          paddlePayload.customer_id = freshCustomer.id;
+          UserModel(tenant)
+            .findByIdAndUpdate(
+              user._id,
+              { $set: { paddle_customer_id: freshCustomer.id } },
+              { new: false }
+            )
+            .catch(() => {});
+          checkoutSession = await paddleClient.transactions.create(paddlePayload);
+        } else {
+          throw txnError;
+        }
+      }
       return {
         success: true,
         data: {

@@ -58,7 +58,7 @@ const transactions = {
             );
             return;
           }
-          resolvedItems = [{ price: priceId, quantity: 1 }];
+          resolvedItems = [{ priceId, quantity: 1 }];
         } else {
           if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
             next(
@@ -71,7 +71,7 @@ const transactions = {
           }
           resolvedItems = [
             {
-              price: await transactionsUtil.getDynamicPriceId(
+              priceId: await transactionsUtil.getDynamicPriceId(
                 amount,
                 currency
               ),
