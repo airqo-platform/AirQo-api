@@ -2267,6 +2267,8 @@ const deviceUtil = {
             logger.error(`error.response.headers -- ${e.response.headers}`);
             return {
               success: false,
+              message:
+                "corresponding device_number does not exist on external system, consider SOFT delete",
               status: e.response.status,
               errors: {
                 message:
@@ -2277,6 +2279,7 @@ const deviceUtil = {
           }
           return {
             success: false,
+            message: e.message,
             status: httpStatus.INTERNAL_SERVER_ERROR,
             errors: { message: e.message },
           };
