@@ -2025,13 +2025,12 @@ const deviceUtil = {
         });
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   updateOnThingspeak: async (request, next) => {
@@ -2080,13 +2079,12 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   updateOnClarity: (request, next) => {
@@ -2249,27 +2247,32 @@ const deviceUtil = {
       let response = await axios
         .delete(`${constants.DELETE_THING_URL(device_number)}`)
         .catch((e) => {
-          logger.error(`error.response.data -- ${e.response.data}`);
-          logger.error(`error.response.status -- ${e.response.status}`);
-          logger.error(`error.response.headers -- ${e.response.headers}`);
           if (e.response) {
-            next(
-              new HttpError("Bad Request Error", e.response.data.status, {
+            logger.error(`error.response.data -- ${e.response.data}`);
+            logger.error(`error.response.status -- ${e.response.status}`);
+            logger.error(`error.response.headers -- ${e.response.headers}`);
+            return {
+              success: false,
+              message:
+                "corresponding device_number does not exist on external system, consider SOFT delete",
+              status: e.response.status,
+              errors: {
                 message:
                   "corresponding device_number does not exist on external system, consider SOFT delete",
                 error: e.response.data.error,
-              }),
-            );
+              },
+            };
           }
+          return {
+            success: false,
+            message: e.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: e.message },
+          };
         });
 
       if (!isEmpty(response.success) && !response.success) {
-        next(
-          new HttpError(`${response.message}`, `${response.status}`, {
-            message: "unable to complete operation",
-            error: `${response.error}`,
-          }),
-        );
+        return response;
       } else if (!isEmpty(response.data)) {
         return {
           success: true,
@@ -2279,13 +2282,12 @@ const deviceUtil = {
       }
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   deleteOnPlatform: async (request, next) => {
