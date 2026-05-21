@@ -2025,13 +2025,6 @@ const deviceUtil = {
         });
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -2086,13 +2079,6 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -2286,12 +2272,7 @@ const deviceUtil = {
         });
 
       if (!isEmpty(response.success) && !response.success) {
-        next(
-          new HttpError(`${response.message}`, `${response.status}`, {
-            message: "unable to complete operation",
-            error: `${response.error}`,
-          }),
-        );
+        return response;
       } else if (!isEmpty(response.data)) {
         return {
           success: true,
@@ -2301,13 +2282,12 @@ const deviceUtil = {
       }
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   deleteOnPlatform: async (request, next) => {

@@ -4,6 +4,7 @@ controllers/rsa_private.pem
 .env.old
 .env.development
 .env.production
+.env.prep.json
 .env.staging
 .env.development.json
 .env.staging.json

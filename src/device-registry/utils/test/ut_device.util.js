@@ -2324,6 +2324,7 @@ describe("Device Util", () => {
         expect(result.message).to.be.a("string").and.not.equal("undefined");
         expect(result.status).to.equal(httpStatus.NOT_FOUND);
         expect(result.errors).to.have.property("message");
+        expect(next.called).to.be.false;
       });
 
       it("should return {success:false} with message on network error (no e.response)", async () => {
@@ -2340,6 +2341,7 @@ describe("Device Util", () => {
         expect(result.message).to.equal("Network Error");
         expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
         expect(result.errors).to.have.property("message", "Network Error");
+        expect(next.called).to.be.false;
       });
     });
 
