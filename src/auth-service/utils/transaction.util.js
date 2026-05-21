@@ -321,27 +321,69 @@ const transactions = {
       logObject("user.firstName", user.firstName);
       logObject("user.lastName", user.lastName);
 
-      if (!customerIdentification) {
+      // Shared helper — create or recover a Paddle customer by email.
+      // Handles customer_already_exists by listing and returning the existing ID.
+      const resolveOrCreateCustomer = async () => {
         try {
           const customer = await paddleClient.customers.create({
             email: user.email,
             name: user.firstName || user.lastName,
           });
-          sessionData.customer_id = customer.id; // Changed from customerId
+          return customer.id;
         } catch (error) {
+          if (error.code === "customer_already_exists") {
+            // customers.list returns an async-iterable Collection; call
+            // next() to fetch the first page before reading .data
+            const collection = paddleClient.customers.list({
+              email: [user.email],
+            });
+            await collection.next();
+            const existingCustomer = collection.data[0];
+            if (existingCustomer) {
+              return existingCustomer.id;
+            }
+            logger.error(
+              `Unable to retrieve existing Paddle customer for email: ${user.email}`
+            );
+            throw error;
+          }
           logger.error(
             `Unable to generate the transaction client on Paddle -- ${stringify(
               error
             )}`
           );
-          throw error; // Add this to prevent continuing with invalid customer
+          throw error;
+        }
+      };
+
+      const tenant = (request.query && request.query.tenant) || "airqo";
+
+      if (!customerIdentification) {
+        if (user.paddle_customer_id) {
+          // Reuse the cached Paddle customer ID — no API call needed
+          sessionData.customer_id = user.paddle_customer_id;
+        } else {
+          const resolvedCustomerId = await resolveOrCreateCustomer();
+          sessionData.customer_id = resolvedCustomerId;
+          // Persist the customer ID so future checkouts skip this lookup
+          UserModel(tenant)
+            .findByIdAndUpdate(
+              user._id,
+              { $set: { paddle_customer_id: resolvedCustomerId } },
+              { new: false }
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to persist paddle_customer_id for user ${user._id}: ${err.message}`
+              )
+            );
         }
       }
 
       // Ensure required fields are present
       if (
-        !sessionData.settings.success_url ||
-        !sessionData.settings.cancel_url
+        !sessionData.settings?.success_url ||
+        !sessionData.settings?.cancel_url
       ) {
         throw new Error("success_url and cancel_url are required in settings");
       }
@@ -350,9 +392,47 @@ const transactions = {
         throw new Error("items array with at least one item is required");
       }
 
-      const checkoutSession = await paddleClient.transactions.create(
-        sessionData
-      );
+      // Strip internal-only `settings` key — Paddle's transactions.create API
+      // does not accept it (it is a Paddle.js client-side concept only).
+      // Redirect URLs are configured in the Paddle dashboard.
+      const { settings: _settings, ...paddlePayload } = sessionData;
+      let checkoutSession;
+      try {
+        checkoutSession = await paddleClient.transactions.create(paddlePayload);
+      } catch (txnError) {
+        // Stale cached paddle_customer_id — customer was deleted or belongs to
+        // a different sandbox. Use detail (structured) to confirm this specific
+        // customer ID is the one Paddle cannot find, then resolve a fresh one.
+        const isStaleCustomer =
+          paddlePayload.customer_id &&
+          txnError.detail &&
+          txnError.detail.includes(paddlePayload.customer_id);
+        if (isStaleCustomer) {
+          UserModel(tenant)
+            .findByIdAndUpdate(user._id, { $unset: { paddle_customer_id: "" } })
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to clear stale paddle_customer_id for user ${user._id}: ${err.message}`
+              )
+            );
+          const freshCustomerId = await resolveOrCreateCustomer();
+          paddlePayload.customer_id = freshCustomerId;
+          UserModel(tenant)
+            .findByIdAndUpdate(
+              user._id,
+              { $set: { paddle_customer_id: freshCustomerId } },
+              { new: false }
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to persist fresh paddle_customer_id for user ${user._id}: ${err.message}`
+              )
+            );
+          checkoutSession = await paddleClient.transactions.create(paddlePayload);
+        } else {
+          throw txnError;
+        }
+      }
       return {
         success: true,
         data: {

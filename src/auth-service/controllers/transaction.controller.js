@@ -58,7 +58,7 @@ const transactions = {
             );
             return;
           }
-          resolvedItems = [{ price: priceId, quantity: 1 }];
+          resolvedItems = [{ priceId, quantity: 1 }];
         } else {
           if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
             next(
@@ -71,7 +71,7 @@ const transactions = {
           }
           resolvedItems = [
             {
-              price: await transactionsUtil.getDynamicPriceId(
+              priceId: await transactionsUtil.getDynamicPriceId(
                 amount,
                 currency
               ),
@@ -83,9 +83,7 @@ const transactions = {
 
       const result = await transactionsUtil.createCheckoutSession(request, {
         items: resolvedItems,
-        customer: {
-          id: customerId,
-        },
+        ...(customerId && { customer_id: customerId }),
         custom_data: {
           source: "api_subscription_payment",
           ...(tier && { subscription_tier: tier }),

@@ -4,6 +4,7 @@ const sinon = require("sinon");
 const mongoose = require("mongoose");
 const { expect } = chai;
 const httpStatus = require("http-status");
+const axios = require("axios");
 const deviceUtil = require("@utils/device.util");
 const DeviceModel = require("@models/Device");
 const CohortModel = require("@models/Cohort");
@@ -2273,6 +2274,74 @@ describe("Device Util", () => {
 
         // Restore the stubbed function
         deviceUtil.transform.restore();
+      });
+    });
+
+    describe("deleteOnThingspeak", () => {
+      const makeRequest = (device_number) => ({
+        query: { device_number: String(device_number) },
+      });
+
+      afterEach(() => {
+        if (axios.delete.restore) axios.delete.restore();
+      });
+
+      it("should return success when ThingSpeak deletes the device", async () => {
+        const deleteResponse = { data: { id: 123 } };
+        sinon.stub(axios, "delete").resolves(deleteResponse);
+
+        const result = await deviceUtil.deleteOnThingspeak(
+          makeRequest(123),
+          () => {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.message).to.equal(
+          "successfully deleted the device on thingspeak"
+        );
+        expect(result.data).to.deep.equal(deleteResponse.data);
+        expect(axios.delete.calledOnce).to.be.true;
+      });
+
+      it("should return {success:false} with message when ThingSpeak responds with 4xx/5xx", async () => {
+        const axiosError = {
+          response: {
+            status: httpStatus.NOT_FOUND,
+            data: { error: "Channel not found" },
+            headers: {},
+          },
+        };
+        sinon.stub(axios, "delete").rejects(axiosError);
+
+        const next = sinon.spy();
+        const result = await deviceUtil.deleteOnThingspeak(
+          makeRequest(999),
+          next
+        );
+
+        expect(result).to.not.be.undefined;
+        expect(result.success).to.be.false;
+        expect(result.message).to.be.a("string").and.not.equal("undefined");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(result.errors).to.have.property("message");
+        expect(next.called).to.be.false;
+      });
+
+      it("should return {success:false} with message on network error (no e.response)", async () => {
+        sinon.stub(axios, "delete").rejects(new Error("Network Error"));
+
+        const next = sinon.spy();
+        const result = await deviceUtil.deleteOnThingspeak(
+          makeRequest(123),
+          next
+        );
+
+        expect(result).to.not.be.undefined;
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Network Error");
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(result.errors).to.have.property("message", "Network Error");
+        expect(next.called).to.be.false;
       });
     });
 
