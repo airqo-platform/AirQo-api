@@ -49,7 +49,9 @@ const getSiteCountSummary = async (request, next) => {
         .filter((id) => isValidObjectId(id))
         .map((id) => ObjectId(id));
 
-      if (cohortObjectIds.length > 0) {
+      if (cohortObjectIds.length === 0) {
+        filter._id = { $in: [] };
+      } else {
         const snapshots = await CohortSiteSnapshotModel(tenant)
           .distinct("site_id", {
             cohort_id: { $in: cohortObjectIds },
@@ -57,7 +59,21 @@ const getSiteCountSummary = async (request, next) => {
           })
           .maxTimeMS(10000);
 
-        filter._id = { $in: snapshots };
+        const snapshotStrings = new Set(snapshots.map((id) => id.toString()));
+
+        const existing = filter._id;
+        if (!existing) {
+          filter._id = { $in: snapshots };
+        } else if (existing.$in) {
+          filter._id = {
+            $in: existing.$in.filter((id) => snapshotStrings.has(id.toString())),
+          };
+        } else {
+          // plain ObjectId from generateFilter.sites (id / _id / site_id param)
+          filter._id = {
+            $in: snapshotStrings.has(existing.toString()) ? [existing] : [],
+          };
+        }
       }
     }
 
