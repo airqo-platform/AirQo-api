@@ -42,6 +42,39 @@ def clean_response_value(value: Any):
     return serialized
 
 
+def get_positive_int_query_arg(name: str, default: int, maximum: int | None = None):
+    try:
+        value = int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+
+    value = max(value, 1)
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
+def get_pagination_params(default_limit: int = 10, max_limit: int = 100):
+    page = get_positive_int_query_arg("page", default=1)
+    limit = get_positive_int_query_arg(
+        "limit", default=default_limit, maximum=max_limit
+    )
+    return {
+        "page": page,
+        "limit": limit,
+        "offset": (page - 1) * limit,
+    }
+
+
+def build_pagination_metadata(page: int, limit: int, total: int):
+    return {
+        "page": page,
+        "limit": limit,
+        "total_pages": math.ceil(total / limit) if total else 0,
+        "total": total,
+    }
+
+
 def get_site_daily_forecast_collection_name():
     """Return the Mongo collection that stores site daily forecast documents."""
     return Config.MONGO_SITE_DAILY_FORECAST_COLLECTION
@@ -174,7 +207,12 @@ def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 
 
 
 def get_site_hourly_forecasts(
-    site_id: str | None, start_timestamp: datetime, hours: int | None = None
+    site_id: str | None,
+    start_timestamp: datetime,
+    hours: int | None = None,
+    page: int = 1,
+    limit: int | None = None,
+    offset: int | None = None,
 ):
     """
     Fetch raw site hourly forecast documents for the requested timestamp window.
@@ -194,13 +232,38 @@ def get_site_hourly_forecasts(
     if site_id:
         query["site_id"] = site_id
 
+    collection = site_forecast_db[get_site_hourly_forecast_collection_name()]
+    limit = limit or hours
+    offset = offset if offset is not None else (page - 1) * limit
+    timestamp_query = query.copy()
+
     sort_fields = [("timestamp", 1)] if site_id else [("timestamp", 1), ("site_id", 1)]
-    cursor = site_forecast_db[get_site_hourly_forecast_collection_name()].find(
-        query, {"_id": 0}
-    ).sort(sort_fields)
     if site_id:
-        cursor = cursor.limit(hours)
-    return list(cursor)
+        total = collection.count_documents(query)
+        cursor = (
+            collection.find(query, {"_id": 0})
+            .sort(sort_fields)
+            .skip(offset)
+            .limit(limit)
+        )
+    else:
+        site_ids = sorted(
+            site_id for site_id in collection.distinct("site_id", query) if site_id
+        )
+        total = len(site_ids)
+        page_site_ids = site_ids[offset : offset + limit]
+        if not page_site_ids:
+            return (
+                [],
+                total,
+                sorted(collection.distinct("timestamp", timestamp_query)),
+            )
+
+        query = {**query, "site_id": {"$in": page_site_ids}}
+        cursor = collection.find(query, {"_id": 0}).sort(sort_fields)
+
+    distinct_timestamps = sorted(collection.distinct("timestamp", timestamp_query))
+    return list(cursor), total, distinct_timestamps
 
 
 SITE_FORECAST_UNITS = {
@@ -224,6 +287,13 @@ SITE_FORECAST_DESCRIPTIONS = {
     "pm2_5_min": "Minimum predicted PM2.5.",
     "pm2_5_max": "Maximum predicted PM2.5.",
     "forecast_confidence": "Confidence level of the forecast.",
+}
+
+SITE_HOURLY_FORECAST_DESCRIPTIONS = {
+    "pm2_5_mean": SITE_FORECAST_DESCRIPTIONS["pm2_5_mean"],
+    "pm2_5_q10": SITE_FORECAST_DESCRIPTIONS["pm2_5_q10"],
+    "pm2_5_q90": SITE_FORECAST_DESCRIPTIONS["pm2_5_q90"],
+    "forecast_confidence": SITE_FORECAST_DESCRIPTIONS["forecast_confidence"],
 }
 
 
@@ -455,12 +525,21 @@ def build_site_hourly_forecast_response(
     start_timestamp = pd.Timestamp.utcnow().floor("h").to_pydatetime()
     expected_hours = get_site_hourly_forecast_horizon_hours()
     end_timestamp = start_timestamp + timedelta(hours=expected_hours - 1)
+    pagination = get_pagination_params(default_limit=10, max_limit=100)
+    page = pagination["page"]
+    limit = pagination["limit"]
 
     try:
         forecast_documents = get_site_hourly_forecasts(
             site_id=site_id,
             start_timestamp=start_timestamp,
             hours=expected_hours,
+            page=page,
+            limit=limit,
+            offset=pagination["offset"],
+        )
+        forecast_documents, total_items, distinct_timestamps = (
+            forecast_documents
         )
     except errors.ServerSelectionTimeoutError:
         current_app.logger.error(
@@ -472,7 +551,7 @@ def build_site_hourly_forecast_response(
             "data": {
                 "site_details": None,
                 "units": SITE_FORECAST_UNITS,
-                "descriptions": SITE_FORECAST_DESCRIPTIONS,
+                "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
             },
         }, 503
@@ -486,12 +565,15 @@ def build_site_hourly_forecast_response(
             "data": {
                 "site_details": None,
                 "units": SITE_FORECAST_UNITS,
-                "descriptions": SITE_FORECAST_DESCRIPTIONS,
+                "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
             },
         }, 503
 
     if not forecast_documents:
+        pagination_metadata = build_pagination_metadata(
+            page=page, limit=limit, total=total_items
+        )
         return {
             "success": False,
             "data": {
@@ -499,8 +581,9 @@ def build_site_hourly_forecast_response(
                 "start_timestamp": start_timestamp.isoformat() if site_id else None,
                 "end_timestamp": end_timestamp.isoformat() if site_id else None,
                 "hours": expected_hours if site_id else None,
+                **pagination_metadata,
                 "units": SITE_FORECAST_UNITS,
-                "descriptions": SITE_FORECAST_DESCRIPTIONS,
+                "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
             },
         }, 404
@@ -594,17 +677,8 @@ def build_site_hourly_forecast_response(
 
     forecasts = [
         format_forecast_entry(forecast_document)
-        for forecast_document in (
-            forecast_documents[:expected_hours] if site_id else forecast_documents
-        )
+        for forecast_document in forecast_documents
     ]
-    distinct_timestamps = sorted(
-        {
-            forecast["timestamp"]
-            for forecast in forecasts
-            if forecast.get("timestamp") is not None
-        }
-    )
     grouped_forecasts = {}
 
     for forecast in forecasts:
@@ -642,18 +716,29 @@ def build_site_hourly_forecast_response(
         )
         grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
 
+    grouped_site_forecasts = list(grouped_forecasts.values())
+    response_timestamps = [
+        forecast.get("timestamp")
+        for grouped_site_forecast in grouped_site_forecasts
+        for forecast in grouped_site_forecast["forecasts"]
+        if forecast.get("timestamp") is not None
+    ]
+    pagination_metadata = build_pagination_metadata(
+        page=page, limit=limit, total=total_items
+    )
+
     return {
-        "success": len(forecasts) == expected_hours if site_id else True,
+        "success": total_items == expected_hours if site_id else True,
         "data": {
             "start_timestamp": (
-                distinct_timestamps[0] if distinct_timestamps else None
+                response_timestamps[0] if response_timestamps else None
             ),
-            "end_timestamp": distinct_timestamps[-1] if distinct_timestamps else None,
+            "end_timestamp": response_timestamps[-1] if response_timestamps else None,
             "hours": len(distinct_timestamps),
-            "total": len(grouped_forecasts),
+            **pagination_metadata,
             "units": SITE_FORECAST_UNITS,
-            "descriptions": SITE_FORECAST_DESCRIPTIONS,
-            "forecasts": list(grouped_forecasts.values()),
+            "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
+            "forecasts": grouped_site_forecasts,
         },
     }, 200
 
@@ -715,13 +800,17 @@ def site_hourly_forecasts_cache_key():
     """
     current_hour = pd.Timestamp.utcnow().floor("h").to_pydatetime()
     site_id = request.args.get("site_id")
+    pagination = get_pagination_params(default_limit=10, max_limit=100)
     hours = get_site_hourly_forecast_horizon_hours()
     cache_version = get_site_hourly_forecast_cache_version(
         site_id=site_id,
         start_timestamp=current_hour,
         hours=hours,
     )
-    return f"site_hourly_v1_{current_hour.isoformat()}_{hours}_{site_id}_{cache_version}"
+    return (
+        f"site_hourly_v1_{current_hour.isoformat()}_{hours}_{site_id}_"
+        f"{pagination['page']}_{pagination['limit']}_{cache_version}"
+    )
 
 
 def hourly_forecasts_cache_key():
