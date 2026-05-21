@@ -48,7 +48,7 @@ class Config:
         default="site_10days_hourly_forecasts",
     )
     SITE_HOURLY_FORECAST_HORIZON_HOURS = os.getenv(
-        "SITE_HOURLY_FORECAST_HORIZON_HOURS", "240"
+        "SITE_HOURLY_FORECAST_HORIZON_HOURS", "168"
     )
     REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
     POSTGRES_CONNECTION_URL = os.getenv(
