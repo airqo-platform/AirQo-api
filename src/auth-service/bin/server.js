@@ -193,7 +193,14 @@ app.use((req, res, next) => {
   sessionMiddleware(req, res, next);
 });
 
-app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
+app.use(
+  bodyParser.json({
+    limit: "50mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+); // JSON body parser — verify captures raw Buffer for webhook signature checks
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {
   app.use(compression());
