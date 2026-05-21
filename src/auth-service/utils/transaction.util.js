@@ -623,7 +623,7 @@ const transactions = {
       const { tenant } = query;
 
       // Verify webhook authenticity
-      const event = paddleClient.webhooks.unmarshal(
+      const event = await paddleClient.webhooks.unmarshal(
         body,
         signature,
         constants.PADDLE_WEBHOOK_SECRET

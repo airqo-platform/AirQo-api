@@ -208,7 +208,7 @@ const transactions = {
         : req.query.tenant;
 
       // Verify and process webhook
-      const result = await transactionsUtil.processWebhook(request);
+      const result = await transactionsUtil.processWebhook(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
