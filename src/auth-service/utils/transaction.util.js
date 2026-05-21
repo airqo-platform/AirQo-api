@@ -649,10 +649,11 @@ const transactions = {
       const signature = request.headers["paddle-signature"];
       const { body, query } = request;
       const { tenant } = query;
+      const rawBody = Buffer.isBuffer(body) ? body.toString("utf8") : body;
 
       // Verify webhook authenticity
       const event = await paddleClient.webhooks.unmarshal(
-        body,
+        rawBody,
         signature,
         constants.PADDLE_WEBHOOK_SECRET
       );
