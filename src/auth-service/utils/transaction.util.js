@@ -321,48 +321,51 @@ const transactions = {
       logObject("user.firstName", user.firstName);
       logObject("user.lastName", user.lastName);
 
+      // Shared helper — create or recover a Paddle customer by email.
+      // Handles customer_already_exists by listing and returning the existing ID.
+      const resolveOrCreateCustomer = async () => {
+        try {
+          const customer = await paddleClient.customers.create({
+            email: user.email,
+            name: user.firstName || user.lastName,
+          });
+          return customer.id;
+        } catch (error) {
+          if (error.code === "customer_already_exists") {
+            // customers.list returns an async-iterable Collection; call
+            // next() to fetch the first page before reading .data
+            const collection = paddleClient.customers.list({
+              email: [user.email],
+            });
+            await collection.next();
+            const existingCustomer = collection.data[0];
+            if (existingCustomer) {
+              return existingCustomer.id;
+            }
+            logger.error(
+              `Unable to retrieve existing Paddle customer for email: ${user.email}`
+            );
+            throw error;
+          }
+          logger.error(
+            `Unable to generate the transaction client on Paddle -- ${stringify(
+              error
+            )}`
+          );
+          throw error;
+        }
+      };
+
+      const tenant = (request.query && request.query.tenant) || "airqo";
+
       if (!customerIdentification) {
         if (user.paddle_customer_id) {
           // Reuse the cached Paddle customer ID — no API call needed
           sessionData.customer_id = user.paddle_customer_id;
         } else {
-          let resolvedCustomerId;
-          try {
-            const customer = await paddleClient.customers.create({
-              email: user.email,
-              name: user.firstName || user.lastName,
-            });
-            resolvedCustomerId = customer.id;
-          } catch (error) {
-            if (error.code === "customer_already_exists") {
-              // customers.list returns an async-iterable Collection; call
-              // next() to fetch the first page before reading .data
-              const collection = paddleClient.customers.list({
-                email: [user.email],
-              });
-              await collection.next();
-              const existingCustomer = collection.data[0];
-              if (existingCustomer) {
-                resolvedCustomerId = existingCustomer.id;
-              } else {
-                logger.error(
-                  `Unable to retrieve existing Paddle customer for email: ${user.email}`
-                );
-                throw error;
-              }
-            } else {
-              logger.error(
-                `Unable to generate the transaction client on Paddle -- ${stringify(
-                  error
-                )}`
-              );
-              throw error;
-            }
-          }
+          const resolvedCustomerId = await resolveOrCreateCustomer();
           sessionData.customer_id = resolvedCustomerId;
           // Persist the customer ID so future checkouts skip this lookup
-          const tenant =
-            (request.query && request.query.tenant) || "airqo";
           UserModel(tenant)
             .findByIdAndUpdate(
               user._id,
@@ -398,28 +401,33 @@ const transactions = {
         checkoutSession = await paddleClient.transactions.create(paddlePayload);
       } catch (txnError) {
         // Stale cached paddle_customer_id — customer was deleted or belongs to
-        // a different sandbox. Clear the cache, create a fresh customer, retry.
-        if (
-          txnError.message &&
-          txnError.message.includes("not found") &&
-          paddlePayload.customer_id
-        ) {
-          const tenant = (request.query && request.query.tenant) || "airqo";
+        // a different sandbox. Use detail (structured) to confirm this specific
+        // customer ID is the one Paddle cannot find, then resolve a fresh one.
+        const isStaleCustomer =
+          paddlePayload.customer_id &&
+          txnError.detail &&
+          txnError.detail.includes(paddlePayload.customer_id);
+        if (isStaleCustomer) {
           UserModel(tenant)
             .findByIdAndUpdate(user._id, { $unset: { paddle_customer_id: "" } })
-            .catch(() => {});
-          const freshCustomer = await paddleClient.customers.create({
-            email: user.email,
-            name: user.firstName || user.lastName,
-          });
-          paddlePayload.customer_id = freshCustomer.id;
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to clear stale paddle_customer_id for user ${user._id}: ${err.message}`
+              )
+            );
+          const freshCustomerId = await resolveOrCreateCustomer();
+          paddlePayload.customer_id = freshCustomerId;
           UserModel(tenant)
             .findByIdAndUpdate(
               user._id,
-              { $set: { paddle_customer_id: freshCustomer.id } },
+              { $set: { paddle_customer_id: freshCustomerId } },
               { new: false }
             )
-            .catch(() => {});
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to persist fresh paddle_customer_id for user ${user._id}: ${err.message}`
+              )
+            );
           checkoutSession = await paddleClient.transactions.create(paddlePayload);
         } else {
           throw txnError;

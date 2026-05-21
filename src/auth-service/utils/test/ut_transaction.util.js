@@ -433,4 +433,38 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     expect(sessionArg.customer_id).to.equal("ctm_supplied");
     expect(sessionArg.settings).to.be.undefined;
   });
+
+  it("self-heals stale paddle_customer_id: clears cache, resolves fresh customer, retries transaction", async () => {
+    const staleId = "ctm_stale";
+    const req = mockRequest({ paddle_customer_id: staleId });
+
+    // First transactions.create fails with a Paddle "not found" detail for the stale ID
+    const staleErr = Object.assign(new Error("not found"), {
+      detail: `customer ${staleId} not found.`,
+    });
+    transactionCreateStub.onFirstCall().rejects(staleErr);
+    transactionCreateStub.onSecondCall().resolves({
+      id: "txn_retry",
+      url: "https://pay.paddle.com/checkout/txn_retry",
+    });
+
+    // customers.create succeeds and returns a fresh customer
+    createStub.resolves({ id: "ctm_fresh" });
+
+    const result = await transactions.createCheckoutSession(req, mockSessionData());
+
+    expect(result.success).to.equal(true);
+    // transactions.create must have been called twice
+    sinon.assert.calledTwice(transactionCreateStub);
+    // Second call must use the fresh customer ID
+    const retryArg = transactionCreateStub.secondCall.args[0];
+    expect(retryArg.customer_id).to.equal("ctm_fresh");
+    expect(retryArg.settings).to.be.undefined;
+    // User model must be updated twice: once to clear, once to persist fresh ID
+    sinon.assert.calledTwice(UserModelStub);
+    const clearArg = UserModelStub.firstCall.args[1];
+    expect(clearArg.$unset).to.have.property("paddle_customer_id");
+    const persistArg = UserModelStub.secondCall.args[1];
+    expect(persistArg.$set.paddle_customer_id).to.equal("ctm_fresh");
+  });
 });
