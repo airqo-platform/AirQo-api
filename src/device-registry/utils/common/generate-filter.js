@@ -19,7 +19,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util -- ops-alerts`,
 );
 
-const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = (str) =>
+  String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 if (
   typeof constants.JOB_LOOKBACK_WINDOW_MS === "undefined" ||
