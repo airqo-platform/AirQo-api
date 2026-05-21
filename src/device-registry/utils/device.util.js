@@ -2279,6 +2279,11 @@ const deviceUtil = {
           message: "successfully deleted the device on thingspeak",
           data: response.data,
         };
+      } else {
+        return {
+          success: true,
+          message: "successfully deleted the device on thingspeak",
+        };
       }
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
@@ -2417,6 +2422,12 @@ const deviceUtil = {
           { message: error.message },
         ),
       );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   refresh: async (request, next) => {
