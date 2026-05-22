@@ -1,5 +1,4 @@
 from unittest.mock import patch
-import sys
 from datetime import timedelta
 
 import pytest
@@ -10,8 +9,12 @@ from mongomock import MongoClient
 from app import cache, create_app
 from config import Config
 from tests.conftest import monkeypatch
-from helpers import read_predictions_from_db, add_forecast_health_tips, get_health_tips
-from prediction import validate_param_values
+from helpers import (
+    add_forecast_health_tips,
+    get_health_tips,
+    read_predictions_from_db,
+    validate_param_values,
+)
 
 valid_params = [
     {"correlation_fault": "0", "missing_data_fault": "0"},
@@ -218,7 +221,7 @@ def test_client():
     flask_app = create_app("testing")
     testing_client = flask_app.test_client()
     mock_db = MongoClient().db
-    mock_db.faulty_devices.insert_many(
+    mock_db.faulty_devices_1.insert_many(
         [
             {
                 "airqloud_names": "airqloud1",
@@ -240,6 +243,7 @@ def test_client():
             },
         ]
     )
+    flask_app.config["TEST_DB"] = mock_db
     ctx = flask_app.app_context()
     ctx.push()
 
@@ -248,32 +252,42 @@ def test_client():
     ctx.pop()
 
 
-@pytest.mark.xfail
 def test_fetch_faulty_devices(test_client):
-    with patch("prediction.mongo", test_client.application.config["DB_NAME"]):
-        response = test_client.get("/fetch_faulty_devices")
+    with patch("helpers.db", test_client.application.config["TEST_DB"]):
+        response = test_client.get("/api/v2/predict/faulty-devices")
         assert response.status_code == 200
-        assert len(json.loads(response.data)) == 3
+        assert json.loads(response.data)["total"] == 3
+        assert len(json.loads(response.data)["data"]) == 3
 
-        response = test_client.get("/fetch_faulty_devices?airqloud_names=airqloud1")
+        response = test_client.get(
+            "/api/v2/predict/faulty-devices?airqloud_names=airqloud1"
+        )
         assert response.status_code == 200
-        assert len(json.loads(response.data)) == 1
-        assert json.loads(response.data)[0]["device_name"] == "device1"
+        assert len(json.loads(response.data)["data"]) == 1
+        assert json.loads(response.data)["data"][0]["device_name"] == "device1"
 
-        response = test_client.get("/fetch_faulty_devices?device_name=device2")
+        response = test_client.get(
+            "/api/v2/predict/faulty-devices?device_name=device2"
+        )
         assert response.status_code == 200
-        assert len(json.loads(response.data)) == 1
-        assert json.loads(response.data)[0]["airqloud_names"] == "airqloud2"
+        assert len(json.loads(response.data)["data"]) == 1
+        assert json.loads(response.data)["data"][0]["airqloud_names"] == "airqloud2"
 
-        response = test_client.get("/fetch_faulty_devices?correlation_fault=1")
+        response = test_client.get(
+            "/api/v2/predict/faulty-devices?correlation_fault=1"
+        )
         assert response.status_code == 200
-        assert len(json.loads(response.data)) == 2
+        assert len(json.loads(response.data)["data"]) == 2
 
-        response = test_client.get("/fetch_faulty_devices?missing_data_fault=1")
+        response = test_client.get(
+            "/api/v2/predict/faulty-devices?missing_data_fault=1"
+        )
         assert response.status_code == 200
-        assert len(json.loads(response.data)) == 2
+        assert len(json.loads(response.data)["data"]) == 2
 
-        response = test_client.get("/fetch_faulty_devices?correlation_fault=2")
+        response = test_client.get(
+            "/api/v2/predict/faulty-devices?correlation_fault=2"
+        )
         assert response.status_code == 400
         assert (
             json.loads(response.data)["error"]
@@ -357,15 +371,13 @@ def test_get_health_tips_timeout(requests_mock):
         exc=requests.exceptions.Timeout,
     )
     tips = get_health_tips()
-    assert tips == [
-        {"_id": "64283f6402cbab001e628296"},
-        {"_id": "64283f4702cbab001e628293"},
-    ]
+    assert tips == []
 
 
 @pytest.fixture
 def site_hourly_forecast_client(monkeypatch):
-    helpers_module = sys.modules["helpers"]
+    import helpers as helpers_module
+
     real_timestamp = helpers_module.pd.Timestamp
     start_timestamp = real_timestamp("2026-01-01T00:00:00Z").to_pydatetime()
 

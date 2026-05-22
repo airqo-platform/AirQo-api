@@ -53,7 +53,7 @@ class Config:
     POSTGRES_CONNECTION_URL = os.getenv(
         "POSTGRES_CONNECTION_URL", "postgresql://localhost:5432/test_airqo_db"
     )
-    CACHE_TIMEOUT = os.getenv("CACHE_TIMEOUT", 3600)
+    CACHE_TIMEOUT = int(os.getenv("CACHE_TIMEOUT", 3600))
     PARISH_PREDICTIONS_QUERY_LIMIT = os.getenv("PARISH_PREDICTIONS_QUERY_LIMIT", 100)
 
 

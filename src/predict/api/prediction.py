@@ -28,6 +28,7 @@ from helpers import (
     read_faulty_devices,
     get_faults_cache_key,
     add_forecast_health_tips,
+    validate_param_values,
     build_site_forecast_response,
     build_site_hourly_forecast_response,
 )
@@ -198,6 +199,10 @@ ml_app = Blueprint("ml_app", __name__)
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
+        valid_params, error = validate_param_values(request.args)
+        if not valid_params:
+            return jsonify({"error": error}), 400
+
         result = read_faulty_devices()
         if len(result) == 0:
             return (

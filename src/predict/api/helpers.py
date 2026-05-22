@@ -705,14 +705,18 @@ def build_site_hourly_forecast_response(
         )
 
     for grouped_site_forecast in grouped_forecasts.values():
-        grouped_site_forecast["hours"] = len(
-            {
-                site_forecast.get("timestamp")
-                for site_forecast in grouped_site_forecast["forecasts"]
-                if site_forecast.get("timestamp") is not None
-            }
-        )
-        grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
+        if site_id:
+            grouped_site_forecast["hours"] = total_items
+            grouped_site_forecast["total"] = total_items
+        else:
+            grouped_site_forecast["hours"] = len(
+                {
+                    site_forecast.get("timestamp")
+                    for site_forecast in grouped_site_forecast["forecasts"]
+                    if site_forecast.get("timestamp") is not None
+                }
+            )
+            grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
 
     grouped_site_forecasts = list(grouped_forecasts.values())
     response_timestamps = [
@@ -860,8 +864,9 @@ def geo_coordinates_cache_key():
 def get_health_tips(language="") -> list[dict]:
     params = {"language": language} if language else {}
     try:
+        base_url = Config.AIRQO_BASE_URL.rstrip("/")
         response = requests.get(
-            f"{Config.AIRQO_BASE_URL}api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
+            f"{base_url}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
             timeout=10,
             params=params,
         )
@@ -1137,7 +1142,13 @@ def validate_param_values(params):
     for param in params:
         if param in ["correlation_fault", "missing_data_fault"]:
             value = params[param]
-            if value not in [0, 1, None]:
+            if value is None:
+                continue
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                return False, f"Invalid value for {param}: {params[param]}"
+            if value not in [0, 1]:
                 return False, f"Invalid value for {param}: {value}"
     return True, None
 
@@ -1145,8 +1156,19 @@ def validate_param_values(params):
 def read_faulty_devices():
     devices = []
     try:
+        query = {}
+        for param in ["airqloud_names", "device_name", "created_at"]:
+            value = request.args.get(param)
+            if value:
+                query[param] = value
+
+        for param in ["correlation_fault", "missing_data_fault"]:
+            value = request.args.get(param)
+            if value is not None:
+                query[param] = int(value)
+
         collection = db["faulty_devices_1"]
-        devices = list(collection.find({}, {"_id": 0}))
+        devices = list(collection.find(query, {"_id": 0}))
     except errors.ServerSelectionTimeoutError as e:
         current_app.logger.error(
              "Error with database connection: %s", e, exc_info=False
@@ -1160,13 +1182,26 @@ def read_faulty_devices():
 
 
 def add_forecast_health_tips(results: dict, language: str = ""):
-    health_tips = get_health_tips(language=language)
+    try:
+        health_tips = get_health_tips(language=language)
+    except TypeError:
+        health_tips = get_health_tips()
     if not health_tips:
         return results
 
-    for site_id, forecasts in results.items():
+    forecasts_by_site = (
+        {"forecasts": results["forecasts"]}
+        if isinstance(results.get("forecasts"), list)
+        else results
+    )
+
+    for forecasts in forecasts_by_site.values():
         for forecast in forecasts:
-            forecast["health_tips"] = [
+            pm2_5_values = forecast.get("pm2_5")
+            if not isinstance(pm2_5_values, list):
+                pm2_5_values = [pm2_5_values]
+
+            matching_tips = [
                 [
                     tip
                     for tip in health_tips
@@ -1174,7 +1209,13 @@ def add_forecast_health_tips(results: dict, language: str = ""):
                     >= pm2_5_value
                     >= tip["aqi_category"]["min"]
                 ]
-                for pm2_5_value in forecast["pm2_5"]
+                for pm2_5_value in pm2_5_values
+                if pm2_5_value is not None
             ]
+            forecast["health_tips"] = (
+                matching_tips
+                if isinstance(forecast.get("pm2_5"), list)
+                else matching_tips[0] if matching_tips else []
+            )
 
     return results
