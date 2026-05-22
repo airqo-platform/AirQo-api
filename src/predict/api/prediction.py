@@ -196,13 +196,17 @@ def enhance_forecast_response(result, language=''):
 ml_app = Blueprint("ml_app", __name__)
 
 @ml_app.get(routes.route["fetch_faulty_devices"])
-@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
-    try:
-        valid_params, error = validate_param_values(request.args)
-        if not valid_params:
-            return jsonify({"error": error}), 400
+    valid_params, error = validate_param_values(request.args)
+    if not valid_params:
+        return jsonify({"error": error}), 400
 
+    return _fetch_faulty_devices_cached()
+
+
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
+def _fetch_faulty_devices_cached():
+    try:
         result = read_faulty_devices()
         if len(result) == 0:
             return (
