@@ -282,8 +282,6 @@ SITE_FORECAST_DESCRIPTIONS = {
     "pm2_5_mean": "Predicted average PM2.5 concentration.",
     "pm2_5_low": "Lower PM2.5 forecast estimate.",
     "pm2_5_high": "Upper PM2.5 forecast estimate.",
-    "pm2_5_q10": "10th percentile PM2.5 forecast estimate.",
-    "pm2_5_q90": "90th percentile PM2.5 forecast estimate.",
     "pm2_5_min": "Minimum predicted PM2.5.",
     "pm2_5_max": "Maximum predicted PM2.5.",
     "forecast_confidence": "Confidence level of the forecast.",
@@ -291,8 +289,8 @@ SITE_FORECAST_DESCRIPTIONS = {
 
 SITE_HOURLY_FORECAST_DESCRIPTIONS = {
     "pm2_5_mean": SITE_FORECAST_DESCRIPTIONS["pm2_5_mean"],
-    "pm2_5_q10": SITE_FORECAST_DESCRIPTIONS["pm2_5_q10"],
-    "pm2_5_q90": SITE_FORECAST_DESCRIPTIONS["pm2_5_q90"],
+    "pm2_5_q10": "10th percentile PM2.5 forecast estimate.",
+    "pm2_5_q90": "90th percentile PM2.5 forecast estimate.",
     "forecast_confidence": SITE_FORECAST_DESCRIPTIONS["forecast_confidence"],
 }
 

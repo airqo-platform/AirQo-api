@@ -1,6 +1,7 @@
 from unittest.mock import patch
+import sys
+from datetime import timedelta
 
-import helpers
 import pytest
 import requests
 from flask import json
@@ -364,7 +365,8 @@ def test_get_health_tips_timeout(requests_mock):
 
 @pytest.fixture
 def site_hourly_forecast_client(monkeypatch):
-    real_timestamp = helpers.pd.Timestamp
+    helpers_module = sys.modules["helpers"]
+    real_timestamp = helpers_module.pd.Timestamp
     start_timestamp = real_timestamp("2026-01-01T00:00:00Z").to_pydatetime()
 
     class FrozenTimestamp:
@@ -377,12 +379,14 @@ def site_hourly_forecast_client(monkeypatch):
     cache.init_app(flask_app, config={"CACHE_TYPE": "NullCache"})
 
     mock_db = MongoClient().db
-    monkeypatch.setattr(helpers.pd, "Timestamp", FrozenTimestamp)
-    monkeypatch.setattr(helpers, "site_forecast_db", mock_db)
+    monkeypatch.setattr(helpers_module.pd, "Timestamp", FrozenTimestamp)
+    monkeypatch.setattr(helpers_module, "site_forecast_db", mock_db)
     monkeypatch.setattr(
-        helpers.Config, "MONGO_SITE_HOURLY_FORECAST_COLLECTION", "site_hourly"
+        helpers_module.Config, "MONGO_SITE_HOURLY_FORECAST_COLLECTION", "site_hourly"
     )
-    monkeypatch.setattr(helpers.Config, "SITE_HOURLY_FORECAST_HORIZON_HOURS", "2")
+    monkeypatch.setattr(
+        helpers_module.Config, "SITE_HOURLY_FORECAST_HORIZON_HOURS", "2"
+    )
 
     with flask_app.app_context():
         yield flask_app.test_client(), mock_db["site_hourly"], start_timestamp
@@ -414,7 +418,7 @@ def test_site_hourly_forecasting_all_sites_groups_forecasts(
     site_hourly_forecast_client,
 ):
     client, collection, start_timestamp = site_hourly_forecast_client
-    next_timestamp = start_timestamp + helpers.timedelta(hours=1)
+    next_timestamp = start_timestamp + timedelta(hours=1)
     collection.insert_many(
         [
             _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
@@ -463,7 +467,7 @@ def test_site_hourly_forecasting_site_id_filters_and_groups_forecasts(
     site_hourly_forecast_client,
 ):
     client, collection, start_timestamp = site_hourly_forecast_client
-    next_timestamp = start_timestamp + helpers.timedelta(hours=1)
+    next_timestamp = start_timestamp + timedelta(hours=1)
     collection.insert_many(
         [
             _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
