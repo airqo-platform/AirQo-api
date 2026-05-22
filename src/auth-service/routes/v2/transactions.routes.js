@@ -19,7 +19,6 @@ router.post(
 router.post(
   "/webhook",
   transactionValidations.tenantOperation,
-  express.raw({ type: "application/json" }),
   TransactionController.handleWebhook
 );
 

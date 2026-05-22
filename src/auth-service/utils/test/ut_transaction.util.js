@@ -363,7 +363,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
 
     transactionCreateStub = sinon
       .stub(paddleConfig.paddleClient.transactions, "create")
-      .resolves({ id: "txn_001", url: "https://pay.paddle.com/checkout/txn_001" });
+      .resolves({ id: "txn_001", checkout: { url: "https://pay.paddle.com/checkout/txn_001" } });
 
     const UserModel = require("@models/User");
     UserModelStub = sinon
@@ -380,9 +380,19 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     sinon.assert.notCalled(createStub);
     sinon.assert.notCalled(listStub);
     expect(result.success).to.equal(true);
+    expect(result.data.url).to.equal("https://pay.paddle.com/checkout/txn_001");
     const sessionArg = transactionCreateStub.firstCall.args[0];
     expect(sessionArg.customer_id).to.equal("ctm_cached");
     expect(sessionArg.settings).to.be.undefined;
+  });
+
+  it("returns undefined url without error when Paddle returns checkout: null", async () => {
+    transactionCreateStub.resolves({ id: "txn_null", checkout: null });
+    const req = mockRequest({ paddle_customer_id: "ctm_cached" });
+    const result = await transactions.createCheckoutSession(req, mockSessionData());
+
+    expect(result.success).to.equal(true);
+    expect(result.data.url).to.be.undefined;
   });
 
   it("creates a new Paddle customer when none is cached and persists the ID", async () => {
@@ -435,6 +445,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
   });
 
   it("self-heals stale paddle_customer_id: clears cache, resolves fresh customer, retries transaction", async () => {
+
     const staleId = "ctm_stale";
     const req = mockRequest({ paddle_customer_id: staleId });
 
@@ -445,7 +456,7 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     transactionCreateStub.onFirstCall().rejects(staleErr);
     transactionCreateStub.onSecondCall().resolves({
       id: "txn_retry",
-      url: "https://pay.paddle.com/checkout/txn_retry",
+      checkout: { url: "https://pay.paddle.com/checkout/txn_retry" },
     });
 
     // customers.create succeeds and returns a fresh customer
@@ -466,5 +477,65 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
     expect(clearArg.$unset).to.have.property("paddle_customer_id");
     const persistArg = UserModelStub.secondCall.args[1];
     expect(persistArg.$set.paddle_customer_id).to.equal("ctm_fresh");
+  });
+});
+
+describe("transactions.processWebhook — body normalisation", () => {
+  let unmarshalStub;
+  const fakeEvent = {
+    type: "transaction.completed",
+    data: { id: "txn_001", customer_id: "ctm_001" },
+  };
+
+  beforeEach(() => {
+    unmarshalStub = sinon
+      .stub(paddleConfig.paddleClient.webhooks, "unmarshal")
+      .resolves(fakeEvent);
+
+    // Stub handleCompletedTransaction to prevent downstream DB calls
+    sinon.stub(transactions, "handleCompletedTransaction").resolves();
+    // Stub transactions.create to prevent downstream processing
+    sinon.stub(transactions, "create").resolves({ success: true });
+  });
+
+  afterEach(() => sinon.restore());
+
+  const mockWebhookRequest = (body) => ({
+    headers: { "paddle-signature": "ts=1234;h1=abcd" },
+    body,
+    query: { tenant: "airqo" },
+  });
+
+  it("passes a UTF-8 string to unmarshal when rawBody is a Buffer", async () => {
+    const bodyString = JSON.stringify({ id: "txn_001" });
+    const req = mockWebhookRequest(Buffer.from(bodyString, "utf8"));
+
+    await transactions.processWebhook(req, () => {});
+
+    sinon.assert.calledOnce(unmarshalStub);
+    const [bodyArg] = unmarshalStub.firstCall.args;
+    expect(typeof bodyArg).to.equal("string");
+    expect(bodyArg).to.equal(bodyString);
+  });
+
+  it("passes the string through unchanged when rawBody is already a string", async () => {
+    const bodyString = JSON.stringify({ id: "txn_001" });
+    const req = mockWebhookRequest(bodyString);
+
+    await transactions.processWebhook(req, () => {});
+
+    sinon.assert.calledOnce(unmarshalStub);
+    const [bodyArg] = unmarshalStub.firstCall.args;
+    expect(bodyArg).to.equal(bodyString);
+  });
+
+  it("returns an error response when unmarshal throws Invalid webhook signature", async () => {
+    unmarshalStub.rejects(new Error("[Paddle] Invalid webhook signature"));
+    const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
+
+    const result = await transactions.processWebhook(req, () => {});
+
+    expect(result.success).to.equal(false);
+    expect(result.errors.message).to.include("Invalid webhook signature");
   });
 });

@@ -193,6 +193,12 @@ app.use((req, res, next) => {
   sessionMiddleware(req, res, next);
 });
 
+// Must be before bodyParser.json() — preserves raw Buffer in req.body for webhook signature verification
+app.use(
+  "/api/v2/users/transactions/webhook",
+  express.raw({ type: "*/*" })
+);
+
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {
