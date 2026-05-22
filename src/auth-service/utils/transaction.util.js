@@ -647,11 +647,11 @@ const transactions = {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       const signature = request.headers["paddle-signature"];
-      const { rawBody, query } = request;
+      const { body, query } = request;
       const { tenant } = query;
-      const bodyString = Buffer.isBuffer(rawBody)
-        ? rawBody.toString("utf8")
-        : rawBody;
+      const bodyString = Buffer.isBuffer(body)
+        ? body.toString("utf8")
+        : body;
 
       // Verify webhook authenticity
       const event = await paddleClient.webhooks.unmarshal(

@@ -184,7 +184,7 @@ const subscriptionRenewalUtils = {
 };
 
 // Schedule jobs
-const renewalSchedule = "0 2 * * *"; // every day at 2 AM
+const renewalSchedule = "15 2 * * *"; // every day at 2:15 AM (staggered from inactive-users-job at 2:00 AM)
 cron.schedule(
   renewalSchedule,
   subscriptionRenewalUtils.processAutomaticRenewal,
