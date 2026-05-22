@@ -14,13 +14,19 @@ const directTransporter = nodemailer.createTransport({
   socketTimeout: 15000, // 15 seconds
 });
 
-// Transporter for background queue processing (longer timeout for resilience)
+// Transporter for background queue processing.
+// pool:true keeps one authenticated SMTP connection alive and reuses it across
+// sends, preventing repeated AUTH commands that trigger Google's rate-limit
+// ("Too many login attempts") when multiple pods drain the queue simultaneously.
 const queueTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: `${process.env.MAIL_USER}`,
     pass: `${process.env.MAIL_PASS}`,
   },
+  pool: true,
+  maxConnections: 1,
+  maxMessages: Infinity,
   connectionTimeout: 20000, // 20 seconds
   socketTimeout: 20000, // 20 seconds
 });
