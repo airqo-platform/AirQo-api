@@ -683,34 +683,27 @@ const transactions = {
         ),
       };
 
-      // Only persist a transaction record for financial transaction events.
-      // Non-transaction events (subscription.*, customer.*, etc.) are
-      // acknowledged but do not create a DB record.
-      let result;
+      // Non-transaction events are acknowledged and returned early so
+      // transactions.create is never reached for them.
       switch (event.eventType) {
         case "transaction.completed":
           await transactions.handleCompletedTransaction(
             normalizedTransaction,
             tenant,
           );
-          result = await transactions.create(
-            { body: normalizedTransaction, query: { tenant } },
-            next,
-          );
           break;
         case "transaction.payment_failed":
           await transactions.handleFailedTransaction(normalizedTransaction);
-          result = await transactions.create(
-            { body: normalizedTransaction, query: { tenant } },
-            next,
-          );
           break;
         default:
           logger.info(`Paddle webhook event ${event.eventType} received but not handled`);
-          result = { success: true, message: "Event received", status: httpStatus.OK };
+          return { success: true, message: "Event received", status: httpStatus.OK };
       }
 
-      return result;
+      return await transactions.create(
+        { body: normalizedTransaction, query: { tenant } },
+        next,
+      );
     } catch (error) {
       opsLogger.warn("webhook-debug", {
         bodyType: Buffer.isBuffer(request.body) ? "Buffer" : typeof request.body,

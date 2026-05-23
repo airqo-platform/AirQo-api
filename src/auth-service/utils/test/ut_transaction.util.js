@@ -549,6 +549,20 @@ describe("transactions.processWebhook — body normalisation", () => {
     expect(body.total).to.equal(99);
   });
 
+  it("returns OK and does not call transactions.create for non-transaction events", async () => {
+    unmarshalStub.resolves({
+      eventType: "subscription.activated",
+      data: { id: "sub_001" },
+    });
+    const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
+
+    const result = await transactions.processWebhook(req, () => {});
+
+    sinon.assert.notCalled(transactions.create);
+    expect(result.success).to.equal(true);
+    expect(result.message).to.equal("Event received");
+  });
+
   it("returns an error response when unmarshal throws Invalid webhook signature", async () => {
     unmarshalStub.rejects(new Error("[Paddle] Invalid webhook signature"));
     const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
