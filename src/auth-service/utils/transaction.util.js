@@ -9,7 +9,7 @@ const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- transactions-util -- ops-alerts`,
+  `${constants.ENVIRONMENT} -- transactions-util`,
 );
 const opsLogger = log4js.getLogger("ops-alerts");
 const { logObject, logText, HttpError } = require("@utils/shared");
@@ -95,7 +95,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          { details: error.message },
         ),
       );
     }
@@ -154,7 +154,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          { details: error.message },
         ),
       );
     }
@@ -202,7 +202,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          { details: error.message },
         ),
       );
     }
@@ -247,7 +247,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          { details: error.message },
         ),
       );
     }
@@ -287,7 +287,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
+          { details: error.message },
         ),
       );
     }
@@ -657,24 +657,11 @@ const transactions = {
       const { tenant } = query;
       const bodyString = Buffer.isBuffer(body) ? body.toString("utf8") : body;
 
-      opsLogger.warn("webhook-debug", {
-        bodyType: Buffer.isBuffer(body) ? "Buffer" : typeof body,
-        bodyPreview:
-          typeof bodyString === "string"
-            ? bodyString.slice(0, 80)
-            : String(bodyString).slice(0, 80),
-        signaturePresent: !!signature,
-        signaturePreview: signature ? signature.slice(0, 40) : null,
-        secretPrefix: constants.PADDLE_WEBHOOK_SECRET
-          ? constants.PADDLE_WEBHOOK_SECRET.slice(0, 20)
-          : "MISSING",
-      });
-
-      // Verify webhook authenticity
+      // Verify webhook authenticity — SDK signature: unmarshal(body, secretKey, signature)
       const event = await paddleClient.webhooks.unmarshal(
         bodyString,
-        signature,
         constants.PADDLE_WEBHOOK_SECRET,
+        signature,
       );
 
       switch (event.type) {
@@ -700,6 +687,18 @@ const transactions = {
 
       return result;
     } catch (error) {
+      opsLogger.warn("webhook-debug", {
+        bodyType: Buffer.isBuffer(request.body) ? "Buffer" : typeof request.body,
+        bodyLength: Buffer.isBuffer(request.body)
+          ? request.body.length
+          : String(request.body).length,
+        signaturePresent: !!request.headers["paddle-signature"],
+        signatureLength: request.headers["paddle-signature"]
+          ? request.headers["paddle-signature"].length
+          : 0,
+        secretConfigured: Boolean(constants.PADDLE_WEBHOOK_SECRET),
+        errorMessage: error.message,
+      });
       logger.error("Webhook processing failed", error);
       return {
         success: false,
