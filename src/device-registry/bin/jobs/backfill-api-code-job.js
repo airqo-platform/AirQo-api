@@ -260,17 +260,4 @@ const startJob = () => {
   logText(`✅ ${JOB_NAME} registered (schedule: ${JOB_SCHEDULE})`);
 };
 
-// Graceful shutdown — use process.once to prevent duplicate handler registration
-// when the module is reloaded (e.g. during tests).
-process.once("SIGINT", async () => {
-  if (global.cronJobs?.[JOB_NAME]) {
-    await global.cronJobs[JOB_NAME].stop();
-  }
-});
-process.once("SIGTERM", async () => {
-  if (global.cronJobs?.[JOB_NAME]) {
-    await global.cronJobs[JOB_NAME].stop();
-  }
-});
-
 module.exports = { startJob, performBackfill, extractUrlFromText, extractSerialFromUrl };

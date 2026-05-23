@@ -396,17 +396,6 @@ const startJob = () => {
   logText(`✅ ${JOB_NAME} registered (schedule: ${JOB_SCHEDULE})`);
 };
 
-process.once("SIGINT", async () => {
-  if (global.cronJobs?.[JOB_NAME]) {
-    await global.cronJobs[JOB_NAME].stop();
-  }
-});
-process.once("SIGTERM", async () => {
-  if (global.cronJobs?.[JOB_NAME]) {
-    await global.cronJobs[JOB_NAME].stop();
-  }
-});
-
 module.exports = {
   startJob,
   performAuditAndFix,
