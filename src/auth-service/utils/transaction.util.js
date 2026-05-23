@@ -9,13 +9,11 @@ const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- transactions-util`
+  `${constants.ENVIRONMENT} -- transactions-util -- ops-alerts`,
 );
+const opsLogger = log4js.getLogger("ops-alerts");
 const { logObject, logText, HttpError } = require("@utils/shared");
-const {
-  paddleClient,
-  isPaddleConfigured,
-} = require("@config/paddle");
+const { paddleClient, isPaddleConfigured } = require("@config/paddle");
 
 // Standard response returned by any function that calls Paddle when credentials
 // are not configured. Lets the service start and all non-Paddle endpoints work.
@@ -30,7 +28,6 @@ const PADDLE_NOT_CONFIGURED = {
   status: httpStatus.SERVICE_UNAVAILABLE,
 };
 
-
 /**
  * Determine subscription tier from a completed Paddle transaction.
  * Priority: customData.tier (set at checkout) > Paddle price ID > amount fallback.
@@ -43,15 +40,23 @@ const resolveTierFromEvent = (eventData) => {
   // 2. Match against known Paddle price IDs from env
   const priceId = eventData?.items?.[0]?.price?.id;
   if (priceId) {
-    if (constants.PADDLE_STANDARD_PRICE_ID && priceId === constants.PADDLE_STANDARD_PRICE_ID) return "Standard";
-    if (constants.PADDLE_PREMIUM_PRICE_ID && priceId === constants.PADDLE_PREMIUM_PRICE_ID) return "Premium";
+    if (
+      constants.PADDLE_STANDARD_PRICE_ID &&
+      priceId === constants.PADDLE_STANDARD_PRICE_ID
+    )
+      return "Standard";
+    if (
+      constants.PADDLE_PREMIUM_PRICE_ID &&
+      priceId === constants.PADDLE_PREMIUM_PRICE_ID
+    )
+      return "Premium";
   }
 
   // 3. Amount-based fallback (amounts in smallest currency unit, e.g. cents)
   const amount = eventData?.details?.totals?.total || eventData?.total || 0;
   const numericAmount = parseFloat(amount);
-  if (numericAmount >= 15000) return "Premium";  // $150.00
-  if (numericAmount >= 5000)  return "Standard";  // $50.00
+  if (numericAmount >= 15000) return "Premium"; // $150.00
+  if (numericAmount >= 5000) return "Standard"; // $50.00
   return "Free";
 };
 
@@ -79,7 +84,7 @@ const transactions = {
           limit: limit ? parseInt(limit) : 100,
           skip: skip ? parseInt(skip) : 0,
         },
-        next
+        next,
       );
       logObject("listResponse", listResponse);
 
@@ -90,8 +95,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -110,9 +115,8 @@ const transactions = {
       const paddleEventData = body;
 
       // Attempt to find or create associated user
-      const userIdentification = await transactions.identifyUserFromTransaction(
-        paddleEventData
-      );
+      const userIdentification =
+        await transactions.identifyUserFromTransaction(paddleEventData);
 
       // Prepare transaction creation body
       const creationBody = {
@@ -129,18 +133,18 @@ const transactions = {
 
       // Register transaction
       const responseFromRegisterTransaction = await TransactionModel(
-        tenant
+        tenant,
       ).register(creationBody, next);
 
       // Log the registration for debugging
       logObject(
         "Transaction Registration Response",
-        responseFromRegisterTransaction
+        responseFromRegisterTransaction,
       );
 
       // Trigger any post-transaction processing
       await transactions.processTransactionPostRegistration(
-        responseFromRegisterTransaction.data
+        responseFromRegisterTransaction.data,
       );
 
       return responseFromRegisterTransaction;
@@ -150,8 +154,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -188,7 +192,7 @@ const transactions = {
           filter,
           update: body,
         },
-        next
+        next,
       );
 
       return modifyResponse;
@@ -198,8 +202,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -243,8 +247,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -273,7 +277,7 @@ const transactions = {
             cancelledAt: new Date(),
           },
         },
-        next
+        next,
       );
 
       return modifyResponse;
@@ -283,8 +287,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { message: error.message },
+        ),
       );
     }
   },
@@ -343,14 +347,14 @@ const transactions = {
               return existingCustomer.id;
             }
             logger.error(
-              `Unable to retrieve existing Paddle customer for email: ${user.email}`
+              `Unable to retrieve existing Paddle customer for email: ${user.email}`,
             );
             throw error;
           }
           logger.error(
             `Unable to generate the transaction client on Paddle -- ${stringify(
-              error
-            )}`
+              error,
+            )}`,
           );
           throw error;
         }
@@ -370,12 +374,12 @@ const transactions = {
             .findByIdAndUpdate(
               user._id,
               { $set: { paddle_customer_id: resolvedCustomerId } },
-              { new: false }
+              { new: false },
             )
             .catch((err) =>
               logger.error(
-                `Non-critical: failed to persist paddle_customer_id for user ${user._id}: ${err.message}`
-              )
+                `Non-critical: failed to persist paddle_customer_id for user ${user._id}: ${err.message}`,
+              ),
             );
         }
       }
@@ -412,8 +416,8 @@ const transactions = {
             .findByIdAndUpdate(user._id, { $unset: { paddle_customer_id: "" } })
             .catch((err) =>
               logger.error(
-                `Non-critical: failed to clear stale paddle_customer_id for user ${user._id}: ${err.message}`
-              )
+                `Non-critical: failed to clear stale paddle_customer_id for user ${user._id}: ${err.message}`,
+              ),
             );
           const freshCustomerId = await resolveOrCreateCustomer();
           paddlePayload.customer_id = freshCustomerId;
@@ -421,14 +425,15 @@ const transactions = {
             .findByIdAndUpdate(
               user._id,
               { $set: { paddle_customer_id: freshCustomerId } },
-              { new: false }
+              { new: false },
             )
             .catch((err) =>
               logger.error(
-                `Non-critical: failed to persist fresh paddle_customer_id for user ${user._id}: ${err.message}`
-              )
+                `Non-critical: failed to persist fresh paddle_customer_id for user ${user._id}: ${err.message}`,
+              ),
             );
-          checkoutSession = await paddleClient.transactions.create(paddlePayload);
+          checkoutSession =
+            await paddleClient.transactions.create(paddlePayload);
         } else {
           throw txnError;
         }
@@ -449,7 +454,7 @@ const transactions = {
           type: error.type,
           code: error.code,
           detail: error.detail,
-        })
+        }),
       );
       return {
         success: false,
@@ -503,7 +508,7 @@ const transactions = {
             ...(is_new_user && { first_transaction_completed_at: new Date() }),
           },
         },
-        { new: false } // We don't need the updated doc
+        { new: false }, // We don't need the updated doc
       );
 
       // 2. Update all active AccessTokens for this user.
@@ -516,12 +521,12 @@ const transactions = {
         const clientIds = userClients.map((c) => c._id);
         await AccessTokenModel(defaultTenant).updateMany(
           { client_id: { $in: clientIds } },
-          { $set: { tier, scopes: grantedScopes } }
+          { $set: { tier, scopes: grantedScopes } },
         );
       }
 
       logger.info(
-        `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`
+        `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`,
       );
     } catch (error) {
       logger.error(`performAdditionalBusinessLogic failed: ${error.message}`);
@@ -560,7 +565,9 @@ const transactions = {
       logObject("Failed Transaction Event", eventData);
 
       if (!eventData || !eventData.id || !eventData.customer_id) {
-        logger.warn("Invalid transaction data received for payment_failed event");
+        logger.warn(
+          "Invalid transaction data received for payment_failed event",
+        );
         return;
       }
 
@@ -572,7 +579,7 @@ const transactions = {
 
       await transactions.notifyAdminOfTransactionError(
         new Error(`Payment failed for transaction ${eventData.id}`),
-        eventData
+        eventData,
       );
     } catch (error) {
       logger.error("Failed transaction processing error", {
@@ -595,9 +602,8 @@ const transactions = {
       }
 
       // Attempt to identify or create user associated with the transaction
-      const userIdentification = await transactions.identifyUserFromTransaction(
-        eventData
-      );
+      const userIdentification =
+        await transactions.identifyUserFromTransaction(eventData);
 
       // Prepare detailed transaction metadata
       const transactionMetadata = {
@@ -622,7 +628,7 @@ const transactions = {
 
       // Optional: Send notification or trigger follow-up actions
       await transactions.sendTransactionCompletionNotification(
-        transactionMetadata
+        transactionMetadata,
       );
     } catch (error) {
       // Comprehensive error handling
@@ -649,15 +655,26 @@ const transactions = {
       const signature = request.headers["paddle-signature"];
       const { body, query } = request;
       const { tenant } = query;
-      const bodyString = Buffer.isBuffer(body)
-        ? body.toString("utf8")
-        : body;
+      const bodyString = Buffer.isBuffer(body) ? body.toString("utf8") : body;
+
+      opsLogger.warn("webhook-debug", {
+        bodyType: Buffer.isBuffer(body) ? "Buffer" : typeof body,
+        bodyPreview:
+          typeof bodyString === "string"
+            ? bodyString.slice(0, 80)
+            : String(bodyString).slice(0, 80),
+        signaturePresent: !!signature,
+        signaturePreview: signature ? signature.slice(0, 40) : null,
+        secretPrefix: constants.PADDLE_WEBHOOK_SECRET
+          ? constants.PADDLE_WEBHOOK_SECRET.slice(0, 20)
+          : "MISSING",
+      });
 
       // Verify webhook authenticity
       const event = await paddleClient.webhooks.unmarshal(
         bodyString,
         signature,
-        constants.PADDLE_WEBHOOK_SECRET
+        constants.PADDLE_WEBHOOK_SECRET,
       );
 
       switch (event.type) {
@@ -678,7 +695,7 @@ const transactions = {
           body: event.data,
           query: { tenant },
         },
-        next
+        next,
       );
 
       return result;
@@ -752,7 +769,7 @@ const transactions = {
           customerId = customer.id;
         } catch (error) {
           logger.error(
-            `Unable to generate Paddle customer -- ${stringify(error)}`
+            `Unable to generate Paddle customer -- ${stringify(error)}`,
           );
           return {
             success: false,
@@ -772,9 +789,8 @@ const transactions = {
       };
 
       // Create transaction
-      const subscriptionTransaction = await paddleClient.transactions.create(
-        transactionData
-      );
+      const subscriptionTransaction =
+        await paddleClient.transactions.create(transactionData);
 
       // Record transaction in local database
       const transactionRecord = await TransactionModel("airqo").register({
@@ -846,7 +862,7 @@ const transactions = {
           try {
             // Fetch subscription status from Paddle
             const subscriptionStatus = await paddleClient.subscriptions.get(
-              user.currentSubscriptionId
+              user.currentSubscriptionId,
             );
 
             // Update local user record based on Paddle subscription status
@@ -869,7 +885,7 @@ const transactions = {
             logger.error(
               `Failed to check subscription for user ${
                 user.email
-              } --- ${stringify(error)}`
+              } --- ${stringify(error)}`,
             );
           }
         }
@@ -890,9 +906,8 @@ const transactions = {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       // Cancel subscription in Paddle
-      const cancellationResult = await paddleClient.subscriptions.cancel(
-        subscriptionId
-      );
+      const cancellationResult =
+        await paddleClient.subscriptions.cancel(subscriptionId);
 
       const defaultTenant = "airqo";
 
@@ -920,18 +935,18 @@ const transactions = {
           const clientIds = userClients.map((c) => c._id);
           await AccessTokenModel(defaultTenant).updateMany(
             { client_id: { $in: clientIds } },
-            { $set: { tier: "Free", scopes: TIER_SCOPE_MAP.Free } }
+            { $set: { tier: "Free", scopes: TIER_SCOPE_MAP.Free } },
           );
         }
       } catch (downgradeErr) {
         // Non-fatal — cancellation is already recorded; log and continue
         logger.error(
-          `Non-critical: token downgrade after cancellation failed for user ${user._id}: ${downgradeErr.message}`
+          `Non-critical: token downgrade after cancellation failed for user ${user._id}: ${downgradeErr.message}`,
         );
       }
 
       logger.info(
-        `Subscription cancelled and tier reset to Free: user=${user._id}`
+        `Subscription cancelled and tier reset to Free: user=${user._id}`,
       );
 
       return {
@@ -973,7 +988,7 @@ const transactions = {
 
       // Fetch current subscription details from Paddle to populate the local renewal record
       const renewalTransaction = await paddleClient.subscriptions.get(
-        user.currentSubscriptionId
+        user.currentSubscriptionId,
       );
 
       // Prefer Paddle's authoritative period end date; fall back to a
@@ -983,7 +998,8 @@ const transactions = {
         ? new Date(paddleEndsAt)
         : (() => {
             const d = new Date();
-            const billingCycle = user.currentPlanDetails?.billingCycle || "monthly";
+            const billingCycle =
+              user.currentPlanDetails?.billingCycle || "monthly";
             d.setDate(d.getDate() + (billingCycle === "annual" ? 365 : 30));
             return d;
           })();
@@ -1073,7 +1089,9 @@ const transactions = {
               success: false,
               message: "Invalid start_date value",
               status: httpStatus.BAD_REQUEST,
-              errors: { message: `start_date '${start_date}' is not a valid date` },
+              errors: {
+                message: `start_date '${start_date}' is not a valid date`,
+              },
             };
           }
           filter.createdAt.$gte = sd;
@@ -1103,7 +1121,7 @@ const transactions = {
           limit: limit ? parseInt(limit) : 100,
           skip: skip ? parseInt(skip) : 0,
         },
-        next
+        next,
       );
 
       if (!listResponse.success) {
@@ -1118,7 +1136,7 @@ const transactions = {
           acc.transaction_count += 1;
           return acc;
         },
-        { total_amount: 0, transaction_count: 0 }
+        { total_amount: 0, transaction_count: 0 },
       );
 
       return {
@@ -1161,7 +1179,9 @@ const transactions = {
             success: false,
             message: "Invalid start_date value",
             status: httpStatus.BAD_REQUEST,
-            errors: { message: `start_date '${start_date}' is not a valid date` },
+            errors: {
+              message: `start_date '${start_date}' is not a valid date`,
+            },
           };
         }
         filter.createdAt = filter.createdAt || {};
@@ -1271,7 +1291,7 @@ const transactions = {
             },
           },
         },
-        { new: true } // Return the updated document
+        { new: true }, // Return the updated document
       );
 
       // Optional: Verify and update subscription in Paddle
@@ -1283,8 +1303,8 @@ const transactions = {
       } catch (paddleUpdateError) {
         logger.warn(
           `Could not update Paddle subscription: ${stringify(
-            paddleUpdateError
-          )}`
+            paddleUpdateError,
+          )}`,
         );
       }
 
@@ -1299,8 +1319,8 @@ const transactions = {
       } catch (emailError) {
         logger.error(
           `Failed to send automatic renewal confirmation email: ${stringify(
-            emailError
-          )}`
+            emailError,
+          )}`,
         );
       }
 
@@ -1347,7 +1367,7 @@ const transactions = {
       const updatedUser = await UserModel("airqo").findByIdAndUpdate(
         user._id,
         { $set: { automaticRenewal: false } },
-        { new: true }
+        { new: true },
       );
 
       return {
