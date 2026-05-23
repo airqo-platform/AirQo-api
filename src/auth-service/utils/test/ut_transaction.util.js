@@ -539,3 +539,73 @@ describe("transactions.processWebhook — body normalisation", () => {
     expect(result.errors.message).to.include("Invalid webhook signature");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// identifyUserFromTransaction — tenant factory + user resolution
+// ─────────────────────────────────────────────────────────────────────────────
+describe("transactions.identifyUserFromTransaction", () => {
+  let findOneStub;
+  let createStub;
+
+  beforeEach(() => {
+    sinon.restore();
+    const UserModel = require("@models/User");
+    findOneStub = sinon.stub(UserModel("airqo"), "findOne");
+    createStub = sinon.stub(UserModel("airqo"), "create");
+  });
+
+  afterEach(() => sinon.restore());
+
+  it("returns existing user and isNewUser: false when paddle_customer_id matches", async () => {
+    findOneStub.resolves({ _id: "user123" });
+
+    const result = await transactions.identifyUserFromTransaction(
+      { customer_id: "ctm_001" },
+      "airqo",
+    );
+
+    sinon.assert.calledOnce(findOneStub);
+    sinon.assert.notCalled(createStub);
+    expect(result.userId).to.equal("user123");
+    expect(result.isNewUser).to.equal(false);
+  });
+
+  it("creates a new user and returns isNewUser: true when no match is found", async () => {
+    findOneStub.resolves(null);
+    createStub.resolves({ _id: "user_new" });
+
+    const result = await transactions.identifyUserFromTransaction(
+      { customer_id: "ctm_002", email: "new@example.com" },
+      "airqo",
+    );
+
+    sinon.assert.calledOnce(createStub);
+    expect(result.userId).to.equal("user_new");
+    expect(result.isNewUser).to.equal(true);
+  });
+
+  it("defaults to airqo tenant when none is provided", async () => {
+    findOneStub.resolves({ _id: "user_default" });
+
+    const result = await transactions.identifyUserFromTransaction({
+      customer_id: "ctm_003",
+    });
+
+    sinon.assert.calledOnce(findOneStub);
+    expect(result.userId).to.equal("user_default");
+  });
+
+  it("throws 'Could not identify or create user' when the DB call fails", async () => {
+    findOneStub.rejects(new Error("DB connection lost"));
+
+    try {
+      await transactions.identifyUserFromTransaction(
+        { customer_id: "ctm_004" },
+        "airqo",
+      );
+      expect.fail("should have thrown");
+    } catch (error) {
+      expect(error.message).to.equal("Could not identify or create user");
+    }
+  });
+});
