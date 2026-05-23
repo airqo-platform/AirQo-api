@@ -57,7 +57,7 @@ def _hourly_history() -> pd.DataFrame:
             }
         )
 
-    sparse_timestamps = pd.date_range("2026-03-04T06:00:00Z", periods=2, freq="h")
+    sparse_timestamps = pd.date_range("2026-03-04T06:00:00Z", periods=1, freq="h")
     for idx, timestamp in enumerate(sparse_timestamps):
         rows.append(
             {
@@ -117,6 +117,26 @@ def test_generate_site_hourly_forecasts_includes_sparse_sites(monkeypatch):
     assert forecasts["pm2_5_q10"].le(forecasts["pm2_5_mean"]).all()
     assert forecasts["pm2_5_mean"].le(forecasts["pm2_5_q90"]).all()
     assert forecasts["forecast_confidence"].between(0, 100).all()
+
+
+def test_generate_site_hourly_forecasts_can_start_from_current_run_hour(monkeypatch):
+    monkeypatch.setattr(
+        ForecastModelTrainer,
+        "_load_site_hourly_forecast_artifacts",
+        staticmethod(_hourly_artifacts),
+    )
+
+    forecasts = ForecastModelTrainer.generate_site_hourly_forecasts(
+        _hourly_history(),
+        horizon_hours=3,
+        forecast_start_timestamp=pd.Timestamp("2026-03-06T03:00:00Z"),
+        run_timestamp=pd.Timestamp("2026-03-06T03:15:00Z"),
+        include_met_no_weather=False,
+    )
+
+    assert forecasts["timestamp"].min() == pd.Timestamp("2026-03-06T03:00:00Z")
+    assert forecasts["timestamp"].max() == pd.Timestamp("2026-03-06T05:00:00Z")
+    assert forecasts.groupby("site_id")["timestamp"].nunique().eq(3).all()
 
 
 def test_generate_site_hourly_forecasts_rejects_none_input():
