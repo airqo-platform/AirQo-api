@@ -118,7 +118,8 @@ const transactions = {
       const userIdentification =
         await transactions.identifyUserFromTransaction(paddleEventData, tenant);
 
-      // Prepare transaction creation body
+      // Payload has already been normalised in processWebhook (snake_case,
+      // numeric total, uppercased currency). Read fields directly.
       const creationBody = {
         paddle_transaction_id: paddleEventData.id,
         paddle_event_type: paddleEventData.type,
@@ -664,22 +665,40 @@ const transactions = {
         signature,
       );
 
+      // Normalise SDK camelCase fields to snake_case once so all downstream
+      // callers (handlers, identifyUserFromTransaction, create) use consistent
+      // field names without each needing its own camelCase fallback.
+      const normalizedTransaction = {
+        ...event.data,
+        type: event.type,
+        customer_id: event.data.customerId || event.data.customer_id,
+        currency: (
+          event.data.currencyCode ||
+          event.data.currency ||
+          "USD"
+        ).toUpperCase(),
+        total: parseFloat(
+          event.data.details?.totals?.total || event.data.total,
+        ),
+      };
+
       switch (event.type) {
         case "transaction.completed":
-          await transactions.handleCompletedTransaction(event.data, tenant);
+          await transactions.handleCompletedTransaction(
+            normalizedTransaction,
+            tenant,
+          );
           break;
         case "transaction.payment_failed":
-          await transactions.handleFailedTransaction(event.data);
+          await transactions.handleFailedTransaction(normalizedTransaction);
           break;
-        // Add more event handlers
         default:
           logger.warn(`Unhandled event type: ${event.type}`);
       }
 
-      // Delegate to create method for handling
       const result = await transactions.create(
         {
-          body: event.data,
+          body: normalizedTransaction,
           query: { tenant },
         },
         next,
