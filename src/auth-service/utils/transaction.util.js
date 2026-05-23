@@ -668,9 +668,10 @@ const transactions = {
       // Normalise SDK camelCase fields to snake_case once so all downstream
       // callers (handlers, identifyUserFromTransaction, create) use consistent
       // field names without each needing its own camelCase fallback.
+      // SDK exposes eventType (camelCase), not type.
       const normalizedTransaction = {
         ...event.data,
-        type: event.type,
+        type: event.eventType,
         customer_id: event.data.customerId || event.data.customer_id,
         currency: (
           event.data.currencyCode ||
@@ -682,27 +683,32 @@ const transactions = {
         ),
       };
 
-      switch (event.type) {
+      // Only persist a transaction record for financial transaction events.
+      // Non-transaction events (subscription.*, customer.*, etc.) are
+      // acknowledged but do not create a DB record.
+      let result;
+      switch (event.eventType) {
         case "transaction.completed":
           await transactions.handleCompletedTransaction(
             normalizedTransaction,
             tenant,
           );
+          result = await transactions.create(
+            { body: normalizedTransaction, query: { tenant } },
+            next,
+          );
           break;
         case "transaction.payment_failed":
           await transactions.handleFailedTransaction(normalizedTransaction);
+          result = await transactions.create(
+            { body: normalizedTransaction, query: { tenant } },
+            next,
+          );
           break;
         default:
-          logger.warn(`Unhandled event type: ${event.type}`);
+          logger.info(`Paddle webhook event ${event.eventType} received but not handled`);
+          result = { success: true, message: "Event received", status: httpStatus.OK };
       }
-
-      const result = await transactions.create(
-        {
-          body: normalizedTransaction,
-          query: { tenant },
-        },
-        next,
-      );
 
       return result;
     } catch (error) {

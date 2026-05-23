@@ -482,9 +482,10 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
 
 describe("transactions.processWebhook — body normalisation", () => {
   let unmarshalStub;
-  // Mirrors the camelCase structure the Paddle Node SDK actually returns
+  // Mirrors the real Paddle Node SDK Event object: eventType (not type) on the
+  // event wrapper; camelCase fields on event.data.
   const fakeEvent = {
-    type: "transaction.completed",
+    eventType: "transaction.completed",
     data: {
       id: "txn_001",
       customerId: "ctm_001",
