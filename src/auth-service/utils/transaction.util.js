@@ -118,24 +118,15 @@ const transactions = {
       const userIdentification =
         await transactions.identifyUserFromTransaction(paddleEventData, tenant);
 
-      // Prepare transaction creation body.
-      // Paddle Node SDK returns camelCase fields; map to model's snake_case schema.
+      // Payload has already been normalised in processWebhook (snake_case,
+      // numeric total, uppercased currency). Read fields directly.
       const creationBody = {
         paddle_transaction_id: paddleEventData.id,
         paddle_event_type: paddleEventData.type,
         user_id: userIdentification.userId,
-        paddle_customer_id:
-          paddleEventData.customerId || paddleEventData.customer_id,
-        amount: parseFloat(
-          paddleEventData.details?.totals?.total ||
-            paddleEventData.total ||
-            0,
-        ),
-        currency: (
-          paddleEventData.currencyCode ||
-          paddleEventData.currency ||
-          "USD"
-        ).toUpperCase(),
+        paddle_customer_id: paddleEventData.customer_id,
+        amount: paddleEventData.total,
+        currency: paddleEventData.currency,
         status: transactions.mapTransactionStatus(paddleEventData.type),
         items: paddleEventData.items || [],
         metadata: paddleEventData,
@@ -674,24 +665,40 @@ const transactions = {
         signature,
       );
 
+      // Normalise SDK camelCase fields to snake_case once so all downstream
+      // callers (handlers, identifyUserFromTransaction, create) use consistent
+      // field names without each needing its own camelCase fallback.
+      const normalizedTransaction = {
+        ...event.data,
+        type: event.type,
+        customer_id: event.data.customerId || event.data.customer_id,
+        currency: (
+          event.data.currencyCode ||
+          event.data.currency ||
+          "USD"
+        ).toUpperCase(),
+        total: parseFloat(
+          event.data.details?.totals?.total || event.data.total,
+        ),
+      };
+
       switch (event.type) {
         case "transaction.completed":
-          await transactions.handleCompletedTransaction(event.data, tenant);
+          await transactions.handleCompletedTransaction(
+            normalizedTransaction,
+            tenant,
+          );
           break;
         case "transaction.payment_failed":
-          await transactions.handleFailedTransaction(event.data);
+          await transactions.handleFailedTransaction(normalizedTransaction);
           break;
-        // Add more event handlers
         default:
           logger.warn(`Unhandled event type: ${event.type}`);
       }
 
-      // Delegate to create method for handling.
-      // Merge event.type into data — the SDK places it on the event wrapper,
-      // not on event.data, but create() needs it for paddle_event_type.
       const result = await transactions.create(
         {
-          body: { ...event.data, type: event.type },
+          body: normalizedTransaction,
           query: { tenant },
         },
         next,

@@ -482,9 +482,15 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
 
 describe("transactions.processWebhook — body normalisation", () => {
   let unmarshalStub;
+  // Mirrors the camelCase structure the Paddle Node SDK actually returns
   const fakeEvent = {
     type: "transaction.completed",
-    data: { id: "txn_001", customer_id: "ctm_001" },
+    data: {
+      id: "txn_001",
+      customerId: "ctm_001",
+      currencyCode: "usd",
+      details: { totals: { total: "99.00" } },
+    },
   };
 
   beforeEach(() => {
@@ -527,6 +533,19 @@ describe("transactions.processWebhook — body normalisation", () => {
     sinon.assert.calledOnce(unmarshalStub);
     const [bodyArg] = unmarshalStub.firstCall.args;
     expect(bodyArg).to.equal(bodyString);
+  });
+
+  it("normalises SDK camelCase fields and passes merged type to transactions.create", async () => {
+    const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
+
+    await transactions.processWebhook(req, () => {});
+
+    sinon.assert.calledOnce(transactions.create);
+    const body = transactions.create.firstCall.args[0].body;
+    expect(body.type).to.equal("transaction.completed");
+    expect(body.customer_id).to.equal("ctm_001");
+    expect(body.currency).to.equal("USD");
+    expect(body.total).to.equal(99);
   });
 
   it("returns an error response when unmarshal throws Invalid webhook signature", async () => {
