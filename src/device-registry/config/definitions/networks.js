@@ -40,8 +40,18 @@ const NETWORK_ADAPTERS = {
   // ── AirGradient ────────────────────────────────────────────────────────────
   // API requires a "token" query parameter (device.access_code holds the token).
   // Without it the API returns 422 {"errors":[{"param":"token","msg":"Invalid value"}]}.
-  // api_code example: https://api.airgradient.com/public/api/v1/locations/174349/measures/current
-  // serial_number "174349" lives in the URL path.
+  //
+  // AirGradient exposes two URL path patterns depending on how the device owner
+  // shared the device with AirQo:
+  //   Private share: https://api.airgradient.com/public/api/v1/locations/{id}/measures/current
+  //   World (public): https://api.airgradient.com/public/api/v1/world/locations/{id}/measures/current
+  //
+  // Older devices (pre-May 2026) use the private-share path (/locations/).
+  // Devices onboarded from May 2026 onward predominantly use the world path
+  // (/world/locations/). The api_code stored per device is the authoritative URL;
+  // serial_number_regex matches /locations/ in both variants to extract the ID.
+  // No api_url_template is set here because the correct path variant cannot be
+  // determined at registration time — callers must supply a full api_code URL.
   airgradient: {
     api_code_is_full_url: true,
     api_base_url: "https://api.airgradient.com",

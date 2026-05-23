@@ -217,6 +217,14 @@ try {
     `backfill-api-code-job failed to start: ${err.message}`,
   );
 }
+try {
+  const auditApiCodeJob = require("@bin/jobs/audit-api-code-job");
+  auditApiCodeJob.startJob();
+} catch (err) {
+  global.dedupLogger.error(
+    `audit-api-code-job failed to start: ${err.message}`,
+  );
+}
 
 // Defensively load precompute activities job
 // Default behavior: ENABLED (runs unless explicitly disabled)
