@@ -4,6 +4,7 @@ const { getModelByTenant } = require("@config/database");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const { monthsInfront, stringify } = require("@utils/common");
+const { sanitizeApiCode } = require("@utils/api-code.util");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
@@ -234,7 +235,7 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       trim: true,
       unique: true,
-      set: (v) => (typeof v === "string" ? v.replace(/[.,;'"]+$/, "") : v),
+      set: sanitizeApiCode,
     },
     access_code: {
       type: String,

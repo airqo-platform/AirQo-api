@@ -8,6 +8,7 @@ const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 const { getNetworkAdapter } = require("@utils/network.util");
+const { sanitizeApiCode } = require("@utils/api-code.util");
 const {
   generateFilter,
   claimTokenUtil,
@@ -1730,16 +1731,25 @@ const deviceUtil = {
         if (!body.api_code && body.description && adapterConfig?.api_base_url) {
           const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
           if (urlMatch) {
-            const extractedUrl = urlMatch[0].replace(/[.,;'"]+$/, "");
-            if (extractedUrl.startsWith(adapterConfig.api_base_url)) {
-              body.api_code = extractedUrl;
-              logText(
-                `createOnPlatform: extracted api_code from description for network "${body.network}"`
-              );
-            } else {
+            const extractedUrl = sanitizeApiCode(urlMatch[0]);
+            try {
+              if (
+                new URL(extractedUrl).origin ===
+                new URL(adapterConfig.api_base_url).origin
+              ) {
+                body.api_code = extractedUrl;
+                logText(
+                  `createOnPlatform: extracted api_code from description for network "${body.network}"`
+                );
+              } else {
+                logger.warn(
+                  `createOnPlatform: URL in description does not match expected base ` +
+                    `for network "${body.network}" — ignoring`
+                );
+              }
+            } catch {
               logger.warn(
-                `createOnPlatform: URL in description does not match expected base ` +
-                  `for network "${body.network}" — ignoring`
+                `createOnPlatform: invalid URL in description for network "${body.network}" — ignoring`
               );
             }
           }
@@ -5382,7 +5392,7 @@ const deviceUtil = {
         if (!isNaN(lng) && lng >= -180 && lng <= 180) device.longitude = lng;
       }
       if (row.api_code && row.api_code.trim()) {
-        device.api_code = row.api_code.trim().replace(/[.,;'"]+$/, "");
+        device.api_code = sanitizeApiCode(row.api_code.trim());
       }
       if (row.description && row.description.trim()) {
         device.description = row.description.trim();
