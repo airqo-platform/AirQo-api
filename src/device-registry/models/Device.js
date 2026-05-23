@@ -234,6 +234,7 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       trim: true,
       unique: true,
+      set: (v) => (typeof v === "string" ? v.replace(/[.,;'"]+$/, "") : v),
     },
     access_code: {
       type: String,

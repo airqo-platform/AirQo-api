@@ -1730,7 +1730,7 @@ const deviceUtil = {
         if (!body.api_code && body.description && adapterConfig?.api_base_url) {
           const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
           if (urlMatch) {
-            const extractedUrl = urlMatch[0].replace(/[.,;]+$/, "");
+            const extractedUrl = urlMatch[0].replace(/[.,;'"]+$/, "");
             if (extractedUrl.startsWith(adapterConfig.api_base_url)) {
               body.api_code = extractedUrl;
               logText(
@@ -5382,7 +5382,7 @@ const deviceUtil = {
         if (!isNaN(lng) && lng >= -180 && lng <= 180) device.longitude = lng;
       }
       if (row.api_code && row.api_code.trim()) {
-        device.api_code = row.api_code.trim();
+        device.api_code = row.api_code.trim().replace(/[.,;'"]+$/, "");
       }
       if (row.description && row.description.trim()) {
         device.description = row.description.trim();
