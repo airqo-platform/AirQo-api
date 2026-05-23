@@ -590,7 +590,7 @@ const transactions = {
     }
   },
 
-  handleCompletedTransaction: async (eventData) => {
+  handleCompletedTransaction: async (eventData, tenant) => {
     try {
       // Log the incoming event data for debugging
       logObject("Completed Transaction Event", eventData);
@@ -603,10 +603,7 @@ const transactions = {
 
       // Attempt to identify or create user associated with the transaction
       const userIdentification =
-        await transactions.identifyUserFromTransaction(
-          eventData,
-          constants.DEFAULT_TENANT || "airqo",
-        );
+        await transactions.identifyUserFromTransaction(eventData, tenant);
 
       // Prepare detailed transaction metadata
       const transactionMetadata = {
@@ -669,7 +666,7 @@ const transactions = {
 
       switch (event.type) {
         case "transaction.completed":
-          await transactions.handleCompletedTransaction(event.data);
+          await transactions.handleCompletedTransaction(event.data, tenant);
           break;
         case "transaction.payment_failed":
           await transactions.handleFailedTransaction(event.data);
@@ -715,6 +712,7 @@ const transactions = {
   /**
    * Attempt to identify user from transaction data
    * @param {Object} transactionData - Paddle transaction data
+   * @param {string} [tenant] - Tenant identifier; defaults to constants.DEFAULT_TENANT or "airqo"
    * @returns {Promise<Object>} User identification result
    */
   identifyUserFromTransaction: async (transactionData, tenant) => {
