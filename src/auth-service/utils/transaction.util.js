@@ -116,7 +116,7 @@ const transactions = {
 
       // Attempt to find or create associated user
       const userIdentification =
-        await transactions.identifyUserFromTransaction(paddleEventData);
+        await transactions.identifyUserFromTransaction(paddleEventData, tenant);
 
       // Prepare transaction creation body
       const creationBody = {
@@ -603,7 +603,10 @@ const transactions = {
 
       // Attempt to identify or create user associated with the transaction
       const userIdentification =
-        await transactions.identifyUserFromTransaction(eventData);
+        await transactions.identifyUserFromTransaction(
+          eventData,
+          constants.DEFAULT_TENANT || "airqo",
+        );
 
       // Prepare detailed transaction metadata
       const transactionMetadata = {
@@ -714,11 +717,10 @@ const transactions = {
    * @param {Object} transactionData - Paddle transaction data
    * @returns {Promise<Object>} User identification result
    */
-  identifyUserFromTransaction: async (transactionData) => {
+  identifyUserFromTransaction: async (transactionData, tenant) => {
+    const resolvedTenant = tenant || constants.DEFAULT_TENANT || "airqo";
     try {
-      // Logic to find or create user based on Paddle customer ID
-      // Try to find existing user by Paddle customer ID
-      const existingUser = await UserModel.findOne({
+      const existingUser = await UserModel(resolvedTenant).findOne({
         paddle_customer_id: transactionData.customer_id,
       });
 
@@ -729,12 +731,10 @@ const transactions = {
         };
       }
 
-      // If no existing user, create a new one
-      const newUser = await UserModel.create({
+      const newUser = await UserModel(resolvedTenant).create({
         paddle_customer_id: transactionData.customer_id,
         email: transactionData.email || null,
         name: transactionData.customer_name || null,
-        // Add any other relevant user creation fields
       });
 
       return {
