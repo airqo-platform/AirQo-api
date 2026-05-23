@@ -482,9 +482,10 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
 
 describe("transactions.processWebhook — body normalisation", () => {
   let unmarshalStub;
-  // Mirrors the camelCase structure the Paddle Node SDK actually returns
+  // Mirrors the real Paddle Node SDK Event object: eventType (not type) on the
+  // event wrapper; camelCase fields on event.data.
   const fakeEvent = {
-    type: "transaction.completed",
+    eventType: "transaction.completed",
     data: {
       id: "txn_001",
       customerId: "ctm_001",
@@ -546,6 +547,20 @@ describe("transactions.processWebhook — body normalisation", () => {
     expect(body.customer_id).to.equal("ctm_001");
     expect(body.currency).to.equal("USD");
     expect(body.total).to.equal(99);
+  });
+
+  it("returns OK and does not call transactions.create for non-transaction events", async () => {
+    unmarshalStub.resolves({
+      eventType: "subscription.activated",
+      data: { id: "sub_001" },
+    });
+    const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
+
+    const result = await transactions.processWebhook(req, () => {});
+
+    sinon.assert.notCalled(transactions.create);
+    expect(result.success).to.equal(true);
+    expect(result.message).to.equal("Event received");
   });
 
   it("returns an error response when unmarshal throws Invalid webhook signature", async () => {
