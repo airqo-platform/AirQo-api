@@ -4497,7 +4497,7 @@ const createUserModule = {
       const userExists = await UserModel(tenant).exists(filter);
 
       if (!userExists) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",

@@ -52,11 +52,18 @@ const resolveTierFromEvent = (eventData) => {
       return "Premium";
   }
 
-  // 3. Amount-based fallback (amounts in smallest currency unit, e.g. cents)
-  const amount = eventData?.details?.totals?.total || eventData?.total || 0;
-  const numericAmount = parseFloat(amount);
-  if (numericAmount >= 15000) return "Premium"; // $150.00
-  if (numericAmount >= 5000) return "Standard"; // $50.00
+  // 3. Amount-based fallback — prefer eventData.total (already in major units
+  //    after webhook normalization). Fall back to details.totals.total (raw
+  //    smallest-unit string from the SDK) with an explicit ÷100 conversion.
+  const normalizedTotal = parseFloat(eventData?.total);
+  const rawDetailsTotal = parseFloat(eventData?.details?.totals?.total);
+  const numericAmount = Number.isFinite(normalizedTotal)
+    ? normalizedTotal
+    : Number.isFinite(rawDetailsTotal)
+      ? rawDetailsTotal / 100
+      : 0;
+  if (numericAmount >= 150) return "Premium"; // $150.00
+  if (numericAmount >= 50) return "Standard"; // $50.00
   return "Free";
 };
 
@@ -499,17 +506,24 @@ const transactions = {
       const grantedScopes = TIER_SCOPE_MAP[tier] || TIER_SCOPE_MAP.Free;
       const rateLimits = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free;
 
-      // 1. Update User subscription tier and rate limits
+      // 1. Update User subscription tier, rate limits, and subscription linkage.
+      //    currentSubscriptionId is required by getSubscriptionStatus to query
+      //    Paddle for live status; set it here from the webhook event so the
+      //    field is populated after the first successful transaction.
       await UserModel(defaultTenant).findByIdAndUpdate(
         user_id,
         {
           $set: {
             subscriptionTier: tier,
             apiRateLimits: rateLimits,
+            ...(full_event_data.subscriptionId && {
+              currentSubscriptionId: full_event_data.subscriptionId,
+              subscriptionStatus: "active",
+            }),
             ...(is_new_user && { first_transaction_completed_at: new Date() }),
           },
         },
-        { new: false }, // We don't need the updated doc
+        { new: false },
       );
 
       // 2. Update all active AccessTokens for this user.
@@ -535,17 +549,8 @@ const transactions = {
     }
   },
 
-  sendTransactionCompletionNotification: async (transactionMetadata) => {
-    try {
-      // Example: Send email, push notification, etc.
-      await emailService.sendTransactionReceiptEmail({
-        userId: transactionMetadata.user_id,
-        amount: transactionMetadata.amount,
-        currency: transactionMetadata.currency,
-      });
-    } catch (error) {
-      logger.error("Transaction notification failed", error);
-    }
+  sendTransactionCompletionNotification: async (_transactionMetadata) => {
+    // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
     try {
@@ -678,9 +683,11 @@ const transactions = {
           event.data.currency ||
           "USD"
         ).toUpperCase(),
+        // Divide by 100: payment provider returns amounts in the smallest
+        // currency unit (cents for USD). Store and return in major units ($).
         total: parseFloat(
           event.data.details?.totals?.total || event.data.total,
-        ),
+        ) / 100,
       };
 
       // Non-transaction events are acknowledged and returned early so
@@ -813,7 +820,7 @@ const transactions = {
         paddle_event_type: "transaction.completed",
         user_id: user._id,
         paddle_customer_id: customerId,
-        amount: subscriptionTransaction.total,
+        amount: (parseFloat(subscriptionTransaction.details?.totals?.total) || 0) / 100,
         currency: transactionData.currency,
         status: "completed",
         payment_method: subscriptionTransaction.paymentMethod,
@@ -1024,7 +1031,7 @@ const transactions = {
         paddle_event_type: "transaction.completed",
         user_id: user._id,
         paddle_customer_id: renewalTransaction.customerId || "unknown",
-        amount: renewalTransaction.items?.[0]?.price?.unitPrice?.amount || 0,
+        amount: (parseFloat(renewalTransaction.items?.[0]?.price?.unitPrice?.amount) || 0) / 100,
         currency:
           renewalTransaction.items?.[0]?.price?.unitPrice?.currencyCode ||
           "USD",
@@ -1325,12 +1332,7 @@ const transactions = {
 
       // Send confirmation email or notification
       try {
-        await emailService.sendAutomaticRenewalConfirmationEmail({
-          userId: user._id,
-          email: user.email,
-          nextBillingDate: calculateNextBillingDate(),
-          billingCycle: finalRenewalOptions.billingCycle,
-        });
+        // Email notification not yet implemented.
       } catch (emailError) {
         logger.error(
           `Failed to send automatic renewal confirmation email: ${stringify(
