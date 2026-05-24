@@ -1417,7 +1417,7 @@ const authOAuth = (req, res, next) => {
   const providerScopes = {
     google: ["profile", "email"],
     github: ["user:email"],
-    linkedin: ["r_emailaddress", "r_liteprofile"],
+    linkedin: ["openid", "profile", "email"],
     microsoft: ["user.read"],
   };
 
@@ -1435,17 +1435,45 @@ const authOAuth = (req, res, next) => {
 /**
  * Dynamically handles the OAuth callback for any supported provider.
  * Used by the generic GET /auth/callback/:provider route.
- * Catches InternalOAuthError (e.g. ECONNRESET during token exchange) and
- * redirects to the failure URL rather than propagating a 500.
+ *
+ * All errors — InternalOAuthError (token exchange failures), application-level
+ * errors (e.g. email not returned by provider), and session errors (e.g.
+ * "Failed to find request token in session" in OAuth 1.0a) — redirect to the
+ * failure URL instead of propagating a 500.
+ *
+ * Returning a 500 here was causing a double-request bug in the Twitter OAuth
+ * 1.0a flow: passport-oauth1 destroys the request token from the session
+ * before invoking the verify callback, so any 500 that triggers a load-balancer
+ * or browser retry hits the callback a second time with no session token and
+ * logs a spurious "Failed to find request token in session" error.
+ *
+ * Note: failureRedirect has no effect in callback mode (the third-argument
+ * form of passport.authenticate). All outcomes are handled by the callback.
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
-  passport.authenticate(provider, {
-    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
-    session: false,
-  })(req, res, (err) => {
-    if (err) return handleOAuthCallbackError(err, provider, res, next);
-    next();
+  const failureRedirectUrl = buildOAuthFailureRedirect(
+    constants.GMAIL_VERIFICATION_FAILURE_REDIRECT,
+  );
+  passport.authenticate(provider, { session: false })(req, res, (err) => {
+    if (!err) return next();
+    const safeProvider = SUPPORTED_OAUTH_PROVIDERS.has(provider)
+      ? provider
+      : "unknown";
+    if (err.name === "InternalOAuthError" || err.oauthError) {
+      // Do not log err.message — may contain raw OAuth tokens from provider.
+      logger.error("OAuth token exchange failed", {
+        provider: safeProvider,
+        errorType: err.name || "OAuthError",
+      });
+    } else {
+      logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name || "Error",
+        message: err.message,
+      });
+    }
+    return res.redirect(failureRedirectUrl);
   });
 };
 
