@@ -459,4 +459,4 @@ function configureStrategies(passport, tenant) {
   );
 }
 
-module.exports = { configureStrategies, buildCallbackURL };
+module.exports = { configureStrategies, buildCallbackURL, CookieStateStore };
