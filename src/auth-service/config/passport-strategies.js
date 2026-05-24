@@ -32,9 +32,13 @@ class CookieStateStore {
   }
 
   // Called by passport-oauth2 before redirecting to the provider.
-  // Saves the state in a signed cookie so no server-side storage is needed.
+  // The store is responsible for generating the state value — passport-oauth2
+  // passes state=undefined here (it only pre-generates state when options.state
+  // is an explicit string). The generated value must be returned via
+  // callback(null, value) so passport-oauth2 can include it in the redirect URL.
   store(req, state, meta, callback) {
-    const signed = this._sign(state);
+    const value = crypto.randomBytes(12).toString("hex");
+    const signed = this._sign(value);
     const res = req.res;
     if (!res) {
       return callback(new Error("CookieStateStore: response object unavailable on req.res"));
@@ -46,7 +50,7 @@ class CookieStateStore {
       maxAge: this._ttl * 1000,
       path: "/",
     });
-    callback(null);
+    callback(null, value);
   }
 
   // Called by passport-oauth2 on the callback to verify CSRF state.
@@ -455,4 +459,4 @@ function configureStrategies(passport, tenant) {
   );
 }
 
-module.exports = { configureStrategies, buildCallbackURL };
+module.exports = { configureStrategies, buildCallbackURL, CookieStateStore };
