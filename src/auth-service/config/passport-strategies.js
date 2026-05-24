@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const GitHubStrategy = require("passport-github2").Strategy;
 const constants = require("@config/constants");
@@ -9,6 +10,111 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-strategies`,
 );
+
+/**
+ * Stateless OAuth 2.0 CSRF state store backed by HMAC-signed cookies.
+ *
+ * Replaces passport-oauth2's default session-based StateStore so that
+ * the OAuth redirect round-trip has zero dependence on Redis or MongoDB.
+ * The state is signed with SESSION_SECRET (timing-safe comparison on
+ * verify) and stored in a short-lived HttpOnly cookie. Works correctly
+ * across any number of pods with no shared session store.
+ *
+ * Implements the passport-oauth2 v1.8.0 four-argument store/verify API
+ * (arity-detected by the framework).
+ */
+class CookieStateStore {
+  constructor({ secret, cookieName, ttlSeconds = 600 } = {}) {
+    if (!secret) throw new Error("CookieStateStore: secret is required");
+    this._secret = secret;
+    this._cookieName = cookieName || "_oauth2_state";
+    this._ttl = ttlSeconds;
+  }
+
+  // Called by passport-oauth2 before redirecting to the provider.
+  // Saves the state in a signed cookie so no server-side storage is needed.
+  store(req, state, meta, callback) {
+    const signed = this._sign(state);
+    const res = req.res;
+    if (!res) {
+      return callback(new Error("CookieStateStore: response object unavailable on req.res"));
+    }
+    res.cookie(this._cookieName, signed, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", // allows cookie on top-level GET from provider redirect
+      maxAge: this._ttl * 1000,
+      path: "/",
+    });
+    callback(null);
+  }
+
+  // Called by passport-oauth2 on the callback to verify CSRF state.
+  verify(req, state, meta, callback) {
+    const signedCookie = req.cookies && req.cookies[this._cookieName];
+    if (!signedCookie) {
+      logger.warn(
+        `[CookieStateStore] state cookie "${this._cookieName}" missing — ` +
+          "possible CSRF attempt or browser cookie policy blocked the cookie",
+      );
+      return callback(null, false, { message: "OAuth state cookie missing" });
+    }
+
+    const storedState = this._unsign(signedCookie);
+    if (!storedState) {
+      return callback(null, false, { message: "OAuth state cookie signature invalid" });
+    }
+
+    // One-time use: clear the cookie immediately after reading.
+    if (req.res) req.res.clearCookie(this._cookieName, { path: "/" });
+
+    // Constant-time comparison guards against timing attacks.
+    if (!this._safeEqual(state, storedState)) {
+      return callback(null, false, { message: "OAuth state mismatch" });
+    }
+
+    callback(null, true);
+  }
+
+  _sign(value) {
+    const sig = crypto
+      .createHmac("sha256", this._secret)
+      .update(value)
+      .digest("base64url");
+    return `${value}.${sig}`;
+  }
+
+  _unsign(signedValue) {
+    const sep = signedValue.lastIndexOf(".");
+    if (sep === -1) return null;
+    const value = signedValue.substring(0, sep);
+    const sig = signedValue.substring(sep + 1);
+    try {
+      const expected = crypto
+        .createHmac("sha256", this._secret)
+        .update(value)
+        .digest("base64url");
+      const sBuf = Buffer.from(sig, "base64url");
+      const eBuf = Buffer.from(expected, "base64url");
+      if (sBuf.length !== eBuf.length) return null;
+      if (!crypto.timingSafeEqual(sBuf, eBuf)) return null;
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
+  _safeEqual(a, b) {
+    try {
+      const aBuf = Buffer.from(a);
+      const bBuf = Buffer.from(b);
+      if (aBuf.length !== bBuf.length) return false;
+      return crypto.timingSafeEqual(aBuf, bBuf);
+    } catch {
+      return false;
+    }
+  }
+}
 
 // ── Strategy registration guard ───────────────────────────────────────────────
 // Strategies are registered once at startup (bin/server.js). This flag
@@ -157,7 +263,10 @@ function configureStrategies(passport, tenant) {
           clientSecret: constants.GOOGLE_CLIENT_SECRET,
           callbackURL: buildCallbackURL("google"),
           passReqToCallback: true,
-          state: true,
+          store: new CookieStateStore({
+            secret: constants.SESSION_SECRET,
+            cookieName: "_oauth2_state_google",
+          }),
         },
         makeStrategyCallback("google"),
       ),
@@ -181,7 +290,10 @@ function configureStrategies(passport, tenant) {
           callbackURL: buildCallbackURL("github"),
           scope: ["user:email"],
           passReqToCallback: true,
-          state: true,
+          store: new CookieStateStore({
+            secret: constants.SESSION_SECRET,
+            cookieName: "_oauth2_state_github",
+          }),
         },
         makeStrategyCallback(
           "github",
@@ -209,9 +321,16 @@ function configureStrategies(passport, tenant) {
             clientID: constants.LINKEDIN_CLIENT_ID,
             clientSecret: constants.LINKEDIN_CLIENT_SECRET,
             callbackURL: buildCallbackURL("linkedin"),
-            scope: ["r_emailaddress", "r_liteprofile"],
+            // OpenID Connect scopes required for "Sign In with LinkedIn using
+            // OpenID Connect" product (Standard Tier). The deprecated v2 Member
+            // Data Portability scopes (r_emailaddress, r_liteprofile) are no
+            // longer accepted on newly created apps.
+            scope: ["openid", "profile", "email"],
             passReqToCallback: true,
-            state: true,
+            store: new CookieStateStore({
+              secret: constants.SESSION_SECRET,
+              cookieName: "_oauth2_state_linkedin",
+            }),
           },
           makeStrategyCallback(
             "linkedin",
@@ -247,7 +366,10 @@ function configureStrategies(passport, tenant) {
             scope: ["user.read"],
             tenant: "common",
             passReqToCallback: true,
-            state: true,
+            store: new CookieStateStore({
+              secret: constants.SESSION_SECRET,
+              cookieName: "_oauth2_state_microsoft",
+            }),
           },
           makeStrategyCallback(
             "microsoft",
