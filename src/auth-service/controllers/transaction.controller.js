@@ -15,7 +15,6 @@ const logger = log4js.getLogger(
 const transactionsUtil = require("@utils/transaction.util");
 const tokenUtil = require("@utils/token.util");
 const { paddleClient, isPaddleConfigured } = require("@config/paddle");
-const UserModel = require("@models/User");
 
 const transactions = {
   createCheckoutSession: async (req, res, next) => {
@@ -631,56 +630,12 @@ const transactions = {
         return;
       }
 
-      if (!isPaddleConfigured) {
-        return res.status(httpStatus.SERVICE_UNAVAILABLE).json({
-          success: false,
-          message:
-            "Payment service is not configured. Please try again later.",
-        });
-      }
-
-      if (!req.user) {
-        return res.status(httpStatus.UNAUTHORIZED).json({
-          success: false,
-          message: "Authentication required",
-        });
-      }
-
-      // Re-fetch from DB: req.user comes from the JWT and may predate the
-      // webhook that set currentSubscriptionId on the user document.
-      const tenant = (req.query && req.query.tenant) || "airqo";
-      const freshUser = await UserModel(tenant)
-        .findById(req.user._id)
-        .select("currentSubscriptionId subscriptionStatus")
-        .lean();
-
-      if (!freshUser || !freshUser.currentSubscriptionId) {
-        return res.status(httpStatus.BAD_REQUEST).json({
-          success: false,
-          message: "No active subscription found",
-          errors: { message: "User has no subscription ID" },
-        });
-      }
-
-      const subscriptionStatus = await paddleClient.subscriptions.get(
-        freshUser.currentSubscriptionId
-      );
-
-      await UserModel("airqo").findByIdAndUpdate(req.user._id, {
-        $set: {
-          subscriptionStatus: subscriptionStatus.status,
-          lastSubscriptionCheck: new Date(),
-        },
-      });
-
-      return res.status(httpStatus.OK).json({
-        success: true,
-        message: "Subscription status retrieved successfully",
-        data: {
-          status: subscriptionStatus.status,
-          lastChecked: new Date(),
-          subscriptionId: freshUser.currentSubscriptionId,
-        },
+      const result = await transactionsUtil.getSubscriptionStatus(req);
+      return res.status(result.status).json({
+        success: result.success,
+        message: result.message,
+        ...(result.data && { data: result.data }),
+        ...(result.errors && { errors: result.errors }),
       });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -688,9 +643,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
+          { message: error.message }
         )
       );
       return;
