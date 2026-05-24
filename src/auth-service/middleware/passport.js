@@ -1470,10 +1470,20 @@ const authOAuthCallback = (req, res, next) => {
       ? provider
       : "unknown";
     if (err.name === "InternalOAuthError" || err.oauthError) {
-      // Do not log err.message — may contain raw OAuth tokens from provider.
+      // Log the underlying provider error body (statusCode + data) to diagnose
+      // OAuth rejections. Avoid logging err.message which may contain tokens.
+      const oauthErr = err.oauthError || {};
       logger.error("OAuth token exchange failed", {
         provider: safeProvider,
         errorType: err.name || "OAuthError",
+        oauthStatusCode: oauthErr.statusCode,
+        oauthData: String(
+          Buffer.isBuffer(oauthErr.data)
+            ? oauthErr.data.toString()
+            : typeof oauthErr.data === "object" && oauthErr.data !== null
+              ? JSON.stringify(oauthErr.data)
+              : oauthErr.data ?? "",
+        ).slice(0, 500),
       });
     } else {
       logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
