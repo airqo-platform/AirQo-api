@@ -639,7 +639,22 @@ const transactions = {
         });
       }
 
-      if (!req.user || !req.user.currentSubscriptionId) {
+      if (!req.user) {
+        return res.status(httpStatus.UNAUTHORIZED).json({
+          success: false,
+          message: "Authentication required",
+        });
+      }
+
+      // Re-fetch from DB: req.user comes from the JWT and may predate the
+      // webhook that set currentSubscriptionId on the user document.
+      const tenant = (req.query && req.query.tenant) || "airqo";
+      const freshUser = await UserModel(tenant)
+        .findById(req.user._id)
+        .select("currentSubscriptionId subscriptionStatus")
+        .lean();
+
+      if (!freshUser || !freshUser.currentSubscriptionId) {
         return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           message: "No active subscription found",
@@ -648,7 +663,7 @@ const transactions = {
       }
 
       const subscriptionStatus = await paddleClient.subscriptions.get(
-        req.user.currentSubscriptionId
+        freshUser.currentSubscriptionId
       );
 
       await UserModel("airqo").findByIdAndUpdate(req.user._id, {
@@ -664,7 +679,7 @@ const transactions = {
         data: {
           status: subscriptionStatus.status,
           lastChecked: new Date(),
-          subscriptionId: req.user.currentSubscriptionId,
+          subscriptionId: freshUser.currentSubscriptionId,
         },
       });
     } catch (error) {
