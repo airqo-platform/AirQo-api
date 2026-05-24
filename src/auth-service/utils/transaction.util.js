@@ -535,17 +535,8 @@ const transactions = {
     }
   },
 
-  sendTransactionCompletionNotification: async (transactionMetadata) => {
-    try {
-      // Example: Send email, push notification, etc.
-      await emailService.sendTransactionReceiptEmail({
-        userId: transactionMetadata.user_id,
-        amount: transactionMetadata.amount,
-        currency: transactionMetadata.currency,
-      });
-    } catch (error) {
-      logger.error("Transaction notification failed", error);
-    }
+  sendTransactionCompletionNotification: async (_transactionMetadata) => {
+    // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
     try {
@@ -1325,12 +1316,7 @@ const transactions = {
 
       // Send confirmation email or notification
       try {
-        await emailService.sendAutomaticRenewalConfirmationEmail({
-          userId: user._id,
-          email: user.email,
-          nextBillingDate: calculateNextBillingDate(),
-          billingCycle: finalRenewalOptions.billingCycle,
-        });
+        // Email notification not yet implemented.
       } catch (emailError) {
         logger.error(
           `Failed to send automatic renewal confirmation email: ${stringify(
