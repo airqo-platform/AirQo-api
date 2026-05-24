@@ -1477,9 +1477,13 @@ const authOAuthCallback = (req, res, next) => {
         provider: safeProvider,
         errorType: err.name || "OAuthError",
         oauthStatusCode: oauthErr.statusCode,
-        oauthData: typeof oauthErr.data === "string"
-          ? oauthErr.data.slice(0, 500)
-          : oauthErr.data,
+        oauthData: String(
+          Buffer.isBuffer(oauthErr.data)
+            ? oauthErr.data.toString()
+            : typeof oauthErr.data === "object" && oauthErr.data !== null
+              ? JSON.stringify(oauthErr.data)
+              : oauthErr.data ?? "",
+        ).slice(0, 500),
       });
     } else {
       logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
