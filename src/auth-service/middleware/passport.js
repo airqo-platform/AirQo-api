@@ -1447,15 +1447,24 @@ const authOAuth = (req, res, next) => {
  * or browser retry hits the callback a second time with no session token and
  * logs a spurious "Failed to find request token in session" error.
  *
- * Note: failureRedirect has no effect in callback mode (the third-argument
- * form of passport.authenticate). All outcomes are handled by the callback.
+ * Note: this is NOT passport's custom-callback form
+ * (passport.authenticate(strategy, callbackFn)). It calls the middleware
+ * returned by passport.authenticate(provider, options) with an overridden
+ * next function. In this form, failureRedirect in options still applies to
+ * authentication failures (cb(null,false) paths such as state mismatch or
+ * user-denied consent) and redirects before the custom next is invoked.
+ * Errors (cb(err) paths) bypass failureRedirect and go through the custom
+ * next, where we redirect them explicitly below.
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
   const failureRedirectUrl = buildOAuthFailureRedirect(
     constants.GMAIL_VERIFICATION_FAILURE_REDIRECT,
   );
-  passport.authenticate(provider, { session: false })(req, res, (err) => {
+  passport.authenticate(provider, {
+    session: false,
+    failureRedirect: failureRedirectUrl,
+  })(req, res, (err) => {
     if (!err) return next();
     const safeProvider = SUPPORTED_OAUTH_PROVIDERS.has(provider)
       ? provider
