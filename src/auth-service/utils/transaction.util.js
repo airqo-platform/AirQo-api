@@ -52,9 +52,16 @@ const resolveTierFromEvent = (eventData) => {
       return "Premium";
   }
 
-  // 3. Amount-based fallback (amounts stored in major currency units, e.g. dollars)
-  const amount = eventData?.details?.totals?.total || eventData?.total || 0;
-  const numericAmount = parseFloat(amount);
+  // 3. Amount-based fallback — prefer eventData.total (already in major units
+  //    after webhook normalization). Fall back to details.totals.total (raw
+  //    smallest-unit string from the SDK) with an explicit ÷100 conversion.
+  const normalizedTotal = parseFloat(eventData?.total);
+  const rawDetailsTotal = parseFloat(eventData?.details?.totals?.total);
+  const numericAmount = Number.isFinite(normalizedTotal)
+    ? normalizedTotal
+    : Number.isFinite(rawDetailsTotal)
+      ? rawDetailsTotal / 100
+      : 0;
   if (numericAmount >= 150) return "Premium"; // $150.00
   if (numericAmount >= 50) return "Standard"; // $50.00
   return "Free";
@@ -813,7 +820,7 @@ const transactions = {
         paddle_event_type: "transaction.completed",
         user_id: user._id,
         paddle_customer_id: customerId,
-        amount: subscriptionTransaction.total,
+        amount: (parseFloat(subscriptionTransaction.details?.totals?.total) || 0) / 100,
         currency: transactionData.currency,
         status: "completed",
         payment_method: subscriptionTransaction.paymentMethod,

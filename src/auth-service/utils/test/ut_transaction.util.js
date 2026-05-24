@@ -490,7 +490,7 @@ describe("transactions.processWebhook — body normalisation", () => {
       id: "txn_001",
       customerId: "ctm_001",
       currencyCode: "usd",
-      details: { totals: { total: "99.00" } },
+      details: { totals: { total: "9900" } }, // cents; normalization divides by 100 → $99.00
     },
   };
 
