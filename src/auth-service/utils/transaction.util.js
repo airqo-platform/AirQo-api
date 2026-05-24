@@ -535,17 +535,8 @@ const transactions = {
     }
   },
 
-  sendTransactionCompletionNotification: async (transactionMetadata) => {
-    try {
-      // Example: Send email, push notification, etc.
-      await emailService.sendTransactionReceiptEmail({
-        userId: transactionMetadata.user_id,
-        amount: transactionMetadata.amount,
-        currency: transactionMetadata.currency,
-      });
-    } catch (error) {
-      logger.error("Transaction notification failed", error);
-    }
+  sendTransactionCompletionNotification: async (_transactionMetadata) => {
+    // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
     try {
