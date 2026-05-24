@@ -6572,6 +6572,18 @@ const createUserModule = {
         // Enhanced authentication
         token: `JWT ${token}`,
 
+        // Auth methods — which login providers this account has connected
+        authMethods: {
+          password: !!user.password,
+          google: !!user.google_id,
+          github: !!user.github_id,
+          linkedin: !!user.linkedin_id,
+          microsoft: !!user.microsoft_id,
+          twitter: !!user.twitter_id,
+          facebook: !!user.facebook_id,
+          apple: !!user.apple_id,
+        },
+
         // --- REMOVED FOR SCALABILITY ---
         // The following large data fields are removed to prevent oversized login responses
         // which can cause 502 Bad Gateway errors. Clients should fetch this data
