@@ -1042,6 +1042,27 @@ const resetPasswordRequest = [
   //Potentially add tenant validation here as well, using the oneOf approach if necessary
 ];
 
+const setPassword = [
+  body("password")
+    .exists()
+    .withMessage("password is required")
+    .bail()
+    .isLength({ min: 6 })
+    .withMessage("password must be at least 6 characters long")
+    .trim(),
+  body("confirmPassword")
+    .exists()
+    .withMessage("confirmPassword is required")
+    .bail()
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error("Passwords do not match");
+      }
+      return true;
+    })
+    .trim(),
+];
+
 const resetPassword = [
   param("token")
     .exists()
@@ -1609,6 +1630,7 @@ module.exports = {
   getEnhancedProfileForUser,
   resetPasswordRequest,
   resetPassword,
+  setPassword,
   verifyMobileEmail,
   getOrganizationBySlug,
   registerViaOrgSlug,

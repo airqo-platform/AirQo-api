@@ -603,6 +603,13 @@ router.post(
 );
 
 router.post(
+  "/setPassword",
+  userValidations.setPassword,
+  enhancedJWTAuth,
+  userController.setPassword,
+);
+
+router.post(
   "/reset-password/:token",
   userValidations.resetPassword,
   userController.resetPassword,

@@ -358,6 +358,10 @@ const UserSchema = new Schema(
     facebook_id: { type: String, trim: true },
     apple_id: { type: String, trim: true },
     // ── OAuth provider IDs end ────────────────────────────────────────────────────
+    // True only when the user has explicitly set their own password.
+    // OAuth users are created with a random unknown password, so !!password
+    // alone cannot distinguish "user knows their password" from "system-generated".
+    hasSetPassword: { type: Boolean, default: false },
     timezone: { type: String, trim: true },
     preferredTokenStrategy: {
       type: String,

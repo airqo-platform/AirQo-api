@@ -4947,6 +4947,77 @@ const createUserModule = {
     }
   },
 
+  setPassword: async (request, next) => {
+    try {
+      const { password, confirmPassword } = request.body;
+      const tenant =
+        isEmpty(request.query.tenant)
+          ? constants.DEFAULT_TENANT || "airqo"
+          : request.query.tenant;
+
+      if (password !== confirmPassword) {
+        return next(
+          new HttpError("Passwords do not match", httpStatus.BAD_REQUEST, {
+            message: "password and confirmPassword must be identical",
+          }),
+        );
+      }
+
+      const validationResult = createUserModule._validatePassword(password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
+      // Re-fetch from DB to check current hasSetPassword state.
+      const user = await UserModel(tenant)
+        .findById(request.user._id)
+        .select("hasSetPassword")
+        .lean();
+
+      if (!user) {
+        return next(
+          new HttpError("User not found", httpStatus.NOT_FOUND, {
+            message: "Authenticated user record could not be found",
+          }),
+        );
+      }
+
+      if (user.hasSetPassword) {
+        return next(
+          new HttpError(
+            "Password already set",
+            httpStatus.BAD_REQUEST,
+            {
+              message:
+                "A password is already configured for this account. Use the change password flow instead.",
+            },
+          ),
+        );
+      }
+
+      await UserModel(tenant).findByIdAndUpdate(
+        request.user._id,
+        { $set: { password, hasSetPassword: true } },
+        { context: "query" },
+      );
+
+      return {
+        success: true,
+        message: "Password set successfully. You can now log in with your email and password.",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
       // 1. Manually validate the new password
@@ -6574,7 +6645,7 @@ const createUserModule = {
 
         // Auth methods — which login providers this account has connected
         authMethods: {
-          password: !!user.password,
+          password: !!user.hasSetPassword,
           google: !!user.google_id,
           github: !!user.github_id,
           linkedin: !!user.linkedin_id,

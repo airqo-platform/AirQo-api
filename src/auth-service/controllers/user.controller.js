@@ -782,6 +782,28 @@ const userController = {
     }
   },
 
+  setPassword: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await userUtil.setPassword(req, next);
+      if (result) {
+        res.status(result.status).json({
+          success: result.success,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logObject("error in controller", error);
+      handleError(error, next);
+    }
+  },
+
   registerMobileUser: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
