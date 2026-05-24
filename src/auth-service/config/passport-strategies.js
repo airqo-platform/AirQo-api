@@ -315,20 +315,75 @@ function configureStrategies(passport, tenant) {
   }
 
   // ── LinkedIn ─────────────────────────────────────────────────────────────
+  // passport-linkedin-oauth2 v2 calls the deprecated /v2/me and /v2/emailAddress
+  // endpoints (Member Data Portability API) which require r_liteprofile /
+  // r_emailaddress scopes. LinkedIn's Standard Tier only grants OpenID Connect
+  // scopes (openid profile email). We use passport-oauth2 directly and call the
+  // OIDC userinfo endpoint (/oidc/v2/userinfo) which works with OIDC tokens.
   if (constants.LINKEDIN_CLIENT_ID && constants.LINKEDIN_CLIENT_SECRET) {
     try {
-      const LinkedInStrategy = require("passport-linkedin-oauth2").Strategy;
+      const { Strategy: OAuth2Strategy, InternalOAuthError } =
+        require("passport-oauth2");
+
+      class LinkedInOIDCStrategy extends OAuth2Strategy {
+        constructor(options, verify) {
+          options.authorizationURL =
+            "https://www.linkedin.com/oauth/v2/authorization";
+          options.tokenURL =
+            "https://www.linkedin.com/oauth/v2/accessToken";
+          super(options, verify);
+          this.name = "linkedin";
+        }
+
+        userProfile(accessToken, done) {
+          this._oauth2.get(
+            "https://api.linkedin.com/oidc/v2/userinfo",
+            accessToken,
+            (err, body) => {
+              if (err) {
+                return done(
+                  new InternalOAuthError(
+                    "failed to fetch LinkedIn userinfo",
+                    err,
+                  ),
+                );
+              }
+              try {
+                const json = JSON.parse(body);
+                const profile = {
+                  provider: "linkedin",
+                  id: json.sub,
+                  displayName: json.name || "",
+                  name: {
+                    givenName: json.given_name || "",
+                    familyName: json.family_name || "",
+                  },
+                  emails: json.email ? [{ value: json.email }] : [],
+                  photos: json.picture ? [{ value: json.picture }] : [],
+                  _raw: body,
+                  _json: json,
+                };
+                done(null, profile);
+              } catch (e) {
+                done(
+                  new InternalOAuthError(
+                    "failed to parse LinkedIn userinfo response",
+                    e,
+                  ),
+                );
+              }
+            },
+          );
+        }
+      }
+
       passport.use(
         "linkedin",
-        new LinkedInStrategy(
+        new LinkedInOIDCStrategy(
           {
             clientID: constants.LINKEDIN_CLIENT_ID,
             clientSecret: constants.LINKEDIN_CLIENT_SECRET,
             callbackURL: buildCallbackURL("linkedin"),
-            // OpenID Connect scopes required for "Sign In with LinkedIn using
-            // OpenID Connect" product (Standard Tier). The deprecated v2 Member
-            // Data Portability scopes (r_emailaddress, r_liteprofile) are no
-            // longer accepted on newly created apps.
             scope: ["openid", "profile", "email"],
             passReqToCallback: true,
             store: new CookieStateStore({
@@ -343,10 +398,10 @@ function configureStrategies(passport, tenant) {
           ),
         ),
       );
-      logger.info("✅ LinkedIn OAuth strategy configured");
+      logger.info("✅ LinkedIn OIDC strategy configured");
     } catch (e) {
       logger.warn(
-        `⚠️  LinkedIn OAuth strategy skipped: failed to load passport-linkedin-oauth2 — ${e.message}`,
+        `⚠️  LinkedIn OAuth strategy skipped: ${e.message}`,
       );
     }
   } else {
