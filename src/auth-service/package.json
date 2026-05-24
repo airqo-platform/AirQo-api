@@ -113,6 +113,7 @@
     "passport-linkedin-oauth2": "^2.0.0",
     "passport-local": "^1.0.0",
     "passport-microsoft": "^2.1.0",
+    "passport-oauth2": "^1.8.0",
     "passport-twitter": "^1.0.4",
     "posthog-node": "^5.11.2",
     "rate-limit-redis": "^4.2.1",

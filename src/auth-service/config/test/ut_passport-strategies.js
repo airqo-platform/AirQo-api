@@ -1,7 +1,10 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const { CookieStateStore } = require("@config/passport-strategies");
+const {
+  CookieStateStore,
+  LinkedInOIDCStrategy,
+} = require("@config/passport-strategies");
 
 const SECRET = "test-secret-for-unit-tests-32bytes!!";
 const COOKIE_NAME = "_oauth2_state_test";
@@ -134,6 +137,79 @@ describe("CookieStateStore", () => {
           expect(ok).to.be.false;
           done();
         });
+      });
+    });
+  });
+});
+
+// ── LinkedInOIDCStrategy ─────────────────────────────────────────────────────
+
+describe("LinkedInOIDCStrategy", () => {
+  let strategy;
+
+  beforeEach(() => {
+    strategy = new LinkedInOIDCStrategy(
+      { clientID: "test-id", clientSecret: "test-secret" },
+      () => {},
+    );
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  describe("userProfile()", () => {
+    it("maps a well-formed OIDC userinfo response to a passport profile", (done) => {
+      const payload = {
+        sub: "abc123",
+        name: "Jane Doe",
+        given_name: "Jane",
+        family_name: "Doe",
+        email: "jane@example.com",
+        picture: "https://example.com/pic.jpg",
+      };
+      sinon
+        .stub(strategy._oauth2, "get")
+        .callsFake((url, token, cb) => cb(null, JSON.stringify(payload)));
+
+      strategy.userProfile("fake-token", (err, profile) => {
+        expect(err).to.be.null;
+        expect(profile.provider).to.equal("linkedin");
+        expect(profile.id).to.equal("abc123");
+        expect(profile.displayName).to.equal("Jane Doe");
+        expect(profile.name.givenName).to.equal("Jane");
+        expect(profile.name.familyName).to.equal("Doe");
+        expect(profile.emails[0].value).to.equal("jane@example.com");
+        expect(profile.photos[0].value).to.equal("https://example.com/pic.jpg");
+        done();
+      });
+    });
+
+    it("calls back with InternalOAuthError when the HTTP request fails", (done) => {
+      sinon
+        .stub(strategy._oauth2, "get")
+        .callsFake((url, token, cb) => cb(new Error("connection refused")));
+
+      strategy.userProfile("fake-token", (err) => {
+        expect(err).to.be.instanceof(Error);
+        expect(err.name).to.equal("InternalOAuthError");
+        expect(err.message).to.include("failed to fetch LinkedIn userinfo");
+        done();
+      });
+    });
+
+    it("calls back with InternalOAuthError when the response body is invalid JSON", (done) => {
+      sinon
+        .stub(strategy._oauth2, "get")
+        .callsFake((url, token, cb) => cb(null, "not-valid-json{{"));
+
+      strategy.userProfile("fake-token", (err) => {
+        expect(err).to.be.instanceof(Error);
+        expect(err.name).to.equal("InternalOAuthError");
+        expect(err.message).to.include(
+          "failed to parse LinkedIn userinfo response",
+        );
+        done();
       });
     });
   });
