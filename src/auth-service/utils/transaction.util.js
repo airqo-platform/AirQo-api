@@ -1316,12 +1316,7 @@ const transactions = {
 
       // Send confirmation email or notification
       try {
-        await emailService.sendAutomaticRenewalConfirmationEmail({
-          userId: user._id,
-          email: user.email,
-          nextBillingDate: calculateNextBillingDate(),
-          billingCycle: finalRenewalOptions.billingCycle,
-        });
+        // Email notification not yet implemented.
       } catch (emailError) {
         logger.error(
           `Failed to send automatic renewal confirmation email: ${stringify(
