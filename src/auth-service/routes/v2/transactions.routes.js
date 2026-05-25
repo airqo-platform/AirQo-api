@@ -107,8 +107,8 @@ router.get(
 // Change Subscription Tier (upgrade or downgrade)
 router.patch(
   "/change-tier",
-  enhancedJWTAuth,
   transactionValidations.changeTier,
+  enhancedJWTAuth,
   TransactionController.changeSubscriptionTier
 );
 

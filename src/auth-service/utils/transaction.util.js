@@ -649,6 +649,55 @@ const transactions = {
     }
   },
 
+  handleSubscriptionUpdated: async (subscriptionData, tenant) => {
+    const resolvedTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    try {
+      const customerId = subscriptionData.customerId || subscriptionData.customer_id;
+      if (!customerId || subscriptionData.status !== "active") return;
+
+      const user = await UserModel(resolvedTenant)
+        .findOne({ paddle_customer_id: customerId })
+        .select("_id subscriptionTier")
+        .lean();
+      if (!user) return;
+
+      const newPriceId = subscriptionData.items?.[0]?.price?.id;
+      if (!newPriceId) return;
+
+      // Reverse map: price ID → tier
+      const PRICE_TIER_MAP = {
+        [constants.PADDLE_STANDARD_PRICE_ID]: "Standard",
+        [constants.PADDLE_PREMIUM_PRICE_ID]: "Premium",
+      };
+      const newTier = PRICE_TIER_MAP[newPriceId];
+      if (!newTier || newTier === user.subscriptionTier) return;
+
+      const rateLimits = TIER_RATE_LIMITS[newTier] || TIER_RATE_LIMITS.Free;
+      const grantedScopes = TIER_SCOPE_MAP[newTier] || TIER_SCOPE_MAP.Free;
+
+      await UserModel(resolvedTenant).findByIdAndUpdate(user._id, {
+        $set: { subscriptionTier: newTier, apiRateLimits: rateLimits },
+      });
+
+      const userClients = await ClientModel(resolvedTenant)
+        .find({ user_id: user._id }, { _id: 1 })
+        .lean();
+      if (userClients.length > 0) {
+        const clientIds = userClients.map((c) => c._id);
+        await AccessTokenModel(resolvedTenant).updateMany(
+          { client_id: { $in: clientIds } },
+          { $set: { tier: newTier, scopes: grantedScopes } },
+        );
+      }
+
+      logger.info(
+        `Subscription tier reconciled for user ${user._id}: ${user.subscriptionTier} → ${newTier}`,
+      );
+    } catch (error) {
+      logger.error(`handleSubscriptionUpdated error --- ${stringify(error)}`);
+    }
+  },
+
   /**
    * Process Paddle webhook
    * @param {Object} request - Express request object
@@ -702,6 +751,9 @@ const transactions = {
         case "transaction.payment_failed":
           await transactions.handleFailedTransaction(normalizedTransaction);
           break;
+        case "subscription.updated":
+          await transactions.handleSubscriptionUpdated(event.data, tenant);
+          return { success: true, message: "Event received", status: httpStatus.OK };
         default:
           logger.info(`Paddle webhook event ${event.eventType} received but not handled`);
           return { success: true, message: "Event received", status: httpStatus.OK };
