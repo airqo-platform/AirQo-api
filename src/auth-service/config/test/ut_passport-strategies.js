@@ -158,6 +158,10 @@ describe("LinkedInOIDCStrategy", () => {
     sinon.restore();
   });
 
+  it("configures the OAuth2 client to send the token via Authorization header", () => {
+    expect(strategy._oauth2._useAuthorizationHeaderForGET).to.equal(true);
+  });
+
   describe("userProfile()", () => {
     it("maps a well-formed OIDC userinfo response to a passport profile", (done) => {
       const payload = {
@@ -168,17 +172,12 @@ describe("LinkedInOIDCStrategy", () => {
         email: "jane@example.com",
         picture: "https://example.com/pic.jpg",
       };
-      const authHeaderSpy = sinon.spy(
-        strategy._oauth2,
-        "useAuthorizationHeaderforGET",
-      );
       const getStub = sinon
         .stub(strategy._oauth2, "get")
         .callsFake((url, token, cb) => cb(null, JSON.stringify(payload)));
 
       strategy.userProfile("fake-token", (err, profile) => {
         expect(err).to.be.null;
-        expect(authHeaderSpy.calledOnceWith(true)).to.be.true;
         expect(getStub.firstCall.args[0]).to.equal(
           "https://api.linkedin.com/v2/userinfo",
         );
