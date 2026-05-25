@@ -482,9 +482,16 @@ describe("transactions.createCheckoutSession — customer resolution", () => {
 
 describe("transactions.processWebhook — body normalisation", () => {
   let unmarshalStub;
+  // Mirrors the real Paddle Node SDK Event object: eventType (not type) on the
+  // event wrapper; camelCase fields on event.data.
   const fakeEvent = {
-    type: "transaction.completed",
-    data: { id: "txn_001", customer_id: "ctm_001" },
+    eventType: "transaction.completed",
+    data: {
+      id: "txn_001",
+      customerId: "ctm_001",
+      currencyCode: "usd",
+      details: { totals: { total: "9900" } }, // cents; normalization divides by 100 → $99.00
+    },
   };
 
   beforeEach(() => {
@@ -527,6 +534,33 @@ describe("transactions.processWebhook — body normalisation", () => {
     sinon.assert.calledOnce(unmarshalStub);
     const [bodyArg] = unmarshalStub.firstCall.args;
     expect(bodyArg).to.equal(bodyString);
+  });
+
+  it("normalises SDK camelCase fields and passes merged type to transactions.create", async () => {
+    const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
+
+    await transactions.processWebhook(req, () => {});
+
+    sinon.assert.calledOnce(transactions.create);
+    const body = transactions.create.firstCall.args[0].body;
+    expect(body.type).to.equal("transaction.completed");
+    expect(body.customer_id).to.equal("ctm_001");
+    expect(body.currency).to.equal("USD");
+    expect(body.total).to.equal(99);
+  });
+
+  it("returns OK and does not call transactions.create for non-transaction events", async () => {
+    unmarshalStub.resolves({
+      eventType: "subscription.activated",
+      data: { id: "sub_001" },
+    });
+    const req = mockWebhookRequest(Buffer.from("{}", "utf8"));
+
+    const result = await transactions.processWebhook(req, () => {});
+
+    sinon.assert.notCalled(transactions.create);
+    expect(result.success).to.equal(true);
+    expect(result.message).to.equal("Event received");
   });
 
   it("returns an error response when unmarshal throws Invalid webhook signature", async () => {

@@ -570,6 +570,7 @@ const userController = {
             interestsDescription: data.interestsDescription,
             verified: data.verified,
             isActive: data.isActive,
+            authMethods: data.authMethods,
           };
           return res.status(httpStatus.OK).json(userResponse);
         } else {

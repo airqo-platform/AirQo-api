@@ -1539,8 +1539,29 @@ describe("create-user-util", function () {
       });
     });
 
+    it("should call next with a 400 error and not invoke modify or mailer when user does not exist", async () => {
+      const request = {
+        body: {},
+        query: { tenant: "your-tenant" },
+      };
+      const next = sinon.spy();
+
+      sinon.stub(generateFilter, "users").returns({ email: "unknown@example.com" });
+      sinon.stub(UserModel("your-tenant"), "exists").resolves(false);
+      const modifyStub = sinon.stub(UserModel("your-tenant"), "modify").resolves({});
+      sinon.stub(mailer, "forgot").resolves({});
+
+      await forgotPassword(request, next);
+
+      sinon.assert.calledOnce(next);
+      const errorArg = next.firstCall.args[0];
+      expect(errorArg).to.be.instanceOf(Error);
+      expect(errorArg.statusCode).to.equal(httpStatus.BAD_REQUEST);
+      sinon.assert.notCalled(modifyStub);
+    });
+
     // Add more test cases to cover other scenarios
-    // For example, when the user does not exist, when generating the reset token fails, when modifying the user fails, etc.
+    // For example, when generating the reset token fails, when modifying the user fails, etc.
   });
   describe("updateForgottenPassword", () => {
     afterEach(() => {

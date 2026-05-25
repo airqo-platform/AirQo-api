@@ -4497,7 +4497,7 @@ const createUserModule = {
       const userExists = await UserModel(tenant).exists(filter);
 
       if (!userExists) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
@@ -6571,6 +6571,18 @@ const createUserModule = {
 
         // Enhanced authentication
         token: `JWT ${token}`,
+
+        // Auth methods — which login providers this account has connected
+        authMethods: {
+          password: !!user.password,
+          google: !!user.google_id,
+          github: !!user.github_id,
+          linkedin: !!user.linkedin_id,
+          microsoft: !!user.microsoft_id,
+          twitter: !!user.twitter_id,
+          facebook: !!user.facebook_id,
+          apple: !!user.apple_id,
+        },
 
         // --- REMOVED FOR SCALABILITY ---
         // The following large data fields are removed to prevent oversized login responses

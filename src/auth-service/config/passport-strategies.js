@@ -1,7 +1,12 @@
 "use strict";
 
+const crypto = require("crypto");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const GitHubStrategy = require("passport-github2").Strategy;
+const {
+  Strategy: OAuth2Strategy,
+  InternalOAuthError,
+} = require("passport-oauth2");
 const constants = require("@config/constants");
 const { handleOAuthProfile } = require("@utils/social-auth.util");
 const { logObject } = require("@utils/shared");
@@ -9,6 +14,168 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-strategies`,
 );
+
+/**
+ * Stateless OAuth 2.0 CSRF state store backed by HMAC-signed cookies.
+ *
+ * Replaces passport-oauth2's default session-based StateStore so that
+ * the OAuth redirect round-trip has zero dependence on Redis or MongoDB.
+ * The state is signed with SESSION_SECRET (timing-safe comparison on
+ * verify) and stored in a short-lived HttpOnly cookie. Works correctly
+ * across any number of pods with no shared session store.
+ *
+ * Implements the passport-oauth2 v1.8.0 four-argument store/verify API
+ * (arity-detected by the framework).
+ */
+class CookieStateStore {
+  constructor({ secret, cookieName, ttlSeconds = 600 } = {}) {
+    if (!secret) throw new Error("CookieStateStore: secret is required");
+    this._secret = secret;
+    this._cookieName = cookieName || "_oauth2_state";
+    this._ttl = ttlSeconds;
+  }
+
+  // Called by passport-oauth2 before redirecting to the provider.
+  // The store is responsible for generating the state value — passport-oauth2
+  // passes state=undefined here (it only pre-generates state when options.state
+  // is an explicit string). The generated value must be returned via
+  // callback(null, value) so passport-oauth2 can include it in the redirect URL.
+  store(req, state, meta, callback) {
+    const value = crypto.randomBytes(12).toString("hex");
+    const signed = this._sign(value);
+    const res = req.res;
+    if (!res) {
+      return callback(new Error("CookieStateStore: response object unavailable on req.res"));
+    }
+    res.cookie(this._cookieName, signed, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", // allows cookie on top-level GET from provider redirect
+      maxAge: this._ttl * 1000,
+      path: "/",
+    });
+    callback(null, value);
+  }
+
+  // Called by passport-oauth2 on the callback to verify CSRF state.
+  verify(req, state, meta, callback) {
+    const signedCookie = req.cookies && req.cookies[this._cookieName];
+    if (!signedCookie) {
+      logger.warn(
+        `[CookieStateStore] state cookie "${this._cookieName}" missing — ` +
+          "possible CSRF attempt or browser cookie policy blocked the cookie",
+      );
+      return callback(null, false, { message: "OAuth state cookie missing" });
+    }
+
+    const storedState = this._unsign(signedCookie);
+    if (!storedState) {
+      return callback(null, false, { message: "OAuth state cookie signature invalid" });
+    }
+
+    // One-time use: clear the cookie immediately after reading.
+    if (req.res) req.res.clearCookie(this._cookieName, { path: "/" });
+
+    // Constant-time comparison guards against timing attacks.
+    if (!this._safeEqual(state, storedState)) {
+      return callback(null, false, { message: "OAuth state mismatch" });
+    }
+
+    callback(null, true);
+  }
+
+  _sign(value) {
+    const sig = crypto
+      .createHmac("sha256", this._secret)
+      .update(value)
+      .digest("base64url");
+    return `${value}.${sig}`;
+  }
+
+  _unsign(signedValue) {
+    const sep = signedValue.lastIndexOf(".");
+    if (sep === -1) return null;
+    const value = signedValue.substring(0, sep);
+    const sig = signedValue.substring(sep + 1);
+    try {
+      const expected = crypto
+        .createHmac("sha256", this._secret)
+        .update(value)
+        .digest("base64url");
+      const sBuf = Buffer.from(sig, "base64url");
+      const eBuf = Buffer.from(expected, "base64url");
+      if (sBuf.length !== eBuf.length) return null;
+      if (!crypto.timingSafeEqual(sBuf, eBuf)) return null;
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
+  _safeEqual(a, b) {
+    try {
+      const aBuf = Buffer.from(a);
+      const bBuf = Buffer.from(b);
+      if (aBuf.length !== bBuf.length) return false;
+      return crypto.timingSafeEqual(aBuf, bBuf);
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ── LinkedIn OIDC Strategy ────────────────────────────────────────────────────
+// passport-linkedin-oauth2 v2 calls the deprecated /v2/me and /v2/emailAddress
+// endpoints which require r_liteprofile / r_emailaddress scopes. LinkedIn's
+// Standard Tier only grants OIDC scopes (openid profile email). This class
+// uses passport-oauth2 directly and calls /oidc/v2/userinfo instead.
+class LinkedInOIDCStrategy extends OAuth2Strategy {
+  constructor(options, verify) {
+    options.authorizationURL =
+      "https://www.linkedin.com/oauth/v2/authorization";
+    options.tokenURL = "https://www.linkedin.com/oauth/v2/accessToken";
+    super(options, verify);
+    this.name = "linkedin";
+  }
+
+  userProfile(accessToken, done) {
+    this._oauth2.get(
+      "https://api.linkedin.com/oidc/v2/userinfo",
+      accessToken,
+      (err, body) => {
+        if (err) {
+          return done(
+            new InternalOAuthError("failed to fetch LinkedIn userinfo", err),
+          );
+        }
+        try {
+          const json = JSON.parse(body);
+          const profile = {
+            provider: "linkedin",
+            id: json.sub,
+            displayName: json.name || "",
+            name: {
+              givenName: json.given_name || "",
+              familyName: json.family_name || "",
+            },
+            emails: json.email ? [{ value: json.email }] : [],
+            photos: json.picture ? [{ value: json.picture }] : [],
+            _raw: body,
+            _json: json,
+          };
+          done(null, profile);
+        } catch (e) {
+          done(
+            new InternalOAuthError(
+              "failed to parse LinkedIn userinfo response",
+              e,
+            ),
+          );
+        }
+      },
+    );
+  }
+}
 
 // ── Strategy registration guard ───────────────────────────────────────────────
 // Strategies are registered once at startup (bin/server.js). This flag
@@ -157,7 +324,10 @@ function configureStrategies(passport, tenant) {
           clientSecret: constants.GOOGLE_CLIENT_SECRET,
           callbackURL: buildCallbackURL("google"),
           passReqToCallback: true,
-          state: true,
+          store: new CookieStateStore({
+            secret: constants.SESSION_SECRET,
+            cookieName: "_oauth2_state_google",
+          }),
         },
         makeStrategyCallback("google"),
       ),
@@ -181,7 +351,10 @@ function configureStrategies(passport, tenant) {
           callbackURL: buildCallbackURL("github"),
           scope: ["user:email"],
           passReqToCallback: true,
-          state: true,
+          store: new CookieStateStore({
+            secret: constants.SESSION_SECRET,
+            cookieName: "_oauth2_state_github",
+          }),
         },
         makeStrategyCallback(
           "github",
@@ -201,17 +374,19 @@ function configureStrategies(passport, tenant) {
   // ── LinkedIn ─────────────────────────────────────────────────────────────
   if (constants.LINKEDIN_CLIENT_ID && constants.LINKEDIN_CLIENT_SECRET) {
     try {
-      const LinkedInStrategy = require("passport-linkedin-oauth2").Strategy;
       passport.use(
         "linkedin",
-        new LinkedInStrategy(
+        new LinkedInOIDCStrategy(
           {
             clientID: constants.LINKEDIN_CLIENT_ID,
             clientSecret: constants.LINKEDIN_CLIENT_SECRET,
             callbackURL: buildCallbackURL("linkedin"),
-            scope: ["r_emailaddress", "r_liteprofile"],
+            scope: ["openid", "profile", "email"],
             passReqToCallback: true,
-            state: true,
+            store: new CookieStateStore({
+              secret: constants.SESSION_SECRET,
+              cookieName: "_oauth2_state_linkedin",
+            }),
           },
           makeStrategyCallback(
             "linkedin",
@@ -220,10 +395,10 @@ function configureStrategies(passport, tenant) {
           ),
         ),
       );
-      logger.info("✅ LinkedIn OAuth strategy configured");
+      logger.info("✅ LinkedIn OIDC strategy configured");
     } catch (e) {
       logger.warn(
-        `⚠️  LinkedIn OAuth strategy skipped: failed to load passport-linkedin-oauth2 — ${e.message}`,
+        `⚠️  LinkedIn OIDC strategy skipped: failed to configure — ${e.message}`,
       );
     }
   } else {
@@ -247,7 +422,10 @@ function configureStrategies(passport, tenant) {
             scope: ["user.read"],
             tenant: "common",
             passReqToCallback: true,
-            state: true,
+            store: new CookieStateStore({
+              secret: constants.SESSION_SECRET,
+              cookieName: "_oauth2_state_microsoft",
+            }),
           },
           makeStrategyCallback(
             "microsoft",
@@ -333,4 +511,9 @@ function configureStrategies(passport, tenant) {
   );
 }
 
-module.exports = { configureStrategies, buildCallbackURL };
+module.exports = {
+  configureStrategies,
+  buildCallbackURL,
+  CookieStateStore,
+  LinkedInOIDCStrategy,
+};
