@@ -293,7 +293,7 @@ def make_site_hourly_forecasts():
         return ForecastModelTrainer.fetch_site_hourly_prediction_data(
             execution_date=execution_date,
             lookback_days=lookback_days,
-            min_hours=1,
+            min_hours=2,
         )
 
     @task(doc_md=generate_site_hourly_forecasts_doc)
