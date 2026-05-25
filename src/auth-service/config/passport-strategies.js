@@ -136,6 +136,9 @@ class LinkedInOIDCStrategy extends OAuth2Strategy {
     options.tokenURL = "https://www.linkedin.com/oauth/v2/accessToken";
     super(options, verify);
     this.name = "linkedin";
+    // /v2/userinfo requires the token in the Authorization header; the oauth
+    // package defaults to a query parameter so we configure it once here.
+    this._oauth2.useAuthorizationHeaderforGET(true);
   }
 
   userProfile(accessToken, done) {
