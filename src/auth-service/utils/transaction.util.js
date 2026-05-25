@@ -1443,15 +1443,15 @@ const transactions = {
       if (!targetPriceId) {
         return {
           success: false,
-          message: "Invalid tier requested",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Tier must be one of: ${Object.keys(TIER_PRICE_MAP).join(", ")}` },
+          message: `The ${requestedTier} plan is not available at this time`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: `Payment provider price ID for ${requestedTier} is not configured` },
         };
       }
 
       const freshUser = await UserModel(tenant)
         .findById(request.user._id)
-        .select("currentSubscriptionId subscriptionTier email firstName")
+        .select("currentSubscriptionId subscriptionTier")
         .lean();
 
       if (!freshUser || !freshUser.currentSubscriptionId) {
@@ -1478,17 +1478,16 @@ const transactions = {
         (currentTierOrder[freshUser.subscriptionTier] || 0);
 
       // Upgrades apply immediately with proration.
-      // Downgrades apply at the end of the current billing period so the user
-      // retains the higher tier for the remainder of the period they paid for.
+      // Downgrades use "do_not_bill" so no proration charge is raised now;
+      // the new (lower) price takes effect at the next renewal. DB tier is
+      // updated by the webhook when the billing period rolls over.
       const prorationBillingMode = isUpgrade
         ? "prorated_immediately"
         : "do_not_bill";
-      const effectiveFrom = isUpgrade ? "immediately" : "next_billing_period";
 
       await paddleClient.subscriptions.update(freshUser.currentSubscriptionId, {
         items: [{ priceId: targetPriceId, quantity: 1 }],
         prorationBillingMode,
-        scheduledChange: isUpgrade ? null : { action: "pause", effectiveAt: effectiveFrom },
       });
 
       const grantedScopes = TIER_SCOPE_MAP[requestedTier] || TIER_SCOPE_MAP.Free;
