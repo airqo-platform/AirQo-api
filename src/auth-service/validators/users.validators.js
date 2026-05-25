@@ -1047,20 +1047,23 @@ const setPassword = [
     .exists()
     .withMessage("password is required")
     .bail()
-    .isLength({ min: 6 })
-    .withMessage("password must be at least 6 characters long")
-    .trim(),
+    .trim()
+    .isLength({ min: 6, max: 30 })
+    .withMessage("Password must be between 6 and 30 characters long")
+    .bail()
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .withMessage("Password must contain at least one letter and one number"),
   body("confirmPassword")
     .exists()
     .withMessage("confirmPassword is required")
     .bail()
+    .trim()
     .custom((value, { req }) => {
-      if (value.trim() !== (req.body.password || "").trim()) {
+      if (value !== (req.body.password || "").trim()) {
         throw new Error("Passwords do not match");
       }
       return true;
-    })
-    .trim(),
+    }),
 ];
 
 const resetPassword = [
