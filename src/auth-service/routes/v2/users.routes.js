@@ -637,6 +637,9 @@ router.post(
 
 router.put("/", userValidations.updateUser, userController.update);
 
+router.put("/setPassword", (req, res) =>
+  res.status(405).json({ success: false, message: "Method not allowed. Use POST /setPassword." })
+);
 router.put("/:user_id", userValidations.updateUserById, userController.update);
 
 router.delete(
