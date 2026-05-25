@@ -1352,7 +1352,8 @@ const createGrid = {
       const { tenant } = request.query;
       const { name } = request.body;
 
-      const existing = await AdminLevelModel(tenant).findOne({ name }).lean();
+      const AdminLevel = AdminLevelModel(tenant);
+      const existing = await AdminLevel.findOne({ name }, { _id: 1 }).lean();
       if (existing) {
         next(
           new HttpError("Conflict", httpStatus.CONFLICT, {
@@ -1363,9 +1364,10 @@ const createGrid = {
         return;
       }
 
-      const responseFromCreateAdminLevel = await AdminLevelModel(
-        tenant
-      ).register(request.body, next);
+      const responseFromCreateAdminLevel = await AdminLevel.register(
+        request.body,
+        next
+      );
       return responseFromCreateAdminLevel;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
