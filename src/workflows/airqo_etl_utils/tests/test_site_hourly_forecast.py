@@ -113,6 +113,11 @@ def test_generate_site_hourly_forecasts_includes_sparse_sites(monkeypatch):
 
     assert len(forecasts) == 6
     assert forecasts["site_id"].nunique() == 2
+    assert "site-sparse" in forecasts["site_id"].unique()
+    assert (
+        forecasts.loc[forecasts["site_id"] == "site-sparse", "timestamp"].nunique()
+        == 3
+    )
     assert forecasts.groupby("site_id")["timestamp"].nunique().eq(3).all()
     assert forecasts["pm2_5_q10"].le(forecasts["pm2_5_mean"]).all()
     assert forecasts["pm2_5_mean"].le(forecasts["pm2_5_q90"]).all()
