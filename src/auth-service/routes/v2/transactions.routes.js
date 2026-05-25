@@ -104,6 +104,14 @@ router.get(
   TransactionController.getSubscriptionStatus
 );
 
+// Change Subscription Tier (upgrade or downgrade)
+router.patch(
+  "/change-tier",
+  transactionValidations.changeTier,
+  enhancedJWTAuth,
+  TransactionController.changeSubscriptionTier
+);
+
 // API Usage Statistics (user-scoped)
 router.get(
   "/usage",
