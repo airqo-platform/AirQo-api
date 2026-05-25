@@ -493,10 +493,13 @@ function buildAuthMethods(user) {
     user.facebook_id ||
     user.apple_id
   );
+  // hasSetPassword is authoritative when explicitly true (new accounts / after setPassword).
+  // For legacy accounts created before hasSetPassword existed, fall back to !!user.password
+  // so mixed accounts (email+OAuth) that predate the field are not incorrectly shown as false.
+  const hasKnownPassword =
+    user.hasSetPassword === true || (user.hasSetPassword == null && !!user.password) || (!hasOAuthProvider && !!user.password);
   return {
-    password:
-      user.hasSetPassword === true ||
-      (!!user.password && !hasOAuthProvider),
+    password: hasKnownPassword,
     google: !!user.google_id,
     github: !!user.github_id,
     linkedin: !!user.linkedin_id,
@@ -617,6 +620,7 @@ const createUserModule = {
       const enhancedProfile = {
         ...user,
         ...permissionsResult.data.permissions,
+        authMethods: buildAuthMethods(user),
         profileLastUpdated: new Date().toISOString(),
         hasEnhancedPermissions: true,
         contextSummary: {
