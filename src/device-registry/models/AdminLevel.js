@@ -91,7 +91,7 @@ adminLevelSchema.statics.register = async function(args, next) {
     } else {
       response.errors = { message: error.message };
     }
-    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    logger.warn(`⚠️ Conflict -- duplicate adminLevel name: ${error.message}`);
     next(new HttpError(response.message, response.status, response.errors));
   }
 };

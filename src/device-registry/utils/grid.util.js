@@ -1350,6 +1350,19 @@ const createGrid = {
   createAdminLevel: async (request, next) => {
     try {
       const { tenant } = request.query;
+      const { name } = request.body;
+
+      const existing = await AdminLevelModel(tenant).findOne({ name }).lean();
+      if (existing) {
+        next(
+          new HttpError("Conflict", httpStatus.CONFLICT, {
+            message: `adminLevel with name "${name}" already exists`,
+            name: `${name} is a duplicate value!`,
+          })
+        );
+        return;
+      }
+
       const responseFromCreateAdminLevel = await AdminLevelModel(
         tenant
       ).register(request.body, next);
