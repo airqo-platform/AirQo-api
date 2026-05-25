@@ -604,8 +604,8 @@ router.post(
 
 router.post(
   "/setPassword",
-  userValidations.setPassword,
   enhancedJWTAuth,
+  userValidations.setPassword,
   userController.setPassword,
 );
 
