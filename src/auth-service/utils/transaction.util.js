@@ -1369,6 +1369,62 @@ const transactions = {
    * @param {Object} request - Express request object (user populated by auth middleware)
    * @returns {Promise<Object>}
    */
+  getSubscriptionStatus: async (request) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    try {
+      const tenant =
+        (request.query && request.query.tenant) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+
+      // Re-fetch from DB: request.user is decoded from the JWT and may predate
+      // the webhook that wrote currentSubscriptionId onto the user document.
+      const freshUser = await UserModel(tenant)
+        .findById(request.user._id)
+        .select("currentSubscriptionId subscriptionStatus")
+        .lean();
+
+      if (!freshUser || !freshUser.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "User has no subscription ID" },
+        };
+      }
+
+      const subscriptionStatus = await paddleClient.subscriptions.get(
+        freshUser.currentSubscriptionId,
+      );
+
+      await UserModel(tenant).findByIdAndUpdate(request.user._id, {
+        $set: {
+          subscriptionStatus: subscriptionStatus.status,
+          lastSubscriptionCheck: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: "Subscription status retrieved successfully",
+        status: httpStatus.OK,
+        data: {
+          status: subscriptionStatus.status,
+          lastChecked: new Date(),
+          subscriptionId: freshUser.currentSubscriptionId,
+        },
+      };
+    } catch (error) {
+      logger.error(`getSubscriptionStatus error --- ${stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
   disableAutoRenewal: async (request) => {
     try {
       const user = request.user;
