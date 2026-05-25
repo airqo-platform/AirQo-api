@@ -471,6 +471,42 @@ const RATE_LIMIT_WINDOWS = {
   MOBILE_EMAIL_VERIFY_ATTEMPT_MS: 3 * 60 * 1000, // 3 minutes per attempt
 };
 
+/**
+ * Builds the authMethods object for a user document.
+ *
+ * hasSetPassword is the reliable indicator — it is explicitly set to true
+ * during email/password registration and on every password change/reset.
+ * Backward-compat fallback: if hasSetPassword was never set (legacy accounts
+ * created before the field existed) and the account has no OAuth providers,
+ * treat a present password hash as evidence of a user-chosen password.
+ * Accounts that have both a hashed password AND OAuth providers are ambiguous
+ * (OAuth signup sets a random password), so we rely solely on hasSetPassword
+ * for those to avoid false positives.
+ */
+function buildAuthMethods(user) {
+  const hasOAuthProvider = !!(
+    user.google_id ||
+    user.github_id ||
+    user.linkedin_id ||
+    user.microsoft_id ||
+    user.twitter_id ||
+    user.facebook_id ||
+    user.apple_id
+  );
+  return {
+    password:
+      user.hasSetPassword === true ||
+      (!!user.password && !hasOAuthProvider),
+    google: !!user.google_id,
+    github: !!user.github_id,
+    linkedin: !!user.linkedin_id,
+    microsoft: !!user.microsoft_id,
+    twitter: !!user.twitter_id,
+    facebook: !!user.facebook_id,
+    apple: !!user.apple_id,
+  };
+}
+
 const createUserModule = {
   _validatePassword: (password) => {
     if (!password || !constants.PASSWORD_REGEX.test(password)) {
@@ -4022,6 +4058,7 @@ const createUserModule = {
         {
           userName: normalizedEmail,
           password,
+          hasSetPassword: true,
           analyticsVersion: 3,
           ...(userBody.interests && { interests: userBody.interests }),
           ...(userBody.interestsDescription && {
@@ -6641,17 +6678,7 @@ const createUserModule = {
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        // Auth methods — which login providers this account has connected
-        authMethods: {
-          password: !!user.password,
-          google: !!user.google_id,
-          github: !!user.github_id,
-          linkedin: !!user.linkedin_id,
-          microsoft: !!user.microsoft_id,
-          twitter: !!user.twitter_id,
-          facebook: !!user.facebook_id,
-          apple: !!user.apple_id,
-        },
+        authMethods: buildAuthMethods(user),
 
         // --- REMOVED FOR SCALABILITY ---
         // The following large data fields are removed to prevent oversized login responses
@@ -7949,4 +7976,5 @@ module.exports = {
   ...feedbackUtil,
   generateNumericToken,
   ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
+  buildAuthMethods,
 };
