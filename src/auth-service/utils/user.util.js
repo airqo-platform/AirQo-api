@@ -6643,10 +6643,7 @@ const createUserModule = {
 
         // Auth methods — which login providers this account has connected
         authMethods: {
-          password:
-            user.hasSetPassword != null
-              ? !!user.hasSetPassword
-              : !!user.password,
+          password: !!user.password,
           google: !!user.google_id,
           github: !!user.github_id,
           linkedin: !!user.linkedin_id,
