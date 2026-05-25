@@ -16,6 +16,7 @@ from helpers import (
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
     site_daily_forecasts_cache_key,
+    site_hourly_forecasts_cache_key,
     all_daily_forecasts_cache_key,
     all_hourly_forecasts_cache_key,
     get_predictions_by_geo_coordinates_v2,
@@ -27,7 +28,9 @@ from helpers import (
     read_faulty_devices,
     get_faults_cache_key,
     add_forecast_health_tips,
+    validate_param_values,
     build_site_forecast_response,
+    build_site_hourly_forecast_response,
 )
 
 load_dotenv()
@@ -193,8 +196,16 @@ def enhance_forecast_response(result, language=''):
 ml_app = Blueprint("ml_app", __name__)
 
 @ml_app.get(routes.route["fetch_faulty_devices"])
-@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
+    valid_params, error = validate_param_values(request.args)
+    if not valid_params:
+        return jsonify({"error": error}), 400
+
+    return _fetch_faulty_devices_cached()
+
+
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
+def _fetch_faulty_devices_cached():
     try:
         result = read_faulty_devices()
         if len(result) == 0:
@@ -249,6 +260,26 @@ def get_site_daily_forecasts_v2():
         wind_direction_formatter=wind_deg_to_compass,
     )
     return jsonify(response), status_code
+
+
+@ml_app.get(routes.route["site_hourly_forecasts"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_hourly_forecasts_cache_key)
+def get_site_hourly_forecasts_v2():
+    """
+    Return site-grouped hourly forecasts for all sites or a single site.
+
+    Query params:
+        site_id: Optional site identifier. When provided, the response keeps the
+            same outer shape and returns one grouped site entry in data.forecasts.
+    """
+    site_id = request.args.get("site_id", default=None, type=str)
+    response, status_code = build_site_hourly_forecast_response(
+        site_id=site_id,
+        aqi_category_getter=get_aqi_category,
+        wind_direction_formatter=wind_deg_to_compass,
+    )
+    return jsonify(response), status_code
+
 
 @ml_app.route(routes.route["next_24hr_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=hourly_forecasts_cache_key)
