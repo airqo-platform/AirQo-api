@@ -246,6 +246,11 @@ def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeyp
         "site_hourly_forecasts",
     )
     monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY",
+        "2",
+    )
+    monkeypatch.setattr(
         ml_utils_module.pm,
         "MongoClient",
         lambda *args, **kwargs: mock_client_manager,
@@ -333,6 +338,11 @@ def test_save_site_hourly_forecasts_to_mongo_preserves_existing_met_fields(
         "site_hourly_forecasts",
     )
     monkeypatch.setattr(
+        ml_utils_module.configuration,
+        "SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY",
+        "2",
+    )
+    monkeypatch.setattr(
         ml_utils_module.pm,
         "MongoClient",
         lambda *args, **kwargs: mock_client_manager,
@@ -402,14 +412,14 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
         "site_hourly_forecasts",
     )
     monkeypatch.setattr(
-        ml_utils_module.configuration, "SITE_HOURLY_FORECAST_HORIZON_HOURS", "2"
-    )
-    monkeypatch.setattr(
         ml_utils_module.pm,
         "MongoClient",
         lambda *args, **kwargs: mock_client_manager,
     )
 
+    expected_cutoff = (
+        pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=2)
+    ).to_pydatetime()
     result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
     mock_collection.bulk_write.assert_not_called()
@@ -419,6 +429,7 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_old_rows(monkeypatch):
     timestamp_delete_filter = mock_collection.delete_many.call_args_list[1].args[0]
     assert set(timestamp_delete_filter.keys()) == {"timestamp"}
     assert set(timestamp_delete_filter["timestamp"].keys()) == {"$lt"}
+    assert timestamp_delete_filter["timestamp"]["$lt"] == expected_cutoff
     assert result == {
         "rows": 1,
         "collection": "site_hourly_forecasts",
@@ -473,14 +484,14 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_expired_rows_for_absent_site
         "site_hourly_forecasts",
     )
     monkeypatch.setattr(
-        ml_utils_module.configuration, "SITE_HOURLY_FORECAST_HORIZON_HOURS", "2"
-    )
-    monkeypatch.setattr(
         ml_utils_module.pm,
         "MongoClient",
         lambda *args, **kwargs: mock_client_manager,
     )
 
+    expected_cutoff = (
+        pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=2)
+    ).to_pydatetime()
     result = ForecastModelTrainer.save_site_hourly_forecasts_to_mongo(forecasts)
 
     assert mock_collection.delete_many.call_count == 2
@@ -491,6 +502,7 @@ def test_save_site_hourly_forecasts_to_mongo_prunes_expired_rows_for_absent_site
     delete_filter = mock_collection.delete_many.call_args_list[1].args[0]
     assert set(delete_filter.keys()) == {"timestamp"}
     assert set(delete_filter["timestamp"].keys()) == {"$lt"}
+    assert delete_filter["timestamp"]["$lt"] == expected_cutoff
     assert result == {
         "rows": 1,
         "collection": "site_hourly_forecasts",

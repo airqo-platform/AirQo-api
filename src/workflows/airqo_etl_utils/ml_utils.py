@@ -3184,9 +3184,22 @@ class ForecastModelTrainer(BaseMlUtils):
                 {key: value for key, value in document.items() if not pd.isna(value)}
             )
 
-        retention_hours = int(configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+        try:
+            retention_cutoff_days = int(
+                configuration.SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY or 2
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY must be a valid integer."
+            ) from exc
+        if retention_cutoff_days < 0:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY cannot be negative."
+            )
+
         retention_cutoff = (
-            pd.Timestamp.utcnow() - pd.Timedelta(hours=retention_hours)
+            pd.Timestamp.now(tz="UTC").normalize()
+            - pd.Timedelta(days=retention_cutoff_days)
         ).to_pydatetime()
         configured_batch_size = int(
             getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 5000) or 5000
