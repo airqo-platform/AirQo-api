@@ -474,14 +474,19 @@ const RATE_LIMIT_WINDOWS = {
 /**
  * Builds the authMethods object for a user document.
  *
- * hasSetPassword is the reliable indicator — it is explicitly set to true
- * during email/password registration and on every password change/reset.
- * Backward-compat fallback: if hasSetPassword was never set (legacy accounts
- * created before the field existed) and the account has no OAuth providers,
- * treat a present password hash as evidence of a user-chosen password.
- * Accounts that have both a hashed password AND OAuth providers are ambiguous
- * (OAuth signup sets a random password), so we rely solely on hasSetPassword
- * for those to avoid false positives.
+ * Priority:
+ *   1. hasSetPassword === true  — explicit signal; set by setPassword,
+ *      updateKnownPassword, and reset-password flows.
+ *   2. hasSetPassword == null (undefined/null) && !!password — legacy accounts
+ *      created before the hasSetPassword field existed. Works for both pure
+ *      email/password accounts and mixed accounts (email+OAuth) because lean()
+ *      queries return undefined for fields absent from the raw document.
+ *   3. !hasOAuthProvider && !!password — accounts where hasSetPassword
+ *      defaulted to false (non-lean Mongoose query) but no OAuth provider is
+ *      linked, safely identifying pure email/password accounts.
+ *
+ * Note: call this function while the password hash is still present on the
+ * user object. Strip the hash from the API response separately.
  */
 function buildAuthMethods(user) {
   const hasOAuthProvider = !!(
@@ -493,10 +498,13 @@ function buildAuthMethods(user) {
     user.facebook_id ||
     user.apple_id
   );
+  // hasSetPassword is authoritative when explicitly true (new accounts / after setPassword).
+  // For legacy accounts created before hasSetPassword existed, fall back to !!user.password
+  // so mixed accounts (email+OAuth) that predate the field are not incorrectly shown as false.
+  const hasKnownPassword =
+    user.hasSetPassword === true || (user.hasSetPassword == null && !!user.password) || (!hasOAuthProvider && !!user.password);
   return {
-    password:
-      user.hasSetPassword === true ||
-      (!!user.password && !hasOAuthProvider),
+    password: hasKnownPassword,
     google: !!user.google_id,
     github: !!user.github_id,
     linkedin: !!user.linkedin_id,
@@ -543,10 +551,12 @@ const createUserModule = {
         return permissionsResult;
       }
 
-      // Get basic user data
+      // Fetch password field so buildAuthMethods can compute the legacy fallback
+      // correctly for accounts created before hasSetPassword existed.
+      // Password is stripped from the response before returning.
       const basicUser = await UserModel(tenant)
         .findById(userId)
-        .select("-password -resetPasswordToken -resetPasswordExpires")
+        .select("-resetPasswordToken -resetPasswordExpires")
         .lean();
 
       if (!basicUser) {
@@ -612,11 +622,15 @@ const createUserModule = {
         }
       }
 
-      const user = populatedUser;
+      // Compute authMethods while password hash is still present, then
+      // destructure it out so it is never included in the API response.
+      const computedAuthMethods = buildAuthMethods(populatedUser);
+      const { password: _pw, ...user } = populatedUser;
 
       const enhancedProfile = {
         ...user,
         ...permissionsResult.data.permissions,
+        authMethods: computedAuthMethods,
         profileLastUpdated: new Date().toISOString(),
         hasEnhancedPermissions: true,
         contextSummary: {

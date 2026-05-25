@@ -1639,11 +1639,34 @@ UserSchema.methods = {
   },
   async toAuthJSON() {
     const token = await this.createToken();
+    const hasOAuthProvider = !!(
+      this.google_id ||
+      this.github_id ||
+      this.linkedin_id ||
+      this.microsoft_id ||
+      this.twitter_id ||
+      this.facebook_id ||
+      this.apple_id
+    );
+    const hasKnownPassword =
+      this.hasSetPassword === true ||
+      (this.hasSetPassword == null && !!this.password) ||
+      (!hasOAuthProvider && !!this.password);
     return {
       _id: this._id,
       userName: this.userName,
       token: `JWT ${token}`,
       email: this.email,
+      authMethods: {
+        password: hasKnownPassword,
+        google: !!this.google_id,
+        github: !!this.github_id,
+        linkedin: !!this.linkedin_id,
+        microsoft: !!this.microsoft_id,
+        twitter: !!this.twitter_id,
+        facebook: !!this.facebook_id,
+        apple: !!this.apple_id,
+      },
     };
   },
   toJSON() {
