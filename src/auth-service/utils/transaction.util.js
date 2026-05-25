@@ -1425,6 +1425,121 @@ const transactions = {
     }
   },
 
+  changeSubscriptionTier: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    try {
+      const tenant =
+        (request.query && request.query.tenant) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+      const { tier: requestedTier } = request.body;
+
+      const TIER_PRICE_MAP = {
+        Standard: constants.PADDLE_STANDARD_PRICE_ID,
+        Premium: constants.PADDLE_PREMIUM_PRICE_ID,
+      };
+
+      const targetPriceId = TIER_PRICE_MAP[requestedTier];
+      if (!targetPriceId) {
+        return {
+          success: false,
+          message: "Invalid tier requested",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Tier must be one of: ${Object.keys(TIER_PRICE_MAP).join(", ")}` },
+        };
+      }
+
+      const freshUser = await UserModel(tenant)
+        .findById(request.user._id)
+        .select("currentSubscriptionId subscriptionTier email firstName")
+        .lean();
+
+      if (!freshUser || !freshUser.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "You must have an active subscription to change your tier" },
+        };
+      }
+
+      if (freshUser.subscriptionTier === requestedTier) {
+        return {
+          success: false,
+          message: `You are already on the ${requestedTier} plan`,
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Requested tier matches current tier" },
+        };
+      }
+
+      const currentTierOrder = { Free: 0, Standard: 1, Premium: 2 };
+      const isUpgrade =
+        (currentTierOrder[requestedTier] || 0) >
+        (currentTierOrder[freshUser.subscriptionTier] || 0);
+
+      // Upgrades apply immediately with proration.
+      // Downgrades apply at the end of the current billing period so the user
+      // retains the higher tier for the remainder of the period they paid for.
+      const prorationBillingMode = isUpgrade
+        ? "prorated_immediately"
+        : "do_not_bill";
+      const effectiveFrom = isUpgrade ? "immediately" : "next_billing_period";
+
+      await paddleClient.subscriptions.update(freshUser.currentSubscriptionId, {
+        items: [{ priceId: targetPriceId, quantity: 1 }],
+        prorationBillingMode,
+        scheduledChange: isUpgrade ? null : { action: "pause", effectiveAt: effectiveFrom },
+      });
+
+      const grantedScopes = TIER_SCOPE_MAP[requestedTier] || TIER_SCOPE_MAP.Free;
+      const rateLimits = TIER_RATE_LIMITS[requestedTier] || TIER_RATE_LIMITS.Free;
+
+      // For upgrades update immediately; for downgrades the webhook will
+      // update the tier when the billing period rolls over.
+      if (isUpgrade) {
+        await UserModel(tenant).findByIdAndUpdate(request.user._id, {
+          $set: { subscriptionTier: requestedTier, apiRateLimits: rateLimits },
+        });
+
+        const userClients = await ClientModel(tenant)
+          .find({ user_id: request.user._id }, { _id: 1 })
+          .lean();
+        if (userClients.length > 0) {
+          const clientIds = userClients.map((c) => c._id);
+          await AccessTokenModel(tenant).updateMany(
+            { client_id: { $in: clientIds } },
+            { $set: { tier: requestedTier, scopes: grantedScopes } },
+          );
+        }
+      }
+
+      const tierLabels = { Standard: "Standard", Premium: "Premium" };
+      const message = isUpgrade
+        ? `Successfully upgraded to ${tierLabels[requestedTier]} plan. Your new API limits are active immediately.`
+        : `Downgrade to ${tierLabels[requestedTier]} plan scheduled. You will retain your current plan until the end of your billing period.`;
+
+      return {
+        success: true,
+        message,
+        status: httpStatus.OK,
+        data: {
+          previousTier: freshUser.subscriptionTier,
+          newTier: requestedTier,
+          effectiveFrom: isUpgrade ? "immediately" : "next_billing_period",
+          apiLimits: isUpgrade ? rateLimits : undefined,
+        },
+      };
+    } catch (error) {
+      logger.error(`changeSubscriptionTier error --- ${stringify(error)}`);
+      return {
+        success: false,
+        message: "Failed to change subscription tier",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   disableAutoRenewal: async (request) => {
     try {
       const user = request.user;
