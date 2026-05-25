@@ -158,6 +158,10 @@ describe("LinkedInOIDCStrategy", () => {
     sinon.restore();
   });
 
+  it("configures the OAuth2 client to send the token via Authorization header", () => {
+    expect(strategy._oauth2._useAuthorizationHeaderForGET).to.equal(true);
+  });
+
   describe("userProfile()", () => {
     it("maps a well-formed OIDC userinfo response to a passport profile", (done) => {
       const payload = {
