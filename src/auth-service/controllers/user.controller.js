@@ -784,14 +784,9 @@ const userController = {
 
   setPassword: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
-        );
-        return;
-      }
-      const result = await userUtil.setPassword(req, next);
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.setPassword(request, next);
       if (result) {
         res.status(result.status).json({
           success: result.success,

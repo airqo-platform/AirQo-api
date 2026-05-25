@@ -4603,6 +4603,7 @@ const createUserModule = {
         {
           $set: {
             password: password, // pre-hook will hash this
+            hasSetPassword: true,
             resetPasswordToken: null,
             resetPasswordExpires: null,
           },
@@ -4717,6 +4718,7 @@ const createUserModule = {
         {
           $set: {
             password: new_password, // pre-hook will hash this
+            hasSetPassword: true,
             resetPasswordToken: null,
             resetPasswordExpires: null,
           },
@@ -4968,38 +4970,33 @@ const createUserModule = {
         return next(validationResult.error);
       }
 
-      // Re-fetch from DB to check current hasSetPassword state.
-      const user = await UserModel(tenant)
-        .findById(request.user._id)
-        .select("hasSetPassword")
-        .lean();
+      // Atomic conditional update: only matches when hasSetPassword is not true.
+      // Prevents both the TOCTOU race and existing-password bypass in one query.
+      const updated = await UserModel(tenant).findOneAndUpdate(
+        { _id: request.user._id, hasSetPassword: { $ne: true } },
+        { $set: { password, hasSetPassword: true } },
+        { new: false, context: "query" },
+      );
 
-      if (!user) {
+      if (!updated) {
+        // Either the user doesn't exist or hasSetPassword was already true.
+        const exists = await UserModel(tenant)
+          .exists({ _id: request.user._id })
+          .lean();
+        if (!exists) {
+          return next(
+            new HttpError("User not found", httpStatus.NOT_FOUND, {
+              message: "Authenticated user record could not be found",
+            }),
+          );
+        }
         return next(
-          new HttpError("User not found", httpStatus.NOT_FOUND, {
-            message: "Authenticated user record could not be found",
+          new HttpError("Password already set", httpStatus.BAD_REQUEST, {
+            message:
+              "A password is already configured for this account. Use the change password flow instead.",
           }),
         );
       }
-
-      if (user.hasSetPassword) {
-        return next(
-          new HttpError(
-            "Password already set",
-            httpStatus.BAD_REQUEST,
-            {
-              message:
-                "A password is already configured for this account. Use the change password flow instead.",
-            },
-          ),
-        );
-      }
-
-      await UserModel(tenant).findByIdAndUpdate(
-        request.user._id,
-        { $set: { password, hasSetPassword: true } },
-        { context: "query" },
-      );
 
       return {
         success: true,
@@ -5040,6 +5037,7 @@ const createUserModule = {
         {
           $set: {
             password: password, // pre-hook will hash this
+            hasSetPassword: true,
             resetPasswordToken: null,
             resetPasswordExpires: null,
           },
@@ -6645,7 +6643,10 @@ const createUserModule = {
 
         // Auth methods — which login providers this account has connected
         authMethods: {
-          password: !!user.hasSetPassword,
+          password:
+            user.hasSetPassword != null
+              ? !!user.hasSetPassword
+              : !!user.password,
           google: !!user.google_id,
           github: !!user.github_id,
           linkedin: !!user.linkedin_id,

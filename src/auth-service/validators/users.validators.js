@@ -1055,7 +1055,7 @@ const setPassword = [
     .withMessage("confirmPassword is required")
     .bail()
     .custom((value, { req }) => {
-      if (value !== req.body.password) {
+      if (value.trim() !== (req.body.password || "").trim()) {
         throw new Error("Passwords do not match");
       }
       return true;
