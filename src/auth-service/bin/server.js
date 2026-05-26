@@ -111,6 +111,7 @@ const jobs = [
   "@bin/jobs/daily-compromise-summary-job",
   "@bin/jobs/unknown-ip-cleanup-job",
   "@bin/jobs/feedback-screenshot-cleanup-job",
+  "@bin/jobs/transaction-amount-fix-job",
 ];
 
 // Initialize log4js with SAFE configuration
