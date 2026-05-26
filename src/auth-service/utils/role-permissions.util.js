@@ -3705,58 +3705,6 @@ const rolePermissionUtil = {
     }
   },
 
-  getDefaultNetworkRole: async (tenant, networkId) => {
-    try {
-      const NetworkModel = require("@models/Network");
-      const network = await NetworkModel(tenant).findById(networkId).lean();
-
-      if (!network) {
-        return null;
-      }
-
-      const organizationName = network.net_name.toUpperCase();
-      const defaultRoleCode = `${organizationName}_DEFAULT_MEMBER`;
-
-      let role = await RoleModel(tenant).findOne({
-        role_code: defaultRoleCode,
-      });
-
-      if (!role) {
-        const roleDocument = {
-          role_code: defaultRoleCode,
-          role_name: defaultRoleCode,
-          role_description: "Default role for new network members",
-          network_id: networkId,
-        };
-        role = await RoleModel(tenant).create(roleDocument);
-
-        // Assign default permissions
-        const defaultPermissions = await PermissionModel(tenant).find({
-          permission: { $in: constants.DEFAULT_NETWORK_MEMBER_PERMISSIONS },
-        });
-
-        if (defaultPermissions.length > 0) {
-          await RoleModel(tenant).findByIdAndUpdate(role._id, {
-            $addToSet: {
-              role_permissions: {
-                $each: defaultPermissions.map((permission) => permission._id),
-              },
-            },
-          });
-        }
-      }
-
-      return role;
-    } catch (error) {
-      logger.error("Error getting default network role:", error);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message },
-      );
-    }
-  },
-
   unAssignPermissionFromRole: async (request, next) => {
     try {
       const { query, params } = request;
@@ -4736,66 +4684,6 @@ const rolePermissionUtil = {
       logObject("🐛 [DEBUG] Error in enhancedUnAssignUserFromRole:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       logger.error(`Stack trace: ${error.stack}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
-        ),
-      );
-    }
-  },
-
-  /**
-   * Get user's network roles only
-   */
-  getUserNetworkRoles: async (request, next) => {
-    try {
-      const { query, params } = request;
-      const { user_id, tenant } = { ...query, ...params };
-
-      // Handle default tenant
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const userExists = await UserModel(actualTenant)
-        .exists({ _id: user_id })
-        .lean();
-
-      if (!userExists) {
-        return next(
-          new HttpError("User not found", httpStatus.BAD_REQUEST, {
-            message: `User ${user_id} not found`,
-          }),
-        );
-      }
-
-      const limit = ORGANISATIONS_LIMIT;
-      const response = {
-        success: true,
-        message: "Network roles retrieved successfully",
-        data: {
-          user_id: user_id,
-          network_roles: {
-            count: 0,
-            limit,
-            remaining: limit,
-            roles: [],
-          },
-          summary: {
-            total_network_roles: 0,
-            limit,
-            remaining: limit,
-          },
-        },
-        status: httpStatus.OK,
-      };
-
-      return response;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       return next(
         new HttpError(
           "Internal Server Error",

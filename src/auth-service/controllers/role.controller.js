@@ -444,22 +444,6 @@ const roleController = {
     }
   },
 
-  // Get user's network roles
-  getUserNetworkRoles: async (req, res, next) => {
-    try {
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
-
-      const result = await rolePermissionsUtil.getUserNetworkRoles(
-        request,
-        next
-      );
-      handleStandardResponse(res, result, { successKey: "network_roles" });
-    } catch (error) {
-      handleStandardError(error, next);
-    }
-  },
-
   // Get user's group roles
   getUserGroupRoles: async (req, res, next) => {
     try {
