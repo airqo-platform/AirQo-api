@@ -81,6 +81,14 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 600000;
     })(),
 
+    // MongoDB maxTimeMS for ReadingModel.recent() aggregation.
+    // Must be below the Next.js proxy timeout (30s) so MongoDB fails fast
+    // before the proxy aborts the upstream connection.
+    READINGS_AGGREGATE_TIMEOUT_MS: (() => {
+      const val = parseInt(process.env.READINGS_AGGREGATE_TIMEOUT_MS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 25000;
+    })(),
+
     // Temporary diagnostic window for ReadingModel.recent().
     // Revert to 3 once the root cause of the empty readings collection is confirmed.
     DIAGNOSTIC_WINDOW_DAYS: (() => {

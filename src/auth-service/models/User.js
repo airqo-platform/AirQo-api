@@ -358,6 +358,10 @@ const UserSchema = new Schema(
     facebook_id: { type: String, trim: true },
     apple_id: { type: String, trim: true },
     // ── OAuth provider IDs end ────────────────────────────────────────────────────
+    // True only when the user has explicitly set their own password.
+    // OAuth users are created with a random unknown password, so !!password
+    // alone cannot distinguish "user knows their password" from "system-generated".
+    hasSetPassword: { type: Boolean, default: false },
     timezone: { type: String, trim: true },
     preferredTokenStrategy: {
       type: String,
@@ -472,9 +476,14 @@ const UserSchema = new Schema(
       enum: ["Free", "Standard", "Premium"],
       default: "Free",
     },
+    paddle_customer_id: {
+      type: String,
+      index: { unique: true, sparse: true },
+    },
     apiRateLimits: {
       hourlyLimit: { type: Number, default: 100 },
       dailyLimit: { type: Number, default: 1000 },
+      weeklyLimit: { type: Number, default: 7000 },
       monthlyLimit: { type: Number, default: 10000 },
     },
     lastRateLimitCheck: {
@@ -1630,11 +1639,34 @@ UserSchema.methods = {
   },
   async toAuthJSON() {
     const token = await this.createToken();
+    const hasOAuthProvider = !!(
+      this.google_id ||
+      this.github_id ||
+      this.linkedin_id ||
+      this.microsoft_id ||
+      this.twitter_id ||
+      this.facebook_id ||
+      this.apple_id
+    );
+    const hasKnownPassword =
+      this.hasSetPassword === true ||
+      (this.hasSetPassword == null && !!this.password) ||
+      (!hasOAuthProvider && !!this.password);
     return {
       _id: this._id,
       userName: this.userName,
       token: `JWT ${token}`,
       email: this.email,
+      authMethods: {
+        password: hasKnownPassword,
+        google: !!this.google_id,
+        github: !!this.github_id,
+        linkedin: !!this.linkedin_id,
+        microsoft: !!this.microsoft_id,
+        twitter: !!this.twitter_id,
+        facebook: !!this.facebook_id,
+        apple: !!this.apple_id,
+      },
     };
   },
   toJSON() {
@@ -1671,6 +1703,8 @@ UserSchema.methods = {
       timezone: this.timezone,
       cohorts: this.cohorts,
       cohort_ids: this.cohorts,
+      subscriptionTier: this.subscriptionTier,
+      apiRateLimits: this.apiRateLimits,
     };
   },
 };

@@ -485,8 +485,8 @@ const verifyMobileEmail = [
       .isNumeric()
       .withMessage("Token must be numeric")
       .bail()
-      .isLength({ min: 6, max: 6 })
-      .withMessage("Token must be 6 digits")
+      .isLength({ min: 5, max: 5 })
+      .withMessage("Token must be 5 digits")
       .trim(),
     body("email")
       .exists()
@@ -1042,6 +1042,30 @@ const resetPasswordRequest = [
   //Potentially add tenant validation here as well, using the oneOf approach if necessary
 ];
 
+const setPassword = [
+  body("password")
+    .exists()
+    .withMessage("password is required")
+    .bail()
+    .trim()
+    .isLength({ min: 6, max: 30 })
+    .withMessage("Password must be between 6 and 30 characters long")
+    .bail()
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .withMessage("Password must contain at least one letter and one number"),
+  body("confirmPassword")
+    .exists()
+    .withMessage("confirmPassword is required")
+    .bail()
+    .trim()
+    .custom((value, { req }) => {
+      if (value !== (req.body.password || "").trim()) {
+        throw new Error("Passwords do not match");
+      }
+      return true;
+    }),
+];
+
 const resetPassword = [
   param("token")
     .exists()
@@ -1329,8 +1353,8 @@ const confirmMobileAccountDeletion = [
       .trim()
       .isNumeric()
       .withMessage("token must be a numeric string")
-      .isLength({ min: 6, max: 6 })
-      .withMessage("token must be 6 characters long"),
+      .isLength({ min: 5, max: 5 })
+      .withMessage("token must be 5 digits"),
   ],
 ];
 
@@ -1609,6 +1633,7 @@ module.exports = {
   getEnhancedProfileForUser,
   resetPasswordRequest,
   resetPassword,
+  setPassword,
   verifyMobileEmail,
   getOrganizationBySlug,
   registerViaOrgSlug,

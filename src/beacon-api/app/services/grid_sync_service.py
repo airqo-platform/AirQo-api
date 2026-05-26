@@ -287,6 +287,9 @@ def _build_grid_site_devices(
     if group_device_ids is not None:
         query = query.filter(SyncSiteDevice.device_id.in_(group_device_ids))
     junctions = query.all()
+    site = db.query(SyncSite).filter(SyncSite.site_id == site_id).first()
+    site_latitude = site.latitude if site else None
+    site_longitude = site.longitude if site else None
     devices = []
     for j in junctions:
         sync_dev = (
@@ -295,6 +298,8 @@ def _build_grid_site_devices(
         devices.append({
             "device_id": j.device_id,
             "device_name": sync_dev.device_name if sync_dev else None,
+            "latitude": site_latitude,
+            "longitude": site_longitude,
             "network_id": sync_dev.network_id if sync_dev else None,
             "is_active": j.is_active or False,
         })

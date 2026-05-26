@@ -8,6 +8,7 @@ const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 const { getNetworkAdapter } = require("@utils/network.util");
+const { sanitizeApiCode } = require("@utils/api-code.util");
 const {
   generateFilter,
   claimTokenUtil,
@@ -1730,16 +1731,25 @@ const deviceUtil = {
         if (!body.api_code && body.description && adapterConfig?.api_base_url) {
           const urlMatch = body.description.match(/https?:\/\/[^\s,;]+/);
           if (urlMatch) {
-            const extractedUrl = urlMatch[0].replace(/[.,;]+$/, "");
-            if (extractedUrl.startsWith(adapterConfig.api_base_url)) {
-              body.api_code = extractedUrl;
-              logText(
-                `createOnPlatform: extracted api_code from description for network "${body.network}"`
-              );
-            } else {
+            const extractedUrl = sanitizeApiCode(urlMatch[0]);
+            try {
+              if (
+                new URL(extractedUrl).origin ===
+                new URL(adapterConfig.api_base_url).origin
+              ) {
+                body.api_code = extractedUrl;
+                logText(
+                  `createOnPlatform: extracted api_code from description for network "${body.network}"`
+                );
+              } else {
+                logger.warn(
+                  `createOnPlatform: URL in description does not match expected base ` +
+                    `for network "${body.network}" — ignoring`
+                );
+              }
+            } catch {
               logger.warn(
-                `createOnPlatform: URL in description does not match expected base ` +
-                  `for network "${body.network}" — ignoring`
+                `createOnPlatform: invalid URL in description for network "${body.network}" — ignoring`
               );
             }
           }
@@ -2025,13 +2035,12 @@ const deviceUtil = {
         });
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   updateOnThingspeak: async (request, next) => {
@@ -2080,13 +2089,12 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   updateOnClarity: (request, next) => {
@@ -2249,43 +2257,52 @@ const deviceUtil = {
       let response = await axios
         .delete(`${constants.DELETE_THING_URL(device_number)}`)
         .catch((e) => {
-          logger.error(`error.response.data -- ${e.response.data}`);
-          logger.error(`error.response.status -- ${e.response.status}`);
-          logger.error(`error.response.headers -- ${e.response.headers}`);
           if (e.response) {
-            next(
-              new HttpError("Bad Request Error", e.response.data.status, {
+            logger.error(`error.response.data -- ${e.response.data}`);
+            logger.error(`error.response.status -- ${e.response.status}`);
+            logger.error(`error.response.headers -- ${e.response.headers}`);
+            return {
+              success: false,
+              message:
+                "corresponding device_number does not exist on external system, consider SOFT delete",
+              status: e.response.status,
+              errors: {
                 message:
                   "corresponding device_number does not exist on external system, consider SOFT delete",
                 error: e.response.data.error,
-              }),
-            );
+              },
+            };
           }
+          return {
+            success: false,
+            message: e.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: e.message },
+          };
         });
 
       if (!isEmpty(response.success) && !response.success) {
-        next(
-          new HttpError(`${response.message}`, `${response.status}`, {
-            message: "unable to complete operation",
-            error: `${response.error}`,
-          }),
-        );
+        return response;
       } else if (!isEmpty(response.data)) {
         return {
           success: true,
           message: "successfully deleted the device on thingspeak",
           data: response.data,
         };
+      } else {
+        return {
+          success: true,
+          message: "successfully deleted the device on thingspeak",
+        };
       }
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   deleteOnPlatform: async (request, next) => {
@@ -2415,6 +2432,12 @@ const deviceUtil = {
           { message: error.message },
         ),
       );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   refresh: async (request, next) => {
@@ -5369,7 +5392,7 @@ const deviceUtil = {
         if (!isNaN(lng) && lng >= -180 && lng <= 180) device.longitude = lng;
       }
       if (row.api_code && row.api_code.trim()) {
-        device.api_code = row.api_code.trim();
+        device.api_code = sanitizeApiCode(row.api_code.trim());
       }
       if (row.description && row.description.trim()) {
         device.description = row.description.trim();

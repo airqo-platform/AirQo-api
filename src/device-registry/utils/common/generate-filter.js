@@ -19,6 +19,9 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util -- ops-alerts`,
 );
 
+const escapeRegex = (str) =>
+  String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 if (
   typeof constants.JOB_LOOKBACK_WINDOW_MS === "undefined" ||
   constants.JOB_LOOKBACK_WINDOW_MS === null
@@ -1654,12 +1657,13 @@ const generateFilter = {
     const filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { long_name: { $regex: search, $options: "i" } },
-        { alias: { $regex: search, $options: "i" } },
-        { serial_number: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { long_name: { $regex: escapedSearch, $options: "i" } },
+        { alias: { $regex: escapedSearch, $options: "i" } },
+        { serial_number: { $regex: escapedSearch, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -1945,17 +1949,18 @@ const generateFilter = {
     const filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { generated_name: { $regex: search, $options: "i" } },
-        { formatted_name: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { location_name: { $regex: search, $options: "i" } },
-        { search_name: { $regex: search, $options: "i" } },
-        { district: { $regex: search, $options: "i" } },
-        { region: { $regex: search, $options: "i" } },
-        { city: { $regex: search, $options: "i" } },
-        { country: { $regex: search, $options: "i" } },
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { generated_name: { $regex: escapedSearch, $options: "i" } },
+        { formatted_name: { $regex: escapedSearch, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
+        { location_name: { $regex: escapedSearch, $options: "i" } },
+        { search_name: { $regex: escapedSearch, $options: "i" } },
+        { district: { $regex: escapedSearch, $options: "i" } },
+        { region: { $regex: escapedSearch, $options: "i" } },
+        { city: { $regex: escapedSearch, $options: "i" } },
+        { country: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -2121,10 +2126,11 @@ const generateFilter = {
     const filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { long_name: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { long_name: { $regex: escapedSearch, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -2200,9 +2206,10 @@ const generateFilter = {
     const filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { long_name: { $regex: search, $options: "i" } },
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { long_name: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -2283,9 +2290,10 @@ const generateFilter = {
     const filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -2500,9 +2508,10 @@ const generateFilter = {
     let filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { description: { $regex: search, $options: "i" } },
-        { device: { $regex: search, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
+        { device: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -2636,9 +2645,10 @@ const generateFilter = {
     let filter = {};
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+        { title: { $regex: escapedSearch, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 

@@ -39,8 +39,43 @@ const ObjectId = mongoose.Types.ObjectId;
 
 const getSiteCountSummary = async (request, next) => {
   try {
-    const { tenant } = request.query;
+    const { tenant, cohort_id } = request.query;
     const filter = generateFilter.sites(request, next);
+
+    if (cohort_id) {
+      const cohortObjectIds = cohort_id
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => isValidObjectId(id))
+        .map((id) => ObjectId(id));
+
+      if (cohortObjectIds.length === 0) {
+        filter._id = { $in: [] };
+      } else {
+        const snapshots = await CohortSiteSnapshotModel(tenant)
+          .distinct("site_id", {
+            cohort_id: { $in: cohortObjectIds },
+            tenant,
+          })
+          .maxTimeMS(10000);
+
+        const snapshotStrings = new Set(snapshots.map((id) => id.toString()));
+
+        const existing = filter._id;
+        if (!existing) {
+          filter._id = { $in: snapshots };
+        } else if (existing.$in) {
+          filter._id = {
+            $in: existing.$in.filter((id) => snapshotStrings.has(id.toString())),
+          };
+        } else {
+          // plain ObjectId from generateFilter.sites (id / _id / site_id param)
+          filter._id = {
+            $in: snapshotStrings.has(existing.toString()) ? [existing] : [],
+          };
+        }
+      }
+    }
 
     const pipeline = [
       { $match: filter },

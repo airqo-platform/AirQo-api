@@ -229,8 +229,14 @@ const userController = {
         }
       })();
 
+      const redirectAfter =
+        (req.session && req.session.oauthRedirectAfter) || null;
+      if (req.session) delete req.session.oauthRedirectAfter;
+      const baseRedirect = (
+        redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
+      ).replace(/\/$/, "");
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=google#token=${encodeURIComponent(token)}`,
+        `${baseRedirect}/user/home?success=google#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -322,8 +328,14 @@ const userController = {
         }
       })();
 
+      const redirectAfter =
+        (req.session && req.session.oauthRedirectAfter) || null;
+      if (req.session) delete req.session.oauthRedirectAfter;
+      const baseRedirect = (
+        redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
+      ).replace(/\/$/, "");
       return res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT.replace(/\/$/, "")}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
+        `${baseRedirect}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
       );
     } catch (error) {
       handleError(error, next);
@@ -558,6 +570,7 @@ const userController = {
             interestsDescription: data.interestsDescription,
             verified: data.verified,
             isActive: data.isActive,
+            authMethods: data.authMethods,
           };
           return res.status(httpStatus.OK).json(userResponse);
         } else {
@@ -762,6 +775,23 @@ const userController = {
         res
           .status(httpStatus.OK)
           .json({ success: true, message: result.message });
+      }
+    } catch (error) {
+      logObject("error in controller", error);
+      handleError(error, next);
+    }
+  },
+
+  setPassword: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.setPassword(request, next);
+      if (result) {
+        res.status(result.status).json({
+          success: result.success,
+          message: result.message,
+        });
       }
     } catch (error) {
       logObject("error in controller", error);

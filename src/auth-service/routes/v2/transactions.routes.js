@@ -19,7 +19,6 @@ router.post(
 router.post(
   "/webhook",
   transactionValidations.tenantOperation,
-  express.raw({ type: "application/json" }),
   TransactionController.handleWebhook
 );
 
@@ -103,6 +102,22 @@ router.get(
   transactionValidations.tenantOperation,
   enhancedJWTAuth,
   TransactionController.getSubscriptionStatus
+);
+
+// Change Subscription Tier (upgrade or downgrade)
+router.patch(
+  "/change-tier",
+  transactionValidations.changeTier,
+  enhancedJWTAuth,
+  TransactionController.changeSubscriptionTier
+);
+
+// API Usage Statistics (user-scoped)
+router.get(
+  "/usage",
+  transactionValidations.tenantOperation,
+  enhancedJWTAuth,
+  TransactionController.getApiUsageStats
 );
 
 // Manual Subscription Renewal (user-scoped, no transaction ID needed)

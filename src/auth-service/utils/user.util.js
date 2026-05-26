@@ -471,6 +471,50 @@ const RATE_LIMIT_WINDOWS = {
   MOBILE_EMAIL_VERIFY_ATTEMPT_MS: 3 * 60 * 1000, // 3 minutes per attempt
 };
 
+/**
+ * Builds the authMethods object for a user document.
+ *
+ * Priority:
+ *   1. hasSetPassword === true  — explicit signal; set by setPassword,
+ *      updateKnownPassword, and reset-password flows.
+ *   2. hasSetPassword == null (undefined/null) && !!password — legacy accounts
+ *      created before the hasSetPassword field existed. Works for both pure
+ *      email/password accounts and mixed accounts (email+OAuth) because lean()
+ *      queries return undefined for fields absent from the raw document.
+ *   3. !hasOAuthProvider && !!password — accounts where hasSetPassword
+ *      defaulted to false (non-lean Mongoose query) but no OAuth provider is
+ *      linked, safely identifying pure email/password accounts.
+ *
+ * Note: call this function while the password hash is still present on the
+ * user object. Strip the hash from the API response separately.
+ */
+function buildAuthMethods(user) {
+  const hasOAuthProvider = !!(
+    user.google_id ||
+    user.github_id ||
+    user.linkedin_id ||
+    user.microsoft_id ||
+    user.twitter_id ||
+    user.facebook_id ||
+    user.apple_id
+  );
+  // hasSetPassword is authoritative when explicitly true (new accounts / after setPassword).
+  // For legacy accounts created before hasSetPassword existed, fall back to !!user.password
+  // so mixed accounts (email+OAuth) that predate the field are not incorrectly shown as false.
+  const hasKnownPassword =
+    user.hasSetPassword === true || (user.hasSetPassword == null && !!user.password) || (!hasOAuthProvider && !!user.password);
+  return {
+    password: hasKnownPassword,
+    google: !!user.google_id,
+    github: !!user.github_id,
+    linkedin: !!user.linkedin_id,
+    microsoft: !!user.microsoft_id,
+    twitter: !!user.twitter_id,
+    facebook: !!user.facebook_id,
+    apple: !!user.apple_id,
+  };
+}
+
 const createUserModule = {
   _validatePassword: (password) => {
     if (!password || !constants.PASSWORD_REGEX.test(password)) {
@@ -478,7 +522,7 @@ const createUserModule = {
         isValid: false,
         error: new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
           message:
-            "The password does not meet the security requirements. It must be at least 10 characters long and contain at least one uppercase letter, one lowercase letter, one digit, and one special character (@#?!$%^&*,.).",
+            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one digit. Special characters (@#?!$%^&*,.) are allowed.",
         }),
       };
     }
@@ -507,10 +551,12 @@ const createUserModule = {
         return permissionsResult;
       }
 
-      // Get basic user data
+      // Fetch password field so buildAuthMethods can compute the legacy fallback
+      // correctly for accounts created before hasSetPassword existed.
+      // Password is stripped from the response before returning.
       const basicUser = await UserModel(tenant)
         .findById(userId)
-        .select("-password -resetPasswordToken -resetPasswordExpires")
+        .select("-resetPasswordToken -resetPasswordExpires")
         .lean();
 
       if (!basicUser) {
@@ -576,11 +622,15 @@ const createUserModule = {
         }
       }
 
-      const user = populatedUser;
+      // Compute authMethods while password hash is still present, then
+      // destructure it out so it is never included in the API response.
+      const computedAuthMethods = buildAuthMethods(populatedUser);
+      const { password: _pw, ...user } = populatedUser;
 
       const enhancedProfile = {
         ...user,
         ...permissionsResult.data.permissions,
+        authMethods: computedAuthMethods,
         profileLastUpdated: new Date().toISOString(),
         hasEnhancedPermissions: true,
         contextSummary: {
@@ -1630,7 +1680,7 @@ const createUserModule = {
         const firebase_uid = firebaseUser.uid;
 
         // Generate the custom token
-        const token = generateNumericToken(6);
+        const token = generateNumericToken(5);
 
         let generateCacheRequest = Object.assign({}, request);
         const userIdentifier = firebaseUser.email
@@ -1904,9 +1954,9 @@ const createUserModule = {
       let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
       let responseFromSendEmail = {};
-      let token = 100000;
+      let token = 10000;
       if (email !== constants.EMAIL) {
-        token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+        token = generateNumericToken(5);
       }
       if (purpose === "mobileAccountDelete") {
         responseFromSendEmail = await mailer.deleteMobileAccountEmail(
@@ -2278,7 +2328,7 @@ const createUserModule = {
         };
       }
 
-      const token = generateNumericToken(6); // 6-digit code
+      const token = generateNumericToken(5); // 5-digit code
       const update = {
         deletionToken: token,
         deletionTokenExpires: Date.now() + 3600000, // 1 hour
@@ -2303,7 +2353,7 @@ const createUserModule = {
           return {
             success: true,
             message:
-              "Account deletion process initiated. Please check your email for a 6-digit confirmation code.",
+              "Account deletion process initiated. Please check your email for a 5-digit confirmation code.",
             status: httpStatus.OK,
           };
         } else {
@@ -2653,7 +2703,7 @@ const createUserModule = {
             user: null,
             data: {
               verificationEmailSent: true,
-              nextStep: "Check your email for a 6-digit verification code",
+              nextStep: "Check your email for a 5-digit verification code",
             },
           };
         }
@@ -2683,16 +2733,15 @@ const createUserModule = {
       const userId = newUser._doc._id;
 
       // ── STEP 6: Generate mobile verification token ─────────────────────────────
-      // Uses 6-digit tokens (1,000,000 space) and retries once on E11000
-      // collision before rolling back the user. The previous 5-digit token
-      // (100,000 space) was the root cause of duplicate key errors in production.
+      // 5-digit tokens match the mobile app's verification input field length.
+      // Retry logic handles the rare collision in the 100,000-value space.
       const tokenExpiry = 86400; // 24 hrs in seconds
       let verifyTokenResponse;
       let verificationToken; // hoisted so STEP 7 email send can reference it
 
       const MAX_TOKEN_ATTEMPTS = 2;
       for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
-        verificationToken = generateNumericToken(6);
+        verificationToken = generateNumericToken(5);
         verifyTokenResponse = await VerifyTokenModel(dbTenant).register(
           {
             token: verificationToken,
@@ -2766,7 +2815,7 @@ const createUserModule = {
                 analyticsVersion: userDoc.analyticsVersion,
               },
               verificationEmailSent: true,
-              nextStep: "Check your email for a 6-digit verification code",
+              nextStep: "Check your email for a 5-digit verification code",
             },
           };
         } else {
@@ -3137,15 +3186,14 @@ const createUserModule = {
         };
       }
 
-      // ✅ STEP 4: Generate mobile verification token (6-digit numeric)
-      // 6-digit tokens give 1,000,000 possible values — 10× the previous
-      // 5-digit range — and retries once on collision before failing.
+      // ✅ STEP 4: Generate mobile verification token (5-digit numeric)
+      // 5-digit tokens match the mobile app's verification input field length.
 
       // ✅ STEP 5: Create token with cleanup of old expired tokens
       try {
         await VerifyTokenModel(dbTenant).deleteMany({
           name: user.firstName,
-          token: { $regex: /^\d{6}$/ },
+          token: { $regex: /^\d{5,6}$/ },
           expires: { $lt: new Date() },
         });
 
@@ -3154,7 +3202,7 @@ const createUserModule = {
 
         const MAX_TOKEN_ATTEMPTS = 2;
         for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
-          token = generateNumericToken(6);
+          token = generateNumericToken(5);
           responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
             {
               token,
@@ -3212,7 +3260,7 @@ const createUserModule = {
                 email: user.email,
                 verified: user.verified,
                 reminderSent: true,
-                codeLength: 6,
+                codeLength: 5,
                 expiresIn: "24 hours",
               },
             };
@@ -3293,8 +3341,8 @@ const createUserModule = {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // ✅ STEP 2: Token format validation for mobile (6-digit numeric)
-      if (!/^\d{6}$/.test(token)) {
+      // ✅ STEP 2: Token format validation for mobile (5-digit numeric; 6-digit accepted during transition for already-issued codes)
+      if (!/^\d{5,6}$/.test(token)) {
         logger.warn(
           `Invalid mobile verification token format for ${normalizedEmail}`,
           {
@@ -3309,7 +3357,7 @@ const createUserModule = {
           success: false,
           message: "Invalid verification code format",
           errors: {
-            token: "Verification code must be a 6-digit number",
+            token: "Verification code must be a 5-digit number",
           },
         };
       }
@@ -4024,6 +4072,7 @@ const createUserModule = {
         {
           userName: normalizedEmail,
           password,
+          hasSetPassword: true,
           analyticsVersion: 3,
           ...(userBody.interests && { interests: userBody.interests }),
           ...(userBody.interestsDescription && {
@@ -4499,7 +4548,7 @@ const createUserModule = {
       const userExists = await UserModel(tenant).exists(filter);
 
       if (!userExists) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
@@ -4605,6 +4654,7 @@ const createUserModule = {
         {
           $set: {
             password: password, // pre-hook will hash this
+            hasSetPassword: true,
             resetPasswordToken: null,
             resetPasswordExpires: null,
           },
@@ -4719,6 +4769,7 @@ const createUserModule = {
         {
           $set: {
             password: new_password, // pre-hook will hash this
+            hasSetPassword: true,
             resetPasswordToken: null,
             resetPasswordExpires: null,
           },
@@ -4949,6 +5000,72 @@ const createUserModule = {
     }
   },
 
+  setPassword: async (request, next) => {
+    try {
+      const { password, confirmPassword } = request.body;
+      const tenant =
+        isEmpty(request.query.tenant)
+          ? constants.DEFAULT_TENANT || "airqo"
+          : request.query.tenant;
+
+      if (password !== confirmPassword) {
+        return next(
+          new HttpError("Passwords do not match", httpStatus.BAD_REQUEST, {
+            message: "password and confirmPassword must be identical",
+          }),
+        );
+      }
+
+      const validationResult = createUserModule._validatePassword(password);
+      if (!validationResult.isValid) {
+        return next(validationResult.error);
+      }
+
+      // Atomic conditional update: only matches when hasSetPassword is not true.
+      // Prevents both the TOCTOU race and existing-password bypass in one query.
+      const updated = await UserModel(tenant).findOneAndUpdate(
+        { _id: request.user._id, hasSetPassword: { $ne: true } },
+        { $set: { password, hasSetPassword: true } },
+        { new: false, context: "query" },
+      );
+
+      if (!updated) {
+        // Either the user doesn't exist or hasSetPassword was already true.
+        const exists = await UserModel(tenant)
+          .exists({ _id: request.user._id })
+          .lean();
+        if (!exists) {
+          return next(
+            new HttpError("User not found", httpStatus.NOT_FOUND, {
+              message: "Authenticated user record could not be found",
+            }),
+          );
+        }
+        return next(
+          new HttpError("Password already set", httpStatus.BAD_REQUEST, {
+            message:
+              "A password is already configured for this account. Use the change password flow instead.",
+          }),
+        );
+      }
+
+      return {
+        success: true,
+        message: "Password set successfully. You can now log in with your email and password.",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
       // 1. Manually validate the new password
@@ -4971,6 +5088,7 @@ const createUserModule = {
         {
           $set: {
             password: password, // pre-hook will hash this
+            hasSetPassword: true,
             resetPasswordToken: null,
             resetPasswordExpires: null,
           },
@@ -6228,6 +6346,7 @@ const createUserModule = {
     const updatePayload = {
       $set: {
         lastLogin: currentDate,
+        lastActiveAt: currentDate,
         isActive: true,
       },
       $inc: { loginCount: 1 },
@@ -6572,6 +6691,8 @@ const createUserModule = {
 
         // Enhanced authentication
         token: `JWT ${token}`,
+
+        authMethods: buildAuthMethods(user),
 
         // --- REMOVED FOR SCALABILITY ---
         // The following large data fields are removed to prevent oversized login responses
@@ -7668,7 +7789,7 @@ const feedbackUtil = {
       // Also dispatch a support email (best-effort; DB record already saved)
       try {
         await mailer.feedback(
-          { email: normalizedEmail, subject, message },
+          { email: normalizedEmail, subject, message, screenshot_url },
           next,
         );
       } catch (emailError) {
@@ -7869,4 +7990,5 @@ module.exports = {
   ...feedbackUtil,
   generateNumericToken,
   ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
+  buildAuthMethods,
 };

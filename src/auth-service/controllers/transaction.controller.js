@@ -13,8 +13,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-controller`
 );
 const transactionsUtil = require("@utils/transaction.util");
+const tokenUtil = require("@utils/token.util");
 const { paddleClient, isPaddleConfigured } = require("@config/paddle");
-const UserModel = require("@models/User");
 
 const transactions = {
   createCheckoutSession: async (req, res, next) => {
@@ -57,7 +57,7 @@ const transactions = {
             );
             return;
           }
-          resolvedItems = [{ price: priceId, quantity: 1 }];
+          resolvedItems = [{ priceId, quantity: 1 }];
         } else {
           if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
             next(
@@ -70,7 +70,7 @@ const transactions = {
           }
           resolvedItems = [
             {
-              price: await transactionsUtil.getDynamicPriceId(
+              priceId: await transactionsUtil.getDynamicPriceId(
                 amount,
                 currency
               ),
@@ -82,9 +82,7 @@ const transactions = {
 
       const result = await transactionsUtil.createCheckoutSession(request, {
         items: resolvedItems,
-        customer: {
-          id: customerId,
-        },
+        ...(customerId && { customer_id: customerId }),
         custom_data: {
           source: "api_subscription_payment",
           ...(tier && { subscription_tier: tier }),
@@ -209,7 +207,7 @@ const transactions = {
         : req.query.tenant;
 
       // Verify and process webhook
-      const result = await transactionsUtil.processWebhook(request);
+      const result = await transactionsUtil.processWebhook(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -622,6 +620,37 @@ const transactions = {
     }
   },
 
+  changeSubscriptionTier: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const result = await transactionsUtil.changeSubscriptionTier(req, next);
+      if (result) {
+        return res.status(result.status).json({
+          success: result.success,
+          message: result.message,
+          ...(result.data && { data: result.data }),
+          ...(result.errors && { errors: result.errors }),
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
   getSubscriptionStatus: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -632,41 +661,12 @@ const transactions = {
         return;
       }
 
-      if (!isPaddleConfigured) {
-        return res.status(httpStatus.SERVICE_UNAVAILABLE).json({
-          success: false,
-          message:
-            "Payment service is not configured. Please try again later.",
-        });
-      }
-
-      if (!req.user || !req.user.currentSubscriptionId) {
-        return res.status(httpStatus.BAD_REQUEST).json({
-          success: false,
-          message: "No active subscription found",
-          errors: { message: "User has no subscription ID" },
-        });
-      }
-
-      const subscriptionStatus = await paddleClient.subscriptions.get(
-        req.user.currentSubscriptionId
-      );
-
-      await UserModel("airqo").findByIdAndUpdate(req.user._id, {
-        $set: {
-          subscriptionStatus: subscriptionStatus.status,
-          lastSubscriptionCheck: new Date(),
-        },
-      });
-
-      return res.status(httpStatus.OK).json({
-        success: true,
-        message: "Subscription status retrieved successfully",
-        data: {
-          status: subscriptionStatus.status,
-          lastChecked: new Date(),
-          subscriptionId: req.user.currentSubscriptionId,
-        },
+      const result = await transactionsUtil.getSubscriptionStatus(req);
+      return res.status(result.status).json({
+        success: result.success,
+        message: result.message,
+        ...(result.data && { data: result.data }),
+        ...(result.errors && { errors: result.errors }),
       });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -674,9 +674,7 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
+          { message: error.message }
         )
       );
       return;
@@ -839,6 +837,40 @@ const transactions = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getApiUsageStats: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const userId = req.user && req.user._id;
+      if (!userId) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            auth: "User must be authenticated to access usage statistics",
+          }),
+        );
+      }
+
+      const tier = (req.user && req.user.subscriptionTier) || "Free";
+      const data = await tokenUtil.getApiUsageStats(String(userId), tier);
+
+      return res.status(httpStatus.OK).json({ success: true, data });
+    } catch (error) {
+      logger.error(`🐛 getApiUsageStats error: ${error.message}`);
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,

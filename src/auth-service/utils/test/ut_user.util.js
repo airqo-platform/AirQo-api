@@ -1,4 +1,8 @@
 require("module-alias/register");
+// Provide dummy values for env vars that throw on missing config at require-time.
+process.env.CLOUD_NAME = process.env.CLOUD_NAME || "test";
+process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test";
+process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test";
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
@@ -8,7 +12,7 @@ const { stringify } = require("@utils/shared");
 const redis = require("redis");
 const moment = require("moment-timezone");
 const { ObjectId } = require("mongoose").Types;
-const createUser = require("@utils/create-user");
+const createUser = require("@utils/user.util");
 const mailchimp = require("@config/mailchimp");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
@@ -33,7 +37,7 @@ const { getAuth } = require("firebase-admin/auth");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const rewire = require("rewire");
-const rewireCreateUser = rewire("@utils/create-user");
+const rewireCreateUser = rewire("@utils/user.util");
 const UserModel = require("@models/User");
 const LogModel = require("@models/log");
 const NetworkModel = require("@models/Network");
@@ -1044,7 +1048,7 @@ describe("create-user-util", function () {
         status: httpStatus.OK,
         data: {
           link: "your-generated-link",
-          token: 100000,
+          token: 10000,
           email: "test@example.com",
           emailLinkCode: "your-email-link-code",
         },
@@ -1069,7 +1073,7 @@ describe("create-user-util", function () {
       // Ensure that the authenticateEmail function is called with the correct arguments
       expect(authenticateEmailStub).to.have.been.calledOnceWith(
         "test@example.com",
-        100000
+        10000
       );
     });
 
@@ -1535,8 +1539,29 @@ describe("create-user-util", function () {
       });
     });
 
+    it("should call next with a 400 error and not invoke modify or mailer when user does not exist", async () => {
+      const request = {
+        body: {},
+        query: { tenant: "your-tenant" },
+      };
+      const next = sinon.spy();
+
+      sinon.stub(generateFilter, "users").returns({ email: "unknown@example.com" });
+      sinon.stub(UserModel("your-tenant"), "exists").resolves(false);
+      const modifyStub = sinon.stub(UserModel("your-tenant"), "modify").resolves({});
+      sinon.stub(mailer, "forgot").resolves({});
+
+      await forgotPassword(request, next);
+
+      sinon.assert.calledOnce(next);
+      const errorArg = next.firstCall.args[0];
+      expect(errorArg).to.be.instanceOf(Error);
+      expect(errorArg.statusCode).to.equal(httpStatus.BAD_REQUEST);
+      sinon.assert.notCalled(modifyStub);
+    });
+
     // Add more test cases to cover other scenarios
-    // For example, when the user does not exist, when generating the reset token fails, when modifying the user fails, etc.
+    // For example, when generating the reset token fails, when modifying the user fails, etc.
   });
   describe("updateForgottenPassword", () => {
     afterEach(() => {
@@ -2977,6 +3002,113 @@ describe("create-user-util", function () {
       expect(result.success).to.be.true;
       expect(result.syncOperation).to.equal("Updated");
       expect(result.user).to.deep.equal(existingUser);
+    });
+  });
+
+  describe("_constructLoginUpdate", function () {
+    const user = { verified: true, preferredTokenStrategy: null };
+
+    it("sets lastActiveAt to a recent Date so the active-status-job does not immediately deactivate the user", function () {
+      const before = Date.now();
+      const result = createUser._constructLoginUpdate(user);
+      const after = Date.now();
+
+      expect(result.$set.lastActiveAt).to.be.an.instanceOf(Date);
+      expect(result.$set.lastActiveAt.getTime()).to.be.within(before, after);
+    });
+
+    it("sets lastLogin and isActive on every login", function () {
+      const before = Date.now();
+      const result = createUser._constructLoginUpdate(user);
+      const after = Date.now();
+
+      expect(result.$set.lastLogin).to.be.an.instanceOf(Date);
+      expect(result.$set.lastLogin.getTime()).to.be.within(before, after);
+      expect(result.$set.isActive).to.equal(true);
+      expect(result.$inc.loginCount).to.equal(1);
+    });
+
+    it("sets verified when autoVerify is true and user is not yet verified", function () {
+      const unverifiedUser = { verified: false, preferredTokenStrategy: null };
+      const result = createUser._constructLoginUpdate(unverifiedUser, null, {
+        autoVerify: true,
+      });
+      expect(result.$set.verified).to.equal(true);
+    });
+
+    it("does not set verified when autoVerify is false", function () {
+      const result = createUser._constructLoginUpdate(user, null, {
+        autoVerify: false,
+      });
+      expect(result.$set.verified).to.be.undefined;
+    });
+  });
+});
+
+// ── buildAuthMethods ─────────────────────────────────────────────────────────
+
+describe("buildAuthMethods()", () => {
+  const { buildAuthMethods } = require("@utils/user.util");
+
+  it("returns password:true for an email/password-only account with hasSetPassword:true", () => {
+    const user = { password: "hashed", hasSetPassword: true };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(true);
+    expect(result.google).to.equal(false);
+  });
+
+  it("returns password:false for an OAuth-only account with system-generated password", () => {
+    const user = {
+      password: "generated-random-hash",
+      hasSetPassword: false,
+      google_id: "google-123",
+    };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(false);
+    expect(result.google).to.equal(true);
+  });
+
+  it("returns password:true for an OAuth account that later used setPassword", () => {
+    const user = {
+      password: "user-chosen-hash",
+      hasSetPassword: true,
+      google_id: "google-123",
+      github_id: "gh-456",
+    };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(true);
+    expect(result.google).to.equal(true);
+    expect(result.github).to.equal(true);
+  });
+
+  it("backward-compat: returns password:true for legacy email/password account with no OAuth and no hasSetPassword flag", () => {
+    const user = { password: "legacy-hash", hasSetPassword: false };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(true);
+  });
+
+  it("returns all provider flags correctly", () => {
+    const user = {
+      hasSetPassword: true,
+      password: "h",
+      google_id: "g",
+      github_id: "gh",
+      linkedin_id: "li",
+      microsoft_id: "ms",
+      twitter_id: "tw",
+      facebook_id: "fb",
+      apple_id: "ap",
+    };
+    const result = buildAuthMethods(user);
+    expect(result).to.deep.equal({
+      password: true,
+      google: true,
+      github: true,
+      linkedin: true,
+      microsoft: true,
+      twitter: true,
+      facebook: true,
+      apple: true,
     });
   });
 });

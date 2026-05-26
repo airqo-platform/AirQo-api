@@ -36,7 +36,11 @@ const envs = {
   MAILCHIMP_LIST_ID: process.env.MAILCHIMP_LIST_ID,
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
-  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+  DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
+  SUPPORT_EMAIL:
+    process.env.NODE_ENV === "staging"
+      ? process.env.DEVELOPERS_EMAILS || process.env.SUPPORT_EMAIL
+      : process.env.SUPPORT_EMAIL,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
 
   // ✅ NUMERIC VALUES - Properly converted
@@ -137,6 +141,7 @@ const envs = {
     "feature_request",
     "performance",
     "ux_design",
+    "page_satisfaction",
     "other",
   ],
   FEEDBACK_STATUSES: ["pending", "reviewed", "resolved", "archived"],
@@ -210,6 +215,11 @@ const envs = {
   MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
   TWITTER_CONSUMER_KEY: process.env.TWITTER_CONSUMER_KEY,
   TWITTER_CONSUMER_SECRET: process.env.TWITTER_CONSUMER_SECRET,
+  TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN,
+  TWITTER_ACCESS_TOKEN: process.env.TWITTER_ACCESS_TOKEN,
+  TWITTER_ACCESS_TOKEN_SECRET: process.env.TWITTER_ACCESS_TOKEN_SECRET,
+  TWITTER_CLIENT_ID: process.env.TWITTER_CLIENT_ID,
+  TWITTER_CLIENT_SECRET: process.env.TWITTER_CLIENT_SECRET,
 
   // ── Kafka ──────────────────────────────────────────────────────────────────
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
@@ -227,6 +237,11 @@ const envs = {
   // ── Email / notification routing ───────────────────────────────────────────
   HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
   REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
+
+  // ── OAuth redirect allowlist ───────────────────────────────────────────────
+  // Comma-separated list of additional origins allowed as redirect_after targets
+  // beyond ANALYTICS_BASE_URL and VERTEX_BASE_URL (which are always included).
+  ALLOWED_REDIRECT_ORIGINS: process.env.ALLOWED_REDIRECT_ORIGINS,
 
   // ── API / network ──────────────────────────────────────────────────────────
   API_TOKEN: process.env.API_TOKEN,

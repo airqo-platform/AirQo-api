@@ -69,6 +69,8 @@ class DevicePerformance(BaseModel):
 
     device_name: str
     category: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     uptime: float = 0.0
     data_completeness: float = 0.0
     averages: Dict[str, Any] = {}

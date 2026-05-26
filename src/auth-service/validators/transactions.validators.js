@@ -126,6 +126,17 @@ const transactionValidations = {
       .withMessage("invalid status value"),
   ]),
 
+  changeTier: [
+    ...commonValidations.tenant,
+    body("tier")
+      .exists()
+      .withMessage("tier is required")
+      .bail()
+      .isString()
+      .withMessage("tier must be a string")
+      .isIn(["Standard", "Premium"])
+      .withMessage("tier must be Standard or Premium"),
+  ],
   idOperation: [
     ...commonValidations.tenant,
     ...commonValidations.transactionId,

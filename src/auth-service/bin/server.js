@@ -111,6 +111,7 @@ const jobs = [
   "@bin/jobs/daily-compromise-summary-job",
   "@bin/jobs/unknown-ip-cleanup-job",
   "@bin/jobs/feedback-screenshot-cleanup-job",
+  "@bin/jobs/transaction-amount-fix-job",
 ];
 
 // Initialize log4js with SAFE configuration
@@ -192,6 +193,12 @@ app.use((req, res, next) => {
   // All passport strategies use session:false, so passport.session() is not needed.
   sessionMiddleware(req, res, next);
 });
+
+// Must be before bodyParser.json() — preserves raw Buffer in req.body for webhook signature verification
+app.use(
+  "/api/v2/users/transactions/webhook",
+  express.raw({ type: "*/*" })
+);
 
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.

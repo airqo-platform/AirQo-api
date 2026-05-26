@@ -350,6 +350,7 @@ const createCohort = {
 
       const results = await CohortModel(tenant)
         .aggregate(pipeline)
+        .option({ maxTimeMS: 30000 })
         .allowDiskUse(true);
 
       const agg =
@@ -2271,9 +2272,10 @@ const createCohort = {
         tenant,
       };
       if (search) {
+        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         filter.$or = [
-          { name: { $regex: search, $options: "i" } },
-          { search_name: { $regex: search, $options: "i" } },
+          { name: { $regex: escapedSearch, $options: "i" } },
+          { search_name: { $regex: escapedSearch, $options: "i" } },
         ];
       }
       if (country) {

@@ -5,16 +5,15 @@ const AccessTokenModel = require("@models/AccessToken");
 const { mailer, stringify, generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- transactions-util`
+  `${constants.ENVIRONMENT} -- transactions-util`,
 );
+const opsLogger = log4js.getLogger("ops-alerts");
 const { logObject, logText, HttpError } = require("@utils/shared");
-const {
-  paddleClient,
-  isPaddleConfigured,
-} = require("@config/paddle");
+const { paddleClient, isPaddleConfigured } = require("@config/paddle");
 
 // Standard response returned by any function that calls Paddle when credentials
 // are not configured. Lets the service start and all non-Paddle endpoints work.
@@ -29,42 +28,6 @@ const PADDLE_NOT_CONFIGURED = {
   status: httpStatus.SERVICE_UNAVAILABLE,
 };
 
-// Canonical mapping of subscription tier → granted scopes (cumulative)
-const TIER_SCOPE_MAP = {
-  Free: [
-    "read:recent_measurements",
-    "read:devices",
-    "read:sites",
-    "read:cohorts",
-    "read:grids",
-  ],
-  Standard: [
-    "read:recent_measurements",
-    "read:devices",
-    "read:sites",
-    "read:cohorts",
-    "read:grids",
-    "read:historical_measurements",
-  ],
-  Premium: [
-    "read:recent_measurements",
-    "read:devices",
-    "read:sites",
-    "read:cohorts",
-    "read:grids",
-    "read:historical_measurements",
-    "read:forecasts",
-    "read:insights",
-  ],
-};
-
-// Rate limits per tier (stored on User.apiRateLimits)
-const TIER_RATE_LIMITS = {
-  Free:     { hourlyLimit: 100,  dailyLimit: 1000,  monthlyLimit: 10000 },
-  Standard: { hourlyLimit: 500,  dailyLimit: 5000,  monthlyLimit: 50000 },
-  Premium:  { hourlyLimit: 2000, dailyLimit: 20000, monthlyLimit: 200000 },
-};
-
 /**
  * Determine subscription tier from a completed Paddle transaction.
  * Priority: customData.tier (set at checkout) > Paddle price ID > amount fallback.
@@ -77,15 +40,30 @@ const resolveTierFromEvent = (eventData) => {
   // 2. Match against known Paddle price IDs from env
   const priceId = eventData?.items?.[0]?.price?.id;
   if (priceId) {
-    if (constants.PADDLE_STANDARD_PRICE_ID && priceId === constants.PADDLE_STANDARD_PRICE_ID) return "Standard";
-    if (constants.PADDLE_PREMIUM_PRICE_ID && priceId === constants.PADDLE_PREMIUM_PRICE_ID) return "Premium";
+    if (
+      constants.PADDLE_STANDARD_PRICE_ID &&
+      priceId === constants.PADDLE_STANDARD_PRICE_ID
+    )
+      return "Standard";
+    if (
+      constants.PADDLE_PREMIUM_PRICE_ID &&
+      priceId === constants.PADDLE_PREMIUM_PRICE_ID
+    )
+      return "Premium";
   }
 
-  // 3. Amount-based fallback (amounts in smallest currency unit, e.g. cents)
-  const amount = eventData?.details?.totals?.total || eventData?.total || 0;
-  const numericAmount = parseFloat(amount);
-  if (numericAmount >= 15000) return "Premium";  // $150.00
-  if (numericAmount >= 5000)  return "Standard";  // $50.00
+  // 3. Amount-based fallback — prefer eventData.total (already in major units
+  //    after webhook normalization). Fall back to details.totals.total (raw
+  //    smallest-unit string from the SDK) with an explicit ÷100 conversion.
+  const normalizedTotal = parseFloat(eventData?.total);
+  const rawDetailsTotal = parseFloat(eventData?.details?.totals?.total);
+  const numericAmount = Number.isFinite(normalizedTotal)
+    ? normalizedTotal
+    : Number.isFinite(rawDetailsTotal)
+      ? rawDetailsTotal / 100
+      : 0;
+  if (numericAmount >= 150) return "Premium"; // $150.00
+  if (numericAmount >= 50) return "Standard"; // $50.00
   return "Free";
 };
 
@@ -113,7 +91,7 @@ const transactions = {
           limit: limit ? parseInt(limit) : 100,
           skip: skip ? parseInt(skip) : 0,
         },
-        next
+        next,
       );
       logObject("listResponse", listResponse);
 
@@ -124,8 +102,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { details: error.message },
+        ),
       );
     }
   },
@@ -144,11 +122,11 @@ const transactions = {
       const paddleEventData = body;
 
       // Attempt to find or create associated user
-      const userIdentification = await transactions.identifyUserFromTransaction(
-        paddleEventData
-      );
+      const userIdentification =
+        await transactions.identifyUserFromTransaction(paddleEventData, tenant);
 
-      // Prepare transaction creation body
+      // Payload has already been normalised in processWebhook (snake_case,
+      // numeric total, uppercased currency). Read fields directly.
       const creationBody = {
         paddle_transaction_id: paddleEventData.id,
         paddle_event_type: paddleEventData.type,
@@ -163,18 +141,18 @@ const transactions = {
 
       // Register transaction
       const responseFromRegisterTransaction = await TransactionModel(
-        tenant
+        tenant,
       ).register(creationBody, next);
 
       // Log the registration for debugging
       logObject(
         "Transaction Registration Response",
-        responseFromRegisterTransaction
+        responseFromRegisterTransaction,
       );
 
       // Trigger any post-transaction processing
       await transactions.processTransactionPostRegistration(
-        responseFromRegisterTransaction.data
+        responseFromRegisterTransaction.data,
       );
 
       return responseFromRegisterTransaction;
@@ -184,8 +162,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { details: error.message },
+        ),
       );
     }
   },
@@ -222,7 +200,7 @@ const transactions = {
           filter,
           update: body,
         },
-        next
+        next,
       );
 
       return modifyResponse;
@@ -232,8 +210,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { details: error.message },
+        ),
       );
     }
   },
@@ -277,8 +255,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { details: error.message },
+        ),
       );
     }
   },
@@ -307,7 +285,7 @@ const transactions = {
             cancelledAt: new Date(),
           },
         },
-        next
+        next,
       );
 
       return modifyResponse;
@@ -317,8 +295,8 @@ const transactions = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          { details: error.message },
+        ),
       );
     }
   },
@@ -355,27 +333,69 @@ const transactions = {
       logObject("user.firstName", user.firstName);
       logObject("user.lastName", user.lastName);
 
-      if (!customerIdentification) {
+      // Shared helper — create or recover a Paddle customer by email.
+      // Handles customer_already_exists by listing and returning the existing ID.
+      const resolveOrCreateCustomer = async () => {
         try {
           const customer = await paddleClient.customers.create({
             email: user.email,
             name: user.firstName || user.lastName,
           });
-          sessionData.customer_id = customer.id; // Changed from customerId
+          return customer.id;
         } catch (error) {
+          if (error.code === "customer_already_exists") {
+            // customers.list returns an async-iterable Collection; call
+            // next() to fetch the first page before reading .data
+            const collection = paddleClient.customers.list({
+              email: [user.email],
+            });
+            await collection.next();
+            const existingCustomer = collection.data[0];
+            if (existingCustomer) {
+              return existingCustomer.id;
+            }
+            logger.error(
+              `Unable to retrieve existing Paddle customer for email: ${user.email}`,
+            );
+            throw error;
+          }
           logger.error(
             `Unable to generate the transaction client on Paddle -- ${stringify(
-              error
-            )}`
+              error,
+            )}`,
           );
-          throw error; // Add this to prevent continuing with invalid customer
+          throw error;
+        }
+      };
+
+      const tenant = (request.query && request.query.tenant) || "airqo";
+
+      if (!customerIdentification) {
+        if (user.paddle_customer_id) {
+          // Reuse the cached Paddle customer ID — no API call needed
+          sessionData.customer_id = user.paddle_customer_id;
+        } else {
+          const resolvedCustomerId = await resolveOrCreateCustomer();
+          sessionData.customer_id = resolvedCustomerId;
+          // Persist the customer ID so future checkouts skip this lookup
+          UserModel(tenant)
+            .findByIdAndUpdate(
+              user._id,
+              { $set: { paddle_customer_id: resolvedCustomerId } },
+              { new: false },
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to persist paddle_customer_id for user ${user._id}: ${err.message}`,
+              ),
+            );
         }
       }
 
       // Ensure required fields are present
       if (
-        !sessionData.settings.success_url ||
-        !sessionData.settings.cancel_url
+        !sessionData.settings?.success_url ||
+        !sessionData.settings?.cancel_url
       ) {
         throw new Error("success_url and cancel_url are required in settings");
       }
@@ -384,14 +404,53 @@ const transactions = {
         throw new Error("items array with at least one item is required");
       }
 
-      const checkoutSession = await paddleClient.transactions.create(
-        sessionData
-      );
+      // Strip internal-only `settings` key — Paddle's transactions.create API
+      // does not accept it (it is a Paddle.js client-side concept only).
+      // Redirect URLs are configured in the Paddle dashboard.
+      const { settings: _settings, ...paddlePayload } = sessionData;
+      let checkoutSession;
+      try {
+        checkoutSession = await paddleClient.transactions.create(paddlePayload);
+      } catch (txnError) {
+        // Stale cached paddle_customer_id — customer was deleted or belongs to
+        // a different sandbox. Use detail (structured) to confirm this specific
+        // customer ID is the one Paddle cannot find, then resolve a fresh one.
+        const isStaleCustomer =
+          paddlePayload.customer_id &&
+          txnError.detail &&
+          txnError.detail.includes(paddlePayload.customer_id);
+        if (isStaleCustomer) {
+          UserModel(tenant)
+            .findByIdAndUpdate(user._id, { $unset: { paddle_customer_id: "" } })
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to clear stale paddle_customer_id for user ${user._id}: ${err.message}`,
+              ),
+            );
+          const freshCustomerId = await resolveOrCreateCustomer();
+          paddlePayload.customer_id = freshCustomerId;
+          UserModel(tenant)
+            .findByIdAndUpdate(
+              user._id,
+              { $set: { paddle_customer_id: freshCustomerId } },
+              { new: false },
+            )
+            .catch((err) =>
+              logger.error(
+                `Non-critical: failed to persist fresh paddle_customer_id for user ${user._id}: ${err.message}`,
+              ),
+            );
+          checkoutSession =
+            await paddleClient.transactions.create(paddlePayload);
+        } else {
+          throw txnError;
+        }
+      }
       return {
         success: true,
         data: {
           id: checkoutSession.id,
-          url: checkoutSession.url,
+          url: checkoutSession.checkout?.url,
         },
         status: httpStatus.CREATED,
       };
@@ -403,7 +462,7 @@ const transactions = {
           type: error.type,
           code: error.code,
           detail: error.detail,
-        })
+        }),
       );
       return {
         success: false,
@@ -447,17 +506,24 @@ const transactions = {
       const grantedScopes = TIER_SCOPE_MAP[tier] || TIER_SCOPE_MAP.Free;
       const rateLimits = TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.Free;
 
-      // 1. Update User subscription tier and rate limits
+      // 1. Update User subscription tier, rate limits, and subscription linkage.
+      //    currentSubscriptionId is required by getSubscriptionStatus to query
+      //    Paddle for live status; set it here from the webhook event so the
+      //    field is populated after the first successful transaction.
       await UserModel(defaultTenant).findByIdAndUpdate(
         user_id,
         {
           $set: {
             subscriptionTier: tier,
             apiRateLimits: rateLimits,
+            ...(full_event_data.subscriptionId && {
+              currentSubscriptionId: full_event_data.subscriptionId,
+              subscriptionStatus: "active",
+            }),
             ...(is_new_user && { first_transaction_completed_at: new Date() }),
           },
         },
-        { new: false } // We don't need the updated doc
+        { new: false },
       );
 
       // 2. Update all active AccessTokens for this user.
@@ -470,12 +536,12 @@ const transactions = {
         const clientIds = userClients.map((c) => c._id);
         await AccessTokenModel(defaultTenant).updateMany(
           { client_id: { $in: clientIds } },
-          { $set: { tier, scopes: grantedScopes } }
+          { $set: { tier, scopes: grantedScopes } },
         );
       }
 
       logger.info(
-        `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`
+        `Subscription upgraded: user=${user_id} tier=${tier} scopes=${grantedScopes.length}`,
       );
     } catch (error) {
       logger.error(`performAdditionalBusinessLogic failed: ${error.message}`);
@@ -483,17 +549,8 @@ const transactions = {
     }
   },
 
-  sendTransactionCompletionNotification: async (transactionMetadata) => {
-    try {
-      // Example: Send email, push notification, etc.
-      await emailService.sendTransactionReceiptEmail({
-        userId: transactionMetadata.user_id,
-        amount: transactionMetadata.amount,
-        currency: transactionMetadata.currency,
-      });
-    } catch (error) {
-      logger.error("Transaction notification failed", error);
-    }
+  sendTransactionCompletionNotification: async (_transactionMetadata) => {
+    // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
     try {
@@ -509,7 +566,37 @@ const transactions = {
       logger.error("Failed to send admin notification", notificationError);
     }
   },
-  handleCompletedTransaction: async (eventData) => {
+  handleFailedTransaction: async (eventData) => {
+    try {
+      logObject("Failed Transaction Event", eventData);
+
+      if (!eventData || !eventData.id || !eventData.customer_id) {
+        logger.warn(
+          "Invalid transaction data received for payment_failed event",
+        );
+        return;
+      }
+
+      logger.warn(`Payment failed for transaction: ${eventData.id}`, {
+        customerId: eventData.customer_id,
+        amount: eventData.total,
+        currency: eventData.currency,
+      });
+
+      await transactions.notifyAdminOfTransactionError(
+        new Error(`Payment failed for transaction ${eventData.id}`),
+        eventData,
+      );
+    } catch (error) {
+      logger.error("Failed transaction processing error", {
+        errorMessage: error.message,
+        transactionId: eventData?.id,
+        stack: error.stack,
+      });
+    }
+  },
+
+  handleCompletedTransaction: async (eventData, tenant) => {
     try {
       // Log the incoming event data for debugging
       logObject("Completed Transaction Event", eventData);
@@ -521,9 +608,8 @@ const transactions = {
       }
 
       // Attempt to identify or create user associated with the transaction
-      const userIdentification = await transactions.identifyUserFromTransaction(
-        eventData
-      );
+      const userIdentification =
+        await transactions.identifyUserFromTransaction(eventData, tenant);
 
       // Prepare detailed transaction metadata
       const transactionMetadata = {
@@ -548,7 +634,7 @@ const transactions = {
 
       // Optional: Send notification or trigger follow-up actions
       await transactions.sendTransactionCompletionNotification(
-        transactionMetadata
+        transactionMetadata,
       );
     } catch (error) {
       // Comprehensive error handling
@@ -560,6 +646,55 @@ const transactions = {
 
       // You might want to implement retry logic or send an alert
       await transactions.notifyAdminOfTransactionError(error, eventData);
+    }
+  },
+
+  handleSubscriptionUpdated: async (subscriptionData, tenant) => {
+    const resolvedTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    try {
+      const customerId = subscriptionData.customerId || subscriptionData.customer_id;
+      if (!customerId || subscriptionData.status !== "active") return;
+
+      const user = await UserModel(resolvedTenant)
+        .findOne({ paddle_customer_id: customerId })
+        .select("_id subscriptionTier")
+        .lean();
+      if (!user) return;
+
+      const newPriceId = subscriptionData.items?.[0]?.price?.id;
+      if (!newPriceId) return;
+
+      // Reverse map: price ID → tier
+      const PRICE_TIER_MAP = {
+        [constants.PADDLE_STANDARD_PRICE_ID]: "Standard",
+        [constants.PADDLE_PREMIUM_PRICE_ID]: "Premium",
+      };
+      const newTier = PRICE_TIER_MAP[newPriceId];
+      if (!newTier || newTier === user.subscriptionTier) return;
+
+      const rateLimits = TIER_RATE_LIMITS[newTier] || TIER_RATE_LIMITS.Free;
+      const grantedScopes = TIER_SCOPE_MAP[newTier] || TIER_SCOPE_MAP.Free;
+
+      await UserModel(resolvedTenant).findByIdAndUpdate(user._id, {
+        $set: { subscriptionTier: newTier, apiRateLimits: rateLimits },
+      });
+
+      const userClients = await ClientModel(resolvedTenant)
+        .find({ user_id: user._id }, { _id: 1 })
+        .lean();
+      if (userClients.length > 0) {
+        const clientIds = userClients.map((c) => c._id);
+        await AccessTokenModel(resolvedTenant).updateMany(
+          { client_id: { $in: clientIds } },
+          { $set: { tier: newTier, scopes: grantedScopes } },
+        );
+      }
+
+      logger.info(
+        `Subscription tier reconciled for user ${user._id}: ${user.subscriptionTier} → ${newTier}`,
+      );
+    } catch (error) {
+      logger.error(`handleSubscriptionUpdated error --- ${stringify(error)}`);
     }
   },
 
@@ -575,37 +710,72 @@ const transactions = {
       const signature = request.headers["paddle-signature"];
       const { body, query } = request;
       const { tenant } = query;
+      const bodyString = Buffer.isBuffer(body) ? body.toString("utf8") : body;
 
-      // Verify webhook authenticity
-      const event = paddleClient.webhooks.unmarshal(
-        body,
+      // Verify webhook authenticity — SDK signature: unmarshal(body, secretKey, signature)
+      const event = await paddleClient.webhooks.unmarshal(
+        bodyString,
+        constants.PADDLE_WEBHOOK_SECRET,
         signature,
-        constants.PADDLE_WEBHOOK_SECRET
       );
 
-      switch (event.type) {
+      // Normalise SDK camelCase fields to snake_case once so all downstream
+      // callers (handlers, identifyUserFromTransaction, create) use consistent
+      // field names without each needing its own camelCase fallback.
+      // SDK exposes eventType (camelCase), not type.
+      const normalizedTransaction = {
+        ...event.data,
+        type: event.eventType,
+        customer_id: event.data.customerId || event.data.customer_id,
+        currency: (
+          event.data.currencyCode ||
+          event.data.currency ||
+          "USD"
+        ).toUpperCase(),
+        // Divide by 100: payment provider returns amounts in the smallest
+        // currency unit (cents for USD). Store and return in major units ($).
+        total: parseFloat(
+          event.data.details?.totals?.total || event.data.total,
+        ) / 100,
+      };
+
+      // Non-transaction events are acknowledged and returned early so
+      // transactions.create is never reached for them.
+      switch (event.eventType) {
         case "transaction.completed":
-          await transactions.handleCompletedTransaction(event.data);
+          await transactions.handleCompletedTransaction(
+            normalizedTransaction,
+            tenant,
+          );
           break;
         case "transaction.payment_failed":
-          await handleFailedTransaction(event.data);
+          await transactions.handleFailedTransaction(normalizedTransaction);
           break;
-        // Add more event handlers
+        case "subscription.updated":
+          await transactions.handleSubscriptionUpdated(event.data, tenant);
+          return { success: true, message: "Event received", status: httpStatus.OK };
         default:
-          logger.warn(`Unhandled event type: ${event.type}`);
+          logger.info(`Paddle webhook event ${event.eventType} received but not handled`);
+          return { success: true, message: "Event received", status: httpStatus.OK };
       }
 
-      // Delegate to create method for handling
-      const result = await transactions.create(
-        {
-          body: event.data,
-          query: { tenant },
-        },
-        next
+      return await transactions.create(
+        { body: normalizedTransaction, query: { tenant } },
+        next,
       );
-
-      return result;
     } catch (error) {
+      opsLogger.warn("webhook-debug", {
+        bodyType: Buffer.isBuffer(request.body) ? "Buffer" : typeof request.body,
+        bodyLength: Buffer.isBuffer(request.body)
+          ? request.body.length
+          : String(request.body).length,
+        signaturePresent: !!request.headers["paddle-signature"],
+        signatureLength: request.headers["paddle-signature"]
+          ? request.headers["paddle-signature"].length
+          : 0,
+        secretConfigured: Boolean(constants.PADDLE_WEBHOOK_SECRET),
+        errorMessage: error.message,
+      });
       logger.error("Webhook processing failed", error);
       return {
         success: false,
@@ -619,13 +789,13 @@ const transactions = {
   /**
    * Attempt to identify user from transaction data
    * @param {Object} transactionData - Paddle transaction data
+   * @param {string} [tenant] - Tenant identifier; defaults to constants.DEFAULT_TENANT or "airqo"
    * @returns {Promise<Object>} User identification result
    */
-  identifyUserFromTransaction: async (transactionData) => {
+  identifyUserFromTransaction: async (transactionData, tenant) => {
+    const resolvedTenant = tenant || constants.DEFAULT_TENANT || "airqo";
     try {
-      // Logic to find or create user based on Paddle customer ID
-      // Try to find existing user by Paddle customer ID
-      const existingUser = await UserModel.findOne({
+      const existingUser = await UserModel(resolvedTenant).findOne({
         paddle_customer_id: transactionData.customer_id,
       });
 
@@ -636,12 +806,10 @@ const transactions = {
         };
       }
 
-      // If no existing user, create a new one
-      const newUser = await UserModel.create({
+      const newUser = await UserModel(resolvedTenant).create({
         paddle_customer_id: transactionData.customer_id,
         email: transactionData.email || null,
         name: transactionData.customer_name || null,
-        // Add any other relevant user creation fields
       });
 
       return {
@@ -675,7 +843,7 @@ const transactions = {
           customerId = customer.id;
         } catch (error) {
           logger.error(
-            `Unable to generate Paddle customer -- ${stringify(error)}`
+            `Unable to generate Paddle customer -- ${stringify(error)}`,
           );
           return {
             success: false,
@@ -695,9 +863,8 @@ const transactions = {
       };
 
       // Create transaction
-      const subscriptionTransaction = await paddleClient.transactions.create(
-        transactionData
-      );
+      const subscriptionTransaction =
+        await paddleClient.transactions.create(transactionData);
 
       // Record transaction in local database
       const transactionRecord = await TransactionModel("airqo").register({
@@ -705,7 +872,7 @@ const transactions = {
         paddle_event_type: "transaction.completed",
         user_id: user._id,
         paddle_customer_id: customerId,
-        amount: subscriptionTransaction.total,
+        amount: (parseFloat(subscriptionTransaction.details?.totals?.total) || 0) / 100,
         currency: transactionData.currency,
         status: "completed",
         payment_method: subscriptionTransaction.paymentMethod,
@@ -769,7 +936,7 @@ const transactions = {
           try {
             // Fetch subscription status from Paddle
             const subscriptionStatus = await paddleClient.subscriptions.get(
-              user.currentSubscriptionId
+              user.currentSubscriptionId,
             );
 
             // Update local user record based on Paddle subscription status
@@ -792,7 +959,7 @@ const transactions = {
             logger.error(
               `Failed to check subscription for user ${
                 user.email
-              } --- ${stringify(error)}`
+              } --- ${stringify(error)}`,
             );
           }
         }
@@ -813,17 +980,48 @@ const transactions = {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     try {
       // Cancel subscription in Paddle
-      const cancellationResult = await paddleClient.subscriptions.cancel(
-        subscriptionId
-      );
+      const cancellationResult =
+        await paddleClient.subscriptions.cancel(subscriptionId);
 
-      // Update local user record
-      await UserModel("airqo").findByIdAndUpdate(user._id, {
+      const defaultTenant = "airqo";
+
+      // Reset user to Free tier, wipe rate limits, and clear all subscription
+      // linkage fields so downstream checks (e.g. getSubscription, status polls)
+      // no longer treat this user as an active subscriber.
+      await UserModel(defaultTenant).findByIdAndUpdate(user._id, {
         $set: {
           subscriptionStatus: "cancelled",
           subscriptionCancelledAt: new Date(),
+          subscriptionTier: "Free",
+          apiRateLimits: TIER_RATE_LIMITS.Free,
+          currentSubscriptionId: null,
+          nextBillingDate: null,
+          automaticRenewal: false,
         },
       });
+
+      // Downgrade all of this user's active tokens to Free tier scopes
+      try {
+        const userClients = await ClientModel(defaultTenant)
+          .find({ user_id: user._id }, { _id: 1 })
+          .lean();
+        if (userClients.length > 0) {
+          const clientIds = userClients.map((c) => c._id);
+          await AccessTokenModel(defaultTenant).updateMany(
+            { client_id: { $in: clientIds } },
+            { $set: { tier: "Free", scopes: TIER_SCOPE_MAP.Free } },
+          );
+        }
+      } catch (downgradeErr) {
+        // Non-fatal — cancellation is already recorded; log and continue
+        logger.error(
+          `Non-critical: token downgrade after cancellation failed for user ${user._id}: ${downgradeErr.message}`,
+        );
+      }
+
+      logger.info(
+        `Subscription cancelled and tier reset to Free: user=${user._id}`,
+      );
 
       return {
         success: true,
@@ -864,7 +1062,7 @@ const transactions = {
 
       // Fetch current subscription details from Paddle to populate the local renewal record
       const renewalTransaction = await paddleClient.subscriptions.get(
-        user.currentSubscriptionId
+        user.currentSubscriptionId,
       );
 
       // Prefer Paddle's authoritative period end date; fall back to a
@@ -874,7 +1072,8 @@ const transactions = {
         ? new Date(paddleEndsAt)
         : (() => {
             const d = new Date();
-            const billingCycle = user.currentPlanDetails?.billingCycle || "monthly";
+            const billingCycle =
+              user.currentPlanDetails?.billingCycle || "monthly";
             d.setDate(d.getDate() + (billingCycle === "annual" ? 365 : 30));
             return d;
           })();
@@ -884,7 +1083,7 @@ const transactions = {
         paddle_event_type: "transaction.completed",
         user_id: user._id,
         paddle_customer_id: renewalTransaction.customerId || "unknown",
-        amount: renewalTransaction.items?.[0]?.price?.unitPrice?.amount || 0,
+        amount: (parseFloat(renewalTransaction.items?.[0]?.price?.unitPrice?.amount) || 0) / 100,
         currency:
           renewalTransaction.items?.[0]?.price?.unitPrice?.currencyCode ||
           "USD",
@@ -964,7 +1163,9 @@ const transactions = {
               success: false,
               message: "Invalid start_date value",
               status: httpStatus.BAD_REQUEST,
-              errors: { message: `start_date '${start_date}' is not a valid date` },
+              errors: {
+                message: `start_date '${start_date}' is not a valid date`,
+              },
             };
           }
           filter.createdAt.$gte = sd;
@@ -994,7 +1195,7 @@ const transactions = {
           limit: limit ? parseInt(limit) : 100,
           skip: skip ? parseInt(skip) : 0,
         },
-        next
+        next,
       );
 
       if (!listResponse.success) {
@@ -1009,7 +1210,7 @@ const transactions = {
           acc.transaction_count += 1;
           return acc;
         },
-        { total_amount: 0, transaction_count: 0 }
+        { total_amount: 0, transaction_count: 0 },
       );
 
       return {
@@ -1052,7 +1253,9 @@ const transactions = {
             success: false,
             message: "Invalid start_date value",
             status: httpStatus.BAD_REQUEST,
-            errors: { message: `start_date '${start_date}' is not a valid date` },
+            errors: {
+              message: `start_date '${start_date}' is not a valid date`,
+            },
           };
         }
         filter.createdAt = filter.createdAt || {};
@@ -1162,7 +1365,7 @@ const transactions = {
             },
           },
         },
-        { new: true } // Return the updated document
+        { new: true }, // Return the updated document
       );
 
       // Optional: Verify and update subscription in Paddle
@@ -1174,24 +1377,19 @@ const transactions = {
       } catch (paddleUpdateError) {
         logger.warn(
           `Could not update Paddle subscription: ${stringify(
-            paddleUpdateError
-          )}`
+            paddleUpdateError,
+          )}`,
         );
       }
 
       // Send confirmation email or notification
       try {
-        await emailService.sendAutomaticRenewalConfirmationEmail({
-          userId: user._id,
-          email: user.email,
-          nextBillingDate: calculateNextBillingDate(),
-          billingCycle: finalRenewalOptions.billingCycle,
-        });
+        // Email notification not yet implemented.
       } catch (emailError) {
         logger.error(
           `Failed to send automatic renewal confirmation email: ${stringify(
-            emailError
-          )}`
+            emailError,
+          )}`,
         );
       }
 
@@ -1223,6 +1421,176 @@ const transactions = {
    * @param {Object} request - Express request object (user populated by auth middleware)
    * @returns {Promise<Object>}
    */
+  getSubscriptionStatus: async (request) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    try {
+      const tenant =
+        (request.query && request.query.tenant) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+
+      // Re-fetch from DB: request.user is decoded from the JWT and may predate
+      // the webhook that wrote currentSubscriptionId onto the user document.
+      const freshUser = await UserModel(tenant)
+        .findById(request.user._id)
+        .select("currentSubscriptionId subscriptionStatus")
+        .lean();
+
+      if (!freshUser || !freshUser.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "User has no subscription ID" },
+        };
+      }
+
+      const subscriptionStatus = await paddleClient.subscriptions.get(
+        freshUser.currentSubscriptionId,
+      );
+
+      await UserModel(tenant).findByIdAndUpdate(request.user._id, {
+        $set: {
+          subscriptionStatus: subscriptionStatus.status,
+          lastSubscriptionCheck: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: "Subscription status retrieved successfully",
+        status: httpStatus.OK,
+        data: {
+          status: subscriptionStatus.status,
+          lastChecked: new Date(),
+          subscriptionId: freshUser.currentSubscriptionId,
+        },
+      };
+    } catch (error) {
+      logger.error(`getSubscriptionStatus error --- ${stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  changeSubscriptionTier: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    try {
+      const tenant =
+        (request.query && request.query.tenant) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+      const { tier: requestedTier } = request.body;
+
+      const TIER_PRICE_MAP = {
+        Standard: constants.PADDLE_STANDARD_PRICE_ID,
+        Premium: constants.PADDLE_PREMIUM_PRICE_ID,
+      };
+
+      const targetPriceId = TIER_PRICE_MAP[requestedTier];
+      if (!targetPriceId) {
+        return {
+          success: false,
+          message: `The ${requestedTier} plan is not available at this time`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: `Payment provider price ID for ${requestedTier} is not configured` },
+        };
+      }
+
+      const freshUser = await UserModel(tenant)
+        .findById(request.user._id)
+        .select("currentSubscriptionId subscriptionTier")
+        .lean();
+
+      if (!freshUser || !freshUser.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "You must have an active subscription to change your tier" },
+        };
+      }
+
+      if (freshUser.subscriptionTier === requestedTier) {
+        return {
+          success: false,
+          message: `You are already on the ${requestedTier} plan`,
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Requested tier matches current tier" },
+        };
+      }
+
+      const currentTierOrder = { Free: 0, Standard: 1, Premium: 2 };
+      const isUpgrade =
+        (currentTierOrder[requestedTier] || 0) >
+        (currentTierOrder[freshUser.subscriptionTier] || 0);
+
+      // Upgrades apply immediately with proration.
+      // Downgrades use "do_not_bill" so no proration charge is raised now;
+      // the new (lower) price takes effect at the next renewal. DB tier is
+      // updated by the webhook when the billing period rolls over.
+      const prorationBillingMode = isUpgrade
+        ? "prorated_immediately"
+        : "do_not_bill";
+
+      await paddleClient.subscriptions.update(freshUser.currentSubscriptionId, {
+        items: [{ priceId: targetPriceId, quantity: 1 }],
+        prorationBillingMode,
+      });
+
+      const grantedScopes = TIER_SCOPE_MAP[requestedTier] || TIER_SCOPE_MAP.Free;
+      const rateLimits = TIER_RATE_LIMITS[requestedTier] || TIER_RATE_LIMITS.Free;
+
+      // For upgrades update immediately; for downgrades the webhook will
+      // update the tier when the billing period rolls over.
+      if (isUpgrade) {
+        await UserModel(tenant).findByIdAndUpdate(request.user._id, {
+          $set: { subscriptionTier: requestedTier, apiRateLimits: rateLimits },
+        });
+
+        const userClients = await ClientModel(tenant)
+          .find({ user_id: request.user._id }, { _id: 1 })
+          .lean();
+        if (userClients.length > 0) {
+          const clientIds = userClients.map((c) => c._id);
+          await AccessTokenModel(tenant).updateMany(
+            { client_id: { $in: clientIds } },
+            { $set: { tier: requestedTier, scopes: grantedScopes } },
+          );
+        }
+      }
+
+      const tierLabels = { Standard: "Standard", Premium: "Premium" };
+      const message = isUpgrade
+        ? `Successfully upgraded to ${tierLabels[requestedTier]} plan. Your new API limits are active immediately.`
+        : `Downgrade to ${tierLabels[requestedTier]} plan scheduled. You will retain your current plan until the end of your billing period.`;
+
+      return {
+        success: true,
+        message,
+        status: httpStatus.OK,
+        data: {
+          previousTier: freshUser.subscriptionTier,
+          newTier: requestedTier,
+          effectiveFrom: isUpgrade ? "immediately" : "next_billing_period",
+          apiLimits: isUpgrade ? rateLimits : undefined,
+        },
+      };
+    } catch (error) {
+      logger.error(`changeSubscriptionTier error --- ${stringify(error)}`);
+      return {
+        success: false,
+        message: "Failed to change subscription tier",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   disableAutoRenewal: async (request) => {
     try {
       const user = request.user;
@@ -1238,7 +1606,7 @@ const transactions = {
       const updatedUser = await UserModel("airqo").findByIdAndUpdate(
         user._id,
         { $set: { automaticRenewal: false } },
-        { new: true }
+        { new: true },
       );
 
       return {

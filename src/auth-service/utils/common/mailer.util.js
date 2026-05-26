@@ -29,6 +29,20 @@ const processString = (inputString) => {
   const uppercasedString = stringWithSpaces.toUpperCase();
   return uppercasedString;
 };
+const escapeHtml = (str) =>
+  String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+const isSafeHttpsUrl = (url) => {
+  try {
+    return new URL(url).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 const projectRoot = path.join(__dirname, "..", "..");
 const imagePath = path.join(projectRoot, "config", "images");
 
@@ -1716,15 +1730,29 @@ const mailer = {
         );
       }
 
+      const safeScreenshotUrl =
+        params.screenshot_url && isSafeHttpsUrl(params.screenshot_url)
+          ? params.screenshot_url
+          : null;
+      const screenshotHtml = safeScreenshotUrl
+        ? `<p><strong>Screenshot:</strong><br/><img src="${escapeHtml(safeScreenshotUrl)}" alt="Feedback screenshot" style="max-width:100%;border:1px solid #ddd;border-radius:4px;margin-top:8px;" /></p>`
+        : "";
+      const escapedMessage = escapeHtml(params.message).replace(
+        /\n/g,
+        "<br/>",
+      );
+
       return {
         ...baseMailOptions,
-        to: constants.SUPPORT_EMAIL, // Send to support
-        cc: params.email, // Copy user on their feedback
-        subject: params.subject, // Use provided subject
-        text: params.message, // Use text instead of HTML for feedback
-        html: undefined, // Remove HTML for feedback emails
-        bcc: undefined, // No BCC for feedback
-        attachments: undefined, // No attachments for feedback
+        to: constants.SUPPORT_EMAIL,
+        cc: params.email,
+        subject: params.subject,
+        text: safeScreenshotUrl
+          ? `${params.message}\n\nScreenshot: ${safeScreenshotUrl}`
+          : params.message,
+        html: `<p>${escapedMessage}</p>${screenshotHtml}`,
+        bcc: undefined,
+        attachments: undefined,
       };
     },
   ),

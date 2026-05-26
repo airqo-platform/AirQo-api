@@ -1127,6 +1127,47 @@ function setLocalAuth(req, res, next) {
 }
 
 /**
+ * Builds the set of URL origins that are permitted as redirect_after targets.
+ * Always includes ANALYTICS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
+ * (comma-separated) can extend the list. Localhost is added in non-production.
+ */
+function resolveAllowedRedirectOrigins() {
+  const origins = new Set();
+  const candidates = [
+    constants.ANALYTICS_BASE_URL,
+    constants.VERTEX_BASE_URL,
+    constants.ALLOWED_REDIRECT_ORIGINS,
+  ];
+  for (const entry of candidates) {
+    if (!entry) continue;
+    for (const raw of entry.split(",")) {
+      try {
+        origins.add(new URL(raw.trim()).origin);
+      } catch (_) {
+        // skip malformed entries
+      }
+    }
+  }
+  if (process.env.NODE_ENV !== "production") {
+    origins.add("http://localhost:3000");
+    origins.add("http://localhost:5000");
+  }
+  return origins;
+}
+
+// Computed once at module load — inputs are fixed env vars.
+const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
+
+function isAllowedRedirect(url, allowedOrigins) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    return allowedOrigins.has(new URL(url).origin);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Backward-compatible middleware for the legacy /auth/google routes.
  * Persists tenant to session before the OAuth redirect so it can be
  * recovered in makeStrategyCallback on the callback request, where
@@ -1146,6 +1187,21 @@ function setGoogleAuth(req, res, next) {
     // round-trip. req.query.tenant is not present on the callback request.
     if (req.session) {
       req.session.oauthTenant = tenant;
+    }
+
+    // Persist redirect_after so the callback controller can route the user
+    // to the correct app (e.g. Vertex) instead of the default analytics URL.
+    // Clear any stale value from a previous attempt before writing a new one.
+    if (req.session) delete req.session.oauthRedirectAfter;
+    const redirectAfter = req.query.redirect_after;
+    if (redirectAfter && req.session) {
+      if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
+        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+      } else {
+        let rejectedOrigin;
+        try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
+        logger.warn("setGoogleAuth: ignoring redirect_after with disallowed origin", { rejectedOrigin });
+      }
     }
 
     setOAuthStrategies(tenant);
@@ -1191,6 +1247,21 @@ function setOAuthProvider(req, res, next) {
     // because the provider only appends code and state to the redirect URL.
     if (req.session) {
       req.session.oauthTenant = tenant;
+    }
+
+    // Persist redirect_after so the callback controller can route the user
+    // to the correct app (e.g. Vertex) instead of the default analytics URL.
+    // Clear any stale value from a previous attempt before writing a new one.
+    if (req.session) delete req.session.oauthRedirectAfter;
+    const redirectAfter = req.query.redirect_after;
+    if (redirectAfter && req.session) {
+      if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
+        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+      } else {
+        let rejectedOrigin;
+        try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
+        logger.warn("setOAuthProvider: ignoring redirect_after with disallowed origin", { rejectedOrigin });
+      }
     }
 
     req.oauthProvider = provider;
@@ -1346,7 +1417,7 @@ const authOAuth = (req, res, next) => {
   const providerScopes = {
     google: ["profile", "email"],
     github: ["user:email"],
-    linkedin: ["r_emailaddress", "r_liteprofile"],
+    linkedin: ["openid", "profile", "email"],
     microsoft: ["user.read"],
   };
 
@@ -1364,17 +1435,70 @@ const authOAuth = (req, res, next) => {
 /**
  * Dynamically handles the OAuth callback for any supported provider.
  * Used by the generic GET /auth/callback/:provider route.
- * Catches InternalOAuthError (e.g. ECONNRESET during token exchange) and
- * redirects to the failure URL rather than propagating a 500.
+ *
+ * All errors — InternalOAuthError (token exchange failures), application-level
+ * errors (e.g. email not returned by provider), and session errors (e.g.
+ * "Failed to find request token in session" in OAuth 1.0a) — redirect to the
+ * failure URL instead of propagating a 500.
+ *
+ * Returning a 500 here was causing a double-request bug in the Twitter OAuth
+ * 1.0a flow: passport-oauth1 destroys the request token from the session
+ * before invoking the verify callback, so any 500 that triggers a load-balancer
+ * or browser retry hits the callback a second time with no session token and
+ * logs a spurious "Failed to find request token in session" error.
+ *
+ * Note: this is NOT passport's custom-callback form
+ * (passport.authenticate(strategy, callbackFn)). It calls the middleware
+ * returned by passport.authenticate(provider, options) with an overridden
+ * next function. In this form, failureRedirect in options still applies to
+ * authentication failures (cb(null,false) paths such as state mismatch or
+ * user-denied consent) and redirects before the custom next is invoked.
+ * Errors (cb(err) paths) bypass failureRedirect and go through the custom
+ * next, where we redirect them explicitly below.
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
+  const failureRedirectUrl = buildOAuthFailureRedirect(
+    constants.GMAIL_VERIFICATION_FAILURE_REDIRECT,
+  );
   passport.authenticate(provider, {
-    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
     session: false,
+    failureRedirect: failureRedirectUrl,
   })(req, res, (err) => {
-    if (err) return handleOAuthCallbackError(err, provider, res, next);
-    next();
+    if (!err) return next();
+    const safeProvider = SUPPORTED_OAUTH_PROVIDERS.has(provider)
+      ? provider
+      : "unknown";
+    if (err.name === "InternalOAuthError" || err.oauthError) {
+      // Log the underlying provider error body (statusCode + data) to diagnose
+      // OAuth rejections. Avoid logging err.message which may contain tokens.
+      const oauthErr = err.oauthError || {};
+      logger.error("OAuth token exchange failed", {
+        provider: safeProvider,
+        errorType: err.name || "OAuthError",
+        oauthStatusCode: oauthErr.statusCode,
+        oauthData: String(
+          Buffer.isBuffer(oauthErr.data)
+            ? oauthErr.data.toString()
+            : typeof oauthErr.data === "object" && oauthErr.data !== null
+              ? JSON.stringify(oauthErr.data)
+              : oauthErr.data ?? "",
+        ).slice(0, 500),
+      });
+    } else if (err.name === "AuthorizationError") {
+      logger.warn(`[passport] OAuth authorization declined for ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name,
+        message: err.message,
+      });
+    } else {
+      logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name || "Error",
+        message: err.message,
+      });
+    }
+    return res.redirect(failureRedirectUrl);
   });
 };
 

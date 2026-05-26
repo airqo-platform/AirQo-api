@@ -1396,7 +1396,7 @@ class BigQueryApi:
             sites_table=f"`{self.sites_table}`",
             start_date=str(start_date),
             end_date=str(end_date),
-            min_hours=2,
+            min_hours=min_hours,
         )
 
         try:
