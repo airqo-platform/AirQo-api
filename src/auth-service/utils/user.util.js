@@ -596,31 +596,9 @@ const createUserModule = {
         }
       }
 
-      // Manually populate network_roles.network if they exist
-      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
-        try {
-          const NetworkModel = require("@models/Network");
-          const networkIds = basicUser.network_roles.map((nr) => nr.network);
-
-          const networks = await NetworkModel(tenant)
-            .find({ _id: { $in: networkIds } })
-            .select("net_name net_status net_acronym")
-            .lean();
-
-          populatedUser.network_roles = basicUser.network_roles.map(
-            (networkRole) => ({
-              ...networkRole,
-              network:
-                networks.find(
-                  (n) => n._id.toString() === networkRole.network.toString(),
-                ) || networkRole.network,
-            }),
-          );
-        } catch (error) {
-          logger.warn(`Could not populate network roles: ${error.message}`);
-          populatedUser.network_roles = basicUser.network_roles;
-        }
-      }
+      populatedUser.network_roles = [];
+      delete populatedUser.networks;
+      delete populatedUser.my_networks;
 
       // Compute authMethods while password hash is still present, then
       // destructure it out so it is never included in the API response.
@@ -6032,80 +6010,6 @@ const createUserModule = {
       }
       let finalGroupRoles = consolidatedGroupRoles;
 
-      // --- 2. Consolidate duplicate roles for NETWORKS ---
-      const networkRoleMap = new Map();
-      (user.network_roles || []).forEach((assignment) => {
-        if (assignment && assignment.network) {
-          const networkId = assignment.network.toString();
-          if (!networkRoleMap.has(networkId)) networkRoleMap.set(networkId, []);
-          networkRoleMap.get(networkId).push(assignment);
-        }
-      });
-
-      const consolidatedNetworkRoles = [];
-      for (const [networkId, assignments] of networkRoleMap.entries()) {
-        if (assignments.length > 1) {
-          logger.info(
-            `[Role Consolidation] User ${user.email} has ${assignments.length} roles for network ${networkId}. Consolidating.`,
-          );
-          const network = await NetworkModel(tenant).findById(networkId).lean();
-          if (!network) {
-            consolidatedNetworkRoles.push(...assignments);
-            continue;
-          }
-
-          const possibleRoles = await RoleModel(tenant)
-            .find({ network_id: mongoose.Types.ObjectId(networkId) })
-            .lean();
-          const present = new Set(
-            assignments.map((a) => a.role && a.role.toString()),
-          );
-          const prefer = (suffix) =>
-            possibleRoles.find(
-              (r) =>
-                r.role_code &&
-                r.role_code.endsWith(suffix) &&
-                present.has(r._id.toString()),
-            );
-          let desiredRole =
-            prefer("_SUPER_ADMIN") ||
-            prefer("_ADMIN") ||
-            prefer("_MANAGER") ||
-            prefer("_DEFAULT_MEMBER");
-
-          if (!desiredRole) {
-            const orgName = normalizeName(network.net_name);
-            const defaultMember = possibleRoles.find(
-              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`,
-            );
-            desiredRole =
-              defaultMember ||
-              possibleRoles.find((r) => present.has(r._id.toString()));
-          }
-
-          if (desiredRole) {
-            const earliestCreatedAtNet = new Date(
-              Math.min(
-                ...assignments.map((a) =>
-                  new Date(a.createdAt || Date.now()).getTime(),
-                ),
-              ),
-            );
-            consolidatedNetworkRoles.push({
-              network: mongoose.Types.ObjectId(networkId),
-              role: desiredRole._id,
-              userType: "user",
-              createdAt: earliestCreatedAtNet,
-            });
-          } else {
-            consolidatedNetworkRoles.push(assignments[0]);
-          }
-        } else {
-          consolidatedNetworkRoles.push(assignments[0]);
-        }
-      }
-      let finalNetworkRoles = consolidatedNetworkRoles;
-
       // --- 3. Remove Deprecated Roles ---
       const deprecatedRoleNames = constants.DEPRECATED_ROLE_NAMES;
       const deprecatedRoles = await RoleModel(tenant)
@@ -6118,9 +6022,6 @@ const createUserModule = {
 
       if (deprecatedRoleIds.size > 0) {
         finalGroupRoles = finalGroupRoles.filter(
-          (a) => a.role && !deprecatedRoleIds.has(a.role.toString()),
-        );
-        finalNetworkRoles = finalNetworkRoles.filter(
           (a) => a.role && !deprecatedRoleIds.has(a.role.toString()),
         );
       }
@@ -6178,15 +6079,10 @@ const createUserModule = {
 
       const originalGroupCanon = canonicalize(user.group_roles, "group");
       const finalGroupCanon = canonicalize(finalGroupRoles, "group");
-      const originalNetCanon = canonicalize(user.network_roles, "network");
-      const finalNetCanon = canonicalize(finalNetworkRoles, "network");
 
       if (
-        JSON.stringify(originalGroupCanon) !==
-          JSON.stringify(finalGroupCanon) ||
-        JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
+        JSON.stringify(originalGroupCanon) !== JSON.stringify(finalGroupCanon)
       ) {
-        // keep DB arrays deterministically ordered as well
         finalGroupRoles = finalGroupRoles
           .filter((r) => r && r.group && r.role)
           .sort(
@@ -6194,16 +6090,8 @@ const createUserModule = {
               a.group.toString().localeCompare(b.group.toString()) ||
               a.role.toString().localeCompare(b.role.toString()),
           );
-        finalNetworkRoles = finalNetworkRoles
-          .filter((r) => r && r.network && r.role)
-          .sort(
-            (a, b) =>
-              a.network.toString().localeCompare(b.network.toString()) ||
-              a.role.toString().localeCompare(b.role.toString()),
-          );
         updateQuery.$set = {
           group_roles: finalGroupRoles,
-          network_roles: finalNetworkRoles,
         };
         needsUpdate = true;
       }
@@ -6797,7 +6685,6 @@ const createUserModule = {
       // Initialize models
       const PermissionModel = require("@models/Permission");
       const GroupModel = require("@models/Group");
-      const NetworkModel = require("@models/Network");
 
       // Try to get Role model, fallback if not available
       let RoleModel = null;
@@ -6811,15 +6698,9 @@ const createUserModule = {
       const permissionIds = (userObj.permissions || []).filter(Boolean);
       const groupIds =
         (userObj.group_roles || []).map((gr) => gr.group).filter(Boolean) || [];
-      const networkIds =
-        (userObj.network_roles || []).map((nr) => nr.network).filter(Boolean) ||
-        [];
       const groupRoleIds =
         (userObj.group_roles || []).map((gr) => gr.role).filter(Boolean) || [];
-      const networkRoleIds =
-        (userObj.network_roles || []).map((nr) => nr.role).filter(Boolean) ||
-        [];
-      const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])]; // Remove duplicates
+      const allRoleIds = [...new Set([...groupRoleIds])];
 
       // ✅ OPTIMIZATION 2: Prepare all queries for parallel execution
       const queryPromises = [];
@@ -6855,22 +6736,7 @@ const createUserModule = {
         queryMap.groups = queryPromises.length - 1;
       }
 
-      // 3. Networks query
-      if (networkIds.length > 0) {
-        queryPromises.push(
-          NetworkModel(tenant)
-            .find({ _id: { $in: networkIds } })
-            .select("net_name net_status net_acronym")
-            .lean()
-            .catch((error) => {
-              console.warn("⚠️ Failed to populate networks:", error.message);
-              return [];
-            }),
-        );
-        queryMap.networks = queryPromises.length - 1;
-      }
-
-      // 4. Roles query
+      // 3. Roles query
       if (RoleModel && allRoleIds.length > 0) {
         queryPromises.push(
           RoleModel(tenant)
@@ -6893,8 +6759,6 @@ const createUserModule = {
         queryMap.permissions !== undefined ? results[queryMap.permissions] : [];
       const groups =
         queryMap.groups !== undefined ? results[queryMap.groups] : [];
-      const networks =
-        queryMap.networks !== undefined ? results[queryMap.networks] : [];
       const roles = queryMap.roles !== undefined ? results[queryMap.roles] : [];
 
       // ✅ OPTIMIZATION 4: Batch role permissions query
@@ -6925,7 +6789,6 @@ const createUserModule = {
 
       // ✅ OPTIMIZATION 5: Create lookup maps for O(1) access
       const groupsMap = new Map(groups.map((g) => [g._id.toString(), g]));
-      const networksMap = new Map(networks.map((n) => [n._id.toString(), n]));
       const rolesMap = new Map(roles.map((r) => [r._id.toString(), r]));
       const rolePermissionsMap = new Map(
         rolePermissions.map((rp) => [rp._id.toString(), rp]),
@@ -6964,45 +6827,16 @@ const createUserModule = {
         }));
       }
 
-      if (userObj.network_roles && userObj.network_roles.length > 0) {
-        userObj.network_roles = userObj.network_roles.map((networkRole) => ({
-          ...networkRole,
-          network: networkRole.network
-            ? networksMap.get(networkRole.network.toString()) ||
-              networkRole.network
-            : null,
-          role:
-            RoleModel && networkRole.role
-              ? (() => {
-                  const role = rolesMap.get(networkRole.role.toString());
-                  if (role) {
-                    return {
-                      ...role,
-                      role_permissions: role.role_permissions
-                        ? rolePermissions.filter((rp) =>
-                            role.role_permissions.some(
-                              (rpId) =>
-                                rpId && rpId.toString() === rp._id.toString(),
-                            ),
-                          )
-                        : [],
-                    };
-                  }
-                  return networkRole.role;
-                })()
-              : networkRole.role,
-        }));
-      }
+      userObj.network_roles = [];
 
       return userObj;
     } catch (error) {
       console.error("❌ Error in manual population:", error);
-      // Return user with basic structure if population fails
       return {
         ...(user.toObject ? user.toObject() : user),
         permissions: user.permissions || [],
         group_roles: user.group_roles || [],
-        network_roles: user.network_roles || [],
+        network_roles: [],
       };
     }
   },
