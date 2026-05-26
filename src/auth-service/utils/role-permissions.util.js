@@ -4760,20 +4760,11 @@ const rolePermissionUtil = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      logObject(
-        "🔍 [DEBUG] Getting network roles for user:",
-        user_id,
-        "in tenant:",
-        actualTenant,
-      );
+      const userExists = await UserModel(actualTenant)
+        .exists({ _id: user_id })
+        .lean();
 
-      // Use the getUserRoleSummary method that already works
-      const roleSummary = await rolePermissionUtil.getUserRoleSummary(
-        user_id,
-        actualTenant,
-      );
-
-      if (!roleSummary) {
+      if (!userExists) {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
@@ -4781,22 +4772,22 @@ const rolePermissionUtil = {
         );
       }
 
-      const emptyNetworkRoles = {
-        count: 0,
-        limit: roleSummary.network_roles.limit,
-        remaining: roleSummary.network_roles.limit,
-        roles: [],
-      };
+      const limit = ORGANISATIONS_LIMIT;
       const response = {
         success: true,
         message: "Network roles retrieved successfully",
         data: {
           user_id: user_id,
-          network_roles: emptyNetworkRoles,
+          network_roles: {
+            count: 0,
+            limit,
+            remaining: limit,
+            roles: [],
+          },
           summary: {
             total_network_roles: 0,
-            limit: emptyNetworkRoles.limit,
-            remaining: emptyNetworkRoles.limit,
+            limit,
+            remaining: limit,
           },
         },
         status: httpStatus.OK,

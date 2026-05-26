@@ -151,7 +151,12 @@ class RBACService {
       return populatedUser;
     } catch (error) {
       console.error("Error in optimized manual population:", error);
-      return user;
+      return {
+        ...user,
+        permissions: [],
+        group_roles: [],
+        network_roles: [],
+      };
     }
   }
 

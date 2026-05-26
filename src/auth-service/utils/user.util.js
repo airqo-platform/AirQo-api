@@ -597,6 +597,8 @@ const createUserModule = {
       }
 
       populatedUser.network_roles = [];
+      delete populatedUser.networks;
+      delete populatedUser.my_networks;
 
       // Compute authMethods while password hash is still present, then
       // destructure it out so it is never included in the API response.
