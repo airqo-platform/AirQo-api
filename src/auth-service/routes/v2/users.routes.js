@@ -678,27 +678,6 @@ router.use("*", (req, res) => {
   res.status(404).json({
     success: false,
     message: "user route endpoint not found",
-    availableEndpoints: [
-      "POST /login-enhanced",
-      "POST /generate-token",
-      "POST /token/refresh",
-      "POST /refresh-permissions",
-      "GET /analyze-tokens/:userId",
-      "PUT /token-strategy",
-      "GET /context-permissions",
-      "GET /profile/enhanced",
-      "GET /groups/:grp_id/permissions",
-      "GET /networks/:network_id/permissions",
-      "GET /auth/google",
-      "GET /auth/google/callback",
-      "GET /auth/:provider",
-      "GET /auth/callback/:provider",
-      "GET /feedback/upload-url",
-      "POST /feedback/submit",
-      "GET /feedback/submissions",
-      "GET /feedback/submissions/:feedback_id",
-      "PATCH /feedback/submissions/:feedback_id/status",
-    ],
   });
 });
 

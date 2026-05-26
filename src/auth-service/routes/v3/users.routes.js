@@ -592,17 +592,6 @@ router.use("*", (req, res) => {
   res.status(404).json({
     success: false,
     message: "user route endpoint not found",
-    availableEndpoints: [
-      "POST /login-enhanced",
-      "POST /generate-token",
-      "POST /refresh-permissions",
-      "GET /analyze-tokens/:userId",
-      "PUT /token-strategy",
-      "GET /context-permissions",
-      "GET /profile/enhanced",
-      "GET /groups/:grp_id/permissions",
-      "GET /networks/:network_id/permissions",
-    ],
   });
 });
 
