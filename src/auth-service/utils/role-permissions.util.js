@@ -4781,17 +4781,22 @@ const rolePermissionUtil = {
         );
       }
 
-      // Return the network roles from the summary
+      const emptyNetworkRoles = {
+        count: 0,
+        limit: roleSummary.network_roles.limit,
+        remaining: roleSummary.network_roles.limit,
+        roles: [],
+      };
       const response = {
         success: true,
         message: "Network roles retrieved successfully",
         data: {
           user_id: user_id,
-          network_roles: roleSummary.network_roles,
+          network_roles: emptyNetworkRoles,
           summary: {
-            total_network_roles: roleSummary.network_roles.count,
-            limit: roleSummary.network_roles.limit,
-            remaining: roleSummary.network_roles.remaining,
+            total_network_roles: 0,
+            limit: emptyNetworkRoles.limit,
+            remaining: emptyNetworkRoles.limit,
           },
         },
         status: httpStatus.OK,

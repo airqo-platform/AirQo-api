@@ -139,23 +139,19 @@ class RBACService {
     try {
       const populatedUser = { ...user };
 
-      // All population operations can run in parallel since they're independent
-      const [directPermissions, populatedGroupRoles, populatedNetworkRoles] =
-        await Promise.all([
-          this._populateDirectPermissions(user),
-          this._populateGroupRoles(user.group_roles),
-          this._populateNetworkRoles(user.network_roles),
-        ]);
+      const [directPermissions, populatedGroupRoles] = await Promise.all([
+        this._populateDirectPermissions(user),
+        this._populateGroupRoles(user.group_roles),
+      ]);
 
-      // Assign populated data
       populatedUser.permissions = directPermissions;
       populatedUser.group_roles = populatedGroupRoles;
-      populatedUser.network_roles = populatedNetworkRoles;
+      populatedUser.network_roles = [];
 
       return populatedUser;
     } catch (error) {
       console.error("Error in optimized manual population:", error);
-      return user; // Return original user if population fails
+      return user;
     }
   }
 
@@ -219,22 +215,6 @@ class RBACService {
           populatedUser.group_roles
         );
         groupPermissions.forEach((permission) =>
-          allPermissions.add(permission)
-        );
-      }
-
-      // Add network-based permissions
-      if (
-        populatedUser.network_roles &&
-        populatedUser.network_roles.length > 0
-      ) {
-        console.log(
-          `🌐 Enhanced RBAC: Processing ${populatedUser.network_roles.length} network roles`
-        );
-        const networkPermissions = await this.getNetworkPermissions(
-          populatedUser.network_roles
-        );
-        networkPermissions.forEach((permission) =>
           allPermissions.add(permission)
         );
       }
@@ -415,69 +395,8 @@ class RBACService {
         }
       }
 
-      // Network-specific permissions
       const networkPermissions = {};
       const networkMemberships = [];
-      if (
-        populatedUser.network_roles &&
-        populatedUser.network_roles.length > 0
-      ) {
-        for (const networkRole of populatedUser.network_roles) {
-          const networkId = networkRole.network?._id || networkRole.network;
-          const networkData = networkRole.network?._id
-            ? networkRole.network
-            : null;
-
-          // Skip if networkId is null or undefined
-          if (!networkId) {
-            console.warn(
-              "Skipping network role with null/undefined networkId:",
-              networkRole
-            );
-            continue;
-          }
-
-          const networkIdStr = networkId.toString();
-
-          if (!networkPermissions[networkIdStr]) {
-            networkPermissions[networkIdStr] = [];
-          }
-
-          // Add role-based permissions for this network
-          if (networkRole.role && networkRole.role.role_permissions) {
-            networkRole.role.role_permissions.forEach((permObj) => {
-              if (permObj && permObj.permission) {
-                networkPermissions[networkIdStr].push(permObj.permission);
-              }
-            });
-          }
-
-          // Add network membership info
-          networkMemberships.push({
-            network: {
-              id: networkIdStr,
-              name: networkData?.net_name || "Unknown Network",
-              status: networkData?.net_status || "unknown",
-              acronym: networkData?.net_acronym || null,
-            },
-            role: networkRole.role
-              ? {
-                  id: networkRole.role._id
-                    ? networkRole.role._id.toString()
-                    : null,
-                  name: networkRole.role.role_name || "Unknown Role",
-                  permissions:
-                    networkRole.role.role_permissions?.map(
-                      (p) => p.permission
-                    ) || [],
-                }
-              : null,
-            userType: networkRole.userType || "guest",
-            joinedAt: networkRole.createdAt,
-            permissions: networkPermissions[networkIdStr],
-          });
-        }
-      }
 
       const result = {
         systemPermissions: Array.from(systemPermissions),
@@ -597,29 +516,6 @@ class RBACService {
     }
   }
 
-  async getNetworkPermissions(networkRoles) {
-    try {
-      if (!networkRoles || networkRoles.length === 0) return [];
-
-      const permissions = [];
-
-      for (const networkRole of networkRoles) {
-        if (networkRole.role && networkRole.role.role_permissions) {
-          networkRole.role.role_permissions.forEach((permObj) => {
-            if (permObj && permObj.permission) {
-              permissions.push(permObj.permission);
-            }
-          });
-        }
-      }
-
-      return [...new Set(permissions)];
-    } catch (error) {
-      console.error("Error getting network permissions:", error);
-      return [];
-    }
-  }
-
   isSuperAdmin(user) {
     if (!user) return false;
 
@@ -649,22 +545,6 @@ class RBACService {
         return false;
       });
       if (hasSuperAdminGroupRole) {
-        return true;
-      }
-    }
-
-    // Check network roles for names like 'NETWORK_SUPER_ADMIN'
-    if (user.network_roles && user.network_roles.length > 0) {
-      const hasSuperAdminNetworkRole = user.network_roles.some((nr) => {
-        if (nr && nr.role && typeof nr.role.role_name === "string") {
-          const rn = nr.role.role_name.trim().toUpperCase();
-          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
-            return true;
-          }
-        }
-        return false;
-      });
-      if (hasSuperAdminNetworkRole) {
         return true;
       }
     }
@@ -941,46 +821,6 @@ class RBACService {
   /**
    * Populate network roles with optimized batch fetching
    */
-  async _populateNetworkRoles(networkRoles) {
-    if (!networkRoles || networkRoles.length === 0) return [];
-
-    try {
-      // Extract all role and network IDs
-      const roleIds = networkRoles.map((nr) => nr.role).filter(Boolean);
-      const networkIds = networkRoles.map((nr) => nr.network).filter(Boolean);
-
-      // Batch fetch all required data in parallel
-      const [rolesMap, networksMap] = await Promise.all([
-        this._batchPopulateRolePermissions(roleIds),
-        this._batchPopulateNetworks(networkIds),
-      ]);
-
-      // Map the data back to network roles
-      return networkRoles.map((networkRole) => {
-        const populatedNetworkRole = { ...networkRole };
-
-        // Populate role data
-        if (networkRole.role) {
-          const roleId = networkRole.role.toString();
-          populatedNetworkRole.role = rolesMap.get(roleId) || null;
-        }
-
-        // Populate network data
-        if (networkRole.network) {
-          const networkId = networkRole.network.toString();
-          populatedNetworkRole.network = networksMap.get(networkId) || {
-            _id: networkRole.network,
-          };
-        }
-
-        return populatedNetworkRole;
-      });
-    } catch (error) {
-      console.warn("Could not populate network roles:", error.message);
-      return networkRoles;
-    }
-  }
-
   async hasRole(userId, requiredRoles, contextId = null, contextType = null) {
     try {
       const user = await this.getUserModel().findById(userId).lean();
