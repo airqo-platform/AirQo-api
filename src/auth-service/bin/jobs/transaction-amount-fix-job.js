@@ -69,7 +69,7 @@ const fixTransactionAmounts = async () => {
       const ids = batch.map((doc) => doc._id);
 
       const result = await TransactionModel(TENANT).updateMany(
-        { _id: { $in: ids } },
+        { _id: { $in: ids }, amount: { $gte: 1000 } },
         [{ $set: { amount: { $divide: ["$amount", 100] } } }]
       );
 
