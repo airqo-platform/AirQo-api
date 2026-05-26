@@ -501,7 +501,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
@@ -524,7 +524,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
@@ -543,7 +543,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
@@ -562,7 +562,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         invalid_device = {
             "api_code": "",
