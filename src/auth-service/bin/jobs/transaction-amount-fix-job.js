@@ -11,10 +11,15 @@ const logger = log4js.getLogger(
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const BATCH_SIZE = 500;
 
-// Records stored in smallest currency unit (cents) before the /100 fix was
-// deployed. Legitimate major-unit amounts for Standard ($50) and Premium ($150)
-// will never reach 1000, making this a safe discriminator.
-const DIRTY_FILTER = { amount: { $gte: 1000 } };
+// Date the webhook /100 normalization fix was deployed. Only records created
+// before this boundary can be dirty; records on or after are always correct.
+// Keeping amount >= 1000 as a secondary guard makes each batch idempotent —
+// already-corrected records (e.g. amount: 50) are never re-touched.
+const CUTOFF_DATE = new Date("2026-05-25T00:00:00.000Z");
+const DIRTY_FILTER = {
+  createdAt: { $lt: CUTOFF_DATE },
+  amount: { $gte: 1000 },
+};
 
 let isJobRunning = false;
 
@@ -46,6 +51,13 @@ const fixTransactionAmounts = async () => {
 
     // Process in batches to avoid locking large portions of the collection.
     while (true) {
+      if (global.isShuttingDown) {
+        logger.info(
+          `transaction-amount-fix-job: shutdown signal received — stopping after ${totalFixed} record(s) fixed`
+        );
+        break;
+      }
+
       const batch = await TransactionModel(TENANT)
         .find(DIRTY_FILTER)
         .select("_id")
