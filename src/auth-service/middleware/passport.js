@@ -1486,7 +1486,7 @@ const authOAuthCallback = (req, res, next) => {
         ).slice(0, 500),
       });
     } else if (err.name === "AuthorizationError") {
-      logger.warn(`[passport] OAuth authorisation declined for ${safeProvider}`, {
+      logger.warn(`[passport] OAuth authorization declined for ${safeProvider}`, {
         provider: safeProvider,
         errorType: err.name,
         message: err.message,
