@@ -10,7 +10,7 @@ const metadataValidations = require("@validators/metadata.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(metadataValidations.addCategoryQueryParam);
+router.use(metadataValidations.addPublicPathQueryParam);
 
 /** Nearest Locations */
 

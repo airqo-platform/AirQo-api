@@ -1168,6 +1168,85 @@ const deviceUtil = {
       const sortField = sortBy ? sortBy : "createdAt";
       const filter = generateFilter.devices(request, next);
 
+      // Public metadata path: cohort-scoped, isolated pipeline. Applied for
+      // both list and single-device lookups so /metadata/devices/:device_id
+      // cannot bypass cohort visibility by fetching a non-public device by ID.
+      if (request.query.path === "public") {
+        delete filter.visibility;
+        const allCohorts = await CohortModel(tenant)
+          .find({}, { _id: 1, visibility: 1 })
+          .lean();
+        const visibleCohortIds = allCohorts
+          .filter((c) => c.visibility === true)
+          .map((c) => c._id);
+        const privateCohortIds = allCohorts
+          .filter((c) => c.visibility !== true)
+          .map((c) => c._id);
+
+        if (visibleCohortIds.length === 0) {
+          filter._id = { $in: [] };
+        } else if (privateCohortIds.length === 0) {
+          // All cohorts are public — simple $in is sufficient
+          filter.cohorts = { $in: visibleCohortIds };
+        } else {
+          // Strict rule: device must be in ≥1 public cohort AND in no private cohort
+          filter.$and = (filter.$and || []).concat([
+            { cohorts: { $in: visibleCohortIds } },
+            { cohorts: { $nin: privateCohortIds } },
+          ]);
+        }
+
+        const publicResults = await DeviceModel(tenant)
+          .aggregate([
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      long_name: 1,
+                      network: 1,
+                      device_number: 1,
+                    },
+                  },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ])
+          .option({ maxTimeMS: 15000 });
+
+        const agg =
+          Array.isArray(publicResults) && publicResults[0]
+            ? publicResults[0]
+            : { paginatedResults: [], totalCount: [] };
+        const total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
+
+        return {
+          success: true,
+          message: "successfully retrieved the device details",
+          data: agg.paginatedResults || [],
+          status: httpStatus.OK,
+          meta: {
+            total,
+            totalResults: (agg.paginatedResults || []).length,
+            limit: _limit,
+            skip: _skip,
+            page: Math.floor(_skip / _limit) + 1,
+            totalPages: Math.ceil(total / _limit),
+            detailLevel,
+          },
+        };
+      }
+
       let pipeline = [];
 
       // Base match
@@ -1924,6 +2003,7 @@ const deviceUtil = {
           const sharedProducer = request._sharedKafkaProducer || null;
           const kafkaProducer = sharedProducer || kafka.producer({
             groupId: constants.UNIQUE_PRODUCER_GROUP,
+            retry: { retries: 1, initialRetryTime: 100 },
           });
           if (!sharedProducer) await kafkaProducer.connect();
           let deviceDataString = responseFromRegisterDevice.data
@@ -5506,17 +5586,54 @@ const deviceUtil = {
       );
     }
 
+    // Pre-flight: identify already-existing devices with one bulk query so we
+    // can (a) skip Kafka entirely when nothing will be created, and (b) return
+    // fast failures without attempting individual saves.
+    const serialNumbers = devices.map((d) => d.serial_number).filter(Boolean);
+    const sanitizedNames = devices
+      .map((d) => (d.long_name || d.name || "").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 41).trim().toLowerCase())
+      .filter(Boolean);
+
+    const existingDocs = await DeviceModel(tenant)
+      .find(
+        { $or: [{ serial_number: { $in: serialNumbers } }, { name: { $in: sanitizedNames } }] },
+        { serial_number: 1, name: 1 },
+      )
+      .lean();
+
+    const existingSerials = new Set(
+      existingDocs.map((d) => d.serial_number).filter(Boolean),
+    );
+    const existingNames = new Set(existingDocs.map((d) => d.name));
+
+    const hasNewDevices = devices.some((d) => {
+      const serial = d.serial_number;
+      const sanitized = (d.long_name || d.name || "")
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .slice(0, 41)
+        .trim()
+        .toLowerCase();
+      const isDuplicate =
+        (serial && existingSerials.has(serial)) || existingNames.has(sanitized);
+      return !isDuplicate;
+    });
+
     // One shared Kafka producer for the whole batch avoids N connect/disconnect
-    // cycles. Falls back to null so createOnPlatform manages its own lifecycle.
+    // cycles. Skip entirely when pre-flight shows no new devices to save.
     let sharedProducer = null;
-    try {
-      sharedProducer = kafka.producer({ groupId: constants.UNIQUE_PRODUCER_GROUP });
-      await sharedProducer.connect();
-    } catch (kafkaErr) {
-      logger.warn(
-        `createDevicesBatch: could not connect shared Kafka producer: ${kafkaErr.message}. Per-device fallback will be used.`,
-      );
-      sharedProducer = null;
+    if (hasNewDevices) {
+      try {
+        sharedProducer = kafka.producer({
+          groupId: constants.UNIQUE_PRODUCER_GROUP,
+          retry: { retries: 1, initialRetryTime: 100 },
+        });
+        await sharedProducer.connect();
+      } catch (kafkaErr) {
+        logger.warn(
+          `createDevicesBatch: could not connect shared Kafka producer: ${kafkaErr.message}. Per-device fallback will be used.`,
+        );
+        sharedProducer = null;
+      }
     }
 
     try {
@@ -5556,9 +5673,9 @@ const deviceUtil = {
               return {
                 success: false,
                 message: capturedError.message || "Device creation failed",
-                ...(capturedError.details &&
-                  Object.keys(capturedError.details).length > 0 && {
-                    details: capturedError.details,
+                ...(capturedError.errors &&
+                  Object.keys(capturedError.errors).length > 0 && {
+                    details: capturedError.errors,
                   }),
               };
             }
@@ -5586,6 +5703,10 @@ const deviceUtil = {
                 long_name: deviceRow.long_name,
                 success: false,
                 error: outcome?.message || "Device creation failed",
+                ...(outcome?.details &&
+                  Object.keys(outcome.details).length > 0 && {
+                    details: outcome.details,
+                  }),
               });
             }
           } else {
