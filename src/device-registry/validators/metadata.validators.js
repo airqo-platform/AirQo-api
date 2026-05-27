@@ -276,6 +276,7 @@ module.exports = {
   pagination: commonValidations.pagination,
   addCategoryQueryParam: (req, res, next) => {
     req.query.path = "public";
+    req.query.category = "public";
     next();
   },
 };

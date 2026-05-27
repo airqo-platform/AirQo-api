@@ -1809,6 +1809,10 @@ const generateFilter = {
       filter["category"] = categoryValue;
     }
 
+    if (!isEmpty(path) && path === "public" && isEmpty(device_id)) {
+      filter["visibility"] = true;
+    }
+
     if (network) {
       filter.network = handlePredefinedValueMatch(
         network,
@@ -1998,6 +2002,10 @@ const generateFilter = {
 
     if (category) {
       filter["site_category.category"] = category;
+    }
+
+    if (!isEmpty(path) && path === "public" && isEmpty(site_id)) {
+      filter["visibility"] = true;
     }
 
     if (last_active) {
