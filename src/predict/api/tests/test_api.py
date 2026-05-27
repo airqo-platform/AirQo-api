@@ -470,9 +470,34 @@ def test_site_hourly_forecasting_all_sites_groups_forecasts(
         "forecast_confidence": 82.5,
     }
     assert forecasts_by_site["site-2"]["forecasts"][0]["aqi"]["aqi_value"] == 26.7
+    assert forecasts_by_site["site-2"]["forecasts"][0]["aqi"]["label"] in {
+        "It is okay to take a walk, keep outdoor activity light, and sensitive groups should take breaks.",
+        "You can go outside, choose lighter exercise, and watch for symptoms if you are sensitive.",
+        "A short walk is fine, keep children and sensitive people from overexerting, and rest indoors when needed.",
+    }
     assert forecasts_by_site["site-2"]["forecasts"][0]["met"][
         "wind_direction_compass"
     ] == "E"
+
+
+def test_site_hourly_forecasting_varies_aqi_labels(site_hourly_forecast_client):
+    client, collection, start_timestamp = site_hourly_forecast_client
+    collection.insert_many(
+        [
+            _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
+            _hourly_forecast_doc("site-2", "Site Two", start_timestamp, 26.7),
+        ]
+    )
+
+    response = client.get("/api/v2/predict/hourly-forecasting?page=1&limit=2")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    labels = {
+        forecast["site_details"]["site_id"]: forecast["forecasts"][0]["aqi"]["label"]
+        for forecast in payload["data"]["forecasts"]
+    }
+    assert labels["site-1"] != labels["site-2"]
 
 
 def test_site_hourly_forecasting_site_id_filters_and_groups_forecasts(

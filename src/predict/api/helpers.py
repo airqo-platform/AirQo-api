@@ -356,19 +356,33 @@ def build_site_forecast_response(
             },
         }, 404
 
+    def get_aqi_category_details(pm2_5_mean, *label_seed_parts):
+        if pm2_5_mean is None:
+            return None
+
+        label_seed = ":".join(
+            str(part) for part in label_seed_parts if part is not None
+        )
+        try:
+            return aqi_category_getter(pm2_5_mean, label_seed=label_seed)
+        except TypeError:
+            return aqi_category_getter(pm2_5_mean)
+
     def format_forecast_entry(forecast_document):
         pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
         wind_direction_degrees = clean_response_value(
             forecast_document.get("wind_from_direction")
         )
-        aqi_category_details = (
-            aqi_category_getter(pm2_5_mean) if pm2_5_mean is not None else None
+        forecast_date = clean_response_value(forecast_document.get("date"))
+        forecast_site_id = clean_response_value(forecast_document.get("site_id"))
+        aqi_category_details = get_aqi_category_details(
+            pm2_5_mean, forecast_site_id, forecast_date
         )
 
         return {
-            "date": clean_response_value(forecast_document.get("date")),
+            "date": forecast_date,
             "site": {
-                "site_id": clean_response_value(forecast_document.get("site_id")),
+                "site_id": forecast_site_id,
                 "site_name": clean_response_value(forecast_document.get("site_name")),
                 "site_latitude": clean_response_value(
                     forecast_document.get("site_latitude")
@@ -396,6 +410,11 @@ def build_site_forecast_response(
                 },
                 "aqi": {
                     "aqi_value": pm2_5_mean,
+                    "label": (
+                        aqi_category_details.get("label")
+                        if aqi_category_details
+                        else None
+                    ),
                     "aqi_category": (
                         aqi_category_details.get("aqi_category")
                         if aqi_category_details
@@ -586,19 +605,33 @@ def build_site_hourly_forecast_response(
             },
         }, 404
 
+    def get_aqi_category_details(pm2_5_mean, *label_seed_parts):
+        if pm2_5_mean is None:
+            return None
+
+        label_seed = ":".join(
+            str(part) for part in label_seed_parts if part is not None
+        )
+        try:
+            return aqi_category_getter(pm2_5_mean, label_seed=label_seed)
+        except TypeError:
+            return aqi_category_getter(pm2_5_mean)
+
     def format_forecast_entry(forecast_document):
         pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
         wind_direction_degrees = clean_response_value(
             forecast_document.get("wind_from_direction")
         )
-        aqi_category_details = (
-            aqi_category_getter(pm2_5_mean) if pm2_5_mean is not None else None
+        forecast_timestamp = clean_response_value(forecast_document.get("timestamp"))
+        forecast_site_id = clean_response_value(forecast_document.get("site_id"))
+        aqi_category_details = get_aqi_category_details(
+            pm2_5_mean, forecast_site_id, forecast_timestamp
         )
 
         return {
-            "timestamp": clean_response_value(forecast_document.get("timestamp")),
+            "timestamp": forecast_timestamp,
             "site": {
-                "site_id": clean_response_value(forecast_document.get("site_id")),
+                "site_id": forecast_site_id,
                 "site_name": clean_response_value(forecast_document.get("site_name")),
                 "site_latitude": clean_response_value(
                     forecast_document.get("site_latitude")
@@ -620,6 +653,11 @@ def build_site_hourly_forecast_response(
                 },
                 "aqi": {
                     "aqi_value": pm2_5_mean,
+                    "label": (
+                        aqi_category_details.get("label")
+                        if aqi_category_details
+                        else None
+                    ),
                     "aqi_category": (
                         aqi_category_details.get("aqi_category")
                         if aqi_category_details
