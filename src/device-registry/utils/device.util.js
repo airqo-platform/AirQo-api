@@ -1910,10 +1910,10 @@ const deviceUtil = {
       );
 
       // register() calls next() and returns undefined when it encounters an
-      // error (e.g. duplicate key). Guard here so we don't throw a secondary
-      // TypeError that masks the original error passed to next().
+      // error (e.g. duplicate key). Return a structured failure so callers
+      // that read .success (e.g. the ThingSpeak flow) don't throw TypeError.
       if (!responseFromRegisterDevice) {
-        return;
+        return { success: false, message: "Device registration failed" };
       }
 
       if (responseFromRegisterDevice.success === true) {
