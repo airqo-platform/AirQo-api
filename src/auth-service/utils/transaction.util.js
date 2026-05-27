@@ -649,6 +649,55 @@ const transactions = {
     }
   },
 
+  handleSubscriptionUpdated: async (subscriptionData, tenant) => {
+    const resolvedTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    try {
+      const customerId = subscriptionData.customerId || subscriptionData.customer_id;
+      if (!customerId || subscriptionData.status !== "active") return;
+
+      const user = await UserModel(resolvedTenant)
+        .findOne({ paddle_customer_id: customerId })
+        .select("_id subscriptionTier")
+        .lean();
+      if (!user) return;
+
+      const newPriceId = subscriptionData.items?.[0]?.price?.id;
+      if (!newPriceId) return;
+
+      // Reverse map: price ID → tier
+      const PRICE_TIER_MAP = {
+        [constants.PADDLE_STANDARD_PRICE_ID]: "Standard",
+        [constants.PADDLE_PREMIUM_PRICE_ID]: "Premium",
+      };
+      const newTier = PRICE_TIER_MAP[newPriceId];
+      if (!newTier || newTier === user.subscriptionTier) return;
+
+      const rateLimits = TIER_RATE_LIMITS[newTier] || TIER_RATE_LIMITS.Free;
+      const grantedScopes = TIER_SCOPE_MAP[newTier] || TIER_SCOPE_MAP.Free;
+
+      await UserModel(resolvedTenant).findByIdAndUpdate(user._id, {
+        $set: { subscriptionTier: newTier, apiRateLimits: rateLimits },
+      });
+
+      const userClients = await ClientModel(resolvedTenant)
+        .find({ user_id: user._id }, { _id: 1 })
+        .lean();
+      if (userClients.length > 0) {
+        const clientIds = userClients.map((c) => c._id);
+        await AccessTokenModel(resolvedTenant).updateMany(
+          { client_id: { $in: clientIds } },
+          { $set: { tier: newTier, scopes: grantedScopes } },
+        );
+      }
+
+      logger.info(
+        `Subscription tier reconciled for user ${user._id}: ${user.subscriptionTier} → ${newTier}`,
+      );
+    } catch (error) {
+      logger.error(`handleSubscriptionUpdated error --- ${stringify(error)}`);
+    }
+  },
+
   /**
    * Process Paddle webhook
    * @param {Object} request - Express request object
@@ -702,6 +751,9 @@ const transactions = {
         case "transaction.payment_failed":
           await transactions.handleFailedTransaction(normalizedTransaction);
           break;
+        case "subscription.updated":
+          await transactions.handleSubscriptionUpdated(event.data, tenant);
+          return { success: true, message: "Event received", status: httpStatus.OK };
         default:
           logger.info(`Paddle webhook event ${event.eventType} received but not handled`);
           return { success: true, message: "Event received", status: httpStatus.OK };
@@ -1421,6 +1473,120 @@ const transactions = {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
+      };
+    }
+  },
+
+  changeSubscriptionTier: async (request, next) => {
+    if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    try {
+      const tenant =
+        (request.query && request.query.tenant) ||
+        constants.DEFAULT_TENANT ||
+        "airqo";
+      const { tier: requestedTier } = request.body;
+
+      const TIER_PRICE_MAP = {
+        Standard: constants.PADDLE_STANDARD_PRICE_ID,
+        Premium: constants.PADDLE_PREMIUM_PRICE_ID,
+      };
+
+      const targetPriceId = TIER_PRICE_MAP[requestedTier];
+      if (!targetPriceId) {
+        return {
+          success: false,
+          message: `The ${requestedTier} plan is not available at this time`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: `Payment provider price ID for ${requestedTier} is not configured` },
+        };
+      }
+
+      const freshUser = await UserModel(tenant)
+        .findById(request.user._id)
+        .select("currentSubscriptionId subscriptionTier")
+        .lean();
+
+      if (!freshUser || !freshUser.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "You must have an active subscription to change your tier" },
+        };
+      }
+
+      if (freshUser.subscriptionTier === requestedTier) {
+        return {
+          success: false,
+          message: `You are already on the ${requestedTier} plan`,
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Requested tier matches current tier" },
+        };
+      }
+
+      const currentTierOrder = { Free: 0, Standard: 1, Premium: 2 };
+      const isUpgrade =
+        (currentTierOrder[requestedTier] || 0) >
+        (currentTierOrder[freshUser.subscriptionTier] || 0);
+
+      // Upgrades apply immediately with proration.
+      // Downgrades use "do_not_bill" so no proration charge is raised now;
+      // the new (lower) price takes effect at the next renewal. DB tier is
+      // updated by the webhook when the billing period rolls over.
+      const prorationBillingMode = isUpgrade
+        ? "prorated_immediately"
+        : "do_not_bill";
+
+      await paddleClient.subscriptions.update(freshUser.currentSubscriptionId, {
+        items: [{ priceId: targetPriceId, quantity: 1 }],
+        prorationBillingMode,
+      });
+
+      const grantedScopes = TIER_SCOPE_MAP[requestedTier] || TIER_SCOPE_MAP.Free;
+      const rateLimits = TIER_RATE_LIMITS[requestedTier] || TIER_RATE_LIMITS.Free;
+
+      // For upgrades update immediately; for downgrades the webhook will
+      // update the tier when the billing period rolls over.
+      if (isUpgrade) {
+        await UserModel(tenant).findByIdAndUpdate(request.user._id, {
+          $set: { subscriptionTier: requestedTier, apiRateLimits: rateLimits },
+        });
+
+        const userClients = await ClientModel(tenant)
+          .find({ user_id: request.user._id }, { _id: 1 })
+          .lean();
+        if (userClients.length > 0) {
+          const clientIds = userClients.map((c) => c._id);
+          await AccessTokenModel(tenant).updateMany(
+            { client_id: { $in: clientIds } },
+            { $set: { tier: requestedTier, scopes: grantedScopes } },
+          );
+        }
+      }
+
+      const tierLabels = { Standard: "Standard", Premium: "Premium" };
+      const message = isUpgrade
+        ? `Successfully upgraded to ${tierLabels[requestedTier]} plan. Your new API limits are active immediately.`
+        : `Downgrade to ${tierLabels[requestedTier]} plan scheduled. You will retain your current plan until the end of your billing period.`;
+
+      return {
+        success: true,
+        message,
+        status: httpStatus.OK,
+        data: {
+          previousTier: freshUser.subscriptionTier,
+          newTier: requestedTier,
+          effectiveFrom: isUpgrade ? "immediately" : "next_billing_period",
+          apiLimits: isUpgrade ? rateLimits : undefined,
+        },
+      };
+    } catch (error) {
+      logger.error(`changeSubscriptionTier error --- ${stringify(error)}`);
+      return {
+        success: false,
+        message: "Failed to change subscription tier",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

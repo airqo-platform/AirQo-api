@@ -63,22 +63,20 @@ class AirGradientAdapter(DataSourceAdapter):
                         ),
                     }
                 )
-
-                base_url = integration.get("url", "").rstrip("/")
+                require_auth = device.get("authRequired", True)
                 # Use serial_number as the primary device identifier when available,
                 # fall back to device_number for legacy records.
                 device_identifier = device.get("serial_number") or device.get(
                     "device_number"
                 )
-                end_point = (
-                    integration.get("endpoints", {})
-                    .get("raw", "")
-                    .lstrip("/")
-                    .rstrip("/")
+                endpoint_key = "raw" if require_auth else "current"
+                endpoint_template = integration.get("endpoints", {}).get(
+                    endpoint_key, ""
                 )
 
-                if base_url and device_identifier and not pd.isna(base_url):
-                    url = f"{base_url}/{device_identifier}/{end_point}"
+                if device_identifier:
+                    path = endpoint_template.format(id=device_identifier)
+                    url = f"{integration.get('url', '').rstrip('/')}/{path}"
                     api_data = self.client.get_json(url, params=params)
                     if api_data is not None:
                         data.extend(api_data)

@@ -42,9 +42,55 @@ def clean_response_value(value: Any):
     return serialized
 
 
+def get_positive_int_query_arg(name: str, default: int, maximum: int | None = None):
+    try:
+        value = int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+
+    value = max(value, 1)
+    if maximum is not None:
+        value = min(value, maximum)
+    return value
+
+
+def get_pagination_params(default_limit: int = 10, max_limit: int = 100):
+    page = get_positive_int_query_arg("page", default=1)
+    limit = get_positive_int_query_arg(
+        "limit", default=default_limit, maximum=max_limit
+    )
+    return {
+        "page": page,
+        "limit": limit,
+        "offset": (page - 1) * limit,
+    }
+
+
+def build_pagination_metadata(page: int, limit: int, total: int):
+    return {
+        "page": page,
+        "limit": limit,
+        "total_pages": math.ceil(total / limit) if total else 0,
+        "total": total,
+    }
+
+
 def get_site_daily_forecast_collection_name():
     """Return the Mongo collection that stores site daily forecast documents."""
     return Config.MONGO_SITE_DAILY_FORECAST_COLLECTION
+
+
+def get_site_hourly_forecast_collection_name():
+    """Return the Mongo collection that stores site hourly forecast documents."""
+    return Config.MONGO_SITE_HOURLY_FORECAST_COLLECTION
+
+
+def get_site_hourly_forecast_horizon_hours():
+    try:
+        horizon_hours = int(Config.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+    except (TypeError, ValueError):
+        horizon_hours = 240
+    return max(horizon_hours, 1)
 
 
 def get_site_daily_forecast_cache_version(
@@ -90,6 +136,49 @@ def get_site_daily_forecast_cache_version(
     )
 
 
+def get_site_hourly_forecast_cache_version(
+    site_id: str | None, start_timestamp: datetime, hours: int | None = None
+):
+    """
+    Return a version token for site hourly forecast cache keys.
+
+    The token is derived from the latest matching document in the forecast
+    collection so cached responses are invalidated when forecast data changes.
+    If Mongo is unavailable while generating the key, return a stable fallback
+    token so cache-key generation does not raise.
+    """
+    hours = hours or get_site_hourly_forecast_horizon_hours()
+    end_timestamp = start_timestamp + timedelta(hours=hours - 1)
+    query = {
+        "timestamp": {
+            "$gte": start_timestamp,
+            "$lte": end_timestamp,
+        }
+    }
+    if site_id:
+        query["site_id"] = site_id
+
+    try:
+        latest_document = (
+            site_forecast_db[get_site_hourly_forecast_collection_name()]
+            .find(query, {"created_at": 1, "timestamp": 1, "site_id": 1})
+            .sort([("created_at", -1), ("timestamp", -1), ("site_id", -1)])
+            .limit(1)
+        )
+        latest_document = next(iter(latest_document), None)
+    except (errors.ServerSelectionTimeoutError, errors.PyMongoError):
+        return "db-unavailable"
+
+    if not latest_document:
+        return "empty"
+
+    return (
+        clean_response_value(latest_document.get("created_at"))
+        or clean_response_value(latest_document.get("timestamp"))
+        or "present"
+    )
+
+
 def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 7):
     """
     Fetch raw site daily forecast documents for the requested date window.
@@ -117,6 +206,66 @@ def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 
     return list(cursor)
 
 
+def get_site_hourly_forecasts(
+    site_id: str | None,
+    start_timestamp: datetime,
+    hours: int | None = None,
+    page: int = 1,
+    limit: int | None = None,
+    offset: int | None = None,
+):
+    """
+    Fetch raw site hourly forecast documents for the requested timestamp window.
+
+    When ``site_id`` is provided the result is limited to one site's forecast
+    horizon. Otherwise, the result contains documents for all sites in the
+    window, sorted by timestamp then site.
+    """
+    hours = hours or get_site_hourly_forecast_horizon_hours()
+    end_timestamp = start_timestamp + timedelta(hours=hours - 1)
+    query = {
+        "timestamp": {
+            "$gte": start_timestamp,
+            "$lte": end_timestamp,
+        }
+    }
+    if site_id:
+        query["site_id"] = site_id
+
+    collection = site_forecast_db[get_site_hourly_forecast_collection_name()]
+    limit = limit or hours
+    offset = offset if offset is not None else (page - 1) * limit
+    timestamp_query = query.copy()
+
+    sort_fields = [("timestamp", 1)] if site_id else [("timestamp", 1), ("site_id", 1)]
+    if site_id:
+        total = collection.count_documents(query)
+        cursor = (
+            collection.find(query, {"_id": 0})
+            .sort(sort_fields)
+            .skip(offset)
+            .limit(limit)
+        )
+    else:
+        site_ids = sorted(
+            site_id for site_id in collection.distinct("site_id", query) if site_id
+        )
+        total = len(site_ids)
+        page_site_ids = site_ids[offset : offset + limit]
+        if not page_site_ids:
+            return (
+                [],
+                total,
+                sorted(collection.distinct("timestamp", timestamp_query)),
+            )
+
+        query = {**query, "site_id": {"$in": page_site_ids}}
+        cursor = collection.find(query, {"_id": 0}).sort(sort_fields)
+
+    distinct_timestamps = sorted(collection.distinct("timestamp", timestamp_query))
+    return list(cursor), total, distinct_timestamps
+
+
 SITE_FORECAST_UNITS = {
     "pm2_5": "ug/m3",
     "air_temperature": "degC",
@@ -136,6 +285,13 @@ SITE_FORECAST_DESCRIPTIONS = {
     "pm2_5_min": "Minimum predicted PM2.5.",
     "pm2_5_max": "Maximum predicted PM2.5.",
     "forecast_confidence": "Confidence level of the forecast.",
+}
+
+SITE_HOURLY_FORECAST_DESCRIPTIONS = {
+    "pm2_5_mean": SITE_FORECAST_DESCRIPTIONS["pm2_5_mean"],
+    "pm2_5_q10": "10th percentile PM2.5 forecast estimate.",
+    "pm2_5_q90": "90th percentile PM2.5 forecast estimate.",
+    "forecast_confidence": SITE_FORECAST_DESCRIPTIONS["forecast_confidence"],
 }
 
 
@@ -355,6 +511,240 @@ def build_site_forecast_response(
     }, 200
 
 
+def build_site_hourly_forecast_response(
+    site_id: str | None, aqi_category_getter, wind_direction_formatter
+):
+    """
+    Build the API response payload for ``/api/v2/predict/hourly-forecasting``.
+
+    The response mirrors the daily site forecast endpoint while using hourly
+    forecast documents produced by ``AirQo-site-HOURLY-forecasting-job_Q``.
+    """
+    start_timestamp = pd.Timestamp.utcnow().floor("h").to_pydatetime()
+    expected_hours = get_site_hourly_forecast_horizon_hours()
+    end_timestamp = start_timestamp + timedelta(hours=expected_hours - 1)
+    pagination = get_pagination_params(default_limit=10, max_limit=100)
+    page = pagination["page"]
+    limit = pagination["limit"]
+
+    try:
+        forecast_documents = get_site_hourly_forecasts(
+            site_id=site_id,
+            start_timestamp=start_timestamp,
+            hours=expected_hours,
+            page=page,
+            limit=limit,
+            offset=pagination["offset"],
+        )
+        forecast_documents, total_items, distinct_timestamps = (
+            forecast_documents
+        )
+    except errors.ServerSelectionTimeoutError:
+        current_app.logger.error(
+            "Site hourly forecast database connection timed out", exc_info=False
+        )
+        return {
+            "success": False,
+            "message": "Site hourly forecast database is unavailable.",
+            "data": {
+                "site_details": None,
+                "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
+                "forecasts": [],
+            },
+        }, 503
+    except errors.PyMongoError as ex:
+        current_app.logger.error(
+            "Site hourly forecast database query failed: %s", ex, exc_info=False
+        )
+        return {
+            "success": False,
+            "message": "Failed to fetch site hourly forecasts.",
+            "data": {
+                "site_details": None,
+                "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
+                "forecasts": [],
+            },
+        }, 503
+
+    if not forecast_documents:
+        pagination_metadata = build_pagination_metadata(
+            page=page, limit=limit, total=total_items
+        )
+        return {
+            "success": False,
+            "data": {
+                "site_details": None,
+                "start_timestamp": start_timestamp.isoformat() if site_id else None,
+                "end_timestamp": end_timestamp.isoformat() if site_id else None,
+                "hours": expected_hours if site_id else None,
+                **pagination_metadata,
+                "units": SITE_FORECAST_UNITS,
+                "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
+                "forecasts": [],
+            },
+        }, 404
+
+    def format_forecast_entry(forecast_document):
+        pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
+        wind_direction_degrees = clean_response_value(
+            forecast_document.get("wind_from_direction")
+        )
+        aqi_category_details = (
+            aqi_category_getter(pm2_5_mean) if pm2_5_mean is not None else None
+        )
+
+        return {
+            "timestamp": clean_response_value(forecast_document.get("timestamp")),
+            "site": {
+                "site_id": clean_response_value(forecast_document.get("site_id")),
+                "site_name": clean_response_value(forecast_document.get("site_name")),
+                "site_latitude": clean_response_value(
+                    forecast_document.get("site_latitude")
+                ),
+                "site_longitude": clean_response_value(
+                    forecast_document.get("site_longitude")
+                ),
+                "forecast": {
+                    "pm2_5_mean": pm2_5_mean,
+                    "pm2_5_q10": clean_response_value(
+                        forecast_document.get("pm2_5_q10")
+                    ),
+                    "pm2_5_q90": clean_response_value(
+                        forecast_document.get("pm2_5_q90")
+                    ),
+                    "forecast_confidence": clean_response_value(
+                        forecast_document.get("forecast_confidence")
+                    ),
+                },
+                "aqi": {
+                    "aqi_value": pm2_5_mean,
+                    "aqi_category": (
+                        aqi_category_details.get("aqi_category")
+                        if aqi_category_details
+                        else None
+                    ),
+                    "aqi_color_name": (
+                        aqi_category_details.get("aqi_color_name")
+                        if aqi_category_details
+                        else None
+                    ),
+                    "aqi_color": (
+                        f"#{aqi_category_details['aqi_color'].upper()}"
+                        if aqi_category_details
+                        else None
+                    ),
+                },
+                "met": {
+                    "air_temperature": clean_response_value(
+                        forecast_document.get("air_temperature")
+                    ),
+                    "relative_humidity": clean_response_value(
+                        forecast_document.get("relative_humidity")
+                    ),
+                    "air_pressure_at_sea_level": clean_response_value(
+                        forecast_document.get("air_pressure_at_sea_level")
+                    ),
+                    "precipitation_amount": clean_response_value(
+                        forecast_document.get("precipitation_amount")
+                    ),
+                    "cloud_area_fraction": clean_response_value(
+                        forecast_document.get("cloud_area_fraction")
+                    ),
+                    "wind_speed": clean_response_value(
+                        forecast_document.get("wind_speed")
+                    ),
+                    "wind_from_direction": wind_direction_degrees,
+                    "wind_direction_compass": wind_direction_formatter(
+                        wind_direction_degrees
+                    ),
+                },
+            },
+            "created_at": clean_response_value(forecast_document.get("created_at")),
+        }
+
+    def simplify_site_forecast(forecast):
+        return {
+            "timestamp": forecast.get("timestamp"),
+            "forecast": forecast.get("site", {}).get("forecast"),
+            "aqi": forecast.get("site", {}).get("aqi"),
+            "met": forecast.get("site", {}).get("met"),
+            "created_at": forecast.get("created_at"),
+        }
+
+    forecasts = [
+        format_forecast_entry(forecast_document)
+        for forecast_document in forecast_documents
+    ]
+    grouped_forecasts = {}
+
+    for forecast in forecasts:
+        site = forecast.get("site", {})
+        forecast_site_id = site.get("site_id")
+        if forecast_site_id not in grouped_forecasts:
+            grouped_forecasts[forecast_site_id] = {
+                "site_details": {
+                    "site_id": site.get("site_id"),
+                    "site_name": site.get("site_name"),
+                    "site_latitude": site.get("site_latitude"),
+                    "site_longitude": site.get("site_longitude"),
+                },
+                "start_timestamp": forecast.get("timestamp"),
+                "end_timestamp": forecast.get("timestamp"),
+                "hours": 0,
+                "total": 0,
+                "forecasts": [],
+            }
+
+        grouped_forecasts[forecast_site_id]["forecasts"].append(
+            simplify_site_forecast(forecast)
+        )
+        grouped_forecasts[forecast_site_id]["end_timestamp"] = forecast.get(
+            "timestamp"
+        )
+
+    for grouped_site_forecast in grouped_forecasts.values():
+        if site_id:
+            grouped_site_forecast["hours"] = total_items
+            grouped_site_forecast["total"] = total_items
+        else:
+            grouped_site_forecast["hours"] = len(
+                {
+                    site_forecast.get("timestamp")
+                    for site_forecast in grouped_site_forecast["forecasts"]
+                    if site_forecast.get("timestamp") is not None
+                }
+            )
+            grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
+
+    grouped_site_forecasts = list(grouped_forecasts.values())
+    response_timestamps = [
+        forecast.get("timestamp")
+        for grouped_site_forecast in grouped_site_forecasts
+        for forecast in grouped_site_forecast["forecasts"]
+        if forecast.get("timestamp") is not None
+    ]
+    pagination_metadata = build_pagination_metadata(
+        page=page, limit=limit, total=total_items
+    )
+
+    return {
+        "success": total_items == expected_hours if site_id else True,
+        "data": {
+            "start_timestamp": (
+                response_timestamps[0] if response_timestamps else None
+            ),
+            "end_timestamp": response_timestamps[-1] if response_timestamps else None,
+            "hours": len(distinct_timestamps),
+            **pagination_metadata,
+            "units": SITE_FORECAST_UNITS,
+            "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
+            "forecasts": grouped_site_forecasts,
+        },
+    }, 200
+
+
 # Ensure these are updated when the API query parameters are changed
 def heatmap_cache_key():
     args = request.args
@@ -401,6 +791,28 @@ def site_daily_forecasts_cache_key():
         site_id=site_id, start_date=date.today()
     )
     return f"site_daily_v7_{current_day}_{site_id}_{cache_version}"
+
+
+def site_hourly_forecasts_cache_key():
+    """
+    Generate the Redis cache key for the site hourly forecasting endpoint.
+
+    The key varies by current hour, optional ``site_id``, forecast horizon, and
+    a data-derived cache version so source updates invalidate cached responses.
+    """
+    current_hour = pd.Timestamp.utcnow().floor("h").to_pydatetime()
+    site_id = request.args.get("site_id")
+    pagination = get_pagination_params(default_limit=10, max_limit=100)
+    hours = get_site_hourly_forecast_horizon_hours()
+    cache_version = get_site_hourly_forecast_cache_version(
+        site_id=site_id,
+        start_timestamp=current_hour,
+        hours=hours,
+    )
+    return (
+        f"site_hourly_v1_{current_hour.isoformat()}_{hours}_{site_id}_"
+        f"{pagination['page']}_{pagination['limit']}_{cache_version}"
+    )
 
 
 def hourly_forecasts_cache_key():
@@ -452,8 +864,9 @@ def geo_coordinates_cache_key():
 def get_health_tips(language="") -> list[dict]:
     params = {"language": language} if language else {}
     try:
+        base_url = Config.AIRQO_BASE_URL.rstrip("/")
         response = requests.get(
-            f"{Config.AIRQO_BASE_URL}api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
+            f"{base_url}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
             timeout=10,
             params=params,
         )
@@ -729,7 +1142,13 @@ def validate_param_values(params):
     for param in params:
         if param in ["correlation_fault", "missing_data_fault"]:
             value = params[param]
-            if value not in [0, 1, None]:
+            if value is None:
+                continue
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                return False, f"Invalid value for {param}: {params[param]}"
+            if value not in [0, 1]:
                 return False, f"Invalid value for {param}: {value}"
     return True, None
 
@@ -737,8 +1156,19 @@ def validate_param_values(params):
 def read_faulty_devices():
     devices = []
     try:
+        query = {}
+        for param in ["airqloud_names", "device_name", "created_at"]:
+            value = request.args.get(param)
+            if value:
+                query[param] = value
+
+        for param in ["correlation_fault", "missing_data_fault"]:
+            value = request.args.get(param)
+            if value is not None:
+                query[param] = int(value)
+
         collection = db["faulty_devices_1"]
-        devices = list(collection.find({}, {"_id": 0}))
+        devices = list(collection.find(query, {"_id": 0}))
     except errors.ServerSelectionTimeoutError as e:
         current_app.logger.error(
              "Error with database connection: %s", e, exc_info=False
@@ -752,13 +1182,26 @@ def read_faulty_devices():
 
 
 def add_forecast_health_tips(results: dict, language: str = ""):
-    health_tips = get_health_tips(language=language)
+    try:
+        health_tips = get_health_tips(language=language)
+    except TypeError:
+        health_tips = get_health_tips()
     if not health_tips:
         return results
 
-    for site_id, forecasts in results.items():
+    forecasts_by_site = (
+        {"forecasts": results["forecasts"]}
+        if isinstance(results.get("forecasts"), list)
+        else results
+    )
+
+    for forecasts in forecasts_by_site.values():
         for forecast in forecasts:
-            forecast["health_tips"] = [
+            pm2_5_values = forecast.get("pm2_5")
+            if not isinstance(pm2_5_values, list):
+                pm2_5_values = [pm2_5_values]
+
+            matching_tips = [
                 [
                     tip
                     for tip in health_tips
@@ -766,7 +1209,13 @@ def add_forecast_health_tips(results: dict, language: str = ""):
                     >= pm2_5_value
                     >= tip["aqi_category"]["min"]
                 ]
-                for pm2_5_value in forecast["pm2_5"]
+                for pm2_5_value in pm2_5_values
+                if pm2_5_value is not None
             ]
+            forecast["health_tips"] = (
+                matching_tips
+                if isinstance(forecast.get("pm2_5"), list)
+                else matching_tips[0] if matching_tips else []
+            )
 
     return results

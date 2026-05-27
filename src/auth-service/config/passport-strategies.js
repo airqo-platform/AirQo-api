@@ -128,7 +128,7 @@ class CookieStateStore {
 // passport-linkedin-oauth2 v2 calls the deprecated /v2/me and /v2/emailAddress
 // endpoints which require r_liteprofile / r_emailaddress scopes. LinkedIn's
 // Standard Tier only grants OIDC scopes (openid profile email). This class
-// uses passport-oauth2 directly and calls /oidc/v2/userinfo instead.
+// uses passport-oauth2 directly and calls /v2/userinfo (LinkedIn's OIDC userinfo endpoint).
 class LinkedInOIDCStrategy extends OAuth2Strategy {
   constructor(options, verify) {
     options.authorizationURL =
@@ -136,11 +136,14 @@ class LinkedInOIDCStrategy extends OAuth2Strategy {
     options.tokenURL = "https://www.linkedin.com/oauth/v2/accessToken";
     super(options, verify);
     this.name = "linkedin";
+    // /v2/userinfo requires the token in the Authorization header; the oauth
+    // package defaults to a query parameter so we configure it once here.
+    this._oauth2.useAuthorizationHeaderforGET(true);
   }
 
   userProfile(accessToken, done) {
     this._oauth2.get(
-      "https://api.linkedin.com/oidc/v2/userinfo",
+      "https://api.linkedin.com/v2/userinfo",
       accessToken,
       (err, body) => {
         if (err) {

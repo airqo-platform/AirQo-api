@@ -161,51 +161,6 @@ const dbProjections = {
     phoneNumber: 1,
     timezone: 1,
     cohorts: 1,
-    networks: {
-      $cond: {
-        if: {
-          $and: [
-            { $ne: ["$network_role", []] }, // Check if network_role is not empty
-            {
-              $in: ["airqo", "$networks.net_name"], // Check if user belongs to airqo network
-            },
-          ],
-        },
-        then: {
-          $concatArrays: [
-            [
-              {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$networks",
-                      as: "network",
-                      cond: { $eq: ["$$network.net_name", "airqo"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-            ],
-            {
-              $filter: {
-                input: "$networks",
-                as: "network",
-                cond: { $ne: ["$$network.net_name", "airqo"] },
-              },
-            },
-          ],
-        },
-        else: "$networks",
-      },
-    },
-    // networks: {
-    //   $cond: {
-    //     if: { $eq: ["$network_role", []] }, // Check if network_role is empty
-    //     then: [], // Represent "networks" as an empty array for users with empty network_role
-    //     else: "$networks", // Include the "networks" field for users with non-empty network_role
-    //   },
-    // },
     clients: "$clients",
     groups: {
       $cond: {
@@ -261,38 +216,11 @@ const dbProjections = {
       },
     },
     updatedAt: 1,
-    my_networks: "$my_networks",
     my_groups: "$my_groups",
     firebase_uid: 1,
   },
   USERS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      "networks.__v": 0,
-      "networks.net_status": 0,
-      "networks.net_acronym": 0,
-      "networks.net_users": 0,
-      "networks.net_roles": 0,
-      "networks.net_groups": 0,
-      "networks.net_description": 0,
-      "networks.net_departments": 0,
-      "networks.net_permissions": 0,
-      "networks.net_email": 0,
-      "networks.net_category": 0,
-      "networks.net_phoneNumber": 0,
-      "networks.net_data_source": 0,
-      "networks.net_api_key": 0,
-      "networks.net_manager": 0,
-      "networks.role.__v": 0,
-      "networks.role.createdAt": 0,
-      "networks.role.updatedAt": 0,
-      "networks.role.network_id": 0,
-      "networks.role.role_code": 0,
-      "networks.role.role_permissions.__v": 0,
-      "networks.role.role_permissions.updatedAt": 0,
-      "networks.role.role_permissions.createdAt": 0,
-      "networks.role.role_permissions.network_id": 0,
-      "networks.role.role_permissions.description": 0,
-
       "groups.__v": 0,
 
       "access_tokens.__v": 0,
@@ -304,27 +232,6 @@ const dbProjections = {
       "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
-
-      "my_networks.net_status": 0,
-      "my_networks.net_children": 0,
-      "my_networks.net_users": 0,
-      "my_networks.net_departments": 0,
-      "my_networks.net_permissions": 0,
-      "my_networks.net_roles": 0,
-      "my_networks.net_groups": 0,
-      "my_networks.net_category": 0,
-      "my_networks.net_description": 0,
-      "my_networks.net_acronym": 0,
-      "my_networks.net_manager": 0,
-      "my_networks.net_manager_username": 0,
-      "my_networks.net_manager_firstname": 0,
-      "my_networks.net_manager_lastname": 0,
-      "my_networks.createdAt": 0,
-      "my_networks.updatedAt": 0,
-      "my_networks.net_website": 0,
-      "my_networks.net_phoneNumber": 0,
-      "my_networks.net_email": 0,
-      "my_networks.__v": 0,
 
       "my_groups.grp_status": 0,
       "my_groups.grp_description": 0,
@@ -354,7 +261,6 @@ const dbProjections = {
         "networks.role": 0,
         clients: 0,
         permissions: 0,
-        my_networks: 0,
         my_groups: 0,
       };
     }

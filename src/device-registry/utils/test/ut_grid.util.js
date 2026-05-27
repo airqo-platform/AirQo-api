@@ -465,6 +465,60 @@ describe("Grid Util", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // createAdminLevel
+  // ---------------------------------------------------------------------------
+  describe("createAdminLevel", () => {
+    let adminLevelModelStub;
+    let findOneStub;
+    let registerStub;
+    let nextSpy;
+
+    beforeEach(() => {
+      findOneStub = { lean: sandbox.stub() };
+      registerStub = sandbox.stub();
+      adminLevelModelStub = {
+        findOne: sandbox.stub().returns(findOneStub),
+        register: registerStub,
+      };
+      sandbox.stub(AdminLevelModel, "call").returns(adminLevelModelStub);
+      nextSpy = sandbox.spy();
+    });
+
+    it("returns 409 and calls next(HttpError) when name already exists", async () => {
+      findOneStub.lean.resolves({ _id: "existing-id" });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: { name: "town" },
+      };
+
+      await gridUtil.createAdminLevel(request, nextSpy);
+
+      expect(nextSpy.calledOnce).to.be.true;
+      const err = nextSpy.firstCall.args[0];
+      expect(err.status).to.equal(httpStatus.CONFLICT);
+      expect(registerStub.called).to.be.false;
+    });
+
+    it("calls register() and returns its result when name is unique", async () => {
+      findOneStub.lean.resolves(null);
+      const mockResponse = { success: true, status: httpStatus.OK };
+      registerStub.resolves(mockResponse);
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: { name: "district" },
+      };
+
+      const result = await gridUtil.createAdminLevel(request, nextSpy);
+
+      expect(registerStub.calledOnce).to.be.true;
+      expect(result).to.deep.equal(mockResponse);
+      expect(nextSpy.called).to.be.false;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // getPrivateSiteIds — two-level cache (L1 in-memory + L2 MongoDB)
   // ---------------------------------------------------------------------------
   describe("getPrivateSiteIds", () => {

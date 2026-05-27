@@ -620,6 +620,37 @@ const transactions = {
     }
   },
 
+  changeSubscriptionTier: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const result = await transactionsUtil.changeSubscriptionTier(req, next);
+      if (result) {
+        return res.status(result.status).json({
+          success: result.success,
+          message: result.message,
+          ...(result.data && { data: result.data }),
+          ...(result.errors && { errors: result.errors }),
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
   getSubscriptionStatus: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

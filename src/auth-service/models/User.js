@@ -358,6 +358,10 @@ const UserSchema = new Schema(
     facebook_id: { type: String, trim: true },
     apple_id: { type: String, trim: true },
     // ── OAuth provider IDs end ────────────────────────────────────────────────────
+    // True only when the user has explicitly set their own password.
+    // OAuth users are created with a random unknown password, so !!password
+    // alone cannot distinguish "user knows their password" from "system-generated".
+    hasSetPassword: { type: Boolean, default: false },
     timezone: { type: String, trim: true },
     preferredTokenStrategy: {
       type: String,
@@ -917,12 +921,6 @@ UserSchema.statics = {
           as: "clients",
         })
         .lookup({
-          from: "networks",
-          localField: "_id",
-          foreignField: "net_manager",
-          as: "my_networks",
-        })
-        .lookup({
           from: "groups",
           localField: "_id",
           foreignField: "grp_manager",
@@ -937,18 +935,8 @@ UserSchema.statics = {
           },
         })
         .unwind({
-          path: "$network_roles",
-          preserveNullAndEmptyArrays: true,
-        })
-        .unwind({
           path: "$group_roles",
           preserveNullAndEmptyArrays: true,
-        })
-        .lookup({
-          from: "networks",
-          localField: "network_roles.network",
-          foreignField: "_id",
-          as: "network",
         })
         .lookup({
           from: "groups",
@@ -958,29 +946,13 @@ UserSchema.statics = {
         })
         .lookup({
           from: "roles",
-          localField: "network_roles.role",
-          foreignField: "_id",
-          as: "network_role",
-        })
-        .lookup({
-          from: "roles",
           localField: "group_roles.role",
           foreignField: "_id",
           as: "group_role",
         })
         .unwind({
-          path: "$network_role",
-          preserveNullAndEmptyArrays: true,
-        })
-        .unwind({
           path: "$group_role",
           preserveNullAndEmptyArrays: true,
-        })
-        .lookup({
-          from: "permissions",
-          localField: "network_role.role_permissions",
-          foreignField: "_id",
-          as: "network_role_permissions",
         })
         .lookup({
           from: "permissions",
@@ -1014,7 +986,6 @@ UserSchema.statics = {
           interests: { $first: "$interests" },
           interestsDescription: { $first: "$interestsDescription" },
           group_roles: { $first: "$group_roles" },
-          network_roles: { $first: "$network_roles" },
           clients: { $first: "$clients" },
           groups: {
             $addToSet: {
@@ -1049,7 +1020,6 @@ UserSchema.statics = {
             },
           },
           permissions: { $first: "$permissions" },
-          my_networks: { $first: "$my_networks" },
           my_groups: { $first: "$my_groups" },
           createdAt: { $first: "$createdAt" },
           updatedAt: {
@@ -1060,29 +1030,17 @@ UserSchema.statics = {
               },
             },
           },
-          networks: {
-            $addToSet: {
-              net_name: { $arrayElemAt: ["$network.net_name", 0] },
-              _id: { $arrayElemAt: ["$network._id", 0] },
-              role: {
-                $cond: {
-                  if: { $ifNull: ["$network_role", false] },
-                  then: {
-                    _id: "$network_role._id",
-                    role_name: "$network_role.role_name",
-                    role_permissions: "$network_role_permissions",
-                  },
-                  else: null,
-                },
-              },
-              userType: {
-                $cond: {
-                  if: {
-                    $eq: [{ $type: "$network_roles.userType" }, "missing"],
-                  },
-                  then: "user",
-                  else: "$network_roles.userType",
-                },
+        })
+        .addFields({
+          groups: {
+            $filter: {
+              input: "$groups",
+              as: "g",
+              cond: {
+                $and: [
+                  { $ifNull: ["$$g._id", false] },
+                  { $ifNull: ["$$g.grp_title", false] },
+                ],
               },
             },
           },
@@ -1256,21 +1214,9 @@ UserSchema.statics.getEnhancedUserDetails = async function (
       })
       .lookup({
         from: "roles",
-        localField: "network_roles.role",
-        foreignField: "_id",
-        as: "network_role_details",
-      })
-      .lookup({
-        from: "roles",
         localField: "group_roles.role",
         foreignField: "_id",
         as: "group_role_details",
-      })
-      .lookup({
-        from: "networks",
-        localField: "network_roles.network",
-        foreignField: "_id",
-        as: "network_details",
       })
       .lookup({
         from: "groups",
@@ -1279,39 +1225,7 @@ UserSchema.statics.getEnhancedUserDetails = async function (
         as: "group_details",
       })
       .addFields({
-        // Enhanced role information with clear separation
-        enhanced_network_roles: {
-          $map: {
-            input: "$network_roles",
-            as: "nr",
-            in: {
-              network: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$network_details",
-                      cond: { $eq: ["$$this._id", "$$nr.network"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-              role: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$network_role_details",
-                      cond: { $eq: ["$$this._id", "$$nr.role"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-              userType: "$$nr.userType",
-              createdAt: "$$nr.createdAt",
-            },
-          },
-        },
+        enhanced_network_roles: [],
         enhanced_group_roles: {
           $map: {
             input: "$group_roles",
@@ -1344,30 +1258,16 @@ UserSchema.statics.getEnhancedUserDetails = async function (
             },
           },
         },
-        // Role summary statistics for clear understanding
         role_summary: {
-          network_roles_count: { $size: { $ifNull: ["$network_roles", []] } },
           group_roles_count: { $size: { $ifNull: ["$group_roles", []] } },
-          network_roles_limit: ORGANISATIONS_LIMIT,
           group_roles_limit: ORGANISATIONS_LIMIT,
-          network_roles_remaining: {
-            $subtract: [
-              ORGANISATIONS_LIMIT,
-              { $size: { $ifNull: ["$network_roles", []] } },
-            ],
-          },
           group_roles_remaining: {
             $subtract: [
               ORGANISATIONS_LIMIT,
               { $size: { $ifNull: ["$group_roles", []] } },
             ],
           },
-          total_roles: {
-            $add: [
-              { $size: { $ifNull: ["$network_roles", []] } },
-              { $size: { $ifNull: ["$group_roles", []] } },
-            ],
-          },
+          total_roles: { $size: { $ifNull: ["$group_roles", []] } },
         },
       })
       .project({
@@ -1392,18 +1292,15 @@ UserSchema.statics.getEnhancedUserDetails = async function (
         updatedAt: 1,
         permissions: 1,
 
-        // Enhanced role information with clear separation
         enhanced_network_roles: 1,
         enhanced_group_roles: 1,
         role_summary: 1,
 
-        // Include deprecated fields only if requested for backward compatibility
         ...(includeDeprecated && {
           role: 1,
           privilege: 1,
           organization: 1,
           long_organization: 1,
-          network_roles: 1,
           group_roles: 1,
         }),
       })
@@ -1635,11 +1532,34 @@ UserSchema.methods = {
   },
   async toAuthJSON() {
     const token = await this.createToken();
+    const hasOAuthProvider = !!(
+      this.google_id ||
+      this.github_id ||
+      this.linkedin_id ||
+      this.microsoft_id ||
+      this.twitter_id ||
+      this.facebook_id ||
+      this.apple_id
+    );
+    const hasKnownPassword =
+      this.hasSetPassword === true ||
+      (this.hasSetPassword == null && !!this.password) ||
+      (!hasOAuthProvider && !!this.password);
     return {
       _id: this._id,
       userName: this.userName,
       token: `JWT ${token}`,
       email: this.email,
+      authMethods: {
+        password: hasKnownPassword,
+        google: !!this.google_id,
+        github: !!this.github_id,
+        linkedin: !!this.linkedin_id,
+        microsoft: !!this.microsoft_id,
+        twitter: !!this.twitter_id,
+        facebook: !!this.facebook_id,
+        apple: !!this.apple_id,
+      },
     };
   },
   toJSON() {
@@ -1651,7 +1571,7 @@ UserSchema.methods = {
       organization: this.organization,
       long_organization: this.long_organization,
       group_roles: this.group_roles,
-      network_roles: this.network_roles,
+      network_roles: [],
       privilege: this.privilege,
       lastName: this.lastName,
       country: this.country,

@@ -140,120 +140,6 @@ router.get(
 );
 
 // ================================
-// NETWORK-SPECIFIC ROUTES
-// ================================
-
-router.get(
-  "/networks/:network_id/permissions",
-  enhancedJWTAuth,
-  requireNetworkMembership("network_id"),
-  (req, res) => {
-    req.query.contextId = req.params.network_id;
-    req.query.contextType = "network";
-    userController.getContextPermissions(req, res);
-  },
-);
-
-router.get(
-  "/networks/:network_id/members",
-  enhancedJWTAuth,
-  requireNetworkPermissions([constants.MEMBER_VIEW], "network_id"),
-  async (req, res) => {
-    try {
-      const UserModel = require("@models/User");
-      const networkId = req.params.network_id;
-      const tenant = req.query.tenant || "airqo";
-
-      const users = await UserModel(tenant)
-        .find({ "network_roles.network": networkId })
-        .select("-password -resetPasswordToken -resetPasswordExpires")
-        .lean();
-
-      if (users.length === 0) {
-        return res.json({
-          success: true,
-          message: "No network members found",
-          data: { networkId, members: [], totalMembers: 0 },
-        });
-      }
-
-      const processedUsers = [];
-      for (const user of users) {
-        const processedUser = { ...user };
-        if (user.network_roles && user.network_roles.length > 0) {
-          const networkIds = [
-            ...new Set(user.network_roles.map((nr) => nr.network)),
-          ];
-          const roleIds = [
-            ...new Set(user.network_roles.map((nr) => nr.role).filter(Boolean)),
-          ];
-
-          let networks = [];
-          try {
-            const NetworkModel = require("@models/Network");
-            networks = await NetworkModel(tenant)
-              .find({ _id: { $in: networkIds } })
-              .select("net_name net_status")
-              .lean();
-          } catch (error) {
-            console.warn(`Could not fetch networks: ${error.message}`);
-          }
-
-          let roles = [];
-          try {
-            const RoleModel = require("@models/Role");
-            roles = await RoleModel(tenant)
-              .find({ _id: { $in: roleIds } })
-              .select("role_name role_permissions")
-              .lean();
-          } catch (error) {
-            console.warn(`Could not fetch roles: ${error.message}`);
-          }
-
-          processedUser.network_roles = user.network_roles.map(
-            (networkRole) => ({
-              ...networkRole,
-              network:
-                networks.find(
-                  (n) => n._id.toString() === networkRole.network.toString(),
-                ) || networkRole.network,
-              role:
-                roles.find(
-                  (r) => r._id.toString() === networkRole.role?.toString(),
-                ) || networkRole.role,
-            }),
-          );
-        }
-        processedUsers.push(processedUser);
-      }
-
-      res.json({
-        success: true,
-        message: "Network members retrieved successfully",
-        data: {
-          networkId,
-          members: processedUsers.map((user) => ({
-            ...user,
-            networkRole: user.network_roles.find(
-              (nr) =>
-                nr.network._id?.toString() === networkId ||
-                nr.network.toString() === networkId,
-            ),
-          })),
-          totalMembers: processedUsers.length,
-        },
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Failed to retrieve network members",
-        error: error.message,
-      });
-    }
-  },
-);
-
-// ================================
 // DASHBOARD & ANALYTICS ROUTES
 // ================================
 
@@ -603,6 +489,13 @@ router.post(
 );
 
 router.post(
+  "/setPassword",
+  enhancedJWTAuth,
+  userValidations.setPassword,
+  userController.setPassword,
+);
+
+router.post(
   "/reset-password/:token",
   userValidations.resetPassword,
   userController.resetPassword,
@@ -630,6 +523,9 @@ router.post(
 
 router.put("/", userValidations.updateUser, userController.update);
 
+router.put("/setPassword", (req, res) =>
+  res.status(405).json({ success: false, message: "Method not allowed. Use POST /setPassword." })
+);
 router.put("/:user_id", userValidations.updateUserById, userController.update);
 
 router.delete(
@@ -782,27 +678,6 @@ router.use("*", (req, res) => {
   res.status(404).json({
     success: false,
     message: "user route endpoint not found",
-    availableEndpoints: [
-      "POST /login-enhanced",
-      "POST /generate-token",
-      "POST /token/refresh",
-      "POST /refresh-permissions",
-      "GET /analyze-tokens/:userId",
-      "PUT /token-strategy",
-      "GET /context-permissions",
-      "GET /profile/enhanced",
-      "GET /groups/:grp_id/permissions",
-      "GET /networks/:network_id/permissions",
-      "GET /auth/google",
-      "GET /auth/google/callback",
-      "GET /auth/:provider",
-      "GET /auth/callback/:provider",
-      "GET /feedback/upload-url",
-      "POST /feedback/submit",
-      "GET /feedback/submissions",
-      "GET /feedback/submissions/:feedback_id",
-      "PATCH /feedback/submissions/:feedback_id/status",
-    ],
   });
 });
 

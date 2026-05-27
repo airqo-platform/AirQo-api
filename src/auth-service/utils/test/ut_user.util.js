@@ -3044,3 +3044,71 @@ describe("create-user-util", function () {
     });
   });
 });
+
+// ── buildAuthMethods ─────────────────────────────────────────────────────────
+
+describe("buildAuthMethods()", () => {
+  const { buildAuthMethods } = require("@utils/user.util");
+
+  it("returns password:true for an email/password-only account with hasSetPassword:true", () => {
+    const user = { password: "hashed", hasSetPassword: true };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(true);
+    expect(result.google).to.equal(false);
+  });
+
+  it("returns password:false for an OAuth-only account with system-generated password", () => {
+    const user = {
+      password: "generated-random-hash",
+      hasSetPassword: false,
+      google_id: "google-123",
+    };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(false);
+    expect(result.google).to.equal(true);
+  });
+
+  it("returns password:true for an OAuth account that later used setPassword", () => {
+    const user = {
+      password: "user-chosen-hash",
+      hasSetPassword: true,
+      google_id: "google-123",
+      github_id: "gh-456",
+    };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(true);
+    expect(result.google).to.equal(true);
+    expect(result.github).to.equal(true);
+  });
+
+  it("backward-compat: returns password:true for legacy email/password account with no OAuth and no hasSetPassword flag", () => {
+    const user = { password: "legacy-hash", hasSetPassword: false };
+    const result = buildAuthMethods(user);
+    expect(result.password).to.equal(true);
+  });
+
+  it("returns all provider flags correctly", () => {
+    const user = {
+      hasSetPassword: true,
+      password: "h",
+      google_id: "g",
+      github_id: "gh",
+      linkedin_id: "li",
+      microsoft_id: "ms",
+      twitter_id: "tw",
+      facebook_id: "fb",
+      apple_id: "ap",
+    };
+    const result = buildAuthMethods(user);
+    expect(result).to.deep.equal({
+      password: true,
+      google: true,
+      github: true,
+      linkedin: true,
+      microsoft: true,
+      twitter: true,
+      facebook: true,
+      apple: true,
+    });
+  });
+});

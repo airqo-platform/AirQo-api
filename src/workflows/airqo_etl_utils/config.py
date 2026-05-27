@@ -148,7 +148,7 @@ class Config:
     OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
     OPENWEATHER_BASE_URL = os.getenv("OPENWEATHER_BASE_URL")
     OPENWEATHER_DATA_BATCH_SIZE = os.getenv("OPENWEATHER_DATA_BATCH_SIZE")
-    #MET Weather API
+    # MET Weather API
     MET_NO_BASE_URL = os.getenv("MET_NO_BASE_URL")
     # Kafka
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092")
@@ -229,7 +229,15 @@ class Config:
         "plumelabs": {
             "url": PLUME_LABS_BASE_URL,
         },
-        "airbeam": {"url": AIR_BEAM_BASE_URL},
+        "airbeam": {
+            "url": AIR_BEAM_BASE_URL,
+            "extras": {
+                "west": 10.581214853439886,
+                "east": 38.08577769782265,
+                "south": -36.799337832603314,
+                "north": -19.260169583742446,
+            },
+        },
         "tahmo": {
             "url": TAHMO_BASE_URL,
             "auth": {"api_key": TAHMO_API_KEY},
@@ -249,7 +257,10 @@ class Config:
             "url": AIR_GRADIENT_BASE_URL,
             "headers": {"accept": "application/json"},
             "secret": {"token": AIR_GRADIENT_API_KEY},
-            "endpoints": {"raw": "measures/raw", "current": "measures/current"},
+            "endpoints": {
+                "raw": "locations/{id}/measures/raw",
+                "current": "world/locations/{id}/measures/current",
+            },
         },
     }
 

@@ -1,11 +1,13 @@
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 import requests
 
 from airqo_etl_utils.sources.thingspeak_adapter import ThingSpeakAdapter
 from airqo_etl_utils.sources.iqair_adapter import IQAirAdapter
 from airqo_etl_utils.sources.airgradient_adapter import AirGradientAdapter
+from airqo_etl_utils.sources.airnow_adapter import AirNowAdapter
+from airqo_etl_utils.sources.airbeam_adapter import AirBeamAdapter
 from airqo_etl_utils.utils import Result
 from airqo_etl_utils.constants import DeviceNetwork
 
@@ -501,7 +503,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
@@ -524,7 +526,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
@@ -543,7 +545,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
@@ -562,7 +564,7 @@ class TestAirgradientMethod:
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
         mock_config.INTEGRATION_DETAILS.get.return_value = {
             "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "measures/current"},
+            "endpoints": {"raw": "{id}/measures/current"},
         }
         invalid_device = {
             "api_code": "",
@@ -578,3 +580,198 @@ class TestAirgradientMethod:
         assert res.data.get("records") == []
         assert res.error is not None
         mock_get_json.assert_not_called()
+
+
+class TestAirNowMethod:
+    """Tests for AirNowAdapter."""
+
+    def setup_method(self):
+        self.dates = [("2025-03-01T00:00:00Z", "2025-03-01T01:00:00Z")]
+        self.data = [
+            {
+                "DateObserved": "2025-03-01",
+                "HourObserved": 0,
+                "LocalTimeZone": "UTC",
+                "ReportingArea": "Test Area",
+                "StateCode": "XX",
+                "Latitude": 1.23,
+                "Longitude": 4.56,
+                "ParameterName": "PM2.5",
+                "AQI": 42,
+                "Category": {"Number": 1, "Name": "Good"},
+            }
+        ]
+
+    @patch("airqo_etl_utils.sources.airnow_adapter.configuration")
+    def test_airnow_success(self, mock_config):
+        """Successful fetch returns records and calls the correct URL with required params."""
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airnow",
+            "endpoints": {"get_data": "aq/data"},
+            "extras": {
+                "boundary_box": "-16.9,33.9,54.8,37.2",
+                "parameters": "pm25,pm10",
+            },
+            "auth": {"API_KEY": "test_key"},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airnow_adapter.HttpClient.get_json",
+            return_value=self.data,
+        ) as mock_get_json:
+            adapter = AirNowAdapter()
+            res = adapter.fetch({}, dates=self.dates)
+
+        mock_get_json.assert_called_once_with(
+            "https://api.example.com/airnow/aq/data",
+            params={
+                "startDate": "2025-03-01T00:00",
+                "endDate": "2025-03-01T01:00",
+                "parameters": "pm25,pm10",
+                "BBOX": "-16.9,33.9,54.8,37.2",
+                "format": "application/json",
+                "verbose": 1,
+                "nowcastonly": 1,
+                "includerawconcentrations": 1,
+                "dataType": "B",
+                "API_KEY": "test_key",
+            },
+        )
+        assert isinstance(res, Result)
+        assert res.error is None
+        assert len(res.data.get("records")) == 1
+
+    @patch("airqo_etl_utils.sources.airnow_adapter.configuration")
+    def test_airnow_no_data(self, mock_config):
+        """Empty response sets error to 'No data retrieved'."""
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airnow",
+            "endpoints": {"get_data": "aq/data"},
+            "extras": {"boundary_box": "", "parameters": ""},
+            "auth": {"API_KEY": "test_key"},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airnow_adapter.HttpClient.get_json",
+            return_value=[],
+        ):
+            adapter = AirNowAdapter()
+            res = adapter.fetch({}, dates=self.dates)
+
+        assert isinstance(res, Result)
+        assert res.data.get("records") == []
+        assert res.error == "No data retrieved"
+
+    @patch("airqo_etl_utils.sources.airnow_adapter.configuration")
+    def test_airnow_exception(self, mock_config):
+        """HTTP exception returns a graceful Result with an error message."""
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airnow",
+            "endpoints": {"get_data": "aq/data"},
+            "extras": {"boundary_box": "", "parameters": ""},
+            "auth": {"API_KEY": "test_key"},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airnow_adapter.HttpClient.get_json",
+            side_effect=Exception("network error"),
+        ):
+            adapter = AirNowAdapter()
+            res = adapter.fetch({}, dates=self.dates)
+
+        assert isinstance(res, Result)
+        assert res.data.get("records") == []
+        assert res.error == "An unexpected error occurred"
+
+
+class TestAirBeamMethod:
+    """Tests for AirBeamAdapter."""
+
+    def setup_method(self):
+        self.dates = [("2025-03-01T00:00:00Z", "2025-03-01T01:00:00Z")]
+        self.sessions_response = {
+            "sessions": [
+                {
+                    "streams": {
+                        "airbeam3-pm2.5": {
+                            "id": 999,
+                            "sensor_package_name": "AirBeam3:AA:BB:CC",
+                        }
+                    }
+                }
+            ]
+        }
+        self.measurements_response = [
+            {"value": 14.2, "time": 1740787200000, "latitude": 1.0, "longitude": 2.0},
+        ]
+
+    @patch("airqo_etl_utils.sources.airbeam_adapter.configuration")
+    def test_airbeam_success(self, mock_config):
+        """Full two-step fetch returns records tagged with pollutant and device_id."""
+        mock_config.AIR_BEAM_USERNAMES = "testuser"
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airbeam",
+            "extras": {
+                "west": 10.0,
+                "east": 38.0,
+                "south": -36.0,
+                "north": -19.0,
+            },
+        }
+
+        def _side_effect(url, params=None, **_):
+            if "sessions" in url:
+                q = json.loads((params or {}).get("q", "{}"))
+                if q.get("sensor_name") == "airbeam3-pm2.5":
+                    return self.sessions_response
+                return {"sessions": []}
+            return self.measurements_response
+
+        with patch(
+            "airqo_etl_utils.sources.airbeam_adapter.HttpClient.get_json",
+            side_effect=_side_effect,
+        ):
+            adapter = AirBeamAdapter()
+            res = adapter.fetch({}, dates=self.dates)
+
+        assert isinstance(res, Result)
+        assert res.error is None
+        records = res.data.get("records")
+        assert len(records) == 1
+        assert records[0]["pollutant"] == "pm2.5"
+        assert records[0]["device_id"] == "AirBeam3:AA:BB:CC"
+
+    @patch("airqo_etl_utils.sources.airbeam_adapter.configuration")
+    def test_airbeam_empty_sessions(self, mock_config):
+        """No sessions found returns empty records with error."""
+        mock_config.AIR_BEAM_USERNAMES = "testuser"
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airbeam",
+            "extras": {},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airbeam_adapter.HttpClient.get_json",
+            return_value={"sessions": []},
+        ):
+            adapter = AirBeamAdapter()
+            res = adapter.fetch({}, dates=self.dates)
+
+        assert isinstance(res, Result)
+        assert res.data.get("records") == []
+        assert res.error == "No data retrieved"
+
+    @patch("airqo_etl_utils.sources.airbeam_adapter.configuration")
+    def test_airbeam_exception(self, mock_config):
+        """HTTP exception returns a graceful Result with an error message."""
+        mock_config.AIR_BEAM_USERNAMES = "testuser"
+        mock_config.INTEGRATION_DETAILS.get.return_value = {
+            "url": "https://api.example.com/airbeam",
+            "extras": {},
+        }
+        with patch(
+            "airqo_etl_utils.sources.airbeam_adapter.HttpClient.get_json",
+            side_effect=Exception("connection refused"),
+        ):
+            adapter = AirBeamAdapter()
+            res = adapter.fetch({}, dates=self.dates)
+
+        assert isinstance(res, Result)
+        assert res.data.get("records") == []
+        assert res.error == "An unexpected error occurred"
