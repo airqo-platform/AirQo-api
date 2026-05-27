@@ -321,18 +321,24 @@ const createCohort = {
       const sortField = sortBy ? sortBy : "createdAt";
 
       // Public metadata path: return only _id + name, skip the device lookup.
+      // Enforce visibility:true even for /metadata/cohorts/:cohort_id so a
+      // non-public cohort cannot be fetched by ID. Sort before $project so
+      // sortField (e.g. createdAt) is available when ordering results.
       const isPublicMetadata = request.query.path === "public";
+      if (isPublicMetadata) {
+        filter.visibility = true;
+      }
 
       const pipeline = isPublicMetadata
         ? [
             { $match: filter },
-            { $project: { _id: 1, name: 1 } },
+            { $sort: { [sortField]: sortOrder } },
             {
               $facet: {
                 paginatedResults: [
-                  { $sort: { [sortField]: sortOrder } },
                   { $skip: _skip },
                   { $limit: _limit },
+                  { $project: { _id: 1, name: 1 } },
                 ],
                 totalCount: [{ $count: "count" }],
               },

@@ -274,7 +274,7 @@ const metadataValidations = {
 module.exports = {
   ...metadataValidations,
   pagination: commonValidations.pagination,
-  addCategoryQueryParam: (req, res, next) => {
+  addPublicPathQueryParam: (req, res, next) => {
     req.query.path = "public";
     next();
   },

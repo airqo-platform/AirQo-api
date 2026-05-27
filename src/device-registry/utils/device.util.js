@@ -1168,10 +1168,10 @@ const deviceUtil = {
       const sortField = sortBy ? sortBy : "createdAt";
       const filter = generateFilter.devices(request, next);
 
-      // Public metadata path: swap device visibility for cohort visibility.
-      // The device's own visibility field is not the authority here — a device
-      // is "public" when at least one of its cohorts is visible.
-      if (request.query.path === "public" && filter.visibility === true) {
+      // Public metadata path: cohort-scoped, isolated pipeline. Applied for
+      // both list and single-device lookups so /metadata/devices/:device_id
+      // cannot bypass cohort visibility by fetching a non-public device by ID.
+      if (request.query.path === "public") {
         delete filter.visibility;
         const visibleCohorts = await CohortModel(tenant)
           .find({ visibility: true })
@@ -1182,6 +1182,56 @@ const deviceUtil = {
         } else {
           filter._id = { $in: [] };
         }
+
+        const publicResults = await DeviceModel(tenant)
+          .aggregate([
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      long_name: 1,
+                      network: 1,
+                      device_number: 1,
+                    },
+                  },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ])
+          .option({ maxTimeMS: 15000 });
+
+        const agg =
+          Array.isArray(publicResults) && publicResults[0]
+            ? publicResults[0]
+            : { paginatedResults: [], totalCount: [] };
+        const total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
+
+        return {
+          success: true,
+          message: "successfully retrieved the device details",
+          data: agg.paginatedResults || [],
+          status: httpStatus.OK,
+          meta: {
+            total,
+            totalResults: (agg.paginatedResults || []).length,
+            limit: _limit,
+            skip: _skip,
+            page: Math.floor(_skip / _limit) + 1,
+            totalPages: Math.ceil(total / _limit),
+            detailLevel,
+          },
+        };
       }
 
       let pipeline = [];
@@ -1189,17 +1239,7 @@ const deviceUtil = {
       // Base match
       pipeline.push({ $match: filter });
 
-      if (request.query.path === "public") {
-        pipeline.push({
-          $project: {
-            _id: 1,
-            name: 1,
-            long_name: 1,
-            network: 1,
-            device_number: 1,
-          },
-        });
-      } else if (detailLevel === "minimal") {
+      if (detailLevel === "minimal") {
         // Minimal data for performance-critical scenarios
         pipeline.push(getDeviceCategoriesAddFieldsStage(), {
           $project: {
@@ -5548,16 +5588,22 @@ const deviceUtil = {
       )
       .lean();
 
-    const existingSerials = new Set(existingDocs.map((d) => d.serial_number));
+    const existingSerials = new Set(
+      existingDocs.map((d) => d.serial_number).filter(Boolean),
+    );
     const existingNames = new Set(existingDocs.map((d) => d.name));
 
-    const hasNewDevices = devices.some(
-      (d) =>
-        !existingSerials.has(d.serial_number) &&
-        !existingNames.has(
-          (d.long_name || d.name || "").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 41).trim().toLowerCase(),
-        ),
-    );
+    const hasNewDevices = devices.some((d) => {
+      const serial = d.serial_number;
+      const sanitized = (d.long_name || d.name || "")
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .slice(0, 41)
+        .trim()
+        .toLowerCase();
+      const isDuplicate =
+        (serial && existingSerials.has(serial)) || existingNames.has(sanitized);
+      return !isDuplicate;
+    });
 
     // One shared Kafka producer for the whole batch avoids N connect/disconnect
     // cycles. Skip entirely when pre-flight shows no new devices to save.

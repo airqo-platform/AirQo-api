@@ -967,27 +967,29 @@ const createGrid = {
       }
 
       // Public metadata path: lightweight pipeline — no site lookups, no caching.
-      // Grids default to visibility=true so the filter already covers all public grids.
+      // Enforce visibility:true explicitly so /metadata/grids/:grid_id cannot
+      // return a non-public grid by ID. Sort happens before $project so
+      // sortField (e.g. createdAt) is available regardless of the projection.
       if (request.query.path === "public") {
         const results = await GridModel(normalizedTenant)
           .aggregate([
-            { $match: filter },
-            {
-              $project: {
-                _id: 1,
-                visibility: 1,
-                name: 1,
-                admin_level: 1,
-                long_name: 1,
-                flag_url: 1,
-              },
-            },
+            { $match: { ...filter, visibility: true } },
+            { $sort: { [sortField]: sortOrder } },
             {
               $facet: {
                 paginatedResults: [
-                  { $sort: { [sortField]: sortOrder } },
                   { $skip: _skip },
                   { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      visibility: 1,
+                      name: 1,
+                      admin_level: 1,
+                      long_name: 1,
+                      flag_url: 1,
+                    },
+                  },
                 ],
                 totalCount: [{ $count: "count" }],
               },

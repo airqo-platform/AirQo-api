@@ -1580,34 +1580,88 @@ const createSite = {
       const filter = generateFilter.sites(request, next);
       filter.lat_long = { $ne: "4_4" };
 
-      // Public metadata path: a site is "public" when it has at least one
-      // device that belongs to a visible cohort — not by the site's own visibility.
-      if (request.query.path === "public" && filter.visibility === true) {
+      // Public metadata path: a site is "public" when it has a device in a
+      // visible cohort. Applied for both list and single-site lookups so
+      // /metadata/sites/:site_id cannot bypass cohort visibility by ID.
+      if (request.query.path === "public") {
         delete filter.visibility;
         const visibleCohorts = await CohortModel(tenant)
           .find({ visibility: true })
           .select("_id")
           .lean();
-        if (visibleCohorts.length === 0) {
-          filter._id = { $in: [] };
+
+        let allowedSiteIds = [];
+        if (visibleCohorts.length > 0) {
+          allowedSiteIds = await DeviceModel(tenant).distinct("site_id", {
+            cohorts: { $in: visibleCohorts.map((c) => c._id) },
+            site_id: { $ne: null },
+          });
+        }
+
+        if (filter._id !== undefined) {
+          // Single-site lookup: verify this site is in the allowed set
+          const allowedSet = new Set(
+            allowedSiteIds.map((id) => id.toString()),
+          );
+          filter._id = allowedSet.has(filter._id.toString())
+            ? filter._id
+            : { $in: [] };
         } else {
-          const devicesInCohorts = await DeviceModel(tenant)
-            .find(
-              {
-                cohorts: { $in: visibleCohorts.map((c) => c._id) },
-                site_id: { $exists: true, $ne: null },
-              },
-              { site_id: 1 },
-            )
-            .lean();
-          const siteIds = [
-            ...new Set(devicesInCohorts.map((d) => d.site_id.toString())),
-          ];
           filter._id =
-            siteIds.length > 0
-              ? { $in: siteIds.map((id) => ObjectId(id)) }
+            allowedSiteIds.length > 0
+              ? { $in: allowedSiteIds }
               : { $in: [] };
         }
+
+        const publicResults = await SiteModel(tenant)
+          .aggregate([
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      long_name: 1,
+                      generated_name: 1,
+                      formatted_name: 1,
+                    },
+                  },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ])
+          .option({ maxTimeMS: 15000 });
+
+        const agg =
+          Array.isArray(publicResults) && publicResults[0]
+            ? publicResults[0]
+            : { paginatedResults: [], totalCount: [] };
+        const total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
+
+        return {
+          success: true,
+          message: "successfully retrieved the sites",
+          data: agg.paginatedResults || [],
+          status: httpStatus.OK,
+          meta: {
+            total,
+            totalResults: (agg.paginatedResults || []).length,
+            limit: _limit,
+            skip: _skip,
+            page: Math.floor(_skip / _limit) + 1,
+            totalPages: Math.ceil(total / _limit),
+            detailLevel,
+          },
+        };
       }
 
       let pipeline = [];
@@ -1615,17 +1669,7 @@ const createSite = {
       // Base match
       pipeline.push({ $match: filter });
 
-      if (request.query.path === "public") {
-        pipeline.push({
-          $project: {
-            _id: 1,
-            name: 1,
-            long_name: 1,
-            generated_name: 1,
-            formatted_name: 1,
-          },
-        });
-      } else if (detailLevel === "minimal") {
+      if (detailLevel === "minimal") {
         pipeline.push({
           $project: {
             _id: 1,
