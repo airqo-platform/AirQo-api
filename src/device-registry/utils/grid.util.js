@@ -966,6 +966,52 @@ const createGrid = {
         };
       }
 
+      // Public metadata path: lightweight pipeline — no site lookups, no caching.
+      // Grids default to visibility=true so the filter already covers all public grids.
+      if (request.query.path === "public") {
+        const results = await GridModel(normalizedTenant)
+          .aggregate([
+            { $match: filter },
+            {
+              $project: {
+                _id: 1,
+                visibility: 1,
+                name: 1,
+                admin_level: 1,
+                long_name: 1,
+                flag_url: 1,
+              },
+            },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $sort: { [sortField]: sortOrder } },
+                  { $skip: _skip },
+                  { $limit: _limit },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ])
+          .option({ maxTimeMS: 15000 });
+
+        const agg =
+          Array.isArray(results) && results[0]
+            ? results[0]
+            : { paginatedResults: [], totalCount: [] };
+        const total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
+        return {
+          success: true,
+          message: "Successfully retrieved grids",
+          data: agg.paginatedResults || [],
+          status: httpStatus.OK,
+          meta: buildGridListMeta({ total, _skip, _limit, request }),
+        };
+      }
+
       // Use cached helper — avoids a full Cohort→Device join on every request.
       // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
       const privateSiteIds = await getPrivateSiteIds(normalizedTenant);

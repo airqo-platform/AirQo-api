@@ -1580,12 +1580,52 @@ const createSite = {
       const filter = generateFilter.sites(request, next);
       filter.lat_long = { $ne: "4_4" };
 
+      // Public metadata path: a site is "public" when it has at least one
+      // device that belongs to a visible cohort — not by the site's own visibility.
+      if (request.query.path === "public" && filter.visibility === true) {
+        delete filter.visibility;
+        const visibleCohorts = await CohortModel(tenant)
+          .find({ visibility: true })
+          .select("_id")
+          .lean();
+        if (visibleCohorts.length === 0) {
+          filter._id = { $in: [] };
+        } else {
+          const devicesInCohorts = await DeviceModel(tenant)
+            .find(
+              {
+                cohorts: { $in: visibleCohorts.map((c) => c._id) },
+                site_id: { $exists: true, $ne: null },
+              },
+              { site_id: 1 },
+            )
+            .lean();
+          const siteIds = [
+            ...new Set(devicesInCohorts.map((d) => d.site_id.toString())),
+          ];
+          filter._id =
+            siteIds.length > 0
+              ? { $in: siteIds.map((id) => ObjectId(id)) }
+              : { $in: [] };
+        }
+      }
+
       let pipeline = [];
 
       // Base match
       pipeline.push({ $match: filter });
 
-      if (detailLevel === "minimal") {
+      if (request.query.path === "public") {
+        pipeline.push({
+          $project: {
+            _id: 1,
+            name: 1,
+            long_name: 1,
+            generated_name: 1,
+            formatted_name: 1,
+          },
+        });
+      } else if (detailLevel === "minimal") {
         pipeline.push({
           $project: {
             _id: 1,

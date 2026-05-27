@@ -320,33 +320,51 @@ const createCohort = {
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
 
-      const pipeline = [
-        { $match: filter },
-        {
-          // Simple array-membership join: MongoDB can use a multikey index on
-          // devices.cohorts with this form, unlike the correlated $expr/$in
-          // pipeline approach. Field trimming is handled downstream by the
-          // $map in COHORTS_INCLUSION_PROJECTION.
-          $lookup: {
-            from: "devices",
-            localField: "_id",
-            foreignField: "cohorts",
-            as: "devices",
-          },
-        },
-        { $project: constants.COHORTS_INCLUSION_PROJECTION },
-        { $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel) },
-        {
-          $facet: {
-            paginatedResults: [
-              { $sort: { [sortField]: sortOrder } },
-              { $skip: _skip },
-              { $limit: _limit },
-            ],
-            totalCount: [{ $count: "count" }],
-          },
-        },
-      ];
+      // Public metadata path: return only _id + name, skip the device lookup.
+      const isPublicMetadata = request.query.path === "public";
+
+      const pipeline = isPublicMetadata
+        ? [
+            { $match: filter },
+            { $project: { _id: 1, name: 1 } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $sort: { [sortField]: sortOrder } },
+                  { $skip: _skip },
+                  { $limit: _limit },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ]
+        : [
+            { $match: filter },
+            {
+              // Simple array-membership join: MongoDB can use a multikey index on
+              // devices.cohorts with this form, unlike the correlated $expr/$in
+              // pipeline approach. Field trimming is handled downstream by the
+              // $map in COHORTS_INCLUSION_PROJECTION.
+              $lookup: {
+                from: "devices",
+                localField: "_id",
+                foreignField: "cohorts",
+                as: "devices",
+              },
+            },
+            { $project: constants.COHORTS_INCLUSION_PROJECTION },
+            { $project: constants.COHORTS_EXCLUSION_PROJECTION(detailLevel) },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $sort: { [sortField]: sortOrder } },
+                  { $skip: _skip },
+                  { $limit: _limit },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ];
 
       const results = await CohortModel(tenant)
         .aggregate(pipeline)

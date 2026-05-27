@@ -1168,12 +1168,38 @@ const deviceUtil = {
       const sortField = sortBy ? sortBy : "createdAt";
       const filter = generateFilter.devices(request, next);
 
+      // Public metadata path: swap device visibility for cohort visibility.
+      // The device's own visibility field is not the authority here — a device
+      // is "public" when at least one of its cohorts is visible.
+      if (request.query.path === "public" && filter.visibility === true) {
+        delete filter.visibility;
+        const visibleCohorts = await CohortModel(tenant)
+          .find({ visibility: true })
+          .select("_id")
+          .lean();
+        if (visibleCohorts.length > 0) {
+          filter.cohorts = { $in: visibleCohorts.map((c) => c._id) };
+        } else {
+          filter._id = { $in: [] };
+        }
+      }
+
       let pipeline = [];
 
       // Base match
       pipeline.push({ $match: filter });
 
-      if (detailLevel === "minimal") {
+      if (request.query.path === "public") {
+        pipeline.push({
+          $project: {
+            _id: 1,
+            name: 1,
+            long_name: 1,
+            network: 1,
+            device_number: 1,
+          },
+        });
+      } else if (detailLevel === "minimal") {
         // Minimal data for performance-critical scenarios
         pipeline.push(getDeviceCategoriesAddFieldsStage(), {
           $project: {
@@ -1924,6 +1950,7 @@ const deviceUtil = {
           const sharedProducer = request._sharedKafkaProducer || null;
           const kafkaProducer = sharedProducer || kafka.producer({
             groupId: constants.UNIQUE_PRODUCER_GROUP,
+            retry: { retries: 1, initialRetryTime: 100 },
           });
           if (!sharedProducer) await kafkaProducer.connect();
           let deviceDataString = responseFromRegisterDevice.data
@@ -5506,17 +5533,48 @@ const deviceUtil = {
       );
     }
 
+    // Pre-flight: identify already-existing devices with one bulk query so we
+    // can (a) skip Kafka entirely when nothing will be created, and (b) return
+    // fast failures without attempting individual saves.
+    const serialNumbers = devices.map((d) => d.serial_number).filter(Boolean);
+    const sanitizedNames = devices
+      .map((d) => (d.long_name || d.name || "").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 41).trim().toLowerCase())
+      .filter(Boolean);
+
+    const existingDocs = await DeviceModel(tenant)
+      .find(
+        { $or: [{ serial_number: { $in: serialNumbers } }, { name: { $in: sanitizedNames } }] },
+        { serial_number: 1, name: 1 },
+      )
+      .lean();
+
+    const existingSerials = new Set(existingDocs.map((d) => d.serial_number));
+    const existingNames = new Set(existingDocs.map((d) => d.name));
+
+    const hasNewDevices = devices.some(
+      (d) =>
+        !existingSerials.has(d.serial_number) &&
+        !existingNames.has(
+          (d.long_name || d.name || "").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 41).trim().toLowerCase(),
+        ),
+    );
+
     // One shared Kafka producer for the whole batch avoids N connect/disconnect
-    // cycles. Falls back to null so createOnPlatform manages its own lifecycle.
+    // cycles. Skip entirely when pre-flight shows no new devices to save.
     let sharedProducer = null;
-    try {
-      sharedProducer = kafka.producer({ groupId: constants.UNIQUE_PRODUCER_GROUP });
-      await sharedProducer.connect();
-    } catch (kafkaErr) {
-      logger.warn(
-        `createDevicesBatch: could not connect shared Kafka producer: ${kafkaErr.message}. Per-device fallback will be used.`,
-      );
-      sharedProducer = null;
+    if (hasNewDevices) {
+      try {
+        sharedProducer = kafka.producer({
+          groupId: constants.UNIQUE_PRODUCER_GROUP,
+          retry: { retries: 1, initialRetryTime: 100 },
+        });
+        await sharedProducer.connect();
+      } catch (kafkaErr) {
+        logger.warn(
+          `createDevicesBatch: could not connect shared Kafka producer: ${kafkaErr.message}. Per-device fallback will be used.`,
+        );
+        sharedProducer = null;
+      }
     }
 
     try {
@@ -5556,9 +5614,9 @@ const deviceUtil = {
               return {
                 success: false,
                 message: capturedError.message || "Device creation failed",
-                ...(capturedError.details &&
-                  Object.keys(capturedError.details).length > 0 && {
-                    details: capturedError.details,
+                ...(capturedError.errors &&
+                  Object.keys(capturedError.errors).length > 0 && {
+                    details: capturedError.errors,
                   }),
               };
             }
@@ -5586,6 +5644,10 @@ const deviceUtil = {
                 long_name: deviceRow.long_name,
                 success: false,
                 error: outcome?.message || "Device creation failed",
+                ...(outcome?.details &&
+                  Object.keys(outcome.details).length > 0 && {
+                    details: outcome.details,
+                  }),
               });
             }
           } else {
