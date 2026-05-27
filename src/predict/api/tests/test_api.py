@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 import requests
@@ -450,6 +450,145 @@ def _daily_forecast_doc(site_id, site_name, forecast_date, pm2_5_mean):
     }
 
 
+@pytest.fixture
+def site_daily_forecast_client(monkeypatch):
+    import helpers as helpers_module
+
+    flask_app = create_app("testing")
+    flask_app.config["TESTING"] = True
+    cache.init_app(flask_app, config={"CACHE_TYPE": "NullCache"})
+
+    mock_db = MongoClient().db
+    monkeypatch.setattr(helpers_module, "site_forecast_db", mock_db)
+    monkeypatch.setattr(
+        helpers_module.Config, "MONGO_SITE_DAILY_FORECAST_COLLECTION", "site_daily"
+    )
+
+    with flask_app.app_context():
+        yield flask_app.test_client(), mock_db["site_daily"]
+
+
+def test_site_daily_forecasting_grid_id_filters_generated_site_ids(
+    site_daily_forecast_client, monkeypatch
+):
+    import helpers as helpers_module
+
+    client, collection = site_daily_forecast_client
+    forecast_date = date.today().isoformat()
+    collection.insert_many(
+        [
+            _daily_forecast_doc("site-1", "Site One", forecast_date, 12.4),
+            _daily_forecast_doc("site-2", "Site Two", forecast_date, 20.4),
+            _daily_forecast_doc("site-3", "Site Three", forecast_date, 30.4),
+        ]
+    )
+    request_details = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+
+    def fake_get(url, params, timeout):
+        request_details.update({"url": url, "params": params, "timeout": timeout})
+        return Response()
+
+    monkeypatch.setattr(helpers_module.requests, "get", fake_get)
+
+    response = client.get("/api/v2/predict/daily-forecasting?grid_id=grid-1")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    expected_url = (
+        f"{helpers_module.Config.AIRQO_BASE_URL.rstrip('/')}"
+        "/api/v2/devices/grids/grid-1/generate"
+    )
+    assert request_details == {
+        "url": expected_url,
+        "params": {"token": helpers_module.Config.AIRQO_API_AUTH_TOKEN},
+        "timeout": 10,
+    }
+    assert {
+        forecast["site_details"]["site_id"]
+        for forecast in payload["data"]["forecasts"]
+    } == {"site-1", "site-2"}
+    assert payload["data"]["sites_count"] == 2
+    assert payload["data"]["site_names"] == ["Site One", "Site Two"]
+
+
+def test_site_daily_forecasting_grid_route_filters_generated_site_ids(
+    site_daily_forecast_client, monkeypatch
+):
+    import helpers as helpers_module
+
+    client, collection = site_daily_forecast_client
+    forecast_date = date.today().isoformat()
+    collection.insert_many(
+        [
+            _daily_forecast_doc("site-1", "Site One", forecast_date, 12.4),
+            _daily_forecast_doc("site-2", "Site Two", forecast_date, 20.4),
+            _daily_forecast_doc("site-3", "Site Three", forecast_date, 30.4),
+        ]
+    )
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+
+    monkeypatch.setattr(
+        helpers_module.requests, "get", lambda *args, **kwargs: Response()
+    )
+
+    response = client.get("/api/v2/predict/daily-forecasting/grids/grid-1")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert {
+        forecast["site_details"]["site_id"]
+        for forecast in payload["data"]["forecasts"]
+    } == {"site-1", "site-2"}
+    assert payload["data"]["sites_count"] == 2
+    assert payload["data"]["sites_with_forecasts_count"] == 2
+    assert payload["data"]["site_names"] == ["Site One", "Site Two"]
+
+
+def test_site_daily_forecasting_grid_sites_count_uses_generated_site_ids(
+    site_daily_forecast_client, monkeypatch
+):
+    import helpers as helpers_module
+
+    client, collection = site_daily_forecast_client
+    forecast_date = date.today().isoformat()
+    collection.insert_one(
+        _daily_forecast_doc("site-1", "Site One", forecast_date, 12.4)
+    )
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+
+    monkeypatch.setattr(
+        helpers_module.requests, "get", lambda *args, **kwargs: Response()
+    )
+
+    response = client.get("/api/v2/predict/daily-forecasting/grids/grid-1")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload["data"]["forecasts"]) == 1
+    assert payload["data"]["sites_count"] == 2
+    assert payload["data"]["sites_with_forecasts_count"] == 1
+    assert payload["data"]["site_names"] == ["Site One"]
+
+
 def test_site_daily_forecasting_appends_pm2_5_trend_message(monkeypatch):
     import helpers as helpers_module
     from prediction import (
@@ -465,7 +604,7 @@ def test_site_daily_forecasting_appends_pm2_5_trend_message(monkeypatch):
     monkeypatch.setattr(
         helpers_module,
         "get_site_daily_forecasts",
-        lambda site_id, start_date: forecast_documents,
+        lambda site_id, start_date, site_ids=None: forecast_documents,
     )
 
     flask_app = create_app("testing")
@@ -547,6 +686,133 @@ def test_site_hourly_forecasting_all_sites_groups_forecasts(
     assert forecasts_by_site["site-2"]["forecasts"][0]["met"][
         "wind_direction_compass"
     ] == "E"
+
+
+def test_site_hourly_forecasting_cohort_id_filters_generated_site_ids(
+    site_hourly_forecast_client, monkeypatch
+):
+    import helpers as helpers_module
+
+    client, collection, start_timestamp = site_hourly_forecast_client
+    collection.insert_many(
+        [
+            _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
+            _hourly_forecast_doc("site-2", "Site Two", start_timestamp, 20.4),
+            _hourly_forecast_doc("site-3", "Site Three", start_timestamp, 30.4),
+        ]
+    )
+    request_details = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+
+    def fake_get(url, params, timeout):
+        request_details.update({"url": url, "params": params, "timeout": timeout})
+        return Response()
+
+    monkeypatch.setattr(helpers_module.requests, "get", fake_get)
+
+    response = client.get(
+        "/api/v2/predict/hourly-forecasting?cohort_id=cohort-1&page=1&limit=10"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    expected_url = (
+        f"{helpers_module.Config.AIRQO_BASE_URL.rstrip('/')}"
+        "/api/v2/devices/cohorts/cohort-1/generate"
+    )
+    assert request_details == {
+        "url": expected_url,
+        "params": {"token": helpers_module.Config.AIRQO_API_AUTH_TOKEN},
+        "timeout": 10,
+    }
+    assert {
+        forecast["site_details"]["site_id"]
+        for forecast in payload["data"]["forecasts"]
+    } == {"site-1", "site-2"}
+    assert payload["data"]["sites_count"] == 2
+    assert payload["data"]["site_names"] == ["Site One", "Site Two"]
+
+
+def test_site_hourly_forecasting_cohort_route_filters_generated_site_ids(
+    site_hourly_forecast_client, monkeypatch
+):
+    import helpers as helpers_module
+
+    client, collection, start_timestamp = site_hourly_forecast_client
+    collection.insert_many(
+        [
+            _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
+            _hourly_forecast_doc("site-2", "Site Two", start_timestamp, 20.4),
+            _hourly_forecast_doc("site-3", "Site Three", start_timestamp, 30.4),
+        ]
+    )
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+
+    monkeypatch.setattr(
+        helpers_module.requests, "get", lambda *args, **kwargs: Response()
+    )
+
+    response = client.get(
+        "/api/v2/predict/hourly-forecasting/cohorts/cohort-1?page=1&limit=10"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert {
+        forecast["site_details"]["site_id"]
+        for forecast in payload["data"]["forecasts"]
+    } == {"site-1", "site-2"}
+    assert payload["data"]["sites_count"] == 2
+    assert payload["data"]["site_names"] == ["Site One", "Site Two"]
+
+
+def test_site_hourly_forecasting_scoped_sites_count_uses_total_matching_sites(
+    site_hourly_forecast_client, monkeypatch
+):
+    import helpers as helpers_module
+
+    client, collection, start_timestamp = site_hourly_forecast_client
+    collection.insert_many(
+        [
+            _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
+            _hourly_forecast_doc("site-2", "Site Two", start_timestamp, 20.4),
+            _hourly_forecast_doc("site-3", "Site Three", start_timestamp, 30.4),
+        ]
+    )
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+
+    monkeypatch.setattr(
+        helpers_module.requests, "get", lambda *args, **kwargs: Response()
+    )
+
+    response = client.get(
+        "/api/v2/predict/hourly-forecasting/grids/grid-1?page=1&limit=1"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload["data"]["forecasts"]) == 1
+    assert payload["data"]["total"] == 2
+    assert payload["data"]["sites_count"] == 2
+    assert payload["data"]["site_names"] == ["Site One"]
 
 
 def test_site_hourly_forecasting_varies_aqi_labels(site_hourly_forecast_client):
