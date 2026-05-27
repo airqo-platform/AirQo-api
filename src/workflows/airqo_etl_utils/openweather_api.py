@@ -1,10 +1,8 @@
 # implement the openweather api
 import logging
-import os
-
-import requests
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.http_client import HttpClient
 from airqo_etl_utils.utils import Utils
 
 
@@ -14,6 +12,14 @@ class OpenWeatherApi:
 
     @staticmethod
     def get_current_weather_for_each_site(site_coordinates: tuple) -> dict:
+        """Fetch current weather from OpenWeather for a single site coordinate.
+
+        Args:
+            site_coordinates (tuple): ``(latitude, longitude)`` pair.
+
+        Returns:
+            dict: Parsed OpenWeather JSON response, or ``{}`` on error.
+        """
         latitude, longitude = site_coordinates
         params = {
             "lat": latitude,
@@ -22,10 +28,8 @@ class OpenWeatherApi:
             "units": "metric",
         }
         try:
-            response = requests.get(url=OpenWeatherApi.BASE_URL, params=params)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
+            return HttpClient().get_json(OpenWeatherApi.BASE_URL, params=params)
+        except Exception as e:
             logging.error(
                 f"Error getting current weather for site {latitude}, {longitude}: {e}"
             )

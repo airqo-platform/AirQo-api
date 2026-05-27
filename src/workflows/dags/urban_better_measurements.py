@@ -1,4 +1,5 @@
 from airflow.decorators import dag, task
+import pandas as pd
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import (
@@ -20,8 +21,6 @@ from airqo_etl_utils.date import DateUtils
     tags=["urban better", "raw", "historical", "plume labs"],
 )
 def historical_raw_measurements_etl__plume_labs():
-    import pandas as pd
-
     @task()
     def extract_measures(**kwargs):
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
@@ -86,8 +85,6 @@ def historical_raw_measurements_etl__plume_labs():
     tags=["urban better", "processed", "historical", "plume labs"],
 )
 def historical_processed_measurements_etl__plume_labs():
-    import pandas as pd
-
     @task()
     def extract_measures(**kwargs):
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
@@ -200,7 +197,6 @@ def historical_processed_measurements_etl__plume_labs():
     tags=["urban better", "realtime", "raw", "plume labs"],
 )
 def realtime_measurements_etl__plume_labs():
-    import pandas as pd
 
     from datetime import datetime, timedelta, timezone
 
@@ -316,28 +312,15 @@ def realtime_measurements_etl__plume_labs():
     tags=["urban better", "historical", "raw", "air beam"],
 )
 def historical_measurements_etl__air_beam():
-    import pandas as pd
-
     @task()
-    def extract_stream_ids(**kwargs):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
-        from airqo_etl_utils.date import DateUtils
-
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
-        return UrbanBetterUtils.extract_stream_ids_from_air_beam(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
-
-    @task()
-    def extract_measurements(ids: pd.DataFrame, **kwargs):
+    def extract_measurements(**kwargs):
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         return UrbanBetterUtils.extract_measurements_from_air_beam(
-            start_date_time=start_date_time, end_date_time=end_date_time, stream_ids=ids
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()
@@ -350,8 +333,7 @@ def historical_measurements_etl__air_beam():
         )
         big_query_api.load_data(dataframe=data, table=table)
 
-    stream_ids = extract_stream_ids()
-    measurements = extract_measurements(stream_ids)
+    measurements = extract_measurements()
     load(measurements)
 
 
@@ -363,7 +345,6 @@ def historical_measurements_etl__air_beam():
     tags=["urban better", "realtime", "raw", "air beam"],
 )
 def realtime_measurements_etl__air_beam():
-    import pandas as pd
 
     from datetime import datetime, timedelta, timezone
 
@@ -372,19 +353,11 @@ def realtime_measurements_etl__air_beam():
     end_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%dT%H:59:59Z")
 
     @task()
-    def extract_stream_ids():
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
-
-        return UrbanBetterUtils.extract_stream_ids_from_air_beam(
-            start_date_time=start_time, end_date_time=end_time
-        )
-
-    @task()
-    def extract_measurements(ids: pd.DataFrame):
+    def extract_measurements():
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         return UrbanBetterUtils.extract_measurements_from_air_beam(
-            start_date_time=start_time, end_date_time=end_time, stream_ids=ids
+            start_date_time=start_time, end_date_time=end_time
         )
 
     @task()
@@ -397,8 +370,7 @@ def realtime_measurements_etl__air_beam():
         )
         big_query_api.load_data(dataframe=data, table=table)
 
-    stream_ids = extract_stream_ids()
-    measurements = extract_measurements(stream_ids)
+    measurements = extract_measurements()
     load(measurements)
 
 

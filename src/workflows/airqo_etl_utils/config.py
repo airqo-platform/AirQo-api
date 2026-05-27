@@ -229,7 +229,15 @@ class Config:
         "plumelabs": {
             "url": PLUME_LABS_BASE_URL,
         },
-        "airbeam": {"url": AIR_BEAM_BASE_URL},
+        "airbeam": {
+            "url": AIR_BEAM_BASE_URL,
+            "extras": {
+                "west": 10.581214853439886,
+                "east": 38.08577769782265,
+                "south": -36.799337832603314,
+                "north": -19.260169583742446,
+            },
+        },
         "tahmo": {
             "url": TAHMO_BASE_URL,
             "auth": {"api_key": TAHMO_API_KEY},

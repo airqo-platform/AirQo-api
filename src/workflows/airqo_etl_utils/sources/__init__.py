@@ -2,7 +2,7 @@
 
 This package provides a unified interface (:class:`DataSourceAdapter`) for
 fetching time-series data from heterogeneous providers (ThingSpeak, IQAir,
-AirGradient, TAHMO, OpenWeather, NOMADS, etc.).
+AirGradient, AirNow, AirBeam, TAHMO, OpenWeather, NOMADS, etc.).
 
 Quick start::
 
@@ -41,6 +41,8 @@ from . import openweather_adapter as _openweather  # noqa: F401
 from . import nomads_adapter as _nomads  # noqa: F401
 from . import bigquery_source_adapter as _bigquery  # noqa: F401
 from . import cams_cds_adapter as _cams  # noqa: F401
+from . import airnow_adapter as _airnow  # noqa: F401
+from . import airbeam_adapter as _airbeam  # noqa: F401
 
 __all__ = [
     "DataSourceAdapter",

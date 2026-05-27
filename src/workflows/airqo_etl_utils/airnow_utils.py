@@ -1,13 +1,23 @@
+import logging
+
 import pandas as pd
+from airflow.exceptions import AirflowFailException
+
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.constants import (
+    DataSource,
+    DataType,
+    DeviceCategory,
+    DeviceNetwork,
+    Frequency,
+)
 from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.datautils import DataUtils
-from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-from airflow.exceptions import AirflowFailException
-from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
-
-import logging
+from airqo_etl_utils.sources import fetch_from_adapter
+from airqo_etl_utils.utils import Utils
 
 logger = logging.getLogger("airflow.task")
 
@@ -15,26 +25,51 @@ logger = logging.getLogger("airflow.task")
 class AirnowDataUtils:
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        """
-        Queries BAM (Beta Attenuation Monitor) data from the AirNow API within the given date range.
+        """Extract BAM (Beta Attenuation Monitor) data from the AirNow API.
 
-        This function converts the input date strings into the required format for the API,
-        retrieves air quality data, and returns it as a Pandas DataFrame.
+        Splits the requested range into API-appropriate chunks and queries all
+        BAM stations within the configured geographic bounding box. Auth is read
+        from ``configuration.INTEGRATION_DETAILS["metone"]``.
 
         Args:
-            api_key(str): The API key required for authentication with AirNow.
-            start_date_time(str): The start datetime in string format (expected format: "YYYY-MM-DD HH:MM").
-            end_date_time(str): The end datetime in string format (expected format: "YYYY-MM-DD HH:MM").
+            start_date_time (str): Start of the date range in ISO 8601 format
+                (e.g. ``"2024-03-01T00:00:00Z"``).
+            end_date_time (str): End of the date range in ISO 8601 format
+                (e.g. ``"2024-03-02T23:59:59Z"``).
 
         Returns:
-            pd.DataFrame: A DataFrame containing the air quality data retrieved from the AirNow API.
+            pd.DataFrame: Raw AirNow records with a ``network`` column set to
+            ``DeviceNetwork.METONE``. Empty DataFrame when no data is available.
 
-        Example:
-            >>> df = query_bam_data("your_api_key", "2024-03-01 00:00", "2024-03-02 23:59")
-            >>> print(df.head())
+        Raises:
+            ValueError: If the date range is empty or invalid.
         """
-        data = DataUtils.extract_bam_data_airnow(start_date_time, end_date_time)
-        return data
+        raw_dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.AIRNOW,
+        )
+        if not raw_dates:
+            raise ValueError("Invalid or empty date range provided.")
+
+        dates = [
+            (
+                DateUtils.str_to_date(s).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                DateUtils.str_to_date(e).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            )
+            for s, e in raw_dates
+        ]
+
+        result = fetch_from_adapter(DeviceNetwork.METONE, dates=dates)
+        records = (result.data or {}).get("records", [])
+
+        if not records:
+            logger.info("No BAM data found for the specified date range.")
+            return pd.DataFrame()
+
+        bam_data = pd.DataFrame(records)
+        bam_data["network"] = DeviceNetwork.METONE.str
+        return bam_data
 
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -75,14 +110,14 @@ class AirnowDataUtils:
 
     @staticmethod
     def send_to_api(data: pd.DataFrame, **kwargs) -> None:
-        """
-        Sends the provided DataFrame to the api after processing.
+        """Send processed measurements to the AirQo API.
+
+        Only sends when the Airflow param ``send_to_api`` is truthy; otherwise
+        this is a no-op.
 
         Args:
-            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
-
-        Returns:
-            None
+            data (pd.DataFrame): Processed measurements DataFrame.
+            **kwargs: Airflow context; reads ``params.send_to_api`` to gate the call.
         """
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
@@ -92,14 +127,13 @@ class AirnowDataUtils:
 
     @staticmethod
     def send_to_broker(data: pd.DataFrame) -> None:
-        """
-        Sends the provided DataFrame to kafka after processing.
+        """Publish processed measurements to the Kafka hourly-measurements topic.
 
         Args:
-            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
+            data (pd.DataFrame): Processed measurements DataFrame.
 
-        Returns:
-            None
+        Raises:
+            AirflowFailException: If message-broker processing fails (e.g. Kafka is down).
         """
         data = DataUtils.process_data_for_message_broker(data=data)
         if not isinstance(data, pd.DataFrame):

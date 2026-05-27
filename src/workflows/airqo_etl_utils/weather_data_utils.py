@@ -22,15 +22,13 @@ from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from airqo_etl_utils.utils import Utils
 from airqo_etl_utils.sources import get_adapter
-from airqo_etl_utils.sources.http_client import HttpClient
+from airqo_etl_utils.http_client import HttpClient
 
 logger = logging.getLogger("airflow.task")
 
 
 class WeatherDataUtils:
-    MET_NO_HEADERS = {
-        "User-Agent": "AirQo-workflows/1.0 (data-engineering@airqo.net)"
-    }
+    MET_NO_HEADERS = {"User-Agent": "AirQo-workflows/1.0 (data-engineering@airqo.net)"}
 
     @staticmethod
     def extract_weather_data(
@@ -305,7 +303,9 @@ class WeatherDataUtils:
                     "date": timestamp.date(),
                     "met_no_query_latitude": float(query_latitude),
                     "met_no_query_longitude": float(query_longitude),
-                    "air_pressure_at_sea_level": instant.get("air_pressure_at_sea_level"),
+                    "air_pressure_at_sea_level": instant.get(
+                        "air_pressure_at_sea_level"
+                    ),
                     "air_temperature": instant.get("air_temperature"),
                     "cloud_area_fraction": instant.get("cloud_area_fraction"),
                     "relative_humidity": instant.get("relative_humidity"),
@@ -396,9 +396,7 @@ class WeatherDataUtils:
         ).round(2)
         coordinate_buckets = coordinate_buckets.dropna(
             subset=["met_no_query_latitude", "met_no_query_longitude"]
-        )[
-            ["met_no_query_latitude", "met_no_query_longitude"]
-        ].drop_duplicates()
+        )[["met_no_query_latitude", "met_no_query_longitude"]].drop_duplicates()
 
         if coordinate_buckets.empty:
             return pd.DataFrame()
@@ -471,9 +469,7 @@ class WeatherDataUtils:
         ).round(2)
         coordinate_buckets = coordinate_buckets.dropna(
             subset=["met_no_query_latitude", "met_no_query_longitude"]
-        )[
-            ["met_no_query_latitude", "met_no_query_longitude"]
-        ].drop_duplicates()
+        )[["met_no_query_latitude", "met_no_query_longitude"]].drop_duplicates()
 
         if coordinate_buckets.empty:
             return pd.DataFrame()
