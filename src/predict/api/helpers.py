@@ -297,7 +297,10 @@ SITE_HOURLY_FORECAST_DESCRIPTIONS = {
 
 
 def build_site_forecast_response(
-    site_id: str | None, aqi_category_getter, wind_direction_formatter
+    site_id: str | None,
+    aqi_category_getter,
+    wind_direction_formatter,
+    trend_message_getter=None,
 ):
     """
     Build the API response payload for ``/api/v2/predict/daily-forecasting``.
@@ -368,6 +371,44 @@ def build_site_forecast_response(
             return aqi_category_getter(pm2_5_mean, label_seed=label_seed)
         return aqi_category_getter(pm2_5_mean)
 
+    selected_forecast_documents = (
+        forecast_documents[:expected_days] if site_id else forecast_documents
+    )
+    next_pm2_5_by_site_date = {}
+    forecast_documents_by_site = {}
+    for forecast_document in selected_forecast_documents:
+        forecast_site_id = clean_response_value(forecast_document.get("site_id"))
+        if forecast_site_id is None:
+            continue
+        forecast_documents_by_site.setdefault(forecast_site_id, []).append(
+            forecast_document
+        )
+
+    for forecast_site_id, site_forecast_documents in forecast_documents_by_site.items():
+        sorted_site_forecast_documents = sorted(
+            site_forecast_documents,
+            key=lambda document: clean_response_value(document.get("date")) or "",
+        )
+        for index, forecast_document in enumerate(sorted_site_forecast_documents[:-1]):
+            forecast_date = clean_response_value(forecast_document.get("date"))
+            next_forecast_document = sorted_site_forecast_documents[index + 1]
+            next_pm2_5_by_site_date[(forecast_site_id, forecast_date)] = (
+                clean_response_value(next_forecast_document.get("pm2_5_mean"))
+            )
+
+    def get_trend_message(pm2_5_mean, next_pm2_5_mean, *label_seed_parts):
+        if not trend_message_getter or next_pm2_5_mean is None:
+            return None
+
+        label_seed = ":".join(
+            str(part) for part in label_seed_parts if part is not None
+        )
+        if "label_seed" in inspect.signature(trend_message_getter).parameters:
+            return trend_message_getter(
+                pm2_5_mean, next_pm2_5_mean, label_seed=label_seed
+            )
+        return trend_message_getter(pm2_5_mean, next_pm2_5_mean)
+
     def format_forecast_entry(forecast_document):
         pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
         wind_direction_degrees = clean_response_value(
@@ -377,6 +418,15 @@ def build_site_forecast_response(
         forecast_site_id = clean_response_value(forecast_document.get("site_id"))
         aqi_category_details = get_aqi_category_details(
             pm2_5_mean, forecast_site_id, forecast_date
+        )
+        trend_message = get_trend_message(
+            pm2_5_mean,
+            next_pm2_5_by_site_date.get((forecast_site_id, forecast_date)),
+            forecast_site_id,
+            forecast_date,
+        )
+        aqi_label = (
+            aqi_category_details.get("label") if aqi_category_details else None
         )
 
         return {
@@ -410,11 +460,8 @@ def build_site_forecast_response(
                 },
                 "aqi": {
                     "aqi_value": pm2_5_mean,
-                    "label": (
-                        aqi_category_details.get("label")
-                        if aqi_category_details
-                        else None
-                    ),
+                    "label": aqi_label,
+                    "trend_message": trend_message,
                     "aqi_category": (
                         aqi_category_details.get("aqi_category")
                         if aqi_category_details
@@ -470,9 +517,7 @@ def build_site_forecast_response(
 
     forecasts = [
         format_forecast_entry(forecast_document)
-        for forecast_document in (
-            forecast_documents[:expected_days] if site_id else forecast_documents
-        )
+        for forecast_document in selected_forecast_documents
     ]
     distinct_dates = sorted(
         {
@@ -531,7 +576,10 @@ def build_site_forecast_response(
 
 
 def build_site_hourly_forecast_response(
-    site_id: str | None, aqi_category_getter, wind_direction_formatter
+    site_id: str | None,
+    aqi_category_getter,
+    wind_direction_formatter,
+    trend_message_getter=None,
 ):
     """
     Build the API response payload for ``/api/v2/predict/hourly-forecasting``.
@@ -617,6 +665,41 @@ def build_site_hourly_forecast_response(
         except TypeError:
             return aqi_category_getter(pm2_5_mean)
 
+    next_pm2_5_by_site_timestamp = {}
+    forecast_documents_by_site = {}
+    for forecast_document in forecast_documents:
+        forecast_site_id = clean_response_value(forecast_document.get("site_id"))
+        if forecast_site_id is None:
+            continue
+        forecast_documents_by_site.setdefault(forecast_site_id, []).append(
+            forecast_document
+        )
+
+    for forecast_site_id, site_forecast_documents in forecast_documents_by_site.items():
+        sorted_site_forecast_documents = sorted(
+            site_forecast_documents,
+            key=lambda document: clean_response_value(document.get("timestamp")) or "",
+        )
+        for index, forecast_document in enumerate(sorted_site_forecast_documents[:-1]):
+            forecast_timestamp = clean_response_value(forecast_document.get("timestamp"))
+            next_forecast_document = sorted_site_forecast_documents[index + 1]
+            next_pm2_5_by_site_timestamp[(forecast_site_id, forecast_timestamp)] = (
+                clean_response_value(next_forecast_document.get("pm2_5_mean"))
+            )
+
+    def get_trend_message(pm2_5_mean, next_pm2_5_mean, *label_seed_parts):
+        if not trend_message_getter or next_pm2_5_mean is None:
+            return None
+
+        label_seed = ":".join(
+            str(part) for part in label_seed_parts if part is not None
+        )
+        if "label_seed" in inspect.signature(trend_message_getter).parameters:
+            return trend_message_getter(
+                pm2_5_mean, next_pm2_5_mean, label_seed=label_seed
+            )
+        return trend_message_getter(pm2_5_mean, next_pm2_5_mean)
+
     def format_forecast_entry(forecast_document):
         pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
         wind_direction_degrees = clean_response_value(
@@ -626,6 +709,12 @@ def build_site_hourly_forecast_response(
         forecast_site_id = clean_response_value(forecast_document.get("site_id"))
         aqi_category_details = get_aqi_category_details(
             pm2_5_mean, forecast_site_id, forecast_timestamp
+        )
+        trend_message = get_trend_message(
+            pm2_5_mean,
+            next_pm2_5_by_site_timestamp.get((forecast_site_id, forecast_timestamp)),
+            forecast_site_id,
+            forecast_timestamp,
         )
 
         return {
@@ -658,6 +747,7 @@ def build_site_hourly_forecast_response(
                         if aqi_category_details
                         else None
                     ),
+                    "trend_message": trend_message,
                     "aqi_category": (
                         aqi_category_details.get("aqi_category")
                         if aqi_category_details

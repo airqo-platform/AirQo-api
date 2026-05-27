@@ -121,6 +121,34 @@ AQI_LABELS = {
     ],
 }
 
+TREND_MESSAGES = {
+    "improving": [
+        "Air quality is expected to improve tomorrow.",
+        "Conditions may become cleaner over the next day.",
+    ],
+    "worsening": [
+        "Air pollution may increase tomorrow. Consider reducing prolonged outdoor exposure.",
+        "Conditions are expected to worsen. Sensitive groups should plan ahead.",
+    ],
+    "stable": [
+        "Air quality is expected to remain similar tomorrow.",
+    ],
+}
+
+HOURLY_TREND_MESSAGES = {
+    "improving": [
+        "Air quality is expected to improve in the next hour.",
+        "Conditions may become cleaner over the next hour.",
+    ],
+    "worsening": [
+        "Air pollution may increase in the next hour. Consider reducing outdoor exposure.",
+        "Conditions are expected to worsen soon. Sensitive groups should plan ahead.",
+    ],
+    "stable": [
+        "Air quality is expected to remain similar in the next hour.",
+    ],
+}
+
 COMPASS_DIRECTIONS = (
     "N",
     "NNE",
@@ -151,6 +179,51 @@ def select_aqi_label(category, seed=None):
     seed_text = f"{category}:{seed}"
     digest = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()
     return labels[int(digest[:8], 16) % len(labels)]
+
+
+def select_seeded_message(messages, seed=None):
+    if not messages:
+        return None
+    if seed is None:
+        return messages[0]
+
+    digest = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
+    return messages[int(digest[:8], 16) % len(messages)]
+
+
+def get_pm2_5_trend_message(
+    current_value, next_value, label_seed=None, trend_messages=None
+):
+    try:
+        current_pm2_5 = float(current_value)
+        next_pm2_5 = float(next_value)
+    except (TypeError, ValueError):
+        return None
+
+    if math.isnan(current_pm2_5) or math.isnan(next_pm2_5):
+        return None
+
+    delta = next_pm2_5 - current_pm2_5
+    if abs(delta) <= 1:
+        trend = "stable"
+    elif delta < 0:
+        trend = "improving"
+    else:
+        trend = "worsening"
+
+    messages_by_trend = trend_messages or TREND_MESSAGES
+    return select_seeded_message(
+        messages_by_trend[trend], seed=f"{trend}:{label_seed}"
+    )
+
+
+def get_hourly_pm2_5_trend_message(current_value, next_value, label_seed=None):
+    return get_pm2_5_trend_message(
+        current_value,
+        next_value,
+        label_seed=label_seed,
+        trend_messages=HOURLY_TREND_MESSAGES,
+    )
 
 
 def get_aqi_category(value, label_seed=None):
@@ -308,6 +381,7 @@ def get_site_daily_forecasts_v2():
     response, status_code = build_site_forecast_response(
         site_id=site_id,
         aqi_category_getter=get_aqi_category,
+        trend_message_getter=get_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
     )
     return jsonify(response), status_code
@@ -327,6 +401,7 @@ def get_site_hourly_forecasts_v2():
     response, status_code = build_site_hourly_forecast_response(
         site_id=site_id,
         aqi_category_getter=get_aqi_category,
+        trend_message_getter=get_hourly_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
     )
     return jsonify(response), status_code
