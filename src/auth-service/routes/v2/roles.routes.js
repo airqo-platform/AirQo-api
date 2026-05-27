@@ -188,15 +188,6 @@ router.delete(
 
 // New user-centric role management endpoints
 router.get(
-  "/users/:user_id/network-roles",
-  roleValidations.getUserRoles,
-  validate,
-  enhancedJWTAuth,
-  pagination(),
-  roleController.getUserNetworkRoles,
-);
-
-router.get(
   "/users/:user_id/group-roles",
   roleValidations.getUserRoles,
   validate,
