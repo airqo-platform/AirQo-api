@@ -1721,8 +1721,13 @@ const deviceUtil = {
       // All steps are non-fatal — failures are logged and device creation
       // continues without the field rather than blocking the caller.
       if (body.network && body.network !== "airqo") {
-        // DB-first adapter resolution via shared helper (DB wins, static fills gaps).
-        const adapterConfig = await getNetworkAdapter(body.network, tenant);
+        // In bulk mode the adapter is pre-resolved once for the whole batch and
+        // injected via _preResolvedAdapter to avoid N identical DB lookups.
+        const adapterConfig =
+          "_preResolvedAdapter" in body
+            ? body._preResolvedAdapter
+            : await getNetworkAdapter(body.network, tenant);
+        delete body._preResolvedAdapter;
 
         // Step 1: extract api_code from description URL, validated against adapter
         // Require adapterConfig.api_base_url to be set before trusting any URL
@@ -1809,75 +1814,82 @@ const deviceUtil = {
         body.owner_id = body.user_id;
       }
 
-      try {
-        // --- START: Cohort assignment ---
-        const { user_id, cohort_id } = body;
-        let targetCohort;
+      if (Array.isArray(body._preResolvedCohortIds)) {
+        // Bulk mode: cohorts were resolved once for the whole batch upstream.
+        // Skip all per-device cohort DB queries.
+        body.cohorts.push(...body._preResolvedCohortIds);
+        delete body._preResolvedCohortIds;
+      } else {
+        try {
+          // --- START: Cohort assignment (single-device path) ---
+          const { user_id, cohort_id } = body;
+          let targetCohort;
 
-        if (cohort_id) {
-          // Case A: A specific cohort is provided during import
-          if (!isValidObjectId(cohort_id)) {
-            throw new HttpError(
-              `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
-              httpStatus.BAD_REQUEST,
-            );
-          }
-          targetCohort = await CohortModel(tenant)
-            .findById(cohort_id)
-            .lean();
-          if (!targetCohort) {
-            throw new HttpError(
-              `Specified cohort with ID ${cohort_id} not found.`,
-              httpStatus.NOT_FOUND,
-            );
-          }
-          if (targetCohort) {
-            body.cohorts.push(targetCohort._id);
-          }
-        } else if (user_id) {
-          // Case B: No cohort provided but user_id given — use/create personal cohort
-          const personalCohortName = `coh_user_${user_id.toString()}`;
-          targetCohort = await CohortModel(tenant).findOneAndUpdate(
-            { name: personalCohortName },
-            {
-              $setOnInsert: {
-                name: personalCohortName,
-                description: `Personal cohort for user ${user_id.toString()}`,
-                network: body.network || "airqo",
+          if (cohort_id) {
+            // Case A: A specific cohort is provided during import
+            if (!isValidObjectId(cohort_id)) {
+              throw new HttpError(
+                `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
+                httpStatus.BAD_REQUEST,
+              );
+            }
+            targetCohort = await CohortModel(tenant)
+              .findById(cohort_id)
+              .lean();
+            if (!targetCohort) {
+              throw new HttpError(
+                `Specified cohort with ID ${cohort_id} not found.`,
+                httpStatus.NOT_FOUND,
+              );
+            }
+            if (targetCohort) {
+              body.cohorts.push(targetCohort._id);
+            }
+          } else if (user_id) {
+            // Case B: No cohort provided but user_id given — use/create personal cohort
+            const personalCohortName = `coh_user_${user_id.toString()}`;
+            targetCohort = await CohortModel(tenant).findOneAndUpdate(
+              { name: personalCohortName },
+              {
+                $setOnInsert: {
+                  name: personalCohortName,
+                  description: `Personal cohort for user ${user_id.toString()}`,
+                  network: body.network || "airqo",
+                },
               },
-            },
-            { upsert: true, new: true, setDefaultsOnInsert: true },
-          );
-          if (targetCohort) {
-            body.cohorts.push(targetCohort._id);
+              { upsert: true, new: true, setDefaultsOnInsert: true },
+            );
+            if (targetCohort) {
+              body.cohorts.push(targetCohort._id);
+            }
           }
-        }
-        // Case C: no user_id and no cohort_id — only default cohort assigned below
-        // --- END: Cohort assignment ---
+          // Case C: no user_id and no cohort_id — only default cohort assigned below
+          // --- END: Cohort assignment ---
 
-        // Add device to the main default cohort as well
-        const defaultCohort = await CohortModel(tenant)
-          .findOne({ name: constants.DEFAULT_COHORT_NAME })
-          .select("_id")
-          .lean();
+          // Add device to the main default cohort as well
+          const defaultCohort = await CohortModel(tenant)
+            .findOne({ name: constants.DEFAULT_COHORT_NAME })
+            .select("_id")
+            .lean();
 
-        if (defaultCohort) {
-          body.cohorts.push(defaultCohort._id);
-        } else {
-          logger.warn(
-            `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`,
+          if (defaultCohort) {
+            body.cohorts.push(defaultCohort._id);
+          } else {
+            logger.warn(
+              `💔 Default 'airqo' cohort not found in tenant: ${tenant}. Device will be created without default cohort.`,
+            );
+          }
+        } catch (cohortError) {
+          // Rethrow intentional errors (e.g. cohort not found) so the caller
+          // receives the correct status code instead of a generic 500.
+          if (cohortError instanceof HttpError) {
+            throw cohortError;
+          }
+          logger.error(
+            `🪲🪲 Error during cohort assignment: ${cohortError.message}. Continuing with device creation.`,
           );
+          // Unexpected DB errors are non-fatal — device is still created.
         }
-      } catch (cohortError) {
-        // Rethrow intentional errors (e.g. cohort not found) so the caller
-        // receives the correct status code instead of a generic 500.
-        if (cohortError instanceof HttpError) {
-          throw cohortError;
-        }
-        logger.error(
-          `🪲🪲 Error during cohort assignment: ${cohortError.message}. Continuing with device creation.`,
-        );
-        // Unexpected DB errors are non-fatal — device is still created.
       }
 
       // Ensure cohorts array has unique values before saving
@@ -1896,6 +1908,13 @@ const deviceUtil = {
         body,
         next,
       );
+
+      // register() calls next() and returns undefined when it encounters an
+      // error (e.g. duplicate key). Return a structured failure so callers
+      // that read .success (e.g. the ThingSpeak flow) don't throw TypeError.
+      if (!responseFromRegisterDevice) {
+        return { success: false, message: "Device registration failed" };
+      }
 
       if (responseFromRegisterDevice.success === true) {
         try {
@@ -5417,8 +5436,75 @@ const deviceUtil = {
     return { devices, row_errors: rowErrors };
   },
 
-  createDevicesBatch: async (devices, { tenant, user_id, cohort_id }, batchSize = 25) => {
+  createDevicesBatch: async (devices, { tenant, user_id, cohort_id }, batchSize = 50) => {
     const results = [];
+
+    // Pre-resolve cohorts once for the whole batch instead of per device.
+    // For N devices this collapses O(N) cohort DB queries to O(1).
+    // null means pre-resolution failed — createOnPlatform falls back to its own queries.
+    let preResolvedCohortIds = null;
+    try {
+      const cohortQueries = [];
+      if (user_id) {
+        const personalCohortName = `coh_user_${user_id.toString()}`;
+        cohortQueries.push(
+          CohortModel(tenant).findOneAndUpdate(
+            { name: personalCohortName },
+            {
+              $setOnInsert: {
+                name: personalCohortName,
+                description: `Personal cohort for user ${user_id.toString()}`,
+                network: "airqo",
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true },
+          ).then((c) => c?._id),
+        );
+      }
+      if (cohort_id && isValidObjectId(cohort_id)) {
+        cohortQueries.push(
+          CohortModel(tenant).findById(cohort_id).lean().then((c) => c?._id),
+        );
+      }
+      cohortQueries.push(
+        CohortModel(tenant)
+          .findOne({ name: constants.DEFAULT_COHORT_NAME })
+          .select("_id")
+          .lean()
+          .then((c) => c?._id),
+      );
+      const resolved = await Promise.all(cohortQueries);
+      preResolvedCohortIds = resolved
+        .filter((id) => id && isValidObjectId(id.toString()))
+        .map((id) => ObjectId(id.toString()));
+      // Deduplicate
+      preResolvedCohortIds = [
+        ...new Map(preResolvedCohortIds.map((id) => [id.toString(), id])).values(),
+      ];
+    } catch (cohortErr) {
+      logger.warn(
+        `createDevicesBatch: cohort pre-resolution failed: ${cohortErr.message}. Per-device fallback will be used.`,
+      );
+      preResolvedCohortIds = null;
+    }
+
+    // Pre-resolve network adapters for all unique non-airqo networks in this batch.
+    // Falls back to null per network so createOnPlatform handles the DB call itself.
+    const adapterCache = {};
+    const uniqueNetworks = [
+      ...new Set(devices.map((d) => d.network).filter((n) => n && n !== "airqo")),
+    ];
+    if (uniqueNetworks.length > 0) {
+      await Promise.all(
+        uniqueNetworks.map(async (network) => {
+          try {
+            adapterCache[network] = await getNetworkAdapter(network, tenant);
+          } catch {
+            adapterCache[network] = null;
+          }
+        }),
+      );
+    }
 
     // One shared Kafka producer for the whole batch avoids N connect/disconnect
     // cycles. Falls back to null so createOnPlatform manages its own lifecycle.
@@ -5452,6 +5538,14 @@ const deviceUtil = {
                 ...device,
                 ...(user_id && { user_id }),
                 ...(cohort_id && { cohort_id }),
+                ...(preResolvedCohortIds !== null && {
+                  _preResolvedCohortIds: preResolvedCohortIds,
+                }),
+                ...(device.network &&
+                  device.network !== "airqo" &&
+                  adapterCache[device.network] !== undefined && {
+                    _preResolvedAdapter: adapterCache[device.network],
+                  }),
               },
               _sharedKafkaProducer: sharedProducer,
             };
@@ -5462,6 +5556,10 @@ const deviceUtil = {
               return {
                 success: false,
                 message: capturedError.message || "Device creation failed",
+                ...(capturedError.details &&
+                  Object.keys(capturedError.details).length > 0 && {
+                    details: capturedError.details,
+                  }),
               };
             }
 
