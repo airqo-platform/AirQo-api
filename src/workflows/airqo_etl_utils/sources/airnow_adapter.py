@@ -71,7 +71,7 @@ class AirNowAdapter(DataSourceAdapter):
                     **auth,
                 }
                 data = self.client.get_json(url, params=params)
-                if data:
+                if isinstance(data, list) and data:
                     records.extend(data)
         except Exception:
             return Result(

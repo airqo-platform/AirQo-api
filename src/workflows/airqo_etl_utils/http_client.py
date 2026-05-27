@@ -35,7 +35,10 @@ class HttpClient:
             total=retries,
             backoff_factor=backoff_factor,
             status_forcelist=status_forcelist,
-            allowed_methods=["GET", "POST", "PUT", "DELETE"],
+            # POST and PUT are excluded: retrying non-idempotent writes on 5xx can
+            # cause duplicate records (devices, events). Only safe read/delete methods
+            # are retried automatically; callers own retry logic for writes.
+            allowed_methods=["GET", "DELETE"],
         )
         adapter = HTTPAdapter(
             max_retries=retry,

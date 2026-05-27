@@ -53,11 +53,19 @@ class AirBeamAdapter(DataSourceAdapter):
             or configuration.AIR_BEAM_USERNAMES
             or ""
         )
-        usernames = (
-            usernames_raw.split(",")
-            if isinstance(usernames_raw, str)
-            else list(usernames_raw)
-        )
+        usernames = [
+            u.strip()
+            for u in (
+                usernames_raw.split(",")
+                if isinstance(usernames_raw, str)
+                else list(usernames_raw)
+            )
+            if u.strip()
+        ]
+        if not usernames:
+            return Result(
+                data={"records": [], "meta": {}}, error="No usernames configured"
+            )
 
         records: List[Dict[str, Any]] = []
 
@@ -79,7 +87,7 @@ class AirBeamAdapter(DataSourceAdapter):
                                     "time_from": start_ts,
                                     "time_to": end_ts,
                                     "tags": "",
-                                    "usernames": username.strip(),
+                                    "usernames": username,
                                     "west": bbox.get("west", 10.581214853439886),
                                     "east": bbox.get("east", 38.08577769782265),
                                     "south": bbox.get("south", -36.799337832603314),
