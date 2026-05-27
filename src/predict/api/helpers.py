@@ -3,6 +3,7 @@ import math
 from datetime import date, datetime, timedelta
 from typing import Any
 
+import inspect
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -363,10 +364,9 @@ def build_site_forecast_response(
         label_seed = ":".join(
             str(part) for part in label_seed_parts if part is not None
         )
-        try:
+        if "label_seed" in inspect.signature(aqi_category_getter).parameters:
             return aqi_category_getter(pm2_5_mean, label_seed=label_seed)
-        except TypeError:
-            return aqi_category_getter(pm2_5_mean)
+        return aqi_category_getter(pm2_5_mean)
 
     def format_forecast_entry(forecast_document):
         pm2_5_mean = clean_response_value(forecast_document.get("pm2_5_mean"))
