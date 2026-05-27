@@ -90,6 +90,9 @@ def fetch_from_adapter(
     * **TAHMO** — ``stations`` list (e.g. ``["TA00001", "TA00002"]``) extracted
       from a site's ``weather_stations`` attribute.  Falls back to
       ``site["weather_stations"]`` when ``stations`` is not supplied directly.
+    * **AirNow (METONE)** — bbox-scoped; no device needed. Pass an empty dict or omit.
+    * **AirBeam** — ``device`` dict with optional ``"usernames"`` key (comma-separated).
+      Falls back to ``configuration.AIR_BEAM_USERNAMES`` when absent.
     * **OpenWeather** — ``site`` dict carrying ``latitude`` / ``longitude``
       (or ``site_coordinates`` tuple).  Falls back to ``device`` when ``site``
       is absent.
@@ -103,7 +106,8 @@ def fetch_from_adapter(
         resolution (Any): Provider-specific resolution hint (e.g. ``"hourly"``).
             Pass ``None`` when not applicable.
         device (Optional[Dict[str, Any]]): Device metadata dict.  Required for
-            device-scoped adapters (AirQo, IQAir, AirGradient).
+            device-scoped adapters (AirQo, IQAir, AirGradient, AirBeam).
+            Ignored for bbox-scoped adapters (AirNow/METONE).
         site (Optional[Dict[str, Any]]): Site metadata dict.  Used by
             site-scoped adapters (OpenWeather) and as a fallback source of
             ``weather_stations`` for TAHMO.
@@ -130,6 +134,12 @@ def fetch_from_adapter(
             if ws.get("station_code")
         ]
         entity: Dict[str, Any] = {"stations": resolved_stations}
+    elif network == DeviceNetwork.METONE:
+        # AirNow is bbox-scoped; no device entity needed.
+        entity = {}
+    elif network == DeviceNetwork.AIRBEAM:
+        # AirBeam is user-scoped; device dict may carry explicit usernames.
+        entity = device or {}
     elif network in (
         DeviceNetwork.AIRQO,
         DeviceNetwork.IQAIR,

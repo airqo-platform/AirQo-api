@@ -3,10 +3,10 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-import requests
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 
+from .http_client import HttpClient
 from .utils import Utils
 
 
@@ -27,6 +27,7 @@ class AirflowUtils:
             "Authorization": f"Basic {AirflowUtils.authentication_string()}",
             "Content-Type": "application/json",
         }
+        self.client = HttpClient()
 
     @staticmethod
     def authentication_string() -> str:
@@ -42,11 +43,11 @@ class AirflowUtils:
         log_url = f"{context.get('task_instance').log_url}"
         log_url = f"{os.getenv('AIRFLOW__WEBSERVER__BASE_URL')}/{log_url[log_url.find('log'):]}"
         msg = f"""
-                      :red_circle: Task Failed. 
-                      *Dag*: {context.get("task_instance").dag_id} 
-                      *Task*: {context.get("task_instance").task_id}  
-                      *Execution Time*: {context.get("execution_date")}  
-                      *Access Url*: {log_url} 
+                      :red_circle: Task Failed.
+                      *Dag*: {context.get("task_instance").dag_id}
+                      *Task*: {context.get("task_instance").task_id}
+                      *Execution Time*: {context.get("execution_date")}
+                      *Access Url*: {log_url}
                       """
 
         slack_webhook_token = BaseHook.get_connection("slack").password
@@ -67,11 +68,11 @@ class AirflowUtils:
         base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").rstrip("/")
         log_url = f"{base_url}/{log_url[log_url.find('log'):]}"
         msg = f"""
-                      :red_circle: Task Failed. 
-                      *Dag*: {context.get("task_instance").dag_id} 
-                      *Task*: {context.get("task_instance").task_id}  
-                      *Execution Time*: {context.get("execution_date")}  
-                      *Access Url*: {log_url} 
+                      :red_circle: Task Failed.
+                      *Dag*: {context.get("task_instance").dag_id}
+                      *Task*: {context.get("task_instance").task_id}
+                      *Execution Time*: {context.get("execution_date")}
+                      *Access Url*: {log_url}
                       """
 
         slack_webhook_token = BaseHook.get_connection("slack").password
@@ -89,21 +90,17 @@ class AirflowUtils:
     def __query_dag_runs(
         self, page_offset, dag_ids, execution_date_time, page_limit=100
     ):
-        dag_runs_response = requests.post(
+        return self.client.post(
             f"{self.base_url}/api/v1/dags/~/dagRuns/list",
-            data=json.dumps(
-                {
-                    "states": ["success", "failed"],
-                    "execution_date_lte": execution_date_time,
-                    "dag_ids": dag_ids,
-                    "page_offset": page_offset,
-                    "page_limit": page_limit,
-                }
-            ),
+            json={
+                "states": ["success", "failed"],
+                "execution_date_lte": execution_date_time,
+                "dag_ids": dag_ids,
+                "page_offset": page_offset,
+                "page_limit": page_limit,
+            },
             headers=self.headers,
         )
-
-        return dag_runs_response.json()
 
     def get_dag_runs(self, dag_ids, execution_date_time, page_limit=100, page_offset=0):
         dag_runs = []
@@ -129,13 +126,13 @@ class AirflowUtils:
     def remove_old_dag_runs(self, days: int):
         execution_date_time = datetime.now(timezone.utc) - timedelta(days=days)
 
-        dags_response = requests.get(
+        dags_response = self.client.get_json(
             f"{self.base_url}/api/v1/dags",
             headers=self.headers,
         )
 
         dag_ids = []
-        for dag in dags_response.json()["dags"]:
+        for dag in dags_response["dags"]:
             dag_ids.append(dag.get("dag_id"))
 
         dag_runs = self.get_dag_runs(
@@ -148,7 +145,7 @@ class AirflowUtils:
         for dag_run in dag_runs:
             dag_id = dag_run.get("dag_id")
             dag_run_id = dag_run.get("dag_run_id")
-            response = requests.delete(
+            response = self.client.delete(
                 f"{self.base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}",
                 headers=self.headers,
             )
