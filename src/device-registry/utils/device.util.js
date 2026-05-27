@@ -1897,6 +1897,13 @@ const deviceUtil = {
         next,
       );
 
+      // register() calls next() and returns undefined when it encounters an
+      // error (e.g. duplicate key). Guard here so we don't throw a secondary
+      // TypeError that masks the original error passed to next().
+      if (!responseFromRegisterDevice) {
+        return;
+      }
+
       if (responseFromRegisterDevice.success === true) {
         try {
           // In bulk mode createDevicesBatch attaches a single pre-connected

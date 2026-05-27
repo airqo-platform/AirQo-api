@@ -275,7 +275,7 @@ module.exports = {
   ...metadataValidations,
   pagination: commonValidations.pagination,
   addCategoryQueryParam: (req, res, next) => {
-    req.query.category = "public";
+    req.query.path = "public";
     next();
   },
 };
