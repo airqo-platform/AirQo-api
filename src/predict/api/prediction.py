@@ -1,5 +1,6 @@
 import traceback
 import math
+import hashlib
 
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
@@ -40,7 +41,7 @@ AQI_RANGES = {
     "good": {
         "min": 0,
         "max": 9.1,
-        "label": "Good",
+        "label": "Get out and smell the fresh air, take a walk, and enjoy outdoor activity.",
         "aqi_category": "Good",
         "aqi_color": "00e400",
         "aqi_color_name": "Green"
@@ -48,7 +49,7 @@ AQI_RANGES = {
     "moderate": {
         "min": 9.101,
         "max": 35.49,
-        "label": "Moderate",
+        "label": "It is okay to take a walk, keep outdoor activity light, and sensitive groups should take breaks.",
         "aqi_category": "Moderate",
         "aqi_color": "ffff00",
         "aqi_color_name": "Yellow"
@@ -56,7 +57,7 @@ AQI_RANGES = {
     "u4sg": {
         "min": 35.491,
         "max": 55.49,
-        "label": "Unhealthy for Sensitive Groups",
+        "label": "Sensitive groups should reduce outdoor activity, take breaks indoors, and keep medication nearby if needed.",
         "aqi_category": "Unhealthy for Sensitive Groups",
         "aqi_color": "ff7e00",
         "aqi_color_name": "Orange"
@@ -64,7 +65,7 @@ AQI_RANGES = {
     "unhealthy": {
         "min": 55.491,
         "max": 125.49,
-        "label": "Unhealthy",
+        "label": "Limit outdoor activity, move exercise indoors, and wear a mask if you must go outside.",
         "aqi_category": "Unhealthy",
         "aqi_color": "ff0000",
         "aqi_color_name": "Red"
@@ -72,7 +73,7 @@ AQI_RANGES = {
     "very_unhealthy": {
         "min": 125.491,
         "max": 225.49,
-        "label": "Very Unhealthy",
+        "label": "Avoid outdoor activity, stay indoors with windows closed, and use clean indoor air where possible.",
         "aqi_category": "Very Unhealthy",
         "aqi_color": "8f3f97",
         "aqi_color_name": "Purple"
@@ -80,11 +81,72 @@ AQI_RANGES = {
     "hazardous": {
         "min": 225.491,
         "max": None,
-        "label": "Hazardous",
+        "label": "Stay indoors, avoid all outdoor activity, keep windows closed, and follow local health guidance.",
         "aqi_category": "Hazardous",
         "aqi_color": "7e0023",
         "aqi_color_name": "Maroon"
     }
+}
+
+AQI_LABELS = {
+    "good": [
+        "Get out and smell the fresh air, take a walk, and enjoy outdoor activity.",
+        "It is good to take a walk, open your windows, and spend time outside.",
+        "Enjoy the clean air, go for a jog, and plan outdoor errands.",
+    ],
+    "moderate": [
+        "It is okay to take a walk, keep outdoor activity light, and sensitive groups should take breaks.",
+        "You can go outside, choose lighter exercise, and watch for symptoms if you are sensitive.",
+        "A short walk is fine, keep children and sensitive people from overexerting, and rest indoors when needed.",
+    ],
+    "u4sg": [
+        "Sensitive groups should reduce outdoor activity, take breaks indoors, and keep medication nearby if needed.",
+        "People with asthma, children, and older adults should shorten outdoor time, avoid intense exercise, and monitor symptoms.",
+        "Choose indoor activities if you are sensitive, keep windows closed during peaks, and wear a mask if exposure is unavoidable.",
+    ],
+    "unhealthy": [
+        "Limit outdoor activity, move exercise indoors, and wear a mask if you must go outside.",
+        "Avoid long walks, keep children indoors where possible, and reduce time near busy roads or dusty areas.",
+        "Reschedule strenuous outdoor work, close windows, and use cleaner indoor air if available.",
+    ],
+    "very_unhealthy": [
+        "Avoid outdoor activity, stay indoors with windows closed, and use clean indoor air where possible.",
+        "Postpone outdoor exercise, limit travel on dusty roads, and wear a well-fitting mask if you must go out.",
+        "Keep children, older adults, and sensitive people indoors, reduce ventilation from outside, and follow health advice.",
+    ],
+    "hazardous": [
+        "Stay indoors, avoid all outdoor activity, keep windows closed, and follow local health guidance.",
+        "Do not exercise outside, keep vulnerable people indoors, and use a mask if you must leave.",
+        "Avoid travel where possible, reduce outdoor exposure completely, and seek medical help if symptoms worsen.",
+    ],
+}
+
+TREND_MESSAGES = {
+    "improving": [
+        "Air quality is expected to improve tomorrow.",
+        "Conditions may become cleaner over the next day.",
+    ],
+    "worsening": [
+        "Air pollution may increase tomorrow. Consider reducing prolonged outdoor exposure.",
+        "Conditions are expected to worsen. Sensitive groups should plan ahead.",
+    ],
+    "stable": [
+        "Air quality is expected to remain similar tomorrow.",
+    ],
+}
+
+HOURLY_TREND_MESSAGES = {
+    "improving": [
+        "Air quality is expected to improve in the next hour.",
+        "Conditions may become cleaner over the next hour.",
+    ],
+    "worsening": [
+        "Air pollution may increase in the next hour. Consider reducing outdoor exposure.",
+        "Conditions are expected to worsen soon. Sensitive groups should plan ahead.",
+    ],
+    "stable": [
+        "Air quality is expected to remain similar in the next hour.",
+    ],
 }
 
 COMPASS_DIRECTIONS = (
@@ -107,7 +169,64 @@ COMPASS_DIRECTIONS = (
 )
 
 
-def get_aqi_category(value):
+def select_aqi_label(category, seed=None):
+    labels = AQI_LABELS.get(category) or []
+    if not labels:
+        return None
+    if seed is None:
+        return labels[0]
+
+    seed_text = f"{category}:{seed}"
+    digest = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()
+    return labels[int(digest[:8], 16) % len(labels)]
+
+
+def select_seeded_message(messages, seed=None):
+    if not messages:
+        return None
+    if seed is None:
+        return messages[0]
+
+    digest = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
+    return messages[int(digest[:8], 16) % len(messages)]
+
+
+def get_pm2_5_trend_message(
+    current_value, next_value, label_seed=None, trend_messages=None
+):
+    try:
+        current_pm2_5 = float(current_value)
+        next_pm2_5 = float(next_value)
+    except (TypeError, ValueError):
+        return None
+
+    if math.isnan(current_pm2_5) or math.isnan(next_pm2_5):
+        return None
+
+    delta = next_pm2_5 - current_pm2_5
+    if abs(delta) <= 1:
+        trend = "stable"
+    elif delta < 0:
+        trend = "improving"
+    else:
+        trend = "worsening"
+
+    messages_by_trend = trend_messages or TREND_MESSAGES
+    return select_seeded_message(
+        messages_by_trend[trend], seed=f"{trend}:{label_seed}"
+    )
+
+
+def get_hourly_pm2_5_trend_message(current_value, next_value, label_seed=None):
+    return get_pm2_5_trend_message(
+        current_value,
+        next_value,
+        label_seed=label_seed,
+        trend_messages=HOURLY_TREND_MESSAGES,
+    )
+
+
+def get_aqi_category(value, label_seed=None):
     if value is None:
         return None
 
@@ -123,7 +242,8 @@ def get_aqi_category(value):
         if range_info["max"] is None and numeric_value >= range_info["min"]:
             return {
                 "category": category,
-                **range_info
+                **range_info,
+                "label": select_aqi_label(category, label_seed),
             }
         elif (
             range_info["max"] is not None
@@ -131,7 +251,8 @@ def get_aqi_category(value):
         ):
             return {
                 "category": category,
-                **range_info
+                **range_info,
+                "label": select_aqi_label(category, label_seed),
             }
     return None
 
@@ -178,10 +299,13 @@ def enhance_forecast_response(result, language=''):
         enhanced_forecasts = []
         for forecast in result['forecasts']:
             enhanced_forecast = forecast.copy()
-            aqi_category_details = get_aqi_category(forecast['pm2_5'])
+            aqi_category_details = get_aqi_category(
+                forecast['pm2_5'], label_seed=forecast.get('time')
+            )
             
             if aqi_category_details:
                 enhanced_forecast.update({
+                    'label': aqi_category_details['label'],
                     'aqi_category': aqi_category_details['aqi_category'],
                     'aqi_color': aqi_category_details['aqi_color'],
                     'aqi_color_name': aqi_category_details['aqi_color_name']
@@ -257,6 +381,7 @@ def get_site_daily_forecasts_v2():
     response, status_code = build_site_forecast_response(
         site_id=site_id,
         aqi_category_getter=get_aqi_category,
+        trend_message_getter=get_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
     )
     return jsonify(response), status_code
@@ -276,6 +401,7 @@ def get_site_hourly_forecasts_v2():
     response, status_code = build_site_hourly_forecast_response(
         site_id=site_id,
         aqi_category_getter=get_aqi_category,
+        trend_message_getter=get_hourly_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
     )
     return jsonify(response), status_code
@@ -472,10 +598,13 @@ def search_predictions():
             pm2_5 = data["pm2_5"]
             
             # Use the new get_aqi_category function
-            aqi_category_details = get_aqi_category(pm2_5)
+            aqi_category_details = get_aqi_category(
+                pm2_5, label_seed=data.get("timestamp")
+            )
             
             if aqi_category_details:
                 data.update({
+                    'label': aqi_category_details['label'],
                     'aqi_category': aqi_category_details['aqi_category'],
                     'aqi_color': aqi_category_details['aqi_color'],
                     'aqi_color_name': aqi_category_details['aqi_color_name']

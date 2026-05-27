@@ -426,6 +426,75 @@ def _hourly_forecast_doc(site_id, site_name, timestamp, pm2_5_mean):
     }
 
 
+def _daily_forecast_doc(site_id, site_name, forecast_date, pm2_5_mean):
+    return {
+        "date": forecast_date,
+        "site_id": site_id,
+        "site_name": site_name,
+        "site_latitude": 0.31,
+        "site_longitude": 32.58,
+        "pm2_5_mean": pm2_5_mean,
+        "pm2_5_low": pm2_5_mean - 2,
+        "pm2_5_high": pm2_5_mean + 3,
+        "pm2_5_min": pm2_5_mean - 4,
+        "pm2_5_max": pm2_5_mean + 5,
+        "forecast_confidence": 82.5,
+        "air_temperature": 24.0,
+        "relative_humidity": 61.0,
+        "air_pressure_at_sea_level": 1012.0,
+        "precipitation_amount": 0.2,
+        "cloud_area_fraction": 40.0,
+        "wind_speed": 3.1,
+        "wind_from_direction": 90.0,
+        "created_at": forecast_date,
+    }
+
+
+def test_site_daily_forecasting_appends_pm2_5_trend_message(monkeypatch):
+    import helpers as helpers_module
+    from prediction import (
+        get_aqi_category,
+        get_pm2_5_trend_message,
+        wind_deg_to_compass,
+    )
+
+    forecast_documents = [
+        _daily_forecast_doc("site-1", "Site One", "2026-01-01", 12.4),
+        _daily_forecast_doc("site-1", "Site One", "2026-01-02", 20.4),
+    ]
+    monkeypatch.setattr(
+        helpers_module,
+        "get_site_daily_forecasts",
+        lambda site_id, start_date: forecast_documents,
+    )
+
+    flask_app = create_app("testing")
+    with flask_app.app_context():
+        response, status_code = helpers_module.build_site_forecast_response(
+            site_id="site-1",
+            aqi_category_getter=get_aqi_category,
+            trend_message_getter=get_pm2_5_trend_message,
+            wind_direction_formatter=wind_deg_to_compass,
+        )
+
+    assert status_code == 200
+    [site_forecast] = response["data"]["forecasts"]
+    first_label = site_forecast["forecasts"][0]["aqi"]["label"]
+    first_trend_message = site_forecast["forecasts"][0]["aqi"]["trend_message"]
+    second_label = site_forecast["forecasts"][1]["aqi"]["label"]
+    second_trend_message = site_forecast["forecasts"][1]["aqi"]["trend_message"]
+    assert any(
+        trend_message == first_trend_message
+        for trend_message in [
+            "Air pollution may increase tomorrow. Consider reducing prolonged outdoor exposure.",
+            "Conditions are expected to worsen. Sensitive groups should plan ahead.",
+        ]
+    )
+    assert first_trend_message not in first_label
+    assert "tomorrow" not in second_label.lower()
+    assert second_trend_message is None
+
+
 def test_site_hourly_forecasting_all_sites_groups_forecasts(
     site_hourly_forecast_client,
 ):
@@ -470,9 +539,60 @@ def test_site_hourly_forecasting_all_sites_groups_forecasts(
         "forecast_confidence": 82.5,
     }
     assert forecasts_by_site["site-2"]["forecasts"][0]["aqi"]["aqi_value"] == 26.7
+    assert forecasts_by_site["site-2"]["forecasts"][0]["aqi"]["label"] in {
+        "It is okay to take a walk, keep outdoor activity light, and sensitive groups should take breaks.",
+        "You can go outside, choose lighter exercise, and watch for symptoms if you are sensitive.",
+        "A short walk is fine, keep children and sensitive people from overexerting, and rest indoors when needed.",
+    }
     assert forecasts_by_site["site-2"]["forecasts"][0]["met"][
         "wind_direction_compass"
     ] == "E"
+
+
+def test_site_hourly_forecasting_varies_aqi_labels(site_hourly_forecast_client):
+    client, collection, start_timestamp = site_hourly_forecast_client
+    collection.insert_many(
+        [
+            _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
+            _hourly_forecast_doc("site-2", "Site Two", start_timestamp, 26.7),
+        ]
+    )
+
+    response = client.get("/api/v2/predict/hourly-forecasting?page=1&limit=2")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    labels = {
+        forecast["site_details"]["site_id"]: forecast["forecasts"][0]["aqi"]["label"]
+        for forecast in payload["data"]["forecasts"]
+    }
+    assert labels["site-1"] != labels["site-2"]
+
+
+def test_site_hourly_forecasting_adds_hourly_trend_message(
+    site_hourly_forecast_client,
+):
+    client, collection, start_timestamp = site_hourly_forecast_client
+    next_timestamp = start_timestamp + timedelta(hours=1)
+    collection.insert_many(
+        [
+            _hourly_forecast_doc("site-1", "Site One", start_timestamp, 12.4),
+            _hourly_forecast_doc("site-1", "Site One", next_timestamp, 20.4),
+        ]
+    )
+
+    response = client.get("/api/v2/predict/hourly-forecasting?site_id=site-1")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    [site_forecast] = payload["data"]["forecasts"]
+    first_trend_message = site_forecast["forecasts"][0]["aqi"]["trend_message"]
+    second_trend_message = site_forecast["forecasts"][1]["aqi"]["trend_message"]
+    assert first_trend_message in {
+        "Air pollution may increase in the next hour. Consider reducing outdoor exposure.",
+        "Conditions are expected to worsen soon. Sensitive groups should plan ahead.",
+    }
+    assert second_trend_message is None
 
 
 def test_site_hourly_forecasting_site_id_filters_and_groups_forecasts(
