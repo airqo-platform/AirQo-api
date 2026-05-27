@@ -1585,17 +1585,32 @@ const createSite = {
       // /metadata/sites/:site_id cannot bypass cohort visibility by ID.
       if (request.query.path === "public") {
         delete filter.visibility;
-        const visibleCohorts = await CohortModel(tenant)
-          .find({ visibility: true })
-          .select("_id")
+        const allCohorts = await CohortModel(tenant)
+          .find({}, { _id: 1, visibility: 1 })
           .lean();
+        const visibleCohortIds = allCohorts
+          .filter((c) => c.visibility === true)
+          .map((c) => c._id);
+        const privateCohortIds = allCohorts
+          .filter((c) => c.visibility !== true)
+          .map((c) => c._id);
 
         let allowedSiteIds = [];
-        if (visibleCohorts.length > 0) {
-          allowedSiteIds = await DeviceModel(tenant).distinct("site_id", {
-            cohorts: { $in: visibleCohorts.map((c) => c._id) },
-            site_id: { $ne: null },
-          });
+        if (visibleCohortIds.length > 0) {
+          const deviceFilter = { site_id: { $ne: null } };
+          if (privateCohortIds.length === 0) {
+            deviceFilter.cohorts = { $in: visibleCohortIds };
+          } else {
+            // Strict rule: device must be in ≥1 public cohort AND in no private cohort
+            deviceFilter.$and = [
+              { cohorts: { $in: visibleCohortIds } },
+              { cohorts: { $nin: privateCohortIds } },
+            ];
+          }
+          allowedSiteIds = await DeviceModel(tenant).distinct(
+            "site_id",
+            deviceFilter,
+          );
         }
 
         if (filter._id !== undefined) {

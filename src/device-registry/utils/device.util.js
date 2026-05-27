@@ -1173,14 +1173,27 @@ const deviceUtil = {
       // cannot bypass cohort visibility by fetching a non-public device by ID.
       if (request.query.path === "public") {
         delete filter.visibility;
-        const visibleCohorts = await CohortModel(tenant)
-          .find({ visibility: true })
-          .select("_id")
+        const allCohorts = await CohortModel(tenant)
+          .find({}, { _id: 1, visibility: 1 })
           .lean();
-        if (visibleCohorts.length > 0) {
-          filter.cohorts = { $in: visibleCohorts.map((c) => c._id) };
-        } else {
+        const visibleCohortIds = allCohorts
+          .filter((c) => c.visibility === true)
+          .map((c) => c._id);
+        const privateCohortIds = allCohorts
+          .filter((c) => c.visibility !== true)
+          .map((c) => c._id);
+
+        if (visibleCohortIds.length === 0) {
           filter._id = { $in: [] };
+        } else if (privateCohortIds.length === 0) {
+          // All cohorts are public — simple $in is sufficient
+          filter.cohorts = { $in: visibleCohortIds };
+        } else {
+          // Strict rule: device must be in ≥1 public cohort AND in no private cohort
+          filter.$and = (filter.$and || []).concat([
+            { cohorts: { $in: visibleCohortIds } },
+            { cohorts: { $nin: privateCohortIds } },
+          ]);
         }
 
         const publicResults = await DeviceModel(tenant)
