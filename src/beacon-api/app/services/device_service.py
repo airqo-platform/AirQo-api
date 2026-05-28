@@ -796,7 +796,7 @@ def get_synced_device_details(
             stats_query = base_query
         total, devices = _get_synced_device_page(stats_query, safe_skip, safe_limit, search)
 
-    scoped_total = stats_query.count()
+    scoped_total = total if not search else stats_query.count()
     aggregate_meta = _build_synced_devices_meta(db, stats_query, scoped_total)
     serialized_devices = [_serialize_synced_device(device) for device in devices]
     latest_readings_map = _get_latest_readings_map(
