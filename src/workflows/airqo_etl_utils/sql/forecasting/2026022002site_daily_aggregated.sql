@@ -29,6 +29,7 @@ ORDER BY day, site_id;
 
 -- name: site_daily_aggregated_for_forecast_jobs
 -- Daily aggregated site PM2.5 for site-forecast prediction jobs with site metadata backfill.
+-- Uses calibrated PM2.5 when available, falling back to raw PM2.5.
 -- Placeholders:
 -- {consolidated_table} -> consolidated data table (e.g. project.dataset.table)
 -- {sites_table} -> sites metadata table (e.g. project.dataset.table)
@@ -45,22 +46,23 @@ SELECT
     ANY_VALUE(
         COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
     ) AS site_longitude,
-    AVG(t1.pm2_5_calibrated_value) AS pm25_mean,
-    MIN(t1.pm2_5_calibrated_value) AS pm25_min,
-    MAX(t1.pm2_5_calibrated_value) AS pm25_max,
+    AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean,
+    MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min,
+    MAX(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_max,
     COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
 FROM {consolidated_table} AS t1
 LEFT JOIN {sites_table} AS t2
     ON t1.site_id = t2.id
 WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
     AND t1.site_id IS NOT NULL
-    AND t1.pm2_5_calibrated_value IS NOT NULL
+    AND COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL
 GROUP BY day, t1.site_id
 HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
 ORDER BY day, t1.site_id;
 
 -- name: site_hourly_measurements_for_forecast_jobs
 -- Hourly site PM2.5 history for recursive site-hourly forecast prediction jobs.
+-- Uses calibrated PM2.5 when available, falling back to raw PM2.5.
 -- Placeholders:
 -- {consolidated_table} -> consolidated hourly measurements table (e.g. project.dataset.table)
 -- {sites_table} -> sites metadata table (e.g. project.dataset.table)
@@ -78,14 +80,14 @@ WITH site_hourly AS (
         ANY_VALUE(
             COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
         ) AS site_longitude,
-        AVG(t1.pm2_5_calibrated_value) AS pm25_mean
+        AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean
     FROM {consolidated_table} AS t1
     LEFT JOIN {sites_table} AS t2
         ON t1.site_id = t2.id
     WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
         AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
         AND t1.site_id IS NOT NULL
-        AND t1.pm2_5_calibrated_value IS NOT NULL
+        AND COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL
     GROUP BY timestamp, t1.site_id
 ),
 eligible_sites AS (

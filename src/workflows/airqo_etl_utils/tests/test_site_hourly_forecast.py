@@ -561,7 +561,30 @@ def test_site_hourly_forecast_query_is_registered():
         "end_timestamp",
         "min_hours",
     }.issubset(query.placeholders)
+    assert (
+        "AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean"
+        in query.sql
+    )
+    assert "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL" in query.sql
     assert "HAVING COUNT(DISTINCT timestamp) >= {min_hours}" in query.sql
+
+
+def test_site_daily_forecast_query_falls_back_to_raw_pm25():
+    query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs")
+
+    assert (
+        "AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean"
+        in query.sql
+    )
+    assert (
+        "MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min"
+        in query.sql
+    )
+    assert (
+        "MAX(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_max"
+        in query.sql
+    )
+    assert "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL" in query.sql
 
 
 def test_generate_site_hourly_forecasts_rejects_empty_input():
