@@ -14,6 +14,7 @@ const ALLOWED_UPDATE_FIELDS = [
   "device_manufacturer",
   "category",
   "collocation",
+  "authRequired",
 ];
 
 // Device fields that are safe to use as filter criteria.
