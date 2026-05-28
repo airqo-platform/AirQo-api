@@ -624,8 +624,10 @@ const validateUpdateDevice = [
     .notEmpty()
     .withMessage("authRequired cannot be empty if provided")
     .bail()
+    .trim()
     .isBoolean()
     .withMessage("authRequired must be a boolean")
+    .bail()
     .toBoolean(),
   body("isUsedForCollocation")
     .optional()
@@ -1093,6 +1095,16 @@ const validateBulkUpdateDevices = [
 
       return true;
     }),
+  body("updateData.authRequired")
+    .optional()
+    .notEmpty()
+    .withMessage("updateData.authRequired cannot be empty if provided")
+    .bail()
+    .trim()
+    .isBoolean()
+    .withMessage("updateData.authRequired must be a boolean")
+    .bail()
+    .toBoolean(),
   ...validateUpdateDevice,
 ];
 
