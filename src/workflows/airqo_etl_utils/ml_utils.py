@@ -85,7 +85,7 @@ class BaseMlUtils:
             )
         try:
             data["timestamp"] = pd.to_datetime(data["timestamp"])
-        except ValueError as e:
+        except ValueError:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
@@ -478,7 +478,7 @@ class ForecastUtils(BaseMlUtils):
 
         def get_forecasts(df_tmp, forecast_model, frequency, horizon):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
-            for i in range(int(horizon)):
+            for _ in range(int(horizon)):
                 df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
                 df_tmp_no_ts = df_tmp.drop(
                     columns=["timestamp", "device_id", "site_id"], axis=1, inplace=False
@@ -1054,6 +1054,11 @@ class ForecastModelTrainer(BaseMlUtils):
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Split a DataFrame into train/test sets using a chronological cut.
 
+        A chronological split is mandatory for time-series models because lag and
+        rolling features depend on past values. A random split would place future
+        data in the training set and past data in validation, leaking future
+        information and producing artificially optimistic metrics.
+
         Sorts by *date_col*, drops rows with NaN in features/target, and
         splits at ``(1 - test_fraction)`` of the remaining rows.
 
@@ -1115,6 +1120,12 @@ class ForecastModelTrainer(BaseMlUtils):
         log_period: int,
     ) -> Tuple[lgb.LGBMRegressor, Dict]:
         """Train a LightGBM model and return it with validation metrics.
+
+        LightGBM is chosen because it natively handles missing values (NaN lag
+        features are common for new sites with short history) and trains quickly
+        on the moderate-sized consolidated daily aggregates. Early stopping halts
+        training when the validation metric stops improving, preventing overfitting
+        on the most recent data in the chronological validation tail.
 
         Performs a chronological train/test split, fits the model with
         early stopping, and computes regression metrics on the validation set.
@@ -1234,6 +1245,13 @@ class ForecastModelTrainer(BaseMlUtils):
     ) -> Tuple[bool, str]:
         """Decide whether to deploy a new model over an existing one.
 
+        All three metrics (R², MAE, RMSE) must improve simultaneously. This
+        conservative gate prevents deploying a model that trades accuracy on
+        one dimension to improve another — e.g. a lower MAE with worse variance
+        (RMSE) could still degrade end-user forecast quality. Requiring
+        improvement across all three provides a stronger signal that the new
+        model is genuinely better.
+
         Deploys if the new model has strictly better R-squared, MAE, and RMSE,
         or if no previous metrics are available.
 
@@ -1318,6 +1336,7 @@ class ForecastModelTrainer(BaseMlUtils):
         test_fraction: float = 0.2,
         random_state: int = 42,
         lgb_params: Optional[Dict] = None,
+        site_id_mapping: Optional[Dict[str, int]] = None,
         # GCS
         project_name: str,
         bucket_name: str,
@@ -1382,9 +1401,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "date_col": date_col,
             "metrics": metrics,
             "params": params,
-            "site_id_mapping": ForecastModelTrainer._build_site_id_mapping(
-                df["site_id"]
-            ),
+            "site_id_mapping": site_id_mapping
+            or ForecastModelTrainer._build_site_id_mapping(df["site_id"]),
         }
 
         deployment = ForecastModelTrainer._deploy_if_better(
@@ -1429,6 +1447,7 @@ class ForecastModelTrainer(BaseMlUtils):
         test_fraction: float = 0.2,
         random_state: int = 42,
         lgb_params: Optional[Dict] = None,
+        site_id_mapping: Optional[Dict[str, int]] = None,
         # GCS
         project_name: str,
         bucket_name: str,
@@ -1503,9 +1522,8 @@ class ForecastModelTrainer(BaseMlUtils):
             "date_col": date_col,
             "metrics": metrics,
             "params": params,
-            "site_id_mapping": ForecastModelTrainer._build_site_id_mapping(
-                df["site_id"]
-            ),
+            "site_id_mapping": site_id_mapping
+            or ForecastModelTrainer._build_site_id_mapping(df["site_id"]),
         }
 
         deployment = ForecastModelTrainer._deploy_if_better(
@@ -1573,15 +1591,44 @@ class ForecastModelTrainer(BaseMlUtils):
     ) -> Dict[str, Dict]:
         """Train mean, min, max point models and optional quantile bands, deploying each to GCS.
 
+        Three separate point models are trained (mean/min/max) rather than one
+        multi-output model because each target represents a distinct distributional
+        property of the daily PM2.5 signal. Separate models allow each to learn
+        different feature importances — the min and max targets are noisier and
+        benefit from different hyperparameter regimes.
+
+        Quantile bands (low/high) are regression models targeting the 10th and
+        90th percentiles of *pm25_mean*, not of min/max. They represent forecast
+        uncertainty: a wide gap between low and high indicates high variability
+        in PM2.5 for that site and day.
+
         Convenience wrapper that calls :meth:`train_point_and_save_to_gcs`
         for three targets and optionally :meth:`train_quantile_and_save_to_gcs`
         for low/high quantile bands.
 
+        Args:
+            df: Featured DataFrame including all feature and target columns.
+            features: Feature column names shared across all models.
+            date_col: Date column for chronological splitting.
+            test_fraction: Fraction of data reserved for validation.
+            random_state: Random seed for reproducibility.
+            mean_target: Column name for the mean PM2.5 target.
+            min_target: Column name for the daily minimum PM2.5 target.
+            max_target: Column name for the daily maximum PM2.5 target.
+            train_quantile_bands: Whether to train the p10/p90 uncertainty models.
+            low_alpha: Quantile level for the lower bound model (default 0.1).
+            high_alpha: Quantile level for the upper bound model (default 0.9).
+            lgb_params_*: Optional per-model LightGBM hyperparameter overrides.
+            project_name: GCP project ID.
+            bucket_name: GCS bucket for model storage.
+            blob_name_*: GCS destination path for each model artifact.
+
         Returns:
             Dict mapping model label ('mean', 'min', 'max', 'low_q', 'high_q')
-            to their respective metrics dicts.
+            to their respective metrics dicts with deployment metadata.
         """
         out: Dict[str, Dict] = {}
+        shared_mapping = ForecastModelTrainer._build_site_id_mapping(df["site_id"])
 
         out["mean"] = ForecastModelTrainer.train_point_and_save_to_gcs(
             df,
@@ -1592,6 +1639,7 @@ class ForecastModelTrainer(BaseMlUtils):
             test_fraction=test_fraction,
             random_state=random_state,
             lgb_params=lgb_params_mean,
+            site_id_mapping=shared_mapping,
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name=blob_name_mean,
@@ -1606,6 +1654,7 @@ class ForecastModelTrainer(BaseMlUtils):
             test_fraction=test_fraction,
             random_state=random_state,
             lgb_params=lgb_params_min,
+            site_id_mapping=shared_mapping,
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name=blob_name_min,
@@ -1620,6 +1669,7 @@ class ForecastModelTrainer(BaseMlUtils):
             test_fraction=test_fraction,
             random_state=random_state,
             lgb_params=lgb_params_max,
+            site_id_mapping=shared_mapping,
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name=blob_name_max,
@@ -1635,6 +1685,7 @@ class ForecastModelTrainer(BaseMlUtils):
                 test_fraction=test_fraction,
                 random_state=random_state,
                 lgb_params=lgb_params_low,
+                site_id_mapping=shared_mapping,
                 project_name=project_name,
                 bucket_name=bucket_name,
                 blob_name=blob_name_low,
@@ -1648,6 +1699,7 @@ class ForecastModelTrainer(BaseMlUtils):
                 test_fraction=test_fraction,
                 random_state=random_state,
                 lgb_params=lgb_params_high,
+                site_id_mapping=shared_mapping,
                 project_name=project_name,
                 bucket_name=bucket_name,
                 blob_name=blob_name_high,
@@ -1661,6 +1713,12 @@ class ForecastModelTrainer(BaseMlUtils):
 
         Uses a configurable month lookback window to keep the dataset size
         aligned with Airflow task memory/XCom limits.
+
+        The query enforces ``min_hours=18``, requiring at least 18 of the 24
+        possible hourly measurements to consider a site-day's aggregate
+        reliable for training. Days with fewer hours are typically caused by
+        device downtime or transmission gaps and their PM2.5 averages can be
+        misleading due to partial-day sampling bias.
 
         Returns:
             Raw site-level daily aggregates.
@@ -1720,10 +1778,19 @@ class ForecastModelTrainer(BaseMlUtils):
     def run_site_forecast_quarterly_training() -> Dict[str, Dict]:
         """Run quarterly retraining of site-level PM2.5 forecast models.
 
-        Pulls site-level consolidated daily data from BigQuery using the
-        configured lookback window, engineers features, and trains mean +
-        quantile (10th/90th) models. Each model is deployed only if it
-        outperforms the existing artifact.
+        "Quarterly" reflects the Airflow DAG's cron schedule — not a strict
+        calendar quarter. Retraining is infrequent because daily PM2.5 seasonal
+        patterns are stable and frequent retraining would increase GCS artifact
+        churn without meaningfully improving accuracy.
+
+        This method trains only the mean point model and the p10/p90 quantile
+        uncertainty bands. The min/max range estimators are trained separately
+        via :meth:`train_and_save_all_forecast_models` when a full model suite
+        refresh is needed.
+
+        Each model is deployed only when it strictly outperforms the currently
+        deployed artifact on all three metrics (R², MAE, RMSE), preventing
+        regressions from noisy training runs.
 
         Returns:
             Dict mapping model label to metrics with deployment metadata.
@@ -1743,6 +1810,9 @@ class ForecastModelTrainer(BaseMlUtils):
             )
 
         results: Dict[str, Dict] = {}
+        shared_mapping = ForecastModelTrainer._build_site_id_mapping(
+            featured_data["site_id"]
+        )
 
         results["mean"] = ForecastModelTrainer.train_point_and_save_to_gcs(
             featured_data,
@@ -1750,6 +1820,7 @@ class ForecastModelTrainer(BaseMlUtils):
             target="pm25_mean",
             model_kind="mean",
             date_col="day",
+            site_id_mapping=shared_mapping,
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name="daily_pm25_mean_model.pkl",
@@ -1761,6 +1832,7 @@ class ForecastModelTrainer(BaseMlUtils):
             features=features,
             target="pm25_mean",
             date_col="day",
+            site_id_mapping=shared_mapping,
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name="daily_pm25_low_model.pkl",
@@ -1772,6 +1844,7 @@ class ForecastModelTrainer(BaseMlUtils):
             features=features,
             target="pm25_mean",
             date_col="day",
+            site_id_mapping=shared_mapping,
             project_name=project_name,
             bucket_name=bucket_name,
             blob_name="daily_pm25_high_model.pkl",
@@ -1780,8 +1853,24 @@ class ForecastModelTrainer(BaseMlUtils):
         return results
 
     @staticmethod
+    @lru_cache(maxsize=1)
     def _load_site_forecast_artifacts() -> Dict[str, Dict[str, Any]]:
-        """Load the five deployed site-level forecast artifacts from GCS."""
+        """Load the five deployed site-level daily forecast artifacts from GCS.
+
+        Each artifact is a dict with keys: ``model``, ``features``,
+        ``site_id_mapping``, ``metrics``, ``params``, and ``kind``.
+
+        The five artifacts and their roles:
+        - ``mean``: point estimator for the expected daily PM2.5 value.
+        - ``min`` / ``max``: point estimators for the daily observed range
+          (useful for displaying potential best/worst-case days).
+        - ``low`` / ``high``: quantile regression models (p10/p90) targeting
+          ``pm25_mean`` — these represent forecast uncertainty; a large gap
+          indicates a high-variability day regardless of the point estimate.
+
+        Raises:
+            ValueError: If an artifact is missing or does not contain a model.
+        """
         bucket_name = configuration.FORECAST_MODELS_BUCKET
         if not bucket_name:
             raise ValueError("Missing required config: FORECAST_MODELS_BUCKET.")
@@ -1811,7 +1900,20 @@ class ForecastModelTrainer(BaseMlUtils):
     @staticmethod
     @lru_cache(maxsize=1)
     def _load_site_hourly_forecast_artifacts() -> Dict[str, Dict[str, Any]]:
-        """Load deployed hourly site-level PM2.5 forecast artifacts from GCS."""
+        """Load deployed hourly site-level PM2.5 forecast artifacts from GCS.
+
+        Three artifacts are loaded (``mean``, ``q10``, ``q90``): a point
+        estimator and two quantile bands. The method is cached so repeated
+        calls within the same Airflow task process reuse the same in-memory
+        objects rather than downloading from GCS on each forecast step.
+
+        The backward-compatible fallback wraps bare model objects (saved before
+        the artifact dict format was introduced) in the expected dict structure
+        so older artifacts continue to work alongside newer ones.
+
+        Raises:
+            ValueError: If ``FORECAST_MODELS_BUCKET`` is not configured.
+        """
         bucket_name = configuration.FORECAST_MODELS_BUCKET
         if not bucket_name:
             raise ValueError("Missing required config: FORECAST_MODELS_BUCKET.")
@@ -1861,7 +1963,17 @@ class ForecastModelTrainer(BaseMlUtils):
     def _get_prediction_site_mapping(
         artifacts: Dict[str, Dict[str, Any]], history: pd.DataFrame
     ) -> Dict[str, int]:
-        """Use stored site encoding when available, otherwise fall back safely."""
+        """Return the integer encoding for site IDs used during prediction.
+
+        LightGBM cannot learn from raw string features, so site IDs are encoded
+        as integers. The training artifact stores the mapping used at training
+        time; using the same codes at prediction time is critical for correct
+        split decisions in the tree.
+
+        If the artifact predates the stored mapping (older format), an
+        alphabetically-sorted fallback encoding is generated from the current
+        history to minimise disruption until the models are next retrained.
+        """
         mapping = artifacts.get("mean", {}).get("site_id_mapping")
         if isinstance(mapping, dict) and mapping:
             return {str(key): int(value) for key, value in mapping.items()}
@@ -1873,7 +1985,14 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _resolve_site_forecast_metadata(history: pd.DataFrame) -> pd.DataFrame:
-        """Keep one metadata row per site, preferring the latest non-null coordinates."""
+        """Keep one metadata row per site, preferring the latest non-null coordinates.
+
+        Site coordinates can change over time due to device relocation or
+        retrospective data corrections in the device registry. Taking the latest
+        non-null value ensures forecast outputs are tagged with the most accurate
+        known location, which matters for downstream MET.no enrichment (which
+        queries a weather API by lat/lon) and for map display in the AirQo app.
+        """
 
         def _latest_non_null(series: pd.Series):
             non_null = series.dropna()
@@ -1905,7 +2024,44 @@ class ForecastModelTrainer(BaseMlUtils):
         run_timestamp: Optional[pd.Timestamp] = None,
         include_met_no_weather: bool = True,
     ) -> pd.DataFrame:
-        """Generate 7-day site-level forecasts using the quarterly-trained models."""
+        """Generate site-level daily PM2.5 forecasts using an autoregressive loop.
+
+        Each step of the horizon is generated one day at a time. The predicted
+        ``pm2_5_mean`` from each step is immediately appended to the running
+        history so that lag and rolling features for the next step are computed
+        from previously predicted values rather than missing data. This recursive
+        autoregression is necessary because the models rely on lag features
+        (e.g. ``pm25_mean_lag_1``) that by definition are unavailable for future
+        days at inference time.
+
+        ``forecast_start_date`` allows generating forecasts beginning on a
+        specific date (e.g. for backfilling or historical evaluation). When
+        omitted, forecasting starts from the day after each site's latest
+        observation in *raw_data*.
+
+        MET.no weather enrichment (``include_met_no_weather=True``) attaches
+        observed or forecast meteorological data for each forecast day/site.
+        This enrichment can be skipped for latency-sensitive runs or when the
+        MET.no API is unavailable — forecasts are always emitted first and
+        weather data is attached in a separate pass if needed.
+
+        Args:
+            raw_data: Historical site daily aggregates with at least ``day``,
+                ``site_id``, ``site_name``, and ``pm25_mean`` columns.
+            horizon: Number of days to forecast per site.
+            forecast_start_date: First forecast date; defaults to the day after
+                each site's most recent observation.
+            run_timestamp: Timestamp stamped on each forecast row as ``created_at``.
+            include_met_no_weather: Whether to enrich forecasts with MET.no data.
+
+        Returns:
+            DataFrame of forecast rows, one per (site, forecast date), sorted
+            by ``site_id`` and ``date``.
+
+        Raises:
+            ValueError: If *raw_data* is empty, missing required columns, or
+                produces no complete forecasts.
+        """
         if raw_data.empty:
             raise ValueError("No raw site forecast data provided for prediction.")
 
@@ -2154,7 +2310,32 @@ class ForecastModelTrainer(BaseMlUtils):
         lookback_days: Optional[int] = None,
         min_hours: int = 2,
     ) -> pd.DataFrame:
-        """Fetch site-level hourly history used for hourly forecast prediction."""
+        """Fetch site-level hourly history used for hourly forecast prediction.
+
+        The lookback window is clamped to a maximum of 14 days. Longer windows
+        do not improve feature coverage because the longest lag used by the
+        hourly model is 72 hours; the remaining days are only needed for rolling
+        statistics. Clamping also controls BigQuery scan costs per Airflow run.
+
+        ``min_hours=2`` (default) keeps the threshold low so sites that missed
+        a few hours still appear in the prediction batch, unlike training where
+        stricter completeness is enforced.
+
+        Args:
+            execution_date: The Airflow execution timestamp (used as the end
+                boundary for the data fetch).
+            lookback_days: Override for the lookback window; falls back to
+                ``SITE_HOURLY_FORECAST_LOOKBACK_DAYS`` or 14.
+            min_hours: Minimum hourly readings required per site/day row.
+
+        Returns:
+            DataFrame of hourly site measurements.
+
+        Raises:
+            RuntimeError: If BigQuery returns None.
+            TypeError: If the return value is not a DataFrame.
+            ValueError: If the fetched DataFrame is empty.
+        """
         from .bigquery_api import BigQueryApi
 
         end_date = pd.Timestamp(execution_date)
@@ -2424,9 +2605,7 @@ class ForecastModelTrainer(BaseMlUtils):
         eligible_sites = site_counts[site_counts >= 1].index
         history = history[history["site_id"].isin(eligible_sites)]
         if history.empty:
-            raise ValueError(
-                "No site has the minimum 1 hourly record for forecasting."
-            )
+            raise ValueError("No site has the minimum 1 hourly record for forecasting.")
 
         artifacts = ForecastModelTrainer._load_site_hourly_forecast_artifacts()
         feature_columns = ForecastModelTrainer._site_hourly_forecast_features()
@@ -2922,7 +3101,21 @@ class ForecastModelTrainer(BaseMlUtils):
     def _merge_site_daily_forecast_updates(
         existing: pd.DataFrame, updates: pd.DataFrame
     ) -> pd.DataFrame:
-        """Preserve stored MET values until an incoming update provides real ones."""
+        """Merge forecast updates while preserving existing MET weather values.
+
+        The site forecast pipeline runs in two passes:
+        1. The main DAG run saves PM2.5 predictions (mean/min/max/low/high).
+        2. A separate asynchronous enrichment job later attaches MET.no weather
+           data for each forecast day.
+
+        When the main DAG runs again (e.g. the next day), the incoming *updates*
+        contain PM values but no weather fields, because MET enrichment hasn't
+        run yet for the new batch. Without this merge, the upsert would overwrite
+        previously stored MET values with null, losing weather data that was
+        already attached. ``combine_first`` fills null MET fields in the update
+        from the existing stored row, so weather data is only replaced when the
+        enrichment job explicitly provides new values.
+        """
         existing_standardized = (
             ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
                 existing
@@ -2959,7 +3152,21 @@ class ForecastModelTrainer(BaseMlUtils):
     def _retain_recent_site_forecasts(
         data: pd.DataFrame, max_rows_per_site: int = 14
     ) -> pd.DataFrame:
-        """Keep the newest forecast per site/date and cap each site to recent dates."""
+        """Keep the newest forecast per site/date and cap each site to 14 days.
+
+        The AirQo app serves a 7-day forecast window to end users. Retaining 14
+        days (double the window) provides a buffer that serves two purposes:
+        (1) MET.no weather enrichment may arrive up to 24 hours after the PM
+        predictions are stored, so a row may be re-written with weather data the
+        following day — keeping the extra days ensures enrichment updates land on
+        rows that are still present in the collection; (2) if a DAG run is
+        missed, forecasts from the previous run remain available and the window
+        degrades gracefully rather than going empty.
+
+        Within each site, the most recent ``created_at`` is kept when duplicate
+        (site, date) pairs exist, so a later enrichment supersedes an earlier
+        PM-only row.
+        """
         if data.empty:
             return data
         if max_rows_per_site < 1:
@@ -2981,7 +3188,20 @@ class ForecastModelTrainer(BaseMlUtils):
     def _replace_site_daily_forecasts(
         existing: pd.DataFrame, updates: pd.DataFrame
     ) -> pd.DataFrame:
-        """Replace existing site/date rows with updated rows before retention is applied."""
+        """Replace existing site/date rows with updated rows, preserving non-overlapping history.
+
+        A simple upsert (concat + dedup) would keep both the old and new row for
+        the same (site, date) and then resolve duplicates by ``created_at``, but
+        only after the full retention logic runs — meaning stale rows for the
+        same date would temporarily inflate the collection. Instead, this method
+        explicitly drops existing rows that are covered by *updates* before
+        concatenating, so the retention window is applied to a clean dataset
+        without date duplicates.
+
+        MET values from the existing row are carried forward into *updates* via
+        :meth:`_merge_site_daily_forecast_updates` before the replacement, so
+        previously enriched weather data is never lost.
+        """
         existing_prepared = (
             ForecastModelTrainer._standardize_site_daily_forecasts_for_persistence(
                 existing
@@ -3112,28 +3332,25 @@ class ForecastModelTrainer(BaseMlUtils):
                 )
                 bulk_batches += 1
 
+            # Delete docs for these sites that are no longer in the retained set.
+            # `prepared` already reflects the full retention window, so any doc
+            # with a (site_id, date) pair not in prepared is stale. This avoids
+            # a second collection.find() round-trip.
             deleted_rows = 0
             if site_ids:
-                existing_docs = list(
-                    collection.find(
-                        {"site_id": {"$in": site_ids}},
-                        {"_id": 1, "site_id": 1, "date": 1, "created_at": 1},
+                site_keep_dates: Dict[str, List[str]] = {}
+                for row in prepared.to_dict(orient="records"):
+                    site_keep_dates.setdefault(str(row["site_id"]), []).append(
+                        str(row["date"])
                     )
-                )
-                if existing_docs:
-                    retained_docs = ForecastModelTrainer._retain_recent_site_forecasts(
-                        pd.DataFrame(existing_docs)
-                    )
-                    keep_ids = set(retained_docs["_id"].tolist())
-                    stale_ids = [
-                        doc["_id"]
-                        for doc in existing_docs
-                        if doc["_id"] not in keep_ids
-                    ]
-                    if stale_ids:
-                        deleted_rows = collection.delete_many(
-                            {"_id": {"$in": stale_ids}}
-                        ).deleted_count
+                delete_conditions = [
+                    {"site_id": sid, "date": {"$nin": dates}}
+                    for sid, dates in site_keep_dates.items()
+                ]
+                if delete_conditions:
+                    deleted_rows = collection.delete_many(
+                        {"$or": delete_conditions}
+                    ).deleted_count
 
         return {
             "rows": int(len(prepared)),
@@ -3145,7 +3362,23 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _save_site_hourly_forecasts_to_mongo(data: pd.DataFrame) -> Dict[str, Any]:
-        """Upsert stored hourly forecasts in MongoDB."""
+        """Persist hourly site forecasts to MongoDB using a delete-then-insert strategy.
+
+        Hourly forecasts use delete-then-insert rather than the upsert approach
+        used for daily forecasts. A 10-day hourly forecast per site is up to
+        240 documents; upsert at that volume would issue one update query per
+        document, while delete + batch insert is significantly faster and avoids
+        lock contention on the collection.
+
+        The batch size is floored at 5000 to prevent memory pressure from
+        issuing too many small insert_many calls. A compound index on
+        (site_id, timestamp) is created in the background on first write to
+        support the API's common query pattern.
+
+        A retention cutoff deletes documents older than
+        ``SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY`` days, keeping the
+        collection size bounded regardless of run frequency.
+        """
         if not configuration.MONGO_URI:
             raise ValueError("Missing required config: MONGO_URI.")
 
@@ -3258,7 +3491,17 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def save_site_daily_forecasts_best_effort(data: pd.DataFrame) -> Dict[str, Any]:
-        """Write site forecasts to every available target and fail only if all fail."""
+        """Write site forecasts to every configured target, failing only if all fail.
+
+        Forecasts are dual-written to BigQuery and MongoDB because they serve
+        different consumers: BigQuery is the analytics read path (dashboards,
+        exports, historical queries) while MongoDB is the low-latency API
+        serving path (mobile app, public API). If one target fails — e.g. a
+        transient BigQuery quota error — the other still receives data so
+        end-user forecast availability is maintained. An exception is raised
+        only when every target fails, ensuring the Airflow task marks the run
+        as failed and triggers an alert.
+        """
         if data.empty:
             raise ValueError("No site forecasts available to persist.")
 
@@ -3292,13 +3535,27 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _build_site_forecast_features(raw_data: pd.DataFrame) -> pd.DataFrame:
-        """Engineer time/lag/rolling features and compactly encode site IDs.
+        """Engineer lag/rolling features and encode site IDs for model training.
+
+        ``roll_shift=1`` shifts the rolling window so it never includes the
+        current day's value — this prevents look-ahead leakage where the model
+        would otherwise see a partial aggregate that includes the target it is
+        trying to predict.
+
+        ``dropna=True`` removes the leading rows of each site's history where
+        lag features cannot be computed (e.g. the first 14 days have no
+        ``pm25_mean_lag_14``). Keeping these rows would introduce systematic
+        null patterns that the model might overfit.
+
+        Site IDs are encoded as integers using the alphabetically sorted
+        mapping from :meth:`_build_site_id_mapping` so the codes are stable
+        across training runs and match the mapping stored in the artifact.
 
         Args:
             raw_data: DataFrame with 'day', 'site_id', and 'pm25_mean' columns.
 
         Returns:
-            Feature-engineered DataFrame with numeric site codes.
+            Feature-engineered DataFrame with a numeric ``site_id_code`` column.
 
         Raises:
             ValueError: If feature engineering produces an empty result.
@@ -3318,20 +3575,27 @@ class ForecastModelTrainer(BaseMlUtils):
             raise ValueError("Feature engineering produced an empty dataframe.")
 
         featured_data = featured_data.copy()
-        featured_data["site_id_code"] = (
-            featured_data["site_id"].astype("category").cat.codes
+        site_mapping = ForecastModelTrainer._build_site_id_mapping(
+            featured_data["site_id"]
         )
+        featured_data["site_id_code"] = featured_data["site_id"].map(site_mapping)
 
         return featured_data
 
     @staticmethod
     def _select_numeric_training_features(featured_data: pd.DataFrame) -> List[str]:
-        """Return numeric column names suitable for model training.
+        """Return the numeric column names to use as model inputs.
 
-        Excludes date, identifier, and target columns.
+        Target columns (``pm25_mean`` and variants) are excluded to prevent
+        target leakage — including them would let the model trivially learn to
+        copy the answer. Date (``day``) and identifier (``site_id``,
+        ``site_name``) columns are excluded because gradient-boosted trees
+        cannot extract meaningful ordinal or pattern information from raw dates
+        or string IDs. The numeric ``site_id_code`` column is included instead,
+        having been added by :meth:`_build_site_forecast_features`.
 
         Raises:
-            ValueError: If no numeric features remain.
+            ValueError: If no numeric features remain after exclusions.
         """
         excluded = {
             "day",

@@ -3042,6 +3042,30 @@ describe("create-user-util", function () {
       });
       expect(result.$set.verified).to.be.undefined;
     });
+
+    it("stamps hasSetPassword when stampHasSetPassword is true and flag not already set", function () {
+      const legacy = { verified: true, preferredTokenStrategy: null, hasSetPassword: false };
+      const result = createUser._constructLoginUpdate(legacy, null, {
+        stampHasSetPassword: true,
+      });
+      expect(result.$set.hasSetPassword).to.equal(true);
+    });
+
+    it("does not stamp hasSetPassword when stampHasSetPassword is false (OAuth/JWT callers)", function () {
+      const oauthUser = { verified: true, preferredTokenStrategy: null, hasSetPassword: false };
+      const result = createUser._constructLoginUpdate(oauthUser, null, {
+        stampHasSetPassword: false,
+      });
+      expect(result.$set.hasSetPassword).to.be.undefined;
+    });
+
+    it("does not stamp hasSetPassword when already true", function () {
+      const alreadyStamped = { verified: true, preferredTokenStrategy: null, hasSetPassword: true };
+      const result = createUser._constructLoginUpdate(alreadyStamped, null, {
+        stampHasSetPassword: true,
+      });
+      expect(result.$set.hasSetPassword).to.be.undefined;
+    });
   });
 });
 
