@@ -6228,7 +6228,7 @@ const createUserModule = {
   _constructLoginUpdate: (
     user,
     strategy = null,
-    { autoVerify = false } = {},
+    { autoVerify = false, stampHasSetPassword = false } = {},
   ) => {
     const currentDate = new Date();
     const updatePayload = {
@@ -6244,10 +6244,10 @@ const createUserModule = {
       updatePayload.$set.verified = true;
     }
 
-    // Self-healing migration: stamp hasSetPassword on any account that
-    // successfully authenticates via password but was created before the flag
-    // existed (or before create() was fixed to set it).
-    if (user.hasSetPassword !== true) {
+    // Self-healing migration: only stamp hasSetPassword when called from a
+    // verified password-login flow. OAuth and JWT callers pass the default
+    // false so they never incorrectly mark OAuth-only accounts.
+    if (stampHasSetPassword && user.hasSetPassword !== true) {
       updatePayload.$set.hasSetPassword = true;
     }
 
@@ -6475,7 +6475,7 @@ const createUserModule = {
           const updatePayload = createUserModule._constructLoginUpdate(
             user,
             strategy,
-            { autoVerify: shouldAutoVerify },
+            { autoVerify: shouldAutoVerify, stampHasSetPassword: true },
           );
           const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
