@@ -100,6 +100,12 @@ const validateUpdateData = body("updateData")
       }
     }
 
+    if (value.authRequired !== undefined) {
+      if (typeof value.authRequired !== "boolean") {
+        throw new Error("updateData.authRequired must be a boolean");
+      }
+    }
+
     return true;
   });
 
