@@ -1580,6 +1580,105 @@ const createSite = {
       const filter = generateFilter.sites(request, next);
       filter.lat_long = { $ne: "4_4" };
 
+      // Public metadata path: a site is "public" when it has a device in a
+      // visible cohort. Applied for both list and single-site lookups so
+      // /metadata/sites/:site_id cannot bypass cohort visibility by ID.
+      if (request.query.path === "public") {
+        delete filter.visibility;
+        const allCohorts = await CohortModel(tenant)
+          .find({}, { _id: 1, visibility: 1 })
+          .lean();
+        const visibleCohortIds = allCohorts
+          .filter((c) => c.visibility === true)
+          .map((c) => c._id);
+        const privateCohortIds = allCohorts
+          .filter((c) => c.visibility !== true)
+          .map((c) => c._id);
+
+        let allowedSiteIds = [];
+        if (visibleCohortIds.length > 0) {
+          const deviceFilter = { site_id: { $ne: null } };
+          if (privateCohortIds.length === 0) {
+            deviceFilter.cohorts = { $in: visibleCohortIds };
+          } else {
+            // Strict rule: device must be in ≥1 public cohort AND in no private cohort
+            deviceFilter.$and = [
+              { cohorts: { $in: visibleCohortIds } },
+              { cohorts: { $nin: privateCohortIds } },
+            ];
+          }
+          allowedSiteIds = await DeviceModel(tenant).distinct(
+            "site_id",
+            deviceFilter,
+          );
+        }
+
+        if (filter._id !== undefined) {
+          // Single-site lookup: verify this site is in the allowed set
+          const allowedSet = new Set(
+            allowedSiteIds.map((id) => id.toString()),
+          );
+          filter._id = allowedSet.has(filter._id.toString())
+            ? filter._id
+            : { $in: [] };
+        } else {
+          filter._id =
+            allowedSiteIds.length > 0
+              ? { $in: allowedSiteIds }
+              : { $in: [] };
+        }
+
+        const publicResults = await SiteModel(tenant)
+          .aggregate([
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      long_name: 1,
+                      generated_name: 1,
+                      formatted_name: 1,
+                    },
+                  },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ])
+          .option({ maxTimeMS: 15000 });
+
+        const agg =
+          Array.isArray(publicResults) && publicResults[0]
+            ? publicResults[0]
+            : { paginatedResults: [], totalCount: [] };
+        const total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
+
+        return {
+          success: true,
+          message: "successfully retrieved the sites",
+          data: agg.paginatedResults || [],
+          status: httpStatus.OK,
+          meta: {
+            total,
+            totalResults: (agg.paginatedResults || []).length,
+            limit: _limit,
+            skip: _skip,
+            page: Math.floor(_skip / _limit) + 1,
+            totalPages: Math.ceil(total / _limit),
+            detailLevel,
+          },
+        };
+      }
+
       let pipeline = [];
 
       // Base match

@@ -2288,14 +2288,26 @@ class ForecastModelTrainer(BaseMlUtils):
     @staticmethod
     def _initialize_site_hourly_forecast_state(
         history: pd.DataFrame,
+        forecast_start_timestamp: Optional[pd.Timestamp] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Build compact per-site recursive state for hourly forecasting."""
+        anchor_timestamp = None
+        if forecast_start_timestamp is not None:
+            anchor_timestamp = pd.Timestamp(forecast_start_timestamp)
+            if anchor_timestamp.tzinfo is None:
+                anchor_timestamp = anchor_timestamp.tz_localize("UTC")
+            else:
+                anchor_timestamp = anchor_timestamp.tz_convert("UTC")
+            anchor_timestamp = anchor_timestamp.floor("h") - pd.Timedelta(hours=1)
+
         state: Dict[str, Dict[str, Any]] = {}
         for site_id, group in history.groupby("site_id", sort=False):
             ordered = group.sort_values("timestamp")
             values = ordered["pm25_mean"].astype(float).tolist()
             state[str(site_id)] = {
-                "timestamp": ordered["timestamp"].iloc[-1],
+                "timestamp": anchor_timestamp
+                if anchor_timestamp is not None
+                else ordered["timestamp"].iloc[-1],
                 "values": values,
                 "fallback": values[-1] if values else 0.0,
             }
@@ -2354,6 +2366,7 @@ class ForecastModelTrainer(BaseMlUtils):
         raw_data: pd.DataFrame,
         *,
         horizon_hours: Optional[int] = None,
+        forecast_start_timestamp: Optional[Any] = None,
         run_timestamp: Optional[pd.Timestamp] = None,
         include_met_no_weather: bool = True,
     ) -> pd.DataFrame:
@@ -2408,11 +2421,11 @@ class ForecastModelTrainer(BaseMlUtils):
         )
 
         site_counts = history.groupby("site_id")["timestamp"].nunique()
-        eligible_sites = site_counts[site_counts >= 2].index
+        eligible_sites = site_counts[site_counts >= 1].index
         history = history[history["site_id"].isin(eligible_sites)]
         if history.empty:
             raise ValueError(
-                "No site has the minimum 2 hourly records for forecasting."
+                "No site has the minimum 1 hourly record for forecasting."
             )
 
         artifacts = ForecastModelTrainer._load_site_hourly_forecast_artifacts()
@@ -2424,12 +2437,36 @@ class ForecastModelTrainer(BaseMlUtils):
         else:
             run_timestamp = run_timestamp.tz_convert("UTC")
 
+        first_forecast_timestamp = pd.Timestamp(
+            forecast_start_timestamp or run_timestamp
+        )
+        if first_forecast_timestamp.tzinfo is None:
+            first_forecast_timestamp = first_forecast_timestamp.tz_localize("UTC")
+        else:
+            first_forecast_timestamp = first_forecast_timestamp.tz_convert("UTC")
+        first_forecast_timestamp = first_forecast_timestamp.floor("h")
+        history = history.loc[history["timestamp"] < first_forecast_timestamp].copy()
+        if history.empty:
+            raise ValueError(
+                "No usable historical site hourly data available before "
+                f"{first_forecast_timestamp}."
+            )
+        site_counts = history.groupby("site_id")["timestamp"].nunique()
+        eligible_sites = site_counts[site_counts >= 1].index
+        history = history[history["site_id"].isin(eligible_sites)]
+        if history.empty:
+            raise ValueError(
+                "No site has the minimum 1 hourly record before "
+                f"{first_forecast_timestamp}."
+            )
+
         recursive_history = history[
             ["site_id", "site_name", "timestamp", "pm25_mean"]
         ].copy()
         site_meta = ForecastModelTrainer._resolve_site_hourly_forecast_metadata(history)
         recursive_state = ForecastModelTrainer._initialize_site_hourly_forecast_state(
-            recursive_history
+            recursive_history,
+            forecast_start_timestamp=first_forecast_timestamp,
         )
         predictions: List[pd.DataFrame] = []
         # Review operation for optimization. Depending on the number of sites and the forecast horizon, this loop could be a bottleneck. Potential optimizations include vectorizing the candidate generation and prediction steps to handle all sites in bulk rather than iterating through each hour sequentially.
@@ -3147,9 +3184,22 @@ class ForecastModelTrainer(BaseMlUtils):
                 {key: value for key, value in document.items() if not pd.isna(value)}
             )
 
-        retention_hours = int(configuration.SITE_HOURLY_FORECAST_HORIZON_HOURS or 240)
+        try:
+            retention_cutoff_days = int(
+                configuration.SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY or 2
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY must be a valid integer."
+            ) from exc
+        if retention_cutoff_days < 0:
+            raise ValueError(
+                "SITE_HOURLY_FORECAST_RETENTION_CUT_OFF_DAY cannot be negative."
+            )
+
         retention_cutoff = (
-            pd.Timestamp.utcnow() - pd.Timedelta(hours=retention_hours)
+            pd.Timestamp.now(tz="UTC").normalize()
+            - pd.Timedelta(days=retention_cutoff_days)
         ).to_pydatetime()
         configured_batch_size = int(
             getattr(configuration, "MONGO_BULK_WRITE_BATCH_SIZE", 5000) or 5000

@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Tuple, Coroutine, Optional, Generic, TypeVar, List
 from http.client import HTTPResponse
 from cryptography.fernet import Fernet
-import requests
 import pandas as pd
 import simplejson
 
@@ -59,12 +58,15 @@ class Utils:
 
         Raises:
             IndexError: If the API response does not contain valid bounding box data.
-            requests.RequestException: If the API request fails.
+            requests.exceptions.RequestException: If the HTTP request fails.
         """
-        response = requests.get(
-            f"https://nominatim.openstreetmap.org/search?q={country}&format=json"
+        from airqo_etl_utils.http_client import HttpClient
+
+        data = HttpClient().get_json(
+            f"https://nominatim.openstreetmap.org/search",
+            params={"q": country, "format": "json"},
         )
-        bounding_box = response.json()[0]["boundingbox"]
+        bounding_box = data[0]["boundingbox"]
         return {
             "west": float(bounding_box[0]),
             "east": float(bounding_box[1]),

@@ -1926,63 +1926,6 @@ class DataUtils:
         return drop_rows_with_bad_data("number", data, exclude=["device_number"])
 
     @staticmethod
-    def extract_bam_data_airnow(
-        start_date_time: str, end_date_time: str
-    ) -> pd.DataFrame:
-        """
-        Extracts BAM (Beta Attenuation Monitor) data from AirNow API for the given date range.
-
-        This function fetches device information for the BAM network, queries data for each device over the specified date range,
-        and compiles it into a pandas DataFrame.
-
-        Args:
-            start_date_time(str): Start of the date range in ISO 8601 format (e.g., "2024-11-01T00:00").
-            end_date_time(str): End of the date range in ISO 8601 format (e.g., "2024-11-07T23:59").
-
-        Returns:
-            pd.DataFrame: A DataFrame containing BAM data for all devices within the specified date range,
-                        including a `network` column indicating the device network.
-
-        Raises:
-            ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
-        """
-        bam_data = pd.DataFrame()
-        data_api = DataApi()
-
-        dates: List[str] = Utils.query_dates_array(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            data_source=DataSource.AIRNOW,
-        )
-
-        if not dates:
-            raise ValueError("Invalid or empty date range provided.")
-
-        dates = [
-            (
-                DateUtils.str_to_date(sdate).strftime("%Y-%m-%dT%H:%M"),
-                DateUtils.str_to_date(edate).strftime("%Y-%m-%dT%H:%M"),
-            )
-            for sdate, edate in dates
-        ]
-        device_data: List[pd.DataFrame] = []
-        for start, end in dates:
-            query_data = data_api.get_airnow_data(
-                start_date_time=start, end_date_time=end
-            )
-            if query_data:
-                device_data.extend(query_data)
-
-        if device_data:
-            bam_data = pd.DataFrame(device_data)
-            bam_data["network"] = DeviceNetwork.METONE.str
-
-        if bam_data.empty:
-            logger.info("No BAM data found for the specified date range.")
-
-        return bam_data
-
-    @staticmethod
     def process_bam_data_airnow(data: pd.DataFrame) -> pd.DataFrame:
         """
         Processes raw BAM device data by matching it to corresponding device details and constructing

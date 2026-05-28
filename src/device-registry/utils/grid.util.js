@@ -966,6 +966,54 @@ const createGrid = {
         };
       }
 
+      // Public metadata path: lightweight pipeline — no site lookups, no caching.
+      // Enforce visibility:true explicitly so /metadata/grids/:grid_id cannot
+      // return a non-public grid by ID. Sort happens before $project so
+      // sortField (e.g. createdAt) is available regardless of the projection.
+      if (request.query.path === "public") {
+        const results = await GridModel(normalizedTenant)
+          .aggregate([
+            { $match: { ...filter, visibility: true } },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      visibility: 1,
+                      name: 1,
+                      admin_level: 1,
+                      long_name: 1,
+                      flag_url: 1,
+                    },
+                  },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ])
+          .option({ maxTimeMS: 15000 });
+
+        const agg =
+          Array.isArray(results) && results[0]
+            ? results[0]
+            : { paginatedResults: [], totalCount: [] };
+        const total =
+          Array.isArray(agg.totalCount) && agg.totalCount[0]
+            ? agg.totalCount[0].count
+            : 0;
+        return {
+          success: true,
+          message: "Successfully retrieved grids",
+          data: agg.paginatedResults || [],
+          status: httpStatus.OK,
+          meta: buildGridListMeta({ total, _skip, _limit, request }),
+        };
+      }
+
       // Use cached helper — avoids a full Cohort→Device join on every request.
       // Cache is per-tenant with a 5-minute TTL (see getPrivateSiteIds above).
       const privateSiteIds = await getPrivateSiteIds(normalizedTenant);

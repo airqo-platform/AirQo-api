@@ -12,11 +12,11 @@ import pandas as pd
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from urllib.parse import urlencode
 import simplejson
 import urllib3
 from urllib.parse import parse_qs
-from urllib3.util.retry import Retry
+
+from airqo_etl_utils.http_client import HttpClient
 
 from airqo_etl_utils.utils import Utils
 from .config import configuration
@@ -36,6 +36,7 @@ max_workers = configuration.MAX_WORKERS
 # In-memory cache for DataApi responses
 class DataApi:
     def __init__(self) -> None:
+        self.client = HttpClient()
         try:
             if getattr(configuration, "API_CACHE_ENABLED", False):
                 self._api_cache = TTLCache(
@@ -1134,31 +1135,30 @@ class DataApi:
         base_url: Optional[str] = None,
         network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ) -> Union[Dict[str, Any], List, None]:
-        """
-        Executes API request and returns the response.
+        """Execute an API request and return the parsed JSON response.
 
         Args:
-            endpoint: API endpoit with the requeste resources.
-            params: API request parameters for filtering/specifying request details.
-            body: Payload in cases where data is being sent to the server to create/update a resource.
-            method: API request method to specify how the request should interact with the server resources.
-            base_url: Url specifying to which system/resources the request should be routed to.
+            endpoint: API endpoint path (relative to ``base_url``).
+            params: Query parameters for the request.
+            body: JSON payload for POST/PUT requests.  Serialised with
+                ``simplejson`` so NaN values are safely handled.
+            method: HTTP verb — ``"get"``, ``"post"``, or ``"put"``.
+            base_url: Override the integration base URL.  Resolved from
+                ``configuration.INTEGRATION_DETAILS[network]`` when omitted.
+            network: Target provider network used to look up integration config
+                and apply network-specific auth.
 
         Returns:
-            Response object: The response object is determined by the endpoint to which the request is sent.
-
-        Raises:
-            HTTPError if an error occurs when executing the request. The error is logged and None is returned.
+            Parsed JSON payload as a dict or list, or ``None`` on any error.
         """
         headers: Dict[str, Any] = {}
-        params: Dict[str, Any] = params
+        params = dict(params or {})
         integration = configuration.INTEGRATION_DETAILS.get(network.str)
 
         if not base_url:
             base_url = integration.get("url", "").rstrip("/")
 
         auth = integration.get("auth", None)
-
         if auth and network:
             if network == DeviceNetwork.AIRQO:
                 headers, params = self.__add_auth_headers(
@@ -1169,47 +1169,18 @@ class DataApi:
                     DeviceNetwork.TAHMO, integration, headers
                 )
 
-        retry_strategy = Retry(
-            total=5,
-            backoff_factor=5,
-        )
-        http = urllib3.PoolManager(retries=retry_strategy)
-
         url = f"{base_url}/{endpoint}"
         try:
-
-            if method == "put" or method == "post":
+            if method in ("post", "put"):
                 headers["Content-Type"] = "application/json"
-                encoded_args = urlencode(params)
-                url = url + "?" + encoded_args
-                if body:
-                    response = http.request(
-                        method.upper(),
-                        url,
-                        headers=headers,
-                        body=simplejson.dumps(body, ignore_nan=True),
-                    )
-                else:
-                    # TODO Investigate what resource is being created here
-                    # This might be redundant but again it could be creating a resource with default arguments or triggering a server-side action.
-                    response = http.request(method.upper(), url, headers=headers)
+                raw_body = simplejson.dumps(body, ignore_nan=True) if body else None
+                fn = self.client.post if method == "post" else self.client.put
+                return fn(url, data=raw_body, params=params, headers=headers)
             elif method == "get":
-                response = http.request(
-                    method.upper(), url, fields=params, headers=headers
-                )
+                return self.client.get_json(url, params=params, headers=headers)
             else:
-                logger.exception("Method not supported")
+                logger.error(f"Unsupported HTTP method: {method}")
                 return None
-
-            return Utils.parse_api_response(response, url)
-
-        except urllib3.exceptions.HTTPError as http_err:
-            logger.exception(f"Client error: {http_err}")
-        except urllib3.exceptions.TimeoutError as http_err:
-            logger.exception(f"Timeout occurred: {http_err}")
-        except TypeError as type_err:
-            logger.exception(f"Type error: {type_err}")
-        except Exception as e:
-            logger.exception(f"Unexpected error: {e}")
-
-        return None
+        except Exception as exc:
+            logger.exception(f"Request failed [{method.upper()} {url}]: {exc}")
+            return None
