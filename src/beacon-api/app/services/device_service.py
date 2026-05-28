@@ -1,11 +1,20 @@
 import httpx
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 from app.core.config import settings
-from app.models.sync import SyncDevice, SyncSite, Category, SyncMetadataValues, SyncConfigValues
+from app.models.device_data import SyncRawDeviceData
+from app.models.sync import (
+    SyncDevice,
+    SyncSite,
+    Category,
+    SyncMetadataValues,
+    SyncConfigValues,
+    SyncCohortDevice,
+)
 from typing import List, Dict, Any, Tuple, Optional
 from app.utils.performance import PerformanceAnalysis
 
@@ -528,6 +537,167 @@ def _serialize_synced_device(db_device: SyncDevice) -> Dict[str, Any]:
     }
 
 
+def _get_latest_readings_map(db: Session, device_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    if not device_ids:
+        return {}
+
+    latest_ts_subquery = (
+        db.query(
+            SyncRawDeviceData.device_id.label("device_id"),
+            func.max(SyncRawDeviceData.created_at_ts).label("last_seen_at"),
+        )
+        .filter(SyncRawDeviceData.device_id.in_(device_ids))
+        .group_by(SyncRawDeviceData.device_id)
+        .subquery()
+    )
+
+    latest_rows = (
+        db.query(SyncRawDeviceData)
+        .join(
+            latest_ts_subquery,
+            and_(
+                SyncRawDeviceData.device_id == latest_ts_subquery.c.device_id,
+                SyncRawDeviceData.created_at_ts == latest_ts_subquery.c.last_seen_at,
+            ),
+        )
+        .all()
+    )
+
+    latest_map: Dict[str, Dict[str, Any]] = {}
+    for row in latest_rows:
+        if not row.device_id:
+            continue
+        existing = latest_map.get(row.device_id)
+        if existing is not None:
+            if (existing.get("entry_id") or 0) >= (row.entry_id or 0):
+                continue
+
+        field_values = {
+            f"field{i}": getattr(row, f"field{i}")
+            for i in range(1, 21)
+            if getattr(row, f"field{i}") is not None
+        }
+
+        latest_map[row.device_id] = {
+            "timestamp": row.created_at_ts.isoformat() if row.created_at_ts else None,
+            "entry_id": row.entry_id,
+            "channel_id": row.channel_id,
+            "values": field_values,
+        }
+
+    return latest_map
+
+
+def _build_synced_devices_meta(
+    db: Session,
+    base_query,
+    total_devices: int,
+) -> Dict[str, int]:
+    if total_devices <= 0:
+        return {
+            "totalDevices": 0,
+            "devicesInAtLeastOneCohort": 0,
+            "deployedDevices": 0,
+            "onlineDevices": 0,
+            "offlineDevices": 0,
+        }
+
+    scoped_device_ids_subquery = base_query.with_entities(SyncDevice.device_id).subquery()
+
+    deployed_devices = (
+        base_query
+        .filter(func.lower(SyncDevice.status) == "deployed")
+        .count()
+    )
+
+    devices_in_cohort = (
+        db.query(func.count(func.distinct(SyncCohortDevice.device_id)))
+        .join(
+            scoped_device_ids_subquery,
+            SyncCohortDevice.device_id == scoped_device_ids_subquery.c.device_id,
+        )
+        .filter(SyncCohortDevice.is_active.is_(True))
+        .scalar()
+        or 0
+    )
+
+    start_of_today_utc = datetime.now(timezone.utc).replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    online_threshold = start_of_today_utc - timedelta(days=1)
+
+    latest_seen_subquery = (
+        db.query(
+            SyncRawDeviceData.device_id.label("device_id"),
+            func.max(SyncRawDeviceData.created_at_ts).label("last_seen_at"),
+        )
+        .group_by(SyncRawDeviceData.device_id)
+        .subquery()
+    )
+
+    online_devices = (
+        db.query(func.count(func.distinct(SyncDevice.device_id)))
+        .join(
+            scoped_device_ids_subquery,
+            SyncDevice.device_id == scoped_device_ids_subquery.c.device_id,
+        )
+        .join(
+            latest_seen_subquery,
+            SyncDevice.device_id == latest_seen_subquery.c.device_id,
+        )
+        .filter(func.lower(SyncDevice.status) == "deployed")
+        .filter(latest_seen_subquery.c.last_seen_at >= online_threshold)
+        .scalar()
+        or 0
+    )
+
+    offline_devices = max(deployed_devices - online_devices, 0)
+
+    return {
+        "totalDevices": total_devices,
+        "devicesInAtLeastOneCohort": int(devices_in_cohort),
+        "deployedDevices": int(deployed_devices),
+        "onlineDevices": int(online_devices),
+        "offlineDevices": int(offline_devices),
+    }
+
+
+def _apply_synced_device_search(query, search: Optional[str]):
+    if not search:
+        return query
+
+    search_term = f"%{search.strip()}%"
+    return query.filter(
+        or_(
+            SyncDevice.device_id.ilike(search_term),
+            SyncDevice.device_name.ilike(search_term),
+            SyncDevice.site_id.ilike(search_term),
+            SyncDevice.category.ilike(search_term),
+            SyncDevice.status.ilike(search_term),
+        )
+    )
+
+
+def _get_synced_device_page(
+    base_query,
+    safe_skip: int,
+    safe_limit: int,
+    search: Optional[str],
+):
+    paged_query = _apply_synced_device_search(base_query, search)
+    total = paged_query.count()
+    devices = (
+        paged_query.order_by(SyncDevice.device_name, SyncDevice.device_id)
+        .offset(safe_skip)
+        .limit(safe_limit)
+        .all()
+    )
+    return total, devices
+
+
 def _beacon_data_from_platform(
     dev: Dict[str, Any], read_key_to_store: Optional[str],
 ) -> Dict[str, Any]:
@@ -614,51 +784,27 @@ def get_synced_device_details(
     safe_skip = max(skip, 0)
     safe_limit = max(limit, 1)
 
-    query = db.query(SyncDevice).filter(func.lower(SyncDevice.network_id) == AIRQO_NETWORK)
+    base_query = db.query(SyncDevice).filter(func.lower(SyncDevice.network_id) == AIRQO_NETWORK)
 
-    if group_device_ids is not None:
-        if not group_device_ids:
-            total = 0
-            devices = []
-        else:
-            query = query.filter(SyncDevice.device_id.in_(group_device_ids))
-            if search:
-                search_term = f"%{search.strip()}%"
-                query = query.filter(
-                    or_(
-                        SyncDevice.device_id.ilike(search_term),
-                        SyncDevice.device_name.ilike(search_term),
-                        SyncDevice.site_id.ilike(search_term),
-                        SyncDevice.category.ilike(search_term),
-                        SyncDevice.status.ilike(search_term),
-                    )
-                )
-            total = query.count()
-            devices = (
-                query.order_by(SyncDevice.device_name, SyncDevice.device_id)
-                .offset(safe_skip)
-                .limit(safe_limit)
-                .all()
-            )
+    if group_device_ids is not None and not group_device_ids:
+        stats_query = base_query.filter(False)
+        total, devices = 0, []
     else:
-        if search:
-            search_term = f"%{search.strip()}%"
-            query = query.filter(
-                or_(
-                    SyncDevice.device_id.ilike(search_term),
-                    SyncDevice.device_name.ilike(search_term),
-                    SyncDevice.site_id.ilike(search_term),
-                    SyncDevice.category.ilike(search_term),
-                    SyncDevice.status.ilike(search_term),
-                )
-            )
-        total = query.count()
-        devices = (
-            query.order_by(SyncDevice.device_name, SyncDevice.device_id)
-            .offset(safe_skip)
-            .limit(safe_limit)
-            .all()
-        )
+        if group_device_ids is not None:
+            stats_query = base_query.filter(SyncDevice.device_id.in_(group_device_ids))
+        else:
+            stats_query = base_query
+        total, devices = _get_synced_device_page(stats_query, safe_skip, safe_limit, search)
+
+    scoped_total = stats_query.count()
+    aggregate_meta = _build_synced_devices_meta(db, stats_query, scoped_total)
+    serialized_devices = [_serialize_synced_device(device) for device in devices]
+    latest_readings_map = _get_latest_readings_map(
+        db,
+        [device.get("_id") for device in serialized_devices if device.get("_id")],
+    )
+    for device in serialized_devices:
+        device["last_reading"] = latest_readings_map.get(device.get("_id"))
 
     total_pages = max(1, (total + safe_limit - 1) // safe_limit)
     current_page = (safe_skip // safe_limit) + 1
@@ -686,8 +832,9 @@ def get_synced_device_details(
             "detailLevel": "local",
             "usedCache": False,
             "nextPage": next_page,
+            **aggregate_meta,
         },
-        "devices": [_serialize_synced_device(device) for device in devices],
+        "devices": serialized_devices,
     }
 
 async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str, Any]:

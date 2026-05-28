@@ -45,6 +45,11 @@ class MetaData(BaseModel):
     detailLevel: Optional[str] = None
     usedCache: Optional[bool] = None
     nextPage: Optional[str] = None
+    totalDevices: Optional[int] = None
+    devicesInAtLeastOneCohort: Optional[int] = None
+    deployedDevices: Optional[int] = None
+    onlineDevices: Optional[int] = None
+    offlineDevices: Optional[int] = None
 
 class DeviceMetadataResponse(BaseModel):
     success: bool
