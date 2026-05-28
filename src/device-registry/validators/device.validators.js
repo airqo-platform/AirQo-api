@@ -619,6 +619,14 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isPrimaryInLocation must be Boolean"),
+  body("authRequired")
+    .optional()
+    .notEmpty()
+    .withMessage("authRequired cannot be empty if provided")
+    .bail()
+    .isBoolean()
+    .withMessage("authRequired must be a boolean")
+    .toBoolean(),
   body("isUsedForCollocation")
     .optional()
     .notEmpty()
@@ -1071,6 +1079,7 @@ const validateBulkUpdateDevices = [
         "device_manufacturer",
         "category",
         "collocation",
+        "authRequired",
       ];
 
       const invalidFields = Object.keys(value).filter(
