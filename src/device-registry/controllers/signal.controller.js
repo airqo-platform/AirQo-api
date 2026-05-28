@@ -165,7 +165,7 @@ const processGridIds = async (grid_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false
+    (result) => result != null && result.success === false
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
@@ -176,7 +176,7 @@ const processGridIds = async (grid_ids, request) => {
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false)
+    (result) => result != null && result.success !== false
   );
 
   logObject("validSiteIdResults", validSiteIdResults);
