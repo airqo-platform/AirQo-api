@@ -6228,7 +6228,7 @@ const createUserModule = {
   _constructLoginUpdate: (
     user,
     strategy = null,
-    { autoVerify = false } = {},
+    { autoVerify = false, stampHasSetPassword = false } = {},
   ) => {
     const currentDate = new Date();
     const updatePayload = {
@@ -6242,6 +6242,13 @@ const createUserModule = {
 
     if (autoVerify && user.verified !== true) {
       updatePayload.$set.verified = true;
+    }
+
+    // Self-healing migration: only stamp hasSetPassword when called from a
+    // verified password-login flow. OAuth and JWT callers pass the default
+    // false so they never incorrectly mark OAuth-only accounts.
+    if (stampHasSetPassword && user.hasSetPassword !== true) {
+      updatePayload.$set.hasSetPassword = true;
     }
 
     // Handle one-time token strategy migration (only for enhanced login)
@@ -6468,7 +6475,7 @@ const createUserModule = {
           const updatePayload = createUserModule._constructLoginUpdate(
             user,
             strategy,
-            { autoVerify: shouldAutoVerify },
+            { autoVerify: shouldAutoVerify, stampHasSetPassword: true },
           );
           const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
@@ -6580,7 +6587,12 @@ const createUserModule = {
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        authMethods: buildAuthMethods(user),
+        authMethods: {
+          ...buildAuthMethods(user),
+          // Always true here — we verified the password above to reach this point.
+          // Also covers legacy accounts whose hasSetPassword was never stamped.
+          password: true,
+        },
 
         // --- REMOVED FOR SCALABILITY ---
         // The following large data fields are removed to prevent oversized login responses
