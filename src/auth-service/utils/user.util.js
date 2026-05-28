@@ -6244,6 +6244,13 @@ const createUserModule = {
       updatePayload.$set.verified = true;
     }
 
+    // Self-healing migration: stamp hasSetPassword on any account that
+    // successfully authenticates via password but was created before the flag
+    // existed (or before create() was fixed to set it).
+    if (user.hasSetPassword !== true) {
+      updatePayload.$set.hasSetPassword = true;
+    }
+
     // Handle one-time token strategy migration (only for enhanced login)
     if (
       strategy &&
@@ -6580,7 +6587,12 @@ const createUserModule = {
         // Enhanced authentication
         token: `JWT ${token}`,
 
-        authMethods: buildAuthMethods(user),
+        authMethods: {
+          ...buildAuthMethods(user),
+          // Always true here — we verified the password above to reach this point.
+          // Also covers legacy accounts whose hasSetPassword was never stamped.
+          password: true,
+        },
 
         // --- REMOVED FOR SCALABILITY ---
         // The following large data fields are removed to prevent oversized login responses
