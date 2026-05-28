@@ -1365,7 +1365,7 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
             if (updates_count + new_count) % 50 == 0:
                 db.commit()
         except Exception as e:
-            logger.error(f"Error syncing device {dev.get('_id')}: {e}")
+            logger.exception(f"Error syncing device {dev.get('_id')}: {e}")
             db.rollback()
 
     db.commit()
