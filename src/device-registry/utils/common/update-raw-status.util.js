@@ -65,8 +65,19 @@ const processDevice = async (device) => {
   let lastFeedTime = null;
   let updateReason = "no_device_number";
 
-  // ── AirQo device path ──────────────────────────────────────────────────────
-  if (device.device_number) {
+  // Resolve the network adapter before any routing decision so that networks
+  // with online_check_via_feed (e.g. airgradient) that also carry a
+  // device_number are not incorrectly sent down the ThingSpeak path.
+  const externalAdapter =
+    device.api_code && device.network && device.network !== "airqo"
+      ? await getNetworkAdapter(device.network).catch(() => null)
+      : null;
+
+  // ── ThingSpeak path (airqo-only) ───────────────────────────────────────────
+  // Only enter when device_number is set AND the adapter does NOT declare
+  // online_check_via_feed. Non-airqo devices (airgradient, iqair) store their
+  // manufacturer location ID in device_number but have no ThingSpeak channel.
+  if (device.network === "airqo" && device.device_number && !externalAdapter?.online_check_via_feed) {
     let apiKey;
     try {
       const detail = await DeviceModel("airqo")
@@ -145,11 +156,6 @@ const processDevice = async (device) => {
   }
 
   // ── External device path ───────────────────────────────────────────────────
-  const externalAdapter =
-    device.api_code && device.network && device.network !== "airqo"
-      ? await getNetworkAdapter(device.network).catch(() => null)
-      : null;
-
   if (externalAdapter?.online_check_via_feed) {
     try {
       const externalResult = await withTimeout(

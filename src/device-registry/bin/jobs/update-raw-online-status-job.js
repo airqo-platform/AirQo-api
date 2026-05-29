@@ -164,8 +164,13 @@ const mockNext = (error) => {
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
 
-  // 1. Get all device numbers from the current batch
-  const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
+  // 1. Get device numbers for airqo devices only — ThingSpeak channels only
+  // exist for network="airqo". Other networks (airgradient, iqair, etc.) store
+  // their manufacturer location/serial ID in device_number but have no ThingSpeak
+  // channel, so including them here produces wasted DB look-ups.
+  const deviceNumbers = devices
+    .filter((d) => d.network === "airqo" && d.device_number)
+    .map((d) => d.device_number);
 
   // 2. Fetch all necessary device details in a single query with timeout
   let deviceDetailsMap = new Map();
@@ -345,20 +350,21 @@ const processIndividualDevice = async (
     }
   }
 
-  if (!device.device_number) {
+  // Resolve the network adapter once, before any routing decision.
+  // DB record takes precedence over static config so operator-customised
+  // adapter config is honoured at runtime.
+  const externalAdapter =
+    device.api_code && device.network && device.network !== "airqo"
+      ? await getNetworkAdapter(device.network).catch(() => null)
+      : null;
+
+  // Route to the external-API path when:
+  //   • the device has no device_number (never had a ThingSpeak channel), OR
+  //   • the adapter declares online_check_via_feed (e.g. AirGradient) —
+  //     these devices may have device_number set to their manufacturer
+  //     location ID, which is NOT a ThingSpeak channel.
+  if (!device.device_number || externalAdapter?.online_check_via_feed) {
     // ── External device path ────────────────────────────────────────────────
-    // If the device has an api_code and its network adapter declares
-    // online_check_via_feed, call the external API to determine live status.
-    // This resolves the historic "no_device_number" skip for non-AirQo devices.
-    //
-    // Devices that still lack api_code (not yet migrated / unknown network)
-    // fall through to the unchanged stale-data fallback below.
-    // Resolve adapter: DB record takes precedence over static config so any
-    // operator-customised adapter config is honoured at runtime.
-    const externalAdapter =
-      device.api_code && device.network && device.network !== "airqo"
-        ? await getNetworkAdapter(device.network)
-        : null;
 
     if (externalAdapter?.online_check_via_feed) {
       try {
@@ -490,6 +496,18 @@ const processIndividualDevice = async (
         },
       },
     };
+  }
+
+  // Warn only when a non-airqo device has an external api_code but its adapter
+  // does not enable online_check_via_feed — that combination is actionable
+  // (the adapter config needs updating). Placeholder networks without api_code
+  // reach this path by design and produce no meaningful warning.
+  if (device.network && device.network !== "airqo" && device.api_code) {
+    logger.warn(
+      `update-raw-online-status-job: device ${device.name} (network: ${device.network}) ` +
+        `has api_code but reached the ThingSpeak path. ` +
+        `Set online_check_via_feed: true in the network adapter config.`,
+    );
   }
 
   // Get the API key from the pre-fetched details
