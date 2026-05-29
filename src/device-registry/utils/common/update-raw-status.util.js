@@ -77,7 +77,7 @@ const processDevice = async (device) => {
   // Only enter when device_number is set AND the adapter does NOT declare
   // online_check_via_feed. Non-airqo devices (airgradient, iqair) store their
   // manufacturer location ID in device_number but have no ThingSpeak channel.
-  if (device.device_number && !externalAdapter?.online_check_via_feed) {
+  if (device.network === "airqo" && device.device_number && !externalAdapter?.online_check_via_feed) {
     let apiKey;
     try {
       const detail = await DeviceModel("airqo")

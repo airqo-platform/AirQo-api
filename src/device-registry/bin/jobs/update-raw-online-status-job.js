@@ -355,7 +355,7 @@ const processIndividualDevice = async (
   // adapter config is honoured at runtime.
   const externalAdapter =
     device.api_code && device.network && device.network !== "airqo"
-      ? await getNetworkAdapter(device.network)
+      ? await getNetworkAdapter(device.network).catch(() => null)
       : null;
 
   // Route to the external-API path when:
