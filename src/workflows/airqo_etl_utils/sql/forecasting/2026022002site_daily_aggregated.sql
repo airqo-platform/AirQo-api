@@ -40,12 +40,8 @@ SELECT
     DATE(t1.timestamp) AS day,
     t1.site_id,
     ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
-    ANY_VALUE(
-        COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
-    ) AS site_latitude,
-    ANY_VALUE(
-        COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
-    ) AS site_longitude,
+    ANY_VALUE(t1.site_latitude) AS site_latitude,
+    ANY_VALUE(t1.site_longitude) AS site_longitude,
     AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean,
     MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min,
     MAX(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_max,
@@ -55,7 +51,10 @@ LEFT JOIN {sites_table} AS t2
     ON t1.site_id = t2.id
 WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
     AND t1.site_id IS NOT NULL
-    AND COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL
+    AND (
+        t1.pm2_5_calibrated_value IS NOT NULL
+        OR t1.pm2_5 IS NOT NULL
+    )
 GROUP BY day, t1.site_id
 HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
 ORDER BY day, t1.site_id;
@@ -71,24 +70,29 @@ ORDER BY day, t1.site_id;
 
 WITH site_hourly AS (
     SELECT
-        TIMESTAMP_TRUNC(t1.timestamp, HOUR) AS timestamp,
-        t1.site_id,
-        ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
-        ANY_VALUE(
-            COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
-        ) AS site_latitude,
-        ANY_VALUE(
-            COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
-        ) AS site_longitude,
-        AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean
-    FROM {consolidated_table} AS t1
-    LEFT JOIN {sites_table} AS t2
-        ON t1.site_id = t2.id
-    WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
-        AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
-        AND t1.site_id IS NOT NULL
-        AND COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL
-    GROUP BY timestamp, t1.site_id
+        TIMESTAMP_TRUNC(source.timestamp, HOUR) AS timestamp,
+        source.site_id,
+        ANY_VALUE(source.site_name) AS site_name,
+        ANY_VALUE(source.site_latitude) AS site_latitude,
+        ANY_VALUE(source.site_longitude) AS site_longitude,
+        AVG(source.pm25_value) AS pm25_mean
+    FROM (
+        SELECT
+            t1.timestamp,
+            t1.site_id,
+            COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id) AS site_name,
+            COALESCE(t1.site_latitude, t2.latitude) AS site_latitude,
+            COALESCE(t1.site_longitude, t2.longitude) AS site_longitude,
+            COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) AS pm25_value
+        FROM {consolidated_table} AS t1
+        LEFT JOIN {sites_table} AS t2
+            ON t1.site_id = t2.id
+        WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
+            AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
+            AND t1.site_id IS NOT NULL
+    ) AS source
+    WHERE source.pm25_value IS NOT NULL
+    GROUP BY timestamp, source.site_id
 ),
 eligible_sites AS (
     SELECT site_id

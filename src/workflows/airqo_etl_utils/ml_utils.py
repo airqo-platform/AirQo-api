@@ -2750,6 +2750,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 on=["timestamp", "met_no_query_latitude", "met_no_query_longitude"],
                 how="left",
             )
+            enriched = (
+                ForecastModelTrainer._fill_hourly_met_gaps_with_nearest_observation(
+                    enriched,
+                    met_hourly,
+                )
+            )
         except Exception as exc:
             if fail_on_error:
                 raise
@@ -2761,6 +2767,79 @@ class ForecastModelTrainer(BaseMlUtils):
             return with_empty_met_columns(enriched)
 
         return with_empty_met_columns(enriched)
+
+    @staticmethod
+    def _fill_hourly_met_gaps_with_nearest_observation(
+        forecasts: pd.DataFrame,
+        met_hourly: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Fill sparse hourly MET.no gaps from nearest MET timestamp per coordinate."""
+        if forecasts.empty or met_hourly.empty:
+            return forecasts
+
+        key_columns = [
+            "met_no_query_latitude",
+            "met_no_query_longitude",
+        ]
+        required_columns = ["timestamp", *key_columns]
+        if any(column not in forecasts.columns for column in required_columns):
+            return forecasts
+        if any(column not in met_hourly.columns for column in required_columns):
+            return forecasts
+
+        met_columns = [
+            column for column in SITE_DAILY_FORECAST_MET_COLUMNS if column in met_hourly
+        ]
+        if not met_columns:
+            return forecasts
+
+        filled = forecasts.copy()
+        filled["timestamp"] = pd.to_datetime(
+            filled["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+
+        met_lookup = met_hourly[required_columns + met_columns].copy()
+        met_lookup["timestamp"] = pd.to_datetime(
+            met_lookup["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        met_lookup = met_lookup.dropna(subset=required_columns)
+        if met_lookup.empty:
+            return forecasts
+
+        for key in key_columns:
+            filled[key] = pd.to_numeric(filled[key], errors="coerce")
+            met_lookup[key] = pd.to_numeric(met_lookup[key], errors="coerce")
+
+        row_order = "_forecast_row_order"
+        filled[row_order] = np.arange(len(filled))
+
+        nearest_frames: List[pd.DataFrame] = []
+        for coordinates, forecast_group in filled.groupby(key_columns, dropna=True):
+            met_group = met_lookup
+            for key, value in zip(key_columns, coordinates):
+                met_group = met_group[met_group[key] == value]
+            if met_group.empty:
+                continue
+
+            nearest = pd.merge_asof(
+                forecast_group.sort_values("timestamp")[[row_order, "timestamp"]],
+                met_group.sort_values("timestamp")[["timestamp", *met_columns]],
+                on="timestamp",
+                direction="nearest",
+            )
+            nearest_frames.append(nearest.drop(columns=["timestamp"]))
+
+        if not nearest_frames:
+            return filled.drop(columns=[row_order], errors="ignore")
+
+        nearest_met = pd.concat(nearest_frames, ignore_index=True).set_index(row_order)
+        filled = filled.set_index(row_order, drop=True)
+        for column in met_columns:
+            if column not in filled.columns:
+                filled[column] = np.nan
+            filled[column] = filled[column].combine_first(nearest_met[column])
+
+        return filled.sort_index().reset_index(drop=True)
 
     @staticmethod
     def _has_site_forecast_met_data(data: pd.DataFrame) -> bool:

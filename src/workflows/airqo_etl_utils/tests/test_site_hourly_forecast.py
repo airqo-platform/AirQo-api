@@ -200,6 +200,94 @@ def test_enrich_site_hourly_forecasts_with_met_no_weather(monkeypatch):
     assert "date" not in enriched.columns
 
 
+def test_enrich_site_hourly_forecasts_fills_sparse_met_by_nearest_time(monkeypatch):
+    forecasts = pd.DataFrame(
+        [
+            {
+                "timestamp": pd.Timestamp("2026-03-06T08:00:00Z"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.3123456,
+                "site_longitude": 32.5123456,
+                "pm2_5_mean": 12.1,
+                "pm2_5_q10": 10.2,
+                "pm2_5_q90": 14.8,
+                "forecast_confidence": 80.0,
+                "created_at": pd.Timestamp("2026-03-04T08:00:00Z"),
+            },
+            {
+                "timestamp": pd.Timestamp("2026-03-06T09:00:00Z"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.3123456,
+                "site_longitude": 32.5123456,
+                "pm2_5_mean": 12.2,
+                "pm2_5_q10": 10.3,
+                "pm2_5_q90": 14.9,
+                "forecast_confidence": 80.0,
+                "created_at": pd.Timestamp("2026-03-04T08:00:00Z"),
+            },
+            {
+                "timestamp": pd.Timestamp("2026-03-06T12:00:00Z"),
+                "site_id": "site-1",
+                "site_name": "Makerere",
+                "site_latitude": 0.3123456,
+                "site_longitude": 32.5123456,
+                "pm2_5_mean": 12.3,
+                "pm2_5_q10": 10.4,
+                "pm2_5_q90": 15.0,
+                "forecast_confidence": 80.0,
+                "created_at": pd.Timestamp("2026-03-04T08:00:00Z"),
+            },
+        ]
+    )
+
+    def _sparse_met_no_hourly_response(_: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    "timestamp": pd.Timestamp("2026-03-06T08:00:00Z"),
+                    "date": pd.Timestamp("2026-03-06").date(),
+                    "met_no_query_latitude": 0.31,
+                    "met_no_query_longitude": 32.51,
+                    "air_pressure_at_sea_level": 1008.1,
+                    "air_temperature": 24.0,
+                    "cloud_area_fraction": 70.0,
+                    "precipitation_amount": 0.0,
+                    "relative_humidity": 80.0,
+                    "wind_from_direction": 210.0,
+                    "wind_speed": 4.0,
+                },
+                {
+                    "timestamp": pd.Timestamp("2026-03-06T14:00:00Z"),
+                    "date": pd.Timestamp("2026-03-06").date(),
+                    "met_no_query_latitude": 0.31,
+                    "met_no_query_longitude": 32.51,
+                    "air_pressure_at_sea_level": 1009.1,
+                    "air_temperature": 30.0,
+                    "cloud_area_fraction": 50.0,
+                    "precipitation_amount": 0.2,
+                    "relative_humidity": 65.0,
+                    "wind_from_direction": 250.0,
+                    "wind_speed": 5.0,
+                },
+            ]
+        )
+
+    monkeypatch.setattr(
+        WeatherDataUtils,
+        "fetch_met_no_hourly_data_for_sites",
+        staticmethod(_sparse_met_no_hourly_response),
+    )
+
+    enriched = ForecastModelTrainer._enrich_site_hourly_forecasts_with_met_no_weather(
+        forecasts
+    )
+
+    assert enriched["air_temperature"].tolist() == [24.0, 24.0, 30.0]
+    assert enriched["wind_speed"].tolist() == [4.0, 4.0, 5.0]
+
+
 def test_save_site_hourly_forecasts_to_mongo_replaces_existing_site_rows(monkeypatch):
     forecasts = pd.DataFrame(
         [
@@ -552,7 +640,8 @@ def test_met_no_hourly_payload_parser_includes_timestamp():
 
 
 def test_site_hourly_forecast_query_is_registered():
-    query = query_manager.get_query("site_hourly_measurements_for_forecast_jobs")
+    hourly_query = query_manager.get_query("site_hourly_measurements_for_forecast_jobs")
+    daily_query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs")
 
     assert {
         "consolidated_table",
@@ -560,31 +649,46 @@ def test_site_hourly_forecast_query_is_registered():
         "start_timestamp",
         "end_timestamp",
         "min_hours",
-    }.issubset(query.placeholders)
+    }.issubset(hourly_query.placeholders)
     assert (
-        "AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean"
-        in query.sql
+        "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) AS pm25_value"
+        in hourly_query.sql
     )
-    assert "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL" in query.sql
-    assert "HAVING COUNT(DISTINCT timestamp) >= {min_hours}" in query.sql
+    assert "AVG(source.pm25_value) AS pm25_mean" in hourly_query.sql
+    assert "WHERE source.pm25_value IS NOT NULL" in hourly_query.sql
+    assert "COALESCE(t1.site_latitude, t2.latitude) AS site_latitude" in hourly_query.sql
+    assert "COALESCE(t1.site_longitude, t2.longitude) AS site_longitude" in hourly_query.sql
+    assert "ANY_VALUE(source.site_latitude) AS site_latitude" in hourly_query.sql
+    assert "ANY_VALUE(source.site_longitude) AS site_longitude" in hourly_query.sql
+    assert "HAVING COUNT(DISTINCT timestamp) >= {min_hours}" in hourly_query.sql
 
-
-def test_site_daily_forecast_query_falls_back_to_raw_pm25():
-    query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs")
-
+    assert {
+        "consolidated_table",
+        "sites_table",
+        "start_date",
+        "end_date",
+        "min_hours",
+    }.issubset(daily_query.placeholders)
     assert (
         "AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean"
-        in query.sql
+        in daily_query.sql
     )
     assert (
         "MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min"
-        in query.sql
+        in daily_query.sql
     )
     assert (
         "MAX(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_max"
-        in query.sql
+        in daily_query.sql
     )
-    assert "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL" in query.sql
+    assert "ANY_VALUE(t1.site_latitude) AS site_latitude" in daily_query.sql
+    assert "ANY_VALUE(t1.site_longitude) AS site_longitude" in daily_query.sql
+    assert "t1.pm2_5_calibrated_value IS NOT NULL" in daily_query.sql
+    assert "OR t1.pm2_5 IS NOT NULL" in daily_query.sql
+    assert (
+        "HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}"
+        in daily_query.sql
+    )
 
 
 def test_generate_site_hourly_forecasts_rejects_empty_input():
