@@ -1,11 +1,13 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Union
 from app.schemas.device import MetaData
 
 class SiteDeviceEntry(BaseModel):
     device_name: str
     device_id: Optional[str] = None
     category: Optional[str] = None
+    status: Optional[Union[str, float, int, bool]] = None
+    deployment_status: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     last_active: Optional[str] = None

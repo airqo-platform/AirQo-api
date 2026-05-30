@@ -136,8 +136,8 @@ const processGridIds = async (grid_ids, request) => {
         );
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-        logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
+        logger.warn(
+          `🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
         );
         return {
           success: false,
@@ -165,18 +165,18 @@ const processGridIds = async (grid_ids, request) => {
   logObject("siteIdResults", siteIdResults);
 
   const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result.success === false
+    (result) => result != null && result.success === false
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
 
   const validSiteIdResults = siteIdResults.filter(
-    (result) => !(result.success === false)
+    (result) => result != null && result.success !== false
   );
 
   logObject("validSiteIdResults", validSiteIdResults);

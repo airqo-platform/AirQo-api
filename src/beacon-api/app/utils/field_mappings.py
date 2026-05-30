@@ -32,6 +32,7 @@ FIELD_MAPPINGS: Dict[str, Dict[str, str]] = {
         "field2": "ConcRT(ug/m3)",
         "field3": "ConcHR(ug/m3)",
         "field4": "ConcS(ug/m3)",
+        "field6": "status",
     },
 }
 

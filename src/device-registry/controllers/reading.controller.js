@@ -121,8 +121,8 @@ const processGridIds = async (grid_ids, request) => {
         // Grid is private — treat as empty site set, not an error
         return null;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-        logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
+        logger.warn(
+          `🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
         );
         return {
           success: false,
@@ -155,7 +155,7 @@ const processGridIds = async (grid_ids, request) => {
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
     );
   }

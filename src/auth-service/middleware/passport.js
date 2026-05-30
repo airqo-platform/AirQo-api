@@ -1491,6 +1491,26 @@ const authOAuthCallback = (req, res, next) => {
         errorType: err.name,
         message: err.message,
       });
+    } else if (
+      err.message &&
+      err.message.includes("Failed to find request token in session")
+    ) {
+      // OAuth 1.0a session expiry — not actionable; occurs when the session
+      // expires between request-token and callback (pod restart, sticky-session
+      // miss, or browser back-button replay).
+      logger.warn(`[passport] OAuth session expired for ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name || "Error",
+        message: err.message,
+      });
+    } else if (err.name === "TokenError" && err.code === "invalid_grant") {
+      // Authorization code expired or already used — user-triggered (slow
+      // browser, back-button replay, or double-submit). Not a code bug.
+      logger.warn(`[passport] OAuth code rejected by ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name,
+        code: err.code,
+      });
     } else {
       logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
         provider: safeProvider,
@@ -1625,7 +1645,10 @@ const enhancedJWTAuth = (req, res, next) => {
                 res.set("Access-Control-Expose-Headers", "X-Access-Token");
               }
             } catch (refreshError) {
-              logger.error(
+              // Best-effort background refresh — the existing token is still
+              // valid, so the request proceeds. A persistent failure here will
+              // surface through DB health alerts rather than per-request noise.
+              logger.warn(
                 `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
               );
             }

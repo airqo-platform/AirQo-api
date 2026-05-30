@@ -982,26 +982,32 @@ deviceSchema.statics = {
       };
     } catch (error) {
       logObject("The error in the Device Model", error);
-      logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
 
       let response = {};
       let message = "Validation errors for some of the provided fields";
 
-      // Check if the error is an instance of HttpError
       if (error instanceof HttpError) {
-        // Log the HTTP error details
         logger.error(
           `HTTP Error: ${error.message}, Status: ${error.statusCode}`,
         );
-        response.message = error.message; // Use the message from HttpError
-        response.details = error.details || {}; // Capture additional details if available
+        response.message = error.message;
+        response.details = error.details || {};
+      } else if (error.name === "ValidationError") {
+        // Mongoose unique/validation constraint — an expected business conflict,
+        // not an internal failure. Log at WARN so Slack stays clean.
+        logger.warn(`🐛 Device validation conflict -- ${stringify(error)}`);
+        if (error.errors) {
+          Object.entries(error.errors).forEach(([key, value]) => {
+            response[key] = value.message;
+          });
+        }
       } else if (error.errors) {
-        // Handle validation errors
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         Object.entries(error.errors).forEach(([key, value]) => {
-          response[key] = value.message; // Capture specific field errors
+          response[key] = value.message;
         });
       } else {
-        // Fallback for unexpected errors
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         response.message = "An unexpected error occurred.";
       }
 
