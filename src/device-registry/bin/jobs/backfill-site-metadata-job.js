@@ -1,5 +1,6 @@
 const cron = require("node-cron");
 const SiteModel = require("@models/Site");
+const DeviceModel = require("@models/Device");
 const JobLockModel = require("@models/JobLock");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -24,6 +25,9 @@ const BATCH_SIZE = 30;
 // Hard cap on total geocoding attempts per run. Sites are processed in
 // BATCH_SIZE chunks; the job stops once this many have been attempted.
 const MAX_GEOCODING_ATTEMPTS_PER_RUN = 300;
+// Hard cap on sites whose site.network is synced from devices per run.
+// Keeps each of the 3 daily runs short while draining the historical backlog.
+const MAX_NETWORK_SYNC_PER_RUN = 500;
 // After this many consecutive altitude failures for a single site, the job
 // skips the getAltitude API call for that site rather than burning credits
 // on coordinates that repeatedly return nothing. The counter resets to 0
@@ -206,6 +210,120 @@ const GEOCODED_FIELDS = [
 const NON_ALTITUDE_GEOCODED_FIELDS = GEOCODED_FIELDS.filter(
   (f) => f !== "altitude",
 );
+
+/**
+ * Phase 2 of the backfill job.
+ *
+ * Finds deployed sites where site.network does not match any of their active
+ * devices' networks and corrects both site.network (bulk write) and
+ * data_provider (via refreshSiteDataProvider fire-and-forget).
+ *
+ * The query works from the Device side so it only touches sites that actually
+ * have at least one active deployed device — idle / recalled sites are skipped
+ * automatically. Capped at MAX_NETWORK_SYNC_PER_RUN per run so the job stays
+ * short regardless of historical backlog size.
+ *
+ * Selection criterion:
+ *   site.network ∉ {network values of all active devices at that site}
+ *
+ * Network to apply:
+ *   deviceNetworks is deduplicated by $addToSet. We sort it and take the first
+ *   element so the result is deterministic across runs even for the rare
+ *   multi-network site. refreshSiteDataProvider then derives the correct
+ *   joined data_provider label from all active devices.
+ *
+ * @param {string} tenant
+ * @returns {Promise<{synced: number, failed: number}>}
+ */
+const syncSiteNetworkMismatches = async (tenant) => {
+  let synced = 0;
+  let failed = 0;
+
+  try {
+    // Aggregate from the Device collection: group active deployed devices by
+    // site_id, collect unique networks, then join to Site to find mismatches.
+    const mismatchedSites = await DeviceModel(tenant).aggregate([
+      {
+        $match: {
+          isActive: true,
+          site_id: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$site_id",
+          // Collect the distinct networks of all active devices at this site.
+          deviceNetworks: { $addToSet: "$network" },
+        },
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "_id",
+          foreignField: "_id",
+          as: "site",
+          pipeline: [{ $project: { network: 1 } }],
+        },
+      },
+      { $unwind: "$site" },
+      // Keep only sites where site.network is not among the device networks.
+      // If site.network already matches any active device's network the site is
+      // already correct and can be skipped.
+      {
+        $match: {
+          $expr: { $not: { $in: ["$site.network", "$deviceNetworks"] } },
+        },
+      },
+      {
+        $project: {
+          _id: 1, // site_id
+          deviceNetworks: 1,
+          currentSiteNetwork: "$site.network",
+        },
+      },
+      { $limit: MAX_NETWORK_SYNC_PER_RUN },
+    ]);
+
+    if (mismatchedSites.length === 0) {
+      logger.info(`[${POD_ID}] syncSiteNetworkMismatches: no mismatches found.`);
+      return { synced: 0, failed: 0 };
+    }
+
+    // Build bulk ops: sort device networks for determinism, pick the first.
+    const bulkOps = mismatchedSites.map(({ _id: siteId, deviceNetworks }) => {
+      const networkToSet = [...deviceNetworks].sort()[0];
+      return {
+        updateOne: {
+          filter: { _id: siteId },
+          update: { $set: { network: networkToSet } },
+        },
+      };
+    });
+
+    try {
+      await SiteModel(tenant).bulkWrite(bulkOps, { ordered: false });
+      synced = bulkOps.length;
+    } catch (bulkErr) {
+      logger.error(
+        `[${POD_ID}] syncSiteNetworkMismatches: bulkWrite failed: ${bulkErr.message}`,
+      );
+      failed = bulkOps.length;
+    }
+
+    // Refresh data_provider for every site whose network was (or was attempted
+    // to be) updated — fire-and-forget, errors are logged inside the util.
+    mismatchedSites.forEach(({ _id: siteId }) => {
+      createSiteUtil.refreshSiteDataProvider(tenant, siteId.toString());
+    });
+  } catch (error) {
+    logger.error(
+      `[${POD_ID}] syncSiteNetworkMismatches: aggregation failed: ${error.message}`,
+    );
+    failed = -1; // signal structural failure
+  }
+
+  return { synced, failed };
+};
 
 const backfillSiteMetadata = async (tenant) => {
   const jobName = `backfill-site-metadata-${tenant}`;
@@ -452,11 +570,28 @@ const backfillSiteMetadata = async (tenant) => {
 
     if (sitesFailedCount > 0) {
       jobLogger.warn(
-        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
+        `[${POD_ID}] ${jobName} phase-1 finished. Updated: ${sitesProcessed}, Failed: ${sitesFailedCount}.`,
       );
     } else {
       jobLogger.info(
-        `[${POD_ID}] ${jobName} finished. Updated: ${sitesProcessed}.`,
+        `[${POD_ID}] ${jobName} phase-1 finished. Updated: ${sitesProcessed}.`,
+      );
+    }
+
+    // Phase 2: Fix historical site.network / data_provider mismatches.
+    // Runs every invocation after phase-1 completes so each of the 3 daily
+    // runs chips away at the backlog. Capped at MAX_NETWORK_SYNC_PER_RUN so
+    // it can't blow the lock TTL even on a large backlog.
+    const { synced: networkSynced, failed: networkFailed } =
+      await syncSiteNetworkMismatches(tenant);
+
+    if (networkFailed > 0) {
+      jobLogger.warn(
+        `[${POD_ID}] ${jobName} phase-2 (network sync) finished. Synced: ${networkSynced}, Failed: ${networkFailed}.`,
+      );
+    } else {
+      jobLogger.info(
+        `[${POD_ID}] ${jobName} phase-2 (network sync) finished. Synced: ${networkSynced}.`,
       );
     }
   } catch (error) {

@@ -1073,13 +1073,25 @@ const createActivity = {
             next,
           );
 
-          // **STEP 5**: Refresh site data_provider (fire and forget)
-          // Runs after the device is deployed, so it picks up the new device's network.
-          if (activityBody.site_id) {
-            createSiteUtil.refreshSiteDataProvider(
-              tenant,
-              activityBody.site_id,
-            );
+          // **STEP 5**: Sync site.network and data_provider to the deployed device's network.
+          // site.network must match device.network so that the fallback in
+          // computeSiteDataProvider (no-active-devices case) stays consistent with the
+          // deployed device. data_provider is a derived display label and is refreshed
+          // separately below.
+          if (activityBody.site_id && existingDevice.network) {
+            try {
+              await SiteModel(tenant).findByIdAndUpdate(
+                activityBody.site_id,
+                { $set: { network: existingDevice.network } },
+                { new: false },
+              );
+            } catch (siteNetworkErr) {
+              logger.error(
+                `Failed to sync site.network for site ${activityBody.site_id}: ${siteNetworkErr.message}`,
+              );
+            }
+            // Refresh data_provider now that site.network is up to date.
+            createSiteUtil.refreshSiteDataProvider(tenant, activityBody.site_id);
           }
 
           const data = {
@@ -2231,17 +2243,43 @@ const createActivity = {
         }
       });
 
-      // Refresh data_provider for each newly deployed site (fire-and-forget).
-      // Deduplicate site_ids so we call once per site regardless of how many
-      // devices were deployed to it in this batch.
-      // NOTE: mirrors the single-deploy refresh in _processDeployment (Step 5).
-      const deployedSiteIds = [
-        ...new Set(
-          createdActivities
-            .filter((a) => a.site_id)
-            .map((a) => a.site_id.toString()),
-        ),
-      ];
+      // Sync site.network to device.network for every successfully deployed
+      // static site, then refresh data_provider. site.network must stay in
+      // sync with the deployed device so the no-active-devices fallback inside
+      // computeSiteDataProvider stays consistent (mirrors _processDeployment STEP 5).
+      //
+      // When multiple devices with different networks land on the same site in one
+      // batch, site.network is set to the last-winning device's network.
+      // data_provider handles the multi-network case correctly via refreshSiteDataProvider.
+      const siteNetworkMap = new Map(); // site_id (string) -> device.network
+      for (const activity of createdActivities) {
+        if (!activity.site_id) continue;
+        const dev = deviceUpdateMap.get(activity.device);
+        if (dev && dev.network) {
+          siteNetworkMap.set(activity.site_id.toString(), dev.network);
+        }
+      }
+
+      if (siteNetworkMap.size > 0) {
+        const siteBulkOps = [...siteNetworkMap.entries()].map(
+          ([siteId, network]) => ({
+            updateOne: {
+              filter: { _id: ObjectId(siteId) },
+              update: { $set: { network } },
+            },
+          }),
+        );
+        SiteModel(tenant)
+          .bulkWrite(siteBulkOps, { ordered: false })
+          .catch((err) =>
+            logger.error(
+              `Batch deploy: failed to sync site.network fields: ${err.message}`,
+            ),
+          );
+      }
+
+      // Deduplicate site_ids then refresh data_provider (fire-and-forget).
+      const deployedSiteIds = [...siteNetworkMap.keys()];
       deployedSiteIds.forEach((siteId) => {
         createSiteUtil.refreshSiteDataProvider(tenant, siteId);
       });
@@ -2483,10 +2521,35 @@ const createActivity = {
         });
       });
 
-      // Refresh site data_provider now that a device has been removed.
-      // Use the site_id captured before the device was recalled.
+      // After recall: re-sync site.network from remaining active devices, then
+      // refresh data_provider. If no devices remain at the site, site.network
+      // reverts to DEFAULT_NETWORK so the no-active-devices fallback in
+      // computeSiteDataProvider stays consistent with the platform default.
       if (device.site_id) {
-        createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+        (async () => {
+          try {
+            const remainingDevices = await DeviceModel(tenant)
+              .find({ site_id: device.site_id, isActive: true })
+              .select("network")
+              .lean();
+
+            const networkToSet =
+              remainingDevices.length > 0
+                ? remainingDevices[0].network
+                : constants.DEFAULT_NETWORK || "airqo";
+
+            await SiteModel(tenant).findByIdAndUpdate(
+              device.site_id,
+              { $set: { network: networkToSet } },
+              { new: false },
+            );
+          } catch (err) {
+            logger.error(
+              `Failed to sync site.network after recall for site ${device.site_id}: ${err.message}`,
+            );
+          }
+          createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+        })();
       }
 
       // Use toObject() on both Mongoose documents to ensure clean
