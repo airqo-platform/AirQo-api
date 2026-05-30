@@ -14,6 +14,7 @@
 // No message is sent when there are no qualifying cohorts (no Slack noise).
 
 const constants = require("@config/constants");
+const crypto = require("crypto");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/private-cohort-alert-job -- ops-alerts`,
@@ -37,10 +38,23 @@ const LOCK_TTL_SECONDS = 3600;
 
 // ── Distributed lock ─────────────────────────────────────────────────────────
 
+// Ownership token — unique per pod process so only the pod that acquired the
+// lock can release it (guards against expired-lock steal between pods).
+let _lockToken = null;
+
+// Lua compare-and-delete: only DEL if the stored value equals our token.
+const RELEASE_SCRIPT = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+else
+  return 0
+end`;
+
 async function acquireJobLock() {
   try {
     if (!redisClient.redisUtils.isAvailable()) return true;
-    const result = await redisClient.set(LOCK_KEY, "1", {
+    _lockToken = crypto.randomUUID();
+    const result = await redisClient.set(LOCK_KEY, _lockToken, {
       NX: true,
       EX: LOCK_TTL_SECONDS,
     });
@@ -56,7 +70,10 @@ async function acquireJobLock() {
 async function releaseJobLock() {
   try {
     if (!redisClient.redisUtils.isAvailable()) return;
-    await redisClient.del(LOCK_KEY);
+    if (_lockToken) {
+      await redisClient.eval(RELEASE_SCRIPT, { keys: [LOCK_KEY], arguments: [_lockToken] });
+      _lockToken = null;
+    }
   } catch (err) {
     logger.warn(`${JOB_NAME} -- could not release lock: ${err.message}`);
   }
@@ -281,11 +298,15 @@ async function runPrivateCohortAlertJob() {
 
 // ── Schedule ──────────────────────────────────────────────────────────────────
 
-cron.schedule(JOB_SCHEDULE, () => {
-  runPrivateCohortAlertJob().catch((err) => {
-    logger.error(`${JOB_NAME} -- scheduler error: ${err.message}`);
-  });
-});
+cron.schedule(
+  JOB_SCHEDULE,
+  () => {
+    runPrivateCohortAlertJob().catch((err) => {
+      logger.error(`${JOB_NAME} -- scheduler error: ${err.message}`);
+    });
+  },
+  { timezone: "UTC" },
+);
 
 logText(`${JOB_NAME} -- scheduled (${JOB_SCHEDULE})`);
 
