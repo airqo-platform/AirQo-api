@@ -256,6 +256,21 @@ const syncSiteNetworkMismatches = async (tenant) => {
           deviceNetworks: { $addToSet: "$network" },
         },
       },
+      // Sort deviceNetworks alphabetically so the winner is deterministic
+      // regardless of $addToSet insertion order, then derive networkWinner as
+      // the first element of that sorted array.
+      {
+        $set: {
+          deviceNetworks: {
+            $sortArray: { input: "$deviceNetworks", sortBy: 1 },
+          },
+        },
+      },
+      {
+        $set: {
+          networkWinner: { $arrayElemAt: ["$deviceNetworks", 0] },
+        },
+      },
       {
         $lookup: {
           from: "sites",
@@ -266,18 +281,19 @@ const syncSiteNetworkMismatches = async (tenant) => {
         },
       },
       { $unwind: "$site" },
-      // Keep only sites where site.network is not among the device networks.
-      // If site.network already matches any active device's network the site is
-      // already correct and can be skipped.
+      // Keep only sites where site.network differs from the deterministic winner.
+      // Comparing against the winner (not membership) catches sites whose
+      // network matches a non-winning active-device network.
       {
         $match: {
-          $expr: { $not: { $in: ["$site.network", "$deviceNetworks"] } },
+          $expr: { $ne: ["$site.network", "$networkWinner"] },
         },
       },
       {
         $project: {
           _id: 1, // site_id
           deviceNetworks: 1,
+          networkWinner: 1,
           currentSiteNetwork: "$site.network",
         },
       },
@@ -289,16 +305,13 @@ const syncSiteNetworkMismatches = async (tenant) => {
       return { synced: 0, failed: 0 };
     }
 
-    // Build bulk ops: sort device networks for determinism, pick the first.
-    const bulkOps = mismatchedSites.map(({ _id: siteId, deviceNetworks }) => {
-      const networkToSet = [...deviceNetworks].sort()[0];
-      return {
-        updateOne: {
-          filter: { _id: siteId },
-          update: { $set: { network: networkToSet } },
-        },
-      };
-    });
+    // networkWinner is already computed deterministically in the pipeline.
+    const bulkOps = mismatchedSites.map(({ _id: siteId, networkWinner }) => ({
+      updateOne: {
+        filter: { _id: siteId },
+        update: { $set: { network: networkWinner } },
+      },
+    }));
 
     try {
       await SiteModel(tenant).bulkWrite(bulkOps, { ordered: false });

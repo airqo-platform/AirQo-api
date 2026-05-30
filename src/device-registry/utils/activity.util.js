@@ -2249,14 +2249,19 @@ const createActivity = {
       // computeSiteDataProvider stays consistent (mirrors _processDeployment STEP 5).
       //
       // When multiple devices with different networks land on the same site in one
-      // batch, site.network is set to the last-winning device's network.
+      // batch, site.network is set to the alphabetically first network value so the
+      // result is deterministic across runs.
       // data_provider handles the multi-network case correctly via refreshSiteDataProvider.
       const siteNetworkMap = new Map(); // site_id (string) -> device.network
       for (const activity of createdActivities) {
         if (!activity.site_id) continue;
         const dev = deviceUpdateMap.get(activity.device);
         if (dev && dev.network) {
-          siteNetworkMap.set(activity.site_id.toString(), dev.network);
+          const siteId = activity.site_id.toString();
+          const current = siteNetworkMap.get(siteId);
+          if (!current || dev.network < current) {
+            siteNetworkMap.set(siteId, dev.network);
+          }
         }
       }
 
@@ -2269,16 +2274,18 @@ const createActivity = {
             },
           }),
         );
-        SiteModel(tenant)
-          .bulkWrite(siteBulkOps, { ordered: false })
-          .catch((err) =>
-            logger.error(
-              `Batch deploy: failed to sync site.network fields: ${err.message}`,
-            ),
+        try {
+          await SiteModel(tenant).bulkWrite(siteBulkOps, { ordered: false });
+        } catch (err) {
+          logger.error(
+            `Batch deploy: failed to sync site.network fields: ${err.message}`,
           );
+        }
       }
 
-      // Deduplicate site_ids then refresh data_provider (fire-and-forget).
+      // Refresh data_provider only after site.network bulkWrite completes
+      // (success or handled error) so refreshSiteDataProvider always reads the
+      // correct site.network when it falls back to it.
       const deployedSiteIds = [...siteNetworkMap.keys()];
       deployedSiteIds.forEach((siteId) => {
         createSiteUtil.refreshSiteDataProvider(tenant, siteId);
@@ -2528,27 +2535,36 @@ const createActivity = {
       if (device.site_id) {
         (async () => {
           try {
-            const remainingDevices = await DeviceModel(tenant)
-              .find({ site_id: device.site_id, isActive: true })
-              .select("network")
-              .lean();
+            const remainingNetworks = await DeviceModel(tenant).distinct(
+              "network",
+              { site_id: device.site_id, isActive: true },
+            );
+            const sortedNetworks = (remainingNetworks || [])
+              .map((n) => (typeof n === "string" ? n.trim() : n))
+              .filter((n) => typeof n === "string" && n.length > 0)
+              .sort();
 
             const networkToSet =
-              remainingDevices.length > 0
-                ? remainingDevices[0].network
+              sortedNetworks.length > 0
+                ? sortedNetworks[0]
                 : constants.DEFAULT_NETWORK || "airqo";
 
-            await SiteModel(tenant).findByIdAndUpdate(
+            const updateResult = await SiteModel(tenant).findByIdAndUpdate(
               device.site_id,
               { $set: { network: networkToSet } },
               { new: false },
             );
+
+            // Only refresh data_provider after a confirmed successful write so
+            // refreshSiteDataProvider always reads the already-correct site.network.
+            if (updateResult) {
+              createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+            }
           } catch (err) {
             logger.error(
               `Failed to sync site.network after recall for site ${device.site_id}: ${err.message}`,
             );
           }
-          createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
         })();
       }
 
