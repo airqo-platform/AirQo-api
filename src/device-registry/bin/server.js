@@ -283,6 +283,18 @@ try {
   // Continue - server stays up
 }
 
+// Private cohort alert — 3×/day (06:00, 14:00, 22:00 UTC)
+// Flags cohorts that are private but contain >2 operational devices,
+// preventing them from silently missing public map and recent-measurements visibility.
+try {
+  require("@bin/jobs/private-cohort-alert-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ private-cohort-alert-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
 // Express Middlewares
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
