@@ -69,20 +69,23 @@ ApplicationEmailConfigurationSchema.statics = {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       let errors = {};
+      let message;
+      let status;
       if (err.code === 11000) {
         errors["tenant"] =
           "An application email configuration for this tenant already exists";
+        message = "Validation errors for some of the provided fields";
+        status = httpStatus.CONFLICT;
       } else if (err.errors) {
         Object.entries(err.errors).forEach(([k, v]) => (errors[k] = v.message));
+        message = "Validation errors for some of the provided fields";
+        status = httpStatus.UNPROCESSABLE_ENTITY;
       } else {
         errors = { message: err.message };
+        message = "Internal Server Error";
+        status = httpStatus.INTERNAL_SERVER_ERROR;
       }
-      return {
-        success: false,
-        message: "Validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-        errors,
-      };
+      return { success: false, message, status, errors };
     }
   },
 

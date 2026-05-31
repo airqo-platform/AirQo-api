@@ -179,19 +179,20 @@ const _appEmailConfigCache = new Map();
 const _APP_EMAIL_CONFIG_TTL_MS = 5 * 60 * 1000;
 
 const _getApplicationEmailConfig = async (tenant) => {
-  const cached = _appEmailConfigCache.get(tenant);
+  const normalizedTenant = (tenant || "").toLowerCase();
+  const cached = _appEmailConfigCache.get(normalizedTenant);
   if (cached && Date.now() - cached.fetchedAt < _APP_EMAIL_CONFIG_TTL_MS) {
     return cached.data;
   }
   try {
-    const config = await ApplicationEmailConfigurationModel(tenant)
-      .findOne({ tenant: tenant.toLowerCase() })
+    const config = await ApplicationEmailConfigurationModel(normalizedTenant)
+      .findOne({ tenant: normalizedTenant })
       .lean();
-    _appEmailConfigCache.set(tenant, { data: config, fetchedAt: Date.now() });
+    _appEmailConfigCache.set(normalizedTenant, { data: config, fetchedAt: Date.now() });
     return config;
   } catch (error) {
     logger.warn(
-      `Failed to fetch application email config for tenant ${tenant}: ${error.message}`
+      `Failed to fetch application email config for tenant ${normalizedTenant}: ${error.message}`
     );
     return null;
   }
@@ -485,15 +486,22 @@ const createMailerFunction = (
         : baseMailOptions;
 
       // ✅ STEP 4c-CC: If the recipient is a registered application email address,
-      // add admin CC so the right people are notified about system-generated emails
-      // (e.g. token expiry, security alerts) that would otherwise go unnoticed.
+      // merge admin CC into any existing cc set by customMailOptionsModifier.
       try {
         const adminCC = await _resolveAdminCCForApplicationEmail(
           mailOptions.to,
           tenant
         );
         if (adminCC) {
-          mailOptions.cc = adminCC;
+          const existing = mailOptions.cc
+            ? (Array.isArray(mailOptions.cc)
+                ? mailOptions.cc
+                : String(mailOptions.cc).split(",").map((e) => e.trim())
+              ).filter(Boolean)
+            : [];
+          const incoming = adminCC.split(",").map((e) => e.trim()).filter(Boolean);
+          const merged = [...new Set([...existing, ...incoming])];
+          mailOptions.cc = merged.join(",");
           logger.info(
             `Admin CC applied for application email ${mailOptions.to} on tenant ${tenant}`
           );
