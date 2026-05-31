@@ -464,18 +464,32 @@ const handleGroupCreated = async (payload) => {
       return;
     }
 
-    // 2. Create the default cohort
-    const network = tenant;
-
-    await CohortModel(tenant).create({
-      name: cohortName,
-      description: cohortDescription,
-      network: network,
-      grp_id: groupId, // Link the cohort to the group
+    // 2. Create the default cohort via util so COHORT_TOPIC is published
+    const request = {
+      body: {
+        name: cohortName,
+        description: cohortDescription,
+        network: tenant,
+        grp_id: groupId,
+      },
+      query: { tenant },
+    };
+    const result = await createCohortUtil.create(request, (err) => {
+      if (err)
+        logger.error(
+          `KAFKA-CONSUMER: Error creating cohort for group ${groupId}: ${err.message}`
+        );
     });
 
+    if (result && result.success === false) {
+      logger.error(
+        `KAFKA-CONSUMER: Failed to create cohort for group ${groupId}: ${result.message}`
+      );
+      return;
+    }
+
     logger.info(
-      `KAFKA-CONSUMER: Successfully created default cohort '${cohortName}' for group ID ${groupId} in network '${network}'.`
+      `KAFKA-CONSUMER: Successfully created default cohort '${cohortName}' for group ID ${groupId} in tenant '${tenant}'.`
     );
   } catch (error) {
     logger.error(
