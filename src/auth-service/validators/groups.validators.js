@@ -154,38 +154,40 @@ const updateName = [
 
 const list = [
   validateTenant,
-  oneOf([
-    query("grp_id")
-      .optional()
-      .isMongoId()
-      .withMessage("grp_id must be an object ID IF provided")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("grp_title")
-      .optional()
-      .trim()
-      .notEmpty()
-      .withMessage("grp_title should not be empty IF provided")
-      .bail(),
-    query("grp_status")
-      .optional()
-      .trim()
-      .notEmpty()
-      .withMessage("grp_status should not be empty IF provided")
-      .bail()
-      .trim()
-      .toUpperCase()
-      .isIn(["INACTIVE", "ACTIVE"])
-      .withMessage(
-        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
-      ),
-    query("cohort_id")
-      .optional()
-      .isMongoId()
-      .withMessage("cohort_id must be a valid ObjectId IF provided"),
-  ]),
+  query("grp_id")
+    .optional()
+    .isMongoId()
+    .withMessage("grp_id must be an object ID IF provided")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
+  query("grp_title")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("grp_title should not be empty IF provided")
+    .bail(),
+  query("grp_status")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("grp_status should not be empty IF provided")
+    .bail()
+    .trim()
+    .toUpperCase()
+    .isIn(["INACTIVE", "ACTIVE"])
+    .withMessage(
+      "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
+    ),
+  query("cohort_id")
+    .optional()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid ObjectId IF provided")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
 ];
 
 const create = [
