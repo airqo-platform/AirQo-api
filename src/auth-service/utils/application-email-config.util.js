@@ -78,30 +78,44 @@ const applicationEmailConfig = {
       ).toLowerCase();
 
       const filter = { _id: mongoose.Types.ObjectId(params.id) };
-      const update = {};
 
-      // Replace the entire applicationEmails list
-      if (body.applicationEmails !== undefined) {
-        update.applicationEmails = body.applicationEmails;
+      const hasReplacement = body.applicationEmails !== undefined;
+      const hasAddRemove =
+        !isEmpty(body.addApplicationEmails) ||
+        !isEmpty(body.removeApplicationEmails);
+
+      if (hasReplacement && hasAddRemove) {
+        return {
+          success: false,
+          message:
+            "Cannot combine applicationEmails replacement with addApplicationEmails or removeApplicationEmails in the same request",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Use applicationEmails to replace the full list, or use addApplicationEmails/removeApplicationEmails for partial updates — not both at once",
+          },
+        };
       }
 
-      // Replace the adminCCEmails string
+      const update = {};
+
       if (body.adminCCEmails !== undefined) {
         update.adminCCEmails = body.adminCCEmails;
       }
 
-      // Fine-grained: add specific emails without sending the full list
-      if (!isEmpty(body.addApplicationEmails)) {
-        update.$addToSet = {
-          applicationEmails: { $each: body.addApplicationEmails },
-        };
-      }
-
-      // Fine-grained: remove specific emails from the list
-      if (!isEmpty(body.removeApplicationEmails)) {
-        update.$pull = {
-          applicationEmails: { $in: body.removeApplicationEmails },
-        };
+      if (hasReplacement) {
+        update.applicationEmails = body.applicationEmails;
+      } else {
+        if (!isEmpty(body.addApplicationEmails)) {
+          update.$addToSet = {
+            applicationEmails: { $each: body.addApplicationEmails },
+          };
+        }
+        if (!isEmpty(body.removeApplicationEmails)) {
+          update.$pull = {
+            applicationEmails: { $in: body.removeApplicationEmails },
+          };
+        }
       }
 
       if (isEmpty(update)) {

@@ -3,16 +3,20 @@ const router = express.Router();
 const controller = require("@controllers/application-email-config.controller");
 const validators = require("@validators/application-email-config.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { requirePermissions } = require("@middleware/permissionAuth");
+const constants = require("@config/constants");
 const { headers } = require("@validators/common");
 
 router.use(headers);
 
-router.get("/", validators.list, enhancedJWTAuth, controller.list);
+const requireSuperAdmin = requirePermissions([constants.SUPER_ADMIN]);
 
-router.post("/", validators.create, enhancedJWTAuth, controller.create);
+router.get("/", validators.list, enhancedJWTAuth, requireSuperAdmin, controller.list);
 
-router.put("/:id", validators.update, enhancedJWTAuth, controller.update);
+router.post("/", validators.create, enhancedJWTAuth, requireSuperAdmin, controller.create);
 
-router.delete("/:id", validators.delete, enhancedJWTAuth, controller.delete);
+router.put("/:id", validators.update, enhancedJWTAuth, requireSuperAdmin, controller.update);
+
+router.delete("/:id", validators.delete, enhancedJWTAuth, requireSuperAdmin, controller.delete);
 
 module.exports = router;

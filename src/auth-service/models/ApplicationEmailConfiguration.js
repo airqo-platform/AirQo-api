@@ -183,15 +183,11 @@ ApplicationEmailConfigurationSchema.statics = {
 const ApplicationEmailConfigurationModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    return mongoose.model("application_email_configuration");
-  } catch (error) {
-    return getModelByTenant(
-      dbTenant,
-      "application_email_configuration",
-      ApplicationEmailConfigurationSchema
-    );
-  }
+  return getModelByTenant(
+    dbTenant,
+    "application_email_configuration",
+    ApplicationEmailConfigurationSchema
+  );
 };
 
 module.exports = ApplicationEmailConfigurationModel;
