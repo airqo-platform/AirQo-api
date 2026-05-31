@@ -610,6 +610,19 @@ describe("generate-filter util", function () {
       expect(filter).to.deep.equal({});
     });
 
+    it("should filter by cohort_id when provided", () => {
+      const cohortId = "507f1f77bcf86cd799439011";
+      const req = {
+        query: { cohort_id: cohortId },
+        params: {},
+      };
+
+      const filter = generateFilter.groups(req);
+
+      expect(filter).to.have.property("cohorts");
+      expect(filter.cohorts.toString()).to.equal(cohortId);
+    });
+
     it("should handle an error and return an error response", () => {
       const req = {
         query: {
