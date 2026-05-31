@@ -594,6 +594,15 @@ const processIndividualDevice = async (
       updateDoc.$inc = incUpdate;
     }
 
+    const siteUpdates = [];
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
     return {
       deviceUpdate: {
         updateOne: {
@@ -601,6 +610,7 @@ const processIndividualDevice = async (
           update: updateDoc,
         },
       },
+      siteUpdates,
     };
   }
 
