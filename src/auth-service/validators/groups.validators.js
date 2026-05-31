@@ -181,6 +181,10 @@ const list = [
       .withMessage(
         "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
       ),
+    query("cohort_id")
+      .optional()
+      .isMongoId()
+      .withMessage("cohort_id must be a valid ObjectId IF provided"),
   ]),
 ];
 
