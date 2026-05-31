@@ -1083,7 +1083,7 @@ const filter = {
   },
   groups: (req, next) => {
     try {
-      const { grp_title, grp_status, category, grp_id } = {
+      const { grp_title, grp_status, category, grp_id, cohort_id } = {
         ...req.query,
         ...req.params,
       };
@@ -1098,9 +1098,11 @@ const filter = {
       if (grp_title) {
         filter["grp_title"] = grp_title;
       }
-
       if (category) {
         filter["category"] = category;
+      }
+      if (cohort_id) {
+        filter["cohorts"] = ObjectId(cohort_id);
       }
       logObject("the filter we are sending", filter);
       return filter;
