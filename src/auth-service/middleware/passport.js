@@ -1556,17 +1556,17 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
+    const match = authHeader.match(/^JWT\s+(.+)$/i);
+    if (!match || !match[1]) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+            "Invalid Authorization header format. Expected 'JWT <token>'",
         }),
       );
     }
 
-    const token = match[2].trim();
+    const token = match[1].trim();
     if (!token) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
@@ -1704,10 +1704,10 @@ const optionalJWTAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return next();
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) return next();
+    const match = authHeader.match(/^JWT\s+(.+)$/i);
+    if (!match || !match[1]) return next();
 
-    const token = match[2].trim();
+    const token = match[1].trim();
     if (!token) return next();
 
     const endpoint =
@@ -1806,17 +1806,17 @@ const refreshTokenAuth = (req, _res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
+    const match = authHeader.match(/^JWT\s+(.+)$/i);
+    if (!match || !match[1]) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+            "Invalid Authorization header format. Expected 'JWT <token>'",
         }),
       );
     }
 
-    const token = match[2].trim();
+    const token = match[1].trim();
 
     jwt.verify(
       token,
