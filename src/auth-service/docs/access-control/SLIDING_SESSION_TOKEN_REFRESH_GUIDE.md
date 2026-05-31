@@ -97,7 +97,7 @@ apiClient.interceptors.response.use(
       // Replace the token in localStorage or your state management
       localStorage.setItem("authToken", newToken);
       // If you store the token in memory, update it there as well
-      apiClient.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+      apiClient.defaults.headers.common["Authorization"] = `JWT ${newToken}`;
     }
     return response;
   },

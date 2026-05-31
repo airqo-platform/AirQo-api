@@ -43,7 +43,7 @@ describe("Create Request Route v2", () => {
 
       const response = await request
         .post(`/groups/${mockGroup._id}`)
-        .set("Authorization", "Bearer your_jwt_token_here") // Replace with a valid JWT token
+        .set("Authorization", "JWT your_jwt_token_here") // Replace with a valid JWT token
         .send({
           /* Request body data if needed */
         })
@@ -70,7 +70,7 @@ describe("Create Request Route v2", () => {
 
       const response = await request
         .post(`/groups/${mockGroup._id}`)
-        .set("Authorization", "Bearer your_jwt_token_here") // Replace with a valid JWT token
+        .set("Authorization", "JWT your_jwt_token_here") // Replace with a valid JWT token
         .send({
           /* Invalid request body data if needed */
         })
@@ -101,7 +101,7 @@ describe("Create Request Route v2", () => {
       // Make the POST request to request access to a network
       const response = await supertest(app)
         .post(`/networks/${mockRequest.params.net_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .send(mockRequest.body)
         .expect(200);
 
@@ -130,7 +130,7 @@ describe("Create Request Route v2", () => {
       // Make the POST request with invalid data
       const response = await supertest(app)
         .post(`/networks/${mockRequest.params.net_id}`)
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .send(mockRequest.body)
         .expect(400);
 
@@ -160,7 +160,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to list access requests
       const response = await supertest(app)
         .get("/")
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -190,7 +190,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with invalid data
       const response = await supertest(app)
         .get("/")
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .expect(400);
 
@@ -220,7 +220,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to list pending access requests
       const response = await supertest(app)
         .get("/pending")
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -250,7 +250,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with invalid data
       const response = await supertest(app)
         .get("/pending")
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .expect(400);
 
@@ -284,7 +284,7 @@ describe("Create Request Route v2", () => {
       // Make the POST request to approve the access request
       const response = await supertest(app)
         .post(`/${mockRequest.params.request_id}/approve`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .send(mockRequest.body)
         .expect(200);
@@ -319,7 +319,7 @@ describe("Create Request Route v2", () => {
       // Make the POST request with invalid data
       const response = await supertest(app)
         .post(`/${mockRequest.params.request_id}/approve`)
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .send(mockRequest.body)
         .expect(400);
@@ -354,7 +354,7 @@ describe("Create Request Route v2", () => {
       // Make the POST request to reject the access request
       const response = await supertest(app)
         .post(`/${mockRequest.params.request_id}/reject`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .send(mockRequest.body)
         .expect(200);
@@ -389,7 +389,7 @@ describe("Create Request Route v2", () => {
       // Make the POST request with invalid data
       const response = await supertest(app)
         .post(`/${mockRequest.params.request_id}/reject`)
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .send(mockRequest.body)
         .expect(400);
@@ -419,7 +419,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to list access requests for a group
       const response = await supertest(app)
         .get("/groups")
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -446,7 +446,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with invalid data
       const response = await supertest(app)
         .get("/groups")
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .expect(400);
 
@@ -475,7 +475,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to list access requests for a network
       const response = await supertest(app)
         .get("/networks")
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -502,7 +502,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with invalid data
       const response = await supertest(app)
         .get("/networks")
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .expect(400);
 
@@ -534,7 +534,7 @@ describe("Create Request Route v2", () => {
       // Make the DELETE request to delete an access request
       const response = await supertest(app)
         .delete(`/requests/${mockRequest.params.request_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -565,7 +565,7 @@ describe("Create Request Route v2", () => {
       // Make the DELETE request with invalid data
       const response = await supertest(app)
         .delete(`/requests/${mockRequest.params.request_id}`)
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .expect(400);
 
@@ -601,7 +601,7 @@ describe("Create Request Route v2", () => {
       // Make the PUT request to update an access request
       const response = await supertest(app)
         .put(`/requests/${mockRequest.params.request_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .send(mockRequest.body)
         .expect(200);
@@ -637,7 +637,7 @@ describe("Create Request Route v2", () => {
       // Make the PUT request with invalid data
       const response = await supertest(app)
         .put(`/requests/${mockRequest.params.request_id}`)
-        .set("Authorization", "Bearer invalid-jwt-token") // Provide an invalid JWT token if needed
+        .set("Authorization", "JWT invalid-jwt-token") // Provide an invalid JWT token if needed
         .query(mockRequest.query)
         .send(mockRequest.body)
         .expect(400);
@@ -670,7 +670,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to retrieve access requests for a group
       const response = await supertest(app)
         .get(`/groups/${mockRequest.params.grp_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -698,7 +698,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with an invalid group ID
       const response = await supertest(app)
         .get(`/groups/${mockRequest.params.grp_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(400);
 
@@ -730,7 +730,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to retrieve access requests for a network
       const response = await supertest(app)
         .get(`/networks/${mockRequest.params.net_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -758,7 +758,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with an invalid network ID
       const response = await supertest(app)
         .get(`/networks/${mockRequest.params.net_id}`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(400);
 
@@ -790,7 +790,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request to retrieve an access request by ID
       const response = await supertest(app)
         .get(`/request_id`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(200);
 
@@ -818,7 +818,7 @@ describe("Create Request Route v2", () => {
       // Make the GET request with an invalid request ID
       const response = await supertest(app)
         .get(`/request_id`)
-        .set("Authorization", "Bearer valid-jwt-token") // Replace with a valid JWT token
+        .set("Authorization", "JWT valid-jwt-token") // Replace with a valid JWT token
         .query(mockRequest.query)
         .expect(400);
 

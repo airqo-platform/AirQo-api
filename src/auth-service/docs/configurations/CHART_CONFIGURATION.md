@@ -13,7 +13,7 @@ https://api.airqo.net/api/v2/users/preferences
 All endpoints require authentication via JWT. Include your token in the Authorization header:
 
 ```
-Authorization: Bearer your_jwt_token
+Authorization: JWT your_jwt_token
 ```
 
 ---
