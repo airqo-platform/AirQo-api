@@ -500,6 +500,7 @@ const processIndividualDevice = async (
           "external_api_error",
           shouldMarkOfflineFromStaleData,
           hasExistingRawData,
+          siteDataMap,
         );
       }
     }
@@ -620,6 +621,7 @@ const processIndividualDevice = async (
         "decryption_failed",
         shouldMarkOfflineFromStaleData,
         hasExistingRawData,
+        siteDataMap,
       );
     }
     apiKey = decryptResponse.data;
@@ -632,6 +634,7 @@ const processIndividualDevice = async (
       "decryption_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
+      siteDataMap,
     );
   }
 
@@ -801,6 +804,7 @@ const processIndividualDevice = async (
       "fetch_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
+      siteDataMap,
     );
   }
 };
@@ -811,6 +815,7 @@ const createFailureUpdate = (
   reason,
   shouldMarkOfflineFromStaleData = false,
   hasExistingRawData = false,
+  siteDataMap = null,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -842,6 +847,18 @@ const createFailureUpdate = (
     updateDoc.$inc = incUpdate;
   }
 
+  const siteUpdates = [];
+  if (siteDataMap) {
+    // No lastFeedTime on failure — propagate only the online/offline decision
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+  }
+
   return {
     deviceUpdate: {
       updateOne: {
@@ -849,6 +866,7 @@ const createFailureUpdate = (
         update: updateDoc,
       },
     },
+    siteUpdates,
   };
 };
 
