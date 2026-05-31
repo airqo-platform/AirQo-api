@@ -129,19 +129,17 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       );
     });
 
-    it("should accept Bearer token format", async () => {
+    it("should reject Bearer token format with 401", async () => {
       req.headers.authorization = "Bearer validtoken123";
-
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
 
       await enhancedJWTAuth(req, res, next);
 
-      expect(jwtVerifyStub.calledOnce).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].message).to.equal("Unauthorized");
+      expect(next.firstCall.args[0].errors[0].message).to.equal(
+        "Invalid Authorization header format. Expected 'JWT <token>'",
+      );
     });
 
     it("should accept JWT token format", async () => {
@@ -160,7 +158,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
     });
 
     it("should return 401 when token is empty", async () => {
-      req.headers.authorization = "Bearer   ";
+      req.headers.authorization = "JWT   ";
 
       await enhancedJWTAuth(req, res, next);
 

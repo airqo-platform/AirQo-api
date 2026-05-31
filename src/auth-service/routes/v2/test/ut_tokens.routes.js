@@ -23,7 +23,7 @@ describe("Tokens Router", () => {
     it("should list all tokens", async () => {
       const res = await request(app)
         .get("/")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -37,7 +37,7 @@ describe("Tokens Router", () => {
         .send({
           /* token details */
         })
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(201);
 
       expect(res.body).toHaveProperty("id");
@@ -48,7 +48,7 @@ describe("Tokens Router", () => {
     it("should regenerate a token", async () => {
       const res = await request(app)
         .put("/valid-token/regenerate")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toHaveProperty("id");
@@ -59,7 +59,7 @@ describe("Tokens Router", () => {
     it("should delete a token", async () => {
       const res = await request(app)
         .delete("/valid-token")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(204);
     });
   });
@@ -68,7 +68,7 @@ describe("Tokens Router", () => {
     it("should verify a token", async () => {
       const res = await request(app)
         .get("/valid-token")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toHaveProperty("id");
@@ -79,7 +79,7 @@ describe("Tokens Router", () => {
     it("should list expired tokens", async () => {
       const res = await request(app)
         .get("/expired")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -90,7 +90,7 @@ describe("Tokens Router", () => {
     it("should list expiring tokens", async () => {
       const res = await request(app)
         .get("/expiring")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -101,7 +101,7 @@ describe("Tokens Router", () => {
     it("should list tokens with unknown IPs", async () => {
       const res = await request(app)
         .get("/unknown-ip")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -113,7 +113,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/blacklist-ip")
         .send({ ip: "192.168.1.1" })
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toHaveProperty("id");
@@ -125,7 +125,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/blacklist-ips")
         .send([{ ip: "192.168.1.1" }, { ip: "192.168.1.2" }])
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -136,7 +136,7 @@ describe("Tokens Router", () => {
     it("should remove a blacklisted IP", async () => {
       const res = await request(app)
         .delete("/blacklist-ip/192.168.1.1")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(204);
     });
   });
@@ -145,7 +145,7 @@ describe("Tokens Router", () => {
     it("should list blacklisted IPs", async () => {
       const res = await request(app)
         .get("/blacklist-ip")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -157,7 +157,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/blacklist-ip-range")
         .send({ range: "192.168.0.0-192.168.255.255" })
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toHaveProperty("id");
@@ -172,7 +172,7 @@ describe("Tokens Router", () => {
           { range: "192.168.0.0-192.168.255.255" },
           { range: "10.0.0.0-10.255.255.255" },
         ])
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -183,7 +183,7 @@ describe("Tokens Router", () => {
     it("should remove a blacklisted IP range", async () => {
       const res = await request(app)
         .delete("/blacklist-ip-range/valid-id")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(204);
     });
   });
@@ -192,7 +192,7 @@ describe("Tokens Router", () => {
     it("should list blacklisted IP ranges", async () => {
       const res = await request(app)
         .get("/blacklist-ip-range")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -204,7 +204,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/whitelist-ip")
         .send({ ip: "192.168.1.1" })
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toHaveProperty("id");
@@ -216,7 +216,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/bulk-whitelist-ip")
         .send([{ ip: "192.168.1.1" }, { ip: "192.168.1.2" }])
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -227,7 +227,7 @@ describe("Tokens Router", () => {
     it("should remove a whitelisted IP", async () => {
       const res = await request(app)
         .delete("/whitelist-ip/192.168.1.1")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(204);
     });
   });
@@ -236,7 +236,7 @@ describe("Tokens Router", () => {
     it("should list whitelisted IPs", async () => {
       const res = await request(app)
         .get("/whitelist-ip")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -248,7 +248,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/ip-prefix")
         .send({ prefix: "/24" })
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(201);
 
       expect(res.body).toHaveProperty("id");
@@ -260,7 +260,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/ip-prefix/bulk")
         .send([{ prefix: "/24" }, { prefix: "/16" }])
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(201);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -271,7 +271,7 @@ describe("Tokens Router", () => {
     it("should remove an IP prefix", async () => {
       const res = await request(app)
         .delete("/ip-prefix/valid-id")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(204);
     });
   });
@@ -280,7 +280,7 @@ describe("Tokens Router", () => {
     it("should list IP prefixes", async () => {
       const res = await request(app)
         .get("/ip-prefix")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -292,7 +292,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/blacklist-ip-prefix")
         .send({ prefix: "/24" })
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(201);
 
       expect(res.body).toHaveProperty("id");
@@ -304,7 +304,7 @@ describe("Tokens Router", () => {
       const res = await request(app)
         .post("/blacklist-ip-prefix/bulk")
         .send([{ prefix: "/24" }, { prefix: "/16" }])
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(201);
 
       expect(res.body).toBeInstanceOf(Array);
@@ -315,7 +315,7 @@ describe("Tokens Router", () => {
     it("should remove a blacklisted IP prefix", async () => {
       const res = await request(app)
         .delete("/blacklist-ip-prefix/valid-id")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(204);
     });
   });
@@ -324,7 +324,7 @@ describe("Tokens Router", () => {
     it("should list blacklisted IP prefixes", async () => {
       const res = await request(app)
         .get("/blacklist-ip-prefix")
-        .set("Authorization", "Bearer valid-token")
+        .set("Authorization", "JWT valid-token")
         .expect(200);
 
       expect(res.body).toBeInstanceOf(Array);
