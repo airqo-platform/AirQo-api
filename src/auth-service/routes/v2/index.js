@@ -275,6 +275,12 @@ const authRoutes = [
     description: "Multi-tenant settings management",
   },
   {
+    path: "/application-email-configs",
+    route: "@routes/v2/application-email-configs.routes",
+    name: "application-email-configs",
+    description: "Application email CC configuration — auto-CCs admins when system emails target app inboxes",
+  },
+  {
     path: "/privacy",
     route: "@routes/v2/privacy.routes",
     name: "privacy",

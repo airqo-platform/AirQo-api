@@ -15,6 +15,7 @@ const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
 const AdminAlertCounterModel = require("@models/AdminAlertCounter");
+const ApplicationEmailConfigurationModel = require("@models/ApplicationEmailConfiguration");
 const { emailDeduplicator } = require("./email-deduplication.util");
 const {
   logObject,
@@ -169,6 +170,56 @@ const stopEmailQueue = () => {
     clearInterval(queueIntervalId);
     queueIntervalId = null;
     logger.info("Email queue processor has been stopped.");
+  }
+};
+
+// Cache for application email configs — keyed by tenant, 5-minute TTL.
+// Avoids a DB round-trip on every email send while staying reasonably fresh.
+const _appEmailConfigCache = new Map();
+const _APP_EMAIL_CONFIG_TTL_MS = 5 * 60 * 1000;
+
+const _getApplicationEmailConfig = async (tenant) => {
+  const cached = _appEmailConfigCache.get(tenant);
+  if (cached && Date.now() - cached.fetchedAt < _APP_EMAIL_CONFIG_TTL_MS) {
+    return cached.data;
+  }
+  try {
+    const config = await ApplicationEmailConfigurationModel(tenant)
+      .findOne({ tenant: tenant.toLowerCase() })
+      .lean();
+    _appEmailConfigCache.set(tenant, { data: config, fetchedAt: Date.now() });
+    return config;
+  } catch (error) {
+    logger.warn(
+      `Failed to fetch application email config for tenant ${tenant}: ${error.message}`
+    );
+    return null;
+  }
+};
+
+// Returns the adminCCEmails string if `email` is a registered application
+// email address, otherwise returns null.
+const _resolveAdminCCForApplicationEmail = async (email, tenant) => {
+  try {
+    const config = await _getApplicationEmailConfig(tenant);
+    if (
+      !config ||
+      !config.adminCCEmails ||
+      !Array.isArray(config.applicationEmails) ||
+      config.applicationEmails.length === 0
+    ) {
+      return null;
+    }
+    const normalized = email.toLowerCase().trim();
+    const isAppEmail = config.applicationEmails.some(
+      (e) => e.toLowerCase().trim() === normalized
+    );
+    return isAppEmail ? config.adminCCEmails : null;
+  } catch (error) {
+    logger.warn(
+      `Failed to resolve admin CC for ${email}: ${error.message}`
+    );
+    return null;
   }
 };
 
@@ -432,6 +483,27 @@ const createMailerFunction = (
       const mailOptions = customMailOptionsModifier
         ? customMailOptionsModifier(baseMailOptions, { email, ...otherParams })
         : baseMailOptions;
+
+      // ✅ STEP 4c-CC: If the recipient is a registered application email address,
+      // add admin CC so the right people are notified about system-generated emails
+      // (e.g. token expiry, security alerts) that would otherwise go unnoticed.
+      try {
+        const adminCC = await _resolveAdminCCForApplicationEmail(
+          mailOptions.to,
+          tenant
+        );
+        if (adminCC) {
+          mailOptions.cc = adminCC;
+          logger.info(
+            `Admin CC applied for application email ${mailOptions.to} on tenant ${tenant}`
+          );
+        }
+      } catch (ccError) {
+        // Non-fatal — proceed without CC rather than blocking the primary email.
+        logger.warn(
+          `Admin CC resolution failed for ${mailOptions.to}: ${ccError.message}`
+        );
+      }
 
       // ✅ STEP 4d: DB-backed deduplication check before queuing
       let emailResult;
@@ -1016,6 +1088,21 @@ const createSecurityEmailFunction = (
         html: emailMessageFunction({ email, ...otherParams }),
         attachments: attachments,
       };
+
+      // ✅ STEP 4-CC: Add admin CC for registered application email addresses.
+      try {
+        const adminCC = await _resolveAdminCCForApplicationEmail(email, tenant);
+        if (adminCC) {
+          baseMailOptions.cc = adminCC;
+          logger.info(
+            `Admin CC applied for application email ${email} on tenant ${tenant}`
+          );
+        }
+      } catch (ccError) {
+        logger.warn(
+          `Admin CC resolution failed for ${email}: ${ccError.message}`
+        );
+      }
 
       // ✅ STEP 5: DB-backed deduplication check before queuing
       let emailResult;
