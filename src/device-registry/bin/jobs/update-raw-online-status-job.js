@@ -322,8 +322,11 @@ const processDeviceBatch = async (devices, processor) => {
 };
 
 // Builds the rawOnlineStatus bulk-write op for a site driven by a primary device.
-// Returns a single updateOne op object, or null if the device is not eligible or
-// the site is not found in the pre-fetched siteDataMap.
+// Returns a single updateOne op object, or null only when the device itself is
+// ineligible (missing site_id or isPrimaryInLocation is false).
+// When siteDataMap lacks the site entry, buildSiteStatusUpdate still emits a
+// site write op for rawOnlineStatus/lastRawData but skips accuracy tracking
+// (onlineStatusAccuracy counters) since the current site state is unavailable.
 const buildSiteStatusUpdate = (device, siteDataMap, isRawOnline, lastFeedTime) => {
   if (!device.site_id || !device.isPrimaryInLocation) return null;
 
