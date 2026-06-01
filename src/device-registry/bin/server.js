@@ -168,6 +168,13 @@ require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
+try {
+  require("@bin/jobs/check-primary-device-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `check-primary-device-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/backfill-site-metadata-job");
