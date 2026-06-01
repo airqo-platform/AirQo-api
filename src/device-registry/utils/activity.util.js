@@ -2049,6 +2049,11 @@ const createActivity = {
             // earlier device in this batch was already assigned as primary, make
             // this device primary regardless of the caller-supplied value.
             const siteIdStr = site_id.toString();
+            // Record caller-selected primaries first so later items in the same
+            // batch for the same site are not also auto-promoted.
+            if (isPrimaryInLocation) {
+              batchPrimaryAssigned.add(siteIdStr);
+            }
             let effectiveBulkIsPrimary = isPrimaryInLocation;
             if (!isPrimaryInLocation && !sitesWithPrimary.has(siteIdStr) && !batchPrimaryAssigned.has(siteIdStr)) {
               effectiveBulkIsPrimary = true;
