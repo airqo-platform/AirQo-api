@@ -839,10 +839,11 @@ const createActivity = {
           deviceBody.body.mountType = mountType;
           deviceBody.body.powerType = powerType;
 
-          // Auto-assign primary: if no deployed device at this site already holds
+          // Best-effort auto-assign primary: if no deployed device at this site already holds
           // isPrimaryInLocation=true, make this device the primary regardless of
-          // what the caller passed. This ensures every site always has exactly one
-          // primary device to drive rawOnlineStatus propagation.
+          // what the caller passed. This helps ensure each site has a primary device
+          // to drive rawOnlineStatus propagation, but cannot guarantee uniqueness
+          // under concurrent deployments or DB errors.
           let effectiveIsPrimary = isPrimaryInLocation;
           if (!isPrimaryInLocation) {
             try {
@@ -1925,11 +1926,18 @@ const createActivity = {
       // Pre-fetch which site_ids already have a primary device so the Phase 4
       // loop can auto-assign without an N+1 query per device.
       const allStaticSiteIds = [];
+      const _seenSiteIds = new Set();
       for (const [, deployment] of deviceNameToDeployment) {
         if (deployment.actualDeploymentType === "static") {
           const coordsKey = `${Number(deployment.latitude)},${Number(deployment.longitude)}`;
           const sid = siteMap.get(coordsKey);
-          if (sid) allStaticSiteIds.push(sid);
+          if (sid) {
+            const sidStr = sid.toString();
+            if (!_seenSiteIds.has(sidStr)) {
+              _seenSiteIds.add(sidStr);
+              allStaticSiteIds.push(sid);
+            }
+          }
         }
       }
       const sitesWithPrimary = new Set();
