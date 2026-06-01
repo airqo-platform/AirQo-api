@@ -67,6 +67,91 @@ def get_pagination_params(default_limit: int = 10, max_limit: int = 100):
     }
 
 
+def extract_generated_site_ids(payload: dict):
+    sites_and_devices = payload.get("sites_and_devices") or {}
+    site_ids = (
+        sites_and_devices.get("site_ids")
+        or payload.get("site_ids")
+        or payload.get("data", {}).get("site_ids")
+        or payload.get("data", {}).get("sites_and_devices", {}).get("site_ids")
+        or []
+    )
+    return [str(site_id) for site_id in site_ids if site_id]
+
+
+def fetch_generated_site_ids(scope: str, scope_id: str):
+    base_url = Config.AIRQO_BASE_URL.rstrip("/")
+    response = requests.get(
+        f"{base_url}/api/v2/devices/{scope}/{scope_id}/generate",
+        params={"token": Config.AIRQO_API_AUTH_TOKEN},
+        timeout=10,
+    )
+    response.raise_for_status()
+    return extract_generated_site_ids(response.json())
+
+
+def get_forecast_site_scope():
+    view_args = request.view_args or {}
+    site_id = view_args.get("site_id") or request.args.get(
+        "site_id", default=None, type=str
+    )
+    grid_id = view_args.get("grid_id") or request.args.get(
+        "grid_id", default=None, type=str
+    )
+    cohort_id = view_args.get("cohort_id") or request.args.get(
+        "cohort_id", default=None, type=str
+    )
+    provided_scopes = [
+        scope for scope in [site_id, grid_id, cohort_id] if scope not in (None, "")
+    ]
+
+    if len(provided_scopes) > 1:
+        return None, None, (
+            {
+                "success": False,
+                "message": "Please specify only one of site_id, grid_id, or cohort_id.",
+                "data": {"forecasts": []},
+            },
+            400,
+        )
+
+    if grid_id:
+        try:
+            site_ids = fetch_generated_site_ids("grids", grid_id)
+        except requests.RequestException as ex:
+            current_app.logger.error(
+                "Failed to retrieve grid site IDs: %s", ex, exc_info=False
+            )
+            return None, None, (
+                {
+                    "success": False,
+                    "message": "Failed to retrieve site IDs for the requested grid.",
+                    "data": {"forecasts": []},
+                },
+                502,
+            )
+        return None, site_ids, None
+
+    if cohort_id:
+        try:
+            site_ids = fetch_generated_site_ids("cohorts", cohort_id)
+        except requests.RequestException as ex:
+            current_app.logger.error(
+                "Failed to retrieve cohort site IDs: %s", ex, exc_info=False
+            )
+            return None, None, (
+                {
+                    "success": False,
+                    "message": "Failed to retrieve site IDs for the requested cohort.",
+                    "data": {"forecasts": []},
+                },
+                502,
+            )
+        return None, site_ids, None
+
+    return site_id, None, None
+
+
 def build_pagination_metadata(page: int, limit: int, total: int):
     return {
         "page": page,
@@ -95,7 +180,10 @@ def get_site_hourly_forecast_horizon_hours():
 
 
 def get_site_daily_forecast_cache_version(
-    site_id: str | None, start_date: date, days: int = 7
+    site_id: str | None,
+    start_date: date,
+    days: int = 7,
+    site_ids: list[str] | None = None,
 ):
     """
     Return a version token for site daily forecast cache keys.
@@ -115,6 +203,8 @@ def get_site_daily_forecast_cache_version(
     }
     if site_id:
         query["site_id"] = site_id
+    elif site_ids:
+        query["site_id"] = {"$in": site_ids}
 
     try:
         latest_document = (
@@ -138,7 +228,10 @@ def get_site_daily_forecast_cache_version(
 
 
 def get_site_hourly_forecast_cache_version(
-    site_id: str | None, start_timestamp: datetime, hours: int | None = None
+    site_id: str | None,
+    start_timestamp: datetime,
+    hours: int | None = None,
+    site_ids: list[str] | None = None,
 ):
     """
     Return a version token for site hourly forecast cache keys.
@@ -158,6 +251,8 @@ def get_site_hourly_forecast_cache_version(
     }
     if site_id:
         query["site_id"] = site_id
+    elif site_ids:
+        query["site_id"] = {"$in": site_ids}
 
     try:
         latest_document = (
@@ -180,7 +275,12 @@ def get_site_hourly_forecast_cache_version(
     )
 
 
-def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 7):
+def get_site_daily_forecasts(
+    site_id: str | None,
+    start_date: date,
+    days: int = 7,
+    site_ids: list[str] | None = None,
+):
     """
     Fetch raw site daily forecast documents for the requested date window.
 
@@ -197,6 +297,10 @@ def get_site_daily_forecasts(site_id: str | None, start_date: date, days: int = 
     }
     if site_id:
         query["site_id"] = site_id
+    elif site_ids is not None:
+        if not site_ids:
+            return []
+        query["site_id"] = {"$in": site_ids}
 
     sort_fields = [("date", 1)] if site_id else [("date", 1), ("site_id", 1)]
     cursor = site_forecast_db[get_site_daily_forecast_collection_name()].find(
@@ -214,6 +318,7 @@ def get_site_hourly_forecasts(
     page: int = 1,
     limit: int | None = None,
     offset: int | None = None,
+    site_ids: list[str] | None = None,
 ):
     """
     Fetch raw site hourly forecast documents for the requested timestamp window.
@@ -232,6 +337,10 @@ def get_site_hourly_forecasts(
     }
     if site_id:
         query["site_id"] = site_id
+    elif site_ids is not None:
+        if not site_ids:
+            return [], 0, []
+        query["site_id"] = {"$in": site_ids}
 
     collection = site_forecast_db[get_site_hourly_forecast_collection_name()]
     limit = limit or hours
@@ -296,11 +405,30 @@ SITE_HOURLY_FORECAST_DESCRIPTIONS = {
 }
 
 
+def build_site_summary(
+    grouped_site_forecasts,
+    sites_count: int | None = None,
+):
+    site_names = [
+        site_forecast.get("site_details", {}).get("site_name")
+        for site_forecast in grouped_site_forecasts
+        if site_forecast.get("site_details", {}).get("site_name")
+    ]
+    return {
+        "sites_count": (
+            sites_count if sites_count is not None else len(grouped_site_forecasts)
+        ),
+        "sites_with_forecasts_count": len(grouped_site_forecasts),
+        "site_names": site_names,
+    }
+
+
 def build_site_forecast_response(
     site_id: str | None,
     aqi_category_getter,
     wind_direction_formatter,
     trend_message_getter=None,
+    site_ids: list[str] | None = None,
 ):
     """
     Build the API response payload for ``/api/v2/predict/daily-forecasting``.
@@ -312,7 +440,7 @@ def build_site_forecast_response(
     start_date = date.today()
     try:
         forecast_documents = get_site_daily_forecasts(
-            site_id=site_id, start_date=start_date
+            site_id=site_id, start_date=start_date, site_ids=site_ids
         )
     except errors.ServerSelectionTimeoutError:
         current_app.logger.error(
@@ -349,11 +477,13 @@ def build_site_forecast_response(
             "success": False,
             "data": {
                 "site_details": None,
-                "start_date": start_date.isoformat() if site_id else None,
+                "start_date": (
+                    start_date.isoformat() if site_id or site_ids is not None else None
+                ),
                 "end_date": (start_date + timedelta(days=6)).isoformat()
-                if site_id
+                if site_id or site_ids is not None
                 else None,
-                "days": expected_days if site_id else None,
+                "days": expected_days if site_id or site_ids is not None else None,
                 "units": SITE_FORECAST_UNITS,
                 "descriptions": SITE_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
@@ -561,6 +691,16 @@ def build_site_forecast_response(
         )
         grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
 
+    grouped_site_forecasts = list(grouped_forecasts.values())
+    scoped_site_summary = (
+        build_site_summary(
+            grouped_site_forecasts,
+            sites_count=len(site_ids),
+        )
+        if site_ids is not None
+        else {}
+    )
+
     return {
         "success": len(forecasts) == expected_days if site_id else True,
         "data": {
@@ -568,9 +708,10 @@ def build_site_forecast_response(
             "end_date": distinct_dates[-1] if distinct_dates else None,
             "days": len(distinct_dates),
             "total": len(grouped_forecasts),
+            **scoped_site_summary,
             "units": SITE_FORECAST_UNITS,
             "descriptions": SITE_FORECAST_DESCRIPTIONS,
-            "forecasts": list(grouped_forecasts.values()),
+            "forecasts": grouped_site_forecasts,
         },
     }, 200
 
@@ -580,6 +721,7 @@ def build_site_hourly_forecast_response(
     aqi_category_getter,
     wind_direction_formatter,
     trend_message_getter=None,
+    site_ids: list[str] | None = None,
 ):
     """
     Build the API response payload for ``/api/v2/predict/hourly-forecasting``.
@@ -602,6 +744,7 @@ def build_site_hourly_forecast_response(
             page=page,
             limit=limit,
             offset=pagination["offset"],
+            site_ids=site_ids,
         )
         forecast_documents, total_items, distinct_timestamps = (
             forecast_documents
@@ -643,9 +786,13 @@ def build_site_hourly_forecast_response(
             "success": False,
             "data": {
                 "site_details": None,
-                "start_timestamp": start_timestamp.isoformat() if site_id else None,
-                "end_timestamp": end_timestamp.isoformat() if site_id else None,
-                "hours": expected_hours if site_id else None,
+                "start_timestamp": start_timestamp.isoformat()
+                if site_id or site_ids is not None
+                else None,
+                "end_timestamp": end_timestamp.isoformat()
+                if site_id or site_ids is not None
+                else None,
+                "hours": expected_hours if site_id or site_ids is not None else None,
                 **pagination_metadata,
                 "units": SITE_FORECAST_UNITS,
                 "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
@@ -847,6 +994,14 @@ def build_site_hourly_forecast_response(
             grouped_site_forecast["total"] = len(grouped_site_forecast["forecasts"])
 
     grouped_site_forecasts = list(grouped_forecasts.values())
+    scoped_site_summary = (
+        build_site_summary(
+            grouped_site_forecasts,
+            sites_count=len(site_ids),
+        )
+        if site_ids is not None
+        else {}
+    )
     response_timestamps = [
         forecast.get("timestamp")
         for grouped_site_forecast in grouped_site_forecasts
@@ -866,6 +1021,7 @@ def build_site_hourly_forecast_response(
             "end_timestamp": response_timestamps[-1] if response_timestamps else None,
             "hours": len(distinct_timestamps),
             **pagination_metadata,
+            **scoped_site_summary,
             "units": SITE_FORECAST_UNITS,
             "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
             "forecasts": grouped_site_forecasts,
@@ -914,11 +1070,17 @@ def site_daily_forecasts_cache_key():
     documents change.
     """
     current_day = date.today().isoformat()
-    site_id = request.args.get("site_id")
+    view_args = request.view_args or {}
+    site_id = view_args.get("site_id") or request.args.get("site_id")
+    grid_id = view_args.get("grid_id") or request.args.get("grid_id")
+    cohort_id = view_args.get("cohort_id") or request.args.get("cohort_id")
     cache_version = get_site_daily_forecast_cache_version(
         site_id=site_id, start_date=date.today()
     )
-    return f"site_daily_v7_{current_day}_{site_id}_{cache_version}"
+    return (
+        f"site_daily_v8_{current_day}_{site_id}_{grid_id}_{cohort_id}_"
+        f"{cache_version}"
+    )
 
 
 def site_hourly_forecasts_cache_key():
@@ -929,7 +1091,10 @@ def site_hourly_forecasts_cache_key():
     a data-derived cache version so source updates invalidate cached responses.
     """
     current_hour = pd.Timestamp.utcnow().floor("h").to_pydatetime()
-    site_id = request.args.get("site_id")
+    view_args = request.view_args or {}
+    site_id = view_args.get("site_id") or request.args.get("site_id")
+    grid_id = view_args.get("grid_id") or request.args.get("grid_id")
+    cohort_id = view_args.get("cohort_id") or request.args.get("cohort_id")
     pagination = get_pagination_params(default_limit=10, max_limit=100)
     hours = get_site_hourly_forecast_horizon_hours()
     cache_version = get_site_hourly_forecast_cache_version(
@@ -938,8 +1103,9 @@ def site_hourly_forecasts_cache_key():
         hours=hours,
     )
     return (
-        f"site_hourly_v1_{current_hour.isoformat()}_{hours}_{site_id}_"
-        f"{pagination['page']}_{pagination['limit']}_{cache_version}"
+        f"site_hourly_v2_{current_hour.isoformat()}_{hours}_{site_id}_"
+        f"{grid_id}_{cohort_id}_{pagination['page']}_{pagination['limit']}_"
+        f"{cache_version}"
     )
 
 

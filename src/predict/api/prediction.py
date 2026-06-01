@@ -32,6 +32,7 @@ from helpers import (
     validate_param_values,
     build_site_forecast_response,
     build_site_hourly_forecast_response,
+    get_forecast_site_scope,
 )
 
 load_dotenv()
@@ -363,23 +364,31 @@ def _fetch_faulty_devices_cached():
             500,
         )
 
+@ml_app.get(routes.route["cohort_daily_forecasts"])
+@ml_app.get(routes.route["grid_daily_forecasts"])
 @ml_app.get(routes.route["site_daily_forecasts"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_daily_forecasts_cache_key)
-def get_site_daily_forecasts_v2():
+def get_site_daily_forecasts_v2(**_route_params):
     """
     Return site-grouped 7-day forecasts for all sites or a single site.
 
     Query params:
-        site_id: Optional site identifier. When provided, the response keeps the
-            same outer shape and returns one grouped site entry in data.forecasts.
+        site_id: Optional site identifier.
+        grid_id: Optional grid identifier. May be supplied as query param or route param.
+        cohort_id: Optional cohort identifier. May be supplied as query param or route param.
 
     Response metadata:
         units: Units for forecast and meteorology fields.
         descriptions: Human-readable descriptions for PM forecast fields.
     """
-    site_id = request.args.get("site_id", default=None, type=str)
+    site_id, site_ids, scope_error = get_forecast_site_scope()
+    if scope_error:
+        response, status_code = scope_error
+        return jsonify(response), status_code
+
     response, status_code = build_site_forecast_response(
         site_id=site_id,
+        site_ids=site_ids,
         aqi_category_getter=get_aqi_category,
         trend_message_getter=get_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
@@ -387,19 +396,27 @@ def get_site_daily_forecasts_v2():
     return jsonify(response), status_code
 
 
+@ml_app.get(routes.route["cohort_hourly_forecasts"])
+@ml_app.get(routes.route["grid_hourly_forecasts"])
 @ml_app.get(routes.route["site_hourly_forecasts"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_hourly_forecasts_cache_key)
-def get_site_hourly_forecasts_v2():
+def get_site_hourly_forecasts_v2(**_route_params):
     """
     Return site-grouped hourly forecasts for all sites or a single site.
 
     Query params:
-        site_id: Optional site identifier. When provided, the response keeps the
-            same outer shape and returns one grouped site entry in data.forecasts.
+        site_id: Optional site identifier.
+        grid_id: Optional grid identifier. May be supplied as query param or route param.
+        cohort_id: Optional cohort identifier. May be supplied as query param or route param.
     """
-    site_id = request.args.get("site_id", default=None, type=str)
+    site_id, site_ids, scope_error = get_forecast_site_scope()
+    if scope_error:
+        response, status_code = scope_error
+        return jsonify(response), status_code
+
     response, status_code = build_site_hourly_forecast_response(
         site_id=site_id,
+        site_ids=site_ids,
         aqi_category_getter=get_aqi_category,
         trend_message_getter=get_hourly_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
