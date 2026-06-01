@@ -838,7 +838,30 @@ const createActivity = {
           deviceBody.body.height = height;
           deviceBody.body.mountType = mountType;
           deviceBody.body.powerType = powerType;
-          deviceBody.body.isPrimaryInLocation = isPrimaryInLocation;
+
+          // Auto-assign primary: if no deployed device at this site already holds
+          // isPrimaryInLocation=true, make this device the primary regardless of
+          // what the caller passed. This ensures every site always has exactly one
+          // primary device to drive rawOnlineStatus propagation.
+          let effectiveIsPrimary = isPrimaryInLocation;
+          if (!isPrimaryInLocation) {
+            try {
+              const existingPrimary = await DeviceModel(tenant)
+                .findOne({ site_id, isPrimaryInLocation: true, status: "deployed" })
+                .lean();
+              if (!existingPrimary) {
+                effectiveIsPrimary = true;
+                logger.info(
+                  `Auto-assigning isPrimaryInLocation=true to ${deviceName} — no primary device at site ${site_id}`,
+                );
+              }
+            } catch (primaryCheckErr) {
+              logger.error(
+                `Failed to check existing primary for site ${site_id}: ${primaryCheckErr.message}`,
+              );
+            }
+          }
+          deviceBody.body.isPrimaryInLocation = effectiveIsPrimary;
           deviceBody.body.deployment_type = "static";
           deviceBody.body.mobility = false;
           deviceBody.body.nextMaintenance = getNextMaintenanceDate(date, 3);
@@ -1899,6 +1922,34 @@ const createActivity = {
         gridMap.set(grid._id.toString(), grid);
       });
 
+      // Pre-fetch which site_ids already have a primary device so the Phase 4
+      // loop can auto-assign without an N+1 query per device.
+      const allStaticSiteIds = [];
+      for (const [, deployment] of deviceNameToDeployment) {
+        if (deployment.actualDeploymentType === "static") {
+          const coordsKey = `${Number(deployment.latitude)},${Number(deployment.longitude)}`;
+          const sid = siteMap.get(coordsKey);
+          if (sid) allStaticSiteIds.push(sid);
+        }
+      }
+      const sitesWithPrimary = new Set();
+      if (allStaticSiteIds.length > 0) {
+        try {
+          const primaries = await DeviceModel(tenant)
+            .find(
+              { site_id: { $in: allStaticSiteIds }, isPrimaryInLocation: true, status: "deployed" },
+              { site_id: 1 },
+            )
+            .lean();
+          primaries.forEach((d) => sitesWithPrimary.add(d.site_id.toString()));
+        } catch (err) {
+          logger.error(`Failed to pre-fetch primary devices for bulk deploy: ${err.message}`);
+        }
+      }
+      // Tracks which sites have been assigned a primary within this batch so
+      // only the first device per site gets the auto-assigned flag.
+      const batchPrimaryAssigned = new Set();
+
       // PHASE 4: Prepare bulk operations
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         const {
@@ -1986,6 +2037,19 @@ const createActivity = {
               nextMaintenance: getNextMaintenanceDate(date, 3),
             });
 
+            // Auto-assign primary: if this site has no existing primary and no
+            // earlier device in this batch was already assigned as primary, make
+            // this device primary regardless of the caller-supplied value.
+            const siteIdStr = site_id.toString();
+            let effectiveBulkIsPrimary = isPrimaryInLocation;
+            if (!isPrimaryInLocation && !sitesWithPrimary.has(siteIdStr) && !batchPrimaryAssigned.has(siteIdStr)) {
+              effectiveBulkIsPrimary = true;
+              batchPrimaryAssigned.add(siteIdStr);
+              logger.info(
+                `Auto-assigning isPrimaryInLocation=true to ${deviceName} (bulk) — no primary at site ${siteIdStr}`,
+              );
+            }
+
             // Device bulk update
             deviceBulkOps.push({
               updateOne: {
@@ -1995,7 +2059,7 @@ const createActivity = {
                     height,
                     mountType,
                     powerType,
-                    isPrimaryInLocation,
+                    isPrimaryInLocation: effectiveBulkIsPrimary,
                     deployment_type: "static",
                     mobility: false,
                     nextMaintenance: getNextMaintenanceDate(date, 3),
