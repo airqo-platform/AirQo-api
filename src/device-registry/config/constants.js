@@ -108,6 +108,15 @@ function envConfig(env) {
       const val = parseInt(process.env.EVENTS_STALENESS_THRESHOLD_HOURS, 10);
       return Number.isFinite(val) && val > 0 ? val : 2;
     })(),
+
+    // How many days of events to retain in MongoDB before purging.
+    // Aligned with the ingestion guard (30-day max lookback in store-readings-job)
+    // and the API query limit (3-day default window, 7-day historical threshold).
+    // Override via EVENTS_RETENTION_DAYS env var.
+    EVENTS_RETENTION_DAYS: (() => {
+      const val = parseInt(process.env.EVENTS_RETENTION_DAYS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 90;
+    })(),
   };
 
   // ── Final merge ─────────────────────────────────────────────────────────────

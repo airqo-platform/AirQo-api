@@ -701,6 +701,10 @@ eventSchema.index(
   },
 );
 
+// Index on `first` to support the nightly events-retention-job range scan.
+// Compound with `_id` to support stable cursor pagination using sort({ first: 1, _id: 1 }).
+eventSchema.index({ first: 1, _id: 1 }, { name: "retention_first_id_idx" });
+
 eventSchema.pre("save", function(next) {
   // Validate deployment type consistency
   if (this.deployment_type === "static") {
