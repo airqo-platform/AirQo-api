@@ -69,11 +69,12 @@ def get_pagination_params(default_limit: int = 10, max_limit: int = 100):
 
 def extract_generated_site_ids(payload: dict):
     sites_and_devices = payload.get("sites_and_devices") or {}
+    data = payload.get("data") or {}
     site_ids = (
         sites_and_devices.get("site_ids")
         or payload.get("site_ids")
-        or payload.get("data", {}).get("site_ids")
-        or payload.get("data", {}).get("sites_and_devices", {}).get("site_ids")
+        or data.get("site_ids")
+        or data.get("sites_and_devices", {}).get("site_ids")
         or []
     )
     return [str(site_id) for site_id in site_ids if site_id]
@@ -1078,6 +1079,8 @@ def build_site_hourly_forecast_response(
         if site_ids is not None
         else {}
     )
+    if site_ids is not None and not site_id:
+        scoped_site_summary["sites_with_forecasts_count"] = total_items
     response_timestamps = [
         forecast.get("timestamp")
         for grouped_site_forecast in grouped_site_forecasts
