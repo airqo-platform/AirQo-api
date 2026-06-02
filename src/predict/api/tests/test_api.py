@@ -474,7 +474,7 @@ def test_site_daily_forecasting_grid_id_filters_generated_site_ids(
     import helpers as helpers_module
 
     client, collection = site_daily_forecast_client
-    forecast_date = date.today().isoformat()
+    forecast_date = "2026-01-15"
     collection.insert_many(
         [
             _daily_forecast_doc("site-1", "Site One", forecast_date, 12.4),
