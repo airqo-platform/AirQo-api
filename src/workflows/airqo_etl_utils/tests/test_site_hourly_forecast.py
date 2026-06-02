@@ -654,19 +654,21 @@ def test_site_hourly_forecast_query_is_registered():
         "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) AS pm25_value"
         in hourly_query.sql
     )
-    assert "NULLIF(TRIM(t1.site_name), '')" in hourly_query.sql
     assert "NULLIF(TRIM(t2.display_name), '')" in hourly_query.sql
     assert "NULLIF(TRIM(t2.name), '')" in hourly_query.sql
+    assert "NULLIF(TRIM(t1.site_name), '')" not in hourly_query.sql
     assert "AVG(source.pm25_value) AS pm25_mean" in hourly_query.sql
     assert "WHERE source.pm25_value IS NOT NULL" in hourly_query.sql
     assert (
-        "COALESCE(t2.latitude, t2.approximate_latitude, t1.site_latitude) AS site_latitude"
+        "COALESCE(t2.latitude, t2.approximate_latitude) AS site_latitude"
         in hourly_query.sql
     )
     assert (
-        "COALESCE(t2.longitude, t2.approximate_longitude, t1.site_longitude) AS site_longitude"
+        "COALESCE(t2.longitude, t2.approximate_longitude) AS site_longitude"
         in hourly_query.sql
     )
+    assert "t1.site_latitude" not in hourly_query.sql
+    assert "t1.site_longitude" not in hourly_query.sql
     assert "ANY_VALUE(source.site_latitude) AS site_latitude" in hourly_query.sql
     assert "ANY_VALUE(source.site_longitude) AS site_longitude" in hourly_query.sql
     assert "HAVING COUNT(DISTINCT timestamp) >= {min_hours}" in hourly_query.sql
@@ -678,9 +680,9 @@ def test_site_hourly_forecast_query_is_registered():
         "end_date",
         "min_hours",
     }.issubset(daily_query.placeholders)
-    assert "NULLIF(TRIM(t1.site_name), '')" in daily_query.sql
     assert "NULLIF(TRIM(t2.display_name), '')" in daily_query.sql
     assert "NULLIF(TRIM(t2.name), '')" in daily_query.sql
+    assert "NULLIF(TRIM(t1.site_name), '')" not in daily_query.sql
     assert (
         "AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean"
         in daily_query.sql
@@ -695,10 +697,10 @@ def test_site_hourly_forecast_query_is_registered():
     )
     assert "ANY_VALUE(t2.latitude)" in daily_query.sql
     assert "ANY_VALUE(t2.approximate_latitude)" in daily_query.sql
-    assert "ANY_VALUE(t1.site_latitude)" in daily_query.sql
     assert "ANY_VALUE(t2.longitude)" in daily_query.sql
     assert "ANY_VALUE(t2.approximate_longitude)" in daily_query.sql
-    assert "ANY_VALUE(t1.site_longitude)" in daily_query.sql
+    assert "t1.site_latitude" not in daily_query.sql
+    assert "t1.site_longitude" not in daily_query.sql
     assert "t1.pm2_5_calibrated_value IS NOT NULL" in daily_query.sql
     assert "OR t1.pm2_5 IS NOT NULL" in daily_query.sql
     assert (
