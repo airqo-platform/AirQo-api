@@ -165,6 +165,7 @@ const runRetention = async (tenant = "airqo") => {
       return;
     }
 
+    let lastSeenFirst = null;
     let lastSeenId = null;
     let totalDeleted = 0;
 
@@ -174,22 +175,31 @@ const runRetention = async (tenant = "airqo") => {
         break;
       }
 
-      const cursorFilter = lastSeenId
-        ? { ...filter, _id: { $gt: lastSeenId } }
+      // Compound cursor on { first, _id } to match the retention_first_id_idx sort order.
+      const cursorFilter = (lastSeenFirst && lastSeenId)
+        ? {
+            ...filter,
+            $or: [
+              { first: { $gt: lastSeenFirst } },
+              { first: lastSeenFirst, _id: { $gt: lastSeenId } },
+            ],
+          }
         : filter;
 
-      // Fetch only _id values to keep memory O(1)
+      // Select `first` as well so we can advance the compound cursor.
       const batch = await EventModel(tenant)
         .find(cursorFilter)
-        .select("_id")
-        .sort({ _id: 1 })
+        .select("_id first")
+        .sort({ first: 1, _id: 1 })
         .limit(BATCH_SIZE)
         .lean();
 
       if (batch.length === 0) break;
 
       const ids = batch.map((d) => d._id);
-      lastSeenId = ids[ids.length - 1];
+      const lastDoc = batch[batch.length - 1];
+      lastSeenFirst = lastDoc.first;
+      lastSeenId = lastDoc._id;
 
       const result = await EventModel(tenant).collection.deleteMany({
         _id: { $in: ids },
