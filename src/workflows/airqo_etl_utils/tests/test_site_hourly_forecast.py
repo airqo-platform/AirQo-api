@@ -656,7 +656,7 @@ def test_site_hourly_forecast_query_is_registered():
     )
     assert "NULLIF(TRIM(t2.display_name), '')" in hourly_query.sql
     assert "NULLIF(TRIM(t2.name), '')" in hourly_query.sql
-    assert "NULLIF(TRIM(t1.site_name), '')" not in hourly_query.sql
+    assert "t1.site_name" not in hourly_query.sql
     assert "AVG(source.pm25_value) AS pm25_mean" in hourly_query.sql
     assert "WHERE source.pm25_value IS NOT NULL" in hourly_query.sql
     assert (
