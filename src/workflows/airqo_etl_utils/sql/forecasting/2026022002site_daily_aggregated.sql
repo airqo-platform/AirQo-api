@@ -29,6 +29,7 @@ ORDER BY day, site_id;
 
 -- name: site_daily_aggregated_for_forecast_jobs
 -- Daily aggregated site PM2.5 for site-forecast prediction jobs with site metadata backfill.
+-- Uses calibrated PM2.5 when available, falling back to raw PM2.5.
 -- Placeholders:
 -- {consolidated_table} -> consolidated data table (e.g. project.dataset.table)
 -- {sites_table} -> sites metadata table (e.g. project.dataset.table)
@@ -38,29 +39,44 @@ ORDER BY day, site_id;
 SELECT
     DATE(t1.timestamp) AS day,
     t1.site_id,
-    ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
     ANY_VALUE(
-        COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
+        COALESCE(
+            NULLIF(TRIM(t1.site_name), ''),
+            NULLIF(TRIM(t2.display_name), ''),
+            NULLIF(TRIM(t2.name), ''),
+            t1.site_id
+        )
+    ) AS site_name,
+    COALESCE(
+        ANY_VALUE(t2.latitude),
+        ANY_VALUE(t2.approximate_latitude),
+        ANY_VALUE(t1.site_latitude)
     ) AS site_latitude,
-    ANY_VALUE(
-        COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
+    COALESCE(
+        ANY_VALUE(t2.longitude),
+        ANY_VALUE(t2.approximate_longitude),
+        ANY_VALUE(t1.site_longitude)
     ) AS site_longitude,
-    AVG(t1.pm2_5_calibrated_value) AS pm25_mean,
-    MIN(t1.pm2_5_calibrated_value) AS pm25_min,
-    MAX(t1.pm2_5_calibrated_value) AS pm25_max,
+    AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean,
+    MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min,
+    MAX(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_max,
     COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS n_hours
 FROM {consolidated_table} AS t1
 LEFT JOIN {sites_table} AS t2
     ON t1.site_id = t2.id
 WHERE DATE(t1.timestamp) BETWEEN DATE('{start_date}') AND DATE('{end_date}')
     AND t1.site_id IS NOT NULL
-    AND t1.pm2_5_calibrated_value IS NOT NULL
+    AND (
+        t1.pm2_5_calibrated_value IS NOT NULL
+        OR t1.pm2_5 IS NOT NULL
+    )
 GROUP BY day, t1.site_id
 HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}
 ORDER BY day, t1.site_id;
 
 -- name: site_hourly_measurements_for_forecast_jobs
 -- Hourly site PM2.5 history for recursive site-hourly forecast prediction jobs.
+-- Uses calibrated PM2.5 when available, falling back to raw PM2.5.
 -- Placeholders:
 -- {consolidated_table} -> consolidated hourly measurements table (e.g. project.dataset.table)
 -- {sites_table} -> sites metadata table (e.g. project.dataset.table)
@@ -69,24 +85,34 @@ ORDER BY day, t1.site_id;
 
 WITH site_hourly AS (
     SELECT
-        TIMESTAMP_TRUNC(t1.timestamp, HOUR) AS timestamp,
-        t1.site_id,
-        ANY_VALUE(COALESCE(t1.site_name, t2.display_name, t2.name, t1.site_id)) AS site_name,
-        ANY_VALUE(
-            COALESCE(t1.site_latitude, t2.approximate_latitude, t2.latitude)
-        ) AS site_latitude,
-        ANY_VALUE(
-            COALESCE(t1.site_longitude, t2.approximate_longitude, t2.longitude)
-        ) AS site_longitude,
-        AVG(t1.pm2_5_calibrated_value) AS pm25_mean
-    FROM {consolidated_table} AS t1
-    LEFT JOIN {sites_table} AS t2
-        ON t1.site_id = t2.id
-    WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
-        AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
-        AND t1.site_id IS NOT NULL
-        AND t1.pm2_5_calibrated_value IS NOT NULL
-    GROUP BY timestamp, t1.site_id
+        TIMESTAMP_TRUNC(source.timestamp, HOUR) AS timestamp,
+        source.site_id,
+        ANY_VALUE(source.site_name) AS site_name,
+        ANY_VALUE(source.site_latitude) AS site_latitude,
+        ANY_VALUE(source.site_longitude) AS site_longitude,
+        AVG(source.pm25_value) AS pm25_mean
+    FROM (
+        SELECT
+            t1.timestamp,
+            t1.site_id,
+            COALESCE(
+                NULLIF(TRIM(t1.site_name), ''),
+                NULLIF(TRIM(t2.display_name), ''),
+                NULLIF(TRIM(t2.name), ''),
+                t1.site_id
+            ) AS site_name,
+            COALESCE(t2.latitude, t2.approximate_latitude, t1.site_latitude) AS site_latitude,
+            COALESCE(t2.longitude, t2.approximate_longitude, t1.site_longitude) AS site_longitude,
+            COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) AS pm25_value
+        FROM {consolidated_table} AS t1
+        LEFT JOIN {sites_table} AS t2
+            ON t1.site_id = t2.id
+        WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
+            AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
+            AND t1.site_id IS NOT NULL
+    ) AS source
+    WHERE source.pm25_value IS NOT NULL
+    GROUP BY timestamp, source.site_id
 ),
 eligible_sites AS (
     SELECT site_id

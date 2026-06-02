@@ -435,16 +435,16 @@ class TestAirgradientMethod:
     def setup_method(self):
         """Setup for each test method."""
         self.adapter = AirGradientAdapter()
+        # device_number is the identifier used in the API URL path.
+        # No auth_required → uses the "current" (snapshot) endpoint.
         self.valid_device = {
             "api_code": "https://api.example.com/airgradient",
             "serial_number": "DEF456",
+            "device_number": "DEF456",
             "device_id": "device_1",
         }
-        self.params = {
-            "token": "test_token",
-            "from": "20251105000000Z",
-            "to": "20251106000000Z",
-        }
+        # "current" endpoint sends only the auth token; no from/to date params.
+        self.params = {"token": "test_token"}
         self.dates = [("2025-11-05T00:00:00Z", "2025-11-06T00:00:00Z")]
         self.data = [
             {
@@ -497,14 +497,19 @@ class TestAirgradientMethod:
             },
         ]
 
+    _MOCK_INTEGRATION = {
+        "url": "https://api.example.com/airgradient",
+        "endpoints": {
+            "raw": "{id}/measures/current",
+            "current": "{id}/measures/current",
+        },
+    }
+
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_success(self, mock_config):
-        """Test successful data fetch from AirGradient API."""
+        """Current endpoint: single request without date params, record within window kept."""
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_config.INTEGRATION_DETAILS.get.return_value = {
-            "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "{id}/measures/current"},
-        }
+        mock_config.INTEGRATION_DETAILS.get.return_value = self._MOCK_INTEGRATION
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
             return_value=self.data,
@@ -522,12 +527,9 @@ class TestAirgradientMethod:
 
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_no_data(self, mock_config):
-        """Test AirGradient API with no data returned."""
+        """Current endpoint: empty API response returns No data retrieved error."""
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_config.INTEGRATION_DETAILS.get.return_value = {
-            "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "{id}/measures/current"},
-        }
+        mock_config.INTEGRATION_DETAILS.get.return_value = self._MOCK_INTEGRATION
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
             return_value=[],
@@ -541,12 +543,9 @@ class TestAirgradientMethod:
 
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_exception(self, mock_config):
-        """Test AirGradient API with a generic exception."""
+        """Unexpected exception during fetch is caught and returned as an error."""
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_config.INTEGRATION_DETAILS.get.return_value = {
-            "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "{id}/measures/current"},
-        }
+        mock_config.INTEGRATION_DETAILS.get.return_value = self._MOCK_INTEGRATION
         with patch(
             "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
             side_effect=Exception("Unknown error"),
@@ -560,12 +559,9 @@ class TestAirgradientMethod:
 
     @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
     def test_airgradient_empty_api_code(self, mock_config):
-        """Test AirGradient API when the device has no serial number (invalid device)."""
+        """Missing device_number returns an error without making any API call."""
         mock_config.AIR_GRADIENT_API_KEY = "test_token"
-        mock_config.INTEGRATION_DETAILS.get.return_value = {
-            "url": "https://api.example.com/airgradient",
-            "endpoints": {"raw": "{id}/measures/current"},
-        }
+        mock_config.INTEGRATION_DETAILS.get.return_value = self._MOCK_INTEGRATION
         invalid_device = {
             "api_code": "",
             "serial_number": "",
@@ -580,6 +576,48 @@ class TestAirgradientMethod:
         assert res.data.get("records") == []
         assert res.error is not None
         mock_get_json.assert_not_called()
+
+    @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
+    def test_airgradient_current_filters_stale_records(self, mock_config):
+        """Current endpoint: records outside the date window are discarded."""
+        mock_config.AIR_GRADIENT_API_KEY = "test_token"
+        mock_config.INTEGRATION_DETAILS.get.return_value = self._MOCK_INTEGRATION
+        stale_record = dict(self.data[0])
+        stale_record["timestamp"] = "2025-10-01T00:00:00.000Z"  # before window start
+        api_response = self.data + [stale_record]
+
+        with patch(
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            return_value=api_response,
+        ):
+            adapter = AirGradientAdapter()
+            res = adapter.fetch(self.valid_device, self.dates)
+
+        assert len(res.data.get("records")) == 1
+        assert res.data["records"][0]["timestamp"] == "2025-11-05T00:57:28.000Z"
+
+    @patch("airqo_etl_utils.sources.airgradient_adapter.configuration")
+    def test_airgradient_raw_loops_through_dates_with_params(self, mock_config):
+        """Raw (authenticated) endpoint loops through date chunks and injects from/to params."""
+        mock_config.AIR_GRADIENT_API_KEY = "test_token"
+        mock_config.INTEGRATION_DETAILS.get.return_value = self._MOCK_INTEGRATION
+        auth_device = dict(self.valid_device, auth_required=True)
+        dates = [
+            ("2025-11-05T00:00:00Z", "2025-11-06T00:00:00Z"),
+            ("2025-11-06T00:00:00Z", "2025-11-07T00:00:00Z"),
+        ]
+        with patch(
+            "airqo_etl_utils.sources.airgradient_adapter.HttpClient.get_json",
+            return_value=self.data,
+        ) as mock_get_json:
+            adapter = AirGradientAdapter()
+            res = adapter.fetch(auth_device, dates=dates)
+
+        assert mock_get_json.call_count == 2
+        first_call_params = mock_get_json.call_args_list[0].kwargs["params"]
+        assert first_call_params["from"] == "20251105000000Z"
+        assert first_call_params["to"] == "20251106000000Z"
+        assert len(res.data.get("records")) == 2
 
 
 class TestAirNowMethod:

@@ -335,8 +335,8 @@ const processGridIds = async (grid_ids, request) => {
         );
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-        logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
+        logger.warn(
+          `🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -361,7 +361,7 @@ const processGridIds = async (grid_ids, request) => {
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
@@ -466,8 +466,8 @@ const processAirQloudIds = async (airqloud_ids, request) => {
         );
         return responseFromGetSitesOfAirQloud;
       } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
-        logger.error(
-          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
+        logger.warn(
+          `🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -497,7 +497,7 @@ const processAirQloudIds = async (airqloud_ids, request) => {
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }

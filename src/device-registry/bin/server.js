@@ -168,6 +168,13 @@ require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
+try {
+  require("@bin/jobs/check-primary-device-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `check-primary-device-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/backfill-site-metadata-job");
@@ -273,12 +280,36 @@ try {
   }
 }
 
+// Nightly events data-retention purge (03:00 daily).
+// Deletes Event documents older than EVENTS_RETENTION_DAYS (default 90).
+// Aligned with the 30-day ingestion guard in store-readings-job and the
+// 3-day default / 7-day historical API query windows.
+try {
+  require("@bin/jobs/events-retention-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `events-retention-job failed to start: ${err.message}`
+  );
+}
+
 // Cohort snapshot pre-computation job (every hour at :15)
 try {
   require("@bin/jobs/cohort-snapshot-job");
 } catch (jobError) {
   global.dedupLogger.error(
     `❌ cohort-snapshot-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
+// Private cohort alert — 3×/day (06:00, 14:00, 22:00 UTC)
+// Flags cohorts that are private but contain >2 operational devices,
+// preventing them from silently missing public map and recent-measurements visibility.
+try {
+  require("@bin/jobs/private-cohort-alert-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ private-cohort-alert-job failed to start: ${jobError.message}`
   );
   // Continue - server stays up
 }

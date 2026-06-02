@@ -164,8 +164,13 @@ const mockNext = (error) => {
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
 
-  // 1. Get all device numbers from the current batch
-  const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
+  // 1. Get device numbers for airqo devices only — ThingSpeak channels only
+  // exist for network="airqo". Other networks (airgradient, iqair, etc.) store
+  // their manufacturer location/serial ID in device_number but have no ThingSpeak
+  // channel, so including them here produces wasted DB look-ups.
+  const deviceNumbers = devices
+    .filter((d) => d.network === "airqo" && d.device_number)
+    .map((d) => d.device_number);
 
   // 2. Fetch all necessary device details in a single query with timeout
   let deviceDetailsMap = new Map();
@@ -316,6 +321,55 @@ const processDeviceBatch = async (devices, processor) => {
   }
 };
 
+// Builds the rawOnlineStatus bulk-write op for a site driven by a primary device.
+// Returns a single updateOne op object, or null only when the device itself is
+// ineligible (missing site_id or isPrimaryInLocation is false).
+// When siteDataMap lacks the site entry, buildSiteStatusUpdate still emits a
+// site write op for rawOnlineStatus/lastRawData but skips accuracy tracking
+// (onlineStatusAccuracy counters) since the current site state is unavailable.
+const buildSiteStatusUpdate = (device, siteDataMap, isRawOnline, lastFeedTime) => {
+  if (!device.site_id || !device.isPrimaryInLocation) return null;
+
+  const currentSite = siteDataMap
+    ? siteDataMap.get(device.site_id.toString())
+    : null;
+
+  if (!currentSite) {
+    logger.warn(
+      `Site ${device.site_id} not found in prefetch for device ${device.name}; ` +
+        `updating rawOnlineStatus without accuracy tracking`,
+    );
+  }
+
+  const siteUpdateFields = { rawOnlineStatus: isRawOnline };
+  if (lastFeedTime) {
+    siteUpdateFields.lastRawData = new Date(lastFeedTime);
+  }
+
+  let siteSetUpdate = {};
+  let siteIncUpdate = null;
+  if (currentSite) {
+    const accuracyResult = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: currentSite.rawOnlineStatus,
+      isNowOnline: isRawOnline,
+      currentStats: currentSite.onlineStatusAccuracy,
+      reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
+    });
+    siteSetUpdate = accuracyResult.setUpdate;
+    siteIncUpdate = accuracyResult.incUpdate;
+  }
+
+  return {
+    updateOne: {
+      filter: { _id: device.site_id },
+      update: {
+        $set: { ...siteUpdateFields, ...siteSetUpdate },
+        ...(siteIncUpdate && { $inc: siteIncUpdate }),
+      },
+    },
+  };
+};
+
 // Extracted individual device processing function - FIXED VERSION
 const processIndividualDevice = async (
   device,
@@ -345,20 +399,21 @@ const processIndividualDevice = async (
     }
   }
 
-  if (!device.device_number) {
+  // Resolve the network adapter once, before any routing decision.
+  // DB record takes precedence over static config so operator-customised
+  // adapter config is honoured at runtime.
+  const externalAdapter =
+    device.api_code && device.network && device.network !== "airqo"
+      ? await getNetworkAdapter(device.network).catch(() => null)
+      : null;
+
+  // Route to the external-API path when:
+  //   • the device has no device_number (never had a ThingSpeak channel), OR
+  //   • the adapter declares online_check_via_feed (e.g. AirGradient) —
+  //     these devices may have device_number set to their manufacturer
+  //     location ID, which is NOT a ThingSpeak channel.
+  if (!device.device_number || externalAdapter?.online_check_via_feed) {
     // ── External device path ────────────────────────────────────────────────
-    // If the device has an api_code and its network adapter declares
-    // online_check_via_feed, call the external API to determine live status.
-    // This resolves the historic "no_device_number" skip for non-AirQo devices.
-    //
-    // Devices that still lack api_code (not yet migrated / unknown network)
-    // fall through to the unchanged stale-data fallback below.
-    // Resolve adapter: DB record takes precedence over static config so any
-    // operator-customised adapter config is honoured at runtime.
-    const externalAdapter =
-      device.api_code && device.network && device.network !== "airqo"
-        ? await getNetworkAdapter(device.network)
-        : null;
 
     if (externalAdapter?.online_check_via_feed) {
       try {
@@ -429,6 +484,15 @@ const processIndividualDevice = async (
           updateDoc.$inc = incUpdate;
         }
 
+        const siteUpdates = [];
+        const siteStatusOp = buildSiteStatusUpdate(
+          device,
+          siteDataMap,
+          isRawOnline,
+          lastFeedTime,
+        );
+        if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
         return {
           deviceUpdate: {
             updateOne: {
@@ -436,6 +500,7 @@ const processIndividualDevice = async (
               update: updateDoc,
             },
           },
+          siteUpdates,
         };
       } catch (externalError) {
         logger.error(
@@ -446,6 +511,7 @@ const processIndividualDevice = async (
           "external_api_error",
           shouldMarkOfflineFromStaleData,
           hasExistingRawData,
+          siteDataMap,
         );
       }
     }
@@ -492,6 +558,18 @@ const processIndividualDevice = async (
     };
   }
 
+  // Warn only when a non-airqo device has an external api_code but its adapter
+  // does not enable online_check_via_feed — that combination is actionable
+  // (the adapter config needs updating). Placeholder networks without api_code
+  // reach this path by design and produce no meaningful warning.
+  if (device.network && device.network !== "airqo" && device.api_code) {
+    logger.warn(
+      `update-raw-online-status-job: device ${device.name} (network: ${device.network}) ` +
+        `has api_code but reached the ThingSpeak path. ` +
+        `Set online_check_via_feed: true in the network adapter config.`,
+    );
+  }
+
   // Get the API key from the pre-fetched details
   const detail = deviceDetailsMap.get(device.device_number);
   if (!detail || !detail.readKey) {
@@ -527,6 +605,15 @@ const processIndividualDevice = async (
       updateDoc.$inc = incUpdate;
     }
 
+    const siteUpdates = [];
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
     return {
       deviceUpdate: {
         updateOne: {
@@ -534,6 +621,7 @@ const processIndividualDevice = async (
           update: updateDoc,
         },
       },
+      siteUpdates,
     };
   }
 
@@ -554,6 +642,7 @@ const processIndividualDevice = async (
         "decryption_failed",
         shouldMarkOfflineFromStaleData,
         hasExistingRawData,
+        siteDataMap,
       );
     }
     apiKey = decryptResponse.data;
@@ -566,6 +655,7 @@ const processIndividualDevice = async (
       "decryption_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
+      siteDataMap,
     );
   }
 
@@ -692,62 +782,32 @@ const processIndividualDevice = async (
       };
     }
 
-    // Prepare site update if PM2.5 is valid and device is primary for its site
+    // Build site rawOnlineStatus update (shared with external-API path)
     const siteUpdates = [];
-    if (device.site_id && device.isPrimaryInLocation) {
-      // Fetch current site to get its rawOnlineStatus for accuracy check
-      const currentSite = siteDataMap.get(device.site_id.toString());
-
-      if (!currentSite) {
-        logger.warn(
-          `Site ${device.site_id} not found for device ${device.name}, skipping site update`,
-        );
-      } else {
-        const {
-          setUpdate: siteSetUpdate,
-          incUpdate: siteIncUpdate,
-        } = getUptimeAccuracyUpdateObject({
-          isCurrentlyOnline: currentSite.rawOnlineStatus,
-          isNowOnline: isRawOnline,
-          currentStats: currentSite.onlineStatusAccuracy,
-          reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
-        });
-
-        const siteUpdateFields = {
-          rawOnlineStatus: isRawOnline,
-        };
-        if (lastFeedTime) {
-          siteUpdateFields.lastRawData = new Date(lastFeedTime);
-        }
-
-        // Unconditional status update for the site
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isRawOnline,
+      lastFeedTime,
+    );
+    if (siteStatusOp) {
+      siteUpdates.push(siteStatusOp);
+      // Conditional PM2.5 update for the site (ThingSpeak path only)
+      if (latestRawPm25) {
         siteUpdates.push({
           updateOne: {
-            filter: { _id: device.site_id },
+            filter: {
+              _id: device.site_id,
+              $or: [
+                { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                { "latest_pm2_5.raw.time": { $exists: false } },
+              ],
+            },
             update: {
-              $set: { ...siteUpdateFields, ...siteSetUpdate },
-              ...(siteIncUpdate && { $inc: siteIncUpdate }),
+              $set: { "latest_pm2_5.raw": latestRawPm25 },
             },
           },
         });
-
-        // Conditional PM2.5 update for the site
-        if (latestRawPm25) {
-          siteUpdates.push({
-            updateOne: {
-              filter: {
-                _id: device.site_id,
-                $or: [
-                  { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
-                  { "latest_pm2_5.raw.time": { $exists: false } },
-                ],
-              },
-              update: {
-                $set: { "latest_pm2_5.raw": latestRawPm25 },
-              },
-            },
-          });
-        }
       }
     }
 
@@ -765,6 +825,7 @@ const processIndividualDevice = async (
       "fetch_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
+      siteDataMap,
     );
   }
 };
@@ -775,6 +836,7 @@ const createFailureUpdate = (
   reason,
   shouldMarkOfflineFromStaleData = false,
   hasExistingRawData = false,
+  siteDataMap = null,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -806,6 +868,18 @@ const createFailureUpdate = (
     updateDoc.$inc = incUpdate;
   }
 
+  const siteUpdates = [];
+  if (siteDataMap) {
+    // No lastFeedTime on failure — propagate only the online/offline decision
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+  }
+
   return {
     deviceUpdate: {
       updateOne: {
@@ -813,6 +887,7 @@ const createFailureUpdate = (
         update: updateDoc,
       },
     },
+    siteUpdates,
   };
 };
 

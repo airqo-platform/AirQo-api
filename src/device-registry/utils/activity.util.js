@@ -838,7 +838,31 @@ const createActivity = {
           deviceBody.body.height = height;
           deviceBody.body.mountType = mountType;
           deviceBody.body.powerType = powerType;
-          deviceBody.body.isPrimaryInLocation = isPrimaryInLocation;
+
+          // Best-effort auto-assign primary: if no deployed device at this site already holds
+          // isPrimaryInLocation=true, make this device the primary regardless of
+          // what the caller passed. This helps ensure each site has a primary device
+          // to drive rawOnlineStatus propagation, but cannot guarantee uniqueness
+          // under concurrent deployments or DB errors.
+          let effectiveIsPrimary = isPrimaryInLocation;
+          if (!isPrimaryInLocation) {
+            try {
+              const existingPrimary = await DeviceModel(tenant)
+                .findOne({ site_id, isPrimaryInLocation: true, status: "deployed" })
+                .lean();
+              if (!existingPrimary) {
+                effectiveIsPrimary = true;
+                logger.info(
+                  `Auto-assigning isPrimaryInLocation=true to ${deviceName} — no primary device at site ${site_id}`,
+                );
+              }
+            } catch (primaryCheckErr) {
+              logger.error(
+                `Failed to check existing primary for site ${site_id}: ${primaryCheckErr.message}`,
+              );
+            }
+          }
+          deviceBody.body.isPrimaryInLocation = effectiveIsPrimary;
           deviceBody.body.deployment_type = "static";
           deviceBody.body.mobility = false;
           deviceBody.body.nextMaintenance = getNextMaintenanceDate(date, 3);
@@ -1073,13 +1097,25 @@ const createActivity = {
             next,
           );
 
-          // **STEP 5**: Refresh site data_provider (fire and forget)
-          // Runs after the device is deployed, so it picks up the new device's network.
-          if (activityBody.site_id) {
-            createSiteUtil.refreshSiteDataProvider(
-              tenant,
-              activityBody.site_id,
-            );
+          // **STEP 5**: Sync site.network and data_provider to the deployed device's network.
+          // site.network must match device.network so that the fallback in
+          // computeSiteDataProvider (no-active-devices case) stays consistent with the
+          // deployed device. data_provider is a derived display label and is refreshed
+          // separately below.
+          if (activityBody.site_id && existingDevice.network) {
+            try {
+              await SiteModel(tenant).findByIdAndUpdate(
+                activityBody.site_id,
+                { $set: { network: existingDevice.network } },
+                { new: false },
+              );
+            } catch (siteNetworkErr) {
+              logger.error(
+                `Failed to sync site.network for site ${activityBody.site_id}: ${siteNetworkErr.message}`,
+              );
+            }
+            // Refresh data_provider now that site.network is up to date.
+            createSiteUtil.refreshSiteDataProvider(tenant, activityBody.site_id);
           }
 
           const data = {
@@ -1887,6 +1923,41 @@ const createActivity = {
         gridMap.set(grid._id.toString(), grid);
       });
 
+      // Pre-fetch which site_ids already have a primary device so the Phase 4
+      // loop can auto-assign without an N+1 query per device.
+      const allStaticSiteIds = [];
+      const _seenSiteIds = new Set();
+      for (const [, deployment] of deviceNameToDeployment) {
+        if (deployment.actualDeploymentType === "static") {
+          const coordsKey = `${Number(deployment.latitude)},${Number(deployment.longitude)}`;
+          const sid = siteMap.get(coordsKey);
+          if (sid) {
+            const sidStr = sid.toString();
+            if (!_seenSiteIds.has(sidStr)) {
+              _seenSiteIds.add(sidStr);
+              allStaticSiteIds.push(sid);
+            }
+          }
+        }
+      }
+      const sitesWithPrimary = new Set();
+      if (allStaticSiteIds.length > 0) {
+        try {
+          const primaries = await DeviceModel(tenant)
+            .find(
+              { site_id: { $in: allStaticSiteIds }, isPrimaryInLocation: true, status: "deployed" },
+              { site_id: 1 },
+            )
+            .lean();
+          primaries.forEach((d) => sitesWithPrimary.add(d.site_id.toString()));
+        } catch (err) {
+          logger.error(`Failed to pre-fetch primary devices for bulk deploy: ${err.message}`);
+        }
+      }
+      // Tracks which sites have been assigned a primary within this batch so
+      // only the first device per site gets the auto-assigned flag.
+      const batchPrimaryAssigned = new Set();
+
       // PHASE 4: Prepare bulk operations
       for (const [deviceName, deployment] of deviceNameToDeployment) {
         const {
@@ -1974,6 +2045,24 @@ const createActivity = {
               nextMaintenance: getNextMaintenanceDate(date, 3),
             });
 
+            // Auto-assign primary: if this site has no existing primary and no
+            // earlier device in this batch was already assigned as primary, make
+            // this device primary regardless of the caller-supplied value.
+            const siteIdStr = site_id.toString();
+            // Record caller-selected primaries first so later items in the same
+            // batch for the same site are not also auto-promoted.
+            if (isPrimaryInLocation) {
+              batchPrimaryAssigned.add(siteIdStr);
+            }
+            let effectiveBulkIsPrimary = isPrimaryInLocation;
+            if (!isPrimaryInLocation && !sitesWithPrimary.has(siteIdStr) && !batchPrimaryAssigned.has(siteIdStr)) {
+              effectiveBulkIsPrimary = true;
+              batchPrimaryAssigned.add(siteIdStr);
+              logger.info(
+                `Auto-assigning isPrimaryInLocation=true to ${deviceName} (bulk) — no primary at site ${siteIdStr}`,
+              );
+            }
+
             // Device bulk update
             deviceBulkOps.push({
               updateOne: {
@@ -1983,7 +2072,7 @@ const createActivity = {
                     height,
                     mountType,
                     powerType,
-                    isPrimaryInLocation,
+                    isPrimaryInLocation: effectiveBulkIsPrimary,
                     deployment_type: "static",
                     mobility: false,
                     nextMaintenance: getNextMaintenanceDate(date, 3),
@@ -2231,17 +2320,50 @@ const createActivity = {
         }
       });
 
-      // Refresh data_provider for each newly deployed site (fire-and-forget).
-      // Deduplicate site_ids so we call once per site regardless of how many
-      // devices were deployed to it in this batch.
-      // NOTE: mirrors the single-deploy refresh in _processDeployment (Step 5).
-      const deployedSiteIds = [
-        ...new Set(
-          createdActivities
-            .filter((a) => a.site_id)
-            .map((a) => a.site_id.toString()),
-        ),
-      ];
+      // Sync site.network to device.network for every successfully deployed
+      // static site, then refresh data_provider. site.network must stay in
+      // sync with the deployed device so the no-active-devices fallback inside
+      // computeSiteDataProvider stays consistent (mirrors _processDeployment STEP 5).
+      //
+      // When multiple devices with different networks land on the same site in one
+      // batch, site.network is set to the alphabetically first network value so the
+      // result is deterministic across runs.
+      // data_provider handles the multi-network case correctly via refreshSiteDataProvider.
+      const siteNetworkMap = new Map(); // site_id (string) -> device.network
+      for (const activity of createdActivities) {
+        if (!activity.site_id) continue;
+        const dev = deviceUpdateMap.get(activity.device);
+        if (dev && dev.network) {
+          const siteId = activity.site_id.toString();
+          const current = siteNetworkMap.get(siteId);
+          if (!current || dev.network < current) {
+            siteNetworkMap.set(siteId, dev.network);
+          }
+        }
+      }
+
+      if (siteNetworkMap.size > 0) {
+        const siteBulkOps = [...siteNetworkMap.entries()].map(
+          ([siteId, network]) => ({
+            updateOne: {
+              filter: { _id: ObjectId(siteId) },
+              update: { $set: { network } },
+            },
+          }),
+        );
+        try {
+          await SiteModel(tenant).bulkWrite(siteBulkOps, { ordered: false });
+        } catch (err) {
+          logger.error(
+            `Batch deploy: failed to sync site.network fields: ${err.message}`,
+          );
+        }
+      }
+
+      // Refresh data_provider only after site.network bulkWrite completes
+      // (success or handled error) so refreshSiteDataProvider always reads the
+      // correct site.network when it falls back to it.
+      const deployedSiteIds = [...siteNetworkMap.keys()];
       deployedSiteIds.forEach((siteId) => {
         createSiteUtil.refreshSiteDataProvider(tenant, siteId);
       });
@@ -2483,10 +2605,44 @@ const createActivity = {
         });
       });
 
-      // Refresh site data_provider now that a device has been removed.
-      // Use the site_id captured before the device was recalled.
+      // After recall: re-sync site.network from remaining active devices, then
+      // refresh data_provider. If no devices remain at the site, site.network
+      // reverts to DEFAULT_NETWORK so the no-active-devices fallback in
+      // computeSiteDataProvider stays consistent with the platform default.
       if (device.site_id) {
-        createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+        (async () => {
+          try {
+            const remainingNetworks = await DeviceModel(tenant).distinct(
+              "network",
+              { site_id: device.site_id, isActive: true },
+            );
+            const sortedNetworks = (remainingNetworks || [])
+              .map((n) => (typeof n === "string" ? n.trim() : n))
+              .filter((n) => typeof n === "string" && n.length > 0)
+              .sort();
+
+            const networkToSet =
+              sortedNetworks.length > 0
+                ? sortedNetworks[0]
+                : constants.DEFAULT_NETWORK || "airqo";
+
+            const updateResult = await SiteModel(tenant).findByIdAndUpdate(
+              device.site_id,
+              { $set: { network: networkToSet } },
+              { new: false },
+            );
+
+            // Only refresh data_provider after a confirmed successful write so
+            // refreshSiteDataProvider always reads the already-correct site.network.
+            if (updateResult) {
+              createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+            }
+          } catch (err) {
+            logger.error(
+              `Failed to sync site.network after recall for site ${device.site_id}: ${err.message}`,
+            );
+          }
+        })();
       }
 
       // Use toObject() on both Mongoose documents to ensure clean

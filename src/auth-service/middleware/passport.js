@@ -1491,6 +1491,26 @@ const authOAuthCallback = (req, res, next) => {
         errorType: err.name,
         message: err.message,
       });
+    } else if (
+      err.message &&
+      err.message.includes("Failed to find request token in session")
+    ) {
+      // OAuth 1.0a session expiry — not actionable; occurs when the session
+      // expires between request-token and callback (pod restart, sticky-session
+      // miss, or browser back-button replay).
+      logger.warn(`[passport] OAuth session expired for ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name || "Error",
+        message: err.message,
+      });
+    } else if (err.name === "TokenError" && err.code === "invalid_grant") {
+      // Authorization code expired or already used — user-triggered (slow
+      // browser, back-button replay, or double-submit). Not a code bug.
+      logger.warn(`[passport] OAuth code rejected by ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name,
+        code: err.code,
+      });
     } else {
       logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
         provider: safeProvider,
@@ -1525,6 +1545,12 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+function parseJWTokenFromHeader(authHeader) {
+  const match = authHeader && authHeader.match(/^JWT\s+(.+)$/i);
+  if (!match || !match[1].trim()) return null;
+  return match[1].trim();
+}
+
 const enhancedJWTAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -1536,21 +1562,12 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
-      return next(
-        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
-        }),
-      );
-    }
-
-    const token = match[2].trim();
+    const token = parseJWTokenFromHeader(authHeader);
     if (!token) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message: "Token is missing from Authorization header",
+          message:
+            "Invalid Authorization header format. Expected 'JWT <token>'",
         }),
       );
     }
@@ -1625,7 +1642,10 @@ const enhancedJWTAuth = (req, res, next) => {
                 res.set("Access-Control-Expose-Headers", "X-Access-Token");
               }
             } catch (refreshError) {
-              logger.error(
+              // Best-effort background refresh — the existing token is still
+              // valid, so the request proceeds. A persistent failure here will
+              // surface through DB health alerts rather than per-request noise.
+              logger.warn(
                 `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
               );
             }
@@ -1681,10 +1701,7 @@ const optionalJWTAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return next();
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) return next();
-
-    const token = match[2].trim();
+    const token = parseJWTokenFromHeader(authHeader);
     if (!token) return next();
 
     const endpoint =
@@ -1783,17 +1800,15 @@ const refreshTokenAuth = (req, _res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
+    const token = parseJWTokenFromHeader(authHeader);
+    if (!token) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+            "Invalid Authorization header format. Expected 'JWT <token>'",
         }),
       );
     }
-
-    const token = match[2].trim();
 
     jwt.verify(
       token,

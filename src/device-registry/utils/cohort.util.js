@@ -68,6 +68,10 @@ const createCohort = {
 
       logObject("responseFromRegisterCohort", responseFromRegisterCohort);
 
+      if (!responseFromRegisterCohort) {
+        return;
+      }
+
       if (responseFromRegisterCohort.success === true) {
         try {
           const kafkaProducer = kafka.producer();
