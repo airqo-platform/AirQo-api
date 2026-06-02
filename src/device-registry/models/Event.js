@@ -701,6 +701,12 @@ eventSchema.index(
   },
 );
 
+// Sparse index on `first` to support the nightly events-retention-job range scan.
+// `first` (Date, required) is the earliest measurement timestamp in each day-document;
+// since first ≤ last and both fall within the same calendar day, filtering on
+// first < cutoffDate is equivalent to filtering on last < cutoffDate for retention.
+eventSchema.index({ first: 1 }, { name: "retention_first_idx" });
+
 eventSchema.pre("save", function(next) {
   // Validate deployment type consistency
   if (this.deployment_type === "static") {

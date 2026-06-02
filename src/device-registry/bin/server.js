@@ -280,6 +280,18 @@ try {
   }
 }
 
+// Nightly events data-retention purge (03:00 daily).
+// Deletes Event documents older than EVENTS_RETENTION_DAYS (default 90).
+// Aligned with the 30-day ingestion guard in store-readings-job and the
+// 3-day default / 7-day historical API query windows.
+try {
+  require("@bin/jobs/events-retention-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `events-retention-job failed to start: ${err.message}`
+  );
+}
+
 // Cohort snapshot pre-computation job (every hour at :15)
 try {
   require("@bin/jobs/cohort-snapshot-job");
