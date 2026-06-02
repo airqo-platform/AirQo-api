@@ -514,6 +514,11 @@ def test_site_daily_forecasting_grid_id_filters_generated_site_ids(
         forecast["site_details"]["site_id"]
         for forecast in payload["data"]["forecasts"]
     } == {"site-1", "site-2"}
+    assert payload["data"]["scope"] == {
+        "type": "grid",
+        "id": "grid-1",
+        "grid_id": "grid-1",
+    }
     assert payload["data"]["sites_count"] == 2
     assert payload["data"]["site_names"] == ["Site One", "Site Two"]
 
@@ -544,7 +549,7 @@ def test_site_daily_forecasting_grid_route_filters_generated_site_ids(
         helpers_module.requests, "get", lambda *args, **kwargs: Response()
     )
 
-    response = client.get("/api/v2/predict/daily-forecasting/grids/grid-1")
+    response = client.get("/api/v2/predict/daily-forecasting/grid-1")
 
     assert response.status_code == 200
     payload = response.get_json()
@@ -552,6 +557,11 @@ def test_site_daily_forecasting_grid_route_filters_generated_site_ids(
         forecast["site_details"]["site_id"]
         for forecast in payload["data"]["forecasts"]
     } == {"site-1", "site-2"}
+    assert payload["data"]["scope"] == {
+        "type": "grid",
+        "id": "grid-1",
+        "grid_id": "grid-1",
+    }
     assert payload["data"]["sites_count"] == 2
     assert payload["data"]["sites_with_forecasts_count"] == 2
     assert payload["data"]["site_names"] == ["Site One", "Site Two"]
@@ -579,11 +589,16 @@ def test_site_daily_forecasting_grid_sites_count_uses_generated_site_ids(
         helpers_module.requests, "get", lambda *args, **kwargs: Response()
     )
 
-    response = client.get("/api/v2/predict/daily-forecasting/grids/grid-1")
+    response = client.get("/api/v2/predict/daily-forecasting/grid-1")
 
     assert response.status_code == 200
     payload = response.get_json()
     assert len(payload["data"]["forecasts"]) == 1
+    assert payload["data"]["scope"] == {
+        "type": "grid",
+        "id": "grid-1",
+        "grid_id": "grid-1",
+    }
     assert payload["data"]["sites_count"] == 2
     assert payload["data"]["sites_with_forecasts_count"] == 1
     assert payload["data"]["site_names"] == ["Site One"]
@@ -735,6 +750,11 @@ def test_site_hourly_forecasting_cohort_id_filters_generated_site_ids(
         forecast["site_details"]["site_id"]
         for forecast in payload["data"]["forecasts"]
     } == {"site-1", "site-2"}
+    assert payload["data"]["scope"] == {
+        "type": "cohort",
+        "id": "cohort-1",
+        "cohort_id": "cohort-1",
+    }
     assert payload["data"]["sites_count"] == 2
     assert payload["data"]["site_names"] == ["Site One", "Site Two"]
 
@@ -754,18 +774,24 @@ def test_site_hourly_forecasting_cohort_route_filters_generated_site_ids(
     )
 
     class Response:
+        def __init__(self, site_ids):
+            self.site_ids = site_ids
+
         def raise_for_status(self):
             return None
 
         def json(self):
-            return {"sites_and_devices": {"site_ids": ["site-1", "site-2"]}}
+            return {"sites_and_devices": {"site_ids": self.site_ids}}
 
-    monkeypatch.setattr(
-        helpers_module.requests, "get", lambda *args, **kwargs: Response()
-    )
+    def fake_get(url, *args, **kwargs):
+        if "/devices/grids/" in url:
+            return Response([])
+        return Response(["site-1", "site-2"])
+
+    monkeypatch.setattr(helpers_module.requests, "get", fake_get)
 
     response = client.get(
-        "/api/v2/predict/hourly-forecasting/cohorts/cohort-1?page=1&limit=10"
+        "/api/v2/predict/hourly-forecasting/cohort-1?page=1&limit=10"
     )
 
     assert response.status_code == 200
@@ -774,6 +800,11 @@ def test_site_hourly_forecasting_cohort_route_filters_generated_site_ids(
         forecast["site_details"]["site_id"]
         for forecast in payload["data"]["forecasts"]
     } == {"site-1", "site-2"}
+    assert payload["data"]["scope"] == {
+        "type": "cohort",
+        "id": "cohort-1",
+        "cohort_id": "cohort-1",
+    }
     assert payload["data"]["sites_count"] == 2
     assert payload["data"]["site_names"] == ["Site One", "Site Two"]
 
@@ -804,13 +835,18 @@ def test_site_hourly_forecasting_scoped_sites_count_uses_total_matching_sites(
     )
 
     response = client.get(
-        "/api/v2/predict/hourly-forecasting/grids/grid-1?page=1&limit=1"
+        "/api/v2/predict/hourly-forecasting/grid-1?page=1&limit=1"
     )
 
     assert response.status_code == 200
     payload = response.get_json()
     assert len(payload["data"]["forecasts"]) == 1
     assert payload["data"]["total"] == 2
+    assert payload["data"]["scope"] == {
+        "type": "grid",
+        "id": "grid-1",
+        "grid_id": "grid-1",
+    }
     assert payload["data"]["sites_count"] == 2
     assert payload["data"]["site_names"] == ["Site One"]
 

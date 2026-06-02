@@ -364,8 +364,7 @@ def _fetch_faulty_devices_cached():
             500,
         )
 
-@ml_app.get(routes.route["cohort_daily_forecasts"])
-@ml_app.get(routes.route["grid_daily_forecasts"])
+@ml_app.get(routes.route["scoped_daily_forecasts"])
 @ml_app.get(routes.route["site_daily_forecasts"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_daily_forecasts_cache_key)
 def get_site_daily_forecasts_v2(**_route_params):
@@ -374,14 +373,16 @@ def get_site_daily_forecasts_v2(**_route_params):
 
     Query params:
         site_id: Optional site identifier.
-        grid_id: Optional grid identifier. May be supplied as query param or route param.
-        cohort_id: Optional cohort identifier. May be supplied as query param or route param.
+        grid_id: Optional grid identifier. May be supplied as query param.
+        cohort_id: Optional cohort identifier. May be supplied as query param.
+        scope_id: Optional route param for a grid or cohort.
+        scope: Optional query param to disambiguate grid or cohort.
 
     Response metadata:
         units: Units for forecast and meteorology fields.
         descriptions: Human-readable descriptions for PM forecast fields.
     """
-    site_id, site_ids, scope_error = get_forecast_site_scope()
+    site_id, site_ids, scope_metadata, scope_error = get_forecast_site_scope()
     if scope_error:
         response, status_code = scope_error
         return jsonify(response), status_code
@@ -392,12 +393,12 @@ def get_site_daily_forecasts_v2(**_route_params):
         aqi_category_getter=get_aqi_category,
         trend_message_getter=get_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
+        scope_metadata=scope_metadata,
     )
     return jsonify(response), status_code
 
 
-@ml_app.get(routes.route["cohort_hourly_forecasts"])
-@ml_app.get(routes.route["grid_hourly_forecasts"])
+@ml_app.get(routes.route["scoped_hourly_forecasts"])
 @ml_app.get(routes.route["site_hourly_forecasts"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=site_hourly_forecasts_cache_key)
 def get_site_hourly_forecasts_v2(**_route_params):
@@ -406,10 +407,12 @@ def get_site_hourly_forecasts_v2(**_route_params):
 
     Query params:
         site_id: Optional site identifier.
-        grid_id: Optional grid identifier. May be supplied as query param or route param.
-        cohort_id: Optional cohort identifier. May be supplied as query param or route param.
+        grid_id: Optional grid identifier. May be supplied as query param.
+        cohort_id: Optional cohort identifier. May be supplied as query param.
+        scope_id: Optional route param for a grid or cohort.
+        scope: Optional query param to disambiguate grid or cohort.
     """
-    site_id, site_ids, scope_error = get_forecast_site_scope()
+    site_id, site_ids, scope_metadata, scope_error = get_forecast_site_scope()
     if scope_error:
         response, status_code = scope_error
         return jsonify(response), status_code
@@ -420,6 +423,7 @@ def get_site_hourly_forecasts_v2(**_route_params):
         aqi_category_getter=get_aqi_category,
         trend_message_getter=get_hourly_pm2_5_trend_message,
         wind_direction_formatter=wind_deg_to_compass,
+        scope_metadata=scope_metadata,
     )
     return jsonify(response), status_code
 

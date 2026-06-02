@@ -90,23 +90,102 @@ def fetch_generated_site_ids(scope: str, scope_id: str):
     return extract_generated_site_ids(response.json())
 
 
+def normalize_forecast_scope(scope: str | None):
+    if not scope:
+        return None
+
+    normalized_scope = scope.strip().lower()
+    if normalized_scope in ("grid", "grids"):
+        return "grids"
+    if normalized_scope in ("cohort", "cohorts"):
+        return "cohorts"
+    return None
+
+
+def build_forecast_scope_metadata(scope: str | None, scope_id: str | None):
+    normalized_scope = normalize_forecast_scope(scope)
+    if not normalized_scope or not scope_id:
+        return {}
+
+    scope_type = normalized_scope[:-1]
+    return {
+        "scope": {
+            "type": scope_type,
+            "id": scope_id,
+            f"{scope_type}_id": scope_id,
+        }
+    }
+
+
+def resolve_generated_site_ids(scope_id: str, scope_hint: str | None = None):
+    scopes = [scope_hint] if scope_hint else ["grids", "cohorts"]
+    empty_scope_metadata = None
+
+    for scope in scopes:
+        try:
+            site_ids = fetch_generated_site_ids(scope, scope_id)
+            scope_metadata = build_forecast_scope_metadata(scope, scope_id)
+            if site_ids or scope_hint:
+                return site_ids, scope_metadata, None
+
+            empty_scope_metadata = scope_metadata
+            current_app.logger.info(
+                "No site IDs found for %s %s; trying next forecast scope",
+                scope[:-1],
+                scope_id,
+            )
+        except requests.RequestException as ex:
+            current_app.logger.error(
+                "Failed to retrieve %s site IDs: %s", scope[:-1], ex, exc_info=False
+            )
+
+    if empty_scope_metadata:
+        return (
+            [],
+            empty_scope_metadata,
+            None,
+        )
+
+    scope_names = " or ".join(scope[:-1] for scope in scopes)
+    return None, None, (
+        {
+            "success": False,
+            "message": f"Failed to retrieve site IDs for the requested {scope_names}.",
+            "data": {"forecasts": []},
+        },
+        502,
+    )
+
+
 def get_forecast_site_scope():
     view_args = request.view_args or {}
+    route_scope_id = view_args.get("scope_id")
+    scope_hint = normalize_forecast_scope(request.args.get("scope"))
+
+    if request.args.get("scope") and not scope_hint:
+        return None, None, None, (
+            {
+                "success": False,
+                "message": "Forecast scope must be either grid or cohort.",
+                "data": {"forecasts": []},
+            },
+            400,
+        )
+
     site_id = view_args.get("site_id") or request.args.get(
         "site_id", default=None, type=str
     )
-    grid_id = view_args.get("grid_id") or request.args.get(
-        "grid_id", default=None, type=str
-    )
-    cohort_id = view_args.get("cohort_id") or request.args.get(
-        "cohort_id", default=None, type=str
-    )
+    grid_id = request.args.get("grid_id", default=None, type=str)
+    cohort_id = request.args.get("cohort_id", default=None, type=str)
+
     provided_scopes = [
-        scope for scope in [site_id, grid_id, cohort_id] if scope not in (None, "")
+        scope
+        for scope in [site_id, grid_id, cohort_id, route_scope_id]
+        if scope not in (None, "")
     ]
 
     if len(provided_scopes) > 1:
-        return None, None, (
+        return None, None, None, (
             {
                 "success": False,
                 "message": "Please specify only one of site_id, grid_id, or cohort_id.",
@@ -115,41 +194,31 @@ def get_forecast_site_scope():
             400,
         )
 
+    if route_scope_id:
+        site_ids, scope_metadata, scope_error = resolve_generated_site_ids(
+            route_scope_id, scope_hint=scope_hint
+        )
+        if scope_error:
+            return None, None, None, scope_error
+        return None, site_ids, scope_metadata, None
+
     if grid_id:
-        try:
-            site_ids = fetch_generated_site_ids("grids", grid_id)
-        except requests.RequestException as ex:
-            current_app.logger.error(
-                "Failed to retrieve grid site IDs: %s", ex, exc_info=False
-            )
-            return None, None, (
-                {
-                    "success": False,
-                    "message": "Failed to retrieve site IDs for the requested grid.",
-                    "data": {"forecasts": []},
-                },
-                502,
-            )
-        return None, site_ids, None
+        site_ids, scope_metadata, scope_error = resolve_generated_site_ids(
+            grid_id, scope_hint="grids"
+        )
+        if scope_error:
+            return None, None, None, scope_error
+        return None, site_ids, scope_metadata, None
 
     if cohort_id:
-        try:
-            site_ids = fetch_generated_site_ids("cohorts", cohort_id)
-        except requests.RequestException as ex:
-            current_app.logger.error(
-                "Failed to retrieve cohort site IDs: %s", ex, exc_info=False
-            )
-            return None, None, (
-                {
-                    "success": False,
-                    "message": "Failed to retrieve site IDs for the requested cohort.",
-                    "data": {"forecasts": []},
-                },
-                502,
-            )
-        return None, site_ids, None
+        site_ids, scope_metadata, scope_error = resolve_generated_site_ids(
+            cohort_id, scope_hint="cohorts"
+        )
+        if scope_error:
+            return None, None, None, scope_error
+        return None, site_ids, scope_metadata, None
 
-    return site_id, None, None
+    return site_id, None, {}, None
 
 
 def build_pagination_metadata(page: int, limit: int, total: int):
@@ -429,6 +498,7 @@ def build_site_forecast_response(
     wind_direction_formatter,
     trend_message_getter=None,
     site_ids: list[str] | None = None,
+    scope_metadata: dict | None = None,
 ):
     """
     Build the API response payload for ``/api/v2/predict/daily-forecasting``.
@@ -471,6 +541,7 @@ def build_site_forecast_response(
             },
         }, 503
     expected_days = 7
+    scope_metadata = scope_metadata or {}
 
     if not forecast_documents:
         return {
@@ -484,6 +555,7 @@ def build_site_forecast_response(
                 if site_id or site_ids is not None
                 else None,
                 "days": expected_days if site_id or site_ids is not None else None,
+                **scope_metadata,
                 "units": SITE_FORECAST_UNITS,
                 "descriptions": SITE_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
@@ -700,7 +772,6 @@ def build_site_forecast_response(
         if site_ids is not None
         else {}
     )
-
     return {
         "success": len(forecasts) == expected_days if site_id else True,
         "data": {
@@ -708,6 +779,7 @@ def build_site_forecast_response(
             "end_date": distinct_dates[-1] if distinct_dates else None,
             "days": len(distinct_dates),
             "total": len(grouped_forecasts),
+            **scope_metadata,
             **scoped_site_summary,
             "units": SITE_FORECAST_UNITS,
             "descriptions": SITE_FORECAST_DESCRIPTIONS,
@@ -722,6 +794,7 @@ def build_site_hourly_forecast_response(
     wind_direction_formatter,
     trend_message_getter=None,
     site_ids: list[str] | None = None,
+    scope_metadata: dict | None = None,
 ):
     """
     Build the API response payload for ``/api/v2/predict/hourly-forecasting``.
@@ -778,6 +851,8 @@ def build_site_hourly_forecast_response(
             },
         }, 503
 
+    scope_metadata = scope_metadata or {}
+
     if not forecast_documents:
         pagination_metadata = build_pagination_metadata(
             page=page, limit=limit, total=total_items
@@ -794,6 +869,7 @@ def build_site_hourly_forecast_response(
                 else None,
                 "hours": expected_hours if site_id or site_ids is not None else None,
                 **pagination_metadata,
+                **scope_metadata,
                 "units": SITE_FORECAST_UNITS,
                 "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
                 "forecasts": [],
@@ -1021,6 +1097,7 @@ def build_site_hourly_forecast_response(
             "end_timestamp": response_timestamps[-1] if response_timestamps else None,
             "hours": len(distinct_timestamps),
             **pagination_metadata,
+            **scope_metadata,
             **scoped_site_summary,
             "units": SITE_FORECAST_UNITS,
             "descriptions": SITE_HOURLY_FORECAST_DESCRIPTIONS,
@@ -1072,13 +1149,16 @@ def site_daily_forecasts_cache_key():
     current_day = date.today().isoformat()
     view_args = request.view_args or {}
     site_id = view_args.get("site_id") or request.args.get("site_id")
-    grid_id = view_args.get("grid_id") or request.args.get("grid_id")
-    cohort_id = view_args.get("cohort_id") or request.args.get("cohort_id")
+    scope_id = view_args.get("scope_id")
+    scope = normalize_forecast_scope(request.args.get("scope"))
+    grid_id = request.args.get("grid_id")
+    cohort_id = request.args.get("cohort_id")
     cache_version = get_site_daily_forecast_cache_version(
         site_id=site_id, start_date=date.today()
     )
     return (
         f"site_daily_v8_{current_day}_{site_id}_{grid_id}_{cohort_id}_"
+        f"{scope}_{scope_id}_"
         f"{cache_version}"
     )
 
@@ -1093,8 +1173,10 @@ def site_hourly_forecasts_cache_key():
     current_hour = pd.Timestamp.utcnow().floor("h").to_pydatetime()
     view_args = request.view_args or {}
     site_id = view_args.get("site_id") or request.args.get("site_id")
-    grid_id = view_args.get("grid_id") or request.args.get("grid_id")
-    cohort_id = view_args.get("cohort_id") or request.args.get("cohort_id")
+    scope_id = view_args.get("scope_id")
+    scope = normalize_forecast_scope(request.args.get("scope"))
+    grid_id = request.args.get("grid_id")
+    cohort_id = request.args.get("cohort_id")
     pagination = get_pagination_params(default_limit=10, max_limit=100)
     hours = get_site_hourly_forecast_horizon_hours()
     cache_version = get_site_hourly_forecast_cache_version(
@@ -1105,6 +1187,7 @@ def site_hourly_forecasts_cache_key():
     return (
         f"site_hourly_v2_{current_hour.isoformat()}_{hours}_{site_id}_"
         f"{grid_id}_{cohort_id}_{pagination['page']}_{pagination['limit']}_"
+        f"{scope}_{scope_id}_"
         f"{cache_version}"
     )
 
