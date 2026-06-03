@@ -28,11 +28,12 @@ const logger = log4js.getLogger(
  * (arity-detected by the framework).
  */
 class CookieStateStore {
-  constructor({ secret, cookieName, ttlSeconds = 600 } = {}) {
+  constructor({ secret, cookieName, ttlSeconds = 600, domain } = {}) {
     if (!secret) throw new Error("CookieStateStore: secret is required");
     this._secret = secret;
     this._cookieName = cookieName || "_oauth2_state";
     this._ttl = ttlSeconds;
+    this._domain = domain || null;
   }
 
   // Called by passport-oauth2 before redirecting to the provider.
@@ -53,6 +54,7 @@ class CookieStateStore {
       sameSite: "lax", // allows cookie on top-level GET from provider redirect
       maxAge: this._ttl * 1000,
       path: "/",
+      ...(this._domain ? { domain: this._domain } : {}),
     });
     callback(null, value);
   }
@@ -74,7 +76,7 @@ class CookieStateStore {
     }
 
     // One-time use: clear the cookie immediately after reading.
-    if (req.res) req.res.clearCookie(this._cookieName, { path: "/" });
+    if (req.res) req.res.clearCookie(this._cookieName, { path: "/", ...(this._domain ? { domain: this._domain } : {}) });
 
     // Constant-time comparison guards against timing attacks.
     if (!this._safeEqual(state, storedState)) {
@@ -330,6 +332,7 @@ function configureStrategies(passport, tenant) {
           store: new CookieStateStore({
             secret: constants.SESSION_SECRET,
             cookieName: "_oauth2_state_google",
+            domain: constants.OAUTH_COOKIE_DOMAIN,
           }),
         },
         makeStrategyCallback("google"),
@@ -357,6 +360,7 @@ function configureStrategies(passport, tenant) {
           store: new CookieStateStore({
             secret: constants.SESSION_SECRET,
             cookieName: "_oauth2_state_github",
+            domain: constants.OAUTH_COOKIE_DOMAIN,
           }),
         },
         makeStrategyCallback(
@@ -389,6 +393,7 @@ function configureStrategies(passport, tenant) {
             store: new CookieStateStore({
               secret: constants.SESSION_SECRET,
               cookieName: "_oauth2_state_linkedin",
+              domain: constants.OAUTH_COOKIE_DOMAIN,
             }),
           },
           makeStrategyCallback(
@@ -428,6 +433,7 @@ function configureStrategies(passport, tenant) {
             store: new CookieStateStore({
               secret: constants.SESSION_SECRET,
               cookieName: "_oauth2_state_microsoft",
+              domain: constants.OAUTH_COOKIE_DOMAIN,
             }),
           },
           makeStrategyCallback(

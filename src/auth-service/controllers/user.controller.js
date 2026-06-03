@@ -230,7 +230,14 @@ const userController = {
       })();
 
       const redirectAfter =
-        (req.session && req.session.oauthRedirectAfter) || null;
+        (req.cookies && req.cookies["_oauth_redirect_after"]) ||
+        (req.session && req.session.oauthRedirectAfter) ||
+        null;
+      if (req.cookies && req.cookies["_oauth_redirect_after"]) {
+        const clearOpts = { path: "/" };
+        if (constants.OAUTH_COOKIE_DOMAIN) clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+        res.clearCookie("_oauth_redirect_after", clearOpts);
+      }
       if (req.session) delete req.session.oauthRedirectAfter;
       const baseRedirect = (
         redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
@@ -329,7 +336,14 @@ const userController = {
       })();
 
       const redirectAfter =
-        (req.session && req.session.oauthRedirectAfter) || null;
+        (req.cookies && req.cookies["_oauth_redirect_after"]) ||
+        (req.session && req.session.oauthRedirectAfter) ||
+        null;
+      if (req.cookies && req.cookies["_oauth_redirect_after"]) {
+        const clearOpts = { path: "/" };
+        if (constants.OAUTH_COOKIE_DOMAIN) clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+        res.clearCookie("_oauth_redirect_after", clearOpts);
+      }
       if (req.session) delete req.session.oauthRedirectAfter;
       const baseRedirect = (
         redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
