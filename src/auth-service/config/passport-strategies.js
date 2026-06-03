@@ -50,7 +50,7 @@ class CookieStateStore {
     }
     res.cookie(this._cookieName, signed, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
       sameSite: "lax", // allows cookie on top-level GET from provider redirect
       maxAge: this._ttl * 1000,
       path: "/",

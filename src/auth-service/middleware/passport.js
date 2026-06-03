@@ -1204,7 +1204,7 @@ function setGoogleAuth(req, res, next) {
         const redirectOrigin = new URL(redirectAfter).origin;
         const cookieOpts = {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
           sameSite: "lax",
           maxAge: 600 * 1000,
           path: "/",
@@ -1279,7 +1279,7 @@ function setOAuthProvider(req, res, next) {
         const redirectOrigin = new URL(redirectAfter).origin;
         const cookieOpts = {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
           sameSite: "lax",
           maxAge: 600 * 1000,
           path: "/",
