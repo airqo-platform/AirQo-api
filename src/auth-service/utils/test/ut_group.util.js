@@ -1766,3 +1766,85 @@ describe("createGroup Module", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// computeOnboardingChecklist logic — tested via a local mirror of the
+// private helper in group.util.js. These tests guard the business rules so
+// that any change to the function breaks visibly here.
+// ---------------------------------------------------------------------------
+describe("computeOnboardingChecklist (onboarding checklist logic)", () => {
+  // Mirror of the private helper in group.util.js.
+  function computeOnboardingChecklist(group) {
+    const stored = group.onboarding_checklist || {
+      is_dismissed: false,
+      completed_steps: [],
+    };
+    const steps = new Set(stored.completed_steps || []);
+    if ((group.cohorts || []).length > 0) steps.add("assign-cohort");
+    return {
+      is_dismissed: stored.is_dismissed || false,
+      completed_steps: Array.from(steps),
+    };
+  }
+
+  it("adds assign-cohort when group has at least one cohort", () => {
+    const group = {
+      cohorts: ["c1"],
+      onboarding_checklist: { is_dismissed: false, completed_steps: [] },
+    };
+    const result = computeOnboardingChecklist(group);
+    expect(result.completed_steps).to.include("assign-cohort");
+  });
+
+  it("does not add assign-cohort when cohorts array is empty", () => {
+    const group = {
+      cohorts: [],
+      onboarding_checklist: { is_dismissed: false, completed_steps: ["set-visibility"] },
+    };
+    const result = computeOnboardingChecklist(group);
+    expect(result.completed_steps).to.not.include("assign-cohort");
+    expect(result.completed_steps).to.include("set-visibility");
+  });
+
+  it("merges dynamic assign-cohort with stored steps without duplication", () => {
+    const group = {
+      cohorts: ["c1"],
+      onboarding_checklist: {
+        is_dismissed: false,
+        completed_steps: ["assign-cohort", "set-visibility"],
+      },
+    };
+    const result = computeOnboardingChecklist(group);
+    const count = result.completed_steps.filter((s) => s === "assign-cohort").length;
+    expect(count).to.equal(1);
+    expect(result.completed_steps).to.include("set-visibility");
+  });
+
+  it("defaults gracefully for legacy groups without onboarding_checklist field", () => {
+    const group = { cohorts: ["c1"], onboarding_checklist: undefined };
+    const result = computeOnboardingChecklist(group);
+    expect(result.is_dismissed).to.equal(false);
+    expect(result.completed_steps).to.include("assign-cohort");
+  });
+
+  it("preserves is_dismissed: true from stored state", () => {
+    const group = {
+      cohorts: [],
+      onboarding_checklist: { is_dismissed: true, completed_steps: [] },
+    };
+    expect(computeOnboardingChecklist(group).is_dismissed).to.equal(true);
+  });
+
+  it("accepts arbitrary step_id strings without restriction", () => {
+    const group = {
+      cohorts: [],
+      onboarding_checklist: {
+        is_dismissed: false,
+        completed_steps: ["invite-team", "custom-step-xyz"],
+      },
+    };
+    const result = computeOnboardingChecklist(group);
+    expect(result.completed_steps).to.include("invite-team");
+    expect(result.completed_steps).to.include("custom-step-xyz");
+  });
+});

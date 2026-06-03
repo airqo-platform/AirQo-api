@@ -1099,9 +1099,12 @@ const updateOnboarding = [
     .isString()
     .withMessage("step_id must be a string")
     .bail()
+    .trim()
     .notEmpty()
     .withMessage("step_id must not be empty")
-    .trim(),
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("step_id must not exceed 100 characters"),
 ];
 
 module.exports = {

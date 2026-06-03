@@ -4929,8 +4929,8 @@ const groupUtil = {
       const { tenant } = request.query;
       const { action, step_id } = request.body;
 
-      const group = await GroupModel(tenant).findById(grp_id).lean();
-      if (!group) {
+      const exists = await GroupModel(tenant).exists({ _id: grp_id });
+      if (!exists) {
         return {
           success: false,
           message: "Group not found",
@@ -4939,31 +4939,14 @@ const groupUtil = {
         };
       }
 
-      const current = group.onboarding_checklist || {
-        is_dismissed: false,
-        completed_steps: [],
-      };
+      const updateOp =
+        action === "mark_step_complete"
+          ? { $addToSet: { "onboarding_checklist.completed_steps": step_id } }
+          : { $set: { "onboarding_checklist.is_dismissed": true } };
 
-      let newChecklist;
-      if (action === "mark_step_complete") {
-        const steps = new Set(current.completed_steps || []);
-        steps.add(step_id);
-        newChecklist = {
-          is_dismissed: current.is_dismissed || false,
-          completed_steps: Array.from(steps),
-        };
-      } else {
-        newChecklist = {
-          is_dismissed: true,
-          completed_steps: current.completed_steps || [],
-        };
-      }
-
-      await GroupModel(tenant).findByIdAndUpdate(grp_id, {
-        $set: { onboarding_checklist: newChecklist },
-      });
-
-      const updatedGroup = { ...group, onboarding_checklist: newChecklist };
+      const updatedGroup = await GroupModel(tenant)
+        .findByIdAndUpdate(grp_id, updateOp, { new: true })
+        .lean();
 
       return {
         success: true,
