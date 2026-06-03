@@ -389,6 +389,16 @@ router.get(
   groupController.getGroupHealth,
 );
 
+// Onboarding checklist
+router.patch(
+  "/:grp_id/onboarding",
+  enhancedJWTAuth,
+  requireGroupAdminAccess(),
+  groupValidations.updateOnboarding,
+  validate,
+  groupController.updateOnboarding,
+);
+
 // Cohort assignment routes
 router.post(
   "/:grp_id/cohorts/assign",

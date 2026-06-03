@@ -144,6 +144,10 @@ const GroupSchema = new Schema(
         type: ObjectId,
       },
     ],
+    onboarding_checklist: {
+      is_dismissed: { type: Boolean, default: false },
+      completed_steps: { type: [String], default: [] },
+    },
     is_default: {
       type: Boolean,
       default: false,

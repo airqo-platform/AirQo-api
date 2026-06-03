@@ -852,6 +852,9 @@ const groupController = {
   listGroupCohorts: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listGroupCohorts),
 
+  updateOnboarding: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateOnboarding),
+
   leaveGroup: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

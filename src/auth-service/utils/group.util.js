@@ -25,6 +25,19 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+const computeOnboardingChecklist = (group) => {
+  const stored = group.onboarding_checklist || {
+    is_dismissed: false,
+    completed_steps: [],
+  };
+  const steps = new Set(stored.completed_steps || []);
+  if ((group.cohorts || []).length > 0) steps.add("assign-cohort");
+  return {
+    is_dismissed: stored.is_dismissed || false,
+    completed_steps: Array.from(steps),
+  };
+};
+
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
     return user.group_roles.some((assignment) => {
@@ -1251,10 +1264,17 @@ const groupUtil = {
       const { query } = request;
       const { tenant, limit, skip } = query;
       const filter = generateFilter.groups(request, next);
-      const responseFromListGroups = await GroupModel(
-        tenant.toLowerCase(),
-      ).list({ filter, limit, skip }, next);
-      return responseFromListGroups;
+      const response = await GroupModel(tenant.toLowerCase()).list(
+        { filter, limit, skip },
+        next,
+      );
+      if (response && response.success && Array.isArray(response.data)) {
+        response.data = response.data.map((group) => ({
+          ...group,
+          onboarding_checklist: computeOnboardingChecklist(group),
+        }));
+      }
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -4893,6 +4913,66 @@ const groupUtil = {
       logger.error(
         `🐛🐛 Internal Server Error on leaveGroup: ${error.message}`,
       );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  updateOnboarding: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+      const { action, step_id } = request.body;
+
+      const group = await GroupModel(tenant).findById(grp_id).lean();
+      if (!group) {
+        return {
+          success: false,
+          message: "Group not found",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const current = group.onboarding_checklist || {
+        is_dismissed: false,
+        completed_steps: [],
+      };
+
+      let newChecklist;
+      if (action === "mark_step_complete") {
+        const steps = new Set(current.completed_steps || []);
+        steps.add(step_id);
+        newChecklist = {
+          is_dismissed: current.is_dismissed || false,
+          completed_steps: Array.from(steps),
+        };
+      } else {
+        newChecklist = {
+          is_dismissed: true,
+          completed_steps: current.completed_steps || [],
+        };
+      }
+
+      await GroupModel(tenant).findByIdAndUpdate(grp_id, {
+        $set: { onboarding_checklist: newChecklist },
+      });
+
+      const updatedGroup = { ...group, onboarding_checklist: newChecklist };
+
+      return {
+        success: true,
+        message: "Onboarding state updated successfully",
+        data: { onboarding_checklist: computeOnboardingChecklist(updatedGroup) },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
