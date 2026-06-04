@@ -427,6 +427,7 @@ const dbProjections = {
     grp_timezone: 1,
     grp_image: 1,
     cohorts: 1,
+    onboarding_checklist: 1,
     createdAt: 1,
     numberOfGroupUsers: {
       $cond: {

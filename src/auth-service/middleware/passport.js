@@ -1189,14 +1189,28 @@ function setGoogleAuth(req, res, next) {
       req.session.oauthTenant = tenant;
     }
 
-    // Persist redirect_after so the callback controller can route the user
-    // to the correct app (e.g. Vertex) instead of the default analytics URL.
-    // Clear any stale value from a previous attempt before writing a new one.
+    // Persist redirect_after in a shared-domain cookie so it survives the
+    // cross-server OAuth round-trip (vertex initiates → analytics handles
+    // callback). The session is kept as a same-server fallback.
+    const cookieDomain = constants.OAUTH_COOKIE_DOMAIN;
+    const clearOpts = { path: "/" };
+    if (cookieDomain) clearOpts.domain = cookieDomain;
+    res.clearCookie("_oauth_redirect_after", clearOpts);
     if (req.session) delete req.session.oauthRedirectAfter;
+
     const redirectAfter = req.query.redirect_after;
-    if (redirectAfter && req.session) {
+    if (redirectAfter) {
       if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
-        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+        const cookieOpts = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+          sameSite: "lax",
+          maxAge: 600 * 1000,
+          path: "/",
+        };
+        if (cookieDomain) cookieOpts.domain = cookieDomain;
+        res.cookie("_oauth_redirect_after", redirectAfter, cookieOpts);
+        if (req.session) req.session.oauthRedirectAfter = redirectAfter;
       } else {
         let rejectedOrigin;
         try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
@@ -1249,14 +1263,28 @@ function setOAuthProvider(req, res, next) {
       req.session.oauthTenant = tenant;
     }
 
-    // Persist redirect_after so the callback controller can route the user
-    // to the correct app (e.g. Vertex) instead of the default analytics URL.
-    // Clear any stale value from a previous attempt before writing a new one.
+    // Persist redirect_after in a shared-domain cookie so it survives the
+    // cross-server OAuth round-trip (vertex initiates → analytics handles
+    // callback). The session is kept as a same-server fallback.
+    const cookieDomain = constants.OAUTH_COOKIE_DOMAIN;
+    const clearOpts = { path: "/" };
+    if (cookieDomain) clearOpts.domain = cookieDomain;
+    res.clearCookie("_oauth_redirect_after", clearOpts);
     if (req.session) delete req.session.oauthRedirectAfter;
+
     const redirectAfter = req.query.redirect_after;
-    if (redirectAfter && req.session) {
+    if (redirectAfter) {
       if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
-        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+        const cookieOpts = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+          sameSite: "lax",
+          maxAge: 600 * 1000,
+          path: "/",
+        };
+        if (cookieDomain) cookieOpts.domain = cookieDomain;
+        res.cookie("_oauth_redirect_after", redirectAfter, cookieOpts);
+        if (req.session) req.session.oauthRedirectAfter = redirectAfter;
       } else {
         let rejectedOrigin;
         try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
@@ -1395,8 +1423,16 @@ function handleOAuthCallbackError(err, provider, res, next) {
  * failure URL instead of surfacing as an unhandled 500.
  */
 const authGoogleCallback = (req, res, next) => {
+  const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
+  let validatedOrigin = null;
+  if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
+    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+  }
+  const failureBase = validatedOrigin
+    ? `${validatedOrigin}/login`
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
   passport.authenticate("google", {
-    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    failureRedirect: buildOAuthFailureRedirect(failureBase),
     session: false,
   })(req, res, (err) => {
     if (err) return handleOAuthCallbackError(err, "google", res, next);
@@ -1458,9 +1494,15 @@ const authOAuth = (req, res, next) => {
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
-  const failureRedirectUrl = buildOAuthFailureRedirect(
-    constants.GMAIL_VERIFICATION_FAILURE_REDIRECT,
-  );
+  const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
+  let validatedOrigin = null;
+  if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
+    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+  }
+  const failureBase = validatedOrigin
+    ? `${validatedOrigin}/login`
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+  const failureRedirectUrl = buildOAuthFailureRedirect(failureBase);
   passport.authenticate(provider, {
     session: false,
     failureRedirect: failureRedirectUrl,

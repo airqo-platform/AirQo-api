@@ -7,7 +7,7 @@ images:
     predictJob: airqoacr.azurecr.io/airqo-predict-job
     trainJob: airqoacr.azurecr.io/airqo-train-job
     predictPlaces: airqoacr.azurecr.io/airqo-predict-places-air-quality
-  tag: prod-3a946920-1779947059
+  tag: prod-0f4b4245-1780473967
 api:
   name: airqo-prediction-api
   label: predict-api
