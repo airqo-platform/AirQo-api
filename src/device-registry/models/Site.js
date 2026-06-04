@@ -142,6 +142,7 @@ const siteSchema = new Schema(
     approximate_latitude: {
       type: Number,
       required: [true, "approximate_latitude is required!"],
+      immutable: true,
     },
     longitude: {
       type: Number,
@@ -151,6 +152,7 @@ const siteSchema = new Schema(
     approximate_longitude: {
       type: Number,
       required: [true, "approximate_longitude is required!"],
+      immutable: true,
     },
     approximate_distance_in_km: {
       type: Number,
@@ -495,38 +497,41 @@ siteSchema.pre(
       const updates = this.getUpdate();
       if (updates) {
         // Prevent modification of restricted fields
-        const restrictedFields = [
+        const COORDINATE_FIELDS = [
           "latitude",
           "longitude",
-          "_id",
-          "generated_name",
-          "lat_long",
+          "approximate_latitude",
+          "approximate_longitude",
         ];
-        restrictedFields.forEach((field) => {
-          // Remove from top-level updates
-          if (updates[field]) delete updates[field];
+        const SILENT_STRIP_FIELDS = ["_id", "generated_name", "lat_long"];
+        const ALL_RESTRICTED = [...COORDINATE_FIELDS, ...SILENT_STRIP_FIELDS];
 
-          // Remove from $set
-          if (updates.$set && updates.$set[field]) {
-            if (field === "latitude" || field === "longitude") {
-              return next(
-                new HttpError(
-                  "Cannot modify latitude or longitude after creation",
-                  httpStatus.BAD_REQUEST,
-                  {
-                    message:
-                      "Cannot modify latitude or longitude after creation",
-                  },
-                ),
-              );
-            }
-            delete updates.$set[field];
-          }
+        // Reject any attempt to set a coordinate — check both top-level and
+        // $set paths before touching anything, so next() is called exactly once.
+        const coordInTopLevel = COORDINATE_FIELDS.some((f) => f in updates);
+        const coordInSet =
+          updates.$set &&
+          COORDINATE_FIELDS.some((f) => f in updates.$set);
 
-          // Remove from $push
-          if (updates.$push && updates.$push[field])
+        if (coordInTopLevel || coordInSet) {
+          return next(
+            new HttpError(
+              "Cannot modify site coordinates after creation",
+              httpStatus.BAD_REQUEST,
+              {
+                message: "Cannot modify site coordinates after creation",
+              },
+            ),
+          );
+        }
+
+        // Silently strip remaining restricted fields from all update paths
+        for (const field of ALL_RESTRICTED) {
+          if (field in updates) delete updates[field];
+          if (updates.$set && field in updates.$set) delete updates.$set[field];
+          if (updates.$push && field in updates.$push)
             delete updates.$push[field];
-        });
+        }
 
         // Handle array fields using $addToSet
         const arrayFieldsToAddToSet = [
@@ -1235,6 +1240,8 @@ siteSchema.statics = {
         "_id",
         "longitude",
         "latitude",
+        "approximate_longitude",
+        "approximate_latitude",
         "lat_long",
         "generated_name",
       ];
