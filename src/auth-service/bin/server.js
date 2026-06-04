@@ -177,9 +177,13 @@ const sessionMiddleware = session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProd,
+    secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
     httpOnly: true,
     sameSite: "lax",
+    // Share the session cookie across all *.airqo.net subdomains so that
+    // Twitter OAuth 1.0a request tokens written by one server (e.g. vertex)
+    // are readable by the analytics callback server that handles the redirect.
+    ...(constants.OAUTH_COOKIE_DOMAIN ? { domain: constants.OAUTH_COOKIE_DOMAIN } : {}),
   },
 });
 
