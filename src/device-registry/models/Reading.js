@@ -1967,6 +1967,7 @@ ReadingsSchema.statics.listForMap = async function(
           ...safeFilterForMatch,
           time: timeConstraint,
           "pm2_5.value": { $gt: 0 },
+          "deviceDetails.isActive": { $ne: false },
         },
       },
 
