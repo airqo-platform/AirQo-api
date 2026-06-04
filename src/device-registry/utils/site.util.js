@@ -5,7 +5,6 @@ const qs = require("qs");
 const ActivityModel = require("@models/Activity");
 const DeviceModel = require("@models/Device");
 const GridModel = require("@models/Grid");
-const AirQloudModel = require("@models/Airqloud");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, HttpError } = require("@utils/shared");
@@ -22,7 +21,6 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- site-util`,
 );
 
-const createAirqloudUtil = require("@utils/airqloud.util");
 const geolib = require("geolib");
 const {
   generateDateFormatWithoutHrs,
@@ -356,14 +354,7 @@ const createSite = {
     const baseQuery = { query: { tenant, id } };
     const additionalDetails = {};
 
-    const [airQloudsResponse, weatherStationResponse] = await Promise.all([
-      createSite.findAirQlouds(baseQuery, next),
-      createSite.findNearestWeatherStation(baseQuery, next),
-    ]);
-
-    if (airQloudsResponse.success) {
-      additionalDetails.airqlouds = airQloudsResponse.data;
-    }
+    const weatherStationResponse = await createSite.findNearestWeatherStation(baseQuery, next);
 
     if (weatherStationResponse.success) {
       const station = weatherStationResponse.data;
@@ -417,82 +408,6 @@ const createSite = {
     } catch (error) {
       logger.error(
         `internal server error -- check string length -- ${error.message}`,
-      );
-    }
-  },
-  findAirQlouds: async (request, next) => {
-    try {
-      const { query } = request;
-      const { tenant } = query;
-      const responseFromListSites = await createSite.list(request, next);
-      if (responseFromListSites.success === true) {
-        let data = responseFromListSites.data;
-        if (data.length > 1 || data.length === 0) {
-          return {
-            success: false,
-            message: "unable to find one match for this site",
-            status: httpStatus.NOT_FOUND,
-            errors: { message: "unable to find one match for this site" },
-          };
-        }
-        const { latitude, longitude } = data[0];
-        const requestForAirQlouds = {
-          query: { tenant },
-        };
-        const responseFromListAirQlouds = await createAirqloudUtil.list(
-          requestForAirQlouds,
-          next,
-        );
-        if (responseFromListAirQlouds.success === true) {
-          const airqlouds = responseFromListAirQlouds.data;
-          let airqloud_ids = [];
-          for (const airqloud of airqlouds) {
-            delete airqlouds.sites;
-            let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
-            let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
-              return {
-                longitude: x[0],
-                latitude: x[1],
-              };
-            });
-            const isSiteInAirQloud = geolib.isPointInPolygon(
-              { latitude, longitude },
-              airqloudPolygon,
-            );
-
-            if (isSiteInAirQloud === true) {
-              airqloud_ids.push(airqloud._id);
-            }
-          }
-          if (!isEmpty(airqloud_ids)) {
-            return {
-              success: true,
-              message: "successfully searched for the associated AirQlouds",
-              data: airqloud_ids,
-              status: httpStatus.OK,
-            };
-          } else if (isEmpty(airqloud_ids)) {
-            return {
-              success: true,
-              message: "no associated AirQlouds found",
-              data: airqloud_ids,
-              status: httpStatus.OK,
-            };
-          }
-        } else if (responseFromListAirQlouds.success === false) {
-          return responseFromListAirQlouds;
-        }
-      } else if (responseFromListSites.success === false) {
-        return responseFromListSites;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
       );
     }
   },
@@ -1566,7 +1481,6 @@ const createSite = {
       const tenant = (rawTenant || constants.DEFAULT_TENANT).toLowerCase();
       const devicesColl = DeviceModel(tenant).collection.name;
       const gridsColl = GridModel(tenant).collection.name;
-      const airqloudsColl = AirQloudModel(tenant).collection.name;
       const activitiesColl = ActivityModel(tenant).collection.name;
       const MAX_LIMIT =
         Number(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES) || 1000;
@@ -1728,14 +1642,6 @@ const createSite = {
               localField: "grids",
               foreignField: "_id",
               as: "grids",
-            },
-          },
-          {
-            $lookup: {
-              from: airqloudsColl,
-              localField: "airqlouds",
-              foreignField: "_id",
-              as: "airqlouds",
             },
           },
         );

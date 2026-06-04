@@ -89,40 +89,6 @@ const metadataValidations = {
     },
   ],
 
-  listAirQloud: [
-    ...commonValidations.tenant,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped(),
-          ),
-        );
-      }
-      next();
-    },
-  ],
-
-  getAirqloud: [
-    ...commonValidations.tenant,
-    ...commonValidations.paramObjectId("airqloud_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped(),
-          ),
-        );
-      }
-      next();
-    },
-  ],
   listGrids: [
     ...commonValidations.tenant,
     (req, res, next) => {

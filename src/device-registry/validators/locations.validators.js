@@ -11,7 +11,7 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const createAirQloudUtil = require("@utils/airqloud.util");
+const createLocationUtil = require("@utils/location.util");
 const isEmpty = require("is-empty");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
@@ -262,12 +262,12 @@ const commonValidations = {
       .withMessage("the name should not be empty")
       .bail()
       .custom((value) => {
-        return createAirQloudUtil.initialIsCapital(value);
+        return createLocationUtil.initialIsCapital(value);
       })
       .withMessage("the name should start with a capital letter")
       .bail()
       .custom((value) => {
-        return createAirQloudUtil.hasNoWhiteSpace(value);
+        return createLocationUtil.hasNoWhiteSpace(value);
       })
       .withMessage("the name should not have whitespace in it")
       .trim(),
@@ -280,12 +280,12 @@ const commonValidations = {
       .withMessage("the name should not be empty")
       .bail()
       .custom((value) => {
-        return createAirQloudUtil.initialIsCapital(value);
+        return createLocationUtil.initialIsCapital(value);
       })
       .withMessage("the name should start with a capital letter")
       .bail()
       .custom((value) => {
-        return createAirQloudUtil.hasNoWhiteSpace(value);
+        return createLocationUtil.hasNoWhiteSpace(value);
       })
       .withMessage("the name should not have whitespace in it")
       .trim(),

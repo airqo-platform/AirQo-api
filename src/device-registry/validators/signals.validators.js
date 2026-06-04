@@ -211,12 +211,6 @@ const commonValidations = {
       .bail()
       .trim(),
   ],
-  airqloudId: [
-    query("airqloud_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the provided airqloud_id cannot be empty IF provided"),
-  ],
   cohortId: [
     query("cohort_id")
       .optional()
@@ -505,7 +499,6 @@ const signalsValidations = {
       ...commonValidations.device,
       ...commonValidations.deviceId,
       ...commonValidations.latLong,
-      ...commonValidations.airqloudId,
       ...commonValidations.cohortId,
       ...commonValidations.gridId,
       ...commonValidations.deviceNumber,
@@ -544,7 +537,6 @@ const signalsValidations = {
       ...commonValidations.device,
       ...commonValidations.deviceId,
       ...commonValidations.latLong,
-      ...commonValidations.airqloudId,
       ...commonValidations.cohortId,
       ...commonValidations.gridId,
       ...commonValidations.deviceNumber,
@@ -557,7 +549,6 @@ const signalsValidations = {
       commonValidations.objectId("grid_id"),
       commonValidations.objectId("device_id"),
       commonValidations.objectId("site_id"),
-      commonValidations.objectId("airqloud_id"),
       ...commonValidations.checkConflictingParams("cohort_id", "grid_id"),
       ...commonValidations.checkConflictingParams("device_id", "site_id"),
       ...commonValidations.checkForEmptyArrays([

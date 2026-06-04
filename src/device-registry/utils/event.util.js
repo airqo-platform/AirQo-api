@@ -2,7 +2,6 @@ const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const SignalModel = require("@models/Signal");
 const DeviceModel = require("@models/Device");
-const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
@@ -660,60 +659,6 @@ class AirQualityService {
     );
   }
 }
-const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
-  try {
-    const airQloud = await AirQloudModel(tenant)
-      .findById(airqloud_id)
-      .lean();
-    logObject("airQloud", airQloud);
-
-    if (!airQloud) {
-      logger.error(
-        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `,
-      );
-      return {
-        success: false,
-        message: "Bad Request Error",
-        status: httpStatus.BAD_REQUEST,
-        errors: { message: "AirQloud not found" },
-      };
-    }
-
-    const sites = airQloud.sites || [];
-    logObject("sites from the AirQloud", sites);
-
-    if (sites.length === 0) {
-      return {
-        success: true,
-        message:
-          "Unable to find any sites associated with the provided AirQloud ID",
-        data: [],
-        status: httpStatus.OK,
-      };
-    }
-
-    const siteIds = sites.map((site) => site._id.toString());
-    logObject("siteIds", siteIds);
-    const commaSeparatedIds = siteIds.join(",");
-    logObject("commaSeparatedIds", commaSeparatedIds);
-
-    return {
-      success: true,
-      message: "Successfully retrieved the sites for this AirQloud",
-      data: commaSeparatedIds,
-      status: httpStatus.OK,
-    };
-  } catch (error) {
-    logObject("error", error);
-    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-      errors: { message: error.message },
-    };
-  }
-};
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -1043,83 +988,6 @@ const processCohortIds = async (cohort_ids, request) => {
     };
   }
 };
-const processAirQloudIds = async (airqloud_ids, request) => {
-  logObject("airqloud_ids", airqloud_ids);
-  const airqloudIdArray = Array.isArray(airqloud_ids)
-    ? airqloud_ids
-    : airqloud_ids.toString().split(",");
-  logObject("airqloudIdArray", airqloudIdArray);
-
-  const siteIdPromises = airqloudIdArray.map(async (airqloud_id) => {
-    if (!isEmpty(airqloud_id)) {
-      logObject("airqloud_id under processAirQloudIds", airqloud_id);
-      const responseFromGetSitesOfAirQloud = await getSitesFromAirQloud({
-        airqloud_id,
-      });
-
-      logObject(
-        "responseFromGetSitesOfAirQloud",
-        responseFromGetSitesOfAirQloud,
-      );
-
-      if (responseFromGetSitesOfAirQloud.success === false) {
-        logger.error(
-          `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfAirQloud,
-          )}`,
-        );
-        return responseFromGetSitesOfAirQloud;
-      } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
-        logger.warn(
-          `🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
-        );
-        return {
-          success: false,
-          message: `The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
-        };
-      }
-
-      logObject(
-        "responseFromGetSitesOfAirQloud.data",
-        responseFromGetSitesOfAirQloud.data,
-      );
-
-      logObject(
-        "responseFromGetSitesOfAirQloud.data.split",
-        responseFromGetSitesOfAirQloud.data.split(","),
-      );
-
-      const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
-      return arrayOfSites;
-    }
-  });
-
-  const siteIdResults = await Promise.all(siteIdPromises);
-  logObject("siteIdResults", siteIdResults);
-
-  const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result != null && result.success === false,
-  );
-
-  if (!isEmpty(invalidSiteIdResults)) {
-    logger.warn(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
-    );
-  }
-  logObject("invalidSiteIdResults", invalidSiteIdResults);
-
-  const validSiteIdResults = siteIdResults.filter(
-    (result) => result != null && !(result.success === false),
-  );
-
-  logObject("validSiteIdResults", validSiteIdResults);
-
-  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
-    logObject("validSiteIdResults.join(,)", validSiteIdResults.join(","));
-    request.query.site_id = validSiteIdResults.join(",");
-  }
-};
-
 const isEventTimestampValid = (
   timestamp,
   maxAgeMs = constants.MAX_EVENT_AGE_MS,
@@ -1318,7 +1186,6 @@ setInterval(() => {
 const createEvent = {
   processGridIds,
   processCohortIds,
-  processAirQloudIds,
   listForMap: async (request, next) => {
     try {
       const { query } = request;
@@ -1459,8 +1326,6 @@ const createEvent = {
         device_id,
         device_lat_long,
         site_id,
-        airqloud_id,
-        airqloud_name,
         device_number,
         startTime,
         endTime,
@@ -1594,8 +1459,6 @@ const createEvent = {
       ${device_name ? `AND device_name="${device_name}"` : ""}
       ${device_id ? `AND device_id="${device_id}"` : ""}
       ${site_id ? `AND site_id="${site_id}"` : ""}
-      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
       ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
       ${
         tenant
@@ -1619,8 +1482,6 @@ const createEvent = {
       ${device_name ? `AND device_name="${device_name}"` : ""}
       ${device_id ? `AND device_id="${device_id}"` : ""}
       ${site_id ? `AND site_id="${site_id}"` : ""}
-      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
       ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
      ${tenant ? `AND tenant="${tenant}"` : ""}
      ORDER BY timestamp
@@ -1641,8 +1502,6 @@ const createEvent = {
     ${device_name ? `AND device_name="${device_name}"` : ""}
     ${device_id ? `AND device_id="${device_id}"` : ""}
     ${site_id ? `AND site_id="${site_id}"` : ""}
-    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
     ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
     ${tenant ? `AND tenant="${tenant}"` : ""}
     ORDER BY timestamp
@@ -4128,8 +3987,6 @@ const createEvent = {
         device_id,
         site,
         site_id,
-        airqloud_id,
-        airqloud,
         tenant,
         skip,
         limit,
@@ -4176,8 +4033,6 @@ const createEvent = {
       _${device_number ? device_number : "noDeviceNumber"}
       _${metadata ? metadata : "noMetadata"}
       _${external ? external : "noExternal"}
-      _${airqloud ? airqloud : "noAirQloud"}
-      _${airqloud_id ? airqloud_id : "noAirQloudID"}
       _${lat_long ? lat_long : "noLatLong"}
       _${page ? page : "noPage"}
       _${running ? running : "noRunning"}
@@ -6154,7 +6009,7 @@ const createEvent = {
   },
 
   processLocationIds: async (
-    { grid_ids, cohort_ids, airqloud_ids, type },
+    { grid_ids, cohort_ids, type },
     request,
     next,
   ) => {
@@ -6169,11 +6024,6 @@ const createEvent = {
       } else if (type === "cohort" && cohort_ids) {
         await createEvent.processCohortIds(cohort_ids, request);
         if (isEmpty(request.query.device_id)) {
-          locationErrors++;
-        }
-      } else if (type === "airqloud" && airqloud_ids) {
-        await createEvent.processAirQloudIds(airqloud_ids, request);
-        if (isEmpty(request.query.site_id)) {
           locationErrors++;
         }
       }
