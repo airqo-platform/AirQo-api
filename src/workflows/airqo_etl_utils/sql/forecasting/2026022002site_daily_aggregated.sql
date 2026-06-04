@@ -28,7 +28,8 @@ ORDER BY day, site_id;
 
 
 -- name: site_daily_aggregated_for_forecast_jobs
--- Daily aggregated site PM2.5 for site-forecast prediction jobs with site metadata backfill.
+-- Daily aggregated site PM2.5 for site-forecast prediction jobs.
+-- Site metadata is sourced only from the sites table.
 -- Uses calibrated PM2.5 when available, falling back to raw PM2.5.
 -- Placeholders:
 -- {consolidated_table} -> consolidated data table (e.g. project.dataset.table)
@@ -39,23 +40,17 @@ ORDER BY day, site_id;
 SELECT
     DATE(t1.timestamp) AS day,
     t1.site_id,
-    ANY_VALUE(
         COALESCE(
-            NULLIF(TRIM(t1.site_name), ''),
-            NULLIF(TRIM(t2.display_name), ''),
-            NULLIF(TRIM(t2.name), ''),
-            t1.site_id
-        )
-    ) AS site_name,
+            NULLIF(TRIM(t2.display_name), NULL),
+            NULLIF(TRIM(t2.name), NULL)
+        )AS site_name,
     COALESCE(
         ANY_VALUE(t2.latitude),
-        ANY_VALUE(t2.approximate_latitude),
-        ANY_VALUE(t1.site_latitude)
+        ANY_VALUE(t2.approximate_latitude)
     ) AS site_latitude,
     COALESCE(
         ANY_VALUE(t2.longitude),
-        ANY_VALUE(t2.approximate_longitude),
-        ANY_VALUE(t1.site_longitude)
+        ANY_VALUE(t2.approximate_longitude)
     ) AS site_longitude,
     AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean,
     MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min,
@@ -96,13 +91,11 @@ WITH site_hourly AS (
             t1.timestamp,
             t1.site_id,
             COALESCE(
-                NULLIF(TRIM(t1.site_name), ''),
                 NULLIF(TRIM(t2.display_name), ''),
-                NULLIF(TRIM(t2.name), ''),
-                t1.site_id
+                NULLIF(TRIM(t2.name), '')
             ) AS site_name,
-            COALESCE(t2.latitude, t2.approximate_latitude, t1.site_latitude) AS site_latitude,
-            COALESCE(t2.longitude, t2.approximate_longitude, t1.site_longitude) AS site_longitude,
+            COALESCE(t2.latitude, t2.approximate_latitude) AS site_latitude,
+            COALESCE(t2.longitude, t2.approximate_longitude) AS site_longitude,
             COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) AS pm25_value
         FROM {consolidated_table} AS t1
         LEFT JOIN {sites_table} AS t2
