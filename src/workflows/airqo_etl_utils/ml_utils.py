@@ -3067,12 +3067,16 @@ class ForecastModelTrainer(BaseMlUtils):
         row_order = "_forecast_row_order"
         filled[row_order] = np.arange(len(filled))
 
+        met_groups = {
+            coordinates if isinstance(coordinates, tuple) else (coordinates,): group
+            for coordinates, group in met_lookup.groupby(key_columns, dropna=True)
+        }
+
         nearest_frames: List[pd.DataFrame] = []
         for coordinates, forecast_group in filled.groupby(key_columns, dropna=True):
-            met_group = met_lookup
-            for key, value in zip(key_columns, coordinates):
-                met_group = met_group[met_group[key] == value]
-            if met_group.empty:
+            coordinates = coordinates if isinstance(coordinates, tuple) else (coordinates,)
+            met_group = met_groups.get(coordinates)
+            if met_group is None or met_group.empty:
                 continue
 
             nearest = pd.merge_asof(
