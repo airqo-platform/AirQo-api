@@ -142,6 +142,7 @@ const siteSchema = new Schema(
     approximate_latitude: {
       type: Number,
       required: [true, "approximate_latitude is required!"],
+      immutable: true,
     },
     longitude: {
       type: Number,
@@ -151,6 +152,7 @@ const siteSchema = new Schema(
     approximate_longitude: {
       type: Number,
       required: [true, "approximate_longitude is required!"],
+      immutable: true,
     },
     approximate_distance_in_km: {
       type: Number,
@@ -498,6 +500,8 @@ siteSchema.pre(
         const restrictedFields = [
           "latitude",
           "longitude",
+          "approximate_latitude",
+          "approximate_longitude",
           "_id",
           "generated_name",
           "lat_long",
@@ -508,14 +512,19 @@ siteSchema.pre(
 
           // Remove from $set
           if (updates.$set && updates.$set[field]) {
-            if (field === "latitude" || field === "longitude") {
+            if (
+              field === "latitude" ||
+              field === "longitude" ||
+              field === "approximate_latitude" ||
+              field === "approximate_longitude"
+            ) {
               return next(
                 new HttpError(
-                  "Cannot modify latitude or longitude after creation",
+                  "Cannot modify site coordinates after creation",
                   httpStatus.BAD_REQUEST,
                   {
                     message:
-                      "Cannot modify latitude or longitude after creation",
+                      "Cannot modify site coordinates after creation",
                   },
                 ),
               );
@@ -1235,6 +1244,8 @@ siteSchema.statics = {
         "_id",
         "longitude",
         "latitude",
+        "approximate_longitude",
+        "approximate_latitude",
         "lat_long",
         "generated_name",
       ];
