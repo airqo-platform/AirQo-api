@@ -488,11 +488,17 @@ const createMailerFunction = (
 
       // ✅ STEP 4c-CC: If the recipient is a registered application email address,
       // merge admin CC into any existing cc set by customMailOptionsModifier.
+      // Skip when routing to the support inbox — feedback and similar internal
+      // emails must not gain extra CCs from application email lookups.
+      const isRoutedToSupport =
+        constants.SUPPORT_EMAIL &&
+        mailOptions.to &&
+        mailOptions.to.toLowerCase().trim() ===
+          constants.SUPPORT_EMAIL.toLowerCase().trim();
       try {
-        const adminCC = await _resolveAdminCCForApplicationEmail(
-          mailOptions.to,
-          tenant
-        );
+        const adminCC =
+          !isRoutedToSupport &&
+          (await _resolveAdminCCForApplicationEmail(mailOptions.to, tenant));
         if (adminCC) {
           const existing = mailOptions.cc
             ? (Array.isArray(mailOptions.cc)

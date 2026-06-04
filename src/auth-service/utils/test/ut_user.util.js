@@ -22,7 +22,6 @@ const {
   generateSignInWithEmailLink,
   delete: deleteUser,
   sendFeedback,
-  submitFeedback,
   create,
   register,
   forgotPassword,
@@ -39,7 +38,6 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const rewire = require("rewire");
 const rewireCreateUser = rewire("@utils/user.util");
-const FeedbackModel = require("@models/Feedback");
 const UserModel = require("@models/User");
 const LogModel = require("@models/log");
 const NetworkModel = require("@models/Network");
@@ -1370,9 +1368,11 @@ describe("create-user-util", function () {
         success: true,
         data: { _id: "fb123" },
       });
-      sinon.stub(FeedbackModel, "call").returns({
+      // Inject a fake FeedbackModel into the rewired module so FeedbackModel(tenant).register
+      // is properly intercepted — sinon cannot stub a bare exported function directly.
+      rewireCreateUser.__set__("FeedbackModel", () => ({
         register: feedbackRegisterStub,
-      });
+      }));
     });
 
     afterEach(() => {
@@ -1395,7 +1395,7 @@ describe("create-user-util", function () {
         user: null,
       };
 
-      await submitFeedback(request, (err) => {
+      await rewireCreateUser.submitFeedback(request, (err) => {
         throw err;
       });
 
@@ -1422,7 +1422,7 @@ describe("create-user-util", function () {
         user: null,
       };
 
-      const response = await submitFeedback(request, (err) => {
+      const response = await rewireCreateUser.submitFeedback(request, (err) => {
         throw err;
       });
 
@@ -1445,7 +1445,7 @@ describe("create-user-util", function () {
         user: null,
       };
 
-      const response = await submitFeedback(request, (err) => {
+      const response = await rewireCreateUser.submitFeedback(request, (err) => {
         throw err;
       });
 
