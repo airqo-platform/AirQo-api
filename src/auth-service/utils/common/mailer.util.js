@@ -880,6 +880,7 @@ const getEmailSubject = (functionName, params) => {
     inquiry: `Thank you for your inquiry - AirQo ${params.category || ""} team`,
     newMobileAppUser: params.subject || "AirQo Mobile App Notification",
     feedback: params.subject || "AirQo Feedback Submission",
+    feedbackConfirmation: "Thank you for your feedback – AirQo",
     sendReport: "Your AirQo Account Report",
     siteActivity: "Your AirQo Account: Monitor Deployment/Recall Alert",
     fieldActivity: (() => {
@@ -977,6 +978,7 @@ const EMAIL_CATEGORIES = {
     "inquiry",
     "newMobileAppUser",
     "feedback",
+    "feedbackConfirmation",
     "sendReport",
     "siteActivity",
     "fieldActivity",
@@ -1840,16 +1842,25 @@ const mailer = {
       return {
         ...baseMailOptions,
         to: constants.SUPPORT_EMAIL,
-        cc: params.email,
         subject: params.subject,
         text: safeScreenshotUrl
           ? `${params.message}\n\nScreenshot: ${safeScreenshotUrl}`
           : params.message,
         html: `<p>${escapedMessage}</p>${screenshotHtml}`,
+        cc: undefined,
         bcc: undefined,
         attachments: undefined,
       };
     },
+  ),
+  feedbackConfirmation: createMailerFunction(
+    "feedbackConfirmation",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackConfirmation({
+        email: params.email,
+        subject: params.subject,
+      }),
   ),
   sendReport: async (
     {
