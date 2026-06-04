@@ -41,8 +41,8 @@ SELECT
     DATE(t1.timestamp) AS day,
     t1.site_id,
         COALESCE(
-            NULLIF(TRIM(t2.display_name), NULL),
-            NULLIF(TRIM(t2.name), NULL)
+            NULLIF(TRIM(t2.display_name), ''),
+            NULLIF(TRIM(t2.name), '')
         )AS site_name,
     COALESCE(
         ANY_VALUE(t2.latitude),
