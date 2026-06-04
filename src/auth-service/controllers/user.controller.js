@@ -70,6 +70,39 @@ function validateRedirectUrl(raw) {
   }
 }
 
+function resolveOAuthRedirectContext(req, res) {
+  const rawRedirectUrl =
+    (req.cookies && req.cookies["_oauth_redirect_after"]) ||
+    (req.session && req.session.oauthRedirectAfter) ||
+    null;
+  const validatedUrl = validateRedirectUrl(rawRedirectUrl);
+  if (req.cookies && req.cookies["_oauth_redirect_after"]) {
+    const clearOpts = { path: "/" };
+    if (constants.OAUTH_COOKIE_DOMAIN) clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+    res.clearCookie("_oauth_redirect_after", clearOpts);
+  }
+  if (req.session) delete req.session.oauthRedirectAfter;
+  let redirectOrigin = null;
+  if (validatedUrl) { try { redirectOrigin = new URL(validatedUrl).origin; } catch {} }
+  const failureRedirectUrl = redirectOrigin
+    ? `${redirectOrigin}/login?error=oauth_failed`
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+  return { validatedUrl, redirectOrigin, failureRedirectUrl };
+}
+
+function buildSuccessRedirectUrl(base, successParam, token) {
+  try {
+    const url = new URL(base);
+    url.searchParams.set("success", successParam);
+    url.hash = `token=${encodeURIComponent(token)}`;
+    return url.toString();
+  } catch {
+    // Fallback for relative paths (e.g. when GMAIL_VERIFICATION_SUCCESS_REDIRECT is unset)
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}success=${encodeURIComponent(successParam)}#token=${encodeURIComponent(token)}`;
+  }
+}
+
 const sendResponse = (res, result, dataKey = "data") => {
   if (isEmpty(result) || res.headersSent) {
     return;
@@ -182,24 +215,7 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // Resolve and validate the full redirect URL early so every branch —
-      // failure and success — routes back to the originating app and path.
-      const rawRedirectUrl =
-        (req.cookies && req.cookies["_oauth_redirect_after"]) ||
-        (req.session && req.session.oauthRedirectAfter) ||
-        null;
-      const validatedUrl = validateRedirectUrl(rawRedirectUrl);
-      if (req.cookies && req.cookies["_oauth_redirect_after"]) {
-        const clearOpts = { path: "/" };
-        if (constants.OAUTH_COOKIE_DOMAIN) clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
-        res.clearCookie("_oauth_redirect_after", clearOpts);
-      }
-      if (req.session) delete req.session.oauthRedirectAfter;
-      let redirectOrigin = null;
-      if (validatedUrl) { try { redirectOrigin = new URL(validatedUrl).origin; } catch {} }
-      const failureRedirectUrl = redirectOrigin
-        ? `${redirectOrigin}/login?error=oauth_failed`
-        : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+      const { validatedUrl, failureRedirectUrl } = resolveOAuthRedirectContext(req, res);
 
       // Guard: req.user must be set by Passport before this controller runs.
       // If it is missing, Passport failed silently or the middleware chain
@@ -265,14 +281,10 @@ const userController = {
         }
       })();
 
-      // Use the exact path from redirect_after for custom origins; fall back
-      // to the default analytics success path when no redirect_after was given.
       const baseRedirect = validatedUrl
         ? validatedUrl.replace(/\/$/, "")
         : (constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || "").replace(/\/$/, "") + "/user/home";
-      res.redirect(
-        `${baseRedirect}?success=google#token=${encodeURIComponent(token)}`,
-      );
+      res.redirect(buildSuccessRedirectUrl(baseRedirect, "google", token));
     } catch (error) {
       handleError(error, next);
     }
@@ -292,24 +304,7 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // Resolve and validate the full redirect URL early so every branch —
-      // failure and success — routes back to the originating app and path.
-      const rawRedirectUrl =
-        (req.cookies && req.cookies["_oauth_redirect_after"]) ||
-        (req.session && req.session.oauthRedirectAfter) ||
-        null;
-      const validatedUrl = validateRedirectUrl(rawRedirectUrl);
-      if (req.cookies && req.cookies["_oauth_redirect_after"]) {
-        const clearOpts = { path: "/" };
-        if (constants.OAUTH_COOKIE_DOMAIN) clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
-        res.clearCookie("_oauth_redirect_after", clearOpts);
-      }
-      if (req.session) delete req.session.oauthRedirectAfter;
-      let redirectOrigin = null;
-      if (validatedUrl) { try { redirectOrigin = new URL(validatedUrl).origin; } catch {} }
-      const failureRedirectUrl = redirectOrigin
-        ? `${redirectOrigin}/login?error=oauth_failed`
-        : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+      const { validatedUrl, failureRedirectUrl } = resolveOAuthRedirectContext(req, res);
 
       if (!req.user) {
         logger.error("oauthCallback: req.user is not set after passport auth");
@@ -382,14 +377,10 @@ const userController = {
         }
       })();
 
-      // Use the exact path from redirect_after for custom origins; fall back
-      // to the default analytics success path when no redirect_after was given.
       const baseRedirect = validatedUrl
         ? validatedUrl.replace(/\/$/, "")
         : (constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || "").replace(/\/$/, "") + "/user/home";
-      return res.redirect(
-        `${baseRedirect}?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
-      );
+      return res.redirect(buildSuccessRedirectUrl(baseRedirect, providerForLog, token));
     } catch (error) {
       handleError(error, next);
     }
