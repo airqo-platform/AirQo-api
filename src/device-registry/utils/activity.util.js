@@ -2539,15 +2539,22 @@ const createActivity = {
       // Mark readings for this device as inactive so map/recent-readings
       // endpoints stop surfacing it immediately. Readings are preserved for
       // historical access — only the embedded isActive flag is updated.
-      // Non-fatal: a failure here does not roll back the recall.
+      // Non-fatal: a failure here does not roll back the recall, but it is
+      // logged as an error so it is actionable and visible in monitoring.
       try {
-        await ReadingModel(tenant).updateMany(
+        const readingUpdateResult = await ReadingModel(tenant).updateMany(
           { device_id: updatedDevice._id.toString() },
           { $set: { "deviceDetails.isActive": false } }
         );
+        logger.info(
+          `Recall: marked ${readingUpdateResult.modifiedCount ?? "unknown"} readings inactive for device ${deviceName} (${updatedDevice._id})`
+        );
       } catch (readingUpdateError) {
-        logger.warn(
-          `⚠️ Recall: device ${deviceName} recalled but readings could not be marked inactive: ${readingUpdateError.message}`
+        logger.error(
+          `🚨 Recall: failed to mark readings inactive for device ${deviceName} (${updatedDevice._id}). ` +
+            `Query: { device_id: "${updatedDevice._id}" }. ` +
+            `Error: ${readingUpdateError.message}`,
+          { stack: readingUpdateError.stack }
         );
       }
 
