@@ -1201,7 +1201,6 @@ function setGoogleAuth(req, res, next) {
     const redirectAfter = req.query.redirect_after;
     if (redirectAfter) {
       if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
-        const redirectOrigin = new URL(redirectAfter).origin;
         const cookieOpts = {
           httpOnly: true,
           secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
@@ -1210,8 +1209,8 @@ function setGoogleAuth(req, res, next) {
           path: "/",
         };
         if (cookieDomain) cookieOpts.domain = cookieDomain;
-        res.cookie("_oauth_redirect_after", redirectOrigin, cookieOpts);
-        if (req.session) req.session.oauthRedirectAfter = redirectOrigin;
+        res.cookie("_oauth_redirect_after", redirectAfter, cookieOpts);
+        if (req.session) req.session.oauthRedirectAfter = redirectAfter;
       } else {
         let rejectedOrigin;
         try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
@@ -1276,7 +1275,6 @@ function setOAuthProvider(req, res, next) {
     const redirectAfter = req.query.redirect_after;
     if (redirectAfter) {
       if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
-        const redirectOrigin = new URL(redirectAfter).origin;
         const cookieOpts = {
           httpOnly: true,
           secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
@@ -1285,8 +1283,8 @@ function setOAuthProvider(req, res, next) {
           path: "/",
         };
         if (cookieDomain) cookieOpts.domain = cookieDomain;
-        res.cookie("_oauth_redirect_after", redirectOrigin, cookieOpts);
-        if (req.session) req.session.oauthRedirectAfter = redirectOrigin;
+        res.cookie("_oauth_redirect_after", redirectAfter, cookieOpts);
+        if (req.session) req.session.oauthRedirectAfter = redirectAfter;
       } else {
         let rejectedOrigin;
         try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
@@ -1425,10 +1423,13 @@ function handleOAuthCallbackError(err, provider, res, next) {
  * failure URL instead of surfacing as an unhandled 500.
  */
 const authGoogleCallback = (req, res, next) => {
-  const rawOrigin = req.cookies && req.cookies["_oauth_redirect_after"];
-  const validatedOrigin = rawOrigin && isAllowedRedirect(rawOrigin, ALLOWED_ORIGINS) ? rawOrigin : null;
+  const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
+  let validatedOrigin = null;
+  if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
+    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+  }
   const failureBase = validatedOrigin
-    ? `${validatedOrigin}/user/login`
+    ? `${validatedOrigin}/login`
     : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
   passport.authenticate("google", {
     failureRedirect: buildOAuthFailureRedirect(failureBase),
@@ -1493,10 +1494,13 @@ const authOAuth = (req, res, next) => {
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
-  const rawOrigin = req.cookies && req.cookies["_oauth_redirect_after"];
-  const validatedOrigin = rawOrigin && isAllowedRedirect(rawOrigin, ALLOWED_ORIGINS) ? rawOrigin : null;
+  const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
+  let validatedOrigin = null;
+  if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
+    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+  }
   const failureBase = validatedOrigin
-    ? `${validatedOrigin}/user/login`
+    ? `${validatedOrigin}/login`
     : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
   const failureRedirectUrl = buildOAuthFailureRedirect(failureBase);
   passport.authenticate(provider, {
