@@ -304,7 +304,8 @@ const createMailerFunction = (
 
       // ✅ STEP 3: Subscription check based on category
       const isCoreFunction =
-        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName);
+        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName) ||
+        (EMAIL_CATEGORIES.TRANSACTIONAL || []).includes(functionName);
 
       if (!isCoreFunction) {
         const checkResult = await SubscriptionModel(
@@ -978,13 +979,14 @@ const EMAIL_CATEGORIES = {
     "inquiry",
     "newMobileAppUser",
     "feedback",
-    "feedbackConfirmation",
     "sendReport",
     "siteActivity",
     "fieldActivity",
     "updateProfileReminder",
     "sendPollutionAlert",
   ],
+  // Triggered directly by user action — always delivered regardless of subscription status
+  TRANSACTIONAL: ["feedbackConfirmation"],
 };
 
 /**
@@ -1847,8 +1849,6 @@ const mailer = {
           ? `${params.message}\n\nScreenshot: ${safeScreenshotUrl}`
           : params.message,
         html: `<p>${escapedMessage}</p>${screenshotHtml}`,
-        cc: undefined,
-        bcc: undefined,
         attachments: undefined,
       };
     },
