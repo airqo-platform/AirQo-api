@@ -31,6 +31,7 @@ const {
 } = require("@utils/shared");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
+const isSecureEnv = !isDev && process.env.NODE_ENV !== "test";
 const rateLimit = require("express-rate-limit");
 
 // ── Session store ─────────────────────────────────────────────────────────
@@ -177,7 +178,7 @@ const sessionMiddleware = session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+    secure: isSecureEnv,
     httpOnly: true,
     sameSite: "lax",
     // Share the session cookie across all *.airqo.net subdomains so that
