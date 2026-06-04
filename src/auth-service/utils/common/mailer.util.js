@@ -304,7 +304,8 @@ const createMailerFunction = (
 
       // ✅ STEP 3: Subscription check based on category
       const isCoreFunction =
-        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName);
+        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName) ||
+        (EMAIL_CATEGORIES.TRANSACTIONAL || []).includes(functionName);
 
       if (!isCoreFunction) {
         const checkResult = await SubscriptionModel(
@@ -487,11 +488,17 @@ const createMailerFunction = (
 
       // ✅ STEP 4c-CC: If the recipient is a registered application email address,
       // merge admin CC into any existing cc set by customMailOptionsModifier.
+      // Skip when routing to the support inbox — feedback and similar internal
+      // emails must not gain extra CCs from application email lookups.
+      const isRoutedToSupport =
+        constants.SUPPORT_EMAIL &&
+        mailOptions.to &&
+        mailOptions.to.toLowerCase().trim() ===
+          constants.SUPPORT_EMAIL.toLowerCase().trim();
       try {
-        const adminCC = await _resolveAdminCCForApplicationEmail(
-          mailOptions.to,
-          tenant
-        );
+        const adminCC =
+          !isRoutedToSupport &&
+          (await _resolveAdminCCForApplicationEmail(mailOptions.to, tenant));
         if (adminCC) {
           const existing = mailOptions.cc
             ? (Array.isArray(mailOptions.cc)
@@ -880,6 +887,7 @@ const getEmailSubject = (functionName, params) => {
     inquiry: `Thank you for your inquiry - AirQo ${params.category || ""} team`,
     newMobileAppUser: params.subject || "AirQo Mobile App Notification",
     feedback: params.subject || "AirQo Feedback Submission",
+    feedbackConfirmation: "Thank you for your feedback – AirQo",
     sendReport: "Your AirQo Account Report",
     siteActivity: "Your AirQo Account: Monitor Deployment/Recall Alert",
     fieldActivity: (() => {
@@ -983,6 +991,8 @@ const EMAIL_CATEGORIES = {
     "updateProfileReminder",
     "sendPollutionAlert",
   ],
+  // Triggered directly by user action — always delivered regardless of subscription status
+  TRANSACTIONAL: ["feedbackConfirmation"],
 };
 
 /**
@@ -1840,16 +1850,23 @@ const mailer = {
       return {
         ...baseMailOptions,
         to: constants.SUPPORT_EMAIL,
-        cc: params.email,
         subject: params.subject,
         text: safeScreenshotUrl
           ? `${params.message}\n\nScreenshot: ${safeScreenshotUrl}`
           : params.message,
         html: `<p>${escapedMessage}</p>${screenshotHtml}`,
-        bcc: undefined,
         attachments: undefined,
       };
     },
+  ),
+  feedbackConfirmation: createMailerFunction(
+    "feedbackConfirmation",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackConfirmation({
+        email: params.email,
+        subject: params.subject,
+      }),
   ),
   sendReport: async (
     {

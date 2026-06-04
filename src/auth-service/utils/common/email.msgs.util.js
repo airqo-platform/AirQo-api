@@ -1688,4 +1688,19 @@ module.exports = {
 
     return constants.EMAIL_BODY({ email, content, name: contact_name });
   },
+
+  feedbackConfirmation: ({ email, subject }) => {
+    const escapedSubject = escapeHtml(subject || "your feedback");
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    <p>Thank you for reaching out to us!</p>
+                                    <p>We have successfully received your feedback regarding <strong>${escapedSubject}</strong> and our team will review it shortly.</p>
+                                    <p>We appreciate you taking the time to share your thoughts — your input helps us improve AirQo for everyone.</p>
+                                    <p>If your feedback requires a response, a member of our team will get back to you as soon as possible.</p>
+                                    <p>Thank you for being part of the AirQo community.</p>
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
 };
