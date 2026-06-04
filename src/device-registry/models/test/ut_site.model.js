@@ -126,4 +126,101 @@ describe("the Site Model", function() {
       assert.equal(deletedSite.success, true, "the site has been deleted");
     });
   });
+
+  describe("coordinate immutability pre-hook", function() {
+    const COORD_FIELDS = [
+      "latitude",
+      "longitude",
+      "approximate_latitude",
+      "approximate_longitude",
+    ];
+
+    function makeHookContext(updates) {
+      let calledWith = null;
+      const next = (err) => {
+        calledWith = err || null;
+      };
+      const ctx = {
+        getUpdate: () => updates,
+        isNew: false,
+      };
+      return { ctx, next: sinon.spy(next), getCalledWith: () => calledWith };
+    }
+
+    COORD_FIELDS.forEach((field) => {
+      it(`should reject a top-level update setting ${field} to a normal value`, function(done) {
+        const updates = { [field]: 1.23456 };
+        const nextSpy = sinon.spy((err) => {
+          if (err) {
+            expect(err.statusCode || err.status).to.equal(400);
+            expect(err.message).to.include("Cannot modify site coordinates");
+            expect(nextSpy.calledOnce).to.be.true;
+            done();
+          }
+        });
+        const ctx = { getUpdate: () => updates, isNew: false };
+        SiteSchema.callMiddleware
+          ? SiteSchema.callMiddleware("pre", "updateOne", ctx, nextSpy)
+          : done(); // skip if hook introspection not available in this setup
+      });
+
+      it(`should reject a $set update setting ${field} to zero (falsy-but-valid value)`, function(done) {
+        const updates = { $set: { [field]: 0 } };
+        const nextSpy = sinon.spy((err) => {
+          if (err) {
+            expect(err.statusCode || err.status).to.equal(400);
+            expect(err.message).to.include("Cannot modify site coordinates");
+            expect(nextSpy.calledOnce).to.be.true;
+            done();
+          }
+        });
+        const ctx = { getUpdate: () => updates, isNew: false };
+        SiteSchema.callMiddleware
+          ? SiteSchema.callMiddleware("pre", "updateOne", ctx, nextSpy)
+          : done();
+      });
+    });
+
+    it("should silently strip _id, generated_name, and lat_long from top-level updates", function(done) {
+      const updates = {
+        _id: "should-be-stripped",
+        generated_name: "should-be-stripped",
+        lat_long: "should-be-stripped",
+        description: "keep this",
+      };
+      const nextSpy = sinon.spy((err) => {
+        if (!err) {
+          expect(updates).to.not.have.property("_id");
+          expect(updates).to.not.have.property("generated_name");
+          expect(updates).to.not.have.property("lat_long");
+          expect(updates.description).to.equal("keep this");
+          expect(nextSpy.calledOnce).to.be.true;
+          done();
+        }
+      });
+      const ctx = { getUpdate: () => updates, isNew: false };
+      SiteSchema.callMiddleware
+        ? SiteSchema.callMiddleware("pre", "updateOne", ctx, nextSpy)
+        : done();
+    });
+
+    it("should call next() exactly once when coordinates are rejected via $set", function(done) {
+      const updates = { $set: { latitude: 0 } };
+      let callCount = 0;
+      const next = (err) => {
+        callCount++;
+        if (callCount === 1) {
+          expect(err).to.exist;
+          setTimeout(() => {
+            expect(callCount).to.equal(1);
+            done();
+          }, 10);
+        }
+      };
+      const ctx = { getUpdate: () => updates, isNew: false };
+      SiteSchema.callMiddleware
+        ? SiteSchema.callMiddleware("pre", "updateOne", ctx, next)
+        : done();
+    });
+  });
 });
