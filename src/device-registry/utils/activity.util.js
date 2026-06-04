@@ -2626,9 +2626,20 @@ const createActivity = {
                 ? sortedNetworks[0]
                 : constants.DEFAULT_NETWORK || "airqo";
 
+            const siteFields = { network: networkToSet };
+
+            // When no devices remain, clear the online status flags immediately.
+            // The raw-online-status job only iterates active devices, so a site
+            // with no device would otherwise keep rawOnlineStatus: true
+            // indefinitely, causing the UI to display it as "Transmitting".
+            if (sortedNetworks.length === 0) {
+              siteFields.rawOnlineStatus = false;
+              siteFields.isOnline = false;
+            }
+
             const updateResult = await SiteModel(tenant).findByIdAndUpdate(
               device.site_id,
-              { $set: { network: networkToSet } },
+              { $set: siteFields },
               { new: false },
             );
 
