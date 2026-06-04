@@ -1080,6 +1080,33 @@ const listGroupCohorts = [validateTenant, validateGroupIdParam];
 
 const leaveGroup = [validateTenant, validateGroupIdParam];
 
+const updateOnboarding = [
+  validateTenant,
+  validateGroupIdParam,
+  body("action")
+    .exists()
+    .withMessage("action is required")
+    .bail()
+    .isIn(["mark_step_complete", "dismiss_checklist"])
+    .withMessage(
+      "action must be one of: mark_step_complete, dismiss_checklist",
+    ),
+  body("step_id")
+    .if(body("action").equals("mark_step_complete"))
+    .exists()
+    .withMessage("step_id is required when action is mark_step_complete")
+    .bail()
+    .isString()
+    .withMessage("step_id must be a string")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("step_id must not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("step_id must not exceed 100 characters"),
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -1116,4 +1143,5 @@ module.exports = {
   unassignCohortsFromGroup,
   listGroupCohorts,
   leaveGroup,
+  updateOnboarding,
 };
