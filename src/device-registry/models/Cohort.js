@@ -215,7 +215,13 @@ cohortSchema.statics.register = async function(args, next) {
       response.errors = { message: error.message };
     }
 
-    logger.warn(`⚠️ cohort-model -- validation conflict: ${error.message}`);
+    const isValidationConflict =
+      error.name === "ValidationError" || error.code === 11000;
+    if (isValidationConflict) {
+      logger.warn(`⚠️ cohort-model -- validation conflict: ${error.message}`);
+    } else {
+      logger.error(`🐛🐛 cohort-model -- unexpected error: ${error.message}`);
+    }
     next(new HttpError(response.message, response.status, response.errors));
   }
 };
