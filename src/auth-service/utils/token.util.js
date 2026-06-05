@@ -13,12 +13,15 @@ const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const EmailLogModel = require("@models/EmailLog");
 const BlockedDomainModel = require("@models/BlockedDomain");
+const BlockedASNModel = require("@models/BlockedASN");
+const FlaggedTokenModel = require("@models/FlaggedToken");
 const {
   redisGetAsync,
   redisSetAsync,
   redisIncrAsync,
   redisExpireAsync,
   redisDelAsync,
+  redisMgetAsync,
 } = require("@config/redis");
 const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const httpStatus = require("http-status");
@@ -54,6 +57,91 @@ const kafka = new Kafka({
 const IP_PREFIX_CACHE_KEY = "ip_prefix_blacklist_cache";
 const IP_PREFIX_CACHE_TTL_SECONDS = 10 * 60; // 10 minutes
 
+// Cache key and TTL for blocked ASN CIDR ranges.
+const BLOCKED_ASN_CACHE_KEY = "blocked_asn_cidr_cache";
+const BLOCKED_ASN_CACHE_TTL_SECONDS = 10 * 60; // 10 minutes
+
+// Strict IPv4 pattern — four decimal octets, each 0-255.
+const _IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+const _isValidIPv4 = (addr) => {
+  const m = _IPV4_RE.exec(addr);
+  if (!m) return false;
+  return [m[1], m[2], m[3], m[4]].every((o) => {
+    const n = parseInt(o, 10);
+    return n >= 0 && n <= 255;
+  });
+};
+
+/**
+ * Check whether an IPv4 address falls within an IPv4 CIDR block.
+ * e.g. _isIpInCidr("192.168.1.50", "192.168.1.0/24") → true
+ *
+ * Returns false (allow through) for any non-IPv4 input (IPv6, hostnames,
+ * malformed strings) so unexpected formats never accidentally block traffic.
+ */
+const _isIpInCidr = (ip, cidr) => {
+  try {
+    const [range, bits] = cidr.split("/");
+    if (!range || bits === undefined) return false;
+    // Reject immediately for non-IPv4 addresses (e.g. ::1, fe80::, hostnames).
+    if (!_isValidIPv4(ip) || !_isValidIPv4(range)) return false;
+    const prefixLen = parseInt(bits, 10);
+    if (isNaN(prefixLen) || prefixLen < 0 || prefixLen > 32) return false;
+    const ipToInt = (addr) =>
+      addr
+        .split(".")
+        .reduce((acc, oct) => (acc << 8) + parseInt(oct, 10), 0) >>> 0;
+    const mask = prefixLen === 0 ? 0 : (~0 << (32 - prefixLen)) >>> 0;
+    return (ipToInt(ip) & mask) === (ipToInt(range) & mask);
+  } catch (_) {
+    return false;
+  }
+};
+
+/**
+ * Load active blocked-ASN CIDR ranges from Redis (10-min cache) or MongoDB.
+ * Accepts an optional tenant so each tenant has its own isolated cache entry.
+ * Returns a flat array of CIDR strings.  Never throws.
+ */
+const _loadBlockedAsnCidrs = async (tenant) => {
+  const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+  const cacheKey = `${BLOCKED_ASN_CACHE_KEY}:${dbTenant}`;
+  try {
+    const cached = await redisGetAsync(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+        return parsed;
+      }
+    }
+  } catch (_) {}
+  try {
+    const docs = await BlockedASNModel(dbTenant)
+      .find({ active: true })
+      .select("cidr_ranges -_id")
+      .lean();
+    const cidrs = docs.flatMap((d) => d.cidr_ranges || []);
+    try {
+      await redisSetAsync(cacheKey, JSON.stringify(cidrs), BLOCKED_ASN_CACHE_TTL_SECONDS);
+    } catch (_) {}
+    return cidrs;
+  } catch (_) {
+    return [];
+  }
+};
+
+/**
+ * Invalidate the blocked-ASN Redis cache for a tenant so the next verify call
+ * reloads it.  Call after adding/removing a BlockedASN document.
+ */
+const invalidateBlockedAsnCache = async (tenant) => {
+  const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+  try {
+    await redisDelAsync(`${BLOCKED_ASN_CACHE_KEY}:${dbTenant}`);
+  } catch (_) {}
+};
+
 const getDay = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -72,13 +160,21 @@ const createUnauthorizedResponse = () => {
     errors: { message: "Unauthorized" },
   };
 };
-const createValidTokenResponse = () => {
+const createValidTokenResponse = (data = {}) => {
   return {
     success: true,
     message: "The token is valid",
     status: httpStatus.OK,
+    data,
   };
 };
+
+const createForbiddenResponse = (message) => ({
+  success: false,
+  message,
+  status: httpStatus.FORBIDDEN,
+  errors: { message },
+});
 const createRateLimitResponse = (tier, period = "Hourly") => {
   return {
     success: false,
@@ -610,10 +706,27 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    const BLOCKED_IP_PREFIXES =
-      "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146,142";
-    const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+    // Load CIDR-based ASN block list (Redis-cached, 10 min TTL, tenant-scoped).
+    const reqTenant = (request.query && request.query.tenant) || (constants.DEFAULT_TENANT || "airqo");
+    const blockedAsnCidrs = await _loadBlockedAsnCidrs(reqTenant);
+
+    // Backwards-compatibility safety net: when the BlockedASN collection is
+    // empty (i.e. no admin has populated it yet), fall back to the original
+    // hardcoded first-octet list so no previously-blocked IPs slip through
+    // on first deploy.  Once an admin adds at least one BlockedASN document,
+    // this fallback is bypassed entirely — the new CIDR system takes over.
+    const LEGACY_BLOCKED_OCTETS =
+      "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146,142".split(",");
     const ipPrefix = ip.split(".")[0];
+    const isBlockedByLegacyFallback =
+      blockedAsnCidrs.length === 0 && LEGACY_BLOCKED_OCTETS.includes(ipPrefix);
+
+    const isBlockedByCidr =
+      blockedAsnCidrs.some((cidr) => _isIpInCidr(ip, cidr)) ||
+      isBlockedByLegacyFallback;
+
+    // Legacy first-octet DB-backed prefix list (kept for backward compatibility
+    // with existing admin-managed entries in BlacklistedIPPrefix collection).
     const blacklistedIpPrefixes = blacklistedIpPrefixesData.map(
       (item) => item.prefix,
     );
@@ -686,7 +799,11 @@ const isIPBlacklistedHelper = async (
       return true;
     } else if (whitelistedIP) {
       return false;
-    } else if (blockedIpPrefixes.includes(ipPrefix)) {
+    } else if (isBlockedByCidr) {
+      // Matched an admin-managed ASN/CIDR block (data-center, VPN, Tor range).
+      logger.info(
+        `🚫 Request blocked by ASN/CIDR rule — IP: ${ip} TOKEN: ${token}`
+      );
       return true;
     } else if (blacklistedIpPrefixes.includes(ipPrefix)) {
       return true;
@@ -776,6 +893,103 @@ const isIPBlacklistedHelper = async (
 
 const isIPBlacklisted = (...args) =>
   trampoline(() => isIPBlacklistedHelper(...args));
+
+/**
+ * Fire-and-forget behavioural anomaly tracker.
+ * Called after every successful token verification. Updates last_user_agent
+ * and checks for patterns that indicate credential theft or token sharing:
+ *   - User-Agent change mid-session
+ *   - Hourly request rate spike (> 5× the 7-day rolling average)
+ * When an anomaly is detected the token's request_pattern.anomaly_score is
+ * incremented.  Auto-suspension is triggered at ANOMALY_SUSPEND_THRESHOLD
+ * (default: 10) to give legitimate callers a chance to recover from transient
+ * network changes without being immediately blocked.
+ * Never throws — all errors are logged and swallowed.
+ */
+const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, userAgent }) => {
+  const ANOMALY_SUSPEND_THRESHOLD = constants.ANOMALY_SUSPEND_THRESHOLD || 10;
+  try {
+    const tokenId = accessToken._id || accessToken.client_id;
+    const updates = {};
+    let anomalyDelta = 0;
+    let suspensionReason = null;
+
+    // User-Agent change detection — a sudden UA change is a strong signal of
+    // token sharing.  Exempt empty UAs (some legitimate API clients omit the header).
+    const prevUA = accessToken.last_user_agent || "";
+    if (userAgent && prevUA && prevUA !== userAgent) {
+      anomalyDelta += 2;
+      logger.info(
+        `Behavioural anomaly: UA change detected — client=${accessToken.client_id} ` +
+        `prev="${prevUA.slice(0, 60)}" new="${userAgent.slice(0, 60)}"`
+      );
+      suspensionReason = suspensionReason || "User-Agent change detected";
+    }
+    if (userAgent) {
+      updates["last_user_agent"] = userAgent;
+    }
+
+    // Hourly rate tracking — compare current hour's count to avg from last 7 days.
+    const nowSlot = Math.floor(Date.now() / 3600000);
+    const hourKey = `beh:hr:${tokenId}:${nowSlot}`;
+    const curCount = await redisIncrAsync(hourKey).catch(() => null);
+    if (curCount === 1) {
+      await redisExpireAsync(hourKey, 3601).catch(() => {});
+    }
+
+    if (curCount !== null && curCount > 5) {
+      // Build 7-day rolling average from Redis counters.
+      // A single MGET replaces 168 sequential GETs, cutting round trips from
+      // O(n) to O(1) at the cost of a slightly larger payload.
+      const pastKeys = Array.from(
+        { length: 168 },
+        (_, i) => `beh:hr:${tokenId}:${nowSlot - i - 1}`
+      );
+      const rawValues = await redisMgetAsync(pastKeys).catch(() => []);
+      const pastCounts = rawValues
+        .filter((v) => v !== null && v !== undefined)
+        .map((v) => parseInt(v, 10))
+        .filter((n) => !isNaN(n));
+      if (pastCounts.length >= 3) {
+        const avg = pastCounts.reduce((s, v) => s + v, 0) / pastCounts.length;
+        if (avg > 0 && curCount > avg * 5) {
+          anomalyDelta += 3;
+          logger.info(
+            `Behavioural anomaly: hourly spike — client=${accessToken.client_id} ` +
+            `cur=${curCount} avg=${avg.toFixed(1)} ip=${ip}`
+          );
+          suspensionReason = suspensionReason || `Hourly rate spike: ${curCount} vs avg ${avg.toFixed(1)}`;
+        }
+      }
+    }
+
+    if (anomalyDelta > 0) {
+      const newScore =
+        (accessToken.request_pattern ? accessToken.request_pattern.anomaly_score || 0 : 0) +
+        anomalyDelta;
+      updates["request_pattern.anomaly_score"] = newScore;
+      updates["request_pattern.avg_hourly_rate"] = curCount || 0;
+
+      if (newScore >= ANOMALY_SUSPEND_THRESHOLD) {
+        updates["request_pattern.auto_suspended"]     = true;
+        updates["request_pattern.suspension_reason"]  = suspensionReason;
+        updates["request_pattern.suspended_at"]       = new Date();
+        logger.warn(
+          `🚫 Token auto-suspended by anomaly detector — client=${accessToken.client_id} score=${newScore} reason="${suspensionReason}"`
+        );
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await AccessTokenModel("airqo").findOneAndUpdate(
+        { token: rawToken },
+        { $set: updates }
+      );
+    }
+  } catch (err) {
+    logger.error(`Non-critical: _trackBehaviouralAnomaly error: ${err.message}`);
+  }
+};
 
 const token = {
   verifyEmail: async (request, next) => {
@@ -1043,7 +1257,10 @@ const token = {
       };
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
-        .select("client_id token tier scopes");
+        .select(
+          "client_id token tier scopes allowed_grids allowed_cohorts " +
+          "access_schedule last_user_agent request_pattern allowed_origins"
+        );
 
       if (isEmpty(accessToken)) {
         return createUnauthorizedResponse();
@@ -1054,7 +1271,7 @@ const token = {
       } else {
         const client = await ClientModel("airqo")
           .findById(accessToken.client_id)
-          .select("isActive user_id");
+          .select("isActive user_id enforce_origin allowed_origins");
 
         if (isEmpty(client) || (client && !client.isActive)) {
           logger.error(
@@ -1062,6 +1279,15 @@ const token = {
           );
           return createUnauthorizedResponse();
         }
+
+        // Guard: auto-suspended tokens are immediately rejected.
+        if (accessToken.request_pattern && accessToken.request_pattern.auto_suspended) {
+          logger.warn(
+            `🚫 Auto-suspended token attempted access — client=${accessToken.client_id} ip=${ip}`
+          );
+          return createUnauthorizedResponse();
+        }
+
         const isBlacklisted = await isIPBlacklisted({
           request,
           next,
@@ -1143,6 +1369,44 @@ const token = {
             }
           }
 
+          // Error-rate circuit breaker — controlled by ENABLE_ERROR_RATE_BREAKER (default: false).
+          // Tokens that generate > ERROR_RATE_THRESHOLD 4xx responses within a
+          // 15-minute window are auto-suspended.  This penalises endpoint probing
+          // and parameter fuzzing without affecting legitimate high-volume callers.
+          if (constants.ENABLE_ERROR_RATE_BREAKER) {
+            try {
+              const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+              const slot15 = Math.floor(Date.now() / 900000); // 15-minute bucket
+              const errKey = `errcb:${tokenHash}:${slot15}`;
+              const errCount = parseInt(await redisGetAsync(errKey) || "0", 10);
+              const errThreshold = constants.ERROR_RATE_THRESHOLD || 50;
+              if (errCount >= errThreshold) {
+                // Auto-suspend the token so future requests are rejected before
+                // reaching the DB.  Fire-and-forget — never block on this write.
+                AccessTokenModel("airqo")
+                  .findOneAndUpdate(
+                    { token },
+                    {
+                      $set: {
+                        "request_pattern.auto_suspended": true,
+                        "request_pattern.suspension_reason": `Error-rate circuit breaker: ${errCount} 4xx in 15 min`,
+                        "request_pattern.suspended_at": new Date(),
+                      },
+                    }
+                  )
+                  .catch((e) =>
+                    logger.error(`Non-critical: failed to auto-suspend token: ${e.message}`)
+                  );
+                logger.warn(
+                  `🚫 Error-rate circuit breaker tripped — client=${accessToken.client_id} errors=${errCount} ip=${ip}`
+                );
+                return createRateLimitResponse(tier, "Error-rate");
+              }
+            } catch (cbErr) {
+              logger.error(`Non-critical: error-rate breaker check failed: ${cbErr.message}`);
+            }
+          }
+
           // Scope enforcement — only for tokens with explicit scopes AND only
           // when ENABLE_SCOPE_ENFORCEMENT is true (default: false).
           // Legacy tokens (empty scopes) are always allowed through regardless.
@@ -1164,6 +1428,95 @@ const token = {
               logger.error(
                 `Non-critical: scope check failed, allowing through: ${scopeErr.message}`
               );
+            }
+          }
+
+          // Origin / Referer enforcement — opt-in per client (enforce_origin flag).
+          // Prevents tokens embedded in web apps from being used from unauthorised
+          // domains.  Fail-open: any check error allows the request through.
+          if (client.enforce_origin) {
+            try {
+              const requestOrigin =
+                request.headers["origin"] ||
+                (() => {
+                  const ref = request.headers["referer"];
+                  if (!ref) return null;
+                  try {
+                    return new URL(ref).origin;
+                  } catch (_) {
+                    return null;
+                  }
+                })();
+              // Merge allowed_origins from token and client; token-level takes precedence.
+              const allowedOrigins = [
+                ...(accessToken.allowed_origins || []),
+                ...(client.allowed_origins || []),
+              ].filter(Boolean);
+              if (
+                allowedOrigins.length > 0 &&
+                (!requestOrigin || !allowedOrigins.includes(requestOrigin))
+              ) {
+                logger.warn(
+                  `🚫 Origin mismatch — client=${accessToken.client_id} origin=${requestOrigin} allowed=${allowedOrigins.join(",")}`
+                );
+                return createForbiddenResponse(
+                  "Request origin is not permitted for this token"
+                );
+              }
+            } catch (originErr) {
+              logger.error(`Non-critical: origin check failed, allowing through: ${originErr.message}`);
+            }
+          }
+
+          // Temporal access window — opt-in via access_schedule.enabled.
+          // Useful for pipeline tokens with known schedules; any request outside
+          // the window is flagged as potential credential theft.
+          if (
+            accessToken.access_schedule &&
+            accessToken.access_schedule.enabled
+          ) {
+            try {
+              const now = new Date();
+              const utcDay  = now.getUTCDay();   // 0=Sun … 6=Sat
+              const utcHour = now.getUTCHours();
+              const { allowed_days = [], allowed_hours_utc = {} } =
+                accessToken.access_schedule;
+              const { start, end } = allowed_hours_utc;
+              // Handle wraparound schedules (e.g. 22:00–06:00 crossing midnight).
+              // When start > end the window spans two calendar days, so the
+              // correct check is utcHour >= start OR utcHour <= end.
+              const hourOk =
+                start === undefined ||
+                end   === undefined ||
+                (start <= end
+                  ? utcHour >= start && utcHour <= end
+                  : utcHour >= start || utcHour <= end);
+              // For overnight windows (start > end), a request arriving at
+              // utcHour <= end is in the post-midnight portion and should be
+              // validated against the *previous* UTC day (e.g. a 22:00-Mon →
+              // 06:00-Tue schedule must accept Tuesday-morning requests as
+              // belonging to Monday's window).
+              const isOvernightPostMidnight =
+                start !== undefined &&
+                end   !== undefined &&
+                start > end &&
+                utcHour <= end;
+              const effectiveDay = isOvernightPostMidnight
+                ? (utcDay + 6) % 7   // previous UTC day
+                : utcDay;
+              const dayOk =
+                allowed_days.length === 0 ||
+                allowed_days.includes(effectiveDay);
+              if (!dayOk || !hourOk) {
+                logger.warn(
+                  `🚫 Temporal window violation — client=${accessToken.client_id} utcDay=${utcDay} utcHour=${utcHour} ip=${ip}`
+                );
+                return createForbiddenResponse(
+                  "Request is outside the permitted access schedule for this token"
+                );
+              }
+            } catch (schedErr) {
+              logger.error(`Non-critical: schedule check failed, allowing through: ${schedErr.message}`);
             }
           }
 
@@ -1195,6 +1548,21 @@ const token = {
                 ),
               );
           }
+
+          // Fire-and-forget: behavioural anomaly tracking.
+          // Updates last_user_agent and checks for suspicious patterns.
+          // Never blocks a request — runs entirely after the valid response is queued.
+          Promise.resolve().then(() =>
+            _trackBehaviouralAnomaly({
+              accessToken,
+              token,
+              ip,
+              userAgent: request.headers["user-agent"] || "",
+            }).catch((e) =>
+              logger.error(`Non-critical: behavioural tracking failed: ${e.message}`)
+            )
+          );
+
           winstonLogger.debug("verify token", {
             clientId: accessToken.client_id,
             service: "verify-token",
@@ -1202,7 +1570,14 @@ const token = {
             clientOriginalIp: ip,
             endpoint: endpoint ? endpoint : "unknown",
           });
-          return createValidTokenResponse();
+
+          // Return resource-binding data so downstream services (e.g.
+          // device-registry) can enforce grid/cohort restrictions without a
+          // second DB call.
+          return createValidTokenResponse({
+            allowed_grids:   accessToken.allowed_grids   || [],
+            allowed_cohorts: accessToken.allowed_cohorts || [],
+          });
         }
       }
     } catch (error) {
@@ -2974,3 +3349,114 @@ const token = {
 };
 
 module.exports = token;
+module.exports.invalidateBlockedAsnCache = invalidateBlockedAsnCache;
+
+/**
+ * Util methods for BlockedASN management.
+ * Appended to the token export namespace so callers use tokenUtil.createBlockedASN(…).
+ */
+token.createBlockedASN = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { provider, asn, cidr_ranges, reason, active } = request.body;
+    const response = await BlockedASNModel(dbTenant).register(
+      { provider, asn, cidr_ranges, reason, active },
+      next
+    );
+    // Invalidate the cache for this tenant so the new entry is picked up
+    // on the next request without waiting for the TTL to expire.
+    await invalidateBlockedAsnCache(dbTenant);
+    return response;
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+token.listBlockedASNs = async (request, next) => {
+  try {
+    const { tenant, limit, skip } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { id, asn, active } = { ...request.query, ...request.params };
+    const filter = {};
+    if (id) filter._id = ObjectId(id);
+    if (asn) filter.asn = asn;
+    if (active !== undefined) filter.active = active !== "false";
+    return await BlockedASNModel(dbTenant).list(
+      { skip: parseInt(skip) || 0, limit: parseInt(limit) || 100, filter },
+      next
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+token.deleteBlockedASN = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { id } = request.params;
+    const filter = { _id: ObjectId(id) };
+    const response = await BlockedASNModel(dbTenant).remove({ filter }, next);
+    await invalidateBlockedAsnCache(dbTenant);
+    return response;
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * Util methods for FlaggedToken management.
+ */
+token.listFlaggedTokens = async (request, next) => {
+  try {
+    const { tenant, limit, skip, resolved } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const filter = {};
+    if (resolved !== undefined) filter.resolved = resolved !== "false";
+    return await FlaggedTokenModel(dbTenant).list(
+      { skip: parseInt(skip) || 0, limit: parseInt(limit) || 100, filter },
+      next
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+token.resolveFlaggedToken = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { id } = request.params;
+    const { note } = request.body;
+    const filter = { _id: ObjectId(id) };
+    return await FlaggedTokenModel(dbTenant).resolve({ filter, note: note || "" }, next);
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};

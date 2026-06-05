@@ -69,6 +69,15 @@ function envConfig(env) {
       env !== "staging", // default off in staging only
     ),
 
+    // Token resource binding — when true, cohort/grid read routes call the
+    // auth-service verify endpoint and enforce allowed_grids / allowed_cohorts.
+    // Default off so existing behaviour is completely unchanged until explicitly
+    // enabled via the env var.
+    ENABLE_RESOURCE_BINDING: parseBool(
+      process.env.ENABLE_RESOURCE_BINDING,
+      false,
+    ),
+
     // Integer (ms): maximum time the MongoDB driver waits for a response on an
     // open socket before aborting the operation.  Must be long enough to cover
     // the heaviest aggregation in the service — EventModel.fetch(recent=yes)

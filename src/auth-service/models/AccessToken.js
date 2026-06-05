@@ -62,6 +62,33 @@ const AccessTokenSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Resource binding — empty arrays mean unrestricted (backwards-compatible).
+    // IDs are stored as strings because Grids and Cohorts live in a separate
+    // microservice DB; no ObjectId cross-DB reference is possible.
+    allowed_grids: [{ type: String }],
+    allowed_cohorts: [{ type: String }],
+    // Temporal access window. When set, requests outside the window are rejected.
+    access_schedule: {
+      enabled: { type: Boolean, default: false },
+      allowed_days: [{ type: Number, min: 0, max: 6 }], // 0=Sun … 6=Sat (UTC)
+      allowed_hours_utc: {
+        start: { type: Number, min: 0, max: 23 },
+        end: { type: Number, min: 0, max: 23 },
+      },
+    },
+    // Behavioural tracking — updated async, never in the hot verify path.
+    last_user_agent: { type: String },
+    request_pattern: {
+      avg_hourly_rate: { type: Number, default: 0 },
+      anomaly_score: { type: Number, default: 0 },
+      auto_suspended: { type: Boolean, default: false },
+      suspension_reason: { type: String },
+      suspended_at: { type: Date },
+    },
+    // Origin binding — opt-in per client.
+    // When enforce_origin is true on the parent Client, requests must carry
+    // an Origin or Referer header matching one of these values.
+    allowed_origins: [{ type: String }],
   },
   { timestamps: true }
 );
@@ -433,6 +460,12 @@ AccessTokenSchema.methods = {
       last_ip_address: this.last_ip_address,
       expires: this.expires,
       tier: this.tier,
+      allowed_grids: this.allowed_grids,
+      allowed_cohorts: this.allowed_cohorts,
+      access_schedule: this.access_schedule,
+      last_user_agent: this.last_user_agent,
+      request_pattern: this.request_pattern,
+      allowed_origins: this.allowed_origins,
     };
   },
 };
