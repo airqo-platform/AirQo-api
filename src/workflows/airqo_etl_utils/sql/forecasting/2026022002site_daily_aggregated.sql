@@ -43,9 +43,10 @@ SELECT
     ANY_VALUE(
         COALESCE(
             NULLIF(TRIM(t2.display_name), ''),
-            NULLIF(TRIM(t2.name), '')
+            NULLIF(TRIM(t2.name), ''),
+            t1.site_id
         )
-    )AS site_name,
+    ) AS site_name,
     COALESCE(
         ANY_VALUE(t2.latitude),
         ANY_VALUE(t2.approximate_latitude)
