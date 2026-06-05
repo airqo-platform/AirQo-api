@@ -707,18 +707,29 @@ const isIPBlacklistedHelper = async (
     } = (accessToken && accessToken._doc) || {};
 
     // Load CIDR-based ASN block list (Redis-cached, 10 min TTL, tenant-scoped).
-    // This replaces the previous hardcoded first-octet list which was too
-    // coarse and blocked legitimate residential IPs sharing those octets.
     const reqTenant = (request.query && request.query.tenant) || (constants.DEFAULT_TENANT || "airqo");
     const blockedAsnCidrs = await _loadBlockedAsnCidrs(reqTenant);
-    const isBlockedByCidr = blockedAsnCidrs.some((cidr) => _isIpInCidr(ip, cidr));
+
+    // Backwards-compatibility safety net: when the BlockedASN collection is
+    // empty (i.e. no admin has populated it yet), fall back to the original
+    // hardcoded first-octet list so no previously-blocked IPs slip through
+    // on first deploy.  Once an admin adds at least one BlockedASN document,
+    // this fallback is bypassed entirely — the new CIDR system takes over.
+    const LEGACY_BLOCKED_OCTETS =
+      "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146,142".split(",");
+    const ipPrefix = ip.split(".")[0];
+    const isBlockedByLegacyFallback =
+      blockedAsnCidrs.length === 0 && LEGACY_BLOCKED_OCTETS.includes(ipPrefix);
+
+    const isBlockedByCidr =
+      blockedAsnCidrs.some((cidr) => _isIpInCidr(ip, cidr)) ||
+      isBlockedByLegacyFallback;
 
     // Legacy first-octet DB-backed prefix list (kept for backward compatibility
     // with existing admin-managed entries in BlacklistedIPPrefix collection).
     const blacklistedIpPrefixes = blacklistedIpPrefixesData.map(
       (item) => item.prefix,
     );
-    const ipPrefix = ip.split(".")[0];
 
     if (!accessToken) {
       try {
