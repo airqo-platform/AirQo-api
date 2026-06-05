@@ -61,6 +61,10 @@ const BlockedASNSchema = new mongoose.Schema(
 
 BlockedASNSchema.index({ asn: 1 });
 BlockedASNSchema.index({ active: 1 });
+// Unique on provider so repeated POST requests upsert rather than duplicate.
+// Pre-deploy requirement: if the collection already has duplicate provider
+// values from an earlier deploy, run a one-time deduplication query before
+// this index is applied, otherwise the index build will fail on startup.
 BlockedASNSchema.index({ provider: 1 }, { unique: true });
 
 // Require at least one of asn or a non-empty cidr_ranges so every document
@@ -84,9 +88,17 @@ BlockedASNSchema.pre("findOneAndUpdate", function (next) {
   // passed validation when it was first created.
   if (!this.getOptions().upsert) return next();
 
-  const setData = (this.getUpdate() && this.getUpdate().$set) || {};
+  const update = this.getUpdate() || {};
+  const setData = update.$set || {};
+  // cidr_ranges is written via $addToSet.$each in register() so check both
+  // operators when deciding whether the constraint is satisfied.
+  const addToSetCidrs =
+    update.$addToSet &&
+    update.$addToSet.cidr_ranges &&
+    update.$addToSet.cidr_ranges.$each;
+
   const asn = setData.asn;
-  const cidrRanges = setData.cidr_ranges;
+  const cidrRanges = setData.cidr_ranges || addToSetCidrs;
 
   if (!asn && (!cidrRanges || cidrRanges.length === 0)) {
     return next(
@@ -99,18 +111,72 @@ BlockedASNSchema.pre("findOneAndUpdate", function (next) {
 BlockedASNSchema.statics = {
   async register(args, next) {
     try {
-      const { provider, ...rest } = args;
-      const result = await this.findOneAndUpdate(
+      const { provider, cidr_ranges, ...scalars } = args;
+
+      // Split operators:
+      //   $set     — scalar fields (asn, reason, active, blockedAt)
+      //   $addToSet — cidr_ranges array, so repeated POSTs merge new ranges
+      //               instead of overwriting existing ones.
+      const updateOp = {
+        $set: { provider, ...scalars },
+        ...(cidr_ranges && cidr_ranges.length > 0 && {
+          $addToSet: { cidr_ranges: { $each: cidr_ranges } },
+        }),
+      };
+
+      const rawResult = await this.findOneAndUpdate(
         { provider },
-        { $set: { provider, ...rest } },
-        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+        updateOp,
+        {
+          upsert: true,
+          new: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+          rawResult: true,
+        }
       );
-      const wasInserted = result && result.createdAt &&
-        (Date.now() - result.createdAt.getTime()) < 2000;
-      return createSuccessResponse("create", result.toObject(), "blocked ASN", {
-        message: wasInserted ? "ASN block created" : "ASN block updated",
-      });
+
+      const doc = rawResult && rawResult.value;
+      // lastErrorObject.updatedExisting is false for inserts, true for updates.
+      const wasInserted = !(
+        rawResult &&
+        rawResult.lastErrorObject &&
+        rawResult.lastErrorObject.updatedExisting
+      );
+
+      if (!isEmpty(doc)) {
+        return createSuccessResponse("create", doc.toObject(), "blocked ASN", {
+          message: wasInserted ? "ASN block created" : "ASN block updated",
+        });
+      }
+      return createEmptySuccessResponse(
+        "blocked ASN",
+        "operation successful but ASN block NOT created"
+      );
     } catch (err) {
+      // E11000: concurrent upsert race — another request won the insert.
+      // The document now exists; treat as success (same pattern as BlacklistedIPPrefix).
+      if (err.code === 11000) {
+        logger.warn(
+          `⚠️ BlockedASN upsert race — provider already exists. Treating as success.`
+        );
+        try {
+          const existing = await this.findOne({ provider: args.provider });
+          return createSuccessResponse("create", existing.toObject(), "blocked ASN", {
+            message: "ASN block already exists",
+          });
+        } catch (fetchErr) {
+          logger.error(
+            `🐛🐛 Could not fetch existing BlockedASN after duplicate key: ${fetchErr.message}`
+          );
+          return {
+            success: true,
+            message: "ASN block already exists (confirmed via duplicate key)",
+            status: httpStatus.OK,
+            data: { provider: args.provider },
+          };
+        }
+      }
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       return createErrorResponse(err, "create", logger, "blocked ASN");
