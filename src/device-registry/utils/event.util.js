@@ -1942,8 +1942,10 @@ const createEvent = {
           tracker.blockedUntil = now + BLOCK_DURATION;
           await throttleUtil.setRateLimitTracker(clientId, tracker, tenant);
 
+          const blockedForSeconds = Math.round(BLOCK_DURATION / 1000);
+          const blockedForMinutes = Math.round(BLOCK_DURATION / 60000);
           logger.error(
-            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=5m`,
+            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=${blockedForMinutes}m`,
           );
 
           return {
@@ -1953,7 +1955,7 @@ const createEvent = {
               "Emergency rate limit triggered. Too many historical queries.",
             errors: {
               message: `Rate limit exceeded: ${tracker.count} historical queries in 1 minute. Maximum allowed: ${MAX_HISTORICAL_PER_MINUTE}.`,
-              blocked_for_seconds: 300,
+              blocked_for_seconds: blockedForSeconds,
               recommendation: HISTORICAL_DATA_RECOMMENDATION,
               analytics_platform_url: ANALYTICS_PLATFORM_URL,
               support_email: SUPPORT_EMAIL,
@@ -6014,6 +6016,15 @@ const createEvent = {
     next,
   ) => {
     try {
+      const SUPPORTED_TYPES = ["grid", "cohort"];
+      if (!SUPPORTED_TYPES.includes(type)) {
+        return {
+          success: false,
+          locationErrors: 1,
+          message: `Unsupported location type "${type}". Supported types: ${SUPPORTED_TYPES.join(", ")}.`,
+        };
+      }
+
       let locationErrors = 0;
 
       if (type === "grid" && grid_ids) {

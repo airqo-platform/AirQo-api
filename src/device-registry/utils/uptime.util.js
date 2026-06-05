@@ -31,6 +31,20 @@ const createUptime = {
       threshold,
     } = params;
 
+    if (
+      devices.length === 0 &&
+      site === "" &&
+      grid === "" &&
+      cohort === ""
+    ) {
+      const hint = params.airqloud
+        ? "legacy airqloud-only requests are not supported; provide devices, site, grid, or cohort"
+        : "at least one of devices, site, grid, or cohort must be provided";
+      throw new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+        message: hint,
+      });
+    }
+
     try {
       const dataTable = constants.BIGQUERY_DEVICE_UPTIME_TABLE;
       const sitesTable = constants.BIGQUERY_SITES;
