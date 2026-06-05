@@ -65,8 +65,30 @@ BlockedASNSchema.index({ provider: 1 }, { unique: true });
 
 // Require at least one of asn or a non-empty cidr_ranges so every document
 // carries meaningful blocking information.
+// pre('validate') covers save() paths; pre('findOneAndUpdate') covers the
+// upsert path used by register() — runValidators:true does not invoke
+// document middleware, so both hooks are needed.
 BlockedASNSchema.pre("validate", function (next) {
   if (!this.asn && (!this.cidr_ranges || this.cidr_ranges.length === 0)) {
+    return next(
+      new Error("BlockedASN must have at least one of: asn or cidr_ranges")
+    );
+  }
+  return next();
+});
+
+BlockedASNSchema.pre("findOneAndUpdate", function (next) {
+  // Only enforce on upserts (new document creation). Partial updates on
+  // existing documents (e.g. toggling active or changing reason) are allowed
+  // without re-validating cross-field constraints — the document already
+  // passed validation when it was first created.
+  if (!this.getOptions().upsert) return next();
+
+  const setData = (this.getUpdate() && this.getUpdate().$set) || {};
+  const asn = setData.asn;
+  const cidrRanges = setData.cidr_ranges;
+
+  if (!asn && (!cidrRanges || cidrRanges.length === 0)) {
     return next(
       new Error("BlockedASN must have at least one of: asn or cidr_ranges")
     );
