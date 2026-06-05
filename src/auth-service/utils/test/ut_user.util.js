@@ -1264,8 +1264,10 @@ describe("create-user-util", function () {
       sinon.stub(mailer, "feedback").resolves({
         success: true,
         message: "Email sent successfully",
-        // Any other data you want to include in the response
       });
+      sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true, message: "Confirmation sent" });
 
       // Call the sendFeedback function with the mocked request
       const response = await sendFeedback(request);
@@ -1275,7 +1277,33 @@ describe("create-user-util", function () {
         success: true,
         message: "email successfully sent",
         status: httpStatus.OK,
-        // Any other data you expect in the response
+      });
+      expect(mailer.feedbackConfirmation.calledOnce).to.be.true;
+    });
+
+    it("should still return success when confirmation email fails", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          message: "Test message",
+          subject: "Test subject",
+        },
+      };
+
+      sinon.stub(mailer, "feedback").resolves({
+        success: true,
+        message: "Email sent successfully",
+      });
+      sinon
+        .stub(mailer, "feedbackConfirmation")
+        .rejects(new Error("SMTP error"));
+
+      const response = await sendFeedback(request);
+
+      expect(response).to.deep.equal({
+        success: true,
+        message: "email successfully sent",
+        status: httpStatus.OK,
       });
     });
 
@@ -1332,6 +1360,99 @@ describe("create-user-util", function () {
       });
     });
   });
+  describe("submitFeedback()", () => {
+    let feedbackRegisterStub;
+
+    beforeEach(() => {
+      feedbackRegisterStub = sinon.stub().resolves({
+        success: true,
+        data: { _id: "fb123" },
+      });
+      // Inject a fake FeedbackModel into the rewired module so FeedbackModel(tenant).register
+      // is properly intercepted — sinon cannot stub a bare exported function directly.
+      rewireCreateUser.__set__("FeedbackModel", () => ({
+        register: feedbackRegisterStub,
+      }));
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should dispatch confirmation email to submitter on success", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "App bug",
+          message: "The map crashes on load",
+        },
+        query: {},
+        user: null,
+      };
+
+      await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(confirmStub.calledOnce).to.be.true;
+      expect(confirmStub.firstCall.args[0]).to.deep.include({
+        email: "user@example.com",
+        subject: "App bug",
+      });
+    });
+
+    it("should return success even when confirmation email throws", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      sinon
+        .stub(mailer, "feedbackConfirmation")
+        .rejects(new Error("SMTP timeout"));
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "App bug",
+          message: "The map crashes on load",
+        },
+        query: {},
+        user: null,
+      };
+
+      const response = await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(response.success).to.equal(true);
+    });
+
+    it("should return success even when confirmation email returns failure", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: false, message: "Rate limited" });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "App bug",
+          message: "The map crashes on load",
+        },
+        query: {},
+        user: null,
+      };
+
+      const response = await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(response.success).to.equal(true);
+    });
+  });
+
   describe("create()", function () {
     it("should return the expected response for a valid input", async function () {
       // Arrange

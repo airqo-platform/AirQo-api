@@ -2480,6 +2480,23 @@ const createUserModule = {
       logObject("responseFromSendEmail ....", responseFromSendEmail);
 
       if (responseFromSendEmail && responseFromSendEmail.success === true) {
+        // Send confirmation email to the feedback submitter (best-effort)
+        try {
+          const confirmResult = await mailer.feedbackConfirmation({
+            email,
+            subject,
+          });
+          if (!confirmResult || confirmResult.success === false) {
+            logger.warn(
+              `Support email sent but confirmation email failed: ${confirmResult && confirmResult.message}`,
+            );
+          }
+        } catch (confirmationError) {
+          logger.warn(
+            `Support email sent but confirmation email failed: ${confirmationError.message}`,
+          );
+        }
+
         return {
           success: true,
           message: "email successfully sent",
@@ -7641,6 +7658,23 @@ const feedbackUtil = {
       } catch (emailError) {
         logger.warn(
           `Feedback saved to DB but support email failed: ${emailError.message}`,
+        );
+      }
+
+      // Send confirmation email to the feedback submitter (best-effort)
+      try {
+        const confirmResult = await mailer.feedbackConfirmation({
+          email: normalizedEmail,
+          subject,
+        });
+        if (!confirmResult || confirmResult.success === false) {
+          logger.warn(
+            `Feedback saved to DB but confirmation email failed: ${confirmResult && confirmResult.message}`,
+          );
+        }
+      } catch (confirmationError) {
+        logger.warn(
+          `Feedback saved to DB but confirmation email failed: ${confirmationError.message}`,
         );
       }
 

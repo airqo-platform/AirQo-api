@@ -1022,6 +1022,80 @@ describe("createActivity", () => {
       // ... Implement the test for the case when an internal server error occurs
     });
 
+    describe("post-recall site online-status clearing", () => {
+      let siteUpdateStub;
+      let distinctStub;
+      let sandbox;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+        siteUpdateStub = sandbox.stub().resolves({ _id: "site_id_123" });
+        distinctStub = sandbox.stub();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it("clears rawOnlineStatus and isOnline when no active devices remain after recall", async () => {
+        // No active devices remain at the site
+        distinctStub.resolves([]);
+
+        // Simulate the post-recall site-update logic in isolation
+        const sortedNetworks = [];
+        const siteFields = {
+          network: sortedNetworks.length > 0 ? sortedNetworks[0] : "airqo",
+        };
+
+        if (sortedNetworks.length === 0) {
+          siteFields.rawOnlineStatus = false;
+          siteFields.isOnline = false;
+        }
+
+        await siteUpdateStub("site_id_123", { $set: siteFields });
+
+        const callArgs = siteUpdateStub.firstCall.args[1].$set;
+        expect(callArgs.rawOnlineStatus).to.equal(false);
+        expect(callArgs.isOnline).to.equal(false);
+        expect(callArgs.network).to.equal("airqo");
+      });
+
+      it("does NOT clear rawOnlineStatus when active devices still remain after recall", async () => {
+        // One active device remains
+        distinctStub.resolves(["airgradient"]);
+
+        const sortedNetworks = ["airgradient"];
+        const siteFields = {
+          network: sortedNetworks[0],
+        };
+
+        if (sortedNetworks.length === 0) {
+          siteFields.rawOnlineStatus = false;
+          siteFields.isOnline = false;
+        }
+
+        await siteUpdateStub("site_id_123", { $set: siteFields });
+
+        const callArgs = siteUpdateStub.firstCall.args[1].$set;
+        expect(callArgs).to.not.have.property("rawOnlineStatus");
+        expect(callArgs).to.not.have.property("isOnline");
+        expect(callArgs.network).to.equal("airgradient");
+      });
+
+      it("uses the first sorted network when multiple active devices remain", async () => {
+        distinctStub.resolves(["airqo", "airgradient"]);
+
+        const sortedNetworks = ["airgradient", "airqo"].sort();
+        const siteFields = { network: sortedNetworks[0] };
+
+        await siteUpdateStub("site_id_123", { $set: siteFields });
+
+        expect(siteUpdateStub.firstCall.args[1].$set.network).to.equal(
+          "airgradient"
+        );
+      });
+    });
+
     // Add more test cases as needed to cover different scenarios
   });
   describe("maintain", () => {

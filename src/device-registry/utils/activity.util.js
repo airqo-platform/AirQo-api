@@ -2539,15 +2539,22 @@ const createActivity = {
       // Mark readings for this device as inactive so map/recent-readings
       // endpoints stop surfacing it immediately. Readings are preserved for
       // historical access — only the embedded isActive flag is updated.
-      // Non-fatal: a failure here does not roll back the recall.
+      // Non-fatal: a failure here does not roll back the recall, but it is
+      // logged as an error so it is actionable and visible in monitoring.
       try {
-        await ReadingModel(tenant).updateMany(
+        const readingUpdateResult = await ReadingModel(tenant).updateMany(
           { device_id: updatedDevice._id.toString() },
           { $set: { "deviceDetails.isActive": false } }
         );
+        logger.info(
+          `Recall: marked ${readingUpdateResult.modifiedCount ?? "unknown"} readings inactive for device ${deviceName} (${updatedDevice._id})`
+        );
       } catch (readingUpdateError) {
-        logger.warn(
-          `⚠️ Recall: device ${deviceName} recalled but readings could not be marked inactive: ${readingUpdateError.message}`
+        logger.error(
+          `🚨 Recall: failed to mark readings inactive for device ${deviceName} (${updatedDevice._id}). ` +
+            `Query: { device_id: "${updatedDevice._id}" }. ` +
+            `Error: ${readingUpdateError.message}`,
+          { stack: readingUpdateError.stack }
         );
       }
 
@@ -2626,9 +2633,20 @@ const createActivity = {
                 ? sortedNetworks[0]
                 : constants.DEFAULT_NETWORK || "airqo";
 
+            const siteFields = { network: networkToSet };
+
+            // When no devices remain, clear the online status flags immediately.
+            // The raw-online-status job only iterates active devices, so a site
+            // with no device would otherwise keep rawOnlineStatus: true
+            // indefinitely, causing the UI to display it as "Transmitting".
+            if (sortedNetworks.length === 0) {
+              siteFields.rawOnlineStatus = false;
+              siteFields.isOnline = false;
+            }
+
             const updateResult = await SiteModel(tenant).findByIdAndUpdate(
               device.site_id,
-              { $set: { network: networkToSet } },
+              { $set: siteFields },
               { new: false },
             );
 

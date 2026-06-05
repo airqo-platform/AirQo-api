@@ -146,13 +146,6 @@ const commonValidations = {
       .trim(),
   ],
 
-  airqloudId: [
-    query("airqloud_id")
-      .optional()
-      .notEmpty()
-      .trim(),
-  ],
-
   deviceNumber: [
     query("device_number")
       .optional()
@@ -489,7 +482,6 @@ const baseEventValidations = [
   ...commonValidations.device,
   ...commonValidations.deviceId,
   ...commonValidations.latLong,
-  ...commonValidations.airqloudId,
   ...commonValidations.deviceNumber,
   ...commonValidations.site,
   ...commonValidations.siteId,
@@ -771,7 +763,6 @@ const listByDeploymentType = [
   ...commonValidations.deviceNumber,
   ...commonValidations.site,
   ...commonValidations.siteId,
-  ...commonValidations.airqloudId,
   ...commonValidations.primary,
   ...commonValidations.metadata,
   ...commonValidations.test,

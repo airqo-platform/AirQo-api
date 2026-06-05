@@ -98,11 +98,6 @@ const routes = [
     name: "activities",
   },
   {
-    path: "/airqlouds",
-    route: "@routes/v2/airqlouds.routes",
-    name: "airqlouds",
-  },
-  {
     path: "/lookups",
     route: "@routes/v2/lookup.routes",
     name: "lookups",

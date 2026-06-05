@@ -26,17 +26,28 @@ const createUptime = {
       startDateTime,
       endDateTime,
       site = "",
-      airqloud = "",
       grid = "",
       cohort = "",
       threshold,
     } = params;
 
+    if (
+      devices.length === 0 &&
+      site === "" &&
+      grid === "" &&
+      cohort === ""
+    ) {
+      const hint = params.airqloud
+        ? "legacy airqloud-only requests are not supported; provide devices, site, grid, or cohort"
+        : "at least one of devices, site, grid, or cohort must be provided";
+      throw new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+        message: hint,
+      });
+    }
+
     try {
       const dataTable = constants.BIGQUERY_DEVICE_UPTIME_TABLE;
       const sitesTable = constants.BIGQUERY_SITES;
-      const airqloudsSitesTable = constants.BIGQUERY_AIRQLOUDS_SITES;
-      const airqloudsTable = constants.BIGQUERY_AIRQLOUDS;
       const gridsSitesTable = constants.BIGQUERY_GRIDS_SITES;
       const gridsTable = constants.BIGQUERY_GRIDS;
       const cohortsDevicesTable = constants.BIGQUERY_COHORTS_DEVICES;
@@ -68,41 +79,6 @@ const createUptime = {
           FROM \`${dataTable}\`
           RIGHT JOIN \`${sitesTable}\` ON \`${sitesTable}\`.id = \`${dataTable}\`.site_id
           WHERE \`${dataTable}\`.site_id = @site
-        `;
-      } else if (airqloud) {
-        // Nested subqueries for airqloud
-        metaDataQuery = `
-          SELECT 
-            ${airqloudsSitesTable}.airqloud_id, 
-            ${airqloudsSitesTable}.site_id
-          FROM \`${airqloudsSitesTable}\`
-          WHERE ${airqloudsSitesTable}.airqloud_id = @airqloud
-        `;
-
-        metaDataQuery = `
-          SELECT 
-            ${airqloudsTable}.name AS airqloud_name,
-            meta_data.*
-          FROM \`${airqloudsTable}\`
-          RIGHT JOIN (${metaDataQuery}) meta_data 
-          ON meta_data.airqloud_id = \`${airqloudsTable}\`.id
-        `;
-
-        metaDataQuery = `
-          SELECT 
-            ${sitesTable}.name AS site_name,
-            meta_data.*
-          FROM \`${sitesTable}\`
-          RIGHT JOIN (${metaDataQuery}) meta_data 
-          ON meta_data.site_id = \`${sitesTable}\`.id
-        `;
-
-        query += `
-          , meta_data.*
-          FROM \`${dataTable}\`
-          RIGHT JOIN (${metaDataQuery}) meta_data 
-          ON meta_data.site_id = \`${dataTable}\`.site_id
-          WHERE meta_data.airqloud_id = @airqloud
         `;
       } else if (grid) {
         // Similar nested subqueries for grid
@@ -185,7 +161,6 @@ const createUptime = {
         params: {
           devices,
           site,
-          airqloud,
           grid,
           cohort,
           startDateTime: new Date(startDateTime).toISOString(),
@@ -220,7 +195,6 @@ const createUptime = {
       startDateTime,
       endDateTime,
       site = "",
-      airqloud = "",
       grid = "",
       cohort = "",
       data,
@@ -267,70 +241,7 @@ const createUptime = {
       };
     }
 
-    // Airqloud-level aggregation
-    if (airqloud) {
-      // Group by site
-      const siteGrouped = processedData.reduce((acc, item) => {
-        const key = `${item.site_id}-${item.site_name}`;
-        if (!acc[key]) {
-          acc[key] = [];
-        }
-        acc[key].push(item);
-        return acc;
-      }, {});
-
-      // Compute site-level statistics
-      const sites = Object.entries(siteGrouped).map(([key, siteData]) => {
-        const siteUptime =
-          siteData.reduce((acc, item) => acc + item.uptime, 0) /
-          siteData.length;
-        const siteDowntime =
-          siteData.reduce((acc, item) => acc + item.downtime, 0) /
-          siteData.length;
-        const totalDataPoints = siteData.reduce(
-          (acc, item) => acc + item.data_points,
-          0
-        );
-
-        return {
-          site_id: siteData[0].site_id,
-          site_name: siteData[0].site_name,
-          uptime: siteUptime,
-          downtime: siteDowntime,
-          data_points: totalDataPoints,
-          hourly_threshold: siteData[0].hourly_threshold,
-          start_date_time: startDateTime,
-          end_date_time: endDateTime,
-        };
-      });
-
-      // Overall airqloud statistics
-      const overallUptime =
-        processedData.reduce((acc, item) => acc + item.uptime, 0) /
-        processedData.length;
-      const overallDowntime =
-        processedData.reduce((acc, item) => acc + item.downtime, 0) /
-        processedData.length;
-      const totalDataPoints = processedData.reduce(
-        (acc, item) => acc + item.data_points,
-        0
-      );
-
-      return {
-        start_date_time: startDateTime,
-        end_date_time: endDateTime,
-        airqloud_id: processedData[0]?.airqloud_id,
-        airqloud_name: processedData[0]?.airqloud_name,
-        uptime: overallUptime,
-        downtime: overallDowntime,
-        data_points: totalDataPoints,
-        hourly_threshold: processedData[0]?.hourly_threshold,
-        sites,
-        devices: processedData,
-      };
-    }
-
-    // Grid-level aggregation (similar to airqloud)
+    // Grid-level aggregation
     if (grid) {
       const siteGrouped = processedData.reduce((acc, item) => {
         const key = `${item.site_id}-${item.site_name}`;
@@ -459,7 +370,6 @@ const createUptime = {
       startDateTime,
       endDateTime,
       site = "",
-      airqloud = "",
       grid = "",
       cohort = "",
       threshold,
@@ -492,9 +402,9 @@ const createUptime = {
       return siteUptime;
     }
 
-    if (airqloud || grid || cohort) {
+    if (grid || cohort) {
       const sitesUptime = createUptime.groupBySites(adjustedData);
-      const summaryKey = airqloud ? "airqloud" : grid ? "grid" : "cohort";
+      const summaryKey = grid ? "grid" : "cohort";
       const summary = {
         [`${summaryKey}_id`]: adjustedData[0][`${summaryKey}_id`],
         [`${summaryKey}_name`]: adjustedData[0][`${summaryKey}_name`],
@@ -680,7 +590,6 @@ const createUptime = {
         startDate,
         endDate,
         site,
-        airqloud,
         grid,
         cohort,
         threshold,
@@ -691,7 +600,6 @@ const createUptime = {
         startDateTime: startDate,
         endDateTime: endDate,
         site,
-        airqloud,
         grid,
         cohort,
         threshold,

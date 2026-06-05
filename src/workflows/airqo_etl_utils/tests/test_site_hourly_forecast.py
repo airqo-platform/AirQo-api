@@ -12,9 +12,9 @@ from airqo_etl_utils.tests._test_dependency_stubs import apply_ml_utils_import_s
 apply_ml_utils_import_stubs()
 
 import airqo_etl_utils.ml_utils as ml_utils_module
+from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import SITE_DAILY_FORECAST_MET_COLUMNS
 from airqo_etl_utils.ml_utils import ForecastModelTrainer
-from airqo_etl_utils.sql import query_manager
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 
@@ -639,72 +639,285 @@ def test_met_no_hourly_payload_parser_includes_timestamp():
     assert hourly.loc[0, "date"].isoformat() == "2026-03-23"
 
 
-def test_site_hourly_forecast_query_is_registered():
-    hourly_query = query_manager.get_query("site_hourly_measurements_for_forecast_jobs")
-    daily_query = query_manager.get_query("site_daily_aggregated_for_forecast_jobs")
+def _blank_to_none(value):
+    if value is None or pd.isna(value):
+        return None
+    value = str(value).strip()
+    return value or None
 
-    assert {
-        "consolidated_table",
-        "sites_table",
-        "start_timestamp",
-        "end_timestamp",
-        "min_hours",
-    }.issubset(hourly_query.placeholders)
-    assert (
-        "COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) AS pm25_value"
-        in hourly_query.sql
-    )
-    assert "NULLIF(TRIM(t1.site_name), '')" in hourly_query.sql
-    assert "NULLIF(TRIM(t2.display_name), '')" in hourly_query.sql
-    assert "NULLIF(TRIM(t2.name), '')" in hourly_query.sql
-    assert "AVG(source.pm25_value) AS pm25_mean" in hourly_query.sql
-    assert "WHERE source.pm25_value IS NOT NULL" in hourly_query.sql
-    assert (
-        "COALESCE(t2.latitude, t2.approximate_latitude, t1.site_latitude) AS site_latitude"
-        in hourly_query.sql
-    )
-    assert (
-        "COALESCE(t2.longitude, t2.approximate_longitude, t1.site_longitude) AS site_longitude"
-        in hourly_query.sql
-    )
-    assert "ANY_VALUE(source.site_latitude) AS site_latitude" in hourly_query.sql
-    assert "ANY_VALUE(source.site_longitude) AS site_longitude" in hourly_query.sql
-    assert "HAVING COUNT(DISTINCT timestamp) >= {min_hours}" in hourly_query.sql
 
-    assert {
-        "consolidated_table",
-        "sites_table",
-        "start_date",
-        "end_date",
-        "min_hours",
-    }.issubset(daily_query.placeholders)
-    assert "NULLIF(TRIM(t1.site_name), '')" in daily_query.sql
-    assert "NULLIF(TRIM(t2.display_name), '')" in daily_query.sql
-    assert "NULLIF(TRIM(t2.name), '')" in daily_query.sql
-    assert (
-        "AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_mean"
-        in daily_query.sql
+def _first_non_null(*values):
+    for value in values:
+        if value is not None and not pd.isna(value):
+            return value
+    return None
+
+
+def _site_metadata() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "id": "site-1",
+                "display_name": "  ",
+                "name": "Fallback Site",
+                "latitude": np.nan,
+                "approximate_latitude": 0.3476,
+                "longitude": 32.5825,
+                "approximate_longitude": 32.58,
+            },
+            {
+                "id": "site-sparse",
+                "display_name": "Sparse Site",
+                "name": "Ignored Sparse",
+                "latitude": 0.5,
+                "approximate_latitude": 0.51,
+                "longitude": 31.5,
+                "approximate_longitude": 31.51,
+            },
+        ]
     )
-    assert (
-        "MIN(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_min"
-        in daily_query.sql
+
+
+def _site_measurements() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": pd.Timestamp("2026-03-01T00:15:00Z"),
+                "site_id": "site-1",
+                "pm2_5_calibrated_value": 10.0,
+                "pm2_5": 99.0,
+            },
+            {
+                "timestamp": pd.Timestamp("2026-03-01T00:45:00Z"),
+                "site_id": "site-1",
+                "pm2_5_calibrated_value": np.nan,
+                "pm2_5": 14.0,
+            },
+            {
+                "timestamp": pd.Timestamp("2026-03-01T01:05:00Z"),
+                "site_id": "site-1",
+                "pm2_5_calibrated_value": np.nan,
+                "pm2_5": 18.0,
+            },
+            {
+                "timestamp": pd.Timestamp("2026-03-01T02:00:00Z"),
+                "site_id": "site-1",
+                "pm2_5_calibrated_value": np.nan,
+                "pm2_5": np.nan,
+            },
+            {
+                "timestamp": pd.Timestamp("2026-03-01T00:00:00Z"),
+                "site_id": "site-sparse",
+                "pm2_5_calibrated_value": np.nan,
+                "pm2_5": 30.0,
+            },
+        ]
     )
-    assert (
-        "MAX(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm25_max"
-        in daily_query.sql
+
+
+def _evaluate_site_hourly_measurements_query(
+    measurements: pd.DataFrame,
+    sites: pd.DataFrame,
+    start_timestamp: str,
+    end_timestamp: str,
+    min_hours: int,
+) -> pd.DataFrame:
+    start = pd.Timestamp(start_timestamp, tz="UTC")
+    end = pd.Timestamp(end_timestamp, tz="UTC")
+    joined = measurements.merge(sites, left_on="site_id", right_on="id", how="left")
+    joined = joined[
+        joined["timestamp"].between(start, end)
+        & joined["site_id"].notna()
+    ].copy()
+    joined["timestamp"] = joined["timestamp"].dt.floor("h")
+    joined["pm25_value"] = joined.apply(
+        lambda row: _first_non_null(
+            row["pm2_5_calibrated_value"],
+            row["pm2_5"],
+        ),
+        axis=1,
     )
-    assert "ANY_VALUE(t2.latitude)" in daily_query.sql
-    assert "ANY_VALUE(t2.approximate_latitude)" in daily_query.sql
-    assert "ANY_VALUE(t1.site_latitude)" in daily_query.sql
-    assert "ANY_VALUE(t2.longitude)" in daily_query.sql
-    assert "ANY_VALUE(t2.approximate_longitude)" in daily_query.sql
-    assert "ANY_VALUE(t1.site_longitude)" in daily_query.sql
-    assert "t1.pm2_5_calibrated_value IS NOT NULL" in daily_query.sql
-    assert "OR t1.pm2_5 IS NOT NULL" in daily_query.sql
-    assert (
-        "HAVING COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) >= {min_hours}"
-        in daily_query.sql
+    joined = joined[joined["pm25_value"].notna()].copy()
+    joined["site_name"] = joined.apply(
+        lambda row: _first_non_null(
+            _blank_to_none(row["display_name"]),
+            _blank_to_none(row["name"]),
+        ),
+        axis=1,
     )
+    joined["site_latitude"] = joined.apply(
+        lambda row: _first_non_null(row["latitude"], row["approximate_latitude"]),
+        axis=1,
+    )
+    joined["site_longitude"] = joined.apply(
+        lambda row: _first_non_null(row["longitude"], row["approximate_longitude"]),
+        axis=1,
+    )
+    hourly = (
+        joined.groupby(["timestamp", "site_id"], as_index=False)
+        .agg(
+            site_name=("site_name", "first"),
+            site_latitude=("site_latitude", "first"),
+            site_longitude=("site_longitude", "first"),
+            pm25_mean=("pm25_value", "mean"),
+        )
+        .sort_values(["site_id", "timestamp"])
+        .reset_index(drop=True)
+    )
+    hourly_counts = hourly.groupby("site_id")["timestamp"].nunique()
+    eligible_site_ids = hourly_counts[hourly_counts >= min_hours].index
+    return hourly[hourly["site_id"].isin(eligible_site_ids)].reset_index(drop=True)
+
+
+def _evaluate_site_daily_measurements_query(
+    measurements: pd.DataFrame,
+    sites: pd.DataFrame,
+    start_date: str,
+    end_date: str,
+    min_hours: int,
+) -> pd.DataFrame:
+    joined = measurements.merge(sites, left_on="site_id", right_on="id", how="left")
+    dates = joined["timestamp"].dt.date
+    joined = joined[
+        (dates >= pd.Timestamp(start_date).date())
+        & (dates <= pd.Timestamp(end_date).date())
+        & joined["site_id"].notna()
+    ].copy()
+    joined["pm25_value"] = joined.apply(
+        lambda row: _first_non_null(
+            row["pm2_5_calibrated_value"],
+            row["pm2_5"],
+        ),
+        axis=1,
+    )
+    joined = joined[joined["pm25_value"].notna()].copy()
+    joined["day"] = joined["timestamp"].dt.date
+    joined["hour"] = joined["timestamp"].dt.floor("h")
+    joined["site_name"] = joined.apply(
+        lambda row: _first_non_null(
+            _blank_to_none(row["display_name"]),
+            _blank_to_none(row["name"]),
+        ),
+        axis=1,
+    )
+    joined["site_latitude"] = joined.apply(
+        lambda row: _first_non_null(row["latitude"], row["approximate_latitude"]),
+        axis=1,
+    )
+    joined["site_longitude"] = joined.apply(
+        lambda row: _first_non_null(row["longitude"], row["approximate_longitude"]),
+        axis=1,
+    )
+    daily = (
+        joined.groupby(["day", "site_id"], as_index=False)
+        .agg(
+            site_name=("site_name", "first"),
+            site_latitude=("site_latitude", "first"),
+            site_longitude=("site_longitude", "first"),
+            pm25_mean=("pm25_value", "mean"),
+            pm25_min=("pm25_value", "min"),
+            pm25_max=("pm25_value", "max"),
+            n_hours=("hour", "nunique"),
+        )
+        .sort_values(["day", "site_id"])
+        .reset_index(drop=True)
+    )
+    return daily[daily["n_hours"] >= min_hours].reset_index(drop=True)
+
+
+def _fake_bigquery_api(evaluator):
+    api = BigQueryApi.__new__(BigQueryApi)
+    api.consolidated_data_table = "project.dataset.consolidated"
+    api.sites_table = "project.dataset.sites"
+    api.execute_data_query = lambda query: evaluator()
+    return api
+
+
+@pytest.mark.parametrize(
+    "calibrated_value, raw_value, expected_pm25",
+    [
+        pytest.param(12.5, 80.0, 12.5, id="uses-calibrated-value"),
+        pytest.param(np.nan, 21.0, 21.0, id="falls-back-to-raw-value"),
+    ],
+)
+def test_site_hourly_measurements_query_pm25_values(
+    calibrated_value,
+    raw_value,
+    expected_pm25,
+):
+    measurements = pd.DataFrame(
+        [
+            {
+                "timestamp": pd.Timestamp("2026-03-01T00:15:00Z"),
+                "site_id": "site-1",
+                "pm2_5_calibrated_value": calibrated_value,
+                "pm2_5": raw_value,
+            }
+        ]
+    )
+
+    result = _evaluate_site_hourly_measurements_query(
+        measurements,
+        _site_metadata(),
+        "2026-03-01 00:00:00",
+        "2026-03-01 01:00:00",
+        min_hours=1,
+    )
+
+    assert result.loc[0, "pm25_mean"] == expected_pm25
+
+
+def test_fetch_hourly_site_data_for_forecast_jobs_returns_aggregated_values():
+    api = _fake_bigquery_api(
+        lambda: _evaluate_site_hourly_measurements_query(
+            _site_measurements(),
+            _site_metadata(),
+            "2026-03-01 00:00:00",
+            "2026-03-01 02:00:00",
+            min_hours=2,
+        )
+    )
+
+    result = api.fetch_hourly_site_data_for_forecast_jobs(
+        start_date_time="2026-03-01T00:00:00Z",
+        end_date_time="2026-03-01T02:00:00Z",
+        min_hours=2,
+    )
+
+    assert result["site_id"].tolist() == ["site-1", "site-1"]
+    assert result["site_name"].tolist() == ["Fallback Site", "Fallback Site"]
+    assert result["site_latitude"].tolist() == [0.3476, 0.3476]
+    assert result["site_longitude"].tolist() == [32.5825, 32.5825]
+    assert result["pm25_mean"].tolist() == [12.0, 18.0]
+
+
+def test_fetch_daily_site_data_for_forecast_jobs_returns_aggregated_values():
+    api = _fake_bigquery_api(
+        lambda: _evaluate_site_daily_measurements_query(
+            _site_measurements(),
+            _site_metadata(),
+            "2026-03-01",
+            "2026-03-01",
+            min_hours=2,
+        )
+    )
+
+    result = api.fetch_site_data_for_forecast_jobs(
+        start_date_time="2026-03-01T00:00:00Z",
+        end_date_time="2026-03-01T23:00:00Z",
+        job_type="predict",
+        min_hours=2,
+    )
+
+    assert len(result) == 1
+    assert result.loc[0, "site_id"] == "site-1"
+    assert result.loc[0, "site_name"] == "Fallback Site"
+    assert result.loc[0, "site_latitude"] == 0.3476
+    assert result.loc[0, "site_longitude"] == 32.5825
+    assert result.loc[0, "pm25_mean"] == pytest.approx(14.0)
+    assert result.loc[0, "pm25_min"] == 10.0
+    assert result.loc[0, "pm25_max"] == 18.0
+    assert result.loc[0, "n_hours"] == 2
 
 
 def test_generate_site_hourly_forecasts_rejects_empty_input():

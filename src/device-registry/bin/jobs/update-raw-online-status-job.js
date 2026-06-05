@@ -993,6 +993,39 @@ const updateRawOnlineStatus = async () => {
       }
     }
 
+    // Cleanup pass: find sites that have rawOnlineStatus: true but no active
+    // device currently assigned. These are sites recalled before the recall
+    // flow was fixed to clear rawOnlineStatus at recall time.
+    if (!processor.shouldStopExecution()) {
+      try {
+        const activeSiteIds = await DeviceModel("airqo").distinct("site_id", {
+          isActive: true,
+          site_id: { $ne: null },
+        });
+
+        const staleResult = await SiteModel("airqo").updateMany(
+          {
+            rawOnlineStatus: true,
+            _id: { $nin: activeSiteIds },
+          },
+          {
+            $set: { rawOnlineStatus: false, isOnline: false },
+          }
+        );
+
+        if (staleResult.modifiedCount > 0) {
+          logger.info(
+            `Stale-site cleanup: cleared rawOnlineStatus on ${staleResult.modifiedCount} site(s) with no active device.`
+          );
+        }
+      } catch (cleanupError) {
+        logger.error(
+          `Stale-site cleanup failed: ${cleanupError.message}`,
+          { stack: cleanupError.stack }
+        );
+      }
+    }
+
     const duration = (Date.now() - startTime) / 1000;
     logText(
       `Raw online status check complete in ${duration}s. Processed ${totalProcessed} devices.`,

@@ -12,6 +12,7 @@ const { getSchedule } = require("@utils/common");
 // Job configuration
 const JOB_NAME = "sync-networks-job";
 const JOB_SCHEDULE = getSchedule("0 */1 * * *", constants.ENVIRONMENT); // Every hour
+const MAX_INITIAL_JITTER_MS = 60000; // Up to 60s — spreads pod starts across the minute
 
 // Global state management
 let isJobRunning = false;
@@ -330,6 +331,9 @@ const start = () => {
   const cronJob = cron.schedule(
     JOB_SCHEDULE,
     async () => {
+      // Stagger pod starts to prevent thundering herd on auth-service at the hour boundary
+      const jitterMs = Math.floor(Math.random() * MAX_INITIAL_JITTER_MS);
+      await new Promise((res) => setTimeout(res, jitterMs));
       await performNetworkSync();
     },
     {

@@ -407,4 +407,29 @@ describe("email.msgs", () => {
       joinRequestSpy.restore();
     });
   });
+
+  describe("feedbackConfirmation", () => {
+    it("should return a confirmation email body containing the subject", () => {
+      const email = "user@example.com";
+      const subject = "App feedback";
+      const result = msgs.feedbackConfirmation({ email, subject });
+      expect(result).to.be.a("string");
+      expect(result).to.include("App feedback");
+      expect(result).to.include("Thank you");
+    });
+
+    it("should fall back to 'your feedback' when subject is omitted", () => {
+      const result = msgs.feedbackConfirmation({ email: "user@example.com" });
+      expect(result).to.include("your feedback");
+    });
+
+    it("should HTML-escape a subject containing special characters", () => {
+      const result = msgs.feedbackConfirmation({
+        email: "user@example.com",
+        subject: "<script>alert(1)</script>",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+  });
 });
