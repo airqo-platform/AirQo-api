@@ -215,7 +215,7 @@ cohortSchema.statics.register = async function(args, next) {
       response.errors = { message: error.message };
     }
 
-    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    logger.warn(`⚠️ cohort-model -- validation conflict: ${error.message}`);
     next(new HttpError(response.message, response.status, response.errors));
   }
 };
