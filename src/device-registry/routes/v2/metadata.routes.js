@@ -2,7 +2,6 @@
 const express = require("express");
 const router = express.Router();
 const siteController = require("@controllers/site.controller");
-const airqloudController = require("@controllers/airqloud.controller");
 const cohortController = require("@controllers/cohort.controller");
 const gridController = require("@controllers/grid.controller");
 const deviceController = require("@controllers/device.controller");
@@ -25,13 +24,6 @@ router.get(
   metadataValidations.listSites,
   pagination(),
   siteController.list
-);
-
-router.get(
-  "/airqlouds",
-  metadataValidations.listAirQloud,
-  pagination(),
-  airqloudController.list
 );
 
 router.get(
@@ -60,13 +52,6 @@ router.get(
   metadataValidations.getSite,
   pagination(),
   siteController.list
-);
-
-router.get(
-  "/airqlouds/:airqloud_id",
-  metadataValidations.getAirqloud,
-  pagination(),
-  airqloudController.list
 );
 
 router.get(

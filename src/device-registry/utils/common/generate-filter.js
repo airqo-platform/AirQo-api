@@ -2108,84 +2108,6 @@ const generateFilter = {
     return filter;
   },
 
-  airqlouds: (req, next) => {
-    const {
-      search,
-      id,
-      airqloud_id,
-      admin_level,
-      summary,
-      dashboard,
-      airqloud_codes,
-      category,
-      path,
-      network,
-      group,
-    } = { ...req.query, ...req.params };
-
-    const filter = {};
-
-    if (search) {
-      const escapedSearch = escapeRegex(search);
-      filter.$or = [
-        { name: { $regex: escapedSearch, $options: "i" } },
-        { long_name: { $regex: escapedSearch, $options: "i" } },
-        { description: { $regex: escapedSearch, $options: "i" } },
-      ];
-    }
-
-    if (id) {
-      filter._id = ObjectId(id);
-    }
-
-    if (airqloud_id) {
-      filter._id = ObjectId(airqloud_id);
-    }
-    if (network) {
-      filter.network = handlePredefinedValueMatch(
-        network,
-        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true },
-      );
-    }
-
-    if (group) {
-      filter.groups = handlePredefinedValueMatch(
-        group,
-        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true },
-      );
-    }
-    if (admin_level) {
-      filter.admin_level = admin_level;
-    }
-
-    if (summary === "yes") {
-      filter.summary = summary;
-    }
-
-    if (dashboard === "yes") {
-      filter.dashboard = dashboard;
-    }
-
-    if (airqloud_codes) {
-      const airqloudCodesArray = airqloud_codes.toString().split(",");
-      filter.airqloud_codes = { $in: airqloudCodesArray };
-    }
-
-    if (category) {
-      filter.category = category;
-    }
-
-    if (!isEmpty(path) && path === "public" && isEmpty(airqloud_id)) {
-      filter.visibility = true;
-    }
-
-    return filter;
-  },
-
-  // Replace the existing 'grids' function with this one:
-
   grids: (req, next) => {
     const {
       search,
@@ -2576,7 +2498,6 @@ const generateFilter = {
     let {
       id,
       device_id,
-      airqloud_id,
       site_id,
       device_number,
       device_name,
@@ -2594,10 +2515,6 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
-    }
-
-    if (airqloud_id) {
-      filter["airqloud_id"] = ObjectId(airqloud_id);
     }
 
     if (site_id) {

@@ -1885,14 +1885,6 @@ const createCohort = {
         },
         {
           $lookup: {
-            from: "airqlouds",
-            localField: "airqlouds",
-            foreignField: "_id",
-            as: "airqlouds",
-          },
-        },
-        {
-          $lookup: {
             from: "activities",
             let: { siteId: "$_id" },
             pipeline: [

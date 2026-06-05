@@ -398,7 +398,7 @@ const createPhoto = {
   extractImageIds: (request, next) => {
     try {
       const { image_urls } = request.body;
-      const { device_name, device_id, site_id, airqloud_id } = request.query;
+      const { device_name, device_id, site_id } = request.query;
       let photoNamesWithoutExtension = [];
       image_urls.forEach((imageURL) => {
         logElement("the imageURL", imageURL);
@@ -415,8 +415,7 @@ const createPhoto = {
             responseFromGetLastPath.data.thirdLastSegment
           }/${device_name ||
             site_id ||
-            device_id ||
-            airqloud_id}/${cloudinaryPublicId}`;
+            device_id}/${cloudinaryPublicId}`;
           photoNamesWithoutExtension.push(
             prependFolderNameToCloudinaryPublicId
           );
@@ -538,14 +537,13 @@ const createPhoto = {
     try {
       let { body, query } = request;
       let { tenant } = query;
-      let { image_url, device_name, device_id, site_id, airqloud_id } = body;
+      let { image_url, device_name, device_id, site_id } = body;
       let requestForImageIdExtraction = {};
       requestForImageIdExtraction["body"] = {};
       requestForImageIdExtraction["query"] = {};
       requestForImageIdExtraction["query"]["device_name"] = device_name;
       requestForImageIdExtraction["query"]["device_id"] = device_id;
       requestForImageIdExtraction["query"]["site_id"] = site_id;
-      requestForImageIdExtraction["query"]["airqloud_id"] = airqloud_id;
       requestForImageIdExtraction["body"]["image_urls"] = [];
       requestForImageIdExtraction["body"]["image_urls"].push(image_url);
       const responseFromExtractImage = await createPhoto.extractImageIds(

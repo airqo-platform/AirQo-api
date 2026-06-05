@@ -12,7 +12,6 @@ const {
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const createEventUtil = require("@utils/event.util");
-const AirQloudModel = require("@models/Airqloud");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const GridModel = require("@models/Grid");
