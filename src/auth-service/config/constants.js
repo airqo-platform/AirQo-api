@@ -50,6 +50,18 @@ function envConfig(env) {
       process.env.ENABLE_SCOPE_ENFORCEMENT,
       false,
     ),
+    ENABLE_ERROR_RATE_BREAKER: parseBool(
+      process.env.ENABLE_ERROR_RATE_BREAKER,
+      false,
+    ),
+    ERROR_RATE_THRESHOLD: (() => {
+      const v = parseInt(process.env.ERROR_RATE_THRESHOLD, 10);
+      return Number.isFinite(v) && v > 0 ? v : 50;
+    })(),
+    ANOMALY_SUSPEND_THRESHOLD: (() => {
+      const v = parseInt(process.env.ANOMALY_SUSPEND_THRESHOLD, 10);
+      return Number.isFinite(v) && v > 0 ? v : 10;
+    })(),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
     POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),

@@ -172,6 +172,12 @@ const routes = [
     route: "@routes/v2/sdg.routes",
     name: "sdg-pm-annual",
   },
+  // Honeypot routes — undocumented paths that flag and suspend probing tokens.
+  {
+    path: "/",
+    route: "@routes/v2/honeypot.routes",
+    name: "honeypot",
+  },
 ];
 
 logInfo(`Starting to load ${routes.length} routes...`);

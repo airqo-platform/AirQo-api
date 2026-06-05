@@ -12,8 +12,14 @@ const {
   validateAndFixPolygon,
   ensureClosedRing,
 } = require("@validators/common");
+const {
+  verifyAndBindResources,
+  enforceGridBinding,
+} = require("@middleware/token-resource-binding.middleware");
 
 router.use(headers);
+// Attach resource binding metadata — no-op when ENABLE_RESOURCE_BINDING is false.
+router.use(verifyAndBindResources);
 
 router.get(
   "/countries",
@@ -64,6 +70,7 @@ router.put(
 router.get(
   "/:grid_id/generate",
   gridsValidations.getSiteAndDeviceIds,
+  enforceGridBinding,
   pagination(),
   createGridController.getSiteAndDeviceIds
 );
@@ -71,6 +78,7 @@ router.get(
 router.get(
   "/:grid_id/assigned-sites",
   gridsValidations.listAssignedSites,
+  enforceGridBinding,
   pagination(),
   createGridController.listAssignedSites
 );
@@ -78,6 +86,7 @@ router.get(
 router.get(
   "/:grid_id/available-sites",
   gridsValidations.listAvailableSites,
+  enforceGridBinding,
   pagination(),
   createGridController.listAvailableSites
 );
@@ -142,6 +151,7 @@ router.get(
 router.get(
   "/:grid_id",
   gridsValidations.getGrid,
+  enforceGridBinding,
   pagination(),
   createGridController.list
 );

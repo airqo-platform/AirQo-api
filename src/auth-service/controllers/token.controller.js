@@ -281,7 +281,11 @@ const createAccessToken = {
       }
       const status = result.status;
       if (!res.headersSent) {
-        res.status(status).send(result.message);
+        // Return full JSON so callers (e.g. device-registry resource binding
+        // middleware) can parse the response body, including allowed_grids /
+        // allowed_cohorts.  HTTP status code semantics are unchanged, so
+        // upstream proxies that gate on status code are not affected.
+        res.status(status).json(result);
         return;
       }
     } catch (error) {
@@ -1727,6 +1731,82 @@ const createAccessToken = {
         ),
       );
       return;
+    }
+  },
+  /**
+   * POST /tokens/honeypot-flag
+   * Called by device-registry (and other downstream services) when a honeypot
+   * route is hit, so the auth-service can log the event and auto-suspend the
+   * token even though the token DB lives only in auth-service.
+   * Requires a valid SERVICE_JWT_TOKEN in the Authorization header.
+   */
+  honeypotFlag: async (req, res, next) => {
+    try {
+      const { token: rawToken, path, ip, user_agent, service } = req.body || {};
+      if (!rawToken) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "token is required",
+        });
+      }
+
+      const crypto = require("crypto");
+      const AccessTokenModel = require("@models/AccessToken");
+      const FlaggedTokenModel = require("@models/FlaggedToken");
+
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+      const tokenSuffix = rawToken.slice(-4);
+      const honeypotPath = path || "unknown";
+
+      // Log the hit
+      FlaggedTokenModel("airqo")
+        .logHit({
+          token_hash: tokenHash,
+          token_suffix: tokenSuffix,
+          ip: ip || "unknown",
+          user_agent: user_agent || "",
+          honeypot_path: honeypotPath,
+          service: service || "unknown",
+          action_taken: "suspended",
+        })
+        .catch((e) =>
+          logger.error(`Non-critical: honeypotFlag logHit failed: ${e.message}`)
+        );
+
+      // Auto-suspend the token
+      AccessTokenModel("airqo")
+        .findOneAndUpdate(
+          { token: rawToken },
+          {
+            $set: {
+              "request_pattern.auto_suspended": true,
+              "request_pattern.suspension_reason": `Honeypot access (${service || "unknown"}): ${honeypotPath}`,
+              "request_pattern.suspended_at": new Date(),
+            },
+          }
+        )
+        .catch((e) =>
+          logger.error(`Non-critical: honeypotFlag auto-suspend failed: ${e.message}`)
+        );
+
+      logger.warn(
+        `🍯 Cross-service honeypot hit reported — service=${service} path=${honeypotPath} ` +
+        `token_suffix=...${tokenSuffix} ip=${ip}`
+      );
+
+      return res.status(httpStatus.OK).json({
+        success: true,
+        message: "Honeypot hit recorded",
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
