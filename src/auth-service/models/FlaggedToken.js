@@ -57,7 +57,7 @@ FlaggedTokenSchema.index({ token_hash: 1, flagged_at: -1 });
 FlaggedTokenSchema.index({ resolved: 1, flagged_at: -1 });
 
 FlaggedTokenSchema.statics = {
-  async logHit(args, next) {
+  async logHit(args) {
     try {
       const data = await this.create({ ...args });
       if (!isEmpty(data)) {
@@ -73,7 +73,7 @@ FlaggedTokenSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       const response = await this.aggregate()
         .match(filter)
@@ -90,7 +90,7 @@ FlaggedTokenSchema.statics = {
     }
   },
 
-  async resolve({ filter = {}, note = "" } = {}, next) {
+  async resolve({ filter = {}, note = "" } = {}) {
     try {
       const updated = await this.findOneAndUpdate(
         filter,
@@ -98,7 +98,7 @@ FlaggedTokenSchema.statics = {
         { new: true }
       ).exec();
       if (!isEmpty(updated)) {
-        return createSuccessResponse("update", updated._doc, "flagged token");
+        return createSuccessResponse("update", updated.toObject(), "flagged token");
       }
       return createNotFoundResponse(
         "flagged token",

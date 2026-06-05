@@ -182,12 +182,16 @@ const routes = [
 
 logInfo(`Starting to load ${routes.length} routes...`);
 
-// Sort routes to ensure the root "/" (devices) route is loaded last
-// This prevents it from catching requests meant for other routes
+// Sort routes to ensure only the "devices" catch-all router is loaded last.
+// Previously sorted on path === "/" which pushed the honeypot router (also
+// mounted at "/") to the end alongside devices, allowing the devices catch-all
+// (which includes parameterised routes like /:id) to swallow honeypot paths
+// before they could be matched.  Sorting by name keeps the honeypot router in
+// front of the devices router so its specific paths are matched first.
 const sortedRoutes = routes.sort((a, b) => {
-  if (a.path === "/") return 1; // "/" goes last
-  if (b.path === "/") return -1; // "/" goes last
-  return 0; // maintain original order for others
+  if (a.name === "devices") return 1;  // devices catch-all goes last
+  if (b.name === "devices") return -1;
+  return 0;
 });
 
 // Load all routes in the correct order

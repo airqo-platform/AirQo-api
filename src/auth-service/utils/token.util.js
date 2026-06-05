@@ -21,6 +21,7 @@ const {
   redisIncrAsync,
   redisExpireAsync,
   redisDelAsync,
+  redisMgetAsync,
 } = require("@config/redis");
 const { TIER_SCOPE_MAP, TIER_RATE_LIMITS } = require("@config/tier-limits");
 const httpStatus = require("http-status");
@@ -60,16 +61,31 @@ const IP_PREFIX_CACHE_TTL_SECONDS = 10 * 60; // 10 minutes
 const BLOCKED_ASN_CACHE_KEY = "blocked_asn_cidr_cache";
 const BLOCKED_ASN_CACHE_TTL_SECONDS = 10 * 60; // 10 minutes
 
+// Strict IPv4 pattern — four decimal octets, each 0-255.
+const _IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+const _isValidIPv4 = (addr) => {
+  const m = _IPV4_RE.exec(addr);
+  if (!m) return false;
+  return [m[1], m[2], m[3], m[4]].every((o) => {
+    const n = parseInt(o, 10);
+    return n >= 0 && n <= 255;
+  });
+};
+
 /**
- * Check whether an IPv4 address falls within a CIDR block.
- * e.g. isIpInCidr("192.168.1.50", "192.168.1.0/24") → true
- * Returns false (allow through) on any parse error so CIDR issues never block
- * legitimate traffic.
+ * Check whether an IPv4 address falls within an IPv4 CIDR block.
+ * e.g. _isIpInCidr("192.168.1.50", "192.168.1.0/24") → true
+ *
+ * Returns false (allow through) for any non-IPv4 input (IPv6, hostnames,
+ * malformed strings) so unexpected formats never accidentally block traffic.
  */
 const _isIpInCidr = (ip, cidr) => {
   try {
     const [range, bits] = cidr.split("/");
     if (!range || bits === undefined) return false;
+    // Reject immediately for non-IPv4 addresses (e.g. ::1, fe80::, hostnames).
+    if (!_isValidIPv4(ip) || !_isValidIPv4(range)) return false;
     const prefixLen = parseInt(bits, 10);
     if (isNaN(prefixLen) || prefixLen < 0 || prefixLen > 32) return false;
     const ipToInt = (addr) =>
@@ -85,11 +101,14 @@ const _isIpInCidr = (ip, cidr) => {
 
 /**
  * Load active blocked-ASN CIDR ranges from Redis (10-min cache) or MongoDB.
+ * Accepts an optional tenant so each tenant has its own isolated cache entry.
  * Returns a flat array of CIDR strings.  Never throws.
  */
-const _loadBlockedAsnCidrs = async () => {
+const _loadBlockedAsnCidrs = async (tenant) => {
+  const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+  const cacheKey = `${BLOCKED_ASN_CACHE_KEY}:${dbTenant}`;
   try {
-    const cached = await redisGetAsync(BLOCKED_ASN_CACHE_KEY);
+    const cached = await redisGetAsync(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
@@ -98,17 +117,13 @@ const _loadBlockedAsnCidrs = async () => {
     }
   } catch (_) {}
   try {
-    const docs = await BlockedASNModel("airqo")
+    const docs = await BlockedASNModel(dbTenant)
       .find({ active: true })
       .select("cidr_ranges -_id")
       .lean();
     const cidrs = docs.flatMap((d) => d.cidr_ranges || []);
     try {
-      await redisSetAsync(
-        BLOCKED_ASN_CACHE_KEY,
-        JSON.stringify(cidrs),
-        BLOCKED_ASN_CACHE_TTL_SECONDS
-      );
+      await redisSetAsync(cacheKey, JSON.stringify(cidrs), BLOCKED_ASN_CACHE_TTL_SECONDS);
     } catch (_) {}
     return cidrs;
   } catch (_) {
@@ -117,12 +132,13 @@ const _loadBlockedAsnCidrs = async () => {
 };
 
 /**
- * Invalidate the blocked-ASN Redis cache so the next verify call reloads it.
- * Call after adding/removing a BlockedASN document.
+ * Invalidate the blocked-ASN Redis cache for a tenant so the next verify call
+ * reloads it.  Call after adding/removing a BlockedASN document.
  */
-const invalidateBlockedAsnCache = async () => {
+const invalidateBlockedAsnCache = async (tenant) => {
+  const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
   try {
-    await redisDelAsync(BLOCKED_ASN_CACHE_KEY);
+    await redisDelAsync(`${BLOCKED_ASN_CACHE_KEY}:${dbTenant}`);
   } catch (_) {}
 };
 
@@ -690,10 +706,11 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    // Load CIDR-based ASN block list (Redis-cached, 10 min TTL).
+    // Load CIDR-based ASN block list (Redis-cached, 10 min TTL, tenant-scoped).
     // This replaces the previous hardcoded first-octet list which was too
     // coarse and blocked legitimate residential IPs sharing those octets.
-    const blockedAsnCidrs = await _loadBlockedAsnCidrs();
+    const reqTenant = (request.query && request.query.tenant) || (constants.DEFAULT_TENANT || "airqo");
+    const blockedAsnCidrs = await _loadBlockedAsnCidrs(reqTenant);
     const isBlockedByCidr = blockedAsnCidrs.some((cidr) => _isIpInCidr(ip, cidr));
 
     // Legacy first-octet DB-backed prefix list (kept for backward compatibility
@@ -911,11 +928,17 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
 
     if (curCount !== null && curCount > 5) {
       // Build 7-day rolling average from Redis counters.
-      const pastCounts = [];
-      for (let i = 1; i <= 168; i++) {
-        const c = await redisGetAsync(`beh:hr:${tokenId}:${nowSlot - i}`).catch(() => null);
-        if (c !== null) pastCounts.push(parseInt(c, 10));
-      }
+      // A single MGET replaces 168 sequential GETs, cutting round trips from
+      // O(n) to O(1) at the cost of a slightly larger payload.
+      const pastKeys = Array.from(
+        { length: 168 },
+        (_, i) => `beh:hr:${tokenId}:${nowSlot - i - 1}`
+      );
+      const rawValues = await redisMgetAsync(pastKeys).catch(() => []);
+      const pastCounts = rawValues
+        .filter((v) => v !== null && v !== undefined)
+        .map((v) => parseInt(v, 10))
+        .filter((n) => !isNaN(n));
       if (pastCounts.length >= 3) {
         const avg = pastCounts.reduce((s, v) => s + v, 0) / pastCounts.length;
         if (avg > 0 && curCount > avg * 5) {
@@ -1449,11 +1472,16 @@ const token = {
                 accessToken.access_schedule;
               const dayOk =
                 allowed_days.length === 0 || allowed_days.includes(utcDay);
+              // Handle wraparound schedules (e.g. 22:00–06:00 crossing midnight).
+              // When start > end the window spans two calendar days, so the
+              // correct check is utcHour >= start OR utcHour <= end.
+              const { start, end } = allowed_hours_utc;
               const hourOk =
-                allowed_hours_utc.start === undefined ||
-                allowed_hours_utc.end   === undefined ||
-                (utcHour >= allowed_hours_utc.start &&
-                  utcHour <= allowed_hours_utc.end);
+                start === undefined ||
+                end   === undefined ||
+                (start <= end
+                  ? utcHour >= start && utcHour <= end
+                  : utcHour >= start || utcHour <= end);
               if (!dayOk || !hourOk) {
                 logger.warn(
                   `🚫 Temporal window violation — client=${accessToken.client_id} utcDay=${utcDay} utcHour=${utcHour} ip=${ip}`

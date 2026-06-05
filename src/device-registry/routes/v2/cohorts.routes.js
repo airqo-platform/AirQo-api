@@ -42,12 +42,10 @@ router.get(
   createCohortController.list,
 );
 
-// Resource-bound single-cohort read — only allowed if token permits this cohort.
-
-
 router.get(
   "/:cohort_id/original",
   cohortValidations.findOriginal,
+  enforceCohortBinding,
   // No pagination needed, it returns a single document or null
   createCohortController.findOriginal,
 );

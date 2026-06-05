@@ -30,7 +30,7 @@ const crypto = require("crypto");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const constants = require("@config/constants");
-const { redisGetAsync, redisSetAsync } = require("@config/redis");
+const { redisGetAsync, redisSetAsync, redisIncrAsync, redisExpireAsync } = require("@config/redis");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- token-resource-binding`
@@ -146,12 +146,16 @@ const verifyAndBindResources = async (req, res, next) => {
     }
 
     if (!verifyResult.success) {
-      // Auth-service explicitly rejected the token.
-      return res.status(httpStatus.UNAUTHORIZED).json({
+      // Propagate the exact status auth-service returned (401, 403, 429, etc.)
+      // so clients and downstream error handling are not misled by a blanket 401.
+      const status = verifyResult.status || httpStatus.UNAUTHORIZED;
+      const defaultMessage =
+        status === httpStatus.FORBIDDEN ? "Forbidden" : "Unauthorized";
+      return res.status(status).json({
         success: false,
-        message: verifyResult.message || "Unauthorized",
-        status: httpStatus.UNAUTHORIZED,
-        errors: verifyResult.errors || { message: "Unauthorized" },
+        message: verifyResult.message || defaultMessage,
+        status,
+        errors: verifyResult.errors || { message: verifyResult.message || defaultMessage },
       });
     }
 
@@ -160,6 +164,28 @@ const verifyAndBindResources = async (req, res, next) => {
       allowed_grids:   (verifyResult.data && verifyResult.data.allowed_grids)   || [],
       allowed_cohorts: (verifyResult.data && verifyResult.data.allowed_cohorts) || [],
     };
+
+    // Error-rate circuit breaker counter — increment the shared Redis key
+    // (errcb:<tokenHash>:<15min_slot>) when this request eventually resolves
+    // with a 4xx status.  auth-service reads this key in verifyToken to trip
+    // the breaker and auto-suspend the token.  Fire-and-forget via res.on
+    // so it never adds latency to the hot path.
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    res.on("finish", () => {
+      if (res.statusCode >= 400 && res.statusCode < 500) {
+        const slot15 = Math.floor(Date.now() / 900000);
+        const errKey = `errcb:${tokenHash}:${slot15}`;
+        redisIncrAsync(errKey)
+          .then((count) => {
+            if (count === 1) {
+              // Set TTL once on first increment so the key auto-expires.
+              return redisExpireAsync(errKey, 901);
+            }
+          })
+          .catch(() => {});
+      }
+    });
+
     return next();
   } catch (err) {
     logger.error(`Non-critical: verifyAndBindResources error (failing open): ${err.message}`);

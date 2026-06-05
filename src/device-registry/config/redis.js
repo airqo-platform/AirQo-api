@@ -236,6 +236,27 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
   }
 };
 
+const redisIncrAsync = async (key) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
+  if (!client.isOpen || !client.isReady) {
+    // Fallback: increment in-memory counter
+    const item = fallbackCache.get(prefixedKey);
+    const newCount = item ? item.count + 1 : 1;
+    fallbackCache.set(prefixedKey, {
+      value: String(newCount),
+      count: newCount,
+      expires: Date.now() + FALLBACK_CACHE_TTL,
+    });
+    return newCount;
+  }
+  try {
+    return await client.incr(prefixedKey);
+  } catch (error) {
+    logThrottledOperationError("INCR", prefixedKey, error);
+    throw error;
+  }
+};
+
 const redisExpireAsync = async (key, seconds) => {
   const prefixedKey = `${KEY_PREFIX}${key}`;
   // Update fallback cache expiry
@@ -355,6 +376,7 @@ process.on("beforeExit", gracefulShutdown);
 module.exports = client;
 module.exports.redisGetAsync = redisGetAsync;
 module.exports.redisSetAsync = redisSetAsync;
+module.exports.redisIncrAsync = redisIncrAsync;
 module.exports.redisExpireAsync = redisExpireAsync;
 module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;

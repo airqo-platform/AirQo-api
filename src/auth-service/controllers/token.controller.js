@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const httpStatus = require("http-status");
 const tokenUtil = require("@utils/token.util");
 const {
@@ -11,6 +12,8 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const analyzeIP = require("@middleware/ip-pattern-analysis.middleware");
+const AccessTokenModel = require("@models/AccessToken");
+const FlaggedTokenModel = require("@models/FlaggedToken");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-controller`);
 
 function handleResponse({
@@ -1750,13 +1753,15 @@ const createAccessToken = {
         });
       }
 
-      const crypto = require("crypto");
-      const AccessTokenModel = require("@models/AccessToken");
-      const FlaggedTokenModel = require("@models/FlaggedToken");
-
       const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
       const tokenSuffix = rawToken.slice(-4);
       const honeypotPath = path || "unknown";
+      // Normalise to the allowed FlaggedToken.service enum values so Mongoose
+      // validation never fails on an unrecognised caller string.
+      const normalizedService =
+        service === "auth-service" || service === "device-registry"
+          ? service
+          : "device-registry";
 
       // Log the hit
       FlaggedTokenModel("airqo")
@@ -1766,7 +1771,7 @@ const createAccessToken = {
           ip: ip || "unknown",
           user_agent: user_agent || "",
           honeypot_path: honeypotPath,
-          service: service || "unknown",
+          service: normalizedService,
           action_taken: "suspended",
         })
         .catch((e) =>
@@ -1780,7 +1785,7 @@ const createAccessToken = {
           {
             $set: {
               "request_pattern.auto_suspended": true,
-              "request_pattern.suspension_reason": `Honeypot access (${service || "unknown"}): ${honeypotPath}`,
+              "request_pattern.suspension_reason": `Honeypot access (${normalizedService}): ${honeypotPath}`,
               "request_pattern.suspended_at": new Date(),
             },
           }
@@ -1790,7 +1795,7 @@ const createAccessToken = {
         );
 
       logger.warn(
-        `🍯 Cross-service honeypot hit reported — service=${service} path=${honeypotPath} ` +
+        `🍯 Cross-service honeypot hit reported — service=${normalizedService} path=${honeypotPath} ` +
         `token_suffix=...${tokenSuffix} ip=${ip}`
       );
 

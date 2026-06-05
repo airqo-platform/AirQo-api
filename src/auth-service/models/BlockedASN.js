@@ -34,10 +34,16 @@ const BlockedASNSchema = new mongoose.Schema(
       required: [true, "provider name is required"],
     },
     // One or more CIDR blocks belonging to this AS / provider.
+    // Each entry must be valid IPv4 CIDR notation (e.g. "192.0.2.0/24").
     cidr_ranges: [
       {
         type: String,
         trim: true,
+        validate: {
+          validator: (v) =>
+            /^(\d{1,3}\.){3}\d{1,3}\/([0-9]|[1-2]\d|3[0-2])$/.test(v),
+          message: (props) => `"${props.value}" is not a valid IPv4 CIDR`,
+        },
       },
     ],
     reason: {
@@ -55,6 +61,17 @@ const BlockedASNSchema = new mongoose.Schema(
 
 BlockedASNSchema.index({ asn: 1 });
 BlockedASNSchema.index({ active: 1 });
+
+// Require at least one of asn or a non-empty cidr_ranges so every document
+// carries meaningful blocking information.
+BlockedASNSchema.pre("validate", function (next) {
+  if (!this.asn && (!this.cidr_ranges || this.cidr_ranges.length === 0)) {
+    return next(
+      new Error("BlockedASN must have at least one of: asn or cidr_ranges")
+    );
+  }
+  return next();
+});
 
 BlockedASNSchema.statics = {
   async register(args, next) {
@@ -99,7 +116,7 @@ BlockedASNSchema.statics = {
         new: true,
       }).exec();
       if (!isEmpty(updated)) {
-        return createSuccessResponse("update", updated._doc, "blocked ASN");
+        return createSuccessResponse("update", updated.toObject(), "blocked ASN");
       }
       return createNotFoundResponse(
         "blocked ASN",
@@ -117,7 +134,7 @@ BlockedASNSchema.statics = {
         projection: { _id: 1, provider: 1 },
       }).exec();
       if (!isEmpty(removed)) {
-        return createSuccessResponse("delete", removed._doc, "blocked ASN");
+        return createSuccessResponse("delete", removed.toObject(), "blocked ASN");
       }
       return createNotFoundResponse(
         "blocked ASN",
