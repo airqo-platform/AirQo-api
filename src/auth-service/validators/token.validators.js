@@ -318,7 +318,9 @@ const createBlockedASN = [
     .isString()
     .withMessage("each CIDR range must be a string")
     .bail()
-    .matches(/^(\d{1,3}\.){3}\d{1,3}\/([0-9]|[1-2]\d|3[0-2])$/)
+    .matches(
+      /^((25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\/(3[0-2]|[12]\d|\d)$/
+    )
     .withMessage("each CIDR range must be valid IPv4 CIDR notation (e.g. 192.0.2.0/24)"),
   body("reason")
     .optional()

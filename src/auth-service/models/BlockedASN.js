@@ -41,7 +41,7 @@ const BlockedASNSchema = new mongoose.Schema(
         trim: true,
         validate: {
           validator: (v) =>
-            /^(\d{1,3}\.){3}\d{1,3}\/([0-9]|[1-2]\d|3[0-2])$/.test(v),
+            /^((25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\/(3[0-2]|[12]\d|\d)$/.test(v),
           message: (props) => `"${props.value}" is not a valid IPv4 CIDR`,
         },
       },

@@ -30,13 +30,12 @@ const crypto = require("crypto");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const constants = require("@config/constants");
-const { redisGetAsync, redisSetAsync, redisIncrAsync, redisExpireAsync } = require("@config/redis");
+const { redisIncrAsync, redisExpireAsync } = require("@config/redis");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- token-resource-binding`
 );
 
-const VERIFY_CACHE_TTL_SECONDS = 30;
 const VERIFY_TIMEOUT_MS = 3000;
 
 /**
@@ -51,32 +50,46 @@ const _extractRawToken = (req) => {
 
 /**
  * Call auth-service /api/v2/tokens/:token/verify and return the parsed body.
- * Uses a short-lived Redis cache keyed by the SHA-256 hash of the raw token
- * to avoid a round-trip on every device-registry request.
+ *
+ * Caching is intentionally omitted: the verify response depends on
+ * request-context state (endpoint for scope checks, Origin/Referer for origin
+ * enforcement, live rate-limit counters) that varies per request.  Caching by
+ * token hash alone would let a response from one context be replayed into a
+ * different context, producing incorrect scope or origin decisions.
+ *
  * Returns null on any network / parse error (caller fails open).
  */
-const _verifyTokenRemotely = async (rawToken, endpoint) => {
+const _verifyTokenRemotely = async (rawToken, req) => {
   if (!constants.AUTH_SERVICE_URL) return null;
 
-  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-  const cacheKey = `trb:v:${tokenHash}`;
-
-  // Cache hit
-  try {
-    const cached = await redisGetAsync(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (_) {}
+  const clientIp =
+    req.headers["x-client-ip"] ||
+    req.headers["x-client-original-ip"] ||
+    req.ip;
 
   // Live call to auth-service
   try {
     const verifyUrl = `${constants.AUTH_SERVICE_URL}/api/v2/tokens/${encodeURIComponent(rawToken)}/verify`;
+
+    // Forward only the specific headers auth-service needs for its checks.
+    // Do NOT forward all headers — that would leak cookies and other sensitive
+    // client material into an internal service call.
     const headers = {
-      "x-client-ip": endpoint || "device-registry-internal",
+      "x-client-ip": clientIp || "device-registry-internal",
     };
     if (constants.SERVICE_JWT_TOKEN) {
       headers["Authorization"] = `JWT ${constants.SERVICE_JWT_TOKEN}`;
+    }
+    // x-original-uri is read by auth-service for URI-scope enforcement.
+    if (req.headers["x-original-uri"]) {
+      headers["x-original-uri"] = req.headers["x-original-uri"];
+    }
+    // origin and referer are read by auth-service for origin enforcement.
+    if (req.headers["origin"]) {
+      headers["origin"] = req.headers["origin"];
+    }
+    if (req.headers["referer"]) {
+      headers["referer"] = req.headers["referer"];
     }
 
     const response = await axios.get(verifyUrl, {
@@ -84,21 +97,10 @@ const _verifyTokenRemotely = async (rawToken, endpoint) => {
       timeout: VERIFY_TIMEOUT_MS,
     });
 
-    const body = response.data;
-
-    // Cache only successful verifications to avoid locking out tokens that
-    // later get revoked (failed verifications are not cached).
-    if (body && body.success === true) {
-      try {
-        await redisSetAsync(cacheKey, JSON.stringify(body), VERIFY_CACHE_TTL_SECONDS);
-      } catch (_) {}
-    }
-
-    return body;
+    return response.data;
   } catch (err) {
     if (err.response) {
-      // Auth-service responded with an explicit rejection — return it so the
-      // caller can propagate the 401/403.
+      // Auth-service responded with an explicit rejection — propagate it.
       return err.response.data || { success: false };
     }
     // Network error / timeout — fail open
@@ -119,25 +121,41 @@ const _verifyTokenRemotely = async (rawToken, endpoint) => {
  * so existing routes are completely unaffected.
  */
 const verifyAndBindResources = async (req, res, next) => {
+  const rawToken = _extractRawToken(req);
+
+  // Register the error-rate counter hook unconditionally — it must fire
+  // regardless of ENABLE_RESOURCE_BINDING so the auth-service circuit breaker
+  // receives 4xx signals even when resource binding is disabled.
+  if (rawToken) {
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    res.on("finish", () => {
+      if (res.statusCode >= 400 && res.statusCode < 500) {
+        const slot15 = Math.floor(Date.now() / 900000);
+        const errKey = `errcb:${tokenHash}:${slot15}`;
+        redisIncrAsync(errKey)
+          .then((count) => {
+            if (count === 1) {
+              return redisExpireAsync(errKey, 901);
+            }
+          })
+          .catch(() => {});
+      }
+    });
+  }
+
   if (!constants.ENABLE_RESOURCE_BINDING) {
     req.tokenBinding = { allowed_grids: [], allowed_cohorts: [] };
     return next();
   }
 
-  const rawToken = _extractRawToken(req);
   if (!rawToken) {
     // No token present — allow through; auth is handled upstream.
     req.tokenBinding = { allowed_grids: [], allowed_cohorts: [] };
     return next();
   }
 
-  const clientIp =
-    req.headers["x-client-ip"] ||
-    req.headers["x-client-original-ip"] ||
-    req.ip;
-
   try {
-    const verifyResult = await _verifyTokenRemotely(rawToken, clientIp);
+    const verifyResult = await _verifyTokenRemotely(rawToken, req);
 
     if (verifyResult === null) {
       // Network failure — fail open, no binding enforced.
@@ -164,27 +182,6 @@ const verifyAndBindResources = async (req, res, next) => {
       allowed_grids:   (verifyResult.data && verifyResult.data.allowed_grids)   || [],
       allowed_cohorts: (verifyResult.data && verifyResult.data.allowed_cohorts) || [],
     };
-
-    // Error-rate circuit breaker counter — increment the shared Redis key
-    // (errcb:<tokenHash>:<15min_slot>) when this request eventually resolves
-    // with a 4xx status.  auth-service reads this key in verifyToken to trip
-    // the breaker and auto-suspend the token.  Fire-and-forget via res.on
-    // so it never adds latency to the hot path.
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-    res.on("finish", () => {
-      if (res.statusCode >= 400 && res.statusCode < 500) {
-        const slot15 = Math.floor(Date.now() / 900000);
-        const errKey = `errcb:${tokenHash}:${slot15}`;
-        redisIncrAsync(errKey)
-          .then((count) => {
-            if (count === 1) {
-              // Set TTL once on first increment so the key auto-expires.
-              return redisExpireAsync(errKey, 901);
-            }
-          })
-          .catch(() => {});
-      }
-    });
 
     return next();
   } catch (err) {

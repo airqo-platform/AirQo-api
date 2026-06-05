@@ -239,9 +239,14 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
 const redisIncrAsync = async (key) => {
   const prefixedKey = `${KEY_PREFIX}${key}`;
   if (!client.isOpen || !client.isReady) {
-    // Fallback: increment in-memory counter
     const item = fallbackCache.get(prefixedKey);
-    const newCount = item ? item.count + 1 : 1;
+    // Guard against NaN from corrupted or missing count field.
+    const prevCount = item && typeof item.count === "number" ? item.count : 0;
+    const newCount = prevCount + 1;
+    // Evict one entry when at capacity so the map stays bounded.
+    if (!fallbackCache.has(prefixedKey) && fallbackCache.size >= FALLBACK_CACHE_MAX_SIZE) {
+      fallbackCache.delete(fallbackCache.keys().next().value);
+    }
     fallbackCache.set(prefixedKey, {
       value: String(newCount),
       count: newCount,

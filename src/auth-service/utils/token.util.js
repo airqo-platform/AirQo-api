@@ -1470,18 +1470,32 @@ const token = {
               const utcHour = now.getUTCHours();
               const { allowed_days = [], allowed_hours_utc = {} } =
                 accessToken.access_schedule;
-              const dayOk =
-                allowed_days.length === 0 || allowed_days.includes(utcDay);
+              const { start, end } = allowed_hours_utc;
               // Handle wraparound schedules (e.g. 22:00–06:00 crossing midnight).
               // When start > end the window spans two calendar days, so the
               // correct check is utcHour >= start OR utcHour <= end.
-              const { start, end } = allowed_hours_utc;
               const hourOk =
                 start === undefined ||
                 end   === undefined ||
                 (start <= end
                   ? utcHour >= start && utcHour <= end
                   : utcHour >= start || utcHour <= end);
+              // For overnight windows (start > end), a request arriving at
+              // utcHour <= end is in the post-midnight portion and should be
+              // validated against the *previous* UTC day (e.g. a 22:00-Mon →
+              // 06:00-Tue schedule must accept Tuesday-morning requests as
+              // belonging to Monday's window).
+              const isOvernightPostMidnight =
+                start !== undefined &&
+                end   !== undefined &&
+                start > end &&
+                utcHour <= end;
+              const effectiveDay = isOvernightPostMidnight
+                ? (utcDay + 6) % 7   // previous UTC day
+                : utcDay;
+              const dayOk =
+                allowed_days.length === 0 ||
+                allowed_days.includes(effectiveDay);
               if (!dayOk || !hourOk) {
                 logger.warn(
                   `🚫 Temporal window violation — client=${accessToken.client_id} utcDay=${utcDay} utcHour=${utcHour} ip=${ip}`
