@@ -61,6 +61,7 @@ const BlockedASNSchema = new mongoose.Schema(
 
 BlockedASNSchema.index({ asn: 1 });
 BlockedASNSchema.index({ active: 1 });
+BlockedASNSchema.index({ provider: 1 }, { unique: true });
 
 // Require at least one of asn or a non-empty cidr_ranges so every document
 // carries meaningful blocking information.
@@ -76,16 +77,17 @@ BlockedASNSchema.pre("validate", function (next) {
 BlockedASNSchema.statics = {
   async register(args, next) {
     try {
-      const data = await this.create({ ...args });
-      if (!isEmpty(data)) {
-        return createSuccessResponse("create", data, "blocked ASN", {
-          message: "ASN block created",
-        });
-      }
-      return createEmptySuccessResponse(
-        "blocked ASN",
-        "operation successful but ASN block NOT created"
+      const { provider, ...rest } = args;
+      const result = await this.findOneAndUpdate(
+        { provider },
+        { $set: { provider, ...rest } },
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
       );
+      const wasInserted = result && result.createdAt &&
+        (Date.now() - result.createdAt.getTime()) < 2000;
+      return createSuccessResponse("create", result.toObject(), "blocked ASN", {
+        message: wasInserted ? "ASN block created" : "ASN block updated",
+      });
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
