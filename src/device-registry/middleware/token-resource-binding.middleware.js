@@ -9,9 +9,10 @@
  *
  * Design constraints:
  *   - auth-service and device-registry run separate DBs; no shared DB access.
- *   - The verify call result is short-lived Redis-cached (30s, keyed by
- *     token hash) to avoid an auth-service round-trip on every request while
- *     still respecting revocations within ~30 seconds.
+ *   - Verify results are NOT cached. Caching by token hash alone would allow a
+ *     response from one request context (endpoint, origin) to be replayed into
+ *     a different context, producing incorrect scope or origin decisions. Every
+ *     request makes a live call to auth-service (see _verifyTokenRemotely).
  *   - Fails OPEN when AUTH_SERVICE_URL is not configured (env missing) so
  *     dev/test environments without auth-service wired up are not broken.
  *   - Returns 401 only when auth-service explicitly rejects the token.
@@ -138,7 +139,11 @@ const verifyAndBindResources = async (req, res, next) => {
               return redisExpireAsync(errKey, 901);
             }
           })
-          .catch(() => {});
+          .catch((err) =>
+            logger.debug(
+              `Non-critical: error-rate counter update failed errKey=${errKey}: ${err.message}`
+            )
+          );
       }
     });
   }
