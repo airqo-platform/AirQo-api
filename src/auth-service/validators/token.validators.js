@@ -293,6 +293,93 @@ const removeBlockedDomain = [
   validate,
 ];
 
+/******************** BlockedASN validators ***********************************/
+const createBlockedASN = [
+  body("provider")
+    .exists()
+    .withMessage("provider is required")
+    .bail()
+    .isString()
+    .withMessage("provider must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("provider cannot be empty")
+    .trim(),
+  body("asn")
+    .optional()
+    .isString()
+    .withMessage("asn must be a string")
+    .trim(),
+  body("cidr_ranges")
+    .optional()
+    .isArray()
+    .withMessage("cidr_ranges must be an array"),
+  body("cidr_ranges.*")
+    .isString()
+    .withMessage("each CIDR range must be a string")
+    .bail()
+    .matches(/^(\d{1,3}\.){3}\d{1,3}\/([0-9]|[1-2]\d|3[0-2])$/)
+    .withMessage("each CIDR range must be valid IPv4 CIDR notation (e.g. 192.0.2.0/24)"),
+  body("reason")
+    .optional()
+    .isString()
+    .withMessage("reason must be a string")
+    .trim(),
+  body("active")
+    .optional()
+    .isBoolean()
+    .withMessage("active must be a boolean"),
+  validate,
+];
+
+const listBlockedASNs = [validate];
+
+const deleteBlockedASN = [
+  param("id")
+    .exists()
+    .withMessage("the id param is missing in the request")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+  validate,
+];
+
+/******************** FlaggedToken validators *********************************/
+const listFlaggedTokens = [
+  query("resolved")
+    .optional()
+    .isBoolean()
+    .withMessage("resolved must be a boolean"),
+  validate,
+];
+
+const resolveFlaggedToken = [
+  param("id")
+    .exists()
+    .withMessage("the id param is missing in the request")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+  body("note")
+    .optional()
+    .isString()
+    .withMessage("note must be a string")
+    .trim(),
+  validate,
+];
+
 module.exports = {
   validateTenant,
   validateAirqoTenantOnly,
@@ -312,4 +399,9 @@ module.exports = {
   createBlockedDomain,
   listBlockedDomains,
   removeBlockedDomain,
+  createBlockedASN,
+  listBlockedASNs,
+  deleteBlockedASN,
+  listFlaggedTokens,
+  resolveFlaggedToken,
 };

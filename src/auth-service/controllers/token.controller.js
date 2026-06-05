@@ -1736,6 +1736,153 @@ const createAccessToken = {
       return;
     }
   },
+  /******************** Blocked ASN management *******************************/
+  createBlockedASN: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.createBlockedASN(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.CREATED).json({
+          message: result.message || "",
+          blocked_asn: result.data || {},
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  listBlockedASNs: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.listBlockedASNs(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          blocked_asns: result.data || [],
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  deleteBlockedASN: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.deleteBlockedASN(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          deleted_asn: result.data || {},
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  /******************** Flagged token management *****************************/
+  listFlaggedTokens: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.listFlaggedTokens(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          flagged_tokens: result.data || [],
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  resolveFlaggedToken: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.resolveFlaggedToken(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          flagged_token: result.data || {},
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
   /**
    * POST /tokens/honeypot-flag
    * Called by device-registry (and other downstream services) when a honeypot

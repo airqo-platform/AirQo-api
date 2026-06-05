@@ -21,6 +21,11 @@ const {
   listBlockedDomains,
   removeBlockedDomain,
   validateIdParam,
+  createBlockedASN,
+  listBlockedASNs,
+  deleteBlockedASN,
+  listFlaggedTokens,
+  resolveFlaggedToken,
 } = require("@validators/token.validators");
 
 const { validate, headers, pagination } = require("@validators/common");
@@ -310,6 +315,50 @@ router.delete(
   removeBlockedDomain,
   enhancedJWTAuth,
   createTokenController.removeBlockedDomain,
+);
+
+/******************** Blocked ASN management *******************************/
+router.post(
+  "/blocked-asns",
+  validateAirqoTenantOnly,
+  createBlockedASN,
+  enhancedJWTAuth,
+  createTokenController.createBlockedASN,
+);
+
+router.get(
+  "/blocked-asns",
+  validateAirqoTenantOnly,
+  listBlockedASNs,
+  pagination(),
+  enhancedJWTAuth,
+  createTokenController.listBlockedASNs,
+);
+
+router.delete(
+  "/blocked-asns/:id",
+  validateAirqoTenantOnly,
+  deleteBlockedASN,
+  enhancedJWTAuth,
+  createTokenController.deleteBlockedASN,
+);
+
+/******************** Flagged token management *****************************/
+router.get(
+  "/flagged-tokens",
+  validateAirqoTenantOnly,
+  listFlaggedTokens,
+  pagination(),
+  enhancedJWTAuth,
+  createTokenController.listFlaggedTokens,
+);
+
+router.put(
+  "/flagged-tokens/:id/resolve",
+  validateAirqoTenantOnly,
+  resolveFlaggedToken,
+  enhancedJWTAuth,
+  createTokenController.resolveFlaggedToken,
 );
 
 /******************** Cross-service honeypot flag endpoint **************

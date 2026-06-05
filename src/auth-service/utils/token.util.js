@@ -3325,3 +3325,113 @@ const token = {
 
 module.exports = token;
 module.exports.invalidateBlockedAsnCache = invalidateBlockedAsnCache;
+
+/**
+ * Util methods for BlockedASN management.
+ * Appended to the token export namespace so callers use tokenUtil.createBlockedASN(…).
+ */
+token.createBlockedASN = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { provider, asn, cidr_ranges, reason, active } = request.body;
+    const response = await BlockedASNModel(dbTenant).register(
+      { provider, asn, cidr_ranges, reason, active },
+      next
+    );
+    // Invalidate the cache for this tenant so the new entry is picked up
+    // on the next request without waiting for the TTL to expire.
+    await invalidateBlockedAsnCache(dbTenant);
+    return response;
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+token.listBlockedASNs = async (request, next) => {
+  try {
+    const { tenant, limit, skip } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { id, asn, active } = { ...request.query, ...request.params };
+    const filter = {};
+    if (id) filter._id = ObjectId(id);
+    if (asn) filter.asn = asn;
+    if (active !== undefined) filter.active = active !== "false";
+    return await BlockedASNModel(dbTenant).list(
+      { skip: parseInt(skip) || 0, limit: parseInt(limit) || 100, filter },
+      next
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+token.deleteBlockedASN = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { id } = request.params;
+    const filter = { _id: ObjectId(id) };
+    const response = await BlockedASNModel(dbTenant).remove({ filter }, next);
+    await invalidateBlockedAsnCache(dbTenant);
+    return response;
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * Util methods for FlaggedToken management.
+ */
+token.listFlaggedTokens = async (request, next) => {
+  try {
+    const { tenant, limit, skip, resolved } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const filter = {};
+    if (resolved !== undefined) filter.resolved = resolved !== "false";
+    return await FlaggedTokenModel(dbTenant).list(
+      { skip: parseInt(skip) || 0, limit: parseInt(limit) || 100, filter },
+      next
+    );
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+token.resolveFlaggedToken = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+    const { id } = request.params;
+    const { note } = request.body;
+    const filter = { _id: ObjectId(id) };
+    return await FlaggedTokenModel(dbTenant).resolve({ filter, note: note || "" }, next);
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
