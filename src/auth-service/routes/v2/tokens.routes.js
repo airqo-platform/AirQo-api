@@ -21,6 +21,11 @@ const {
   listBlockedDomains,
   removeBlockedDomain,
   validateIdParam,
+  createBlockedASN,
+  listBlockedASNs,
+  deleteBlockedASN,
+  listFlaggedTokens,
+  resolveFlaggedToken,
 } = require("@validators/token.validators");
 
 const { validate, headers, pagination } = require("@validators/common");
@@ -28,6 +33,7 @@ const { validate, headers, pagination } = require("@validators/common");
 const { tokenVerifyIpRateLimiter, tokenVerifyRateLimiter } = require("@middleware/rate-limit.middleware");
 
 const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
+const honeypotHandler = require("@middleware/honeypot.middleware");
 // Apply common middleware
 router.use(headers); // Keep headers global
 
@@ -310,6 +316,72 @@ router.delete(
   enhancedJWTAuth,
   createTokenController.removeBlockedDomain,
 );
+
+/******************** Blocked ASN management *******************************/
+router.post(
+  "/blocked-asns",
+  validateAirqoTenantOnly,
+  createBlockedASN,
+  enhancedJWTAuth,
+  createTokenController.createBlockedASN,
+);
+
+router.get(
+  "/blocked-asns",
+  validateAirqoTenantOnly,
+  listBlockedASNs,
+  pagination(),
+  enhancedJWTAuth,
+  createTokenController.listBlockedASNs,
+);
+
+router.delete(
+  "/blocked-asns/:id",
+  validateAirqoTenantOnly,
+  deleteBlockedASN,
+  enhancedJWTAuth,
+  createTokenController.deleteBlockedASN,
+);
+
+/******************** Flagged token management *****************************/
+router.get(
+  "/flagged-tokens",
+  validateAirqoTenantOnly,
+  listFlaggedTokens,
+  pagination(),
+  enhancedJWTAuth,
+  createTokenController.listFlaggedTokens,
+);
+
+router.put(
+  "/flagged-tokens/:id/resolve",
+  validateAirqoTenantOnly,
+  resolveFlaggedToken,
+  enhancedJWTAuth,
+  createTokenController.resolveFlaggedToken,
+);
+
+/******************** Cross-service honeypot flag endpoint **************
+ * Called by downstream services (e.g. device-registry) to report a
+ * honeypot hit for a token they cannot suspend themselves (token DB lives
+ * only in auth-service).  Protected by JWT — not reachable from outside.
+ *************************************************************************/
+router.post(
+  "/honeypot-flag",
+  validateAirqoTenantOnly,
+  enhancedJWTAuth,
+  createTokenController.honeypotFlag,
+);
+
+/*************************** Honeypot routes *****************************
+ * These paths look plausible but are NOT documented anywhere.
+ * Any request reaching them is flagged and the token auto-suspended.
+ *************************************************************************/
+router.get("/export-all", honeypotHandler);
+router.get("/dump", honeypotHandler);
+router.get("/admin/export", honeypotHandler);
+router.post("/bulk-export", honeypotHandler);
+router.get("/internal/all-tokens", honeypotHandler);
 
 /*************************** Get TOKEN's information ********************* */
 router.get(

@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const httpStatus = require("http-status");
 const tokenUtil = require("@utils/token.util");
 const {
@@ -11,6 +12,8 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const analyzeIP = require("@middleware/ip-pattern-analysis.middleware");
+const AccessTokenModel = require("@models/AccessToken");
+const FlaggedTokenModel = require("@models/FlaggedToken");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-controller`);
 
 function handleResponse({
@@ -281,7 +284,11 @@ const createAccessToken = {
       }
       const status = result.status;
       if (!res.headersSent) {
-        res.status(status).send(result.message);
+        // Return full JSON so callers (e.g. device-registry resource binding
+        // middleware) can parse the response body, including allowed_grids /
+        // allowed_cohorts.  HTTP status code semantics are unchanged, so
+        // upstream proxies that gate on status code are not affected.
+        res.status(status).json(result);
         return;
       }
     } catch (error) {
@@ -1727,6 +1734,231 @@ const createAccessToken = {
         ),
       );
       return;
+    }
+  },
+  /******************** Blocked ASN management *******************************/
+  createBlockedASN: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.createBlockedASN(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.CREATED).json({
+          message: result.message || "",
+          blocked_asn: result.data || {},
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  listBlockedASNs: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.listBlockedASNs(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          blocked_asns: result.data || [],
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  deleteBlockedASN: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.deleteBlockedASN(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          deleted_asn: result.data || {},
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  /******************** Flagged token management *****************************/
+  listFlaggedTokens: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.listFlaggedTokens(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          flagged_tokens: result.data || [],
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  resolveFlaggedToken: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? constants.DEFAULT_TENANT || "airqo"
+        : req.query.tenant;
+      const result = await tokenUtil.resolveFlaggedToken(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          flagged_token: result.data || {},
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  /**
+   * POST /tokens/honeypot-flag
+   * Called by device-registry (and other downstream services) when a honeypot
+   * route is hit, so the auth-service can log the event and auto-suspend the
+   * token even though the token DB lives only in auth-service.
+   * Requires a valid SERVICE_JWT_TOKEN in the Authorization header.
+   */
+  honeypotFlag: async (req, res, next) => {
+    try {
+      const { token: rawToken, path, ip, user_agent, service } = req.body || {};
+      if (!rawToken) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "token is required",
+        });
+      }
+
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+      const tokenSuffix = rawToken.slice(-4);
+      const honeypotPath = path || "unknown";
+      // Normalise to the allowed FlaggedToken.service enum values so Mongoose
+      // validation never fails on an unrecognised caller string.
+      const normalizedService =
+        service === "auth-service" || service === "device-registry"
+          ? service
+          : "device-registry";
+
+      // Log the hit
+      FlaggedTokenModel("airqo")
+        .logHit({
+          token_hash: tokenHash,
+          token_suffix: tokenSuffix,
+          ip: ip || "unknown",
+          user_agent: user_agent || "",
+          honeypot_path: honeypotPath,
+          service: normalizedService,
+          action_taken: "suspended",
+        })
+        .catch((e) =>
+          logger.error(`Non-critical: honeypotFlag logHit failed: ${e.message}`)
+        );
+
+      // Auto-suspend the token
+      AccessTokenModel("airqo")
+        .findOneAndUpdate(
+          { token: rawToken },
+          {
+            $set: {
+              "request_pattern.auto_suspended": true,
+              "request_pattern.suspension_reason": `Honeypot access (${normalizedService}): ${honeypotPath}`,
+              "request_pattern.suspended_at": new Date(),
+            },
+          }
+        )
+        .catch((e) =>
+          logger.error(`Non-critical: honeypotFlag auto-suspend failed: ${e.message}`)
+        );
+
+      logger.warn(
+        `🍯 Cross-service honeypot hit reported — service=${normalizedService} path=${honeypotPath} ` +
+        `token_suffix=...${tokenSuffix} ip=${ip}`
+      );
+
+      return res.status(httpStatus.OK).json({
+        success: true,
+        message: "Honeypot hit recorded",
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

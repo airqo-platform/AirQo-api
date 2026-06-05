@@ -40,10 +40,13 @@ ORDER BY day, site_id;
 SELECT
     DATE(t1.timestamp) AS day,
     t1.site_id,
+    ANY_VALUE(
         COALESCE(
-            NULLIF(TRIM(t2.display_name), NULL),
-            NULLIF(TRIM(t2.name), NULL)
-        )AS site_name,
+            NULLIF(TRIM(t2.display_name), ''),
+            NULLIF(TRIM(t2.name), ''),
+            t1.site_id
+        )
+    ) AS site_name,
     COALESCE(
         ANY_VALUE(t2.latitude),
         ANY_VALUE(t2.approximate_latitude)
