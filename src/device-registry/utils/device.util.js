@@ -3332,14 +3332,12 @@ const deviceUtil = {
           .lean(),
       ]);
 
-      const siteIds = [
-        ...new Set(
-          (rawDevices || [])
-            .map((d) => d.site_id)
-            .filter(Boolean)
-            .map((id) => id.toString()),
-        ),
-      ];
+      const siteIdByKey = new Map();
+      (rawDevices || [])
+        .map((d) => d.site_id)
+        .filter(Boolean)
+        .forEach((id) => siteIdByKey.set(id.toString(), id));
+      const siteIds = [...siteIdByKey.values()];
 
       const siteMap = new Map();
       if (siteIds.length > 0) {
