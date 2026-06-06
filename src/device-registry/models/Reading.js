@@ -653,6 +653,17 @@ ReadingsSchema.index(
   },
 );
 
+// Compound index to support the recent() $match on time + deviceDetails.isActive.
+// Without this, MongoDB filters deviceDetails.isActive in memory after the time
+// range scan. background: true avoids blocking reads during the index build.
+ReadingsSchema.index(
+  { time: -1, "deviceDetails.isActive": 1 },
+  {
+    name: "time_device_active_idx",
+    background: true,
+  },
+);
+
 // Sparse index for non-null coordinates (mobile devices)
 ReadingsSchema.index(
   { "location.latitude.value": 1, "location.longitude.value": 1, time: -1 },
