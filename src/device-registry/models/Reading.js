@@ -653,6 +653,17 @@ ReadingsSchema.index(
   },
 );
 
+// Compound index to support the recent() $match on time + deviceDetails.isActive.
+// Without this, MongoDB filters deviceDetails.isActive in memory after the time
+// range scan. background: true avoids blocking reads during the index build.
+ReadingsSchema.index(
+  { time: -1, "deviceDetails.isActive": 1 },
+  {
+    name: "time_device_active_idx",
+    background: true,
+  },
+);
+
 // Sparse index for non-null coordinates (mobile devices)
 ReadingsSchema.index(
   { "location.latitude.value": 1, "location.longitude.value": 1, time: -1 },
@@ -991,17 +1002,36 @@ ReadingsSchema.statics.recent = async function(
     let lookbackStart = new Date();
     lookbackStart.setDate(lookbackStart.getDate() - DIAGNOSTIC_WINDOW_DAYS);
 
+    // Guard against non-object filter values. The createEventUtil.read()
+    // caller passes next (a function) as the filter argument when invoked
+    // with only two arguments — spreading a function silently yields {}.
+    // Normalising here makes the drop visible rather than silent.
+    const safeFilter =
+      filter !== null &&
+      typeof filter === "object" &&
+      !Array.isArray(filter)
+        ? filter
+        : {};
+
+    if (safeFilter !== filter) {
+      logger.warn(
+        `ReadingModel.recent: received non-object filter (${typeof filter}) — ` +
+          `falling back to empty filter. Likely cause: caller passed next as filter.`
+      );
+    }
+
     let groupBy = "$site_id";
-    if (filter.device || filter.device_id) {
+    if (safeFilter.device || safeFilter.device_id) {
       groupBy = "$device_id";
     }
 
     const pipeline = this.aggregate()
       .match({
-        ...filter,
+        ...safeFilter,
         time: {
           $gte: lookbackStart,
         },
+        "deviceDetails.isActive": { $ne: false },
       })
       .sort({ time: -1 })
       .group({
