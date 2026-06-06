@@ -3,6 +3,7 @@ const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
 const ShippingBatchModel = require("@models/ShippingBatch");
+const SiteModel = require("@models/Site");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
@@ -3318,12 +3319,12 @@ const deviceUtil = {
         filter.$or.push({ cohorts: { $in: allCohortIds } });
       }
 
-      const [total, devices] = await Promise.all([
+      const [total, rawDevices] = await Promise.all([
         DeviceModel(tenant).countDocuments(filter),
         DeviceModel(tenant)
           .find(filter)
           .select(
-            "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at",
+            "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
           )
           .sort({ claimed_at: -1 })
           .skip(skip)
@@ -3331,10 +3332,33 @@ const deviceUtil = {
           .lean(),
       ]);
 
+      const siteIds = [
+        ...new Set(
+          (rawDevices || [])
+            .map((d) => d.site_id)
+            .filter(Boolean)
+            .map((id) => id.toString()),
+        ),
+      ];
+
+      const siteMap = new Map();
+      if (siteIds.length > 0) {
+        const sites = await SiteModel(tenant)
+          .find({ _id: { $in: siteIds } })
+          .select("_id name location_name")
+          .lean();
+        sites.forEach((s) => siteMap.set(s._id.toString(), s));
+      }
+
+      const devices = (rawDevices || []).map(({ site_id, ...dev }) => ({
+        ...dev,
+        site: site_id ? siteMap.get(site_id.toString()) || null : null,
+      }));
+
       return {
         success: true,
         message: "Devices retrieved successfully",
-        data: devices || [],
+        data: devices,
         status: httpStatus.OK,
         meta: {
           total,
