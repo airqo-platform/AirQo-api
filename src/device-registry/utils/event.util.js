@@ -1216,10 +1216,7 @@ const createEvent = {
 
       const filter = generateFilter.readingsMap(request, next);
 
-      // DIAGNOSTIC WARN — non-fatal: log the effective filter before it reaches
-      // MongoDB so any stray tenant/ObjectId contamination is immediately visible
-      // in Slack without waiting for a zero-result symptom.
-      logger.warn(
+      logger.info(
         `[listForMap] tenant=${tenant} limit=${limit} skip=${skip} ` +
           `filter=${JSON.stringify(filter, (_, v) =>
             v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,

@@ -1983,7 +1983,7 @@ ReadingsSchema.statics.listForMap = async function(
       ...safeFilterForMatch
     } = filter;
 
-    logger.warn(
+    logger.info(
       `[ReadingModel.listForMap] $match preview: ` +
         `effectiveGte=${effectiveGte.toISOString()} ` +
         `safeFilter=${JSON.stringify(safeFilterForMatch, (_, v) =>

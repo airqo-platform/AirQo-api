@@ -372,7 +372,7 @@ const createReading = {
         },
       };
 
-      const result = await createEventUtil.read(request, next);
+      const result = await createEventUtil.listForMap(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
