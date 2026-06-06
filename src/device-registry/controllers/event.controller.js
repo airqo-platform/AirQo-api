@@ -1030,16 +1030,7 @@ const createEvent = {
         }
       }
 
-      // Directly create the filter for the 'read' utility
-      const filter = {};
-      if (request.query.device_id) {
-        const deviceIds = request.query.device_id
-          .split(",")
-          .map((id) => id.trim());
-        filter.device_id = { $in: deviceIds };
-      }
-
-      const result = await createEventUtil.read(request, filter, next);
+      const result = await createEventUtil.listForMap(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
