@@ -447,7 +447,7 @@ def get_site_hourly_forecasts(
 
 
 SITE_FORECAST_UNITS = {
-    "pm2_5": "ug/m3",
+    "pm2_5": "µg/m³",
     "air_temperature": "degC",
     "relative_humidity": "%",
     "air_pressure_at_sea_level": "hPa",
