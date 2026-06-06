@@ -1187,7 +1187,7 @@ setInterval(() => {
 // Both transformation paths need to derive the day bucket from measurement.time.
 const _addDayField = (measurement) => {
   const day = generateDateFormatWithoutHrs(measurement.time);
-  return { day, ...measurement };
+  return { ...measurement, day };
 };
 
 const createEvent = {
@@ -4666,7 +4666,7 @@ const createEvent = {
     try {
       const promises = measurements.map(async (measurement) => {
         try {
-          return _addDayField(measurement);
+          return { success: true, data: _addDayField(measurement) };
         } catch (e) {
           logger.error(`internal server error -- ${e.message}`);
           return {
@@ -4677,7 +4677,12 @@ const createEvent = {
         }
       });
       const results = await Promise.all(promises);
-      return { success: true, data: results };
+      const successful = results.filter((r) => r.success).map((r) => r.data);
+      const failures = results.filter((r) => !r.success);
+      if (failures.length > 0) {
+        logger.error(`normalizeMeasurements: ${failures.length} measurement(s) failed day-field normalization`);
+      }
+      return { success: true, data: successful, failures };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -5190,11 +5195,10 @@ const createEvent = {
       // redeployment. The device registry is updated atomically at recall/deploy
       // time, so deviceRecord.site_id is always correct.
       // If payload and registry disagree, log it so the discrepancy is visible.
-      if (
-        site_id &&
-        deviceRecord.site_id &&
-        site_id.toString() !== deviceRecord.site_id.toString()
-      ) {
+      const payloadSite = site_id == null ? null : site_id.toString();
+      const registrySite =
+        deviceRecord.site_id == null ? null : deviceRecord.site_id.toString();
+      if (payloadSite !== null && payloadSite !== registrySite) {
         logger.warn(
           `[resolveDeviceDeploymentContext] site_id mismatch for device ${deviceRecord.name}: ` +
             `payload="${site_id}" registry="${deviceRecord.site_id}" — using registry value`,
@@ -5251,6 +5255,7 @@ const createEvent = {
               }
             } else if (deploymentContext.actualDeploymentType === "mobile") {
               transformedMeasurement.grid_id = deploymentContext.resolvedGridId;
+              delete transformedMeasurement.site_id;
             }
           } catch (contextError) {
             // CHANGED: Re-throw with better error details instead of catching
@@ -5332,6 +5337,11 @@ const createEvent = {
           }, ${stringify(measurements)}`,
         );
       }
+      if (responseFromTransformMeasurements.failures?.length > 0) {
+        logger.error(
+          `insert: ${responseFromTransformMeasurements.failures.length} measurement(s) dropped during normalization`
+        );
+      }
 
       // Build a registry-authoritative site_id map for this batch.
       // normalizeMeasurements is a pass-through that uses the payload's
@@ -5354,7 +5364,7 @@ const createEvent = {
             .lean();
           registryDevices.forEach((d) => {
             registryDeviceMap.set(d._id.toString(), {
-              site_id: d.isActive ? (d.site_id ?? null) : null,
+              site_id: d.site_id ?? null,
             });
           });
         } catch (registryLookupError) {
@@ -5373,9 +5383,10 @@ const createEvent = {
           );
           if (registryEntry !== undefined) {
             if (
-              registryEntry.site_id &&
-              registryEntry.site_id.toString() !==
-                (measurement.site_id ?? "").toString()
+              measurement.site_id != null &&
+              (registryEntry.site_id == null ||
+                registryEntry.site_id.toString() !==
+                  measurement.site_id.toString())
             ) {
               logger.warn(
                 `insert: site_id mismatch for device ${measurement.device_id} — ` +
