@@ -1183,6 +1183,13 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
+// Shared helper used by normalizeMeasurements and enrichMeasurementsWithDeviceContext.
+// Both transformation paths need to derive the day bucket from measurement.time.
+const _addDayField = (measurement) => {
+  const day = generateDateFormatWithoutHrs(measurement.time);
+  return { day, ...measurement };
+};
+
 const createEvent = {
   processGridIds,
   processCohortIds,
@@ -4655,18 +4662,11 @@ const createEvent = {
       }
     });
   },
-  transformMeasurements_v2: async (measurements, next) => {
+  normalizeMeasurements: async (measurements, next) => {
     try {
-      logText("we are transforming version 2....");
-      let promises = measurements.map(async (measurement) => {
+      const promises = measurements.map(async (measurement) => {
         try {
-          let time = measurement.time;
-          const day = generateDateFormatWithoutHrs(time);
-          let data = {
-            day: day,
-            ...measurement,
-          };
-          return data;
+          return _addDayField(measurement);
         } catch (e) {
           logger.error(`internal server error -- ${e.message}`);
           return {
@@ -4676,19 +4676,8 @@ const createEvent = {
           };
         }
       });
-      return Promise.all(promises).then((results) => {
-        if (results.every((res) => res.success)) {
-          return {
-            success: true,
-            data: results,
-          };
-        } else {
-          return {
-            success: true,
-            data: results,
-          };
-        }
-      });
+      const results = await Promise.all(promises);
+      return { success: true, data: results };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -5195,11 +5184,28 @@ const createEvent = {
         }
       }
 
+      // Always use the device registry as the authoritative source for site/grid
+      // assignment. The payload's site_id/grid_id comes from the ingestion
+      // pipeline's device cache, which can be stale after a recall or
+      // redeployment. The device registry is updated atomically at recall/deploy
+      // time, so deviceRecord.site_id is always correct.
+      // If payload and registry disagree, log it so the discrepancy is visible.
+      if (
+        site_id &&
+        deviceRecord.site_id &&
+        site_id.toString() !== deviceRecord.site_id.toString()
+      ) {
+        logger.warn(
+          `[resolveDeviceDeploymentContext] site_id mismatch for device ${deviceRecord.name}: ` +
+            `payload="${site_id}" registry="${deviceRecord.site_id}" — using registry value`,
+        );
+      }
+
       return {
         deviceRecord,
         actualDeploymentType,
-        resolvedSiteId: site_id || deviceRecord.site_id,
-        resolvedGridId: grid_id || deviceRecord.grid_id,
+        resolvedSiteId: deviceRecord.site_id || null,
+        resolvedGridId: deviceRecord.grid_id || null,
       };
     } catch (error) {
       // Re-throw HttpErrors as-is
@@ -5215,18 +5221,14 @@ const createEvent = {
       );
     }
   },
-  transformMeasurements_v3: async (measurements, next) => {
+  enrichMeasurementsWithDeviceContext: async (measurements, next) => {
     try {
-      logText("Transforming measurements v3 with mobile device support...");
+      logText("Enriching measurements with device context (deployment type, site/grid resolution)...");
 
       let promises = measurements.map(async (measurement) => {
         try {
-          let time = measurement.time;
-          const day = generateDateFormatWithoutHrs(time);
-
           let transformedMeasurement = {
-            day: day,
-            ...measurement,
+            ..._addDayField(measurement),
             deployment_type: measurement.deployment_type || "static",
           };
 
@@ -5301,7 +5303,7 @@ const createEvent = {
         failed_count: failed.length,
       };
     } catch (error) {
-      logger.error(`Error in transformMeasurements_v3: ${error.message}`);
+      logger.error(`Error in enrichMeasurementsWithDeviceContext: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -5318,7 +5320,7 @@ const createEvent = {
       let eventsRejected = [];
       let errors = [];
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+      const responseFromTransformMeasurements = await createEvent.normalizeMeasurements(
         measurements,
         next,
       );
@@ -5331,7 +5333,59 @@ const createEvent = {
         );
       }
 
+      // Build a registry-authoritative site_id map for this batch.
+      // normalizeMeasurements is a pass-through that uses the payload's
+      // site_id directly. If the pipeline's device cache is stale (e.g. after
+      // a recall), the payload carries the wrong site_id. One batch lookup here
+      // corrects all measurements before any writes occur.
+      const batchDeviceIds = [
+        ...new Set(
+          responseFromTransformMeasurements.data
+            .map((m) => m.device_id)
+            .filter(Boolean)
+        ),
+      ];
+      const registryDeviceMap = new Map();
+      if (batchDeviceIds.length > 0) {
+        try {
+          const registryDevices = await DeviceModel(tenant)
+            .find({ _id: { $in: batchDeviceIds } })
+            .select("_id site_id isActive")
+            .lean();
+          registryDevices.forEach((d) => {
+            registryDeviceMap.set(d._id.toString(), {
+              site_id: d.isActive ? (d.site_id ?? null) : null,
+            });
+          });
+        } catch (registryLookupError) {
+          logger.error(
+            `insert: batch device registry lookup failed — proceeding with payload site_ids: ${registryLookupError.message}`
+          );
+        }
+      }
+
       for (const measurement of responseFromTransformMeasurements.data) {
+        // Override site_id with the registry value when available so a stale
+        // pipeline cache cannot route readings to a recalled site.
+        if (measurement.device_id) {
+          const registryEntry = registryDeviceMap.get(
+            measurement.device_id.toString()
+          );
+          if (registryEntry !== undefined) {
+            if (
+              registryEntry.site_id &&
+              registryEntry.site_id.toString() !==
+                (measurement.site_id ?? "").toString()
+            ) {
+              logger.warn(
+                `insert: site_id mismatch for device ${measurement.device_id} — ` +
+                  `payload="${measurement.site_id}" registry="${registryEntry.site_id}" — using registry value`
+              );
+            }
+            measurement.site_id = registryEntry.site_id;
+          }
+        }
+
         try {
           // logObject("the measurement in the insertion process", measurement);
           const eventsFilter = {
@@ -5521,7 +5575,7 @@ const createEvent = {
         }
       }
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
+      const responseFromTransformMeasurements = await createEvent.enrichMeasurementsWithDeviceContext(
         measurements,
         next,
       );
@@ -6263,5 +6317,10 @@ const createEvent = {
     }
   },
 };
+
+// Backward-compatible aliases — retained so any caller still using the old
+// versioned names continues to work without modification.
+createEvent.transformMeasurements_v2 = createEvent.normalizeMeasurements;
+createEvent.transformMeasurements_v3 = createEvent.enrichMeasurementsWithDeviceContext;
 
 module.exports = createEvent;

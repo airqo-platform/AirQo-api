@@ -2211,10 +2211,10 @@ describe("create Event utils", function() {
         { id: 3, pm2_5: 8, pm10: 18, temperature: 22 },
       ];
 
-      // Stub the eventUtil.transformMeasurements_v2 method to return a successful response
+      // Stub the eventUtil.normalizeMeasurements method to return a successful response
       const createEventTransformStub = sinon.stub(
         createEvent,
-        "transformMeasurements_v2"
+        "normalizeMeasurements"
       );
       createEventTransformStub.resolves({
         success: true,
@@ -2291,10 +2291,10 @@ describe("create Event utils", function() {
         { id: 3, pm2_5: 8, pm10: 18, temperature: 22 },
       ];
 
-      // Stub the eventUtil.transformMeasurements_v2 method to return a successful response
+      // Stub the eventUtil.normalizeMeasurements method to return a successful response
       const createEventTransformStub = sinon.stub(
         createEvent,
-        "transformMeasurements_v2"
+        "normalizeMeasurements"
       );
       createEventTransformStub.resolves({
         success: true,
@@ -2477,7 +2477,7 @@ describe("create Event utils", function() {
     });
   });
 
-  describe("transformMeasurements_v2", () => {
+  describe("normalizeMeasurements", () => {
     it("should transform measurements successfully", async () => {
       // Arrange
       const measurements = [
@@ -2497,7 +2497,7 @@ describe("create Event utils", function() {
       ];
 
       // Act
-      const result = await eventUtil.transformMeasurements_v2(measurements);
+      const result = await eventUtil.normalizeMeasurements(measurements);
 
       // Assert
       expect(result).to.be.an("object");
@@ -2542,7 +2542,7 @@ describe("create Event utils", function() {
       generateDateFormatWithoutHrsStub.throws(new Error("Invalid time format"));
 
       // Act
-      const result = await eventUtil.transformMeasurements_v2(measurements);
+      const result = await eventUtil.normalizeMeasurements(measurements);
 
       // Assert
       expect(result).to.be.an("object");
