@@ -1002,6 +1002,7 @@ ReadingsSchema.statics.recent = async function(
         time: {
           $gte: lookbackStart,
         },
+        "deviceDetails.isActive": { $ne: false },
       })
       .sort({ time: -1 })
       .group({
