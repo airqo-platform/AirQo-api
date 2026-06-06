@@ -8,6 +8,7 @@ const axios = require("axios");
 const deviceUtil = require("@utils/device.util");
 const DeviceModel = require("@models/Device");
 const CohortModel = require("@models/Cohort");
+const SiteModel = require("@models/Site");
 const generateFilter = require("@utils/common/generate-filter");
 const ActivityModel = require("@models/Activity");
 const { getModelByTenant } = require("@config/database");
@@ -2855,6 +2856,219 @@ describe("Device Util", () => {
       await proxiedDeviceUtil.createOnPlatform(request, nextStub);
 
       expect(getNetworkAdapterStub.called).to.be.false;
+    });
+  });
+
+  describe("getMyDevices", () => {
+    const VALID_USER_ID = "507f1f77bcf86cd799439011";
+    const VALID_SITE_ID = "507f1f77bcf86cd799439022";
+
+    let deviceCountStub;
+    let deviceLeanStub;
+    let siteFindStub;
+    let siteLeanStub;
+
+    beforeEach(() => {
+      const deviceModelMock = {
+        countDocuments: sinon.stub(),
+        find: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        sort: sinon.stub().returnsThis(),
+        skip: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        lean: sinon.stub(),
+      };
+      const cohortModelMock = {
+        find: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub(),
+      };
+      const siteModelMock = {
+        find: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub(),
+      };
+
+      sinon.stub(DeviceModel, "default").returns(deviceModelMock);
+      sinon.stub(CohortModel, "default").returns(cohortModelMock);
+      sinon.stub(SiteModel, "default").returns(siteModelMock);
+
+      deviceCountStub = deviceModelMock.countDocuments;
+      deviceLeanStub = deviceModelMock.lean;
+      siteFindStub = siteModelMock.find;
+      siteLeanStub = siteModelMock.lean;
+
+      deviceCountStub.resolves(0);
+      deviceLeanStub.resolves([]);
+      siteLeanStub.resolves([]);
+      cohortModelMock.lean.resolves([]);
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return BAD_REQUEST when user_id is missing", async () => {
+      const request = { query: { tenant: "airqo" } };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should return BAD_REQUEST for an invalid user_id format", async () => {
+      const request = {
+        query: { tenant: "airqo", user_id: "not-an-objectid" },
+      };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should attach site details when devices have a site_id", async () => {
+      const siteObjectId = new mongoose.Types.ObjectId(VALID_SITE_ID);
+      const mockDevices = [
+        {
+          _id: "dev1",
+          long_name: "Test Device",
+          site_id: siteObjectId,
+          createdAt: "2024-01-15T10:00:00.000Z",
+          groups: ["airqo"],
+        },
+      ];
+      const mockSites = [
+        {
+          _id: siteObjectId,
+          name: "Kampala Site",
+          location_name: "Kampala",
+        },
+      ];
+
+      deviceCountStub.resolves(1);
+      deviceLeanStub.resolves(mockDevices);
+      siteLeanStub.resolves(mockSites);
+
+      const request = {
+        query: { tenant: "airqo", user_id: VALID_USER_ID },
+      };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.have.lengthOf(1);
+      expect(result.data[0].site).to.deep.equal(mockSites[0]);
+      expect(result.data[0]).to.not.have.property("site_id");
+      expect(result.data[0].createdAt).to.equal("2024-01-15T10:00:00.000Z");
+      expect(result.data[0].groups).to.deep.equal(["airqo"]);
+    });
+
+    it("should return site: null for devices without a site_id", async () => {
+      const mockDevices = [
+        {
+          _id: "dev1",
+          long_name: "Undeployed Device",
+          site_id: null,
+          createdAt: "2024-01-15T10:00:00.000Z",
+          groups: [],
+        },
+      ];
+
+      deviceCountStub.resolves(1);
+      deviceLeanStub.resolves(mockDevices);
+
+      const request = {
+        query: { tenant: "airqo", user_id: VALID_USER_ID },
+      };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+
+      expect(result.success).to.be.true;
+      expect(result.data[0].site).to.be.null;
+      expect(siteFindStub.called).to.be.false;
+    });
+
+    it("should return site: null when the site document is not found in the database", async () => {
+      const siteObjectId = new mongoose.Types.ObjectId(VALID_SITE_ID);
+      const mockDevices = [
+        {
+          _id: "dev1",
+          long_name: "Orphan Device",
+          site_id: siteObjectId,
+          createdAt: "2024-01-15T10:00:00.000Z",
+          groups: [],
+        },
+      ];
+
+      deviceCountStub.resolves(1);
+      deviceLeanStub.resolves(mockDevices);
+      siteLeanStub.resolves([]);
+
+      const request = {
+        query: { tenant: "airqo", user_id: VALID_USER_ID },
+      };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+
+      expect(result.success).to.be.true;
+      expect(result.data[0].site).to.be.null;
+    });
+
+    it("should deduplicate site_ids and issue a single site query for the whole page", async () => {
+      const siteObjectId = new mongoose.Types.ObjectId(VALID_SITE_ID);
+      const mockDevices = [
+        {
+          _id: "dev1",
+          site_id: siteObjectId,
+          createdAt: "2024-01-01T00:00:00.000Z",
+          groups: [],
+        },
+        {
+          _id: "dev2",
+          site_id: siteObjectId,
+          createdAt: "2024-01-02T00:00:00.000Z",
+          groups: [],
+        },
+        {
+          _id: "dev3",
+          site_id: siteObjectId,
+          createdAt: "2024-01-03T00:00:00.000Z",
+          groups: [],
+        },
+      ];
+      const mockSites = [
+        {
+          _id: siteObjectId,
+          name: "Shared Site",
+          location_name: "Shared Location",
+        },
+      ];
+
+      deviceCountStub.resolves(3);
+      deviceLeanStub.resolves(mockDevices);
+      siteLeanStub.resolves(mockSites);
+
+      const request = {
+        query: { tenant: "airqo", user_id: VALID_USER_ID },
+      };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+
+      expect(result.success).to.be.true;
+      expect(siteFindStub.calledOnce).to.be.true;
+      expect(siteFindStub.firstCall.args[0]._id.$in).to.have.lengthOf(1);
+      result.data.forEach((d) => {
+        expect(d.site).to.deep.equal(mockSites[0]);
+      });
+    });
+
+    it("should skip the SiteModel query entirely when no devices are returned", async () => {
+      deviceCountStub.resolves(0);
+      deviceLeanStub.resolves([]);
+
+      const request = {
+        query: { tenant: "airqo", user_id: VALID_USER_ID },
+      };
+      const result = await deviceUtil.getMyDevices(request, () => {});
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.have.lengthOf(0);
+      expect(siteFindStub.called).to.be.false;
+      expect(result.meta.total).to.equal(0);
     });
   });
 });
