@@ -670,6 +670,15 @@ router.get(
   userController.listCohorts,
 );
 
+// Onboarding checklist
+router.patch(
+  "/onboarding",
+  enhancedJWTAuth,
+  userValidations.updateOnboarding,
+  validate,
+  userController.updateOnboarding,
+);
+
 // ================================
 // ERROR HANDLING
 // ================================

@@ -7863,6 +7863,65 @@ const feedbackUtil = {
       );
     }
   },
+
+  updateOnboarding: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { _id: user_id } = request.user;
+      const { action, step_id } = request.body;
+
+      const exists = await UserModel(tenant).exists({ _id: user_id });
+      if (!exists) {
+        return {
+          success: false,
+          message: "User not found",
+          errors: { message: `User ${user_id} not found` },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const updateOp =
+        action === "mark_step_complete"
+          ? { $addToSet: { "onboarding_checklist.completed_steps": step_id } }
+          : { $set: { "onboarding_checklist.is_dismissed": true } };
+
+      const updatedUser = await UserModel(tenant)
+        .findByIdAndUpdate(user_id, updateOp, { new: true })
+        .lean();
+
+      return {
+        success: true,
+        message: "Onboarding state updated successfully",
+        data: {
+          onboarding_checklist: computeUserOnboardingChecklist(updatedUser),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+};
+
+const computeUserOnboardingChecklist = (user) => {
+  const stored = user.onboarding_checklist || {
+    is_dismissed: false,
+    completed_steps: [],
+  };
+  const steps = new Set(stored.completed_steps || []);
+  if ((user.devices || []).length > 0) steps.add("add-device");
+  if ((user.cohorts || []).length > 0) steps.add("assign-cohort");
+  return {
+    is_dismissed: stored.is_dismissed || false,
+    completed_steps: Array.from(steps),
+  };
 };
 
 module.exports = {

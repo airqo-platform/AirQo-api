@@ -218,6 +218,7 @@ const dbProjections = {
     updatedAt: 1,
     my_groups: "$my_groups",
     firebase_uid: 1,
+    onboarding_checklist: 1,
   },
   USERS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
