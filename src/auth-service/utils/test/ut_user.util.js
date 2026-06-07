@@ -3257,3 +3257,102 @@ describe("buildAuthMethods()", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// computeUserOnboardingChecklist logic
+// ---------------------------------------------------------------------------
+describe("computeUserOnboardingChecklist (personal onboarding checklist logic)", () => {
+  function computeUserOnboardingChecklist(user) {
+    const stored = user.onboarding_checklist || {
+      is_dismissed: false,
+      completed_steps: [],
+    };
+    const steps = new Set(stored.completed_steps || []);
+    if ((user.devices || []).length > 0) steps.add("add-device");
+    if ((user.cohorts || []).length > 0) steps.add("assign-cohort");
+    return {
+      is_dismissed: stored.is_dismissed || false,
+      completed_steps: Array.from(steps),
+    };
+  }
+
+  const { expect } = require("chai");
+
+  it("adds add-device when user has at least one device", () => {
+    const user = {
+      devices: ["d1"],
+      cohorts: [],
+      onboarding_checklist: { is_dismissed: false, completed_steps: [] },
+    };
+    const result = computeUserOnboardingChecklist(user);
+    expect(result.completed_steps).to.include("add-device");
+    expect(result.completed_steps).to.not.include("assign-cohort");
+  });
+
+  it("adds assign-cohort when user has at least one cohort", () => {
+    const user = {
+      devices: [],
+      cohorts: ["c1"],
+      onboarding_checklist: { is_dismissed: false, completed_steps: [] },
+    };
+    const result = computeUserOnboardingChecklist(user);
+    expect(result.completed_steps).to.include("assign-cohort");
+    expect(result.completed_steps).to.not.include("add-device");
+  });
+
+  it("adds both dynamic steps when user has devices and cohorts", () => {
+    const user = {
+      devices: ["d1"],
+      cohorts: ["c1"],
+      onboarding_checklist: { is_dismissed: false, completed_steps: ["set-visibility"] },
+    };
+    const result = computeUserOnboardingChecklist(user);
+    expect(result.completed_steps).to.include("add-device");
+    expect(result.completed_steps).to.include("assign-cohort");
+    expect(result.completed_steps).to.include("set-visibility");
+  });
+
+  it("deduplicates dynamic steps already present in stored completed_steps", () => {
+    const user = {
+      devices: ["d1"],
+      cohorts: ["c1"],
+      onboarding_checklist: {
+        is_dismissed: false,
+        completed_steps: ["add-device", "assign-cohort"],
+      },
+    };
+    const result = computeUserOnboardingChecklist(user);
+    expect(result.completed_steps.filter((s) => s === "add-device")).to.have.length(1);
+    expect(result.completed_steps.filter((s) => s === "assign-cohort")).to.have.length(1);
+  });
+
+  it("defaults gracefully for legacy users without onboarding_checklist field", () => {
+    const user = { devices: ["d1"], cohorts: [], onboarding_checklist: undefined };
+    const result = computeUserOnboardingChecklist(user);
+    expect(result.is_dismissed).to.equal(false);
+    expect(result.completed_steps).to.include("add-device");
+  });
+
+  it("preserves is_dismissed: true from stored state", () => {
+    const user = {
+      devices: [],
+      cohorts: [],
+      onboarding_checklist: { is_dismissed: true, completed_steps: [] },
+    };
+    expect(computeUserOnboardingChecklist(user).is_dismissed).to.equal(true);
+  });
+
+  it("accepts arbitrary step_id strings without restriction", () => {
+    const user = {
+      devices: [],
+      cohorts: [],
+      onboarding_checklist: {
+        is_dismissed: false,
+        completed_steps: ["download-desktop-app", "invite-team"],
+      },
+    };
+    const result = computeUserOnboardingChecklist(user);
+    expect(result.completed_steps).to.include("download-desktop-app");
+    expect(result.completed_steps).to.include("invite-team");
+  });
+});

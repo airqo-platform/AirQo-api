@@ -907,16 +907,19 @@ const createUserModule = {
       const { tenant, limit, skip } = query;
 
       const filter = generateFilter.users(request, next);
-      const responseFromListUser = await UserModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
+      const response = await UserModel(tenant).list(
+        { filter, limit, skip },
         next,
       );
 
-      return responseFromListUser;
+      if (response && response.success && Array.isArray(response.data)) {
+        response.data = response.data.map((user) => ({
+          ...user,
+          onboarding_checklist: computeUserOnboardingChecklist(user),
+        }));
+      }
+
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -7870,8 +7873,27 @@ const feedbackUtil = {
       const { _id: user_id } = request.user;
       const { action, step_id } = request.body;
 
-      const exists = await UserModel(tenant).exists({ _id: user_id });
-      if (!exists) {
+      let updateOp;
+      if (action === "mark_step_complete") {
+        updateOp = {
+          $addToSet: { "onboarding_checklist.completed_steps": step_id },
+        };
+      } else if (action === "dismiss_checklist") {
+        updateOp = { $set: { "onboarding_checklist.is_dismissed": true } };
+      } else {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Unsupported action: ${action}` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedUser = await UserModel(tenant)
+        .findByIdAndUpdate(user_id, updateOp, { new: true })
+        .lean();
+
+      if (!updatedUser) {
         return {
           success: false,
           message: "User not found",
@@ -7880,21 +7902,10 @@ const feedbackUtil = {
         };
       }
 
-      const updateOp =
-        action === "mark_step_complete"
-          ? { $addToSet: { "onboarding_checklist.completed_steps": step_id } }
-          : { $set: { "onboarding_checklist.is_dismissed": true } };
-
-      const updatedUser = await UserModel(tenant)
-        .findByIdAndUpdate(user_id, updateOp, { new: true })
-        .lean();
-
       return {
         success: true,
         message: "Onboarding state updated successfully",
-        data: {
-          onboarding_checklist: computeUserOnboardingChecklist(updatedUser),
-        },
+        data: computeUserOnboardingChecklist(updatedUser),
         status: httpStatus.OK,
       };
     } catch (error) {

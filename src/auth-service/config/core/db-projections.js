@@ -161,6 +161,7 @@ const dbProjections = {
     phoneNumber: 1,
     timezone: 1,
     cohorts: 1,
+    devices: 1,
     clients: "$clients",
     groups: {
       $cond: {
