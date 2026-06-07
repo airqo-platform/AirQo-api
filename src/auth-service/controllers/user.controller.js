@@ -1869,6 +1869,17 @@ const userController = {
       handleError(error, next);
     }
   },
+
+  updateOnboarding: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateOnboarding(request, next);
+      sendResponse(res, result, "onboarding_checklist");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 };
 
 module.exports = userController;
