@@ -907,16 +907,19 @@ const createUserModule = {
       const { tenant, limit, skip } = query;
 
       const filter = generateFilter.users(request, next);
-      const responseFromListUser = await UserModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
+      const response = await UserModel(tenant).list(
+        { filter, limit, skip },
         next,
       );
 
-      return responseFromListUser;
+      if (response && response.success && Array.isArray(response.data)) {
+        response.data = response.data.map((user) => ({
+          ...user,
+          onboarding_checklist: computeUserOnboardingChecklist(user),
+        }));
+      }
+
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -7863,6 +7866,73 @@ const feedbackUtil = {
       );
     }
   },
+
+  updateOnboarding: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { _id: user_id } = request.user;
+      const { action, step_id } = request.body;
+
+      let updateOp;
+      if (action === "mark_step_complete") {
+        updateOp = {
+          $addToSet: { "onboarding_checklist.completed_steps": step_id },
+        };
+      } else if (action === "dismiss_checklist") {
+        updateOp = { $set: { "onboarding_checklist.is_dismissed": true } };
+      } else {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Unsupported action: ${action}` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedUser = await UserModel(tenant)
+        .findByIdAndUpdate(user_id, updateOp, { new: true })
+        .lean();
+
+      if (!updatedUser) {
+        return {
+          success: false,
+          message: "User not found",
+          errors: { message: `User ${user_id} not found` },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Onboarding state updated successfully",
+        data: computeUserOnboardingChecklist(updatedUser),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+};
+
+const computeUserOnboardingChecklist = (user) => {
+  const stored = user.onboarding_checklist || {
+    is_dismissed: false,
+    completed_steps: [],
+  };
+  const steps = new Set(stored.completed_steps || []);
+  if ((user.devices || []).length > 0) steps.add("add-device");
+  if ((user.cohorts || []).length > 0) steps.add("assign-cohort");
+  return {
+    is_dismissed: stored.is_dismissed || false,
+    completed_steps: Array.from(steps),
+  };
 };
 
 module.exports = {

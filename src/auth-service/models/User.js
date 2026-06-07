@@ -465,6 +465,10 @@ const UserSchema = new Schema(
         ref: "device",
       },
     ],
+    onboarding_checklist: {
+      is_dismissed: { type: Boolean, default: false },
+      completed_steps: { type: [String], default: [] },
+    },
     sites: [
       {
         type: ObjectId,

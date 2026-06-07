@@ -161,6 +161,7 @@ const dbProjections = {
     phoneNumber: 1,
     timezone: 1,
     cohorts: 1,
+    devices: 1,
     clients: "$clients",
     groups: {
       $cond: {
@@ -218,6 +219,7 @@ const dbProjections = {
     updatedAt: 1,
     my_groups: "$my_groups",
     firebase_uid: 1,
+    onboarding_checklist: 1,
   },
   USERS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
