@@ -737,6 +737,54 @@ module.exports = {
 
     return constants.EMAIL_BODY({ email, content, name });
   },
+  tokenAutoSuspended: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    suspensionReason = "",
+    suspendedAt = new Date(),
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const { maskedToken, tokenLabel } = buildTokenEmailSegment({ token, tokenName });
+    const timeStr = suspendedAt instanceof Date
+      ? suspendedAt.toUTCString()
+      : String(suspendedAt);
+    const reasonLine = suspensionReason
+      ? `<p><strong>Reason detected:</strong> ${escapeHtml(suspensionReason)}</p>`
+      : "";
+    const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/settings`;
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Our automated security system has suspended one of your AirQo API tokens as a precaution.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#FFF3CD; border-left:4px solid #F59E0B; border-radius:4px;">
+          <p style="margin:0;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</p>
+          <p style="margin:4px 0 0;"><strong>Suspended at:</strong> ${timeStr}</p>
+          ${reasonLine}
+        </div>
+        <p>This may be a false positive — for example, if you access the API from both a browser and a server-side application, or if you recently updated your API client. If this activity was expected, please follow the steps below to reinstate your token.</p>
+        <p><strong>What to do next:</strong></p>
+        <ol style="padding-left:20px;">
+          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <strong>Settings &rsaquo; API</strong>.</li>
+          <li>Locate the affected token (<code>${maskedToken}</code>${tokenLabel}) on your API client card.</li>
+          <li>If it shows as suspended, use the <strong>Reinstate</strong> option to restore access.</li>
+          <li>Alternatively, use <strong>Regenerate Token</strong> on your existing client to issue a fresh token — this does not require creating a new client.</li>
+        </ol>
+        <p>If this activity was <strong>not</strong> expected and you did not make these requests, your token may have been compromised. In that case:</p>
+        <ul style="padding-left:20px;">
+          <li>Do <strong>not</strong> reinstate the token — regenerate a new one instead.</li>
+          <li>Review any applications or integrations that use this token and update them with the new value.</li>
+          <li>Contact us at <a href="mailto:support@airqo.net">support@airqo.net</a> if you need further assistance.</li>
+        </ul>
+        <p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> To reduce the chance of this happening again, consider enabling the client secret requirement for your API client under <strong>Settings &rsaquo; API</strong>. When enabled, every request must include your client secret via the <code>X-Client-Secret</code> header, providing an extra layer of protection even if your token is exposed.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
     const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`;

@@ -87,9 +87,19 @@ router.put(
   createTokenController.regenerate,
 );
 
-// Update token
+// Update token (legacy path — kept for backwards compatibility)
 router.put(
   "/:token/update",
+  validateTenant,
+  validateTokenParam,
+  validateTokenUpdate,
+  enhancedJWTAuth,
+  createTokenController.update,
+);
+
+// Update token (REST-idiomatic alias — same controller, cleaner path)
+router.patch(
+  "/:token",
   validateTenant,
   validateTokenParam,
   validateTokenUpdate,

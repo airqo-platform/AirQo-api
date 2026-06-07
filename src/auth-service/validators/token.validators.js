@@ -97,6 +97,72 @@ const validateTokenUpdate = [
         .trim(),
     ],
   ]),
+  // Security / resource-binding fields — all optional partial updates.
+  body("tier")
+    .optional()
+    .isIn(["Free", "Standard", "Premium"])
+    .withMessage("tier must be Free, Standard, or Premium"),
+  body("scopes")
+    .optional()
+    .isArray()
+    .withMessage("scopes must be an array"),
+  body("scopes.*")
+    .isString()
+    .withMessage("each scope must be a string"),
+  body("allowed_grids")
+    .optional()
+    .isArray()
+    .withMessage("allowed_grids must be an array"),
+  body("allowed_grids.*")
+    .isString()
+    .withMessage("each grid ID must be a string"),
+  body("allowed_cohorts")
+    .optional()
+    .isArray()
+    .withMessage("allowed_cohorts must be an array"),
+  body("allowed_cohorts.*")
+    .isString()
+    .withMessage("each cohort ID must be a string"),
+  body("allowed_origins")
+    .optional()
+    .isArray()
+    .withMessage("allowed_origins must be an array"),
+  body("allowed_origins.*")
+    .isString()
+    .withMessage("each origin must be a string"),
+  body("access_schedule")
+    .optional()
+    .isObject()
+    .withMessage("access_schedule must be an object"),
+  body("access_schedule.enabled")
+    .optional()
+    .isBoolean()
+    .withMessage("access_schedule.enabled must be a boolean"),
+  body("access_schedule.allowed_days")
+    .optional()
+    .isArray()
+    .withMessage("access_schedule.allowed_days must be an array"),
+  body("access_schedule.allowed_hours_utc.start")
+    .optional()
+    .isInt({ min: 0, max: 23 })
+    .withMessage("allowed_hours_utc.start must be an integer between 0 and 23"),
+  body("access_schedule.allowed_hours_utc.end")
+    .optional()
+    .isInt({ min: 0, max: 23 })
+    .withMessage("allowed_hours_utc.end must be an integer between 0 and 23"),
+  body("request_pattern")
+    .optional()
+    .isObject()
+    .withMessage("request_pattern must be an object"),
+  body("request_pattern.auto_suspended")
+    .optional()
+    .isBoolean()
+    .withMessage("request_pattern.auto_suspended must be a boolean"),
+  body("request_pattern.anomaly_score")
+    .optional()
+    .isNumeric()
+    .withMessage("request_pattern.anomaly_score must be a number"),
+  validate,
 ];
 
 const validateSingleIp = oneOf([
