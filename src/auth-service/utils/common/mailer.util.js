@@ -810,6 +810,7 @@ const getEmailSubject = (functionName, params) => {
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token Has Expired",
     expiringToken: "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
+    autoSuspendedToken: "Security Alert: Your AirQo API Token Has Been Suspended",
 
     // ===== SENSOR MANUFACTURER (NETWORK) REQUEST FUNCTIONS =====
     notifyAdminOfSensorManufacturerRequest: `New Sensor Manufacturer Request: ${sanitizeEmailString(
@@ -2473,6 +2474,23 @@ const mailer = {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
     },
+  ),
+  // One email per day maximum — additional 24-hour deduplication per token is
+  // handled in _trackBehaviouralAnomaly via a Redis key so that a user with
+  // multiple tokens does not receive duplicate alerts for unrelated tokens.
+  autoSuspendedToken: createSecurityEmailFunction(
+    "autoSuspendedToken",
+    (params) =>
+      msgs.tokenAutoSuspended({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+        tokenName: params.tokenName,
+        suspensionReason: params.suspensionReason,
+        suspendedAt: params.suspendedAt,
+      }),
+    { cooldownDays: 1, enableCooldown: true },
   ),
   newDeviceLogin: createSecurityEmailFunction(
     "newDeviceLogin",
