@@ -98,17 +98,12 @@ const validateTokenUpdate = [
     ],
   ]),
   // Security / resource-binding fields — all optional partial updates.
-  body("tier")
-    .optional()
-    .isIn(["Free", "Standard", "Premium"])
-    .withMessage("tier must be Free, Standard, or Premium"),
-  body("scopes")
-    .optional()
-    .isArray()
-    .withMessage("scopes must be an array"),
-  body("scopes.*")
-    .isString()
-    .withMessage("each scope must be a string"),
+  // NOTE: tier and scopes are intentionally excluded. Allowing end users to
+  // set tier would let anyone self-upgrade to Premium and bypass rate limits.
+  // Allowing end users to set scopes would let them grant themselves access to
+  // data types beyond their subscription. Both fields must only be changed by
+  // admins via a privileged internal flow (e.g. direct DB update or a future
+  // admin-only endpoint with role enforcement).
   body("allowed_grids")
     .optional()
     .isArray()
@@ -142,6 +137,9 @@ const validateTokenUpdate = [
     .optional()
     .isArray()
     .withMessage("access_schedule.allowed_days must be an array"),
+  body("access_schedule.allowed_days.*")
+    .isInt({ min: 0, max: 6 })
+    .withMessage("each day must be an integer between 0 (Sunday) and 6 (Saturday)"),
   body("access_schedule.allowed_hours_utc.start")
     .optional()
     .isInt({ min: 0, max: 23 })
@@ -158,10 +156,8 @@ const validateTokenUpdate = [
     .optional()
     .isBoolean()
     .withMessage("request_pattern.auto_suspended must be a boolean"),
-  body("request_pattern.anomaly_score")
-    .optional()
-    .isNumeric()
-    .withMessage("request_pattern.anomaly_score must be a number"),
+  // anomaly_score is intentionally excluded — allowing callers to reset their
+  // own score would let them bypass the anomaly detector indefinitely.
   validate,
 ];
 

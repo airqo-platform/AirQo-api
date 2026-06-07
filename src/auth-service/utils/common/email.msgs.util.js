@@ -767,7 +767,7 @@ module.exports = {
         <p>This may be a false positive — for example, if you access the API from both a browser and a server-side application, or if you recently updated your API client. If this activity was expected, please follow the steps below to reinstate your token.</p>
         <p><strong>What to do next:</strong></p>
         <ol style="padding-left:20px;">
-          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <strong>Settings &rsaquo; API</strong>.</li>
+          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <a href="${API_SETTINGS_URL}"><strong>Settings &rsaquo; API</strong></a>.</li>
           <li>Locate the affected token (<code>${maskedToken}</code>${tokenLabel}) on your API client card.</li>
           <li>If it shows as suspended, use the <strong>Reinstate</strong> option to restore access.</li>
           <li>Alternatively, use <strong>Regenerate Token</strong> on your existing client to issue a fresh token — this does not require creating a new client.</li>

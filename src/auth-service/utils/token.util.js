@@ -985,7 +985,7 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
         //      prevents spam when the same token triggers multiple suspensions.
         //   2. mailer.autoSuspendedToken cooldownDays:1 — per-user-email gate,
         //      prevents flooding a user who has many tokens suspend simultaneously.
-        // Fire-and-forget — never blocks the DB write above.
+        // Fire-and-forget — never blocks the DB write below.
         Promise.resolve().then(async () => {
           try {
             const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
@@ -1311,7 +1311,7 @@ const token = {
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
         .select(
-          "client_id token tier scopes allowed_grids allowed_cohorts " +
+          "client_id token name tier scopes allowed_grids allowed_cohorts " +
           "access_schedule last_user_agent request_pattern allowed_origins"
         );
 
