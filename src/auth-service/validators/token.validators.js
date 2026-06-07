@@ -97,6 +97,68 @@ const validateTokenUpdate = [
         .trim(),
     ],
   ]),
+  // Security / resource-binding fields — all optional partial updates.
+  // NOTE: tier and scopes are intentionally excluded. Allowing end users to
+  // set tier would let anyone self-upgrade to Premium and bypass rate limits.
+  // Allowing end users to set scopes would let them grant themselves access to
+  // data types beyond their subscription. Both fields must only be changed by
+  // admins via a privileged internal flow (e.g. direct DB update or a future
+  // admin-only endpoint with role enforcement).
+  body("allowed_grids")
+    .optional()
+    .isArray()
+    .withMessage("allowed_grids must be an array"),
+  body("allowed_grids.*")
+    .isString()
+    .withMessage("each grid ID must be a string"),
+  body("allowed_cohorts")
+    .optional()
+    .isArray()
+    .withMessage("allowed_cohorts must be an array"),
+  body("allowed_cohorts.*")
+    .isString()
+    .withMessage("each cohort ID must be a string"),
+  body("allowed_origins")
+    .optional()
+    .isArray()
+    .withMessage("allowed_origins must be an array"),
+  body("allowed_origins.*")
+    .isString()
+    .withMessage("each origin must be a string"),
+  body("access_schedule")
+    .optional()
+    .isObject()
+    .withMessage("access_schedule must be an object"),
+  body("access_schedule.enabled")
+    .optional()
+    .isBoolean()
+    .withMessage("access_schedule.enabled must be a boolean"),
+  body("access_schedule.allowed_days")
+    .optional()
+    .isArray()
+    .withMessage("access_schedule.allowed_days must be an array"),
+  body("access_schedule.allowed_days.*")
+    .isInt({ min: 0, max: 6 })
+    .withMessage("each day must be an integer between 0 (Sunday) and 6 (Saturday)"),
+  body("access_schedule.allowed_hours_utc.start")
+    .optional()
+    .isInt({ min: 0, max: 23 })
+    .withMessage("allowed_hours_utc.start must be an integer between 0 and 23"),
+  body("access_schedule.allowed_hours_utc.end")
+    .optional()
+    .isInt({ min: 0, max: 23 })
+    .withMessage("allowed_hours_utc.end must be an integer between 0 and 23"),
+  body("request_pattern")
+    .optional()
+    .isObject()
+    .withMessage("request_pattern must be an object"),
+  body("request_pattern.auto_suspended")
+    .optional()
+    .isBoolean()
+    .withMessage("request_pattern.auto_suspended must be a boolean"),
+  // anomaly_score is intentionally excluded — allowing callers to reset their
+  // own score would let them bypass the anomaly detector indefinitely.
+  validate,
 ];
 
 const validateSingleIp = oneOf([
