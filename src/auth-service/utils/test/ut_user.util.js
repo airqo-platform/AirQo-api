@@ -3262,19 +3262,9 @@ describe("buildAuthMethods()", () => {
 // computeUserOnboardingChecklist logic
 // ---------------------------------------------------------------------------
 describe("computeUserOnboardingChecklist (personal onboarding checklist logic)", () => {
-  function computeUserOnboardingChecklist(user) {
-    const stored = user.onboarding_checklist || {
-      is_dismissed: false,
-      completed_steps: [],
-    };
-    const steps = new Set(stored.completed_steps || []);
-    if ((user.devices || []).length > 0) steps.add("add-device");
-    if ((user.cohorts || []).length > 0) steps.add("assign-cohort");
-    return {
-      is_dismissed: stored.is_dismissed || false,
-      completed_steps: Array.from(steps),
-    };
-  }
+  const computeUserOnboardingChecklist = rewireCreateUser.__get__(
+    "computeUserOnboardingChecklist",
+  );
 
   const { expect } = require("chai");
 
