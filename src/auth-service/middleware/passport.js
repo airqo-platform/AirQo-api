@@ -1467,6 +1467,11 @@ const OAUTH1_TOKEN_COOKIE = "_oauth1_tw";
 
 function signOAuth1State(token, secret) {
   const payload = `${Buffer.from(token).toString("base64url")}.${Buffer.from(secret).toString("base64url")}`;
+  // HMAC-SHA256 is used here for payload integrity signing, not password storage.
+  // The oauth token+secret are ephemeral round-trip values, not credentials being
+  // persisted. This pattern is the same used by cookie-parser signed cookies and
+  // JWT libraries. CodeQL false-positive suppressed accordingly.
+  // codeql[js/insufficient-password-hash]
   const sig = crypto
     .createHmac("sha256", constants.SESSION_SECRET)
     .update(payload)
