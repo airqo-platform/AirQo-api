@@ -158,6 +158,26 @@ const validateTokenUpdate = [
     .withMessage("request_pattern.auto_suspended must be a boolean"),
   // anomaly_score is intentionally excluded — allowing callers to reset their
   // own score would let them bypass the anomaly detector indefinitely.
+  // bypass_anomaly_detection is admin-controlled: set true for known
+  // high-volume service accounts (spatial, mobile) to prevent false-positive
+  // auto-suspension from rate-spike / UA-change heuristics.
+  body("bypass_anomaly_detection")
+    .optional()
+    .isBoolean()
+    .withMessage("bypass_anomaly_detection must be a boolean")
+    .custom((value, { req }) => {
+      // req.user is set by enhancedJWTAuth, which runs before validateTokenUpdate
+      // on the PATCH/PUT-update routes.  On any other route (e.g. regenerate)
+      // req.user is not yet available — pass through and rely on the util guard.
+      if (!req.user) return true;
+      const userEmail = (req.user.email || "").toLowerCase();
+      const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
+        .some((e) => e.toLowerCase() === userEmail);
+      if (!isAdmin) {
+        throw new Error("bypass_anomaly_detection can only be set by administrators");
+      }
+      return true;
+    }),
   validate,
 ];
 

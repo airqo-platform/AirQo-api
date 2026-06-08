@@ -907,6 +907,11 @@ const isIPBlacklisted = (...args) =>
  * Never throws — all errors are logged and swallowed.
  */
 const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, userAgent }) => {
+  // Service-account tokens opt out of behavioural scoring entirely.
+  // Honeypot traps, IP blocks, and manual suspension still apply.
+  if (accessToken.bypass_anomaly_detection) {
+    return;
+  }
   const ANOMALY_SUSPEND_THRESHOLD = constants.ANOMALY_SUSPEND_THRESHOLD || 10;
   try {
     const tokenId = accessToken._id || accessToken.client_id;
@@ -1207,6 +1212,16 @@ const token = {
         if (update._id) {
           delete update._id;
         }
+        // bypass_anomaly_detection is admin-only — non-super-admins cannot set it
+        // via the public PATCH endpoint even if the validator accepts the field.
+        if (update.bypass_anomaly_detection !== undefined) {
+          const userEmail = ((request.user && request.user.email) || "").toLowerCase();
+          const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
+            .some(e => e.toLowerCase() === userEmail);
+          if (!isAdmin) {
+            delete update.bypass_anomaly_detection;
+          }
+        }
         const updatedToken = await AccessTokenModel(tenant)
           .findByIdAndUpdate(tokenId, update, { new: true })
           .lean();
@@ -1312,7 +1327,8 @@ const token = {
         .findOne({ token })
         .select(
           "client_id token name tier scopes allowed_grids allowed_cohorts " +
-          "access_schedule last_user_agent request_pattern allowed_origins"
+          "access_schedule last_user_agent request_pattern allowed_origins " +
+          "bypass_anomaly_detection"
         );
 
       if (isEmpty(accessToken)) {
