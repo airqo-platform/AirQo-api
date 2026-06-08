@@ -1158,6 +1158,18 @@ function resolveAllowedRedirectOrigins() {
 // Computed once at module load — inputs are fixed env vars.
 const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
 
+// Origin of the analytics frontend. Used to select the correct failure-redirect
+// path: analytics uses /user/login, vertex and others use /login.
+const ANALYTICS_ORIGIN = (() => {
+  try {
+    return constants.ANALYTICS_BASE_URL
+      ? new URL(constants.ANALYTICS_BASE_URL).origin
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 function isAllowedRedirect(url, allowedOrigins) {
   if (!url || typeof url !== "string") return false;
   try {
@@ -1428,9 +1440,10 @@ const authGoogleCallback = (req, res, next) => {
   if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
     try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
   }
-  const failureBase = validatedOrigin
+  const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
     ? `${validatedOrigin}/login`
-    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
+      || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
   passport.authenticate("google", {
     failureRedirect: buildOAuthFailureRedirect(failureBase),
     session: false,
@@ -1499,9 +1512,10 @@ const authOAuthCallback = (req, res, next) => {
   if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
     try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
   }
-  const failureBase = validatedOrigin
+  const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
     ? `${validatedOrigin}/login`
-    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
+      || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
   const failureRedirectUrl = buildOAuthFailureRedirect(failureBase);
   passport.authenticate(provider, {
     session: false,
@@ -1537,13 +1551,17 @@ const authOAuthCallback = (req, res, next) => {
       err.message &&
       err.message.includes("Failed to find request token in session")
     ) {
-      // OAuth 1.0a session expiry — not actionable; occurs when the session
-      // expires between request-token and callback (pod restart, sticky-session
-      // miss, or browser back-button replay).
-      logger.warn(`[passport] OAuth session expired for ${safeProvider}`, {
+      // OAuth 1.0a request token missing from session. Common causes:
+      // (1) session cookie overwritten by another service sharing Domain=.airqo.net,
+      // (2) Redis session store unavailable — the app fell back to MongoStore (MongoDB-backed),
+      // (3) browser back-button replay after the token was already consumed.
+      // Logged at ERROR so it surfaces in ArgoCD / alerting pipelines.
+      logger.error(`[passport] OAuth 1.0a session token missing for ${safeProvider}`, {
         provider: safeProvider,
         errorType: err.name || "Error",
         message: err.message,
+        sessionExists: !!req.session,
+        hasOauthKey: !!(req.session && req.session.oauth),
       });
     } else if (err.name === "TokenError" && err.code === "invalid_grant") {
       // Authorization code expired or already used — user-triggered (slow
