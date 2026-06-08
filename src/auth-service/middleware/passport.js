@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const userUtil = require("@utils/user.util");
@@ -1453,6 +1454,124 @@ const authGoogleCallback = (req, res, next) => {
   });
 };
 
+// ── Twitter OAuth 1.0a cookie bridge ─────────────────────────────────────────
+// OAuth 1.0a stores the request token secret in the session between the
+// initiation and callback requests. In a multi-pod deployment the callback
+// may land on a different pod (no shared Redis) or a different session
+// (Domain=.airqo.net cookie collision), causing passport-oauth1 to fail with
+// "Failed to find request token in session". We mirror the token+secret to an
+// HMAC-signed short-lived HttpOnly cookie during initiation and restore it
+// from that cookie on the callback if the session is missing the data.
+
+const OAUTH1_TOKEN_COOKIE = "_oauth1_tw";
+
+function signOAuth1State(token, secret) {
+  const payload = `${Buffer.from(token).toString("base64url")}.${Buffer.from(secret).toString("base64url")}`;
+  const sig = crypto
+    .createHmac("sha256", constants.SESSION_SECRET)
+    .update(payload)
+    .digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+function verifyOAuth1State(signed) {
+  if (typeof signed !== "string") return null;
+  const lastDot = signed.lastIndexOf(".");
+  if (lastDot === -1) return null;
+  const payload = signed.substring(0, lastDot);
+  const sig = signed.substring(lastDot + 1);
+  const expected = crypto
+    .createHmac("sha256", constants.SESSION_SECRET)
+    .update(payload)
+    .digest("base64url");
+  let valid = false;
+  try {
+    valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
+  } catch {
+    return null;
+  }
+  if (!valid) return null;
+  const parts = payload.split(".");
+  if (parts.length !== 2) return null;
+  try {
+    return {
+      token: Buffer.from(parts[0], "base64url").toString(),
+      secret: Buffer.from(parts[1], "base64url").toString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Wraps req.session.save() so the oauth request token is also written to an
+// HMAC-signed cookie during Twitter initiation. No-op for all other providers.
+const setupTwitterOAuthBridge = (req, res, next) => {
+  const provider =
+    req.oauthProvider || (req.params && req.params.provider) || "";
+  if (provider !== "twitter" || !req.session) return next();
+
+  const originalSave = req.session.save.bind(req.session);
+  req.session.save = function (callback) {
+    if (req.session.oauth && typeof req.session.oauth === "object") {
+      const entries = Object.entries(req.session.oauth);
+      if (entries.length > 0) {
+        const [oauthToken, oauthSecret] = entries[0];
+        try {
+          const signed = signOAuth1State(oauthToken, oauthSecret);
+          const cookieOpts = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV !== "development",
+            sameSite: "lax",
+            maxAge: 10 * 60 * 1000,
+            path: "/",
+          };
+          if (constants.OAUTH_COOKIE_DOMAIN)
+            cookieOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+          res.cookie(OAUTH1_TOKEN_COOKIE, signed, cookieOpts);
+        } catch (e) {
+          logger.warn("[passport] Twitter OAuth 1.0a bridge: failed to set cookie", {
+            error: e.message,
+          });
+        }
+      }
+    }
+    return originalSave(callback);
+  };
+  next();
+};
+
+// Restores req.session.oauth from the HMAC-signed cookie mirror if the session
+// is missing the oauth key on the Twitter callback. Always clears the cookie.
+const restoreTwitterOAuthFromCookie = (req, res, next) => {
+  const provider =
+    req.oauthProvider || (req.params && req.params.provider) || "";
+  if (provider !== "twitter") return next();
+
+  const clearOpts = { path: "/" };
+  if (constants.OAUTH_COOKIE_DOMAIN)
+    clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+
+  if (req.session && !req.session.oauth) {
+    const signedCookie = req.cookies && req.cookies[OAUTH1_TOKEN_COOKIE];
+    if (signedCookie) {
+      const data = verifyOAuth1State(signedCookie);
+      if (data) {
+        req.session.oauth = { [data.token]: data.secret };
+        logger.info(
+          "[passport] Restored Twitter OAuth 1.0a request token from cookie fallback",
+        );
+      } else {
+        logger.warn(
+          "[passport] Twitter OAuth 1.0a cookie fallback: HMAC signature invalid",
+        );
+      }
+    }
+  }
+
+  res.clearCookie(OAUTH1_TOKEN_COOKIE, clearOpts);
+  next();
+};
+
 /**
  * Dynamically initiates OAuth flow for any supported provider.
  * Used by the generic GET /auth/:provider route.
@@ -2029,4 +2148,6 @@ module.exports = {
   optionalJWTAuth,
   specificRouteUris,
   matchesRoute,
+  setupTwitterOAuthBridge,
+  restoreTwitterOAuthFromCookie,
 };

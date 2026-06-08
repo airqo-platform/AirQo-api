@@ -18,6 +18,8 @@ const {
   authGoogle,
   enhancedJWTAuth,
   refreshTokenAuth,
+  setupTwitterOAuthBridge,
+  restoreTwitterOAuthFromCookie,
 } = require("@middleware/passport");
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
@@ -274,11 +276,12 @@ router.get("/auth/google", setGoogleAuth, authGoogle);
 router.get(
   "/auth/callback/:provider",
   setOAuthProvider,
+  restoreTwitterOAuthFromCookie,
   authOAuthCallback,
   userController.oauthCallback,
 );
 
-router.get("/auth/:provider", setOAuthProvider, authOAuth);
+router.get("/auth/:provider", setOAuthProvider, setupTwitterOAuthBridge, authOAuth);
 
 // ================================
 // USER CRUD & AUTH ROUTES
