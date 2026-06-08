@@ -23,12 +23,13 @@ function makeMockRes() {
   };
 }
 
-function makeInitiationReq(oauthEntry = { testtoken: "testsecret" }) {
+function makeInitiationReq(oauthEntry = { oauth_token: "testtoken", oauth_token_secret: "testsecret" }) {
   return {
     oauthProvider: "twitter",
     params: { provider: "twitter" },
     session: {
       oauth: oauthEntry,
+      oauthTenant: "airqo",
       save: sinon.stub().callsFake((cb) => cb(null)),
     },
   };
@@ -126,10 +127,13 @@ describe("Twitter OAuth 1.0a Cookie Bridge", () => {
       expect(req.session.save).to.not.equal(sinon.stub()); // wrapped, not the original
     });
 
-    it("sets _oauth1_tw cookie with three-part base64url.base64url.sig value", () => {
+    it("sets _oauth1_tw cookie with four-part token.secret.tenant.sig value", () => {
       const next = sinon.stub();
       const saveCb = sinon.stub();
-      const req = makeInitiationReq({ mytoken: "mysecret" });
+      const req = makeInitiationReq({
+        oauth_token: "mytoken",
+        oauth_token_secret: "mysecret",
+      });
       const res = makeMockRes();
 
       setupTwitterOAuthBridge(req, res, next);
@@ -139,7 +143,8 @@ describe("Twitter OAuth 1.0a Cookie Bridge", () => {
       expect(res.cookie.args[0][0]).to.equal("_oauth1_tw");
       const cookieValue = res.cookie.args[0][1];
       expect(cookieValue).to.be.a("string");
-      expect(cookieValue.split(".").length).to.equal(3);
+      // base64url(token).base64url(secret).base64url(tenant).hmac = 4 parts
+      expect(cookieValue.split(".").length).to.equal(4);
     });
 
     it("calls the original session.save after setting the cookie", () => {
@@ -155,11 +160,12 @@ describe("Twitter OAuth 1.0a Cookie Bridge", () => {
       expect(saveCb.calledOnce).to.be.true;
     });
 
-    it("does not set cookie when session has no oauth key", () => {
+    it("does not set cookie when session has no oauth_token_secret", () => {
       const req = {
         oauthProvider: "twitter",
         params: { provider: "twitter" },
         session: {
+          // no oauth key at all
           save: sinon.stub().callsFake((cb) => cb(null)),
         },
       };
@@ -215,7 +221,10 @@ describe("Twitter OAuth 1.0a Cookie Bridge", () => {
 
     it("restores session.oauth from a valid cookie (full round-trip)", () => {
       // ── Initiation: generate signed cookie via setupTwitterOAuthBridge ──
-      const initReq = makeInitiationReq({ realtoken: "realsecret" });
+      const initReq = makeInitiationReq({
+        oauth_token: "realtoken",
+        oauth_token_secret: "realsecret",
+      });
       const initRes = makeMockRes();
       setupTwitterOAuthBridge(initReq, initRes, sinon.stub());
       initReq.session.save(() => {});
@@ -229,16 +238,21 @@ describe("Twitter OAuth 1.0a Cookie Bridge", () => {
       restoreTwitterOAuthFromCookie(callbackReq, callbackRes, callbackNext);
 
       expect(callbackReq.session.oauth).to.deep.equal({
-        realtoken: "realsecret",
+        oauth_token: "realtoken",
+        oauth_token_secret: "realsecret",
       });
+      expect(callbackReq.session.oauthTenant).to.equal("airqo");
       expect(callbackRes.clearCookie.calledWith("_oauth1_tw")).to.be.true;
       expect(callbackNext.calledOnce).to.be.true;
     });
 
     it("does not restore when cookie payload is tampered", () => {
       const next = sinon.stub();
-      // Generate a valid cookie then corrupt the payload portion
-      const initReq = makeInitiationReq({ tok: "sec" });
+      // Generate a valid cookie then corrupt the token portion of the payload
+      const initReq = makeInitiationReq({
+        oauth_token: "tok",
+        oauth_token_secret: "sec",
+      });
       const initRes = makeMockRes();
       setupTwitterOAuthBridge(initReq, initRes, sinon.stub());
       initReq.session.save(() => {});

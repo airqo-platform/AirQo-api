@@ -275,8 +275,8 @@ router.get("/auth/google", setGoogleAuth, authGoogle);
 
 router.get(
   "/auth/callback/:provider",
-  setOAuthProvider,
   restoreTwitterOAuthFromCookie,
+  setOAuthProvider,
   authOAuthCallback,
   userController.oauthCallback,
 );

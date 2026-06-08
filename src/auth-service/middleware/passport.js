@@ -1465,8 +1465,15 @@ const authGoogleCallback = (req, res, next) => {
 
 const OAUTH1_TOKEN_COOKIE = "_oauth1_tw";
 
-function signOAuth1State(token, secret) {
-  const payload = `${Buffer.from(token).toString("base64url")}.${Buffer.from(secret).toString("base64url")}`;
+// Payload layout: base64url(oauth_token).base64url(oauth_token_secret).base64url(tenant).hmac
+// The tenant is included so restoreTwitterOAuthFromCookie can reinstate
+// req.session.oauthTenant before setOAuthProvider reads it.
+function signOAuth1State(token, secret, tenant) {
+  const payload = [
+    Buffer.from(token).toString("base64url"),
+    Buffer.from(secret).toString("base64url"),
+    Buffer.from(tenant || "").toString("base64url"),
+  ].join(".");
   // HMAC-SHA256 is used here for payload integrity signing, not password storage.
   // The oauth token+secret are ephemeral round-trip values, not credentials being
   // persisted. This pattern is the same used by cookie-parser signed cookies and
@@ -1498,11 +1505,12 @@ function verifyOAuth1State(signed) {
     return null;
   }
   const parts = payload.split(".");
-  if (parts.length !== 2) return null;
+  if (parts.length !== 3) return null;
   try {
     return {
       token: Buffer.from(parts[0], "base64url").toString(),
       secret: Buffer.from(parts[1], "base64url").toString(),
+      tenant: Buffer.from(parts[2], "base64url").toString() || "airqo",
     };
   } catch {
     return null;
@@ -1518,27 +1526,26 @@ const setupTwitterOAuthBridge = (req, res, next) => {
 
   const originalSave = req.session.save.bind(req.session);
   req.session.save = function (callback) {
-    if (req.session.oauth && typeof req.session.oauth === "object") {
-      const entries = Object.entries(req.session.oauth);
-      if (entries.length > 0) {
-        const [oauthToken, oauthSecret] = entries[0];
-        try {
-          const signed = signOAuth1State(oauthToken, oauthSecret);
-          const cookieOpts = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
-            sameSite: "lax",
-            maxAge: 10 * 60 * 1000,
-            path: "/",
-          };
-          if (constants.OAUTH_COOKIE_DOMAIN)
-            cookieOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
-          res.cookie(OAUTH1_TOKEN_COOKIE, signed, cookieOpts);
-        } catch (e) {
-          logger.warn("[passport] Twitter OAuth 1.0a bridge: failed to set cookie", {
-            error: e.message,
-          });
-        }
+    const oauthToken = req.session.oauth && req.session.oauth.oauth_token;
+    const oauthSecret = req.session.oauth && req.session.oauth.oauth_token_secret;
+    if (oauthToken && oauthSecret) {
+      const tenant = req.session.oauthTenant || "airqo";
+      try {
+        const signed = signOAuth1State(oauthToken, oauthSecret, tenant);
+        const cookieOpts = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+          sameSite: "lax",
+          maxAge: 10 * 60 * 1000,
+          path: "/",
+        };
+        if (constants.OAUTH_COOKIE_DOMAIN)
+          cookieOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+        res.cookie(OAUTH1_TOKEN_COOKIE, signed, cookieOpts);
+      } catch (e) {
+        logger.warn("[passport] Twitter OAuth 1.0a bridge: failed to set cookie", {
+          error: e.message,
+        });
       }
     }
     return originalSave(callback);
@@ -1562,7 +1569,11 @@ const restoreTwitterOAuthFromCookie = (req, res, next) => {
     if (signedCookie) {
       const data = verifyOAuth1State(signedCookie);
       if (data) {
-        req.session.oauth = { [data.token]: data.secret };
+        req.session.oauth = {
+          oauth_token: data.token,
+          oauth_token_secret: data.secret,
+        };
+        req.session.oauthTenant = data.tenant;
         logger.info(
           "[passport] Restored Twitter OAuth 1.0a request token from cookie fallback",
         );
