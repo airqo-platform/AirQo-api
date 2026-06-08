@@ -907,6 +907,11 @@ const isIPBlacklisted = (...args) =>
  * Never throws — all errors are logged and swallowed.
  */
 const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, userAgent }) => {
+  // Service-account tokens opt out of behavioural scoring entirely.
+  // Honeypot traps, IP blocks, and manual suspension still apply.
+  if (accessToken.bypass_anomaly_detection) {
+    return;
+  }
   const ANOMALY_SUSPEND_THRESHOLD = constants.ANOMALY_SUSPEND_THRESHOLD || 10;
   try {
     const tokenId = accessToken._id || accessToken.client_id;
@@ -1312,7 +1317,8 @@ const token = {
         .findOne({ token })
         .select(
           "client_id token name tier scopes allowed_grids allowed_cohorts " +
-          "access_schedule last_user_agent request_pattern allowed_origins"
+          "access_schedule last_user_agent request_pattern allowed_origins " +
+          "bypass_anomaly_detection"
         );
 
       if (isEmpty(accessToken)) {
