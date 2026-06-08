@@ -126,6 +126,167 @@ class CookieStateStore {
   }
 }
 
+// ── Twitter OAuth 1.0a token store ───────────────────────────────────────────
+//
+// passport-oauth1's default SessionStore stores the request token+secret in
+// the Express session between initiation and callback. In a multi-pod
+// deployment where Domain=.airqo.net makes the session cookie shared across
+// services, another service's request can overwrite the session cookie between
+// the two requests, causing "Failed to find request token in session".
+//
+// TwitterCookieTokenStore mirrors the token+secret to an HMAC-signed HttpOnly
+// cookie in set() — called synchronously before any response headers are
+// written, so there is no race with compression or other res.end interceptors.
+// get() reads from session first (normal case) and falls back to the cookie.
+class TwitterCookieTokenStore {
+  constructor({ secret, cookieName = "_oauth1_tw", ttlSeconds = 600, domain } = {}) {
+    if (!secret) throw new Error("TwitterCookieTokenStore: secret is required");
+    this._secret = secret;
+    this._cookieName = cookieName;
+    this._ttl = ttlSeconds;
+    this._domain = domain || null;
+  }
+
+  // Called by passport-oauth1 after obtaining the request token from Twitter,
+  // before the browser is redirected to Twitter. Headers are not yet sent.
+  set(req, token, tokenSecret, cb) {
+    if (req.session) {
+      if (!req.session.oauth) req.session.oauth = {};
+      req.session.oauth.oauth_token = token;
+      req.session.oauth.oauth_token_secret = tokenSecret;
+    }
+    const tenant = (req.session && req.session.oauthTenant) || "airqo";
+    try {
+      const signed = this._signPayload(token, tokenSecret, tenant);
+      const res = req.res;
+      if (res) {
+        res.cookie(this._cookieName, signed, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+          sameSite: "lax",
+          maxAge: this._ttl * 1000,
+          path: "/",
+          ...(this._domain ? { domain: this._domain } : {}),
+        });
+        logger.info("[TwitterCookieTokenStore] request token bridge cookie set", {
+          domain: this._domain || "(default)",
+        });
+      } else {
+        logger.warn("[TwitterCookieTokenStore] req.res unavailable — bridge cookie not set");
+      }
+    } catch (e) {
+      logger.warn("[TwitterCookieTokenStore] failed to set bridge cookie", {
+        error: e.message,
+      });
+    }
+    cb();
+  }
+
+  // Called by passport-oauth1 on the callback with the oauth_token from the
+  // redirect URL. Returns the secret from session if present; falls back to
+  // the signed cookie mirror if the session was lost.
+  get(req, token, cb) {
+    const sessionOauth = req.session && req.session.oauth;
+    if (
+      sessionOauth &&
+      sessionOauth.oauth_token_secret &&
+      (!sessionOauth.oauth_token || sessionOauth.oauth_token === token)
+    ) {
+      return cb(null, sessionOauth.oauth_token_secret);
+    }
+    const signedCookie = req.cookies && req.cookies[this._cookieName];
+    if (signedCookie) {
+      const data = this._verifyPayload(signedCookie);
+      if (data) {
+        if (data.token !== token) {
+          logger.warn("[TwitterCookieTokenStore] cookie fallback: oauth_token mismatch");
+          return cb(new Error("Failed to find request token in session"));
+        }
+        if (req.session) {
+          if (!req.session.oauth) req.session.oauth = {};
+          req.session.oauth.oauth_token = data.token;
+          req.session.oauth.oauth_token_secret = data.secret;
+          req.session.oauthTenant = data.tenant;
+        }
+        logger.info("[TwitterCookieTokenStore] request token restored from cookie fallback");
+        return cb(null, data.secret);
+      }
+      logger.warn("[TwitterCookieTokenStore] cookie fallback: HMAC verification failed");
+    } else {
+      logger.warn("[TwitterCookieTokenStore] cookie fallback: _oauth1_tw absent on callback", {
+        hasSession: !!req.session,
+        sessionHasOauth: !!(req.session && req.session.oauth),
+      });
+    }
+    return cb(new Error("Failed to find request token in session"));
+  }
+
+  // Called by passport-oauth1 after successful token exchange.
+  destroy(req, token, cb) {
+    if (req.session && req.session.oauth) {
+      delete req.session.oauth.oauth_token;
+      delete req.session.oauth.oauth_token_secret;
+      if (Object.keys(req.session.oauth).length === 0) {
+        delete req.session.oauth;
+      }
+    }
+    if (req.res) {
+      req.res.clearCookie(this._cookieName, {
+        path: "/",
+        ...(this._domain ? { domain: this._domain } : {}),
+      });
+    }
+    cb();
+  }
+
+  // HMAC-SHA256 payload integrity signing — NOT password storage.
+  // Payload: base64url(token).base64url(secret).base64url(tenant)
+  _signPayload(token, secret, tenant) {
+    const payload = [
+      Buffer.from(token).toString("base64url"),
+      Buffer.from(secret).toString("base64url"),
+      Buffer.from(tenant || "").toString("base64url"),
+    ].join(".");
+    // codeql[js/insufficient-password-hash]
+    const sig = crypto
+      .createHmac("sha256", this._secret)
+      .update(payload)
+      .digest("base64url");
+    return `${payload}.${sig}`;
+  }
+
+  _verifyPayload(signed) {
+    if (typeof signed !== "string") return null;
+    const lastDot = signed.lastIndexOf(".");
+    if (lastDot === -1) return null;
+    const payload = signed.substring(0, lastDot);
+    const sig = signed.substring(lastDot + 1);
+    const expected = crypto
+      .createHmac("sha256", this._secret)
+      .update(payload)
+      .digest("base64url");
+    const sBuf = Buffer.from(sig, "base64url");
+    const eBuf = Buffer.from(expected, "base64url");
+    if (sBuf.length !== eBuf.length) return null;
+    try {
+      if (!crypto.timingSafeEqual(sBuf, eBuf)) return null;
+    } catch {
+      return null;
+    }
+    const parts = payload.split(".");
+    if (parts.length !== 3) return null;
+    try {
+      return {
+        token: Buffer.from(parts[0], "base64url").toString(),
+        secret: Buffer.from(parts[1], "base64url").toString(),
+        tenant: Buffer.from(parts[2], "base64url").toString() || "airqo",
+      };
+    } catch {
+      return null;
+    }
+  }
+}
+
 // ── LinkedIn OIDC Strategy ────────────────────────────────────────────────────
 // passport-linkedin-oauth2 v2 calls the deprecated /v2/me and /v2/emailAddress
 // endpoints which require r_liteprofile / r_emailaddress scopes. LinkedIn's
@@ -472,8 +633,17 @@ function configureStrategies(passport, tenant) {
             callbackURL: buildCallbackURL("twitter"),
             includeEmail: true,
             passReqToCallback: true,
-            // Twitter OAuth 1.0a handles state/CSRF natively via
-            // oauth_token — state: true is OAuth2-only, not set here.
+            // TwitterCookieTokenStore mirrors the request token+secret to an
+            // HMAC-signed HttpOnly cookie (set synchronously before any headers
+            // are written) in addition to the Express session. This prevents
+            // "Failed to find request token in session" when Domain=.airqo.net
+            // causes a shared session cookie to be overwritten by another
+            // service between OAuth initiation and callback.
+            requestTokenStore: new TwitterCookieTokenStore({
+              secret: constants.SESSION_SECRET,
+              cookieName: "_oauth1_tw",
+              domain: constants.OAUTH_COOKIE_DOMAIN,
+            }),
           },
           makeStrategyCallback(
             "twitter",
@@ -524,5 +694,6 @@ module.exports = {
   configureStrategies,
   buildCallbackURL,
   CookieStateStore,
+  TwitterCookieTokenStore,
   LinkedInOIDCStrategy,
 };
