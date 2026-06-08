@@ -1442,7 +1442,8 @@ const authGoogleCallback = (req, res, next) => {
   }
   const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
     ? `${validatedOrigin}/login`
-    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
+      || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
   passport.authenticate("google", {
     failureRedirect: buildOAuthFailureRedirect(failureBase),
     session: false,
@@ -1513,7 +1514,8 @@ const authOAuthCallback = (req, res, next) => {
   }
   const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
     ? `${validatedOrigin}/login`
-    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
+      || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
   const failureRedirectUrl = buildOAuthFailureRedirect(failureBase);
   passport.authenticate(provider, {
     session: false,
@@ -1551,12 +1553,13 @@ const authOAuthCallback = (req, res, next) => {
     ) {
       // OAuth 1.0a request token missing from session. Common causes:
       // (1) session cookie overwritten by another service sharing Domain=.airqo.net,
-      // (2) Redis session store unavailable — pod fell back to in-memory MongoStore,
+      // (2) Redis session store unavailable — the app fell back to MongoStore (MongoDB-backed),
       // (3) browser back-button replay after the token was already consumed.
       // Logged at ERROR so it surfaces in ArgoCD / alerting pipelines.
-      logger.error(`[passport] Twitter OAuth session token missing for ${safeProvider}`, {
+      logger.error(`[passport] OAuth 1.0a session token missing for ${safeProvider}`, {
         provider: safeProvider,
         errorType: err.name || "Error",
+        message: err.message,
         sessionExists: !!req.session,
         hasOauthKey: !!(req.session && req.session.oauth),
       });

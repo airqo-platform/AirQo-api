@@ -98,9 +98,12 @@ function resolveOAuthRedirectContext(req, res) {
   if (redirectOrigin && redirectOrigin !== ANALYTICS_ORIGIN) {
     failureRedirectUrl = `${redirectOrigin}/login?error=oauth_failed`;
   } else {
-    const base = constants.GMAIL_VERIFICATION_FAILURE_REDIRECT || `${redirectOrigin || ""}/user/login`;
+    const base =
+      constants.GMAIL_VERIFICATION_FAILURE_REDIRECT ||
+      (redirectOrigin ? `${redirectOrigin}/user/login` : "/");
+    const hasErrorParam = /[?&]error=/.test(base);
     const sep = base.includes("?") ? "&" : "?";
-    failureRedirectUrl = `${base}${sep}error=oauth_failed`;
+    failureRedirectUrl = hasErrorParam ? base : `${base}${sep}error=oauth_failed`;
   }
   return { validatedUrl, redirectOrigin, failureRedirectUrl };
 }
