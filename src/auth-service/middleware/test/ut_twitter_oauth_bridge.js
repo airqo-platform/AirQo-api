@@ -161,6 +161,20 @@ describe("TwitterCookieTokenStore", () => {
         done();
       });
     });
+
+    it("falls through to error when session oauth_token mismatches callback token", (done) => {
+      const store = makeStore();
+      const req = makeReq({
+        sessionOauth: { oauth_token: "tok-A", oauth_token_secret: "sec" },
+        cookies: {},
+      });
+
+      store.get(req, "tok-B", (err) => {
+        expect(err).to.be.instanceOf(Error);
+        expect(err.message).to.equal("Failed to find request token in session");
+        done();
+      });
+    });
   });
 
   describe("get() — cookie fallback (full round-trip)", () => {
@@ -258,6 +272,19 @@ describe("TwitterCookieTokenStore", () => {
       store.destroy(req, "t", () => {
         const opts = req.res.clearCookie.args[0][1];
         expect(opts.domain).to.equal(".airqo.net");
+        done();
+      });
+    });
+
+    it("completes without throwing when req.res is absent", (done) => {
+      const store = makeStore();
+      const req = makeReq({
+        sessionOauth: { oauth_token: "t", oauth_token_secret: "s" },
+      });
+      delete req.res;
+
+      store.destroy(req, "t", () => {
+        expect(req.session.oauth).to.be.undefined;
         done();
       });
     });

@@ -186,18 +186,20 @@ class TwitterCookieTokenStore {
   // redirect URL. Returns the secret from session if present; falls back to
   // the signed cookie mirror if the session was lost.
   get(req, token, cb) {
-    if (req.session && req.session.oauth && req.session.oauth.oauth_token_secret) {
-      return cb(null, req.session.oauth.oauth_token_secret);
+    const sessionOauth = req.session && req.session.oauth;
+    if (
+      sessionOauth &&
+      sessionOauth.oauth_token_secret &&
+      (!sessionOauth.oauth_token || sessionOauth.oauth_token === token)
+    ) {
+      return cb(null, sessionOauth.oauth_token_secret);
     }
     const signedCookie = req.cookies && req.cookies[this._cookieName];
     if (signedCookie) {
       const data = this._verifyPayload(signedCookie);
       if (data) {
         if (data.token !== token) {
-          logger.warn("[TwitterCookieTokenStore] cookie fallback: oauth_token mismatch", {
-            expected: token,
-            cookieToken: data.token,
-          });
+          logger.warn("[TwitterCookieTokenStore] cookie fallback: oauth_token mismatch");
           return cb(new Error("Failed to find request token in session"));
         }
         if (req.session) {
@@ -239,13 +241,13 @@ class TwitterCookieTokenStore {
 
   // HMAC-SHA256 payload integrity signing — NOT password storage.
   // Payload: base64url(token).base64url(secret).base64url(tenant)
-  // codeql[js/insufficient-password-hash]
   _signPayload(token, secret, tenant) {
     const payload = [
       Buffer.from(token).toString("base64url"),
       Buffer.from(secret).toString("base64url"),
       Buffer.from(tenant || "").toString("base64url"),
     ].join(".");
+    // codeql[js/insufficient-password-hash]
     const sig = crypto
       .createHmac("sha256", this._secret)
       .update(payload)
