@@ -9,277 +9,284 @@ process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test";
 
 const { expect } = require("chai");
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
-const { HttpError } = require("@utils/shared");
+const proxyquire = require("proxyquire").noCallThru();
+
+// ---------------------------------------------------------------------------
+// Load TwitterCookieTokenStore via proxyquire to avoid heavy transitive deps.
+// passport-strategies.js requires @utils/social-auth.util which loads database
+// models — stub everything that would trigger an outbound connection.
+// ---------------------------------------------------------------------------
+
+const noopLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+};
+
+const { TwitterCookieTokenStore } = proxyquire("@config/passport-strategies", {
+  "passport-google-oauth20": { Strategy: class {} },
+  "passport-github2": { Strategy: class {} },
+  "passport-oauth2": { Strategy: class {}, InternalOAuthError: class {} },
+  "passport-linkedin-openidconnect": { Strategy: class {} },
+  "@config/constants": {
+    SESSION_SECRET: "test-session-secret",
+    OAUTH_COOKIE_DOMAIN: ".airqo.net",
+    DEFAULT_TENANT: "airqo",
+    ENVIRONMENT: "TEST",
+    TWITTER_CONSUMER_KEY: "tw-key",
+    TWITTER_CONSUMER_SECRET: "tw-secret",
+    ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+    PLATFORM_BASE_URL: "https://analytics.airqo.net",
+  },
+  "@utils/social-auth.util": { handleOAuthProfile: () => {} },
+  "@utils/shared": { logObject: () => {} },
+  "log4js": { getLogger: () => noopLogger },
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeMockRes() {
-  return {
+function makeStore(overrides = {}) {
+  return new TwitterCookieTokenStore({
+    secret: "test-session-secret",
+    cookieName: "_oauth1_tw",
+    domain: ".airqo.net",
+    ...overrides,
+  });
+}
+
+function makeReq({ sessionOauth = null, cookies = {}, tenant = "airqo" } = {}) {
+  const session = { oauthTenant: tenant };
+  if (sessionOauth) session.oauth = sessionOauth;
+  const res = {
     cookie: sinon.stub(),
     clearCookie: sinon.stub(),
   };
-}
-
-function makeInitiationReq(oauthEntry = { oauth_token: "testtoken", oauth_token_secret: "testsecret" }) {
-  return {
-    oauthProvider: "twitter",
-    params: { provider: "twitter" },
-    session: {
-      oauth: oauthEntry,
-      oauthTenant: "airqo",
-      save: sinon.stub().callsFake((cb) => cb(null)),
-    },
-  };
-}
-
-function makeCallbackReq(cookieValue) {
-  return {
-    oauthProvider: "twitter",
-    params: { provider: "twitter" },
-    session: {},
-    cookies: cookieValue ? { _oauth1_tw: cookieValue } : {},
-  };
+  return { session, cookies, res };
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("Twitter OAuth 1.0a Cookie Bridge", () => {
-  let passportModule;
-  let setupTwitterOAuthBridge;
-  let restoreTwitterOAuthFromCookie;
+describe("TwitterCookieTokenStore", () => {
+  afterEach(() => sinon.restore());
 
-  beforeEach(() => {
-    const loggerStub = {
-      info: sinon.stub(),
-      warn: sinon.stub(),
-      error: sinon.stub(),
-      debug: sinon.stub(),
-    };
-
-    passportModule = proxyquire("@middleware/passport", {
-      "@models/User": sinon.stub().returns({
-        findById: sinon.stub().returns({ lean: sinon.stub().resolves({}) }),
-      }),
-      "@utils/common": {
-        winstonLogger: loggerStub,
-        mailer: {},
-        stringify: sinon.stub(),
-      },
-      "@services/atf.service": {
-        AbstractTokenFactory: sinon.stub().returns({
-          createToken: sinon.stub().resolves("token"),
-          _getEffectiveTokenStrategy: sinon
-            .stub()
-            .returns("NO_ROLES_AND_PERMISSIONS"),
-        }),
-      },
-      "@utils/user.util": { getUser: sinon.stub().resolves({}) },
-      "@utils/shared": {
-        HttpError,
-        logObject: sinon.stub(),
-        logText: sinon.stub(),
-        logElement: sinon.stub(),
-        extractErrorsFromRequest: sinon.stub().returns(null),
-      },
-      jsonwebtoken: {
-        verify: sinon.stub(),
-        sign: sinon.stub(),
-        "@noCallThru": true,
-      },
+  describe("constructor", () => {
+    it("throws when secret is omitted", () => {
+      expect(() => new TwitterCookieTokenStore({})).to.throw(
+        "TwitterCookieTokenStore: secret is required",
+      );
     });
 
-    setupTwitterOAuthBridge = passportModule.setupTwitterOAuthBridge;
-    restoreTwitterOAuthFromCookie = passportModule.restoreTwitterOAuthFromCookie;
-  });
-
-  afterEach(() => {
-    sinon.restore();
-  });
-
-  // ── setupTwitterOAuthBridge ────────────────────────────────────────────────
-
-  describe("setupTwitterOAuthBridge", () => {
-    it("is a no-op for non-twitter providers", () => {
-      const next = sinon.stub();
-      const req = { oauthProvider: "google", session: {}, params: {} };
-      setupTwitterOAuthBridge(req, makeMockRes(), next);
-      expect(next.calledOnce).to.be.true;
-    });
-
-    it("is a no-op when session is absent", () => {
-      const next = sinon.stub();
-      const req = { oauthProvider: "twitter", session: null, params: {} };
-      setupTwitterOAuthBridge(req, makeMockRes(), next);
-      expect(next.calledOnce).to.be.true;
-    });
-
-    it("calls next and wraps session.save for twitter", () => {
-      const next = sinon.stub();
-      const req = makeInitiationReq();
-      setupTwitterOAuthBridge(req, makeMockRes(), next);
-      expect(next.calledOnce).to.be.true;
-      // save was replaced by the wrapper
-      expect(req.session.save).to.not.equal(sinon.stub()); // wrapped, not the original
-    });
-
-    it("sets _oauth1_tw cookie with four-part token.secret.tenant.sig value", () => {
-      const next = sinon.stub();
-      const saveCb = sinon.stub();
-      const req = makeInitiationReq({
-        oauth_token: "mytoken",
-        oauth_token_secret: "mysecret",
+    it("accepts optional domain and cookieName", () => {
+      const store = new TwitterCookieTokenStore({
+        secret: "s",
+        cookieName: "_custom",
+        domain: ".example.com",
       });
-      const res = makeMockRes();
-
-      setupTwitterOAuthBridge(req, res, next);
-      req.session.save(saveCb);
-
-      expect(res.cookie.calledOnce).to.be.true;
-      expect(res.cookie.args[0][0]).to.equal("_oauth1_tw");
-      const cookieValue = res.cookie.args[0][1];
-      expect(cookieValue).to.be.a("string");
-      // base64url(token).base64url(secret).base64url(tenant).hmac = 4 parts
-      expect(cookieValue.split(".").length).to.equal(4);
-    });
-
-    it("calls the original session.save after setting the cookie", () => {
-      const saveCb = sinon.stub();
-      const req = makeInitiationReq();
-      const originalSave = req.session.save;
-      const res = makeMockRes();
-
-      setupTwitterOAuthBridge(req, makeMockRes(), sinon.stub());
-      req.session.save(saveCb);
-
-      expect(originalSave.calledOnce).to.be.true;
-      expect(saveCb.calledOnce).to.be.true;
-    });
-
-    it("does not set cookie when session has no oauth_token_secret", () => {
-      const req = {
-        oauthProvider: "twitter",
-        params: { provider: "twitter" },
-        session: {
-          // no oauth key at all
-          save: sinon.stub().callsFake((cb) => cb(null)),
-        },
-      };
-      const res = makeMockRes();
-
-      setupTwitterOAuthBridge(req, res, sinon.stub());
-      req.session.save(() => {});
-
-      expect(res.cookie.called).to.be.false;
+      expect(store._cookieName).to.equal("_custom");
+      expect(store._domain).to.equal(".example.com");
     });
   });
 
-  // ── restoreTwitterOAuthFromCookie ──────────────────────────────────────────
+  describe("set()", () => {
+    it("sets HMAC-signed cookie with four base64url parts", (done) => {
+      const store = makeStore();
+      const req = makeReq();
 
-  describe("restoreTwitterOAuthFromCookie", () => {
-    it("is a no-op for non-twitter providers", () => {
-      const next = sinon.stub();
-      const req = {
-        oauthProvider: "linkedin",
-        session: {},
+      store.set(req, "mytoken", "mysecret", () => {
+        expect(req.res.cookie.calledOnce).to.be.true;
+        expect(req.res.cookie.args[0][0]).to.equal("_oauth1_tw");
+        const val = req.res.cookie.args[0][1];
+        expect(val.split(".").length).to.equal(4);
+        done();
+      });
+    });
+
+    it("mirrors token+secret to session.oauth", (done) => {
+      const store = makeStore();
+      const req = makeReq();
+
+      store.set(req, "tok", "sec", () => {
+        expect(req.session.oauth.oauth_token).to.equal("tok");
+        expect(req.session.oauth.oauth_token_secret).to.equal("sec");
+        done();
+      });
+    });
+
+    it("applies domain to the cookie options", (done) => {
+      const store = makeStore({ domain: ".airqo.net" });
+      const req = makeReq();
+
+      store.set(req, "t", "s", () => {
+        const opts = req.res.cookie.args[0][2];
+        expect(opts.domain).to.equal(".airqo.net");
+        done();
+      });
+    });
+
+    it("omits domain attribute when domain is not configured", (done) => {
+      const store = makeStore({ domain: undefined });
+      const req = makeReq();
+
+      store.set(req, "t", "s", () => {
+        const opts = req.res.cookie.args[0][2];
+        expect(opts.domain).to.be.undefined;
+        done();
+      });
+    });
+
+    it("calls cb() even when req.res is absent", (done) => {
+      const store = makeStore();
+      const req = makeReq();
+      delete req.res;
+
+      store.set(req, "t", "s", done);
+    });
+  });
+
+  describe("get() — session path", () => {
+    it("returns secret from session without touching cookie", (done) => {
+      const store = makeStore();
+      const req = makeReq({
+        sessionOauth: { oauth_token: "tok", oauth_token_secret: "sec" },
+      });
+
+      store.get(req, "tok", (err, secret) => {
+        expect(err).to.be.null;
+        expect(secret).to.equal("sec");
+        done();
+      });
+    });
+
+    it("falls through to error when session oauth_token mismatches callback token", (done) => {
+      const store = makeStore();
+      const req = makeReq({
+        sessionOauth: { oauth_token: "tok-A", oauth_token_secret: "sec" },
         cookies: {},
-        params: {},
-      };
-      restoreTwitterOAuthFromCookie(req, makeMockRes(), next);
-      expect(next.calledOnce).to.be.true;
-    });
-
-    it("does not overwrite session.oauth when it is already present", () => {
-      const next = sinon.stub();
-      const existing = { tok: "sec" };
-      const req = makeCallbackReq("somevalue");
-      req.session.oauth = existing;
-      const res = makeMockRes();
-
-      restoreTwitterOAuthFromCookie(req, res, next);
-
-      expect(req.session.oauth).to.deep.equal(existing);
-      expect(res.clearCookie.calledWith("_oauth1_tw")).to.be.true;
-      expect(next.calledOnce).to.be.true;
-    });
-
-    it("clears cookie and calls next when no cookie is present", () => {
-      const next = sinon.stub();
-      const req = makeCallbackReq(null);
-      const res = makeMockRes();
-
-      restoreTwitterOAuthFromCookie(req, res, next);
-
-      expect(req.session.oauth).to.be.undefined;
-      expect(res.clearCookie.calledWith("_oauth1_tw")).to.be.true;
-      expect(next.calledOnce).to.be.true;
-    });
-
-    it("restores session.oauth from a valid cookie (full round-trip)", () => {
-      // ── Initiation: generate signed cookie via setupTwitterOAuthBridge ──
-      const initReq = makeInitiationReq({
-        oauth_token: "realtoken",
-        oauth_token_secret: "realsecret",
       });
-      const initRes = makeMockRes();
-      setupTwitterOAuthBridge(initReq, initRes, sinon.stub());
-      initReq.session.save(() => {});
-      const signedCookie = initRes.cookie.args[0][1];
 
-      // ── Callback: restore from that cookie ──
-      const callbackReq = makeCallbackReq(signedCookie);
-      const callbackRes = makeMockRes();
-      const callbackNext = sinon.stub();
-
-      restoreTwitterOAuthFromCookie(callbackReq, callbackRes, callbackNext);
-
-      expect(callbackReq.session.oauth).to.deep.equal({
-        oauth_token: "realtoken",
-        oauth_token_secret: "realsecret",
+      store.get(req, "tok-B", (err) => {
+        expect(err).to.be.instanceOf(Error);
+        expect(err.message).to.equal("Failed to find request token in session");
+        done();
       });
-      expect(callbackReq.session.oauthTenant).to.equal("airqo");
-      expect(callbackRes.clearCookie.calledWith("_oauth1_tw")).to.be.true;
-      expect(callbackNext.calledOnce).to.be.true;
+    });
+  });
+
+  describe("get() — cookie fallback (full round-trip)", () => {
+    it("restores secret from a valid cookie when session is empty", (done) => {
+      const store = makeStore();
+      const setReq = makeReq({ tenant: "airqo" });
+
+      store.set(setReq, "realtoken", "realsecret", () => {
+        const signedCookie = setReq.res.cookie.args[0][1];
+        const getReq = makeReq({ cookies: { _oauth1_tw: signedCookie } });
+
+        store.get(getReq, "realtoken", (err, secret) => {
+          expect(err).to.be.null;
+          expect(secret).to.equal("realsecret");
+          expect(getReq.session.oauth.oauth_token).to.equal("realtoken");
+          expect(getReq.session.oauth.oauth_token_secret).to.equal("realsecret");
+          expect(getReq.session.oauthTenant).to.equal("airqo");
+          done();
+        });
+      });
     });
 
-    it("does not restore when cookie payload is tampered", () => {
-      const next = sinon.stub();
-      // Generate a valid cookie then corrupt the token portion of the payload
-      const initReq = makeInitiationReq({
-        oauth_token: "tok",
-        oauth_token_secret: "sec",
+    it("returns error when cookie is absent and session has no oauth", (done) => {
+      const store = makeStore();
+      const req = makeReq({ cookies: {} });
+
+      store.get(req, "tok", (err) => {
+        expect(err).to.be.instanceOf(Error);
+        expect(err.message).to.equal("Failed to find request token in session");
+        done();
       });
-      const initRes = makeMockRes();
-      setupTwitterOAuthBridge(initReq, initRes, sinon.stub());
-      initReq.session.save(() => {});
-      const valid = initRes.cookie.args[0][1];
-      const parts = valid.split(".");
-      parts[0] = Buffer.from("tampered").toString("base64url");
-      const tampered = parts.join(".");
-
-      const req = makeCallbackReq(tampered);
-      const res = makeMockRes();
-      restoreTwitterOAuthFromCookie(req, res, next);
-
-      expect(req.session.oauth).to.be.undefined;
-      expect(res.clearCookie.calledWith("_oauth1_tw")).to.be.true;
-      expect(next.calledOnce).to.be.true;
     });
 
-    it("does not restore when cookie has a bad format", () => {
-      const next = sinon.stub();
-      const req = makeCallbackReq("not.a.valid.hmac.cookie.at.all");
-      const res = makeMockRes();
+    it("returns error when cookie HMAC is tampered", (done) => {
+      const store = makeStore();
+      const setReq = makeReq();
 
-      restoreTwitterOAuthFromCookie(req, res, next);
+      store.set(setReq, "tok", "sec", () => {
+        const valid = setReq.res.cookie.args[0][1];
+        const parts = valid.split(".");
+        parts[0] = Buffer.from("tampered").toString("base64url");
+        const tampered = parts.join(".");
 
-      expect(req.session.oauth).to.be.undefined;
-      expect(res.clearCookie.calledWith("_oauth1_tw")).to.be.true;
-      expect(next.calledOnce).to.be.true;
+        const getReq = makeReq({ cookies: { _oauth1_tw: tampered } });
+        store.get(getReq, "tok", (err) => {
+          expect(err).to.be.instanceOf(Error);
+          done();
+        });
+      });
+    });
+
+    it("returns error when cookie token does not match requested token", (done) => {
+      const store = makeStore();
+      const setReq = makeReq();
+
+      store.set(setReq, "token-A", "sec", () => {
+        const signedCookie = setReq.res.cookie.args[0][1];
+        const getReq = makeReq({ cookies: { _oauth1_tw: signedCookie } });
+
+        store.get(getReq, "token-B", (err) => {
+          expect(err).to.be.instanceOf(Error);
+          done();
+        });
+      });
+    });
+  });
+
+  describe("destroy()", () => {
+    it("removes oauth keys from session and clears cookie", (done) => {
+      const store = makeStore();
+      const req = makeReq({
+        sessionOauth: { oauth_token: "t", oauth_token_secret: "s" },
+      });
+
+      store.destroy(req, "t", () => {
+        expect(req.session.oauth).to.be.undefined;
+        expect(req.res.clearCookie.calledWith("_oauth1_tw")).to.be.true;
+        done();
+      });
+    });
+
+    it("calls cb() gracefully when session has no oauth key", (done) => {
+      const store = makeStore();
+      const req = makeReq();
+
+      store.destroy(req, "t", done);
+    });
+
+    it("passes domain to clearCookie", (done) => {
+      const store = makeStore({ domain: ".airqo.net" });
+      const req = makeReq({
+        sessionOauth: { oauth_token: "t", oauth_token_secret: "s" },
+      });
+
+      store.destroy(req, "t", () => {
+        const opts = req.res.clearCookie.args[0][1];
+        expect(opts.domain).to.equal(".airqo.net");
+        done();
+      });
+    });
+
+    it("completes without throwing when req.res is absent", (done) => {
+      const store = makeStore();
+      const req = makeReq({
+        sessionOauth: { oauth_token: "t", oauth_token_secret: "s" },
+      });
+      delete req.res;
+
+      store.destroy(req, "t", () => {
+        expect(req.session.oauth).to.be.undefined;
+        done();
+      });
     });
   });
 });
