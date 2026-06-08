@@ -173,6 +173,12 @@ app.set("trust proxy", true);
 // request — causing 30-second timeouts when the store is slow. API routes
 // authenticate via the Authorization header and never rely on sessions.
 const sessionMiddleware = session({
+  // Use a service-specific cookie name to prevent collision with other
+  // *.airqo.net services (e.g. vertex) that also set connect.sid cookies
+  // with Domain=.airqo.net. A collision overwrites the auth-service session
+  // between Twitter OAuth 1.0a initiation and callback, causing
+  // "Failed to find request token in session".
+  name: constants.SESSION_COOKIE_NAME || "airqo_auth.sid",
   secret: constants.SESSION_SECRET,
   store: buildSessionStore(),
   resave: false,
