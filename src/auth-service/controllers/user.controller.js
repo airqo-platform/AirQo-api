@@ -45,6 +45,16 @@ const handleError = (error, next) => {
   );
 };
 
+const ANALYTICS_ORIGIN = (() => {
+  try {
+    return constants.ANALYTICS_BASE_URL
+      ? new URL(constants.ANALYTICS_BASE_URL).origin
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 function validateRedirectUrl(raw) {
   if (!raw || typeof raw !== "string") return null;
   try {
@@ -84,9 +94,17 @@ function resolveOAuthRedirectContext(req, res) {
   if (req.session) delete req.session.oauthRedirectAfter;
   let redirectOrigin = null;
   if (validatedUrl) { try { redirectOrigin = new URL(validatedUrl).origin; } catch {} }
-  const failureRedirectUrl = redirectOrigin
-    ? `${redirectOrigin}/login?error=oauth_failed`
-    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT;
+  let failureRedirectUrl;
+  if (redirectOrigin && redirectOrigin !== ANALYTICS_ORIGIN) {
+    failureRedirectUrl = `${redirectOrigin}/login?error=oauth_failed`;
+  } else {
+    const base =
+      constants.GMAIL_VERIFICATION_FAILURE_REDIRECT ||
+      (redirectOrigin ? `${redirectOrigin}/user/login` : "/");
+    const hasErrorParam = /[?&]error=/.test(base);
+    const sep = base.includes("?") ? "&" : "?";
+    failureRedirectUrl = hasErrorParam ? base : `${base}${sep}error=oauth_failed`;
+  }
   return { validatedUrl, redirectOrigin, failureRedirectUrl };
 }
 
