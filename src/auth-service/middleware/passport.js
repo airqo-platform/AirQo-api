@@ -1489,13 +1489,14 @@ function verifyOAuth1State(signed) {
     .createHmac("sha256", constants.SESSION_SECRET)
     .update(payload)
     .digest("base64url");
-  let valid = false;
+  const sBuf = Buffer.from(sig, "base64url");
+  const eBuf = Buffer.from(expected, "base64url");
+  if (sBuf.length !== eBuf.length) return null;
   try {
-    valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
+    if (!crypto.timingSafeEqual(sBuf, eBuf)) return null;
   } catch {
     return null;
   }
-  if (!valid) return null;
   const parts = payload.split(".");
   if (parts.length !== 2) return null;
   try {
@@ -1525,7 +1526,7 @@ const setupTwitterOAuthBridge = (req, res, next) => {
           const signed = signOAuth1State(oauthToken, oauthSecret);
           const cookieOpts = {
             httpOnly: true,
-            secure: process.env.NODE_ENV !== "development",
+            secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
             sameSite: "lax",
             maxAge: 10 * 60 * 1000,
             path: "/",
