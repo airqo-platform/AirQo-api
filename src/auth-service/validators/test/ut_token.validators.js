@@ -146,6 +146,23 @@ describe("Validation Functions", () => {
         .to.have.property("msg")
         .that.equals("the date should not be before the current date");
     });
+
+    it("should accept bypass_anomaly_detection true", () => {
+      const result = validateTokenUpdate([{ bypass_anomaly_detection: true }]);
+      expect(result).to.be.undefined;
+    });
+
+    it("should accept bypass_anomaly_detection false", () => {
+      const result = validateTokenUpdate([{ bypass_anomaly_detection: false }]);
+      expect(result).to.be.undefined;
+    });
+
+    it("should reject non-boolean bypass_anomaly_detection", () => {
+      const result = validateTokenUpdate([{ bypass_anomaly_detection: "yes" }]);
+      expect(result)
+        .to.have.property("msg")
+        .that.equals("bypass_anomaly_detection must be a boolean");
+    });
   });
 
   describe("validateSingleIp", () => {

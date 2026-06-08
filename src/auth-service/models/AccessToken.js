@@ -89,6 +89,11 @@ const AccessTokenSchema = new mongoose.Schema(
     // When enforce_origin is true on the parent Client, requests must carry
     // an Origin or Referer header matching one of these values.
     allowed_origins: [{ type: String }],
+    // Service-account flag. When true, behavioural anomaly scoring is skipped
+    // entirely so high-volume internal services (spatial, predict, mobile) are
+    // never auto-suspended by rate-spike or UA-change heuristics.
+    // Honeypot traps, IP blocks, and manual suspension still apply.
+    bypass_anomaly_detection: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -466,6 +471,7 @@ AccessTokenSchema.methods = {
       last_user_agent: this.last_user_agent,
       request_pattern: this.request_pattern,
       allowed_origins: this.allowed_origins,
+      bypass_anomaly_detection: this.bypass_anomaly_detection,
     };
   },
 };
