@@ -1212,6 +1212,16 @@ const token = {
         if (update._id) {
           delete update._id;
         }
+        // bypass_anomaly_detection is admin-only — non-super-admins cannot set it
+        // via the public PATCH endpoint even if the validator accepts the field.
+        if (update.bypass_anomaly_detection !== undefined) {
+          const userEmail = ((request.user && request.user.email) || "").toLowerCase();
+          const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
+            .some(e => e.toLowerCase() === userEmail);
+          if (!isAdmin) {
+            delete update.bypass_anomaly_detection;
+          }
+        }
         const updatedToken = await AccessTokenModel(tenant)
           .findByIdAndUpdate(tokenId, update, { new: true })
           .lean();
