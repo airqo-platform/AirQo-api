@@ -88,12 +88,14 @@ router.put(
 );
 
 // Update token (legacy path — kept for backwards compatibility)
+// enhancedJWTAuth runs before validateTokenUpdate so req.user is available
+// for the bypass_anomaly_detection admin-only custom validator.
 router.put(
   "/:token/update",
   validateTenant,
   validateTokenParam,
-  validateTokenUpdate,
   enhancedJWTAuth,
+  validateTokenUpdate,
   createTokenController.update,
 );
 
@@ -102,8 +104,8 @@ router.patch(
   "/:token",
   validateTenant,
   validateTokenParam,
-  validateTokenUpdate,
   enhancedJWTAuth,
+  validateTokenUpdate,
   createTokenController.update,
 );
 
