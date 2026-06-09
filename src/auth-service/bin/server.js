@@ -294,7 +294,7 @@ const transactionLimiter = rateLimit({
     req.headers["x-client-ip"] ||
     req.headers["x-client-original-ip"] ||
     req.ip,
-  validate: { trustProxy: false },
+  validate: { trustProxy: false, keyGeneratorIpFallback: false },
 });
 app.use("/api/v2/users/transactions", transactionLimiter);
 
