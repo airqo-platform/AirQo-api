@@ -1574,7 +1574,7 @@ module.exports = {
           </li>
           <li style="margin-bottom: 8px;">
             <strong>Check your browser network tab:</strong> Open DevTools → Network on
-            your own application and filter requests to <em>analytics.airqo.net</em>.
+            your own application and filter requests to <em>${escapeHtml((constants.ANALYTICS_BASE_URL || "https://analytics.airqo.net").replace(/^https?:\/\//, ""))}</em>.
             If you can see your token in a request URL or header, it is also visible to
             scrapers — move those calls to your backend.
           </li>
