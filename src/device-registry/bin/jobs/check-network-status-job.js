@@ -128,8 +128,6 @@ const checkNetworkStatus = async () => {
     logText(message);
     if (status === "CRITICAL") {
       logger.error(message);
-    } else if (status === "WARNING") {
-      logger.warn(message);
     } else {
       logger.info(message);
     }
