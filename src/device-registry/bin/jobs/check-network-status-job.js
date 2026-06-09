@@ -63,7 +63,13 @@ const checkNetworkStatus = async () => {
 
     const deviceSummary = responseFromGetDeviceCountSummary.data;
 
-    const { total_monitors, operational, not_transmitting } = deviceSummary;
+    const {
+      total_monitors,
+      operational,
+      transmitting,
+      data_available,
+      not_transmitting,
+    } = deviceSummary;
 
     const totalDeployedDevices = total_monitors;
     const notTransmittingDevicesCount = not_transmitting;
@@ -75,8 +81,11 @@ const checkNetworkStatus = async () => {
       const alertData = {
         checked_at: new Date(),
         total_deployed_devices: 0,
-        not_transmitting_devices_count: 0, // Updated field
-        not_transmitting_percentage: 0, // Updated field
+        operational_count: 0,
+        transmitting_count: 0,
+        data_available_count: 0,
+        not_transmitting_devices_count: 0,
+        not_transmitting_percentage: 0,
         status: "OK",
         message: "No deployed devices found",
         threshold_exceeded: false,
@@ -87,7 +96,7 @@ const checkNetworkStatus = async () => {
       return;
     }
 
-    const notTransmittingPercentage = // Renamed for clarity
+    const notTransmittingPercentage =
       totalDeployedDevices > 0
         ? (notTransmittingDevicesCount / totalDeployedDevices) * 100
         : 0;
@@ -98,31 +107,22 @@ const checkNetworkStatus = async () => {
       return;
     }
 
-    // Determine status based on offline percentage
+    // Determine status based on not-transmitting percentage
     let status = "OK";
     let message = "";
     let thresholdExceeded = false;
 
     if (notTransmittingPercentage >= CRITICAL_THRESHOLD) {
-      // Logic based on notTransmittingPercentage
       status = "CRITICAL";
-      message = `🚨🆘 CRITICAL: ${notTransmittingPercentage.toFixed(
-        2,
-      )}% of deployed devices are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
+      message = `🚨🆘 CRITICAL: ${notTransmittingPercentage.toFixed(2)}% of deployed devices are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices}) | operational: ${operational}, transmitting: ${transmitting}, data_available: ${data_available}`;
       thresholdExceeded = true;
-    } else if (notTransmittingPercentage > UPTIME_THRESHOLD) {
-      // Logic based on notTransmittingPercentage
+    } else if (notTransmittingPercentage >= UPTIME_THRESHOLD) {
       status = "WARNING";
-      message = `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are not transmitting: ${notTransmittingPercentage.toFixed(
-        2,
-      )}% (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
+      message = `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are not transmitting: ${notTransmittingPercentage.toFixed(2)}% (${notTransmittingDevicesCount}/${totalDeployedDevices}) | operational: ${operational}, transmitting: ${transmitting}, data_available: ${data_available}`;
       thresholdExceeded = true;
     } else {
       status = "OK";
-      message = `✅ Network status is acceptable. ${operational} devices are operational, while ${notTransmittingPercentage.toFixed(
-        // Updated OK message
-        2,
-      )}% are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices})`;
+      message = `✅ Network status OK. Operational: ${operational}, Transmitting: ${transmitting}, Data Available: ${data_available}, Not Transmitting: ${notTransmittingDevicesCount}/${totalDeployedDevices} (${notTransmittingPercentage.toFixed(2)}%)`;
     }
 
     logText(message);
@@ -131,21 +131,23 @@ const checkNetworkStatus = async () => {
     } else if (status === "WARNING") {
       logger.warn(message);
     } else {
-      logger.warn(message);
+      logger.info(message);
     }
 
     // Create alert record in database
     const alertData = {
       checked_at: new Date(),
       total_deployed_devices: totalDeployedDevices,
-      not_transmitting_devices_count: notTransmittingDevicesCount, // Updated field
+      operational_count: operational,
+      transmitting_count: transmitting,
+      data_available_count: data_available,
+      not_transmitting_devices_count: notTransmittingDevicesCount,
       not_transmitting_percentage: parseFloat(
-        // Updated field
         notTransmittingPercentage.toFixed(2),
       ),
       status,
       message,
-      threshold_exceeded: notTransmittingPercentage >= UPTIME_THRESHOLD, // Logic based on notTransmittingPercentage
+      threshold_exceeded: notTransmittingPercentage >= UPTIME_THRESHOLD,
       threshold_value: UPTIME_THRESHOLD,
     };
 
@@ -172,8 +174,8 @@ const checkNetworkStatus = async () => {
       const errorAlertData = {
         checked_at: new Date(),
         total_deployed_devices: 0,
-        not_transmitting_devices_count: 0, // Updated field
-        not_transmitting_percentage: 0, // Updated field
+        not_transmitting_devices_count: 0,
+        not_transmitting_percentage: 0,
         status: "CRITICAL",
         message: `Error checking network status: ${error.message}`,
         threshold_exceeded: true,
@@ -204,12 +206,8 @@ const dailyNetworkStatusSummary = async () => {
       return;
     }
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const yesterday = moment.tz(TIMEZONE).subtract(1, "day").startOf("day").toDate();
+    const today = moment.tz(TIMEZONE).startOf("day").toDate();
 
     const filter = {
       checked_at: {
@@ -224,14 +222,17 @@ const dailyNetworkStatusSummary = async () => {
 
     if (statistics.success && statistics.data.length > 0) {
       const stats = statistics.data[0];
+      const avgOp = Math.round(stats.avg_operational_count || 0);
+      const avgTx = Math.round(stats.avg_transmitting_count || 0);
+      const avgDa = Math.round(stats.avg_data_available_count || 0);
       const summaryMessage = `
 📊 Daily Network Status Summary (${moment(yesterday).format("YYYY-MM-DD")})
-Total Alerts: ${stats.totalAlerts}
-Average Not Transmitting %: ${stats.avg_not_transmitting_percentage.toFixed(2)}%
+Total Checks: ${stats.totalAlerts}
+Avg Operational: ${avgOp} | Avg Transmitting: ${avgTx} | Avg Data Available: ${avgDa}
+Avg Not Transmitting %: ${stats.avg_not_transmitting_percentage.toFixed(2)}%
 Max Not Transmitting %: ${stats.max_not_transmitting_percentage.toFixed(2)}%
 Min Not Transmitting %: ${stats.min_not_transmitting_percentage.toFixed(2)}%
-Warning Alerts: ${stats.warningCount}
-Critical Alerts: ${stats.criticalCount}
+Warning Checks: ${stats.warningCount} | Critical Checks: ${stats.criticalCount}
       `;
 
       logText(summaryMessage);
