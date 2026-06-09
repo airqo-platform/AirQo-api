@@ -1546,6 +1546,40 @@ module.exports = {
           </li>
         </ul>
 
+        <h4>Protecting Your Token in Client-Facing Applications:</h4>
+        <p>
+          A common cause of token compromise is embedding API tokens directly in
+          browser-side code or public-facing applications. Web scrapers and automated
+          tools routinely scan websites, JavaScript bundles, and browser network
+          requests to harvest exposed credentials.
+        </p>
+        <ul style="padding-left: 20px;">
+          <li style="margin-bottom: 8px;">
+            <strong>Never embed your token in frontend code:</strong> API tokens placed
+            in JavaScript files, HTML source, or environment variables bundled into a
+            web app are visible to anyone who opens browser DevTools or inspects network
+            traffic. Always keep your token server-side.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Use a backend proxy:</strong> If your website or mobile app needs
+            AirQo data, route requests through your own backend server. Your server
+            holds the token and proxies the response — the token is never sent to the
+            browser.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Audit your public repositories:</strong> Search your GitHub, GitLab,
+            or Bitbucket repositories for your token string. If it has ever been
+            committed, treat it as compromised and rotate it immediately, even if the
+            commit has since been deleted.
+          </li>
+          <li style="margin-bottom: 8px;">
+            <strong>Check your browser network tab:</strong> Open DevTools → Network on
+            your own application and filter requests to <em>analytics.airqo.net</em>.
+            If you can see your token in a request URL or header, it is also visible to
+            scrapers — move those calls to your backend.
+          </li>
+        </ul>
+
         <p>
           If you have questions or need help configuring a whitelist, please contact our
           support team — we're happy to assist.
