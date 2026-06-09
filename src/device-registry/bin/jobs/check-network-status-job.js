@@ -116,7 +116,7 @@ const checkNetworkStatus = async () => {
       status = "CRITICAL";
       message = `🚨🆘 CRITICAL: ${notTransmittingPercentage.toFixed(2)}% of deployed devices are not transmitting (${notTransmittingDevicesCount}/${totalDeployedDevices}) | operational: ${operational}, transmitting: ${transmitting}, data_available: ${data_available}`;
       thresholdExceeded = true;
-    } else if (notTransmittingPercentage > UPTIME_THRESHOLD) {
+    } else if (notTransmittingPercentage >= UPTIME_THRESHOLD) {
       status = "WARNING";
       message = `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are not transmitting: ${notTransmittingPercentage.toFixed(2)}% (${notTransmittingDevicesCount}/${totalDeployedDevices}) | operational: ${operational}, transmitting: ${transmitting}, data_available: ${data_available}`;
       thresholdExceeded = true;
@@ -128,8 +128,10 @@ const checkNetworkStatus = async () => {
     logText(message);
     if (status === "CRITICAL") {
       logger.error(message);
-    } else {
+    } else if (status === "WARNING") {
       logger.warn(message);
+    } else {
+      logger.info(message);
     }
 
     // Create alert record in database
@@ -204,12 +206,8 @@ const dailyNetworkStatusSummary = async () => {
       return;
     }
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const yesterday = moment.tz(TIMEZONE).subtract(1, "day").startOf("day").toDate();
+    const today = moment.tz(TIMEZONE).startOf("day").toDate();
 
     const filter = {
       checked_at: {

@@ -269,9 +269,9 @@ networkStatusAlertSchema.statics = {
           $group: {
             _id: null,
             totalAlerts: { $sum: 1 },
-            avg_operational_count: { $avg: "$operational_count" },
-            avg_transmitting_count: { $avg: "$transmitting_count" },
-            avg_data_available_count: { $avg: "$data_available_count" },
+            avg_operational_count: { $avg: { $ifNull: ["$operational_count", 0] } },
+            avg_transmitting_count: { $avg: { $ifNull: ["$transmitting_count", 0] } },
+            avg_data_available_count: { $avg: { $ifNull: ["$data_available_count", 0] } },
             avg_not_transmitting_percentage: {
               $avg: "$not_transmitting_percentage",
             },

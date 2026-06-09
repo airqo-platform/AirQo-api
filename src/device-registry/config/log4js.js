@@ -136,16 +136,17 @@ if (isDevelopment()) {
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
 
-      // ops-alerts WARN → Slack only in production; in staging/other envs
-      // ops-alerts jobs still log to file but not to Slack at WARN level.
-      if (env === "PRODUCTION ENVIRONMENT") {
-        config.categories["ops-alerts"].appenders.push("slackWarn");
-        OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
-          config.categories[`${env} -- ${jobName} -- ops-alerts`].appenders.push(
-            "slackWarn",
-          );
-        });
-      }
+      // Production: WARN and above → Slack for ops-alerts jobs.
+      // Non-production: only ERROR → Slack (same as default), WARN is silent.
+      // In both cases ops-alerts categories already have "app" for file logging.
+      const opsAlertsSlackAppender =
+        env === "PRODUCTION ENVIRONMENT" ? "slackWarn" : "slackErrors";
+      config.categories["ops-alerts"].appenders.push(opsAlertsSlackAppender);
+      OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
+        config.categories[
+          `${env} -- ${jobName} -- ops-alerts`
+        ].appenders.push(opsAlertsSlackAppender);
+      });
 
       console.log(
         "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",
