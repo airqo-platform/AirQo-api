@@ -22,6 +22,21 @@ const networkStatusAlertSchema = new Schema(
       required: true,
       min: 0,
     },
+    operational_count: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    transmitting_count: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    data_available_count: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     not_transmitting_devices_count: {
       type: Number,
       required: true,
@@ -109,6 +124,9 @@ networkStatusAlertSchema.methods = {
       _id: this._id,
       checked_at: this.checked_at,
       total_deployed_devices: this.total_deployed_devices,
+      operational_count: this.operational_count,
+      transmitting_count: this.transmitting_count,
+      data_available_count: this.data_available_count,
       not_transmitting_devices_count: this.not_transmitting_devices_count,
       not_transmitting_percentage: this.not_transmitting_percentage,
       status: this.status,
@@ -251,6 +269,9 @@ networkStatusAlertSchema.statics = {
           $group: {
             _id: null,
             totalAlerts: { $sum: 1 },
+            avg_operational_count: { $avg: "$operational_count" },
+            avg_transmitting_count: { $avg: "$transmitting_count" },
+            avg_data_available_count: { $avg: "$data_available_count" },
             avg_not_transmitting_percentage: {
               $avg: "$not_transmitting_percentage",
             },

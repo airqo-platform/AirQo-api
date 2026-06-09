@@ -74,6 +74,39 @@ if (isDevelopment()) {
     },
   };
 
+  // log4js uses exact or dot-hierarchical category matching — it does NOT
+  // do suffix matching. Job files use the naming pattern:
+  //   `${ENVIRONMENT} -- <job-name> -- ops-alerts`
+  // which never resolves to the "ops-alerts" category above. Register each
+  // full category name explicitly. Always include the "app" appender so
+  // INFO/WARN messages reach the log file regardless of environment;
+  // slackWarn is added later only for production.
+  const OPS_ALERTS_JOB_NAMES = [
+    "network-status-check-job",
+    "daily-activity-summary-job",
+    "check-unassigned-sites-job",
+    "backfill-site-metadata-job",
+    "/bin/jobs/check-unassigned-devices-job",
+    "/bin/jobs/check-active-statuses-job",
+    "/bin/jobs/check-duplicate-site-fields-job",
+    "/bin/jobs/private-cohort-alert-job",
+    "/bin/jobs/events-health-check-job",
+    "/bin/jobs/health-tip-checker-job",
+    "/bin/jobs/store-readings-job",
+    "/bin/jobs/network-uptime-analysis-job",
+    "/bin/jobs/device-status-check-job",
+    "/bin/jobs/device-status-hourly-check-job",
+    "/bin/jobs/check-primary-device-job",
+    "/bin/jobs/device-uptime-job",
+  ];
+  const env = constants.ENVIRONMENT;
+  OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
+    config.categories[`${env} -- ${jobName} -- ops-alerts`] = {
+      appenders: ["app"],
+      level: "info",
+    };
+  });
+
   if (hasSlackConfig) {
     try {
       config.appenders.slack = {
@@ -102,7 +135,17 @@ if (isDevelopment()) {
 
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
-      config.categories["ops-alerts"].appenders.push("slackWarn");
+
+      // ops-alerts WARN → Slack only in production; in staging/other envs
+      // ops-alerts jobs still log to file but not to Slack at WARN level.
+      if (env === "PRODUCTION ENVIRONMENT") {
+        config.categories["ops-alerts"].appenders.push("slackWarn");
+        OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
+          config.categories[`${env} -- ${jobName} -- ops-alerts`].appenders.push(
+            "slackWarn",
+          );
+        });
+      }
 
       console.log(
         "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",
