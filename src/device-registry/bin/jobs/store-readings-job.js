@@ -298,7 +298,7 @@ async function fetchAndStoreReadings() {
     const filter = generateFilter.fetch(request);
 
     const jobStartMs = Date.now();
-    logger.warn(
+    logger.info(
       `⏰ store-readings-job STARTED at ${new Date().toISOString()}`,
     );
 
@@ -342,7 +342,7 @@ async function fetchAndStoreReadings() {
 
     const data = viewEventsResponse.data[0].data;
     const fetchDuration = Date.now() - jobStartMs;
-    logger.warn(
+    logger.info(
       `📦 store-readings-job: EventModel.fetch() returned ${
         data.length
       } events in ${fetchDuration}ms`,
@@ -398,7 +398,7 @@ async function fetchAndStoreReadings() {
     // Always surface the final result to Slack so we can confirm the job is healthy
     const totalDuration = Date.now() - jobStartMs;
     if (report.summary.successRate >= 95) {
-      logger.warn(
+      logger.info(
         `✅ store-readings-job DONE — ${report.summary.readingsProcessed}/${
           report.summary.totalDocuments
         } readings stored (${
@@ -435,7 +435,7 @@ let currentJobPromise = null;
 
 const jobWrapper = async () => {
   if (isJobRunning) {
-    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    logger.info(`${JOB_NAME} is already running, skipping this execution`);
     return;
   }
 
