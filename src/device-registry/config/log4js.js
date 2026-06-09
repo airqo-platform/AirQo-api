@@ -81,24 +81,9 @@ if (isDevelopment()) {
   // full category name explicitly. Always include the "app" appender so
   // INFO/WARN messages reach the log file regardless of environment;
   // slackWarn is added later only for production.
-  const OPS_ALERTS_JOB_NAMES = [
-    "network-status-check-job",
-    "daily-activity-summary-job",
-    "check-unassigned-sites-job",
-    "backfill-site-metadata-job",
-    "/bin/jobs/check-unassigned-devices-job",
-    "/bin/jobs/check-active-statuses-job",
-    "/bin/jobs/check-duplicate-site-fields-job",
-    "/bin/jobs/private-cohort-alert-job",
-    "/bin/jobs/events-health-check-job",
-    "/bin/jobs/health-tip-checker-job",
-    "/bin/jobs/store-readings-job",
-    "/bin/jobs/network-uptime-analysis-job",
-    "/bin/jobs/device-status-check-job",
-    "/bin/jobs/device-status-hourly-check-job",
-    "/bin/jobs/check-primary-device-job",
-    "/bin/jobs/device-uptime-job",
-  ];
+  // Only the network status job gets WARN→Slack routing in production.
+  // All other jobs rely on the default category (ERROR only → Slack).
+  const OPS_ALERTS_JOB_NAMES = ["network-status-check-job"];
   const env = constants.ENVIRONMENT;
   OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
     config.categories[`${env} -- ${jobName} -- ops-alerts`] = {

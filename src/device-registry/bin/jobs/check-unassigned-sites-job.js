@@ -70,7 +70,7 @@ const checkUnassignedSites = async () => {
         ", ",
       )})`;
       logText(message);
-      logger.warn(message);
+      logger.info(message);
     }
   } catch (error) {
     logText(`🐛🐛 Error checking unassigned sites: ${error.message}`);
