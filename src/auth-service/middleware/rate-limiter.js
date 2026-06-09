@@ -75,7 +75,7 @@ const createLimiterConfig = (options, useRedis = false) => {
     skipSuccessfulRequests: false,
     // Suppress trust-proxy validation — keyGenerator reads HAProxy-set headers
     // (x-client-ip / x-client-original-ip) that clients cannot spoof.
-    validate: { trustProxy: false },
+    validate: { trustProxy: false, keyGeneratorIpFallback: false },
 
     // Key by the HAProxy-set header. x-forwarded-for is intentionally avoided
     // because clients can inject arbitrary values into it.
