@@ -288,6 +288,9 @@ const transactionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
   message: "Too many transaction requests, please try again later",
+  // Suppress trust-proxy validation — IP is sourced from HAProxy x-client-ip headers,
+  // not req.ip, so the permissive trust-proxy setting doesn't affect key security.
+  validate: { trustProxy: false },
 });
 app.use("/api/v2/users/transactions", transactionLimiter);
 

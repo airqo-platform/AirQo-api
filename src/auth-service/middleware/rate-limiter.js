@@ -73,6 +73,9 @@ const createLimiterConfig = (options, useRedis = false) => {
     legacyHeaders: false,
     skipFailedRequests: false,
     skipSuccessfulRequests: false,
+    // Suppress trust-proxy validation — keyGenerator reads x-forwarded-for directly,
+    // so the permissive trust-proxy setting doesn't affect key security.
+    validate: { trustProxy: false },
 
     // Custom key generator for more granular control
     keyGenerator: (req) => {
