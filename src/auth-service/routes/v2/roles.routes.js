@@ -5,6 +5,9 @@ const roleController = require("@controllers/role.controller");
 const roleValidations = require("@validators/roles.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
+const { requireSystemAdmin } = require("@middleware/adminAccess");
+
+const requireAirQoSuperAdmin = requireSystemAdmin();
 
 const injectCurrentUserId = (req, res, next) => {
   req.params.user_id = req.user._id;
@@ -27,6 +30,7 @@ router.get(
   roleValidations.listSummary,
   validate,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   pagination(),
   roleController.listSummary,
 );
@@ -94,6 +98,7 @@ router.put(
   roleValidations.assignUserToRolePut,
   validate,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   roleController.assignUserToRole,
 );
 
