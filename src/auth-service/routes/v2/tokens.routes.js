@@ -34,6 +34,9 @@ const { tokenVerifyIpRateLimiter, tokenVerifyRateLimiter } = require("@middlewar
 
 const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
 const honeypotHandler = require("@middleware/honeypot.middleware");
+const { requireSystemAdmin } = require("@middleware/adminAccess");
+
+const requireAirQoSuperAdmin = requireSystemAdmin();
 // Apply common middleware
 router.use(headers); // Keep headers global
 
@@ -335,6 +338,7 @@ router.post(
   validateAirqoTenantOnly,
   createBlockedASN,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createTokenController.createBlockedASN,
 );
 
@@ -344,6 +348,7 @@ router.get(
   listBlockedASNs,
   pagination(),
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createTokenController.listBlockedASNs,
 );
 
@@ -352,6 +357,7 @@ router.delete(
   validateAirqoTenantOnly,
   deleteBlockedASN,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createTokenController.deleteBlockedASN,
 );
 
@@ -362,6 +368,7 @@ router.get(
   listFlaggedTokens,
   pagination(),
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createTokenController.listFlaggedTokens,
 );
 
@@ -370,6 +377,7 @@ router.put(
   validateAirqoTenantOnly,
   resolveFlaggedToken,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createTokenController.resolveFlaggedToken,
 );
 
