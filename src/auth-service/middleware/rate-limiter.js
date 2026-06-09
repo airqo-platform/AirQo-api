@@ -73,14 +73,18 @@ const createLimiterConfig = (options, useRedis = false) => {
     legacyHeaders: false,
     skipFailedRequests: false,
     skipSuccessfulRequests: false,
+    // Suppress trust-proxy validation — keyGenerator reads HAProxy-set headers
+    // (x-client-ip / x-client-original-ip) that clients cannot spoof.
+    validate: { trustProxy: false },
 
-    // Custom key generator for more granular control
+    // Key by the HAProxy-set header. x-forwarded-for is intentionally avoided
+    // because clients can inject arbitrary values into it.
     keyGenerator: (req) => {
-      const forwarded = req.headers["x-forwarded-for"];
-      const ip = forwarded ? forwarded.split(",")[0].trim() : req.ip;
+      const ip =
+        req.headers["x-client-ip"] ||
+        req.headers["x-client-original-ip"] ||
+        req.ip;
       const userAgent = req.headers["user-agent"] || "unknown";
-
-      // Create a compound key for better rate limiting
       return `${ip}:${userAgent.slice(0, 50)}`;
     },
 
@@ -111,9 +115,14 @@ const createLimiterConfig = (options, useRedis = false) => {
         return true;
       }
 
-      // Skip for whitelisted IPs (if configured)
+      // Skip for whitelisted IPs (if configured). Use the same trusted header
+      // extraction as keyGenerator so whitelist checks can't be bypassed via XFF.
       const whitelistedIPs = constants.RATE_LIMIT_WHITELIST || [];
-      if (whitelistedIPs.includes(req.ip)) {
+      const clientIp =
+        req.headers["x-client-ip"] ||
+        req.headers["x-client-original-ip"] ||
+        req.ip;
+      if (whitelistedIPs.includes(clientIp)) {
         return true;
       }
 
