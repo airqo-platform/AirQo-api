@@ -2,7 +2,7 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const constants = require("@config/constants");
-const msgs = require("../email.msgs");
+const msgs = require("../email.msgs.util");
 
 describe("email.msgs", () => {
   describe("recovery_email", () => {
@@ -430,6 +430,56 @@ describe("email.msgs", () => {
       });
       expect(result).to.not.include("<script>");
       expect(result).to.include("&lt;script&gt;");
+    });
+  });
+
+  describe("compromiseSummary", () => {
+    const baseArgs = {
+      email: "user@example.com",
+      count: 2,
+      compromiseDetails: [
+        { tokenSuffix: "abcd", ip: "1.2.3.4", timestamp: "2024-01-01T00:00:00Z" },
+        { tokenSuffix: "efgh", ip: "5.6.7.8", timestamp: "2024-01-01T01:00:00Z" },
+      ],
+    };
+
+    it("should return a string", () => {
+      expect(msgs.compromiseSummary(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the event count", () => {
+      const result = msgs.compromiseSummary(baseArgs);
+      expect(result).to.include("2");
+    });
+
+    it("should include token suffix and IP details", () => {
+      const result = msgs.compromiseSummary(baseArgs);
+      expect(result).to.include("abcd");
+      expect(result).to.include("1.2.3.4");
+    });
+
+    it("should include the client-facing security guidance section", () => {
+      const result = msgs.compromiseSummary(baseArgs);
+      expect(result).to.include("Protecting Your Token in Client-Facing Applications");
+      expect(result).to.include("backend proxy");
+      expect(result).to.include("public repositories");
+    });
+
+    it("should HTML-escape token suffix containing special characters", () => {
+      const result = msgs.compromiseSummary({
+        ...baseArgs,
+        compromiseDetails: [
+          { tokenSuffix: '<img src=x onerror="alert(1)">', ip: "1.2.3.4", timestamp: "" },
+        ],
+      });
+      // The tag opening must be escaped so the browser never renders it as markup.
+      expect(result).to.include("&lt;img src=x");
+      expect(result).to.include("&quot;alert(1)&quot;");
+    });
+
+    it("should handle empty compromiseDetails without throwing", () => {
+      const result = msgs.compromiseSummary({ email: "user@example.com", count: 0, compromiseDetails: [] });
+      expect(result).to.be.a("string");
     });
   });
 });
