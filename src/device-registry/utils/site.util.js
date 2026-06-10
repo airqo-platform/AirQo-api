@@ -683,6 +683,7 @@ const createSite = {
 
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
 
+      if (!responseFromCreateSite) return;
       if (responseFromCreateSite.success === true) {
         const createdSite = responseFromCreateSite.data;
         try {

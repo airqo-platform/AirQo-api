@@ -722,7 +722,7 @@ siteSchema.statics = {
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdSite)) {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -739,13 +739,13 @@ siteSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
-      Object.entries(error.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
-
-      next(new HttpError(message, status, response));
+      if (error.errors) {
+        Object.entries(error.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+        });
+      }
+      return next(new HttpError(message, status, response));
     }
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
