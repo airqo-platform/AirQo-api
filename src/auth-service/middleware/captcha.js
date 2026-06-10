@@ -34,15 +34,26 @@ module.exports = {
         );
       }
 
-      // Verify the captcha token with Google reCAPTCHA API
+      if (!constants.HCAPTCHA_SECRET_KEY) {
+        logger.error("HCAPTCHA_SECRET_KEY is not configured");
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Captcha configuration error. Please try again." }
+          )
+        );
+      }
+
+      // Verify the captcha token with hCaptcha API
+      const params = new URLSearchParams();
+      params.append("secret", constants.HCAPTCHA_SECRET_KEY);
+      params.append("response", captchaToken);
       const response = await axios.post(
-        "https://www.google.com/recaptcha/api/siteverify",
-        null,
+        "https://hcaptcha.com/siteverify",
+        params,
         {
-          params: {
-            secret: constants.RECAPTCHA_SECRET_KEY,
-            response: captchaToken,
-          },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
         }
       );
 
