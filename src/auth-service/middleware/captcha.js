@@ -34,15 +34,15 @@ module.exports = {
         );
       }
 
-      // Verify the captcha token with Google reCAPTCHA API
+      // Verify the captcha token with hCaptcha API
       const response = await axios.post(
-        "https://www.google.com/recaptcha/api/siteverify",
-        null,
+        "https://hcaptcha.com/siteverify",
+        new URLSearchParams({
+          secret: constants.HCAPTCHA_SECRET_KEY,
+          response: captchaToken,
+        }),
         {
-          params: {
-            secret: constants.RECAPTCHA_SECRET_KEY,
-            response: captchaToken,
-          },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
         }
       );
 

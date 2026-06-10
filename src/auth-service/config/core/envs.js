@@ -202,7 +202,7 @@ const envs = {
 
   // ── Security ───────────────────────────────────────────────────────────────
   ADMIN_SETUP_SECRET: process.env.ADMIN_SETUP_SECRET,
-  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
+  HCAPTCHA_SECRET_KEY: process.env.HCAPTCHA_SECRET_KEY,
   FORCE_SAFE_TOKEN_STRATEGY: parseBoolean(
     process.env.FORCE_SAFE_TOKEN_STRATEGY,
     false,
