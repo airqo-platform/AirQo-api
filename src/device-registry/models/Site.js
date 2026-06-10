@@ -722,7 +722,7 @@ siteSchema.statics = {
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdSite)) {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -737,15 +737,21 @@ siteSchema.statics = {
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
       let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-      Object.entries(error.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
-
-      next(new HttpError(message, status, response));
+      let message;
+      let status;
+      if (error.errors) {
+        message = "validation errors for some of the provided fields";
+        status = httpStatus.CONFLICT;
+        Object.entries(error.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+        });
+      } else {
+        message = error.message || "internal server error";
+        status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
+        response.error = error.message;
+      }
+      return next(new HttpError(message, status, response));
     }
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
