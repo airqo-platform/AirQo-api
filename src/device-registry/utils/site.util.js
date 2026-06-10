@@ -683,6 +683,14 @@ const createSite = {
 
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
 
+      if (!responseFromCreateSite) {
+        logger.warn(`🐛🐛 createSite: model returned falsy response for tenant: ${tenant}`);
+        return {
+          success: false,
+          message: "Model returned no response",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
       if (responseFromCreateSite.success === true) {
         const createdSite = responseFromCreateSite.data;
         try {
