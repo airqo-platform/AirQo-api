@@ -731,7 +731,8 @@ const createSite = {
                 action: "create",
                 value: JSON.stringify({
                   ...createdSite,
-                  groupId: group,
+                  siteId: createdSite._id,
+                  grp_title: group,
                   tenant: request.query.tenant,
                 }),
               },
