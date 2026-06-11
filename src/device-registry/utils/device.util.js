@@ -3835,8 +3835,10 @@ const deviceUtil = {
         `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed.` +
         (batchCreated
           ? ` Shipping batch '${batch_name}' was created.`
-          : batch_name
+          : successful.length === 0 && batch_name
           ? " No shipping batch was created as no devices were prepared successfully."
+          : batch_name
+          ? " Shipping batch was not created due to a batch creation error."
           : " No shipping batch was created as 'batch_name' was not provided.");
       return {
         success: true,

@@ -7,8 +7,8 @@ This guide walks through the full device shipping workflow — from preparing de
 ## Overview: Correct Order of Operations
 
 ```
-1. Prepare devices  →  POST /devices/prepare-bulk-for-shipping
-2. Generate labels  →  POST /devices/generate-shipping-labels
+1. Prepare devices  →  POST /api/v2/devices/prepare-bulk-for-shipping
+2. Generate labels  →  POST /api/v2/devices/generate-shipping-labels
 ```
 
 Step 2 **will fail** if Step 1 has not been completed successfully first. Labels can only be generated for devices that have been prepared.
@@ -17,7 +17,7 @@ Step 2 **will fail** if Step 1 has not been completed successfully first. Labels
 
 ## Step 1 — Prepare Devices for Shipping
 
-**Endpoint:** `POST /devices/prepare-bulk-for-shipping`
+**Endpoint:** `POST /api/v2/devices/prepare-bulk-for-shipping`
 
 Sets a claim token on each device and marks it as ready for shipping. Optionally groups prepared devices into a named shipping batch.
 
@@ -59,7 +59,9 @@ Sets a claim token on each device and marks it as ready for shipping. Optionally
         "device_name": "aq_device_001",
         "claim_token": "abc123...",
         "token_type": "hex",
+        "qr_code_data": { "..." : "..." },
         "qr_code_image": "data:image/png;base64,...",
+        "label_data": { "..." : "..." },
         "shipping_prepared_at": "2026-06-11T10:00:00.000Z"
       }
     ],
@@ -75,14 +77,14 @@ Sets a claim token on each device and marks it as ready for shipping. Optionally
 
 ### Partial Failure Response (`200 OK`)
 
-The endpoint always returns `200`. Check `failed_preparations` for individual device errors.
+For valid requests, the endpoint returns `200` even when one or more devices fail. Check `failed_preparations` for individual device errors. Invalid requests (e.g. missing `device_names`) return `400`.
 
 ```json
 {
   "success": true,
   "message": "Bulk preparation completed: 1 successful, 1 failed. Shipping batch 'shipment-june-2026' was created.",
   "bulk_preparation_results": {
-    "successful_preparations": [...],
+    "successful_preparations": ["..."],
     "failed_preparations": [
       {
         "device_name": "aq_device_002",
@@ -116,7 +118,7 @@ The endpoint always returns `200`. Check `failed_preparations` for individual de
 
 ## Step 2 — Generate Shipping Labels
 
-**Endpoint:** `POST /devices/generate-shipping-labels`
+**Endpoint:** `POST /api/v2/devices/generate-shipping-labels`
 
 Generates printable QR code labels for devices that have already been prepared via Step 1.
 
@@ -153,8 +155,9 @@ Generates printable QR code labels for devices that have already been prepared v
         "device_name": "aq_device_001",
         "device_long_name": "AirQo Device 001",
         "claim_token": "abc123...",
+        "qr_code_data": { "..." : "..." },
         "qr_code_image": "data:image/png;base64,...",
-        "qr_code_data": { ... }
+        "label_data": { "..." : "..." }
       }
     ],
     "total_labels": 1
@@ -185,7 +188,7 @@ This error means either:
 ### 1. Prepare devices
 
 ```bash
-curl -X POST https://<host>/devices/prepare-bulk-for-shipping \
+curl -X POST https://<host>/api/v2/devices/prepare-bulk-for-shipping \
   -H "Authorization: JWT <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -199,7 +202,7 @@ Confirm `successful_count > 0` before proceeding.
 ### 2. Generate labels
 
 ```bash
-curl -X POST https://<host>/devices/generate-shipping-labels \
+curl -X POST https://<host>/api/v2/devices/generate-shipping-labels \
   -H "Authorization: JWT <token>" \
   -H "Content-Type: application/json" \
   -d '{
