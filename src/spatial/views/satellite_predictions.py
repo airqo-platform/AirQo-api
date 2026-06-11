@@ -9,6 +9,7 @@ from flask import jsonify, request
 from google.oauth2 import service_account
 
 from configure import Config, get_trained_model_from_gcs
+from configure import _resolve_credentials_path
 from models.SatellitePredictionModel import SatellitePredictionModel
 
 
@@ -31,15 +32,16 @@ class SatellitePredictionView:
 
     @staticmethod
     def _save_prediction(result):
+        credentials_path = _resolve_credentials_path(Config.CREDENTIALS)
         if not (
             Config.BIGQUERY_SATELLITE_MODEL_PREDICTIONS
             and Config.GOOGLE_CLOUD_PROJECT_ID
-            and Config.CREDENTIALS
+            and credentials_path
         ):
             return False
 
         credentials = service_account.Credentials.from_service_account_file(
-            Config.CREDENTIALS
+            credentials_path
         )
         pd.DataFrame([result]).to_gbq(
             destination_table=Config.BIGQUERY_SATELLITE_MODEL_PREDICTIONS,
