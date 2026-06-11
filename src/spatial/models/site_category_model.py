@@ -1,499 +1,342 @@
-import logging
-import os
-import random
-import time
+"""Fast, dependency-light site categorization from OpenStreetMap context."""
 
-import overpy
+from concurrent.futures import ThreadPoolExecutor
+import logging
+import math
+import os
+import time
+from collections import Counter
+
+import requests
+
 from configure import Config
-from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
 
 logger = logging.getLogger(__name__)
 
 
-# Initialize Nominatim geocoder
-geolocator = Nominatim(user_agent="site_categorization_app")
-
-
 class SiteCategoryModel:
+    """Classify a coordinate using Overpass features and Nominatim context.
+
+    The public ``categorize_site_osm`` tuple is retained for existing callers.
+    Additional response metadata is available through ``last_details``.
+    """
+
     _SITE_CATEGORY_CACHE = {}
-    MAJOR_HIGHWAY_TYPES = {"motorway", "trunk", "primary", "secondary", "service"}
-    RESIDENTIAL_HIGHWAY_TYPES = {
-        "residential",
-        "living_street",
-        "unclassified",
-        "tertiary",
+    _CACHE_MAX_ITEMS = 5000
+
+    MAJOR_HIGHWAYS = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary"}
+    LOCAL_HIGHWAYS = {"residential", "living_street", "unclassified", "tertiary", "service"}
+    COMMERCIAL_LANDUSE = {"commercial", "retail", "industrial", "construction", "quarry", "mine"}
+    BACKGROUND_LANDUSE = {
+        "allotments", "farmland", "farmyard", "forest", "grass", "meadow",
+        "orchard", "park", "recreation_ground", "scrub", "vineyard",
     }
-    BACKGROUND_LANDUSE_TYPES = {
-        "forest",
-        "farmland",
-        "grass",
-        "meadow",
-        "vineyard",
-        "wetland",
-        "park",
-        "scrub",
-        "heath",
-        "orchard",
+    BACKGROUND_NATURAL = {"bare_rock", "grassland", "heath", "scrub", "tree", "tree_row", "wood"}
+    WATER_NATURAL = {"bay", "lake", "reservoir", "water", "wetland"}
+    URBAN_AMENITIES = {
+        "bus_station", "clinic", "college", "fuel", "hospital", "marketplace",
+        "parking", "school", "university",
     }
-    BACKGROUND_NATURAL_TYPES = {"forest", "wood", "scrub"}
-    WATER_TYPES = {"water", "wetland", "lake", "river"}
+    SOURCE_TAGS = (
+        "landuse", "natural", "waterway", "highway", "amenity", "shop",
+        "office", "man_made", "industrial", "power", "aeroway", "railway",
+    )
 
     def __init__(self, category=None):
-        # Initialize the class with an optional category
         self.category = category
         self.overpass_urls = self._load_overpass_urls()
-        self.overpass_max_attempts = max(
-            1, int(getattr(Config, "OVERPASS_MAX_ATTEMPTS", os.getenv("OVERPASS_MAX_ATTEMPTS", "3")))
+        self.timeout_seconds = max(2.0, float(os.getenv("SITE_CATEGORY_HTTP_TIMEOUT", "8")))
+        self.search_radius_m = max(100, min(int(os.getenv("SITE_CATEGORY_SEARCH_RADIUS", "500")), 2000))
+        self.cache_ttl_seconds = max(1, int(os.getenv("SITE_CATEGORY_CACHE_TTL", "3600")))
+        self.user_agent = os.getenv(
+            "SPATIAL_OSM_USER_AGENT",
+            "AirQo-Spatial/2.0 (https://airqo.net)",
         )
-        self.overpass_base_delay = max(
-            0.0,
-            float(getattr(Config, "OVERPASS_RETRY_BASE_DELAY", os.getenv("OVERPASS_RETRY_BASE_DELAY", "0.25"))),
-        )
-        self.site_cache_ttl_seconds = max(
-            1, int(getattr(Config, "SITE_CATEGORY_CACHE_TTL", os.getenv("SITE_CATEGORY_CACHE_TTL", "300")))
-        )
+        self.last_details = {}
 
     @staticmethod
     def _load_overpass_urls():
         raw_urls = getattr(Config, "OVERPASS_API_URLS", "") or ""
         urls = [url.strip() for url in raw_urls.split(",") if url.strip()]
-        if urls:
-            return urls
-        return ["https://overpass-api.de/api/interpreter"]
-
-    @staticmethod
-    def _build_overpass_client(url):
-        return overpy.Overpass(url=url)
+        return urls or ["https://overpass-api.de/api/interpreter"]
 
     @staticmethod
     def _cache_key(latitude, longitude):
-        return (round(float(latitude), 6), round(float(longitude), 6))
+        return round(float(latitude), 5), round(float(longitude), 5)
 
     @classmethod
-    def _get_cached_site_result(cls, latitude, longitude, ttl_seconds):
-        cache_key = cls._cache_key(latitude, longitude)
-        cached_item = cls._SITE_CATEGORY_CACHE.get(cache_key)
-        if not cached_item:
+    def _get_cached_result(cls, latitude, longitude, ttl_seconds):
+        key = cls._cache_key(latitude, longitude)
+        cached = cls._SITE_CATEGORY_CACHE.get(key)
+        if not cached:
             return None
-
-        if time.time() - cached_item["stored_at"] > ttl_seconds:
-            cls._SITE_CATEGORY_CACHE.pop(cache_key, None)
+        if time.monotonic() - cached["stored_at"] > ttl_seconds:
+            cls._SITE_CATEGORY_CACHE.pop(key, None)
             return None
-
-        return cached_item["value"]
+        return cached
 
     @classmethod
-    def _set_cached_site_result(cls, latitude, longitude, value):
+    def _set_cached_result(cls, latitude, longitude, value, details):
+        if len(cls._SITE_CATEGORY_CACHE) >= cls._CACHE_MAX_ITEMS:
+            oldest_key = min(
+                cls._SITE_CATEGORY_CACHE,
+                key=lambda key: cls._SITE_CATEGORY_CACHE[key]["stored_at"],
+            )
+            cls._SITE_CATEGORY_CACHE.pop(oldest_key, None)
         cls._SITE_CATEGORY_CACHE[cls._cache_key(latitude, longitude)] = {
-            "stored_at": time.time(),
+            "stored_at": time.monotonic(),
             "value": value,
+            "details": details,
         }
 
-    @classmethod
-    def _coerce_reverse_geocoder_tags(cls, address, location_raw):
-        raw_class = (
-            location_raw.get("class")
-            or location_raw.get("category")
-            or ""
-        ).lower()
-        raw_type = (location_raw.get("type") or "").lower()
+    def _request_json(self, method, url, **kwargs):
+        headers = {"User-Agent": self.user_agent, "Accept": "application/json"}
+        response = requests.request(
+            method,
+            url,
+            headers=headers,
+            timeout=(2.5, self.timeout_seconds),
+            **kwargs,
+        )
+        response.raise_for_status()
+        return response.json()
 
-        landuse = (address.get("landuse") or "").lower() or None
-        natural = (address.get("natural") or "").lower() or None
-        waterway = (address.get("waterway") or "").lower() or None
-        highway = None
+    def _reverse_geocode(self, latitude, longitude):
+        try:
+            return self._request_json(
+                "GET",
+                "https://nominatim.openstreetmap.org/reverse",
+                params={
+                    "lat": latitude,
+                    "lon": longitude,
+                    "format": "jsonv2",
+                    "addressdetails": 1,
+                    "zoom": 18,
+                },
+            )
+        except Exception as error:
+            logger.warning("Nominatim reverse lookup failed: %s", error)
+            return {"_error": str(error)}
 
-        if raw_class == "landuse" and raw_type:
-            landuse = landuse or raw_type
-        if raw_class == "natural" and raw_type:
-            natural = natural or raw_type
-        if raw_class == "waterway" and raw_type:
-            waterway = waterway or raw_type
+    def _overpass_query(self, latitude, longitude):
+        local_radius = min(self.search_radius_m, 150)
+        urban_radius = min(self.search_radius_m, 300)
+        selectors = "\n".join(
+            [
+                f'nwr(around:{self.search_radius_m},{latitude},{longitude})["landuse"];',
+                (
+                    f'nwr(around:{self.search_radius_m},{latitude},{longitude})'
+                    '["natural"~"^(water|wetland|wood|scrub|heath|bare_rock|grassland|sand)$"];'
+                ),
+                f'nwr(around:{self.search_radius_m},{latitude},{longitude})["waterway"];',
+                f'way(around:{local_radius},{latitude},{longitude})["highway"];',
+                (
+                    f'nwr(around:{urban_radius},{latitude},{longitude})'
+                    '["amenity"~"^(bus_station|clinic|college|fuel|hospital|marketplace|parking|'
+                    'recycling|school|university|waste_disposal|waste_transfer_station)$"];'
+                ),
+                f'nwr(around:{urban_radius},{latitude},{longitude})["shop"];',
+                f'nwr(around:{urban_radius},{latitude},{longitude})["office"];',
+                (
+                    f'nwr(around:{self.search_radius_m},{latitude},{longitude})'
+                    '["man_made"~"^(chimney|petroleum_well|wastewater_plant|works)$"];'
+                ),
+                f'nwr(around:{self.search_radius_m},{latitude},{longitude})["industrial"];',
+                (
+                    f'nwr(around:{self.search_radius_m},{latitude},{longitude})'
+                    '["power"~"^(generator|plant|substation)$"];'
+                ),
+                f'nwr(around:{urban_radius},{latitude},{longitude})["aeroway"];',
+                f'nwr(around:{urban_radius},{latitude},{longitude})["railway"];',
+            ]
+        )
+        query = f"[out:json][timeout:{math.ceil(self.timeout_seconds)}];({selectors});out center tags;"
+        errors = []
 
-        if raw_class == "highway" and raw_type:
-            highway = raw_type
-        elif raw_type in cls.MAJOR_HIGHWAY_TYPES | cls.RESIDENTIAL_HIGHWAY_TYPES:
-            highway = raw_type
-        elif address.get("road"):
-            # Reverse geocoder usually gives a road name, not an OSM class.
-            # Map it to a generic local-road signal for downstream heuristics.
-            highway = "residential"
-
-        return landuse, natural, waterway, highway, raw_class, raw_type
-
-    def get_location_name(self, latitude, longitude, retries=3, delay=2):
-        """
-        Use Nominatim to get a human-readable name for the location.
-        Retries a few times in case of timeout or service error.
-        """
-        for attempt in range(retries):
+        # Bound failover to two public endpoints to avoid multiplying latency.
+        for url in self.overpass_urls[:2]:
             try:
-                location = geolocator.reverse((latitude, longitude), exactly_one=True)
-                if location:
-                    return location.address
-                return None
-            except (GeocoderTimedOut, GeocoderServiceError) as e:
-                print(f"Geocoding error: {e}, retry {attempt+1}/{retries}")
-                time.sleep(delay * (2**attempt))  # exponential backoff
-            except Exception as e:
-                print(f"Unexpected geocoding error: {e}")
-                return None
-        return None
+                payload = self._request_json("POST", url, data={"data": query})
+                return payload.get("elements", []), url, errors
+            except Exception as error:
+                errors.append(f"{url}: {error}")
+                logger.warning("Overpass lookup failed via %s: %s", url, error)
+        return [], None, errors
+
+    @staticmethod
+    def _haversine_m(lat1, lon1, lat2, lon2):
+        radius = 6371000.0
+        phi1, phi2 = math.radians(lat1), math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+        a = (
+            math.sin(d_phi / 2) ** 2
+            + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+        )
+        return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     @classmethod
-    def _determine_category_from_address(cls, address, location_raw):
-        """Infer a coarse site category from reverse-geocoded address tags."""
-        (
+    def _classify_tags(cls, tags):
+        highway = tags.get("highway")
+        landuse = tags.get("landuse")
+        natural = tags.get("natural")
+        waterway = tags.get("waterway")
+
+        if highway in cls.MAJOR_HIGHWAYS:
+            return "Major Highway", 100, f"major highway '{highway}'"
+        if landuse in cls.COMMERCIAL_LANDUSE:
+            return "Urban Commercial", 90, f"land use '{landuse}'"
+        if tags.get("industrial") or tags.get("man_made") in {"chimney", "works", "petroleum_well"}:
+            return "Urban Commercial", 88, "industrial infrastructure"
+        if tags.get("power") in {"plant", "generator", "substation"}:
+            return "Urban Commercial", 84, f"power infrastructure '{tags.get('power')}'"
+        if natural in cls.WATER_NATURAL or waterway:
+            return "Water Body", 80, f"water feature '{natural or waterway}'"
+        if landuse in cls.BACKGROUND_LANDUSE or natural in cls.BACKGROUND_NATURAL:
+            return "Background Site", 70, f"background feature '{landuse or natural}'"
+        if highway in cls.LOCAL_HIGHWAYS:
+            return "Urban Background", 65, f"local road '{highway}'"
+        if tags.get("amenity") in cls.URBAN_AMENITIES or tags.get("shop") or tags.get("office"):
+            return "Urban Background", 60, "urban point of interest"
+        if tags.get("building") and tags.get("building") not in {"barn", "farm_auxiliary", "shed"}:
+            return "Urban Background", 45, f"building '{tags.get('building')}'"
+        if tags.get("railway") or tags.get("aeroway"):
+            return "Urban Commercial", 55, "transport infrastructure"
+        return None, 0, None
+
+    @classmethod
+    def _classify_reverse_result(cls, reverse_result):
+        address = reverse_result.get("address") or {}
+        tags = {
+            "landuse": address.get("landuse"),
+            "natural": address.get("natural"),
+            "waterway": address.get("waterway"),
+            "highway": reverse_result.get("type") if reverse_result.get("category") == "highway" else None,
+        }
+        category, priority, reason = cls._classify_tags(tags)
+        if category:
+            return category, priority, reason, tags
+        if any(address.get(key) for key in ("city", "town", "suburb", "city_district")):
+            return "Urban Background", 40, "reverse-geocoded urban settlement", tags
+        if any(address.get(key) for key in ("village", "hamlet", "farm", "municipality")):
+            return "Background Site", 35, "reverse-geocoded rural settlement", tags
+        return "Background Site", 10, "low-density fallback; no stronger mapped feature found", tags
+
+    @staticmethod
+    def _element_coordinates(element):
+        if "lat" in element and "lon" in element:
+            return element["lat"], element["lon"]
+        center = element.get("center") or {}
+        return center.get("lat"), center.get("lon")
+
+    @staticmethod
+    def _area_name(reverse_result, matched_tags):
+        address = reverse_result.get("address") or {}
+        return (
+            matched_tags.get("name")
+            or address.get("suburb")
+            or address.get("village")
+            or address.get("town")
+            or address.get("city")
+            or address.get("county")
+            or reverse_result.get("display_name")
+        )
+
+    def categorize_site_osm(self, latitude, longitude):
+        started_at = time.perf_counter()
+        cached = self._get_cached_result(latitude, longitude, self.cache_ttl_seconds)
+        if cached:
+            self.last_details = {**cached["details"], "cache_hit": True}
+            return cached["value"]
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            reverse_future = executor.submit(self._reverse_geocode, latitude, longitude)
+            overpass_future = executor.submit(self._overpass_query, latitude, longitude)
+            reverse_result = reverse_future.result()
+            elements, overpass_url, overpass_errors = overpass_future.result()
+
+        candidates = []
+        feature_counts = Counter()
+        for element in elements:
+            tags = element.get("tags") or {}
+            for tag_name in self.SOURCE_TAGS:
+                if tags.get(tag_name):
+                    feature_counts[tag_name] += 1
+            category, priority, reason = self._classify_tags(tags)
+            if not category:
+                continue
+            element_lat, element_lon = self._element_coordinates(element)
+            distance = (
+                self._haversine_m(latitude, longitude, element_lat, element_lon)
+                if element_lat is not None and element_lon is not None
+                else float(self.search_radius_m)
+            )
+            # Priority protects strong pollution-relevant features while distance
+            # selects the most locally representative feature within each class.
+            score = priority - min(distance / max(self.search_radius_m, 1), 1) * 20
+            candidates.append((score, distance, category, reason, tags, element))
+
+        if candidates:
+            _, distance, category, reason, matched_tags, matched_element = max(
+                candidates, key=lambda candidate: candidate[0]
+            )
+            method = "overpass"
+            confidence = min(0.98, max(0.45, 0.98 - distance / (self.search_radius_m * 2)))
+        else:
+            category, priority, reason, matched_tags = self._classify_reverse_result(reverse_result)
+            matched_element = None
+            distance = None
+            method = "nominatim" if not reverse_result.get("_error") else "heuristic_fallback"
+            confidence = round(min(0.75, max(0.2, priority / 100)), 2)
+
+        area_name = self._area_name(reverse_result, matched_tags)
+        landuse = matched_tags.get("landuse")
+        natural = matched_tags.get("natural")
+        waterway = matched_tags.get("waterway")
+        highway = matched_tags.get("highway")
+        elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        debug_info = [
+            f"Classification method: {method}.",
+            f"Reason: {reason}.",
+            f"Evaluated {len(elements)} nearby OSM elements within {self.search_radius_m}m.",
+        ]
+        if overpass_errors:
+            debug_info.append("Overpass failover: " + " | ".join(overpass_errors))
+        if reverse_result.get("_error"):
+            debug_info.append("Reverse-geocoder error: " + reverse_result["_error"])
+
+        details = {
+            "classification_method": method,
+            "confidence": round(confidence, 3),
+            "reason": reason,
+            "matched_feature": {
+                "osm_type": matched_element.get("type") if matched_element else None,
+                "osm_id": matched_element.get("id") if matched_element else None,
+                "name": matched_tags.get("name"),
+                "tags": matched_tags,
+            },
+            "nearby_feature_counts": dict(feature_counts),
+            "search_radius_m": self.search_radius_m,
+            "osm_elements_evaluated": len(elements),
+            "overpass_endpoint": overpass_url,
+            "distance_note": (
+                "Distance uses the OSM element center; linear and polygon features "
+                "may physically extend closer to the coordinate."
+            ),
+            "elapsed_ms": elapsed_ms,
+            "cache_hit": False,
+        }
+        result = (
+            category,
+            round(distance, 2) if distance is not None else None,
+            area_name,
             landuse,
             natural,
             waterway,
             highway,
-            _raw_class,
-            _raw_type,
-        ) = cls._coerce_reverse_geocoder_tags(address, location_raw)
-
-        if landuse in {"industrial", "commercial", "retail"}:
-            return "Urban Commercial"
-        if highway in cls.MAJOR_HIGHWAY_TYPES:
-            return "Major Highway"
-        if natural in cls.WATER_TYPES or waterway:
-            return "Water Body"
-        if landuse in cls.BACKGROUND_LANDUSE_TYPES or natural in cls.BACKGROUND_NATURAL_TYPES:
-            return "Background Site"
-        if highway in cls.RESIDENTIAL_HIGHWAY_TYPES:
-            return "Urban Background"
-        if address.get("city") or address.get("town") or address.get("suburb"):
-            return "Urban Background"
-        if address.get("village") or address.get("hamlet") or address.get("farm"):
-            return "Background Site"
-        return "Unknown_Category"
-
-    def _categorize_from_reverse_geocoder(self, latitude, longitude, debug_info):
-        """Fallback classification when Overpass is unavailable."""
-        try:
-            location = geolocator.reverse((latitude, longitude), exactly_one=True)
-            if not location:
-                return None
-
-            location_raw = location.raw or {}
-            address = location_raw.get("address", {})
-            category = self._determine_category_from_address(address, location_raw)
-            area_name = (
-                address.get("suburb")
-                or address.get("city")
-                or address.get("village")
-                or address.get("town")
-                or address.get("county")
-                or location.address
-            )
-            (
-                landuse,
-                natural,
-                waterway,
-                highway,
-                raw_class,
-                raw_type,
-            ) = self._coerce_reverse_geocoder_tags(address, location_raw)
-
-            debug_info.append(
-                "Overpass unavailable; using reverse-geocoder fallback classification."
-            )
-            if raw_class or raw_type:
-                debug_info.append(
-                    f"Reverse-geocoder raw context: class='{raw_class or 'unknown'}', type='{raw_type or 'unknown'}'."
-                )
-
-            return (
-                category,
-                None,
-                area_name,
-                landuse,
-                natural,
-                waterway,
-                highway,
-                debug_info,
-            )
-        except Exception as error:
-            debug_info.append(f"Reverse-geocoder fallback failed: {error}")
-            return None
-
-    @staticmethod
-    def _is_transient_overpass_error(error):
-        message = str(error).lower()
-        transient_markers = (
-            "server load too high",
-            "too many requests",
-            "rate limit",
-            "timed out",
-            "timeout",
-            "gateway timeout",
-            "temporarily unavailable",
-            "connection reset",
-            "remote end closed",
-            "406",
-            "not acceptable",
-            "429",
-            "502",
-            "503",
-            "504",
+            debug_info,
         )
-        transient_types = (
-            overpy.exception.OverpassGatewayTimeout,
-            overpy.exception.OverpassRuntimeError,
-            overpy.exception.OverpassTooManyRequests,
-            overpy.exception.OverpassUnknownHTTPStatusCode,
-        )
-        return isinstance(error, transient_types) or any(
-            marker in message for marker in transient_markers
-        )
-
-    def _query_osm_with_retries(self, query, retries=None, base_delay=None):
-        retries = self.overpass_max_attempts if retries is None else retries
-        base_delay = self.overpass_base_delay if base_delay is None else base_delay
-        last_error = None
-
-        for attempt in range(1, retries + 1):
-            for overpass_url in self.overpass_urls:
-                try:
-                    return self._build_overpass_client(overpass_url).query(query)
-                except Exception as error:
-                    last_error = error
-                    if not self._is_transient_overpass_error(error):
-                        raise
-
-                    logger.warning(
-                        "Transient Overpass error on attempt %d/%d via %s: %s",
-                        attempt,
-                        retries,
-                        overpass_url,
-                        error,
-                    )
-
-            if attempt == retries:
-                break
-
-            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
-            logger.warning(
-                "All Overpass endpoints failed on attempt %d/%d. Retrying in %.1f seconds.",
-                attempt,
-                retries,
-                delay,
-            )
-            time.sleep(delay)
-
-        raise last_error
-
-    def categorize_site_osm(self, latitude, longitude):
-        cached_result = self._get_cached_site_result(
-            latitude, longitude, self.site_cache_ttl_seconds
-        )
-        if cached_result is not None:
-            return cached_result
-
-        # Define search radii
-        search_radii = [50, 100, 250]
-        max_search_radius = max(search_radii)
-
-        # Define categories
-        categories = {
-            "Urban Background": ["residential", "urban", "mine", "quarry"],
-            "Urban Commercial": ["commercial", "retail", "industrial"],
-            "Background Site": [
-                "forest", "farmland", "grass", "meadow", "vineyard",
-                "wetland", "park", "scrub", "heath", "bare_rock", "orchard",
-            ],
-            "Water Body": ["river", "stream", "lake", "canal", "reservoir", "ditch"],
-            "Major Highway": ["motorway", "trunk", "primary", "secondary", "service"],
-            "Residential Road": ["residential", "living_street", "unclassified", "tertiary"],
-        }
-
-        # Priority order of categories for determining the site type
-        priority_categories = [
-            "Major Highway",
-            "Urban Commercial",
-            "Urban Background",
-            "Background Site",
-            "Residential Road",
-            "Water Body",
-        ]
-
-        # Initialize variables to track the nearest categorization
-        nearest_categorization = None
-        nearest_distance = float("inf")
-        nearest_area_name = None
-        landuse_info = None
-        natural_info = None
-        waterway_info = None
-        highway_info = None
-        debug_info = []
-
-        # Cache for reverse-geocoded name
-        location_name_cache = {"value": None}
-
-        def fallback_name():
-            if location_name_cache["value"] is None:
-                location_name_cache["value"] = self.get_location_name(latitude, longitude)
-            return location_name_cache["value"]
-
-        query = f"""
-        [out:json];
-        (
-          node(around:{max_search_radius}, {latitude}, {longitude})["landuse"];
-          way(around:{max_search_radius}, {latitude}, {longitude})["landuse"];
-          relation(around:{max_search_radius}, {latitude}, {longitude})["landuse"];
-          node(around:{max_search_radius}, {latitude}, {longitude})["natural"];
-          way(around:{max_search_radius}, {latitude}, {longitude})["natural"];
-          relation(around:{max_search_radius}, {latitude}, {longitude})["natural"];
-          node(around:{max_search_radius}, {latitude}, {longitude})["waterway"];
-          way(around:{max_search_radius}, {latitude}, {longitude})["waterway"];
-          relation(around:{max_search_radius}, {latitude}, {longitude})["waterway"];
-          node(around:{max_search_radius}, {latitude}, {longitude})["highway"];
-          way(around:{max_search_radius}, {latitude}, {longitude})["highway"];
-          relation(around:{max_search_radius}, {latitude}, {longitude})["highway"];
-        );
-        out center;
-        """
-
-        try:
-            result = self._query_osm_with_retries(query)
-        except Exception as e:
-            error_message = f"Error querying OSM after retries: {e}"
-            if error_message not in debug_info:
-                debug_info.append(error_message)
-
-            if self._is_transient_overpass_error(e):
-                fallback_result = self._categorize_from_reverse_geocoder(
-                    latitude, longitude, debug_info
-                )
-                if fallback_result is not None:
-                    self._set_cached_site_result(latitude, longitude, fallback_result)
-                    return fallback_result
-
-            final_result = (
-                "Unknown_Category",
-                None,
-                fallback_name(),
-                landuse_info,
-                natural_info,
-                waterway_info,
-                highway_info,
-                debug_info,
-            )
-            self._set_cached_site_result(latitude, longitude, final_result)
-            return final_result
-
-        for way in result.ways:
-            tags = way.tags
-            landuse = tags.get("landuse", "unknown")
-            natural = tags.get("natural", "unknown")
-            waterway = tags.get("waterway", "unknown")
-            highway = tags.get("highway", "unknown")
-            center_lat = way.center_lat
-            center_lon = way.center_lon
-            area_name = tags.get("name", "Unnamed")
-
-            debug_info.append("Found OSM data:")
-            debug_info.append(f"  Landuse: {landuse}")
-            debug_info.append(f"  Natural: {natural}")
-            debug_info.append(f"  Waterway: {waterway}")
-            debug_info.append(f"  Highway: {highway}")
-            debug_info.append(f"  Location: ({center_lat}, {center_lon})")
-            debug_info.append(f"  Area Name: {area_name}")
-
-            if center_lat and center_lon:
-                distance = geodesic((latitude, longitude), (center_lat, center_lon)).meters
-
-                if landuse == "industrial":
-                    final_result = (
-                        "Urban Commercial",
-                        distance,
-                        area_name if area_name != "Unnamed" else fallback_name(),
-                        landuse,
-                        natural,
-                        waterway,
-                        highway,
-                        debug_info,
-                    )
-                    self._set_cached_site_result(latitude, longitude, final_result)
-                    return final_result
-
-                if distance < 50 and highway in categories["Major Highway"]:
-                    final_result = (
-                        "Urban Commercial",
-                        distance,
-                        area_name if area_name != "Unnamed" else fallback_name(),
-                        landuse,
-                        natural,
-                        waterway,
-                        highway,
-                        debug_info,
-                    )
-                    self._set_cached_site_result(latitude, longitude, final_result)
-                    return final_result
-
-                for category in priority_categories:
-                    if category == "Urban Background" and (
-                        landuse in categories["Urban Background"]
-                        or natural in ["urban_area"]
-                        or highway in categories["Residential Road"]
-                    ):
-                        if distance < nearest_distance:
-                            nearest_categorization = "Urban Background"
-                            nearest_distance = distance
-                            nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
-                            landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
-
-                    elif category == "Urban Commercial" and landuse in categories["Urban Commercial"]:
-                        if distance < nearest_distance:
-                            nearest_categorization = "Urban Commercial"
-                            nearest_distance = distance
-                            nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
-                            landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
-
-                    elif category == "Background Site" and (
-                        landuse in categories["Background Site"]
-                        or natural in ["forest", "wood", "scrub"]
-                        or highway in ["path", "footway", "track", "cycleway"]
-                        or waterway in ["riverbank", "stream", "canal"]
-                    ):
-                        if distance < nearest_distance:
-                            nearest_categorization = "Background Site"
-                            nearest_distance = distance
-                            nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
-                            landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
-
-                    elif category == "Water Body" and (waterway in categories["Water Body"] or natural == "water"):
-                        if distance < nearest_distance:
-                            nearest_categorization = "Water Body"
-                            nearest_distance = distance
-                            nearest_area_name = area_name if area_name != "Unnamed" else fallback_name()
-                            landuse_info, natural_info, waterway_info, highway_info = landuse, natural, waterway, highway
-
-        # Fallbacks
-        if nearest_categorization is None and nearest_area_name:
-            nearest_area_name = nearest_area_name if nearest_area_name != "Unnamed" else fallback_name()
-            if "forest" in nearest_area_name.lower():
-                final_result = ("Background Site", None, nearest_area_name, landuse_info, natural_info, waterway_info, highway_info, debug_info)
-                self._set_cached_site_result(latitude, longitude, final_result)
-                return final_result
-            elif "urban" in nearest_area_name.lower():
-                final_result = ("Urban Background", None, nearest_area_name, landuse_info, natural_info, waterway_info, highway_info, debug_info)
-                self._set_cached_site_result(latitude, longitude, final_result)
-                return final_result
-            elif "water" in nearest_area_name.lower():
-                final_result = ("Water Body", None, nearest_area_name, landuse_info, natural_info, waterway_info, highway_info, debug_info)
-                self._set_cached_site_result(latitude, longitude, final_result)
-                return final_result
-
-        # Final return
-        final_result = (
-            nearest_categorization if nearest_categorization else "Unknown_Category",
-            nearest_distance if nearest_categorization else None,
-            nearest_area_name if nearest_area_name and nearest_area_name != "Unnamed" else fallback_name(),
-            landuse_info, natural_info, waterway_info, highway_info, debug_info
-        )
-        self._set_cached_site_result(latitude, longitude, final_result)
-        return final_result
+        self.last_details = details
+        self._set_cached_result(latitude, longitude, result, details)
+        return result

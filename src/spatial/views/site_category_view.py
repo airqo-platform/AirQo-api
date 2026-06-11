@@ -1,3 +1,5 @@
+import math
+
 from flask import request, jsonify
 from models.site_category_model import SiteCategoryModel
 
@@ -19,25 +21,13 @@ class SiteCategorizationView:
                 400,
             )
 
-        # Validate that latitude and longitude have at least 6 decimal places
-        def has_at_least_six_decimal_places(value):
-            str_value = (
-                f"{value:.10f}"  # Use more than 6 decimal places to ensure accuracy
-            )
-            integer_part, decimal_part = str_value.split(".")
-            return len(decimal_part) >= 6
-
-        if not has_at_least_six_decimal_places(
-            latitude
-        ) or not has_at_least_six_decimal_places(longitude):
+        if not math.isfinite(latitude) or not math.isfinite(longitude):
             return (
-                jsonify(
-                    {
-                        "error": "Latitude and longitude must have at least 6 decimal places"
-                    }
-                ),
+                jsonify({"error": "Latitude and longitude must be finite numbers"}),
                 400,
             )
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            return jsonify({"error": "Coordinates are outside valid latitude/longitude ranges"}), 400
 
         # Instantiate the model and categorize the site
         site_category_model = SiteCategoryModel(category=None)
@@ -68,6 +58,7 @@ class SiteCategorizationView:
                     "highway": highway,
                     "latitude": latitude,
                     "longitude": longitude,
+                    **site_category_model.last_details,
                 },
                 "OSM_info": debug_info,
             }
