@@ -28,7 +28,7 @@ def _reverse_result(address=None):
     }
 
 
-def test_categorization_evaluates_nodes_and_labels_major_highway_correctly():
+def test_categorization_maps_major_highway_to_urban_commercial():
     model = SiteCategoryModel()
     model.search_radius_m = 500
 
@@ -54,10 +54,38 @@ def test_categorization_evaluates_nodes_and_labels_major_highway_correctly():
     ):
         result = model.categorize_site_osm(0.3225, 32.5847)
 
-    assert result[0] == "Major Highway"
+    assert result[0] == "Urban Commercial"
     assert result[6] == "primary"
     assert model.last_details["matched_feature"]["osm_type"] == "node"
     assert model.last_details["confidence"] > 0.9
+
+
+def test_categorization_maps_water_to_background_site():
+    category, _, reason = SiteCategoryModel._classify_tags(
+        {"natural": "water"}
+    )
+
+    assert category == "Background Site"
+    assert "water feature" in reason
+
+
+def test_categorization_rules_only_return_supported_categories():
+    representative_tags = (
+        {"highway": "primary"},
+        {"landuse": "industrial"},
+        {"natural": "water"},
+        {"landuse": "forest"},
+        {"highway": "residential"},
+        {"amenity": "school"},
+        {"railway": "station"},
+    )
+
+    categories = {
+        SiteCategoryModel._classify_tags(tags)[0]
+        for tags in representative_tags
+    }
+
+    assert categories <= SiteCategoryModel.SITE_CATEGORIES
 
 
 def test_categorization_uses_useful_fallback_instead_of_unknown_category():

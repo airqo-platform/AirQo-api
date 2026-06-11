@@ -24,6 +24,11 @@ class SiteCategoryModel:
 
     _SITE_CATEGORY_CACHE = {}
     _CACHE_MAX_ITEMS = 5000
+    SITE_CATEGORIES = {
+        "Background Site",
+        "Urban Background",
+        "Urban Commercial",
+    }
 
     MAJOR_HIGHWAYS = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary"}
     LOCAL_HIGHWAYS = {"residential", "living_street", "unclassified", "tertiary", "service"}
@@ -184,7 +189,7 @@ class SiteCategoryModel:
         waterway = tags.get("waterway")
 
         if highway in cls.MAJOR_HIGHWAYS:
-            return "Major Highway", 100, f"major highway '{highway}'"
+            return "Urban Commercial", 100, f"major highway '{highway}'"
         if landuse in cls.COMMERCIAL_LANDUSE:
             return "Urban Commercial", 90, f"land use '{landuse}'"
         if tags.get("industrial") or tags.get("man_made") in {"chimney", "works", "petroleum_well"}:
@@ -192,7 +197,7 @@ class SiteCategoryModel:
         if tags.get("power") in {"plant", "generator", "substation"}:
             return "Urban Commercial", 84, f"power infrastructure '{tags.get('power')}'"
         if natural in cls.WATER_NATURAL or waterway:
-            return "Water Body", 80, f"water feature '{natural or waterway}'"
+            return "Background Site", 80, f"water feature '{natural or waterway}'"
         if landuse in cls.BACKGROUND_LANDUSE or natural in cls.BACKGROUND_NATURAL:
             return "Background Site", 70, f"background feature '{landuse or natural}'"
         if highway in cls.LOCAL_HIGHWAYS:
@@ -289,6 +294,10 @@ class SiteCategoryModel:
             distance = None
             method = "nominatim" if not reverse_result.get("_error") else "heuristic_fallback"
             confidence = round(min(0.75, max(0.2, priority / 100)), 2)
+
+        if category not in self.SITE_CATEGORIES:
+            logger.warning("Unexpected site category %r; using Background Site", category)
+            category = "Background Site"
 
         area_name = self._area_name(reverse_result, matched_tags)
         landuse = matched_tags.get("landuse")

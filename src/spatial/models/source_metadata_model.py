@@ -45,11 +45,7 @@ class SourceMetadataModel:
         man_made = str(tags.get("man_made") or "").lower()
         power = str(tags.get("power") or "").lower()
 
-        if category == "Major Highway":
-            scores["traffic"] += 0.8
-            scores["dust_resuspension"] += 0.15
-            evidence.append("A major road is the strongest nearby mapped feature.")
-        elif category == "Urban Commercial":
+        if category == "Urban Commercial":
             scores["mixed_urban"] += 0.35
             scores["traffic"] += 0.2
             evidence.append("Commercial or industrial urban activity is mapped nearby.")
@@ -62,9 +58,6 @@ class SourceMetadataModel:
             scores["biomass_burning"] += 0.25
             scores["dust_resuspension"] += 0.2
             evidence.append("The point is in a rural, green, or low-density context.")
-        elif category == "Water Body":
-            scores["mixed_urban"] += 0.1
-            evidence.append("The strongest mapped context is a water feature; local sources are uncertain.")
 
         if highway in SiteCategoryModel.MAJOR_HIGHWAYS:
             scores["traffic"] += 0.5
