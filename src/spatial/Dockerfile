@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_APP=app:app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    libexpat1 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 # Set the working directory inside the container
