@@ -735,11 +735,11 @@ siteSchema.statics = {
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
       let response = {};
       let message;
       let status;
       if (error.errors) {
+        logger.warn(`⚠️ Site validation error -- ${stingifiedMessage}`);
         message = "validation errors for some of the provided fields";
         status = httpStatus.CONFLICT;
         Object.entries(error.errors).forEach(([key, value]) => {
@@ -747,6 +747,7 @@ siteSchema.statics = {
           response[key] = value.message;
         });
       } else {
+        logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
         message = error.message || "internal server error";
         status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
         response.error = error.message;
