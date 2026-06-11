@@ -1,80 +1,114 @@
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List
+"""PM2.5 prediction features sourced from free Sentinel-2 STAC data."""
 
-import ee
-from google.oauth2 import service_account
+from datetime import datetime, timezone
+import os
 
-from configure import Config
+import pandas as pd
+
+from models.sentinel2_context_model import Sentinel2ContextModel
 
 
 class SatellitePredictionModel:
+    """Build schema-aware model input from the free Sentinel-2 archive."""
+
     @staticmethod
-    def initialize_earth_engine():
-        ee.Initialize(
-            credentials=service_account.Credentials.from_service_account_file(
-                Config.CREDENTIALS,
-                scopes=["https://www.googleapis.com/auth/earthengine"],
+    def extract_data_for_location(latitude, longitude, start_date=None, end_date=None):
+        context = Sentinel2ContextModel().get_context(
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        indices = context.get("indices") or {}
+        scene_datetime = context.get("scene_datetime")
+        timestamp = (
+            datetime.fromisoformat(scene_datetime.replace("Z", "+00:00"))
+            if scene_datetime
+            else datetime.now(timezone.utc)
+        )
+
+        features = {
+            "ndvi": indices.get("ndvi"),
+            "ndbi": indices.get("ndbi"),
+            "ndwi": indices.get("ndwi"),
+            "bare_soil_index": indices.get("bare_soil_index"),
+            "normalized_burn_ratio": indices.get("normalized_burn_ratio"),
+            "aerosol_optical_thickness": context.get(
+                "aerosol_optical_thickness"
             ),
-            project=Config.GOOGLE_CLOUD_PROJECT_ID,
-        )
+            "scene_cloud_cover": context.get("scene_cloud_cover"),
+            "latitude": float(latitude),
+            "longitude": float(longitude),
+            "year": timestamp.year,
+            "month": timestamp.month,
+            "day": timestamp.day,
+            "dayofweek": timestamp.weekday(),
+            "week": int(timestamp.strftime("%V")),
+        }
+        return features, context
 
     @staticmethod
-    def extract_data_for_image(image: ee.Image, aoi: ee.Geometry.Point) -> ee.Feature:
-        return ee.Feature(
-            None,
-            image.reduceRegion(
-                reducer=ee.Reducer.mean(), geometry=aoi, scale=1113.2
-            ).set("date", image.date().format("YYYY-MM-dd")),
+    def get_feature_names(model):
+        feature_names = getattr(model, "feature_names_in_", None)
+        if feature_names is not None:
+            return [str(name) for name in feature_names]
+
+        booster = getattr(model, "booster_", None)
+        if booster is not None:
+            booster_names = booster.feature_name()
+            if booster_names and not all(
+                name.startswith("Column_") for name in booster_names
+            ):
+                return [str(name) for name in booster_names]
+
+        configured_order = os.getenv("SATELLITE_PREDICTION_FEATURE_ORDER", "")
+        return [
+            name.strip()
+            for name in configured_order.split(",")
+            if name.strip()
+        ]
+
+    @classmethod
+    def prepare_model_input(cls, model, features):
+        feature_names = cls.get_feature_names(model)
+        if not feature_names:
+            raise ValueError(
+                "The prediction model does not declare feature names. Retrain it "
+                "with Sentinel-2 features or configure "
+                "SATELLITE_PREDICTION_FEATURE_ORDER."
+            )
+
+        missing = [
+            name
+            for name in feature_names
+            if name not in features or features[name] is None
+        ]
+        if missing:
+            raise ValueError(
+                "The deployed model is incompatible with the available Sentinel-2 "
+                f"feature schema. Missing features: {', '.join(missing)}"
+            )
+
+        return pd.DataFrame(
+            [{name: features[name] for name in feature_names}],
+            columns=feature_names,
         )
 
-    @staticmethod
-    def get_satellite_data(
-        aoi: ee.Geometry.Point, collection: str, fields: List[str]
-    ) -> ee.FeatureCollection:
-        return (
-            ee.ImageCollection(collection)
-            .filterDate(
-                datetime.now(timezone.utc) - timedelta(days=7),
-                datetime.now(timezone.utc),
-            )
-            .filterBounds(aoi)
-            .select(fields)
-            .map(
-                lambda image: SatellitePredictionModel.extract_data_for_image(
-                    image, aoi
-                )
-            )
+    @classmethod
+    def predict(
+        cls,
+        model,
+        latitude,
+        longitude,
+        start_date=None,
+        end_date=None,
+    ):
+        features, context = cls.extract_data_for_location(
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start_date,
+            end_date=end_date,
         )
-
-    @staticmethod
-    def extract_data_for_location(
-        location: Dict[str, Any], collections: Dict[str, List[str]]
-    ) -> Dict[str, Any]:
-        aoi = ee.Geometry.Point(location["coords"])
-        result = {}
-
-        for collection, fields in collections.items():
-            satellite_data = SatellitePredictionModel.get_satellite_data(
-                aoi, collection, fields
-            )
-            time_series = satellite_data.getInfo()
-
-            if time_series["features"]:
-                latest_feature = time_series["features"][-1]["properties"]
-                for field in fields:
-                    field_key = f"{collection}_{field}"
-                    result[field_key] = latest_feature.get(field, 0) or 0
-            else:
-                for field in fields:
-                    field_key = f"{collection}_{field}"
-                    result[field_key] = 0
-
-        # Add time-related features
-        current_time = datetime.now(timezone.utc)
-        result["year"] = current_time.year
-        result["month"] = current_time.month
-        result["day"] = current_time.day
-        result["dayofweek"] = current_time.weekday()
-        result["week"] = int(current_time.strftime("%V"))
-
-        return result
+        model_input = cls.prepare_model_input(model, features)
+        prediction = model.predict(model_input)[0]
+        return float(prediction), features, context

@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_APP=app:app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    libexpat1 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 # Set the working directory inside the container
@@ -17,7 +18,8 @@ COPY requirements.txt requirements.txt
 
 # Install Flask and other dependencies
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install -r requirements.txt
+    && python -m pip install -r requirements.txt \
+    && python -c "import pystac_client, rasterio; print('Sentinel-2 dependencies installed')"
 
 # Copy the entire project directory into the container
 COPY . .

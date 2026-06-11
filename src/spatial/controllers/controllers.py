@@ -1,41 +1,15 @@
 # controller/controller.py
 from flask import Blueprint
-from views.derived_pm2_5 import (
-    PM25View,
-    PM25_aod_Model_daily,
-    Sentinel5PView,
-    Satellite_data,
-)
-from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView 
 from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
 from views.heatmapViews import AQIImageGenerator
 from views.source_metadata_view import SourceMetadataView
+from views.satellite_predictions import SatellitePredictionView
 
 
 
 controller_bp = Blueprint("controller", __name__)
-
-
-@controller_bp.route("/derived_pm2_5", methods=["GET"])
-def get_derived_pm2_5():
-    return PM25View.get_pm25()
-
-
-@controller_bp.route("/derived_pm2_5_daily", methods=["GET"])
-def get_derived_pm2_5_daily():
-    return PM25_aod_Model_daily.get_aod_for_dates()
-
-
-@controller_bp.route("/sentinel5p", methods=["GET"])
-def get_sentinel5p():
-    return Sentinel5PView.get_pollutants_data()
-
-
-@controller_bp.route("/satellite_data", methods=["GET"])
-def get_satellite_data():
-    return Satellite_data.get_pollutants_data()
 
 
 @controller_bp.route("/categorize_site", methods=["GET"])
@@ -47,12 +21,6 @@ def categorize_site():
 def site_selection():
     return SiteSelectionView.site_selection()
 
-
-@controller_bp.route("/satellite_prediction", methods=["POST"])
-def get_satellite_prediction():
-    return SatellitePredictionView.make_predictions()
-
- 
 
 @controller_bp.route("/polygon_site_location", methods=["POST"])
 def polygon_site_selection():
@@ -75,3 +43,8 @@ def get_source_metadata():
 @controller_bp.route("/source_metadata/batch", methods=["POST"])
 def get_source_metadata_batch():
     return SourceMetadataView.get_source_metadata_batch()
+
+
+@controller_bp.route("/satellite_prediction", methods=["POST"])
+def get_satellite_prediction():
+    return SatellitePredictionView.make_predictions()
