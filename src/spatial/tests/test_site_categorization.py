@@ -2,6 +2,8 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
+from flask import Flask
+
 
 SPATIAL_ROOT = Path(__file__).resolve().parents[1]
 if str(SPATIAL_ROOT) not in sys.path:
@@ -12,6 +14,7 @@ from models.sentinel2_context_model import Sentinel2ContextModel
 from models.SatellitePredictionModel import SatellitePredictionModel
 from models.source_metadata_model import SourceMetadataModel
 from configure import _resolve_credentials_path
+from views.site_category_view import SiteCategorizationView
 
 
 def setup_function():
@@ -58,6 +61,40 @@ def test_categorization_maps_major_highway_to_urban_commercial():
     assert result[6] == "primary"
     assert model.last_details["matched_feature"]["osm_type"] == "node"
     assert model.last_details["confidence"] > 0.9
+
+
+def test_site_categorization_response_distinguishes_search_radius_from_distance():
+    app = Flask(__name__)
+    result = (
+        "Urban Commercial",
+        608.71,
+        "Test Area",
+        None,
+        None,
+        None,
+        "primary",
+        ["OSM context"],
+    )
+    details = {
+        "search_radius_m": 500,
+        "classification_method": "overpass",
+    }
+
+    def fake_categorize(model, latitude, longitude):
+        model.last_details = details
+        return result
+
+    with (
+        app.test_request_context("/?latitude=0.3&longitude=32.5"),
+        patch.object(SiteCategoryModel, "categorize_site_osm", fake_categorize),
+    ):
+        response, status = SiteCategorizationView.get_site_categorization()
+
+    payload = response.get_json()["site"]["site-category"]
+    assert status == 200
+    assert payload["search_radius_m"] == 500
+    assert payload["matched_feature_distance_m"] == 608.71
+    assert "search_radius" not in payload
 
 
 def test_categorization_maps_water_to_background_site():

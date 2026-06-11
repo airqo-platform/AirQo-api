@@ -34,7 +34,7 @@ class SiteCategorizationView:
         try:
             (
                 category,
-                search_radius,
+                matched_feature_distance_m,
                 area_name,
                 landuse,
                 natural,
@@ -50,7 +50,7 @@ class SiteCategorizationView:
             "site": {
                 "site-category": {
                     "category": category,
-                    "search_radius": search_radius,
+                    "matched_feature_distance_m": matched_feature_distance_m,
                     "area_name": area_name,
                     "landuse": landuse,
                     "natural": natural,
