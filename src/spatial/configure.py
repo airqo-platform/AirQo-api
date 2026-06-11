@@ -1,4 +1,5 @@
 # configure.py
+import logging
 import os
 from pathlib import Path
 from typing import Optional, Tuple
@@ -11,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
-
+logger = logging.getLogger(__name__)
 class Config:
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
     AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
@@ -151,6 +152,7 @@ def get_trained_model_from_gcs(
         with fs.open(object_path, "rb") as handle:
             return joblib.load(handle), None
     except Exception as error:
+        logger.exception("Failed to load trained model from gs://%s", object_path)
         if Config.CREDENTIALS and not credentials_path:
             return (
                 None,
@@ -158,4 +160,4 @@ def get_trained_model_from_gcs(
                 "exist at the configured path or the supported spatial mount "
                 f"locations: {Config.CREDENTIALS}",
             )
-        return None, f"Failed to load gs://{object_path}: {error}"
+        return None, "Failed to load prediction model from cloud storage."

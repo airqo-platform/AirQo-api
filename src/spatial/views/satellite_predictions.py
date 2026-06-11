@@ -66,8 +66,6 @@ class SatellitePredictionView:
                 jsonify(
                     {
                         "error": "Satellite prediction model is unavailable.",
-                        "bucket": Config.SATELLITE_PREDICTION_BUCKET,
-                        "model_file": Config.SATELLITE_PREDICTION_MODEL_FILE,
                         "details": model_error,
                     }
                 ),
@@ -83,7 +81,15 @@ class SatellitePredictionView:
                 end_date=payload.get("end_date"),
             )
         except ValueError as error:
-            return jsonify({"error": str(error), "retraining_required": True}), 422
+            logger.exception("Satellite prediction request failed validation")
+            return (
+                jsonify(
+                    {
+                        "error":"Invalid input or unavailable features for the requested period.",
+                        "retraining_required": True,
+                    }), 
+                    422,
+            )
         except Exception:
             logger.exception("Failed to fetch Sentinel-2 prediction features")
             return (
