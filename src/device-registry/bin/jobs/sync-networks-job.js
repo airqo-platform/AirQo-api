@@ -58,9 +58,7 @@ const initializeApiClient = () => {
     (response) => response,
     (error) => {
       if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN") {
-        logger.warn(
-          `⚠️ API DNS resolution error for ${error.config?.baseURL}. Check API_BASE_URL and network connectivity.`,
-        );
+        // DNS errors are logged with retry context in the fetch catch block
       } else if (error.code === "ECONNABORTED") {
         logger.error(
           `API request timeout: ${error.config?.url}`,
@@ -136,9 +134,10 @@ const fetchAuthServiceNetworks = async () => {
         const isLastAttempt = attempt === MAX_RETRIES;
         const logFn =
           isTransient && !isLastAttempt ? logger.warn : logger.error;
+        const prefix = logFn === logger.error ? "🐛🐛" : "⚠️";
         logFn.call(
           logger,
-          `${isLastAttempt ? "🐛🐛" : "⚠️"} Error on page ${page} calling auth-service. Message: ${error.message}. Code: ${error.code || "N/A"}`,
+          `${prefix} Error on page ${page} calling auth-service. Message: ${error.message}. Code: ${error.code || "N/A"}`,
         );
         hasMore = false;
         success = false;
