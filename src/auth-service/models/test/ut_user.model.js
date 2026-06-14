@@ -106,6 +106,31 @@ describe("UserSchema static methods", () => {
       });
     });
 
+    it("should include onboarding_checklist, devices, and cohorts in the $group stage", async () => {
+      const mockAggregation = {
+        match: sandbox.stub().returnsThis(),
+        lookup: sandbox.stub().returnsThis(),
+        addFields: sandbox.stub().returnsThis(),
+        unwind: sandbox.stub().returnsThis(),
+        group: sandbox.stub().returnsThis(),
+        project: sandbox.stub().returnsThis(),
+        sort: sandbox.stub().returnsThis(),
+        skip: sandbox.stub().returnsThis(),
+        limit: sandbox.stub().returnsThis(),
+        allowDiskUse: sandbox.stub().resolves([]),
+      };
+
+      sandbox.stub(UserModel, "aggregate").returns(mockAggregation);
+      sandbox.stub(UserModel, "countDocuments").returns({ exec: sandbox.stub().resolves(0) });
+
+      await UserModel.list({ filter: {} });
+
+      const groupArg = mockAggregation.group.args[0][0];
+      expect(groupArg).to.have.nested.property("onboarding_checklist.$first", "$onboarding_checklist");
+      expect(groupArg).to.have.nested.property("devices.$first", "$devices");
+      expect(groupArg).to.have.nested.property("cohorts.$first", "$cohorts");
+    });
+
     // Add more test cases here for different scenarios (e.g., empty response, error handling, etc.)
   });
 
