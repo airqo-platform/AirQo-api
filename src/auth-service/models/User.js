@@ -1605,7 +1605,7 @@ UserSchema.methods = {
       cohort_ids: this.cohorts,
       subscriptionTier: this.subscriptionTier,
       apiRateLimits: this.apiRateLimits,
-      onboarding_checklist: this.onboarding_checklist,
+      onboarding_checklist: this.onboarding_checklist || { is_dismissed: false, completed_steps: [] },
     };
   },
 };
