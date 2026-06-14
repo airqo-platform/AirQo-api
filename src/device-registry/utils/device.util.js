@@ -3324,7 +3324,7 @@ const deviceUtil = {
         DeviceModel(tenant)
           .find(filter)
           .select(
-            "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
+            "name long_name status isActive isOnline rawOnlineStatus deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
           )
           .sort({ claimed_at: -1 })
           .skip(skip)

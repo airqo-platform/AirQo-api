@@ -2865,6 +2865,7 @@ describe("Device Util", () => {
 
     let deviceCountStub;
     let deviceLeanStub;
+    let deviceSelectStub;
     let siteFindStub;
     let siteLeanStub;
 
@@ -2895,6 +2896,7 @@ describe("Device Util", () => {
 
       deviceCountStub = deviceModelMock.countDocuments;
       deviceLeanStub = deviceModelMock.lean;
+      deviceSelectStub = deviceModelMock.select;
       siteFindStub = siteModelMock.find;
       siteLeanStub = siteModelMock.lean;
 
@@ -3069,6 +3071,18 @@ describe("Device Util", () => {
       expect(result.data).to.have.lengthOf(0);
       expect(siteFindStub.called).to.be.false;
       expect(result.meta.total).to.equal(0);
+    });
+
+    it("should project isOnline and rawOnlineStatus in the device query", async () => {
+      const request = {
+        query: { tenant: "airqo", user_id: VALID_USER_ID },
+      };
+      await deviceUtil.getMyDevices(request, () => {});
+
+      expect(deviceSelectStub.calledOnce).to.be.true;
+      const projection = deviceSelectStub.firstCall.args[0];
+      expect(projection).to.include("isOnline");
+      expect(projection).to.include("rawOnlineStatus");
     });
   });
 });
