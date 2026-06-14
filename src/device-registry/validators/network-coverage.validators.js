@@ -48,6 +48,13 @@ const activeOnlyFilter = query("activeOnly")
   .isIn(["true", "false"])
   .withMessage("activeOnly must be 'true' or 'false'");
 
+// Comma-separated list of network slugs, e.g. "airqo" or "airqo,metone"
+const networkFilter = query("network")
+  .optional()
+  .isString()
+  .withMessage("network must be a comma-separated string")
+  .trim();
+
 const networkCoverageValidations = {
   /**
    * GET /network-coverage
@@ -57,6 +64,7 @@ const networkCoverageValidations = {
     query("search").optional().isString().trim(),
     activeOnlyFilter,
     typesFilter,
+    networkFilter,
   ],
 
   /**
@@ -77,6 +85,7 @@ const networkCoverageValidations = {
       .trim(),
     activeOnlyFilter,
     typesFilter,
+    networkFilter,
   ],
 
   /**
@@ -87,6 +96,7 @@ const networkCoverageValidations = {
     query("countryId").optional().isString().trim(),
     activeOnlyFilter,
     typesFilter,
+    networkFilter,
     query("search").optional().isString().trim(),
   ],
 
