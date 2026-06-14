@@ -4,7 +4,7 @@ Event app serializers for v2 API
 Special features as per requirements:
 - Universal slug support with privacy-friendly URLs
 - Date hierarchy
-- Event type filtering 
+- Event type filtering
 - Virtual vs venue fields
 - Registration counts
 - Calendar-friendly fields
@@ -15,8 +15,7 @@ Special features as per requirements:
 from rest_framework import serializers
 from apps.event.models import (
     Event, Inquiry, Program, Session, PartnerLogo, Resource,
-    Organizer, EventOrganizer, EventSideEvent,
-    Partner, EventPartner,
+    Organizer, EventOrganizer, Partner, EventPartner,
 )
 from ..utils import DynamicFieldsSerializerMixin
 from ..serializers.mixins import ListSerializerMixin, DetailSerializerMixin

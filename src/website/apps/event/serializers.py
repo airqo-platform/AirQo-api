@@ -2,8 +2,7 @@
 from rest_framework import serializers
 from .models import (
     Event, Inquiry, Program, Session, PartnerLogo, Resource,
-    Organizer, EventOrganizer, EventSideEvent,
-    Partner, EventPartner,
+    Organizer, EventOrganizer, Partner, EventPartner,
 )
 
 

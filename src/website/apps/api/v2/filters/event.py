@@ -7,10 +7,8 @@ Special features for event app as per requirements:
 - Virtual vs venue fields
 - Side-event / main-event / parent-event filtering
 """
-from django import forms
 from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
-import django_filters
 from django_filters import rest_framework as filters
 
 from apps.event.models import (

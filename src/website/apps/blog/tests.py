@@ -1,4 +1,3 @@
-import json
 from datetime import date, timedelta
 from importlib import import_module
 from django.utils import timezone
@@ -27,7 +26,7 @@ V2EventOrganizerViewSet = import_module(
 V2EventSideEventViewSet = import_module(
     'apps.api.v2.viewsets.event').EventSideEventViewSet
 V2PartnerViewSet = import_module(
-    'apps.api.v2.viewsets.event').PartnerViewSet
+    'apps.api.v2.viewsets.event').EventPartnerCatalogViewSet
 V2EventPartnerViewSet = import_module(
     'apps.api.v2.viewsets.event').EventPartnerViewSet
 
@@ -795,7 +794,7 @@ class EventPartnerCatalogTests(TestCase):
 
     def test_v2_event_list_still_works_without_partners(self):
         """Backward compat: events with no partners should still work."""
-        event = self._make_event('Solo Event')
+        self._make_event('Solo Event')
         cache.clear()
         request = self.factory.get(reverse('v2-events-list'))
         response = V2EventViewSet.as_view({'get': 'list'})(request)
@@ -827,11 +826,11 @@ class EventOrderingTests(TestCase):
     def test_upcoming_events_appear_before_past_events(self):
         """Default list should show upcoming events first, then past."""
         today = date.today()
-        past = self._make_event(
+        self._make_event(
             'Past Event', today - timedelta(days=10))
-        upcoming_near = self._make_event(
+        self._make_event(
             'Upcoming Near', today + timedelta(days=2))
-        upcoming_far = self._make_event(
+        self._make_event(
             'Upcoming Far', today + timedelta(days=30))
 
         cache.clear()

@@ -16,7 +16,7 @@ from .viewsets.event import (
     EventViewSet, InquiryViewSet, ProgramViewSet, SessionViewSet,
     PartnerLogoViewSet, ResourceViewSet,
     OrganizerViewSet, EventOrganizerViewSet, EventSideEventViewSet,
-    PartnerViewSet, EventPartnerViewSet,
+    EventPartnerCatalogViewSet, EventPartnerViewSet,
 )
 from .viewsets.externalteams import ExternalTeamMemberViewSet, ExternalTeamMemberBiographyViewSet
 from .viewsets.faqs import FAQViewSet, CategoryViewSet
@@ -59,7 +59,7 @@ router.register(r'event-organizer-links', EventOrganizerViewSet,
                 basename='v2-event-organizer-links')
 router.register(r'event-side-events', EventSideEventViewSet,
                 basename='v2-event-side-events')
-router.register(r'event-partners', PartnerViewSet,
+router.register(r'event-partners', EventPartnerCatalogViewSet,
                 basename='v2-event-partners')
 router.register(r'event-partner-links', EventPartnerViewSet,
                 basename='v2-event-partner-links')

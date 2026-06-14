@@ -12,7 +12,6 @@ Special features for event app as per requirements:
 """
 from django.utils import timezone
 from typing import Optional, Any, ClassVar, List
-from django.db.models.query import QuerySet
 from django.db.models import Case, When, Value, Count, Q, IntegerField
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
@@ -29,7 +28,7 @@ from ..filters.event import (
     EventFilter, InquiryFilter, ProgramFilter, SessionFilter,
     PartnerLogoFilter, ResourceFilter,
 )
-from ..pagination import StandardPageNumberPagination, StandardCursorPagination
+from ..pagination import StandardPageNumberPagination
 from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 from ..serializers.event import (
     EventListSerializer, EventDetailSerializer,
@@ -41,9 +40,8 @@ from ..serializers.event import (
     OrganizerSerializer, EventOrganizerLinkSerializer,
     PartnerSerializer, EventPartnerLinkSerializer,
 )
-from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
+from ..utils import CachedViewSetMixin
 import logging
-from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +58,7 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
 
     Special actions:
     - upcoming/ - Get upcoming events
-    - past/ - Get past events  
+    - past/ - Get past events
     - calendar/ - Get events in calendar format
     - by-slug/<slug>/ - Explicit slug lookup
     - <slug|id>/identifiers/ - Get all identifiers for an event
@@ -110,8 +108,6 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
 
     def get_queryset(self) -> Any:  # type: ignore[override]
         """Optimized queryset with aggressive performance improvements"""
-        from django.core.cache import cache
-        from django.db import connection
         # Base queryset with efficient ordering (retain mixin hooks)
         qs = super().get_queryset()
 
@@ -776,7 +772,7 @@ class EventSideEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
         return response
 
 
-class PartnerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class EventPartnerCatalogViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """Read-only Partner ViewSet with slug/id lookup and caching."""
     queryset = Partner.objects.all()
     filter_backends = [
