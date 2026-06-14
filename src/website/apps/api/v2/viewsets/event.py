@@ -13,7 +13,7 @@ Special features for event app as per requirements:
 from django.utils import timezone
 from typing import Optional, Any, ClassVar, List
 from django.db.models.query import QuerySet
-from django.db.models import Count, Q
+from django.db.models import Case, When, Value, Count, Q, IntegerField
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
@@ -75,9 +75,13 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
     filterset_class = EventFilter
     search_fields: ClassVar[List[str]] = [
         'title', 'title_subtext', 'location_name']
-    ordering_fields: ClassVar[List[str]] = ['start_date', 'end_date',
-                                            'title', 'order', 'created', 'modified']
-    ordering: ClassVar[List[str]] = ['-start_date', 'order']
+    ordering_fields: ClassVar[List[str]] = [
+        'start_date', 'end_date', 'start_time', 'end_time',
+        'title', 'order', 'created', 'modified',
+    ]
+    # Default ordering: set to [] so OrderingFilter doesn't override
+    # our custom date-based ordering in get_queryset.
+    ordering: ClassVar[List[str]] = []
 
     # Slug configuration
     slug_filter_fields = ('slug',)  # Event uses standard slug field
@@ -136,8 +140,11 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
             )
 
         elif action == 'list':
-            # For list view - use annotations to expose counts without
-            # N+1, and minimal data with only() to reduce fields fetched.
+            from django.utils import timezone as _tz
+            now = _tz.now().date()
+
+            # For list view - annotate counts, sort priority, and
+            # exclude side events by default.
             qs = qs.annotate(
                 _organizers_count=Count(
                     'event_organizer_links',
@@ -153,6 +160,13 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
                     'parent_event_links',
                     filter=Q(parent_event_links__is_deleted=False),
                     distinct=True,
+                ),
+                # Sort priority: 0 = upcoming, 1 = past.
+                # Upcoming events appear first in the default list.
+                _sort_priority=Case(
+                    When(start_date__gte=now, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
                 ),
             )
 
@@ -185,11 +199,23 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
                 'event_partner_links__partner',
             )
 
-        # Apply efficient ordering based on common queries
-        if action in ['past']:
+        # Apply efficient ordering based on common queries.
+        # List: upcoming first (nearest date), then past (oldest first),
+        #       then by start_time, manual order, and created date.
+        #       Client can override with ?o=<field>.
+        # Past/upcoming/calendar actions: keep their existing orderings.
+        if action == 'list':
+            qs = qs.order_by(
+                '_sort_priority',    # 0 = upcoming first, 1 = past
+                'start_date',        # nearest date first for upcoming
+                'start_time',        # earliest time first
+                'order',             # manual order (tiebreaker)
+                'created',           # stable fallback
+            )
+        elif action in ['past']:
             qs = qs.order_by('-end_date', 'order')
         elif action in ['upcoming']:
-            qs = qs.order_by('start_date', 'order')
+            qs = qs.order_by('start_date', 'start_time', 'order')
         else:
             qs = qs.order_by('-start_date', 'order')
 

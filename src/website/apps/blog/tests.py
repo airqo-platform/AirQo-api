@@ -805,3 +805,115 @@ class EventPartnerCatalogTests(TestCase):
             if i['title'] == 'Solo Event'
         )
         self.assertEqual(item['partners_count'], 0)
+
+
+class EventOrderingTests(TestCase):
+    """Tests for the default event ordering logic."""
+
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        cache.clear()
+
+    def _make_event(self, title, start_date, start_time=None, **kwargs):
+        defaults = dict(
+            title_subtext=f"{title} subtitle",
+            order=1,
+            start_date=start_date,
+            start_time=start_time,
+        )
+        defaults.update(kwargs)
+        return Event.objects.create(title=title, **defaults)
+
+    def test_upcoming_events_appear_before_past_events(self):
+        """Default list should show upcoming events first, then past."""
+        today = date.today()
+        past = self._make_event(
+            'Past Event', today - timedelta(days=10))
+        upcoming_near = self._make_event(
+            'Upcoming Near', today + timedelta(days=2))
+        upcoming_far = self._make_event(
+            'Upcoming Far', today + timedelta(days=30))
+
+        cache.clear()
+        request = self.factory.get(reverse('v2-events-list'))
+        response = V2EventViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+
+        titles = [item['title'] for item in response.data['results']]
+        # Upcoming events should appear before past events
+        upcoming_idx = [i for i, t in enumerate(titles) if 'Upcoming' in t]
+        past_idx = [i for i, t in enumerate(titles) if t == 'Past Event']
+        self.assertTrue(
+            max(upcoming_idx) < min(past_idx),
+            f"Upcoming events {titles} should appear before past events"
+        )
+
+    def test_nearest_upcoming_event_first(self):
+        """Among upcoming events, the nearest date should appear first."""
+        today = date.today()
+        self._make_event('Far Away', today + timedelta(days=60))
+        self._make_event('Next Week', today + timedelta(days=7))
+        self._make_event('Tomorrow', today + timedelta(days=1))
+
+        cache.clear()
+        request = self.factory.get(reverse('v2-events-list'))
+        response = V2EventViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+
+        titles = [item['title'] for item in response.data['results']]
+        # Filter to only upcoming events
+        upcoming = [t for t in titles if t in ('Tomorrow', 'Next Week', 'Far Away')]
+        self.assertEqual(upcoming, ['Tomorrow', 'Next Week', 'Far Away'])
+
+    def test_same_date_sorted_by_start_time(self):
+        """Events on the same date should be sorted by start_time."""
+        today = date.today()
+        target = today + timedelta(days=5)
+        self._make_event('Evening', target, start_time='18:00:00')
+        self._make_event('Morning', target, start_time='09:00:00')
+        self._make_event('Afternoon', target, start_time='14:00:00')
+
+        cache.clear()
+        request = self.factory.get(reverse('v2-events-list'))
+        response = V2EventViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+
+        titles = [item['title'] for item in response.data['results']]
+        same_day = [t for t in titles if t in ('Morning', 'Afternoon', 'Evening')]
+        self.assertEqual(same_day, ['Morning', 'Afternoon', 'Evening'])
+
+    def test_same_date_same_time_falls_back_to_order(self):
+        """Events with same date and time should sort by manual order."""
+        today = date.today()
+        target = today + timedelta(days=5)
+        t = '10:00:00'
+        self._make_event('Second', target, start_time=t, order=2)
+        self._make_event('First', target, start_time=t, order=1)
+        self._make_event('Third', target, start_time=t, order=3)
+
+        cache.clear()
+        request = self.factory.get(reverse('v2-events-list'))
+        response = V2EventViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+
+        titles = [item['title'] for item in response.data['results']]
+        same = [t for t in titles if t in ('First', 'Second', 'Third')]
+        self.assertEqual(same, ['First', 'Second', 'Third'])
+
+    def test_client_can_override_ordering(self):
+        """Client should be able to override default ordering with ?o=."""
+        today = date.today()
+        self._make_event('Event C', today + timedelta(days=3))
+        self._make_event('Event A', today + timedelta(days=1))
+        self._make_event('Event B', today + timedelta(days=2))
+
+        cache.clear()
+        request = self.factory.get(
+            reverse('v2-events-list') + '?o=title')
+        response = V2EventViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+
+        titles = [item['title'] for item in response.data['results']]
+        # Should be sorted alphabetically by title
+        filtered = [t for t in titles if t.startswith('Event ')]
+        self.assertEqual(filtered, ['Event A', 'Event B', 'Event C'])
