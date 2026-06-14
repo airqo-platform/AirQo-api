@@ -244,17 +244,26 @@ function buildRegistryBySiteId(registryRecords) {
  * extended metadata is layered from the registry entry when present.
  *
  * deviceCategory — the dominant category of active devices at this site
- * (bam | lowcost | gas). This is the authoritative source for `type`;
- * the registry entry never overrides it for AirQo pipeline monitors.
+ * (bam | lowcost | gas). Used to derive `type` via DEVICE_CATEGORY_TO_TYPE
+ * unless the registry entry carries an explicit, valid type override.
+ *
+ * Type precedence:
+ *   1. reg.type — when set and a recognised MONITOR_TYPES value (curator override)
+ *   2. DEVICE_CATEGORY_TO_TYPE[deviceCategory] — canonical device-category mapping
+ *   3. "LCS" — safe default
  */
 function buildAirQoMonitorItem(siteDoc, registryDoc, deviceCategory) {
   const reg = registryDoc || {};
   const country = siteDoc.country || "";
 
-  // Registry type wins when explicitly set — allows curators to correct
-  // misclassifications without touching device metadata. Falls back to the
-  // canonical device category mapping when no registry override exists.
-  const type = reg.type || DEVICE_CATEGORY_TO_TYPE[deviceCategory] || "LCS";
+  // Registry type wins when explicitly set to a valid enum value — allows curators
+  // to correct misclassifications without touching device metadata. Invalid or
+  // blank registry values fall through to the canonical device category mapping.
+  const validTypes = NetworkCoverageRegistryModel.MONITOR_TYPES;
+  const type =
+    (reg.type && validTypes.includes(reg.type) ? reg.type : null) ||
+    DEVICE_CATEGORY_TO_TYPE[deviceCategory] ||
+    "LCS";
 
   return {
     id: String(siteDoc._id),
@@ -565,7 +574,7 @@ const networkCoverageUtil = {
       const availableNetworks = [
         ...new Set(
           allMonitors
-            .map((m) => (m.network || "").trim())
+            .map((m) => (m.network || "").trim().toLowerCase())
             .filter(Boolean)
         ),
       ].sort();
@@ -778,7 +787,8 @@ const networkCoverageUtil = {
    */
   exportCsv: async (request) => {
     try {
-      const { tenant, search, activeOnly, types, network, countryId } = request.query;
+      const { tenant, search, activeOnly, types, network, countryId } =
+        request.query;
 
       const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
