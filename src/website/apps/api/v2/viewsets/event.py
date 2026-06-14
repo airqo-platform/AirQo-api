@@ -46,6 +46,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class FlexibleOrderingFilter(filters.OrderingFilter):
+    """OrderingFilter that accepts ``?o=`` instead of ``?ordering=``."""
+
+    ordering_param = 'o'
+
+
 class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     Event ViewSet with universal slug support and special date hierarchy
@@ -68,7 +74,7 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter,
+        FlexibleOrderingFilter,
     ]
     filterset_class = EventFilter
     search_fields: ClassVar[List[str]] = [
@@ -395,7 +401,7 @@ class InquiryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
     """Inquiry ViewSet for event-related inquiries"""
     queryset = Inquiry.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
-                       filters.SearchFilter, filters.OrderingFilter]
+                       filters.SearchFilter, FlexibleOrderingFilter]
     filterset_class = InquiryFilter
     search_fields: ClassVar[List[str]] = ['inquiry', 'role', 'email']
     ordering_fields: ClassVar[List[str]] = ['role', 'email', 'order']
@@ -444,7 +450,7 @@ class ProgramViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
     """Program ViewSet for event programs"""
     queryset = Program.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
-                       filters.SearchFilter, filters.OrderingFilter]
+                       filters.SearchFilter, FlexibleOrderingFilter]
     filterset_class = ProgramFilter
     search_fields = ['program_details']
     ordering_fields = ['date', 'order']
@@ -492,7 +498,7 @@ class SessionViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
     """Session ViewSet for event sessions"""
     queryset = Session.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
-                       filters.SearchFilter, filters.OrderingFilter]
+                       filters.SearchFilter, FlexibleOrderingFilter]
     filterset_class = SessionFilter
     search_fields = ['session_title', 'session_details', 'venue']
     ordering_fields = ['start_time', 'end_time', 'order']
@@ -539,7 +545,7 @@ class PartnerLogoViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Re
     """PartnerLogo ViewSet for event partner logos"""
     queryset = PartnerLogo.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
-                       filters.SearchFilter, filters.OrderingFilter]
+                       filters.SearchFilter, FlexibleOrderingFilter]
     filterset_class = PartnerLogoFilter
     search_fields = ['name']
     ordering_fields = ['name', 'order']
@@ -586,7 +592,7 @@ class ResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
     """Resource ViewSet for event resources"""
     queryset = Resource.objects.all()
     filter_backends = [django_filters.DjangoFilterBackend,
-                       filters.SearchFilter, filters.OrderingFilter]
+                       filters.SearchFilter, FlexibleOrderingFilter]
     filterset_class = ResourceFilter
     search_fields = ['title', 'link']
     ordering_fields = ['title', 'order']
@@ -635,7 +641,7 @@ class OrganizerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuery
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter,
+        FlexibleOrderingFilter,
     ]
     search_fields: ClassVar[List[str]] = ['name', 'slug', 'description', 'website_url']
     ordering_fields: ClassVar[List[str]] = ['order', 'name', 'created', 'modified']
@@ -678,7 +684,7 @@ class EventOrganizerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter,
+        FlexibleOrderingFilter,
     ]
     search_fields: ClassVar[List[str]] = [
         'event__title', 'event__slug', 'organizer__name', 'organizer__slug',
@@ -723,7 +729,7 @@ class EventSideEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter,
+        FlexibleOrderingFilter,
     ]
     search_fields: ClassVar[List[str]] = [
         'parent_event__title', 'parent_event__slug',
@@ -774,7 +780,7 @@ class EventPartnerCatalogViewSet(SlugModelViewSetMixin, CachedViewSetMixin, Opti
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter,
+        FlexibleOrderingFilter,
     ]
     search_fields: ClassVar[List[str]] = ['name', 'slug', 'description', 'website_url']
     ordering_fields: ClassVar[List[str]] = ['order', 'name', 'created', 'modified']
@@ -817,7 +823,7 @@ class EventPartnerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.R
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter,
+        FlexibleOrderingFilter,
     ]
     search_fields: ClassVar[List[str]] = [
         'event__title', 'event__slug', 'partner__name', 'partner__slug',
