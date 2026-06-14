@@ -8,18 +8,27 @@ Special features for event app as per requirements:
 - Registration counts
 - Calendar-friendly fields
 - Universal slug support for privacy-friendly URLs
+- Organizers and side-event relationships
 """
 from django.utils import timezone
 from typing import Optional, Any, ClassVar, List
 from django.db.models.query import QuerySet
+from django.db.models import Count, Q
 from django_filters import rest_framework as django_filters
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Resource
-from ..filters.event import EventFilter, InquiryFilter, ProgramFilter, SessionFilter, PartnerLogoFilter, ResourceFilter
+from apps.event.models import (
+    Event, Inquiry, Program, Session, PartnerLogo, Resource,
+    Organizer, EventOrganizer, EventSideEvent,
+    Partner, EventPartner,
+)
+from ..filters.event import (
+    EventFilter, InquiryFilter, ProgramFilter, SessionFilter,
+    PartnerLogoFilter, ResourceFilter,
+)
 from ..pagination import StandardPageNumberPagination, StandardCursorPagination
 from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 from ..serializers.event import (
@@ -28,7 +37,9 @@ from ..serializers.event import (
     ProgramListSerializer, ProgramDetailSerializer,
     SessionListSerializer, SessionDetailSerializer,
     PartnerLogoListSerializer, PartnerLogoDetailSerializer,
-    ResourceListSerializer, ResourceDetailSerializer
+    ResourceListSerializer, ResourceDetailSerializer,
+    OrganizerSerializer, EventOrganizerLinkSerializer,
+    PartnerSerializer, EventPartnerLinkSerializer,
 )
 from ..utils import OptimizedQuerySetMixin, CachedViewSetMixin
 import logging
@@ -74,7 +85,12 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
     select_related_fields: Optional[List[str]] = []
     # Remove invalid 'sessions' - sessions are related through programs, not directly to events
     prefetch_related_fields: Optional[List[str]] = [
-        'inquiries', 'programs', 'resources', 'partner_logos']
+        'inquiries', 'programs', 'resources', 'partner_logos',
+        'event_organizer_links__organizer',
+        'event_partner_links__partner',
+        'side_event_links__side_event',
+        'parent_event_links__parent_event',
+    ]
     pagination_class = StandardPageNumberPagination
     # Limit fields retrieved for list action to speed up list serialization
     list_only_fields: Optional[List[str]] = [
@@ -100,16 +116,60 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
 
         # Check if we need complete data (detail view) or minimal data (list view)
         if action == 'retrieve':
-            # For detail view - prefetch ALL related data
+            # For detail view - prefetch ALL related data including the
+            # new organizer, partner, and side-event links.
             qs = qs.prefetch_related(
                 'inquiries',
                 'programs__sessions',  # Nested prefetch for programs and their sessions
                 'partner_logos',
-                'resources'
+                'resources',
+                # Organizer links: prefetch the through rows with their
+                # related organizer to avoid N+1 on the nested serializer.
+                'event_organizer_links__organizer',
+                # Partner links: prefetch the through rows with their
+                # related partner.
+                'event_partner_links__partner',
+                # Side events: prefetch the through rows with their side event.
+                'side_event_links__side_event',
+                # Parent event backlink (if this event is a side event).
+                'parent_event_links__parent_event',
             )
 
         elif action == 'list':
-            # For list view - minimal data with only() to reduce fields fetched
+            # For list view - use annotations to expose counts without
+            # N+1, and minimal data with only() to reduce fields fetched.
+            qs = qs.annotate(
+                _organizers_count=Count(
+                    'event_organizer_links',
+                    filter=Q(event_organizer_links__is_deleted=False),
+                    distinct=True,
+                ),
+                _partners_count=Count(
+                    'event_partner_links',
+                    filter=Q(event_partner_links__is_deleted=False),
+                    distinct=True,
+                ),
+                _parent_link_count=Count(
+                    'parent_event_links',
+                    filter=Q(parent_event_links__is_deleted=False),
+                    distinct=True,
+                ),
+            )
+
+            # Default: exclude side events from the main list so they
+            # only appear nested under their parent event's detail page.
+            # The frontend can opt-in to include them with
+            # ?is_side_event=true, or explicitly request ?main_events_only=true.
+            request = getattr(self, 'request', None)
+            params = getattr(request, 'query_params', {})
+            has_explicit_side_event_filter = any(
+                p in params for p in ('is_side_event', 'main_events_only',
+                                       'exclude_side_events', 'parent_event',
+                                       'has_side_events')
+            )
+            if not has_explicit_side_event_filter:
+                qs = qs.filter(_parent_link_count=0)
+
             list_fields = [
                 'id', 'slug', 'title', 'title_subtext', 'start_date', 'end_date',
                 'start_time', 'end_time', 'event_tag', 'event_category',
@@ -120,7 +180,10 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
         else:
             # For other actions (upcoming, past, calendar) - prefetch minimal related data
             qs = qs.prefetch_related(
-                'inquiries', 'programs', 'partner_logos', 'resources')
+                'inquiries', 'programs', 'partner_logos', 'resources',
+                'event_organizer_links__organizer',
+                'event_partner_links__partner',
+            )
 
         # Apply efficient ordering based on common queries
         if action in ['past']:
@@ -540,6 +603,237 @@ class ResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         """Cached detail view"""
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('resource_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class OrganizerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only Organizer ViewSet with slug/id lookup and caching."""
+    queryset = Organizer.objects.all()
+    filter_backends = [
+        django_filters.DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields: ClassVar[List[str]] = ['name', 'slug', 'description', 'website_url']
+    ordering_fields: ClassVar[List[str]] = ['order', 'name', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'name']
+    slug_filter_fields = ('slug',)
+    pagination_class = StandardPageNumberPagination
+
+    def get_serializer_class(self):  # type: ignore[override]
+        return OrganizerSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(Organizer, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        cache_key = self.get_cache_key('organizer_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        identifier = str(kwargs.get(self.lookup_url_kwarg, kwargs.get('pk', '')))
+        cache_key = self.get_cache_key('organizer_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class EventOrganizerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only view for the EventOrganizer through model."""
+    queryset = EventOrganizer.objects.all()
+    filter_backends = [
+        django_filters.DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields: ClassVar[List[str]] = [
+        'event__title', 'event__slug', 'organizer__name', 'organizer__slug',
+    ]
+    ordering_fields: ClassVar[List[str]] = ['order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'id']
+    pagination_class = StandardPageNumberPagination
+    select_related_fields: ClassVar[List[str]] = ['event', 'organizer']
+
+    def get_serializer_class(self):  # type: ignore[override]
+        return EventOrganizerLinkSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(EventOrganizer, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs.select_related('event', 'organizer').order_by('order', 'id')
+
+    def list(self, request, *args, **kwargs):
+        cache_key = self.get_cache_key('event_organizer_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('event_organizer_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class EventSideEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only view for the EventSideEvent through model."""
+    queryset = EventSideEvent.objects.all()
+    filter_backends = [
+        django_filters.DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields: ClassVar[List[str]] = [
+        'parent_event__title', 'parent_event__slug',
+        'side_event__title', 'side_event__slug', 'label',
+    ]
+    ordering_fields: ClassVar[List[str]] = ['order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'id']
+    pagination_class = StandardPageNumberPagination
+    select_related_fields: ClassVar[List[str]] = ['parent_event', 'side_event']
+
+    def get_serializer_class(self):  # type: ignore[override]
+        from ..serializers.event import EventSideEventSummarySerializer
+        return EventSideEventSummarySerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(EventSideEvent, 'is_deleted'):
+            qs = qs.filter(
+                is_deleted=False,
+                parent_event__is_deleted=False,
+                side_event__is_deleted=False,
+            )
+        return qs.select_related('parent_event', 'side_event').order_by('order', 'id')
+
+    def list(self, request, *args, **kwargs):
+        cache_key = self.get_cache_key('event_side_event_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('event_side_event_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class PartnerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only Partner ViewSet with slug/id lookup and caching."""
+    queryset = Partner.objects.all()
+    filter_backends = [
+        django_filters.DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields: ClassVar[List[str]] = ['name', 'slug', 'description', 'website_url']
+    ordering_fields: ClassVar[List[str]] = ['order', 'name', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'name']
+    slug_filter_fields = ('slug',)
+    pagination_class = StandardPageNumberPagination
+
+    def get_serializer_class(self):  # type: ignore[override]
+        return PartnerSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(Partner, 'is_deleted'):
+            qs = qs.filter(is_deleted=False)
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        cache_key = self.get_cache_key('partner_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        identifier = str(kwargs.get(self.lookup_url_kwarg, kwargs.get('pk', '')))
+        cache_key = self.get_cache_key('partner_detail', identifier, request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().retrieve(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
+        return response
+
+
+class EventPartnerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only view for the EventPartner through model."""
+    queryset = EventPartner.objects.all()
+    filter_backends = [
+        django_filters.DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields: ClassVar[List[str]] = [
+        'event__title', 'event__slug', 'partner__name', 'partner__slug',
+    ]
+    ordering_fields: ClassVar[List[str]] = ['order', 'created', 'modified']
+    ordering: ClassVar[List[str]] = ['order', 'id']
+    pagination_class = StandardPageNumberPagination
+    select_related_fields: ClassVar[List[str]] = ['event', 'partner']
+
+    def get_serializer_class(self):  # type: ignore[override]
+        return EventPartnerLinkSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(EventPartner, 'is_deleted'):
+            qs = qs.filter(
+                is_deleted=False,
+                event__is_deleted=False,
+                partner__is_deleted=False,
+            )
+        return qs.select_related('event', 'partner').order_by('order', 'id')
+
+    def list(self, request, *args, **kwargs):
+        cache_key = self.get_cache_key('event_partner_list', query_params=request.query_params)
+        cached = self.get_cached_response(cache_key)
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        identifier = str(kwargs.get('pk', ''))
+        cache_key = self.get_cache_key('event_partner_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
         if cached:
             return Response(cached)

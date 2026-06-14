@@ -1,126 +1,277 @@
 /* Event Admin Custom Styles */
 
-/* Make the admin fieldsets more visually appealing */
-.form-row {
-  margin-bottom: 15px;
-}
-
-.fieldset {
-  margin-bottom: 20px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 15px;
-  background: transparent;
-}
-
-.fieldset h2 {
-  background: transparent;
-  color: #333;
-  margin: -15px -15px 15px -15px;
-  padding: 10px 15px;
-  border-radius: 5px 5px 0 0;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-/* Style the image previews */
-.field-preview_event_image img,
-.field-preview_background_image img,
-.field-preview_logo img {
-  border: 2px solid #ddd;
-  border-radius: 5px;
-  box-shadow: none;
-  transition: none;
-}
-
-/* Style the inline forms */
+/* ---- Inline groups (tabular & stacked) ---- */
 .inline-group {
-  border: 1px solid #ddd;
+  border: 1px solid #4a4a4a;
   border-radius: 6px;
   margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.inline-group .module {
   background: transparent;
 }
 
 .inline-group .module h2 {
-  background: transparent;
-  color: #333;
+  background: #2a2a2a;
+  color: #e0e0e0;
   padding: 10px 15px;
   margin: 0;
-  border-radius: 5px 5px 0 0;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #4a4a4a;
 }
 
-/* Style the change list */
-.change-list .results table {
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  overflow: hidden;
+/* Tabular inline styling */
+.inline-related.tabular table {
+  border-collapse: collapse;
+  width: 100%;
+  border: none;
 }
 
-.change-list .results table thead th {
-  background: transparent;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-}
-
-.change-list .results table tbody tr:nth-child(even) {
-  background: transparent;
-}
-
-.change-list .results table tbody tr:hover {
-  background: transparent;
-}
-
-/* Style status badges */
-.event-status-past,
-.event-status-upcoming,
-.event-status-ongoing {
-  background: #e9ecef;
-  color: #333;
-  padding: 3px 8px;
-  border-radius: 12px;
+.inline-related.tabular table th {
+  background: #333;
+  color: #ccc;
+  padding: 8px 10px;
   font-size: 11px;
-  font-weight: normal;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid #555;
+  white-space: nowrap;
 }
 
-/* Style the action buttons */
+.inline-related.tabular table td {
+  background: transparent;
+  color: #e0e0e0;
+  padding: 6px 10px;
+  border-bottom: 1px solid #3a3a3a;
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+.inline-related.tabular table tr:hover td {
+  background: rgba(255,255,255,0.03);
+}
+
+.inline-related.tabular table td input[type="text"],
+.inline-related.tabular table td input[type="number"],
+.inline-related.tabular table td input[type="url"],
+.inline-related.tabular table td select,
+.inline-related.tabular table td textarea {
+  background: #1a1a1a;
+  border: 1px solid #555;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.inline-related.tabular table td input[type="text"]:focus,
+.inline-related.tabular table td input[type="number"]:focus,
+.inline-related.tabular table td input[type="url"]:focus,
+.inline-related.tabular table td select:focus,
+.inline-related.tabular table td textarea:focus {
+  border-color: #79aec8;
+  outline: none;
+  box-shadow: 0 0 0 1px #79aec8;
+}
+
+.inline-related.tabular table td .vDateField input,
+.inline-related.tabular table td .vTimeField input {
+  background: #1a1a1a;
+  border: 1px solid #555;
+  color: #e0e0e0;
+}
+
+/* Delete checkbox column */
+.inline-related.tabular table td.original {
+  width: 30px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.inline-related.tabular table td.original input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Stacked inline styling */
+.inline-related.stacked {
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.inline-related.stacked .module h2 {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  padding: 10px 15px;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 1px solid #4a4a4a;
+}
+
+/* "Add another" row at the bottom of inlines */
+.inline-group .add-row {
+  background: #2a2a2a;
+  padding: 8px 15px;
+  border-top: 1px solid #4a4a4a;
+  border-radius: 0 0 6px 6px;
+}
+
+.inline-group .add-row a {
+  color: #79aec8;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.inline-group .add-row a:hover {
+  color: #9ccfed;
+}
+
+/* Form field labels */
+.inline-related .form-row label {
+  color: #aaa;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Fieldsets on the event form */
+.fieldset {
+  margin-bottom: 20px;
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+}
+
+.fieldset h2 {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  margin: 0;
+  padding: 10px 15px;
+  border-radius: 5px 5px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #4a4a4a;
+}
+
+.fieldset .form-row {
+  padding: 8px 15px;
+  border-bottom: 1px solid #333;
+}
+
+.fieldset .form-row:last-child {
+  border-bottom: none;
+}
+
+.fieldset .form-row label {
+  color: #aaa;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fieldset .form-row input[type="text"],
+.fieldset .form-row input[type="number"],
+.fieldset .form-row input[type="url"],
+.fieldset .form-row select,
+.fieldset .form-row textarea {
+  background: #1a1a1a;
+  border: 1px solid #555;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.fieldset .form-row input[type="text"]:focus,
+.fieldset .form-row input[type="number"]:focus,
+.fieldset .form-row input[type="url"]:focus,
+.fieldset .form-row select:focus,
+.fieldset .form-row textarea:focus {
+  border-color: #79aec8;
+  outline: none;
+  box-shadow: 0 0 0 1px #79aec8;
+}
+
+/* Readonly fields */
+.fieldset .form-row .readonly {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #888;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* Image previews */
+.field-preview_event_image img,
+.field-preview_background_image img,
+.field-preview_logo img {
+  border: 2px solid #4a4a4a;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+/* Submit row */
 .submit-row {
   padding: 15px 0;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid #4a4a4a;
   margin-top: 20px;
 }
 
 .submit-row input[type="submit"] {
-  background: transparent;
-  border: 1px solid #ddd;
-  color: #333;
+  background: #417690;
+  border: none;
+  color: #fff;
   padding: 10px 20px;
-  border-radius: 5px;
-  font-weight: normal;
-  cursor: default;
-  transition: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-/* Style the search and filter areas */
+.submit-row input[type="submit"]:hover {
+  background: #205067;
+}
+
+/* Search and filter areas */
 .changelist-search {
-  background: transparent;
+  background: #2a2a2a;
   padding: 15px;
-  border: 1px solid #ddd;
+  border: 1px solid #4a4a4a;
   border-radius: 6px;
   margin-bottom: 20px;
 }
 
 .changelist-filter {
-  background: transparent;
-  border: 1px solid #ddd;
+  background: #2a2a2a;
+  border: 1px solid #4a4a4a;
   border-radius: 6px;
 }
 
 .changelist-filter h3 {
-  background: transparent;
-  color: #333;
+  background: #333;
+  color: #e0e0e0;
   margin: 0;
   padding: 10px 15px;
   border-radius: 5px 5px 0 0;
+}
+
+/* Status badges */
+.event-status-past,
+.event-status-upcoming,
+.event-status-ongoing {
+  background: #333;
+  color: #ccc;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: normal;
 }
