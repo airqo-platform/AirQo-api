@@ -1025,6 +1025,9 @@ UserSchema.statics = {
           },
           permissions: { $first: "$permissions" },
           my_groups: { $first: "$my_groups" },
+          onboarding_checklist: { $first: "$onboarding_checklist" },
+          devices: { $first: "$devices" },
+          cohorts: { $first: "$cohorts" },
           createdAt: { $first: "$createdAt" },
           updatedAt: {
             $first: {
@@ -1602,6 +1605,7 @@ UserSchema.methods = {
       cohort_ids: this.cohorts,
       subscriptionTier: this.subscriptionTier,
       apiRateLimits: this.apiRateLimits,
+      onboarding_checklist: this.onboarding_checklist,
     };
   },
 };
