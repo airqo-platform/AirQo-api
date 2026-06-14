@@ -238,13 +238,17 @@ class EventListSerializer(serializers.ModelSerializer):
 
     def get_organizers_count(self, obj):
         try:
-            return obj.event_organizer_links.count()
+            return obj.event_organizer_links.filter(
+                is_deleted=False, organizer__is_deleted=False
+            ).count()
         except Exception:
             return 0
 
     def get_partners_count(self, obj):
         try:
-            return obj.event_partner_links.count()
+            return obj.event_partner_links.filter(
+                is_deleted=False, partner__is_deleted=False
+            ).count()
         except Exception:
             return 0
 
@@ -263,10 +267,8 @@ class EventDetailSerializer(serializers.ModelSerializer):
     partner_logos = PartnerLogoSerializer(many=True, read_only=True)
     resources = ResourceSerializer(many=True, read_only=True)
     event_tag = serializers.CharField(source='get_event_tag_display')
-    organizers = EventOrganizerLinkSerializer(
-        source='event_organizer_links', many=True, read_only=True)
-    partners = EventPartnerLinkSerializer(
-        source='event_partner_links', many=True, read_only=True)
+    organizers = serializers.SerializerMethodField()
+    partners = serializers.SerializerMethodField()
     side_events = serializers.SerializerMethodField()
     is_side_event = serializers.SerializerMethodField()
     side_event_of = serializers.SerializerMethodField()
@@ -318,6 +320,22 @@ class EventDetailSerializer(serializers.ModelSerializer):
             return bool(obj.is_side_event)
         except Exception:
             return False
+
+    def get_organizers(self, obj):
+        """Return organizers, filtering out soft-deleted links and rows."""
+        links = obj.event_organizer_links.select_related('organizer').filter(
+            is_deleted=False,
+            organizer__is_deleted=False,
+        ).order_by('order', 'id')
+        return EventOrganizerLinkSerializer(links, many=True).data
+
+    def get_partners(self, obj):
+        """Return partners, filtering out soft-deleted links and rows."""
+        links = obj.event_partner_links.select_related('partner').filter(
+            is_deleted=False,
+            partner__is_deleted=False,
+        ).order_by('order', 'id')
+        return EventPartnerLinkSerializer(links, many=True).data
 
     def get_side_event_of(self, obj):
         try:
