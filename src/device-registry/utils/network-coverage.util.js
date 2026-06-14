@@ -251,9 +251,10 @@ function buildAirQoMonitorItem(siteDoc, registryDoc, deviceCategory) {
   const reg = registryDoc || {};
   const country = siteDoc.country || "";
 
-  // Derive type directly from the device's own category — the canonical,
-  // validated source of truth in DeviceModel. No manual curation needed.
-  const type = DEVICE_CATEGORY_TO_TYPE[deviceCategory] || "LCS";
+  // Registry type wins when explicitly set — allows curators to correct
+  // misclassifications without touching device metadata. Falls back to the
+  // canonical device category mapping when no registry override exists.
+  const type = reg.type || DEVICE_CATEGORY_TO_TYPE[deviceCategory] || "LCS";
 
   return {
     id: String(siteDoc._id),
@@ -366,9 +367,9 @@ function groupByCountry(monitors) {
 }
 
 /**
- * Applies search / activeOnly / types filters to a flat monitor list.
+ * Applies search / activeOnly / types / network filters to a flat monitor list.
  */
-function applyFilters(monitors, { search, activeOnly, types } = {}) {
+function applyFilters(monitors, { search, activeOnly, types, network } = {}) {
   let result = monitors;
 
   if (activeOnly === true || activeOnly === "true") {
@@ -382,6 +383,18 @@ function applyFilters(monitors, { search, activeOnly, types } = {}) {
       .filter(Boolean);
     if (allowedTypes.length > 0) {
       result = result.filter((m) => allowedTypes.includes(m.type));
+    }
+  }
+
+  if (network) {
+    const allowedNetworks = network
+      .split(",")
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean);
+    if (allowedNetworks.length > 0) {
+      result = result.filter((m) =>
+        allowedNetworks.includes((m.network || "").trim().toLowerCase())
+      );
     }
   }
 
@@ -528,7 +541,7 @@ const networkCoverageUtil = {
    */
   list: async (request) => {
     try {
-      const { tenant, search, activeOnly, types } = request.query;
+      const { tenant, search, activeOnly, types, network } = request.query;
 
       const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
@@ -543,10 +556,25 @@ const networkCoverageUtil = {
       );
       const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
 
-      const filtered = applyFilters([...airqoMonitors, ...externalMonitors], {
+      const allMonitors = [...airqoMonitors, ...externalMonitors];
+
+      // Collect distinct network values before applying network filter so the
+      // caller always receives the full networks list regardless of the active
+      // filter — this lets the frontend populate the source dropdown in a single
+      // request without needing a separate endpoint.
+      const availableNetworks = [
+        ...new Set(
+          allMonitors
+            .map((m) => (m.network || "").trim())
+            .filter(Boolean)
+        ),
+      ].sort();
+
+      const filtered = applyFilters(allMonitors, {
         search,
         activeOnly,
         types,
+        network,
       });
 
       const countries = groupByCountry(filtered);
@@ -560,6 +588,7 @@ const networkCoverageUtil = {
             totalCountries: countries.length,
             monitoredCountries: countries.filter((c) => c.monitors.length > 0)
               .length,
+            availableNetworks,
             generatedAt: new Date().toISOString(),
           },
         },
@@ -681,7 +710,7 @@ const networkCoverageUtil = {
    */
   getCountryMonitors: async (request) => {
     try {
-      const { tenant, activeOnly, types } = request.query;
+      const { tenant, activeOnly, types, network } = request.query;
       const { countryId } = request.params;
 
       const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
@@ -703,7 +732,7 @@ const networkCoverageUtil = {
 
       const allMonitors = applyFilters(
         [...airqoMonitors, ...externalMonitors],
-        { activeOnly, types }
+        { activeOnly, types, network }
       );
 
       if (allMonitors.length === 0) {
@@ -749,7 +778,7 @@ const networkCoverageUtil = {
    */
   exportCsv: async (request) => {
     try {
-      const { tenant, search, activeOnly, types, countryId } = request.query;
+      const { tenant, search, activeOnly, types, network, countryId } = request.query;
 
       const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
@@ -767,6 +796,7 @@ const networkCoverageUtil = {
         search,
         activeOnly,
         types,
+        network,
       });
 
       if (countryId) {
