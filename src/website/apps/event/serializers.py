@@ -147,8 +147,8 @@ class EventSideEventSummarySerializer(serializers.Serializer):
 
     def get_api_url(self, obj):
         e = self._resolve(obj)
-        identifier = e.slug if e.slug else e.id
-        return f"/website/events/{identifier}/"
+        # v1 uses numeric id lookup, not slug
+        return f"/website/events/{e.id}/"
 
     def get_title(self, obj):
         return self._resolve(obj).title
@@ -201,8 +201,8 @@ class EventParentSummarySerializer(serializers.Serializer):
         return obj.slug if obj.slug else str(obj.id)
 
     def get_api_url(self, obj):
-        identifier = obj.slug if obj.slug else obj.id
-        return f"/website/events/{identifier}/"
+        # v1 uses numeric id lookup, not slug
+        return f"/website/events/{obj.id}/"
 
 
 class EventListSerializer(serializers.ModelSerializer):
@@ -237,6 +237,14 @@ class EventListSerializer(serializers.ModelSerializer):
         return None
 
     def get_organizers_count(self, obj):
+        # Use prefetched data if available to avoid N+1.
+        cache = getattr(obj, '_prefetched_objects_cache', None)
+        if cache and 'event_organizer_links' in cache:
+            return sum(
+                1 for link in cache['event_organizer_links']
+                if not link.is_deleted and not link.organizer.is_deleted
+            )
+        # Fallback: query with soft-delete filter.
         try:
             return obj.event_organizer_links.filter(
                 is_deleted=False, organizer__is_deleted=False
@@ -245,6 +253,14 @@ class EventListSerializer(serializers.ModelSerializer):
             return 0
 
     def get_partners_count(self, obj):
+        # Use prefetched data if available to avoid N+1.
+        cache = getattr(obj, '_prefetched_objects_cache', None)
+        if cache and 'event_partner_links' in cache:
+            return sum(
+                1 for link in cache['event_partner_links']
+                if not link.is_deleted and not link.partner.is_deleted
+            )
+        # Fallback: query with soft-delete filter.
         try:
             return obj.event_partner_links.filter(
                 is_deleted=False, partner__is_deleted=False

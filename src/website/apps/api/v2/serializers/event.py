@@ -353,10 +353,13 @@ class EventListSerializer(DynamicFieldsSerializerMixin, ListSerializerMixin, ser
                 return int(annotated)
             except (TypeError, ValueError):
                 pass
-        # Fallback: check the specific prefetched relation.
+        # Fallback: count from prefetched cache, excluding soft-deleted.
         cache = getattr(obj, '_prefetched_objects_cache', None)
         if cache and 'event_organizer_links' in cache:
-            return len(cache['event_organizer_links'])
+            return sum(
+                1 for link in cache['event_organizer_links']
+                if not link.is_deleted and not link.organizer.is_deleted
+            )
         return 0
 
     @extend_schema_field(serializers.IntegerField())
@@ -368,10 +371,13 @@ class EventListSerializer(DynamicFieldsSerializerMixin, ListSerializerMixin, ser
                 return int(annotated)
             except (TypeError, ValueError):
                 pass
-        # Fallback: check the specific prefetched relation.
+        # Fallback: count from prefetched cache, excluding soft-deleted.
         cache = getattr(obj, '_prefetched_objects_cache', None)
         if cache and 'event_partner_links' in cache:
-            return len(cache['event_partner_links'])
+            return sum(
+                1 for link in cache['event_partner_links']
+                if not link.is_deleted and not link.partner.is_deleted
+            )
         return 0
 
     @extend_schema_field(serializers.BooleanField())
@@ -508,7 +514,7 @@ class EventDetailSerializer(DynamicFieldsSerializerMixin, DetailSerializerMixin,
         except Exception:
             return False
 
-    @extend_schema_field(EventParentSummarySerializer(allow_null=True))
+    @extend_schema_field(serializers.DictField())
     def get_side_event_of(self, obj):
         """Return summary of the parent event (if this is a side event)."""
         try:

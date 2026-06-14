@@ -41,7 +41,11 @@ def _migrate_partnerlogo_data(apps, schema_editor):
     skipped_no_event = 0
 
     for pl in PartnerLogo.objects.filter(is_deleted=False).order_by("id"):
-        dedup_key = (pl.name, pl.partner_logo or "")
+        # Normalize CloudinaryField value to a plain string for hashing
+        # and persistence. CloudinaryField values are not guaranteed to
+        # be hashable or plain strings.
+        logo_value = str(pl.partner_logo) if pl.partner_logo else ""
+        dedup_key = (pl.name, logo_value)
 
         if dedup_key not in partner_cache:
             from django.utils.text import slugify
@@ -55,7 +59,7 @@ def _migrate_partnerlogo_data(apps, schema_editor):
             partner = Partner.objects.create(
                 name=pl.name,
                 slug=candidate,
-                logo=pl.partner_logo,
+                logo=logo_value or None,
                 order=pl.order or 1,
             )
             partner_cache[dedup_key] = partner

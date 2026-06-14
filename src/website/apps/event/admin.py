@@ -322,6 +322,14 @@ class EventAdmin(NestedModelAdmin):
         )
         return format_html('<span title="{}">{}</span>', names, names[:60])
 
+    def get_queryset(self, request):
+        """Prefetch organizer and partner links to avoid N+1 queries."""
+        qs = super().get_queryset(request)
+        return qs.prefetch_related(
+            'event_organizer_links__organizer',
+            'event_partner_links__partner',
+        )
+
     def save_model(self, request, obj, form, change):
         """Use default admin save behavior; upload failures are handled by middleware."""
         super().save_model(request, obj, form, change)

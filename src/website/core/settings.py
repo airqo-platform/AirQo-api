@@ -302,6 +302,8 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Allow ?o= shorthand for ordering (DRF default is ?ordering=)
+    'ORDERING_PARAM': 'o',
     # Throttling removed - handled at nginx level
 }
 
