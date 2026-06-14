@@ -11,7 +11,7 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 
 ### API Versions
 
-- **Legacy Endpoints** (`/website/[app-name]/`) - Backward compatibility
+- **Legacy Endpoints** (`/website/[app-name]/`) - Backward compatibility.
 - **V2 Enhanced API** (`/website/api/v2/[resource]/`) - Modern, optimized endpoints with advanced features.
 
 ### Performance Optimizations
