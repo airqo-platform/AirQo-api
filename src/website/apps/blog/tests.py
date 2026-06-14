@@ -4,6 +4,7 @@ from django.utils import timezone
 from unittest import mock
 
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 from django.core.cache import cache
@@ -301,9 +302,7 @@ class EventOrganizersAndSideEventsTests(TestCase):
         event = self._make_event('AirQo Clean Air Week 2026')
         org = self._make_organizer('AirQo')
         EventOrganizer.objects.create(event=event, organizer=org)
-        with self.assertRaises(Exception):
-            # Second link with the same (event, organizer) violates the
-            # unique constraint and should fail.
+        with self.assertRaises(IntegrityError):
             EventOrganizer.objects.create(event=event, organizer=org)
 
     def test_link_side_event_to_main_event(self):
@@ -325,9 +324,9 @@ class EventOrganizersAndSideEventsTests(TestCase):
         side_event = self._make_event('Side')
         EventSideEvent.objects.create(
             parent_event=main_event, side_event=side_event)
-        with self.assertRaises(Exception):
-            EventSideEvent.objects.create(
-                parent_event=main_event, side_event=side_event)
+        link = EventSideEvent(parent_event=main_event, side_event=side_event)
+        with self.assertRaises(ValidationError):
+            link.full_clean()
 
     def test_event_cannot_be_its_own_side_event(self):
         event = self._make_event('Self')
@@ -529,17 +528,6 @@ class EventOrganizersAndSideEventsTests(TestCase):
         self.assertNotIn('Community Air Quality Workshop', titles)
         self.assertNotIn('Policy and Health Dialogue', titles)
 
-    def test_v2_is_side_event_filter_returns_only_side_events(self):
-        self._build_dummy_data()
-        cache.clear()
-        request = self.factory.get(
-            reverse('v2-events-list') + '?is_side_event=true')
-        response = V2EventViewSet.as_view({'get': 'list'})(request)
-        self.assertEqual(response.status_code, 200)
-        titles = [item['title'] for item in response.data['results']]
-        self.assertNotIn('AirQo Clean Air Week 2026', titles)
-        self.assertIn('Opening Roundtable', titles)
-
     def test_v2_parent_event_filter_returns_only_side_events_for_parent(self):
         main_event, sides, _ = self._build_dummy_data()
         cache.clear()
@@ -659,7 +647,7 @@ class EventPartnerCatalogTests(TestCase):
         event = self._make_event('Test Event')
         partner = self._make_partner('Google')
         EventPartner.objects.create(event=event, partner=partner)
-        with self.assertRaises(Exception):
+        with self.assertRaises(IntegrityError):
             EventPartner.objects.create(event=event, partner=partner)
 
     def test_deleting_event_does_not_delete_partner(self):

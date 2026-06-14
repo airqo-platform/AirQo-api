@@ -114,33 +114,13 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
         # Get action and optimize accordingly
         action = getattr(self, 'action', None)
 
-        # Check if we need complete data (detail view) or minimal data (list view)
-        if action == 'retrieve':
-            # For detail view - prefetch ALL related data including the
-            # new organizer, partner, and side-event links.
-            qs = qs.prefetch_related(
-                'inquiries',
-                'programs__sessions',  # Nested prefetch for programs and their sessions
-                'partner_logos',
-                'resources',
-                # Organizer links: prefetch the through rows with their
-                # related organizer to avoid N+1 on the nested serializer.
-                'event_organizer_links__organizer',
-                # Partner links: prefetch the through rows with their
-                # related partner.
-                'event_partner_links__partner',
-                # Side events: prefetch the through rows with their side event.
-                'side_event_links__side_event',
-                # Parent event backlink (if this event is a side event).
-                'parent_event_links__parent_event',
-            )
+        from django.utils import timezone as _tz
+        now = _tz.now().date()
 
-        elif action == 'list':
-            from django.utils import timezone as _tz
-            now = _tz.now().date()
-
-            # For list view - annotate counts, sort priority, and
-            # exclude side events by default.
+        # Annotations needed by EventListSerializer for all list-like
+        # actions (list, featured, upcoming, past, calendar).
+        list_like_actions = {'list', 'featured', 'upcoming', 'past', 'calendar'}
+        if action in list_like_actions:
             qs = qs.annotate(
                 _organizers_count=Count(
                     'event_organizer_links',
@@ -157,8 +137,26 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
                     filter=Q(parent_event_links__is_deleted=False),
                     distinct=True,
                 ),
-                # Sort priority: 0 = upcoming, 1 = past.
-                # Upcoming events appear first in the default list.
+            )
+
+        # Check if we need complete data (detail view) or minimal data (list view)
+        if action == 'retrieve':
+            # For detail view - prefetch ALL related data including the
+            # new organizer, partner, and side-event links.
+            qs = qs.prefetch_related(
+                'inquiries',
+                'programs__sessions',  # Nested prefetch for programs and their sessions
+                'partner_logos',
+                'resources',
+                'event_organizer_links__organizer',
+                'event_partner_links__partner',
+                'side_event_links__side_event',
+                'parent_event_links__parent_event',
+            )
+
+        elif action == 'list':
+            # Sort priority: 0 = upcoming, 1 = past.
+            qs = qs.annotate(
                 _sort_priority=Case(
                     When(start_date__gte=now, then=Value(0)),
                     default=Value(1),
@@ -168,8 +166,6 @@ class EventViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySetM
 
             # Default: exclude side events from the main list so they
             # only appear nested under their parent event's detail page.
-            # The frontend can opt-in to include them with
-            # ?is_side_event=true, or explicitly request ?main_events_only=true.
             request = getattr(self, 'request', None)
             params = getattr(request, 'query_params', {})
             has_explicit_side_event_filter = any(

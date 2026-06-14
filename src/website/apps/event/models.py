@@ -499,11 +499,6 @@ class EventOrganizer(BaseModel):
         except Exception:
             return f"EventOrganizer #{self.pk}"
 
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.event_id and self.organizer_id and self.event_id == self.organizer_id:
-            raise ValidationError("An organizer cannot be linked to itself.")
-
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)
@@ -593,10 +588,19 @@ class EventSideEvent(BaseModel):
                 raise ValidationError(
                     "An event cannot be a side event of itself.")
             # Prevent chains: a side event cannot itself be a parent of
-            # another event. So the prospective parent must not already
-            # be a side event of some other parent.
+            # another event, and a parent cannot also be a side event.
+            # Check 1: prospective side_event is already a parent
             if EventSideEvent.objects.filter(
-                side_event_id=self.parent_event_id
+                parent_event_id=self.side_event_id,
+                is_deleted=False,
+            ).exclude(pk=self.pk if self.pk else None).exists():
+                raise ValidationError(
+                    "Side events cannot have their own side events. "
+                    "The side event is already a parent of another event.")
+            # Check 2: prospective parent_event is already a side event
+            if EventSideEvent.objects.filter(
+                side_event_id=self.parent_event_id,
+                is_deleted=False,
             ).exclude(pk=self.pk if self.pk else None).exists():
                 raise ValidationError(
                     "Side events cannot have their own side events. "

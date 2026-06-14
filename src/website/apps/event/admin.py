@@ -185,6 +185,7 @@ class EventAdmin(NestedModelAdmin):
     inlines = [
         InquiryInline,
         ProgramInline,
+        PartnerLogoInline,
         ResourceInline,
         EventOrganizerInline,
         EventSideEventInline,

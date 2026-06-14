@@ -353,18 +353,11 @@ class EventListSerializer(DynamicFieldsSerializerMixin, ListSerializerMixin, ser
                 return int(annotated)
             except (TypeError, ValueError):
                 pass
-        # Fallback: use prefetched cache or count().
-        cached = getattr(obj, '_prefetched_objects_cache', None)
-        if cached is not None:
-            for entry in cached.values():
-                try:
-                    return len(entry)
-                except TypeError:
-                    break
-        try:
-            return obj.event_organizer_links.count()
-        except Exception:
-            return 0
+        # Fallback: check the specific prefetched relation.
+        cache = getattr(obj, '_prefetched_objects_cache', None)
+        if cache and 'event_organizer_links' in cache:
+            return len(cache['event_organizer_links'])
+        return 0
 
     @extend_schema_field(serializers.IntegerField())
     def get_partners_count(self, obj):
@@ -375,10 +368,11 @@ class EventListSerializer(DynamicFieldsSerializerMixin, ListSerializerMixin, ser
                 return int(annotated)
             except (TypeError, ValueError):
                 pass
-        try:
-            return obj.event_partner_links.count()
-        except Exception:
-            return 0
+        # Fallback: check the specific prefetched relation.
+        cache = getattr(obj, '_prefetched_objects_cache', None)
+        if cache and 'event_partner_links' in cache:
+            return len(cache['event_partner_links'])
+        return 0
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_side_event(self, obj):
@@ -389,10 +383,11 @@ class EventListSerializer(DynamicFieldsSerializerMixin, ListSerializerMixin, ser
                 return int(annotated) > 0
             except (TypeError, ValueError):
                 pass
-        try:
-            return bool(obj.is_side_event)
-        except Exception:
-            return False
+        # Fallback: check the specific prefetched relation.
+        cache = getattr(obj, '_prefetched_objects_cache', None)
+        if cache and 'parent_event_links' in cache:
+            return len(cache['parent_event_links']) > 0
+        return False
 
     def to_representation(self, instance):
         """Override to conditionally hide ID for privacy"""
@@ -442,11 +437,10 @@ class EventDetailSerializer(DynamicFieldsSerializerMixin, DetailSerializerMixin,
     partner_logos = PartnerLogoDetailSerializer(many=True, read_only=True)
     resources = ResourceDetailSerializer(many=True, read_only=True)
 
-    # Organizers and side events
-    organizers = EventOrganizerLinkSerializer(
-        source='event_organizer_links', many=True, read_only=True)
-    partners = EventPartnerLinkSerializer(
-        source='event_partner_links', many=True, read_only=True)
+    # Organizers and side events — use SerializerMethodField to filter
+    # out soft-deleted links and deleted catalog rows.
+    organizers = serializers.SerializerMethodField()
+    partners = serializers.SerializerMethodField()
     side_events = serializers.SerializerMethodField()
     is_side_event = serializers.SerializerMethodField()
     side_event_of = serializers.SerializerMethodField()
@@ -490,6 +484,22 @@ class EventDetailSerializer(DynamicFieldsSerializerMixin, DetailSerializerMixin,
     def get_has_slug(self, obj):
         """Check if object has a slug"""
         return bool(obj.slug)
+
+    def get_organizers(self, obj):
+        """Return organizers, filtering out soft-deleted links and rows."""
+        links = obj.event_organizer_links.select_related('organizer').filter(
+            is_deleted=False,
+            organizer__is_deleted=False,
+        ).order_by('order', 'id')
+        return EventOrganizerLinkSerializer(links, many=True).data
+
+    def get_partners(self, obj):
+        """Return partners, filtering out soft-deleted links and rows."""
+        links = obj.event_partner_links.select_related('partner').filter(
+            is_deleted=False,
+            partner__is_deleted=False,
+        ).order_by('order', 'id')
+        return EventPartnerLinkSerializer(links, many=True).data
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_side_event(self, obj):

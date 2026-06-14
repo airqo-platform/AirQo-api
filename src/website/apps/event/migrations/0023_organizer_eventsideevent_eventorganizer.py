@@ -146,8 +146,12 @@ def backwards(apps, schema_editor):
     for model in (EventSideEvent, EventOrganizer, Organizer):
         try:
             schema_editor.delete_model(model)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Only suppress "table does not exist" errors; re-raise
+            # anything else so migration failures remain visible.
+            exc_str = str(exc).lower()
+            if "does not exist" not in exc_str and "no such table" not in exc_str:
+                raise
 
 
 class Migration(migrations.Migration):

@@ -140,7 +140,7 @@
 }
 
 /* Fieldsets on the event form */
-.fieldset {
+fieldset {
   margin-bottom: 20px;
   border: 1px solid #4a4a4a;
   border-radius: 6px;
@@ -148,7 +148,7 @@
   background: transparent;
 }
 
-.fieldset h2 {
+fieldset h2 {
   background: #2a2a2a;
   color: #e0e0e0;
   margin: 0;
@@ -161,27 +161,27 @@
   border-bottom: 1px solid #4a4a4a;
 }
 
-.fieldset .form-row {
+fieldset .form-row {
   padding: 8px 15px;
   border-bottom: 1px solid #333;
 }
 
-.fieldset .form-row:last-child {
+fieldset .form-row:last-child {
   border-bottom: none;
 }
 
-.fieldset .form-row label {
+fieldset .form-row label {
   color: #aaa;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
-.fieldset .form-row input[type="text"],
-.fieldset .form-row input[type="number"],
-.fieldset .form-row input[type="url"],
-.fieldset .form-row select,
-.fieldset .form-row textarea {
+fieldset .form-row input[type="text"],
+fieldset .form-row input[type="number"],
+fieldset .form-row input[type="url"],
+fieldset .form-row select,
+fieldset .form-row textarea {
   background: #1a1a1a;
   border: 1px solid #555;
   color: #e0e0e0;
@@ -190,18 +190,18 @@
   font-size: 13px;
 }
 
-.fieldset .form-row input[type="text"]:focus,
-.fieldset .form-row input[type="number"]:focus,
-.fieldset .form-row input[type="url"]:focus,
-.fieldset .form-row select:focus,
-.fieldset .form-row textarea:focus {
+fieldset .form-row input[type="text"]:focus,
+fieldset .form-row input[type="number"]:focus,
+fieldset .form-row input[type="url"]:focus,
+fieldset .form-row select:focus,
+fieldset .form-row textarea:focus {
   border-color: #79aec8;
   outline: none;
   box-shadow: 0 0 0 1px #79aec8;
 }
 
 /* Readonly fields */
-.fieldset .form-row .readonly {
+fieldset .form-row .readonly {
   background: #1a1a1a;
   border: 1px solid #333;
   color: #888;

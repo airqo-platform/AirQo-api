@@ -40,7 +40,7 @@ def _migrate_partnerlogo_data(apps, schema_editor):
     links_created = 0
     skipped_no_event = 0
 
-    for pl in PartnerLogo.objects.all().order_by("id"):
+    for pl in PartnerLogo.objects.filter(is_deleted=False).order_by("id"):
         dedup_key = (pl.name, pl.partner_logo or "")
 
         if dedup_key not in partner_cache:
