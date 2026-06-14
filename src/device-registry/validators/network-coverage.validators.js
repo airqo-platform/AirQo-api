@@ -48,6 +48,13 @@ const activeOnlyFilter = query("activeOnly")
   .isIn(["true", "false"])
   .withMessage("activeOnly must be 'true' or 'false'");
 
+// Comma-separated list of network slugs, e.g. "airqo" or "airqo,metone"
+const networkFilter = query("network")
+  .optional()
+  .isString()
+  .withMessage("network must be a comma-separated string")
+  .trim();
+
 const networkCoverageValidations = {
   /**
    * GET /network-coverage
@@ -57,6 +64,7 @@ const networkCoverageValidations = {
     query("search").optional().isString().trim(),
     activeOnlyFilter,
     typesFilter,
+    networkFilter,
   ],
 
   /**
@@ -77,6 +85,7 @@ const networkCoverageValidations = {
       .trim(),
     activeOnlyFilter,
     typesFilter,
+    networkFilter,
   ],
 
   /**
@@ -87,6 +96,7 @@ const networkCoverageValidations = {
     query("countryId").optional().isString().trim(),
     activeOnlyFilter,
     typesFilter,
+    networkFilter,
     query("search").optional().isString().trim(),
   ],
 
@@ -202,6 +212,65 @@ const networkCoverageValidations = {
       .isISO8601()
       .withMessage("lastActive must be a valid ISO 8601 date"),
   ],
+
+  /**
+   * GET /network-coverage/impact
+   */
+  impact: [
+    commonTenant,
+    query("search").optional().isString().trim(),
+    activeOnlyFilter,
+    typesFilter,
+    networkFilter,
+  ],
+
+  /**
+   * GET /network-coverage/cities
+   */
+  listCities: [
+    commonTenant,
+    query("country").optional().isString().trim(),
+  ],
+
+  /**
+   * POST /network-coverage/cities
+   */
+  upsertCity: [
+    commonTenant,
+    body("city")
+      .isString()
+      .withMessage("city must be a string")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("city is required"),
+    body("country")
+      .isString()
+      .withMessage("country must be a string")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("country is required"),
+    body("population")
+      .isInt({ min: 1 })
+      .withMessage("population must be a positive integer"),
+    body("iso2")
+      .optional()
+      .isString()
+      .isLength({ min: 2, max: 2 })
+      .withMessage("iso2 must be a 2-character ISO country code"),
+    body("year")
+      .optional()
+      .isInt({ min: 1900, max: 2100 })
+      .withMessage("year must be a valid year between 1900 and 2100"),
+    body("source").optional().isString().trim(),
+    body("notes").optional().isString().trim(),
+  ],
+
+  /**
+   * DELETE /network-coverage/cities/:cityId
+   */
+  deleteCity: [commonTenant, validObjectId("cityId")],
 
   /**
    * DELETE /network-coverage/registry/:registryId

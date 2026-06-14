@@ -56,6 +56,55 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
+// Impact stats – aggregate metrics only, no monitors payload
+// GET /network-coverage/impact
+// ---------------------------------------------------------------------------
+router.get(
+  "/impact",
+  networkCoverageValidations.impact,
+  validate,
+  networkCoverageController.impact
+);
+
+// ---------------------------------------------------------------------------
+// City population data — crowd-sourced, public submission
+// GET    /network-coverage/cities            – list known city populations
+// POST   /network-coverage/cities            – submit / update a city
+// DELETE /network-coverage/cities/:cityId    – remove a city record
+//
+// THREAT MODEL (same pattern as /registry):
+//   - GET is fully public (read-only, no sensitive data).
+//   - POST and DELETE are unauthenticated to allow public contributions.
+//   - Worst-case outcome is inaccurate population figures — no device or
+//     site data is touched.
+//   - IP rate limiting (registryLimiter) and CAPTCHA guard writes.
+// ---------------------------------------------------------------------------
+router.get(
+  "/cities",
+  networkCoverageValidations.listCities,
+  validate,
+  networkCoverageController.listCities
+);
+
+router.post(
+  "/cities",
+  registryLimiter,
+  verifyCaptcha,
+  networkCoverageValidations.upsertCity,
+  validate,
+  networkCoverageController.upsertCity
+);
+
+router.delete(
+  "/cities/:cityId",
+  registryLimiter,
+  verifyCaptcha,
+  networkCoverageValidations.deleteCity,
+  validate,
+  networkCoverageController.deleteCity
+);
+
+// ---------------------------------------------------------------------------
 // Single monitor detail
 // GET /network-coverage/monitors/:monitorId
 // ---------------------------------------------------------------------------
