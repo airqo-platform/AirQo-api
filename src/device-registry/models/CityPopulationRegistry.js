@@ -83,11 +83,15 @@ cityPopulationRegistrySchema.statics.register = async function (data) {
     const city = (data.city || "").trim().toLowerCase();
     const country = (data.country || "").trim().toLowerCase();
     const payload = {
-      ...data,
       city,
       country,
       displayCity: data.city ? data.city.trim() : "",
       displayCountry: data.country ? data.country.trim() : "",
+      population: data.population,
+      ...(data.iso2 != null ? { iso2: data.iso2 } : {}),
+      ...(data.year != null ? { year: data.year } : {}),
+      ...(data.source != null ? { source: data.source } : {}),
+      ...(data.notes != null ? { notes: data.notes } : {}),
     };
 
     const raw = await this.findOneAndUpdate(

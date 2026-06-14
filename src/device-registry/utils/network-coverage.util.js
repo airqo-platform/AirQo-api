@@ -360,20 +360,21 @@ function buildStandaloneMonitorItem(registryDoc) {
  * Used by the impact util for both the overall aggregate and each per-
  * manufacturer slice so every entry exposes identical metrics.
  *
- * populationByCity is a unified, lowercase-keyed Map built by fetchAllSources
+ * populationByCity is a unified, composite-keyed Map built by fetchAllSources
  * from two sources (CityPopulationRegistry crowd data + SdgCity, in that
  * priority order). Cities absent from both sources return population: null.
  *
  * @param {object[]} monitors        - Flat MonitorListItem array
- * @param {Map}      populationByCity - From fetchAllSources; key: lowercase
- *                                      city name, value: population number
+ * @param {Map}      populationByCity - From fetchAllSources; keys are either
+ *                                      "city|country" (full lowercase name,
+ *                                      CityPopulationRegistry) or "city|iso2"
+ *                                      (lowercase ISO2, SdgCity). Lookups try
+ *                                      both formats.
  */
 function computeMonitorStats(monitors, populationByCity) {
 
   const byType = { Reference: 0, LCS: 0, Inactive: 0 };
   const byStatus = { active: 0, inactive: 0 };
-  const cityNamesSeen = new Set();
-  const countriesSeen = new Set();
   const byCountryMap = new Map();
   // Composite key = "city|country" to disambiguate same-named cities across
   // different countries (e.g. "Lagos, Nigeria" vs "Lagos, Portugal").
@@ -382,8 +383,6 @@ function computeMonitorStats(monitors, populationByCity) {
   for (const monitor of monitors) {
     if (byType[monitor.type] !== undefined) byType[monitor.type]++;
     if (byStatus[monitor.status] !== undefined) byStatus[monitor.status]++;
-    if (monitor.city) cityNamesSeen.add(monitor.city.trim());
-    if (monitor.country) countriesSeen.add(monitor.country);
 
     const countryKey = monitor.country || "Unknown";
     if (!byCountryMap.has(countryKey)) {
@@ -407,8 +406,13 @@ function computeMonitorStats(monitors, populationByCity) {
     if (monitor.city) {
       const cityKey = `${monitor.city.trim()}|${countryKey}`;
       if (!byCityMap.has(cityKey)) {
+        const cityLower = monitor.city.trim().toLowerCase();
+        const countryLower = (monitor.country || "").toLowerCase();
+        const iso2Lower = (monitor.iso2 || "").toLowerCase();
         const cityPop =
-          populationByCity.get(monitor.city.trim().toLowerCase()) ?? null;
+          populationByCity.get(`${cityLower}|${countryLower}`) ??
+          populationByCity.get(`${cityLower}|${iso2Lower}`) ??
+          null;
         byCityMap.set(cityKey, {
           city: monitor.city.trim(),
           country: countryKey,
@@ -437,8 +441,8 @@ function computeMonitorStats(monitors, populationByCity) {
     }
   }
 
-  // Sum city populations for the total. null means no SdgCity data yet —
-  // never substitute estimates or default to 0.
+  // Sum city populations for the total. null means no population data yet
+  // from either source — never substitute estimates or default to 0.
   let totalPopulationReached = null;
   let citiesWithPopulationData = 0;
   for (const cityEntry of byCityMap.values()) {
@@ -452,8 +456,8 @@ function computeMonitorStats(monitors, populationByCity) {
   return {
     byType,
     byStatus,
-    totalCities: cityNamesSeen.size,
-    totalCountries: countriesSeen.size,
+    totalCities: byCityMap.size,
+    totalCountries: byCountryMap.size,
     totalPopulationReached,
     citiesWithPopulationData,
     byCountry: Array.from(byCountryMap.values()).sort((a, b) =>
@@ -721,6 +725,7 @@ async function fetchAllSources(tenant) {
                 _id: "$grid_id",
                 population: { $first: "$population" },
                 name: { $first: "$name" },
+                country: { $first: "$country" },
               },
             },
           ]);
@@ -728,6 +733,7 @@ async function fetchAllSources(tenant) {
             sdgByGridId.set(doc._id.toString(), {
               population: doc.population,
               name: doc.name,
+              country: doc.country,
             });
           }
         } catch (err) {
@@ -743,18 +749,21 @@ async function fetchAllSources(tenant) {
     }
   }
 
-  // 6. Build unified city population map (lowercase city name → population).
-  //    Priority: CityPopulationRegistry (crowd-sourced) as base; SdgCity
-  //    values override when both exist for the same name — SdgCity is the
-  //    authoritative SDG source. Both fetches are non-fatal.
+  // 6. Build unified city population map (composite key → population).
+  //    Key format: "city|country" (both lowercase) for CityPopulationRegistry
+  //    entries (country is full name, e.g. "kampala|uganda") and "city|iso2"
+  //    (lowercase ISO2) for SdgCity entries (e.g. "kampala|ug").
+  //    Priority: CityPopulationRegistry as base; SdgCity overrides when both
+  //    exist for the same city — SdgCity is the authoritative SDG source.
+  //    Both fetches are non-fatal.
   const populationByCity = new Map();
   try {
     const cityPopDocs = await CityPopulationRegistryModel(tenant)
-      .find({}, { city: 1, population: 1 })
+      .find({}, { city: 1, country: 1, population: 1 })
       .lean();
     for (const doc of cityPopDocs) {
-      if (doc.city && doc.population != null) {
-        populationByCity.set(doc.city, doc.population);
+      if (doc.city && doc.country && doc.population != null) {
+        populationByCity.set(`${doc.city}|${doc.country}`, doc.population);
       }
     }
   } catch (err) {
@@ -764,10 +773,9 @@ async function fetchAllSources(tenant) {
   }
   for (const sdgEntry of sdgByGridId.values()) {
     if (sdgEntry.name && sdgEntry.population != null) {
-      populationByCity.set(
-        sdgEntry.name.trim().toLowerCase(),
-        sdgEntry.population
-      );
+      const cityLower = sdgEntry.name.trim().toLowerCase();
+      const iso2Lower = (sdgEntry.country || "").toLowerCase();
+      populationByCity.set(`${cityLower}|${iso2Lower}`, sdgEntry.population);
     }
   }
 
@@ -838,23 +846,40 @@ const networkCoverageUtil = {
       // ── Impact stats (computed from the filtered set) ──────────────────────
       const byType = { Reference: 0, LCS: 0, Inactive: 0 };
       const byStatus = { active: 0, inactive: 0 };
-      const cityNamesSeen = new Set();
+      // Track city+country pairs to avoid double-counting same-named cities
+      // in different countries (e.g. "Lagos, Nigeria" vs "Lagos, Portugal").
+      const cityPairsMap = new Map();
 
       for (const monitor of filtered) {
         if (byType[monitor.type] !== undefined) byType[monitor.type]++;
         if (byStatus[monitor.status] !== undefined) byStatus[monitor.status]++;
-        if (monitor.city) cityNamesSeen.add(monitor.city.trim());
+        if (monitor.city) {
+          const cityKey = `${monitor.city.trim()}|${monitor.country || ""}`;
+          if (!cityPairsMap.has(cityKey)) {
+            cityPairsMap.set(cityKey, {
+              city: monitor.city.trim(),
+              country: monitor.country || "",
+              iso2: monitor.iso2 || "",
+            });
+          }
+        }
       }
 
-      // Population: sum by city name from the unified populationByCity map
-      // (CityPopulationRegistry + SdgCity merged in fetchAllSources).
-      // null when no population data exists for any monitored city.
+      // Population: sum by city+country composite key from the unified
+      // populationByCity map (CityPopulationRegistry + SdgCity merged in
+      // fetchAllSources). null when no population data exists for any city.
       let totalPopulationReached = null;
       let citiesWithPopulationData = 0;
       if (populationByCity.size > 0) {
         let popSum = 0;
-        for (const cityName of cityNamesSeen) {
-          const pop = populationByCity.get(cityName.toLowerCase());
+        for (const { city, country, iso2 } of cityPairsMap.values()) {
+          const cityLower = city.toLowerCase();
+          const countryLower = country.toLowerCase();
+          const iso2Lower = iso2.toLowerCase();
+          const pop =
+            populationByCity.get(`${cityLower}|${countryLower}`) ??
+            populationByCity.get(`${cityLower}|${iso2Lower}`) ??
+            null;
           if (pop != null) {
             popSum += pop;
             citiesWithPopulationData++;
@@ -872,7 +897,7 @@ const networkCoverageUtil = {
             totalMonitors: filtered.length,
             byType,
             byStatus,
-            totalCities: cityNamesSeen.size,
+            totalCities: cityPairsMap.size,
             totalCountries: countries.length,
             monitoredCountries: countries.filter((c) => c.monitors.length > 0)
               .length,
@@ -1314,14 +1339,16 @@ const networkCoverageUtil = {
    *
    * Response shape:
    *   top-level fields  — overall stats for the filtered set
-   *   byCountry[]       — per-country breakdown (total, type, status)
-   *   byNetwork[]       — per-network breakdown with the full stats suite
-   *                       (byType, byStatus, totalCities, totalCountries,
-   *                        totalPopulationReached, citiesWithPopulationData,
-   *                        byCountry) so any source / manufacturer slice
-   *                       exposes identical metrics to the overall view.
+   *   byCountry[]             — per-country breakdown (total, type, status)
+   *   bySensorManufacturer[]  — per-manufacturer breakdown with the full stats
+   *                             suite (byType, byStatus, totalCities,
+   *                             totalCountries, totalPopulationReached,
+   *                             citiesWithPopulationData, byCountry, byCity)
+   *                             so any manufacturer slice exposes identical
+   *                             metrics to the overall view.
    *
-   * totalPopulationReached is null (not 0) when SDG data does not yet exist.
+   * totalPopulationReached is null (not 0) when no population data exists
+   * for any monitored city.
    */
   impact: async (request) => {
     try {
