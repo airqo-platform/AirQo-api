@@ -1186,7 +1186,15 @@ deviceSchema.statics = {
         })
         .addFields({
           activities: {
-            $slice: [{ $setUnion: ["$_act_by_id", "$_act_by_name"] }, maxActivities],
+            $slice: [
+              {
+                $sortArray: {
+                  input: { $setUnion: ["$_act_by_id", "$_act_by_name"] },
+                  sortBy: { createdAt: -1 },
+                },
+              },
+              maxActivities,
+            ],
           },
           latest_deployment_activity: {
             $slice: [{ $concatArrays: ["$_dep_by_id", "$_dep_by_name"] }, 1],

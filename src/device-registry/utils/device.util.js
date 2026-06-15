@@ -1529,7 +1529,15 @@ const deviceUtil = {
             {
               $addFields: {
                 activities: {
-                  $slice: [{ $setUnion: ["$_act_by_id", "$_act_by_name"] }, maxActivities],
+                  $slice: [
+                    {
+                      $sortArray: {
+                        input: { $setUnion: ["$_act_by_id", "$_act_by_name"] },
+                        sortBy: { createdAt: -1 },
+                      },
+                    },
+                    maxActivities,
+                  ],
                 },
                 _act_by_id: "$$REMOVE",
                 _act_by_name: "$$REMOVE",
