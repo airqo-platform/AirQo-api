@@ -493,10 +493,12 @@ async function updateOfflineEntitiesWithAccuracy(
     // Add processed entity IDs to prevent race conditions
     const processedInThisRun = new Set(activeEntityIds);
 
-    // Find ALL devices that should be offline
+    // Find ALL devices that should be offline. The $nin on processedInThisRun
+    // was removed: active devices have a fresh lastActive and won't match the
+    // $lt filter anyway, so the exclusion is redundant and causes a full
+    // collection scan when the set is large.
     const entitiesToCheck = await Model.find(
       {
-        _id: { $nin: Array.from(processedInThisRun) },
         $or: [
           { lastActive: { $lt: thresholdTime } },
           { lastActive: { $exists: false }, createdAt: { $lt: thresholdTime } },
@@ -511,7 +513,9 @@ async function updateOfflineEntitiesWithAccuracy(
         "onlineStatusAccuracy.correctChecks": 1,
         "onlineStatusAccuracy.incorrectChecks": 1,
       },
-    ).lean();
+    )
+      .maxTimeMS(15000)
+      .lean();
 
     if (entitiesToCheck.length === 0) {
       return {
@@ -1229,7 +1233,7 @@ async function updateOnlineStatusAndAccuracy() {
     if (!processor.shouldStopExecution()) {
       try {
         const OFFLINE_TIMEOUT = 20000;
-        const [deviceOfflineResult, siteOfflineResult] = await Promise.all([
+        const [deviceOfflineResult, siteOfflineResult] = await Promise.allSettled([
           Promise.race([
             updateOfflineEntitiesWithAccuracy(
               DeviceModel("airqo"),

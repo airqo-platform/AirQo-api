@@ -1074,18 +1074,9 @@ deviceSchema.statics = {
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceId: "$_id" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ["$device", "$$deviceName"] },
-                    { $eq: ["$device_id", "$$deviceId"] },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
             { $sort: { createdAt: -1 } },
             {
               $project: {
@@ -1105,84 +1096,123 @@ deviceSchema.statics = {
             },
             { $limit: maxActivities },
           ],
-          as: "activities",
+          as: "_act_by_id",
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceName: "$name" },
           pipeline: [
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] } } },
+            { $sort: { createdAt: -1 } },
             {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                      ],
-                    },
-                    { $eq: ["$activityType", "deployment"] },
-                  ],
-                },
+              $project: {
+                _id: 1,
+                site_id: 1,
+                device_id: 1,
+                device: 1,
+                activityType: 1,
+                maintenanceType: 1,
+                recallType: 1,
+                date: 1,
+                description: 1,
+                nextMaintenance: 1,
+                createdAt: 1,
+                tags: 1,
               },
             },
-            { $sort: { createdAt: -1 } },
-            { $limit: 1 },
+            { $limit: maxActivities },
           ],
-          as: "latest_deployment_activity",
+          as: "_act_by_name",
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceId: "$_id" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                      ],
-                    },
-                    { $eq: ["$activityType", "maintenance"] },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] }, activityType: "deployment" } },
             { $sort: { createdAt: -1 } },
             { $limit: 1 },
           ],
-          as: "latest_maintenance_activity",
+          as: "_dep_by_id",
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceName: "$name" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                      ],
-                    },
-                    {
-                      $or: [
-                        { $eq: ["$activityType", "recall"] },
-                        { $eq: ["$activityType", "recallment"] },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] }, activityType: "deployment" } },
             { $sort: { createdAt: -1 } },
             { $limit: 1 },
           ],
-          as: "latest_recall_activity",
+          as: "_dep_by_name",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] }, activityType: "maintenance" } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_mnt_by_id",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] }, activityType: "maintenance" } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_mnt_by_name",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] }, activityType: { $in: ["recall", "recallment"] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_rcl_by_id",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] }, activityType: { $in: ["recall", "recallment"] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_rcl_by_name",
+        })
+        .addFields({
+          activities: {
+            $slice: [
+              {
+                $sortArray: {
+                  input: { $setUnion: ["$_act_by_id", "$_act_by_name"] },
+                  sortBy: { createdAt: -1 },
+                },
+              },
+              maxActivities,
+            ],
+          },
+          latest_deployment_activity: {
+            $slice: [{ $concatArrays: ["$_dep_by_id", "$_dep_by_name"] }, 1],
+          },
+          latest_maintenance_activity: {
+            $slice: [{ $concatArrays: ["$_mnt_by_id", "$_mnt_by_name"] }, 1],
+          },
+          latest_recall_activity: {
+            $slice: [{ $concatArrays: ["$_rcl_by_id", "$_rcl_by_name"] }, 1],
+          },
+          _act_by_id: "$$REMOVE",
+          _act_by_name: "$$REMOVE",
+          _dep_by_id: "$$REMOVE",
+          _dep_by_name: "$$REMOVE",
+          _mnt_by_id: "$$REMOVE",
+          _mnt_by_name: "$$REMOVE",
+          _rcl_by_id: "$$REMOVE",
+          _rcl_by_name: "$$REMOVE",
         })
         .addFields({
           device_categories: {
@@ -1689,7 +1719,8 @@ deviceSchema.statics = {
         .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
-        .allowDiskUse(true);
+        .allowDiskUse(true)
+        .option({ maxTimeMS: 60000 });
 
       const response = await pipeline;
 
