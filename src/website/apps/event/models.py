@@ -157,6 +157,18 @@ class Event(SlugBaseModel):
         logger.info(f"Deleted Event: ID={self.pk}, Title={self.title}")
         return result
 
+    @property
+    def is_side_event(self) -> bool:
+        """Return True if this event is linked as a side event of a parent."""
+        # `parent_event_links` is the reverse FK from EventSideEvent.side_event.
+        # Using `exists()` keeps this cheap.
+        return self.parent_event_links.filter(is_deleted=False).exists()
+
+    @property
+    def has_side_events(self) -> bool:
+        """Return True if this event has at least one side event link."""
+        return self.side_event_links.filter(is_deleted=False).exists()
+
 
 class Inquiry(BaseModel):
     inquiry = models.CharField(max_length=80)
@@ -357,4 +369,431 @@ class Resource(BaseModel):
         safe_destroy(self.resource, invalidate=True, resource_type="raw")
         result = super().delete(*args, **kwargs)
         logger.info(f"Deleted Resource: ID={self.pk}, Title={self.title}")
+        return result
+
+
+class Organizer(BaseModel):
+    """
+    Reusable organizer entity that can be linked to one or more events.
+
+    Organizers are kept as a separate catalog so the same organization does
+    not have to be re-created for each event. The link to events is managed
+    via the :class:`EventOrganizer` through model.
+    """
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(
+        max_length=255,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="URL-friendly identifier for the organizer",
+        db_index=True,
+    )
+    logo = CloudinaryField(
+        'image',
+        folder='website/uploads/events/organizers',
+        null=True,
+        blank=True,
+        default=None,
+        resource_type='image',
+        chunk_size=5*1024*1024,
+        timeout=600,
+    )
+    website_url = models.URLField(null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    order = models.IntegerField(default=1, db_index=True)
+
+    class Meta(BaseModel.Meta):
+        ordering = ['order', 'name']
+        indexes = [
+            models.Index(fields=['order', 'name']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        from django.utils.text import slugify as _slugify
+        is_new = self.pk is None
+        if not self.slug and self.name:
+            base = _slugify(self.name)[:240] or 'organizer'
+            candidate = base
+            counter = 1
+            OrganizerModel = self.__class__
+            while OrganizerModel.objects.filter(
+                slug=candidate
+            ).exclude(pk=self.pk if self.pk else None).exists():
+                candidate = f"{base}-{counter}"
+                counter += 1
+            self.slug = candidate
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(f"Created new Organizer: ID={self.pk}, Name={self.name}")
+        else:
+            logger.info(f"Updated Organizer: ID={self.pk}, Name={self.name}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Organizer: ID={self.pk}, Name={self.name}")
+        safe_destroy(self.logo, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        logger.info(f"Deleted Organizer: ID={self.pk}, Name={self.name}")
+        return result
+
+
+class EventOrganizer(BaseModel):
+    """
+    Through model linking an :class:`Event` to an :class:`Organizer`.
+
+    A single Organizer can be linked to many Events, and a single Event can
+    have many Organizers. The (event, organizer) pair is unique to prevent
+    duplicate links.
+
+    Note on data safety:
+    - Deleting an Event removes the through rows for that event only;
+      Organizer records themselves are preserved.
+    - Deleting an Organizer removes the through rows linking it to events;
+      Event records themselves are preserved.
+    """
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='event_organizer_links',
+    )
+    organizer = models.ForeignKey(
+        Organizer,
+        on_delete=models.CASCADE,
+        related_name='event_links',
+    )
+    role = models.CharField(
+        max_length=40,
+        choices=[
+            ('organizer', 'Organizer'),
+            ('co-organizer', 'Co-organizer'),
+            ('host', 'Host'),
+            ('partner', 'Partner'),
+            ('sponsor', 'Sponsor'),
+        ],
+        default='organizer',
+    )
+    order = models.IntegerField(default=1, db_index=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Event organizer link"
+        verbose_name_plural = "Event organizer links"
+        ordering = ['order', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['event', 'organizer'],
+                name='unique_event_organizer',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['event', 'order']),
+            models.Index(fields=['organizer', 'order']),
+        ]
+
+    def __str__(self):
+        try:
+            return f"{self.organizer} - {self.event} ({self.role})"
+        except Exception:
+            return f"EventOrganizer #{self.pk}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new EventOrganizer: ID={self.pk}, "
+                f"Event={self.event_id}, Organizer={self.organizer_id}")
+        else:
+            logger.info(
+                f"Updated EventOrganizer: ID={self.pk}, "
+                f"Event={self.event_id}, Organizer={self.organizer_id}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete EventOrganizer: ID={self.pk}, "
+            f"Event={self.event_id}, Organizer={self.organizer_id}")
+        result = super().delete(*args, **kwargs)
+        logger.info(
+            f"Deleted EventOrganizer: ID={self.pk}, "
+            f"Event={self.event_id}, Organizer={self.organizer_id}")
+        return result
+
+
+class EventSideEvent(BaseModel):
+    """
+    Through model linking a main/parent :class:`Event` to one or more
+    sub/side events. Side events are themselves Events (they have their
+    own title, date, location, slug, etc.).
+
+    Validation rules:
+    - A side event cannot be the same as its parent.
+    - The (parent_event, side_event) pair must be unique.
+    - Circular relationships are prevented (a side event cannot also be
+      a parent of its own parent).
+    - No nested chains (a side event cannot have its own side events).
+
+    Note on data safety:
+    - Deleting the link only removes the through row.
+    - Deleting the parent Event cascades the through rows for that event;
+      the child Event records themselves are preserved.
+    - Deleting a child Event cascades the through rows for that event;
+      the parent Event record itself is preserved.
+    """
+    parent_event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='side_event_links',
+    )
+    side_event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='parent_event_links',
+    )
+    label = models.CharField(
+        max_length=100,
+        default='Side event',
+        help_text="Optional label describing the relationship "
+                  "(e.g. 'Side event', 'Sub-event', 'Parallel session').",
+    )
+    order = models.IntegerField(default=1, db_index=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Side event link"
+        verbose_name_plural = "Side event links"
+        ordering = ['order', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['parent_event', 'side_event'],
+                name='unique_parent_side_event',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['parent_event', 'order']),
+            models.Index(fields=['side_event', 'order']),
+        ]
+
+    def __str__(self):
+        try:
+            return f"{self.parent_event} -> {self.side_event} ({self.label})"
+        except Exception:
+            return f"EventSideEvent #{self.pk}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.parent_event_id and self.side_event_id:
+            if self.parent_event_id == self.side_event_id:
+                raise ValidationError(
+                    "An event cannot be a side event of itself.")
+            # Prevent chains: a side event cannot itself be a parent of
+            # another event, and a parent cannot also be a side event.
+            # Check 1: prospective side_event is already a parent
+            if EventSideEvent.objects.filter(
+                parent_event_id=self.side_event_id,
+                is_deleted=False,
+            ).exclude(pk=self.pk if self.pk else None).exists():
+                raise ValidationError(
+                    "Side events cannot have their own side events. "
+                    "The side event is already a parent of another event.")
+            # Check 2: prospective parent_event is already a side event
+            if EventSideEvent.objects.filter(
+                side_event_id=self.parent_event_id,
+                is_deleted=False,
+            ).exclude(pk=self.pk if self.pk else None).exists():
+                raise ValidationError(
+                    "Side events cannot have their own side events. "
+                    "The parent event is already a side event of "
+                    "another event.")
+            # Prevent circular relationships: the prospective side event
+            # must not already be the parent of the prospective parent.
+            if EventSideEvent.objects.filter(
+                parent_event_id=self.side_event_id,
+                side_event_id=self.parent_event_id
+            ).exclude(pk=self.pk if self.pk else None).exists():
+                raise ValidationError(
+                    "Circular side-event relationships are not allowed.")
+
+    def save(self, *args, **kwargs):
+        # Run model-level validation before persisting.
+        self.full_clean()
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new EventSideEvent: ID={self.pk}, "
+                f"parent={self.parent_event_id}, side={self.side_event_id}")
+        else:
+            logger.info(
+                f"Updated EventSideEvent: ID={self.pk}, "
+                f"parent={self.parent_event_id}, side={self.side_event_id}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete EventSideEvent: ID={self.pk}, "
+            f"parent={self.parent_event_id}, side={self.side_event_id}")
+        result = super().delete(*args, **kwargs)
+        logger.info(
+            f"Deleted EventSideEvent: ID={self.pk}, "
+            f"parent={self.parent_event_id}, side={self.side_event_id}")
+        return result
+
+
+class Partner(BaseModel):
+    """
+    Reusable partner/sponsor catalog entity.
+
+    Partners (organizations that sponsor or co-host an event) are kept as
+    a separate catalog so the same organization does not have to be
+    re-created for each event.  The link to events is managed via the
+    :class:`EventPartner` through model.
+
+    Note:
+    The legacy :class:`PartnerLogo` model is kept for backward
+    compatibility and to preserve existing per-event partner logo data.
+    New code should prefer linking events to :class:`Partner` records
+    via :class:`EventPartner`.
+    """
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(
+        max_length=255,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="URL-friendly identifier for the partner",
+        db_index=True,
+    )
+    logo = CloudinaryField(
+        'image',
+        folder='website/uploads/events/partners',
+        null=True,
+        blank=True,
+        default=None,
+        resource_type='image',
+        chunk_size=5*1024*1024,
+        timeout=600,
+    )
+    website_url = models.URLField(null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    order = models.IntegerField(default=1, db_index=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Partner"
+        verbose_name_plural = "Partners"
+        ordering = ['order', 'name']
+        indexes = [
+            models.Index(fields=['order', 'name']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        from django.utils.text import slugify as _slugify
+        is_new = self.pk is None
+        if not self.slug and self.name:
+            base = _slugify(self.name)[:240] or 'partner'
+            candidate = base
+            counter = 1
+            PartnerModel = self.__class__
+            while PartnerModel.objects.filter(
+                slug=candidate
+            ).exclude(pk=self.pk if self.pk else None).exists():
+                candidate = f"{base}-{counter}"
+                counter += 1
+            self.slug = candidate
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(f"Created new Partner: ID={self.pk}, Name={self.name}")
+        else:
+            logger.info(f"Updated Partner: ID={self.pk}, Name={self.name}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Partner: ID={self.pk}, Name={self.name}")
+        safe_destroy(self.logo, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        logger.info(f"Deleted Partner: ID={self.pk}, Name={self.name}")
+        return result
+
+
+class EventPartner(BaseModel):
+    """
+    Through model linking an :class:`Event` to a :class:`Partner`.
+
+    A single Partner can be linked to many Events, and a single Event can
+    have many Partners.  The (event, partner) pair is unique to prevent
+    duplicate links.
+
+    Note on data safety:
+    - Deleting an Event cascades the through rows for that event only;
+      Partner records themselves are preserved.
+    - Deleting a Partner cascades the through rows linking it to events;
+      Event records themselves are preserved.
+    """
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='event_partner_links',
+    )
+    partner = models.ForeignKey(
+        Partner,
+        on_delete=models.CASCADE,
+        related_name='event_links',
+    )
+    role = models.CharField(
+        max_length=40,
+        choices=[
+            ('partner', 'Partner'),
+            ('sponsor', 'Sponsor'),
+            ('host', 'Host'),
+            ('co-organizer', 'Co-organizer'),
+            ('supporter', 'Supporter'),
+        ],
+        default='partner',
+    )
+    order = models.IntegerField(default=1, db_index=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "Event partner link"
+        verbose_name_plural = "Event partner links"
+        ordering = ['order', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['event', 'partner'],
+                name='unique_event_partner',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['event', 'order']),
+            models.Index(fields=['partner', 'order']),
+        ]
+
+    def __str__(self):
+        try:
+            return f"{self.partner} - {self.event} ({self.role})"
+        except Exception:
+            return f"EventPartner #{self.pk}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new EventPartner: ID={self.pk}, "
+                f"Event={self.event_id}, Partner={self.partner_id}")
+        else:
+            logger.info(
+                f"Updated EventPartner: ID={self.pk}, "
+                f"Event={self.event_id}, Partner={self.partner_id}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete EventPartner: ID={self.pk}, "
+            f"Event={self.event_id}, Partner={self.partner_id}")
+        result = super().delete(*args, **kwargs)
+        logger.info(
+            f"Deleted EventPartner: ID={self.pk}, "
+            f"Event={self.event_id}, Partner={self.partner_id}")
         return result

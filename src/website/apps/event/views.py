@@ -45,7 +45,11 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
             'inquiries',
             'programs__sessions',
             'partner_logos',
-            'resources'
+            'resources',
+            'event_organizer_links__organizer',
+            'event_partner_links__partner',
+            'side_event_links__side_event',
+            'parent_event_links__parent_event',
         ).order_by('order', '-start_date')
 
         if category in ['airqo', 'cleanair']:
