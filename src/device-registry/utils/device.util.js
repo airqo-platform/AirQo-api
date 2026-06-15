@@ -1473,19 +1473,9 @@ const deviceUtil = {
             {
               $lookup: {
                 from: activitiesColl,
-                let: { deviceName: "$name", deviceId: "$_id" },
+                let: { deviceId: "$_id" },
                 pipeline: [
-                  {
-                    // Prioritize indexed device_id lookup, fall back to legacy device name for backwards compatibility
-                    $match: {
-                      $expr: {
-                        $or: [
-                          { $eq: ["$device_id", "$$deviceId"] },
-                          { $eq: ["$device", "$$deviceName"] },
-                        ],
-                      },
-                    },
-                  },
+                  { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
                   { $sort: { createdAt: -1 } },
                   {
                     $project: {
@@ -1505,7 +1495,44 @@ const deviceUtil = {
                   },
                   { $limit: maxActivities },
                 ],
-                as: "activities",
+                as: "_act_by_id",
+              },
+            },
+            {
+              $lookup: {
+                from: activitiesColl,
+                let: { deviceName: "$name" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$device", "$$deviceName"] } } },
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $project: {
+                      _id: 1,
+                      site_id: 1,
+                      device_id: 1,
+                      device: 1,
+                      activityType: 1,
+                      maintenanceType: 1,
+                      recallType: 1,
+                      date: 1,
+                      description: 1,
+                      nextMaintenance: 1,
+                      createdAt: 1,
+                      tags: 1,
+                    },
+                  },
+                  { $limit: maxActivities },
+                ],
+                as: "_act_by_name",
+              },
+            },
+            {
+              $addFields: {
+                activities: {
+                  $slice: [{ $setUnion: ["$_act_by_id", "$_act_by_name"] }, maxActivities],
+                },
+                _act_by_id: "$$REMOVE",
+                _act_by_name: "$$REMOVE",
               },
             },
             getDeviceCategoriesAddFieldsStage(),
