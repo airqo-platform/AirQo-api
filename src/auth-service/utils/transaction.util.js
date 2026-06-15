@@ -1440,8 +1440,8 @@ const transactions = {
         return {
           success: false,
           message: "No active subscription found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "User has no subscription ID" },
+          status: httpStatus.OK,
+          data: { subscribed: false, subscriptionStatus: "none" },
         };
       }
 
