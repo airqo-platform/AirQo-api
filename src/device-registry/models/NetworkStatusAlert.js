@@ -86,6 +86,18 @@ const networkStatusAlertSchema = new Schema(
       type: String,
       required: true,
     },
+    // Per-network breakdown captured at check time
+    network_breakdown: [
+      {
+        network: { type: String },
+        total_monitors: { type: Number, default: 0 },
+        operational_count: { type: Number, default: 0 },
+        transmitting_count: { type: Number, default: 0 },
+        data_available_count: { type: Number, default: 0 },
+        not_transmitting_count: { type: Number, default: 0 },
+        not_transmitting_percentage: { type: Number, default: 0 },
+      },
+    ],
     // Additional metadata for future analysis
     day_of_week: {
       type: Number,
@@ -289,6 +301,44 @@ networkStatusAlertSchema.statics = {
             },
           },
         },
+      ];
+
+      return this.executeAggregation({ pipeline }, next);
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async getStatisticsByNetwork({ filter = {} } = {}, next) {
+    try {
+      const pipeline = [
+        { $match: filter },
+        {
+          $unwind: {
+            path: "$network_breakdown",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        {
+          $group: {
+            _id: "$network_breakdown.network",
+            totalChecks: { $sum: 1 },
+            avg_total_monitors: { $avg: "$network_breakdown.total_monitors" },
+            avg_operational_count: { $avg: "$network_breakdown.operational_count" },
+            avg_transmitting_count: { $avg: "$network_breakdown.transmitting_count" },
+            avg_data_available_count: { $avg: "$network_breakdown.data_available_count" },
+            avg_not_transmitting_percentage: { $avg: "$network_breakdown.not_transmitting_percentage" },
+            max_not_transmitting_percentage: { $max: "$network_breakdown.not_transmitting_percentage" },
+            min_not_transmitting_percentage: { $min: "$network_breakdown.not_transmitting_percentage" },
+          },
+        },
+        { $sort: { avg_not_transmitting_percentage: -1 } },
       ];
 
       return this.executeAggregation({ pipeline }, next);

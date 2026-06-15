@@ -74,6 +74,17 @@ const checkNetworkStatus = async () => {
     const totalDeployedDevices = total_monitors;
     const notTransmittingDevicesCount = not_transmitting;
 
+    // Fetch per-network breakdown (non-blocking — failure doesn't affect main alert)
+    let networkBreakdown = [];
+    try {
+      const perNetworkResult = await deviceUtil.getDeviceCountSummaryByNetwork(request);
+      if (perNetworkResult && perNetworkResult.success) {
+        networkBreakdown = perNetworkResult.data;
+      }
+    } catch (networkBreakdownError) {
+      logger.warn(`Could not fetch per-network breakdown: ${networkBreakdownError.message}`);
+    }
+
     if (totalDeployedDevices === 0) {
       logText("No deployed devices found");
       logger.warn("🙀🙀 No deployed devices found.");
@@ -147,6 +158,7 @@ const checkNetworkStatus = async () => {
       message,
       threshold_exceeded: notTransmittingPercentage >= UPTIME_THRESHOLD,
       threshold_value: UPTIME_THRESHOLD,
+      network_breakdown: networkBreakdown,
     };
 
     const alertResult = await networkStatusUtil.createAlert({
@@ -223,6 +235,27 @@ const dailyNetworkStatusSummary = async () => {
       const avgOp = Math.round(stats.avg_operational_count || 0);
       const avgTx = Math.round(stats.avg_transmitting_count || 0);
       const avgDa = Math.round(stats.avg_data_available_count || 0);
+
+      let perNetworkSection = "";
+      try {
+        const networkStats = await NetworkStatusAlertModel("airqo").getStatisticsByNetwork({ filter });
+        if (networkStats && networkStats.success && networkStats.data.length > 0) {
+          const networkLines = networkStats.data.map((n) => {
+            const name = (n._id || "unknown").toUpperCase();
+            const avgNtPct = (n.avg_not_transmitting_percentage || 0).toFixed(2);
+            const maxNtPct = (n.max_not_transmitting_percentage || 0).toFixed(2);
+            const minNtPct = (n.min_not_transmitting_percentage || 0).toFixed(2);
+            const avgOpN = Math.round(n.avg_operational_count || 0);
+            const avgTxN = Math.round(n.avg_transmitting_count || 0);
+            const avgTotal = Math.round(n.avg_total_monitors || 0);
+            return `  • ${name}: Total ~${avgTotal} | Avg Not Tx: ${avgNtPct}% (Max: ${maxNtPct}%, Min: ${minNtPct}%) | Avg Op: ${avgOpN} | Avg Tx: ${avgTxN}`;
+          });
+          perNetworkSection = `\n📡 Per-Network Breakdown:\n${networkLines.join("\n")}`;
+        }
+      } catch (networkStatsError) {
+        logger.warn(`Could not fetch per-network statistics: ${networkStatsError.message}`);
+      }
+
       const summaryMessage = `
 📊 Daily Network Status Summary (${moment(yesterday).format("YYYY-MM-DD")})
 Total Checks: ${stats.totalAlerts}
@@ -230,7 +263,7 @@ Avg Operational: ${avgOp} | Avg Transmitting: ${avgTx} | Avg Data Available: ${a
 Avg Not Transmitting %: ${stats.avg_not_transmitting_percentage.toFixed(2)}%
 Max Not Transmitting %: ${stats.max_not_transmitting_percentage.toFixed(2)}%
 Min Not Transmitting %: ${stats.min_not_transmitting_percentage.toFixed(2)}%
-Warning Checks: ${stats.warningCount} | Critical Checks: ${stats.criticalCount}
+Warning Checks: ${stats.warningCount} | Critical Checks: ${stats.criticalCount}${perNetworkSection}
       `;
 
       logText(summaryMessage);
