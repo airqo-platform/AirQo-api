@@ -1681,17 +1681,7 @@ const createSite = {
               pipeline: [
                 {
                   $match: {
-                    $expr: {
-                      $or: [
-                        { $eq: ["$site_id", "$$siteId"] },
-                        {
-                          $eq: [
-                            { $toString: "$site_id" },
-                            { $toString: "$$siteId" },
-                          ],
-                        },
-                      ],
-                    },
+                    $expr: { $eq: ["$site_id", "$$siteId"] },
                   },
                 },
                 { $sort: { createdAt: -1 } },
