@@ -63,13 +63,12 @@ class EmailDeduplicator {
    */
   async checkAndMarkEmail(
     emailData,
-    { overrideKey, tenant = "airqo", ttlSeconds } = {},
+    { overrideKey, tenant, ttlSeconds } = {},
   ) {
     try {
       const key = overrideKey || this.generateEmailKey(emailData);
       const SentEmailLog = SentEmailLogModel(tenant);
-      const effectiveTtl =
-        ttlSeconds !== undefined ? ttlSeconds : this.ttlSeconds;
+      const effectiveTtl = ttlSeconds ?? this.ttlSeconds;
       const expiresAt = new Date(Date.now() + effectiveTtl * 1000);
 
       // Atomic insert: succeeds only if `hash` is unique.
@@ -102,7 +101,7 @@ class EmailDeduplicator {
    * Remove a deduplication key — useful for testing or manual overrides.
    * @returns {Promise<boolean>}
    */
-  async removeEmailKey(emailData, { overrideKey, tenant = "airqo" } = {}) {
+  async removeEmailKey(emailData, { overrideKey, tenant } = {}) {
     try {
       const key = overrideKey || this.generateEmailKey(emailData);
       const SentEmailLog = SentEmailLogModel(tenant);

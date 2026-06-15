@@ -1438,7 +1438,13 @@ const createAdminAlertFunction = (
           // each produce distinct keys and are not incorrectly collapsed together).
           // We deliberately do NOT use mailOptions.to here because that is now always
           // the SUPPORT_EMAIL placeholder and would collapse all bot IPs into one key.
-          const stableKeyContent = `${mailOptions.bcc}:${mailOptions.subject}:${otherParams.ip}`;
+          const normalizedBcc = (mailOptions.bcc || "")
+            .split(",")
+            .map((e) => e.trim().toLowerCase())
+            .filter(Boolean)
+            .sort()
+            .join(",");
+          const stableKeyContent = `${normalizedBcc}:${mailOptions.subject}:${otherParams.ip}`;
           const stableKey = crypto
             .createHash("md5")
             .update(stableKeyContent)
