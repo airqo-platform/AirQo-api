@@ -643,3 +643,126 @@ describe("transactions.identifyUserFromTransaction", () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getSubscriptionStatus
+// ─────────────────────────────────────────────────────────────────────────────
+describe("transactions.getSubscriptionStatus", () => {
+  let findByIdStub;
+  let findByIdAndUpdateStub;
+  let subscriptionsGetStub;
+
+  const mockRequest = (userOverrides = {}) => ({
+    user: { _id: "user123", ...userOverrides },
+    query: { tenant: "airqo" },
+  });
+
+  beforeEach(() => {
+    sinon.restore();
+
+    const UserModel = require("@models/User");
+    findByIdStub = sinon.stub(UserModel("airqo"), "findById").returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({
+          _id: "user123",
+          currentSubscriptionId: "sub_active",
+          subscriptionStatus: "active",
+        }),
+      }),
+    });
+
+    findByIdAndUpdateStub = sinon
+      .stub(UserModel("airqo"), "findByIdAndUpdate")
+      .resolves({});
+
+    subscriptionsGetStub = sinon
+      .stub(paddleConfig.paddleClient.subscriptions, "get")
+      .resolves({ status: "active" });
+  });
+
+  afterEach(() => sinon.restore());
+
+  it("returns 200 with subscribed:false and subscriptionStatus:'none' when user has no subscription ID", async () => {
+    findByIdStub.returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({ _id: "user123", currentSubscriptionId: null }),
+      }),
+    });
+
+    const result = await transactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.OK);
+    expect(result.success).to.equal(false);
+    expect(result.data.subscribed).to.equal(false);
+    expect(result.data.subscriptionStatus).to.equal("none");
+    sinon.assert.notCalled(subscriptionsGetStub);
+  });
+
+  it("returns 200 with subscribed:false and subscriptionStatus:'none' when user document is not found", async () => {
+    findByIdStub.returns({
+      select: sinon.stub().returns({ lean: sinon.stub().resolves(null) }),
+    });
+
+    const result = await transactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.OK);
+    expect(result.success).to.equal(false);
+    expect(result.data.subscribed).to.equal(false);
+    expect(result.data.subscriptionStatus).to.equal("none");
+  });
+
+  it("returns 200 with subscribed:true and subscriptionStatus from Paddle when subscription exists", async () => {
+    const result = await transactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.OK);
+    expect(result.success).to.equal(true);
+    expect(result.data.subscribed).to.equal(true);
+    expect(result.data.subscriptionStatus).to.equal("active");
+    expect(result.data.subscriptionId).to.equal("sub_active");
+    expect(result.data.lastChecked).to.be.instanceOf(Date);
+  });
+
+  it("response data always contains subscriptionStatus field in both branches", async () => {
+    // No-subscription branch
+    findByIdStub.returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({ _id: "user123", currentSubscriptionId: null }),
+      }),
+    });
+    const noSubResult = await transactions.getSubscriptionStatus(mockRequest());
+    expect(noSubResult.data).to.have.property("subscriptionStatus");
+
+    // Active-subscription branch
+    sinon.restore();
+    const UserModel = require("@models/User");
+    sinon.stub(UserModel("airqo"), "findById").returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({ _id: "user123", currentSubscriptionId: "sub_1" }),
+      }),
+    });
+    sinon.stub(UserModel("airqo"), "findByIdAndUpdate").resolves({});
+    sinon.stub(paddleConfig.paddleClient.subscriptions, "get").resolves({ status: "trialing" });
+
+    const activeResult = await transactions.getSubscriptionStatus(mockRequest());
+    expect(activeResult.data).to.have.property("subscriptionStatus");
+  });
+
+  it("writes updated subscriptionStatus back to the user document after Paddle call", async () => {
+    await transactions.getSubscriptionStatus(mockRequest());
+
+    sinon.assert.calledOnce(findByIdAndUpdateStub);
+    const updateArg = findByIdAndUpdateStub.firstCall.args[1];
+    expect(updateArg.$set.subscriptionStatus).to.equal("active");
+    expect(updateArg.$set.lastSubscriptionCheck).to.be.instanceOf(Date);
+  });
+
+  it("returns 500 when Paddle subscriptions.get throws", async () => {
+    subscriptionsGetStub.rejects(new Error("Paddle API down"));
+
+    const result = await transactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    expect(result.success).to.equal(false);
+    expect(result.errors.message).to.equal("Paddle API down");
+  });
+});

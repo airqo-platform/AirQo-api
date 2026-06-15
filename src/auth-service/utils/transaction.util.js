@@ -1461,7 +1461,8 @@ const transactions = {
         message: "Subscription status retrieved successfully",
         status: httpStatus.OK,
         data: {
-          status: subscriptionStatus.status,
+          subscriptionStatus: subscriptionStatus.status,
+          subscribed: true,
           lastChecked: new Date(),
           subscriptionId: freshUser.currentSubscriptionId,
         },
