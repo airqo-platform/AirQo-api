@@ -1444,6 +1444,9 @@ const createAdminAlertFunction = (
             .update(stableKeyContent)
             .digest("hex");
           dedupOptions.overrideKey = `email_dedup:${stableKey}`;
+          // Hold the dedup lock for 24 h — the IP is already blacklisted after the
+          // first alert, so a second email for the same IP within a day adds no value.
+          dedupOptions.ttlSeconds = 86400;
         }
 
         shouldSend = await emailDeduplicator.checkAndMarkEmail(

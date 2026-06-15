@@ -13,7 +13,14 @@ const SentEmailLogSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
       default: Date.now,
-      expires: 300, // TTL: auto-delete after 5 minutes
+    },
+    // Per-document TTL: MongoDB deletes the document when this date is reached.
+    // expireAfterSeconds: 0 means "delete at the moment stored in this field",
+    // allowing each document to carry its own retention window.
+    expiresAt: {
+      type: Date,
+      required: true,
+      index: { expireAfterSeconds: 0 },
     },
   },
   { timestamps: false },
