@@ -1158,6 +1158,16 @@ function resolveAllowedRedirectOrigins() {
 // Computed once at module load — inputs are fixed env vars.
 const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
 
+// Desktop-app deep-link scheme prefixes allowed as redirect_after targets.
+// Custom schemes (e.g. vertex://) cannot be exploited for web phishing since
+// the OS routes them to the registered desktop app, not a website.
+const ALLOWED_CUSTOM_SCHEME_PREFIXES = (
+  constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 // Origin of the analytics frontend. Used to select the correct failure-redirect
 // path: analytics uses /user/login, vertex and others use /login.
 const ANALYTICS_ORIGIN = (() => {
@@ -1173,7 +1183,15 @@ const ANALYTICS_ORIGIN = (() => {
 function isAllowedRedirect(url, allowedOrigins) {
   if (!url || typeof url !== "string") return false;
   try {
-    return allowedOrigins.has(new URL(url).origin);
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // Custom schemes (e.g. vertex://) are checked against an explicit prefix
+      // allowlist rather than by origin, since custom protocols have no web origin.
+      return ALLOWED_CUSTOM_SCHEME_PREFIXES.some((prefix) =>
+        url.startsWith(prefix)
+      );
+    }
+    return allowedOrigins.has(parsed.origin);
   } catch (_) {
     return false;
   }
@@ -1438,7 +1456,14 @@ const authGoogleCallback = (req, res, next) => {
   const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
   let validatedOrigin = null;
   if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
-    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+    try {
+      const parsed = new URL(rawRedirect);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        validatedOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default analytics failure URL.
+    } catch {}
   }
   const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
     ? `${validatedOrigin}/login`
@@ -1511,7 +1536,14 @@ const authOAuthCallback = (req, res, next) => {
   const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
   let validatedOrigin = null;
   if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
-    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+    try {
+      const parsed = new URL(rawRedirect);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        validatedOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default analytics failure URL.
+    } catch {}
   }
   const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
     ? `${validatedOrigin}/login`
