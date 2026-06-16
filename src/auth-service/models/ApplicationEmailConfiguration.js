@@ -14,7 +14,6 @@ const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const ApplicationEmailConfigurationSchema = new Schema(
   {
-    tenant: { type: String, required: true, unique: true, lowercase: true },
     // Emails belonging to applications (not real people). When system-generated
     // emails are sent to any of these addresses, admin CC emails are added automatically.
     applicationEmails: {
@@ -49,21 +48,61 @@ const ApplicationEmailConfigurationSchema = new Schema(
 );
 
 ApplicationEmailConfigurationSchema.statics = {
+  // Each tenant already gets its own physical database (see getModelByTenant),
+  // so this collection only ever needs to hold one document. Rather than
+  // relying on a document-level unique field to enforce that, register()
+  // atomically upserts against an empty filter: the first call inserts,
+  // every later call merges into that same row instead of erroring.
   async register(args, next) {
     try {
-      const created = await this.create({ ...args });
-      if (!isEmpty(created)) {
-        return {
-          success: true,
-          message: "Application email configuration created successfully",
-          data: created,
-          status: httpStatus.CREATED,
+      const { applicationEmails, adminCCEmails } = args;
+      const update = {};
+
+      if (Array.isArray(applicationEmails) && applicationEmails.length > 0) {
+        update.$addToSet = {
+          applicationEmails: { $each: applicationEmails },
         };
       }
+
+      if (adminCCEmails) {
+        const existing = await this.findOne({}).lean();
+        const merged = new Set(
+          ((existing && existing.adminCCEmails) || "")
+            .split(",")
+            .map((e) => e.trim())
+            .filter(Boolean)
+        );
+        adminCCEmails
+          .split(",")
+          .map((e) => e.trim())
+          .filter(Boolean)
+          .forEach((e) => merged.add(e));
+        update.adminCCEmails = Array.from(merged).join(", ");
+      }
+
+      if (isEmpty(update)) {
+        return {
+          success: false,
+          message: "Operation successful but configuration not created",
+          status: httpStatus.OK,
+        };
+      }
+
+      const hadExisting = !!(await this.exists({}));
+      const saved = await this.findOneAndUpdate({}, update, {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      });
+
       return {
-        success: false,
-        message: "Operation successful but configuration not created",
-        status: httpStatus.OK,
+        success: true,
+        message: hadExisting
+          ? "An application email configuration already existed -- the provided values were merged into it"
+          : "Application email configuration created successfully",
+        data: saved,
+        status: hadExisting ? httpStatus.OK : httpStatus.CREATED,
       };
     } catch (err) {
       logObject("the error", err);
@@ -71,12 +110,7 @@ ApplicationEmailConfigurationSchema.statics = {
       let errors = {};
       let message;
       let status;
-      if (err.code === 11000) {
-        errors["tenant"] =
-          "An application email configuration for this tenant already exists";
-        message = "Validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-      } else if (err.errors) {
+      if (err.errors) {
         Object.entries(err.errors).forEach(([k, v]) => (errors[k] = v.message));
         message = "Validation errors for some of the provided fields";
         status = httpStatus.UNPROCESSABLE_ENTITY;

@@ -186,7 +186,7 @@ const _getApplicationEmailConfig = async (tenant) => {
   }
   try {
     const config = await ApplicationEmailConfigurationModel(normalizedTenant)
-      .findOne({ tenant: normalizedTenant })
+      .findOne({})
       .lean();
     _appEmailConfigCache.set(normalizedTenant, { data: config, fetchedAt: Date.now() });
     return config;
