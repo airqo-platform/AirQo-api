@@ -42,6 +42,7 @@ const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-util`);
+const securityAuditLogger = log4js.getLogger("token-security-audit");
 
 const async = require("async");
 const { Kafka } = require("kafkajs");
@@ -1201,7 +1202,42 @@ const token = {
           }),
         );
       } else {
-        const tokenId = tokenDetails[0]._id;
+        const tokenRecord = tokenDetails[0];
+        const tokenId = tokenRecord._id;
+
+        // Ownership check — the requesting user must own the client that issued
+        // this token, OR be a super-admin.  Prevents any authenticated user from
+        // reinstating (or otherwise patching) a token they do not own.
+        const callerEmail = ((request.user && request.user.email) || "").toLowerCase();
+        const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
+          .some(e => e.toLowerCase() === callerEmail);
+
+        if (!isAdmin) {
+          const linkedClient = await ClientModel(tenant)
+            .findById(tokenRecord.client_id)
+            .select("user_id")
+            .lean();
+
+          const ownerId = linkedClient && linkedClient.user_id
+            ? linkedClient.user_id.toString()
+            : null;
+          const callerId = request.user && (request.user._id || request.user.id)
+            ? (request.user._id || request.user.id).toString()
+            : null;
+
+          if (!ownerId || !callerId || ownerId !== callerId) {
+            securityAuditLogger.warn(
+              `🚫 Ownership check failed on token update — caller=${callerEmail} ` +
+              `tokenId=${tokenId} clientId=${tokenRecord.client_id}`
+            );
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message: "You do not have permission to update this token",
+              }),
+            );
+          }
+        }
+
         let update = Object.assign({}, body);
         if (update.token) {
           delete update.token;
@@ -1215,9 +1251,6 @@ const token = {
         // bypass_anomaly_detection is admin-only — non-super-admins cannot set it
         // via the public PATCH endpoint even if the validator accepts the field.
         if (update.bypass_anomaly_detection !== undefined) {
-          const userEmail = ((request.user && request.user.email) || "").toLowerCase();
-          const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
-            .some(e => e.toLowerCase() === userEmail);
           if (!isAdmin) {
             delete update.bypass_anomaly_detection;
           }
@@ -1227,6 +1260,25 @@ const token = {
           .lean();
 
         if (!isEmpty(updatedToken)) {
+          // Audit trail — log every sensitive field change with caller identity.
+          // Read from updatedToken (what Mongo persisted) not from update (the
+          // request payload), so the log reflects actual stored values after any
+          // Mongoose coercion or subdocument replacement.
+          const auditFields = [];
+          if (update.request_pattern !== undefined) {
+            auditFields.push(`request_pattern=${JSON.stringify(updatedToken.request_pattern)}`);
+          }
+          if (update.bypass_anomaly_detection !== undefined) {
+            auditFields.push(`bypass_anomaly_detection=${updatedToken.bypass_anomaly_detection}`);
+          }
+          if (auditFields.length > 0) {
+            securityAuditLogger.info(
+              `Token metadata updated — caller=${callerEmail} ` +
+              `tokenId=${tokenId} clientId=${tokenRecord.client_id} ` +
+              `changes=[${auditFields.join(", ")}]`
+            );
+          }
+
           return {
             success: true,
             message: "Successfully updated the token's metadata",
