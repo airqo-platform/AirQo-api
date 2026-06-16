@@ -1,189 +1,71 @@
-# API Token Reinstatement Guide
+# API Token Suspension & Recovery
 
-**Version:** 1.1 — Last updated: 2026-06-17
+**Version:** 2.0 — Last updated: 2026-06-17
 
-## Background
+## Why tokens get suspended
 
-API tokens can be automatically suspended by the behavioural anomaly detector
-in `utils/token.util.js`. The detector scores each token on two signals:
+The AirQo API monitors usage patterns on every token to detect unusual activity.
+A token is automatically suspended when either of the following is detected:
 
-| Signal | Score delta | Suspend threshold |
-|---|---|---|
-| User-Agent change between requests | +2 | 10 (env: `ANOMALY_SUSPEND_THRESHOLD`) |
-| Hourly rate spike (> 5× 7-day average) | +3 | same |
+- **User-Agent change** — the same token is used from different clients or
+  applications in a short window (common signal of token sharing or leakage).
+- **Unusual request rate** — the hourly request volume spikes sharply compared
+  to the token's recent average.
 
-When the cumulative `anomaly_score` reaches the threshold, the token's
-`request_pattern.auto_suspended` is set to `true` and an email is sent to the
-owner. All subsequent requests using that token receive **401 Unauthorized**
-immediately, before any other checks run.
-
-Legitimate service accounts — IoT sensor fleets, server-side apps, mobile
-backend tokens — are especially prone to false positives because they often
-span multiple devices or User-Agent strings. The fix is to reinstate the token
-and mark it as a service account (`bypass_anomaly_detection: true`).
+When a token is suspended you will receive an email with the reason and the
+timestamp of the suspension. All API requests using that token will return
+**401 Unauthorized** until the token is recovered.
 
 ---
 
-## Who can perform reinstatement
+## What the suspension email tells you
 
-The PATCH endpoint enforces two independent access controls:
+The email includes:
 
-### Ownership check (all callers)
+- The masked token value (e.g. `ZPH6CW1J...F3NV`) and its name
+- The time of suspension
+- The reason detected (e.g. "User-Agent change detected")
 
-Any authenticated user can reinstate their **own** token. The endpoint verifies
-that the JWT's user ID matches the `user_id` on the client linked to the token
-being patched. A mismatch returns **403 Forbidden** — no other information is
-disclosed.
-
-Super-admins (see below) bypass this check and can patch any token.
-
-### Admin-only fields
-
-`bypass_anomaly_detection` can only be set by a user whose email is in the
-`SUPER_ADMIN_EMAIL_ALLOWLIST` environment variable:
-
-```
-SUPER_ADMIN_EMAIL_ALLOWLIST=alice@airqo.net,bob@airqo.net
-```
-
-Parsed as a comma-separated list in
-[`config/core/static-lists.js`](../../../config/core/static-lists.js).
-Non-admin JWTs attempting to set this field have it silently dropped — the rest
-of the PATCH still proceeds.
-
-### Permission summary
-
-| Action | Token owner | Super-admin |
-|---|---|---|
-| Reinstate own token (`auto_suspended: false`) | ✅ | ✅ |
-| Reinstate another user's token | ❌ 403 | ✅ |
-| Set `bypass_anomaly_detection` | ❌ (field silently dropped) | ✅ |
-
-### Audit trail
-
-Every change to `request_pattern` or `bypass_anomaly_detection` is logged at
-`INFO` level with the caller's email, token ID, client ID, and the exact fields
-changed. Check the auth-service application logs to confirm a reinstatement was
-applied and by whom.
-
-**Obtaining an admin JWT:** Log in to `analytics.airqo.net`, open DevTools →
-Network, make any API call, and copy the `Authorization` header value. It looks
-like `JWT eyJ...`.
+> **Note:** A suspended token is not the same as an expired token. A token can
+> have a valid future expiry date and still be suspended. The expiry date shown
+> in your API client settings is unrelated to whether the token is currently
+> active.
 
 ---
 
-## Known traps — read before starting
+## How to recover your token
 
-**`token_status: "active"` does not mean the token is unsuspended.**
-The `GET /api/v2/users/tokens/:token` endpoint computes `token_status` solely
-from the token's `expires` date — a suspended token with a future expiry still
-shows `token_status: "active"`. Always check `request_pattern.auto_suspended`
-directly (Step 2 below).
+You have two options. Use whichever fits your workflow.
 
-**A PATCH that returns `success: true` may have changed nothing.**
-Sending `auto_suspended` as a flat top-level field — `{"auto_suspended": false}`
-— is silently dropped by Mongoose's strict schema mode. The API still returns
-`"success": true` and bumps `updatedAt`, but the field is never written.
-Always use the nested form and verify the response body (Step 3 below).
+### Option A — AirQo Analytics (recommended)
 
-**Token expiry is unrelated to suspension.**
-`verifyToken` never loads the `expires` field during auth-request verification.
-A token with an August expiry date can still be fully blocked by
-`auto_suspended: true`.
+1. Log in to [analytics.airqo.net](https://analytics.airqo.net)
+2. Go to **Settings › API**
+3. Find the affected token on your API client card
+4. If it shows as suspended, click **Reinstate** to restore it
+5. Alternatively, click **Regenerate Token** to issue a fresh token without
+   creating a new client — this is the safest choice if you suspect the token
+   may have been compromised
 
----
+### Option B — API (for developers)
 
-## Step 1 — Find the full token value
+If you prefer to reinstate programmatically, use your own AirQo JWT (obtained
+by logging in to the platform — see [Authentication →](../api/getting-started/authentication.md)).
 
-The token value shown in suspension alert emails is **masked** (e.g.
-`ZPH6CW1J...F3NV`). You need the full plaintext string.
-
-Retrieve it from the admin client endpoint using the client ID, or search by
-client name or owner email:
-
-```bash
-# By client ID
-curl -s \
-  "https://api.airqo.net/api/v2/users/clients/<CLIENT_ID>" \
-  -H "Authorization: JWT <YOUR_ADMIN_JWT>" \
-  | jq '.access_token.token'
-
-# By owner email — lists all clients
-curl -s \
-  "https://api.airqo.net/api/v2/users/clients?email=<OWNER_EMAIL>" \
-  -H "Authorization: JWT <YOUR_ADMIN_JWT>" \
-  | jq '.[].access_token | {name, token, auto_suspended: .request_pattern.auto_suspended}'
-```
-
-For service deployments the token may also be in a Kubernetes secret:
-
-```bash
-kubectl get secret -n production <secret-name> \
-  -o jsonpath='{.data.AIRQO_API_TOKEN}' | base64 -d
-```
-
----
-
-## Step 2 — Confirm and inspect the suspension
-
-Read `request_pattern` directly from the client endpoint. This is the
-authoritative source.
-
-```bash
-curl -s \
-  "https://api.airqo.net/api/v2/users/clients/<CLIENT_ID>" \
-  -H "Authorization: JWT <YOUR_ADMIN_JWT>" \
-  | jq '.access_token | {
-      auto_suspended:    .request_pattern.auto_suspended,
-      anomaly_score:     .request_pattern.anomaly_score,
-      suspension_reason: .request_pattern.suspension_reason,
-      suspended_at:      .request_pattern.suspended_at,
-      bypass:            .bypass_anomaly_detection
-    }'
-```
-
-**Decision table:**
-
-| `auto_suspended` | `bypass_anomaly_detection` | Action |
-|---|---|---|
-| `true` | `false` | Reinstate (Step 3) then set bypass (Step 4) |
-| `true` | `true` | Reinstate only (Step 3) — bypass already set |
-| `false` | `false` | Token not suspended — investigate other gates (IP block? Client inactive? Scope?) |
-| `false` | `true` | No action needed |
-
-Secondary smoke-test using a documented public endpoint (confirms but does not diagnose):
-
-```bash
-# Cohort-based access (partners and organisations)
-curl -s -o /dev/null -w "%{http_code}" \
-  "https://api.airqo.net/api/v2/devices/measurements/cohorts/<COHORT_ID>?token=<TOKEN_VALUE>"
-
-# Grid-based access (cities and municipalities)
-curl -s -o /dev/null -w "%{http_code}" \
-  "https://api.airqo.net/api/v2/devices/measurements/grids/<GRID_ID>?token=<TOKEN_VALUE>"
-
-# 401 → suspended or invalid    200 or 429 → active
-```
-
-Reference: [Recent Measurements (Cohort)](https://docs.airqo.net/api/for-partners/recent-measurements) ·
-[Recent Measurements (Grid)](https://docs.airqo.net/api/for-cities/recent-measurements)
-
----
-
-## Step 3 — Reinstate the token
-
-The body **must** nest `auto_suspended` inside `request_pattern`. The flat form
-is silently ignored — see "Known traps" above.
+**Step 1 — Reinstate the token**
 
 ```bash
 curl -s -X PATCH \
-  "https://api.airqo.net/api/v2/users/tokens/<TOKEN_VALUE>" \
-  -H "Authorization: JWT <YOUR_ADMIN_JWT>" \
+  "https://api.airqo.net/api/v2/users/tokens/<YOUR_TOKEN_VALUE>" \
+  -H "Authorization: JWT <YOUR_AIRQO_JWT>" \
   -H "Content-Type: application/json" \
   -d '{ "request_pattern": { "auto_suspended": false } }'
 ```
 
-**Verify the response body** — not just the top-level message:
+**Important:** the field must be nested exactly as shown. Sending
+`{ "auto_suspended": false }` flat at the top level will appear to succeed
+(the API returns `success: true`) but will not change anything. Always verify
+the response body:
 
 ```json
 {
@@ -195,116 +77,94 @@ curl -s -X PATCH \
 }
 ```
 
-If `updated_token.request_pattern.auto_suspended` is still `true`, the body
-shape was wrong or the wrong token value was used. Re-check and retry.
+If `updated_token.request_pattern.auto_suspended` is still `true` in the
+response, the body shape was wrong. Re-check and retry with the nested form.
 
-> `updatedAt` ticks forward on every PATCH regardless of whether any field
-> actually changed — a bumped `updatedAt` alone does **not** confirm
-> reinstatement.
+> You can only reinstate tokens that belong to your own account. Attempting to
+> patch a token from a different account returns 403 Forbidden.
 
----
-
-## Step 4 — Mark service accounts as bypass (admin only)
-
-For any token that legitimately spans multiple devices, User-Agent strings, or
-server-side processes — IoT fleets, mobile backend tokens, shared integrations —
-set `bypass_anomaly_detection: true` immediately after reinstatement, before the
-application resumes traffic. This disables all behavioural scoring permanently
-so the token cannot be auto-suspended again by rate spikes or UA changes.
-
-This field requires the caller's JWT email to be in `SUPER_ADMIN_EMAIL_ALLOWLIST`.
-A non-admin JWT will have this field silently dropped — the PATCH still returns 200 if other fields are valid.
-
-```bash
-curl -s -X PATCH \
-  "https://api.airqo.net/api/v2/users/tokens/<TOKEN_VALUE>" \
-  -H "Authorization: JWT <YOUR_ADMIN_JWT>" \
-  -H "Content-Type: application/json" \
-  -d '{ "bypass_anomaly_detection": true }'
-```
-
-Confirm it is persisted in the response:
-
-```json
-{ "updated_token": { "bypass_anomaly_detection": true, ... } }
-```
-
-> **Security tradeoff:** bypass disables *all* behavioural anomaly scoring for
-> this token — both UA-change and rate-spike signals. Honeypot traps, IP
-> blacklisting, and manual suspension remain active. Notify the token owner
-> when this flag is applied (see Step 6).
-
----
-
-## Step 5 — Smoke-test
-
-Use whichever documented public endpoint matches the token's access pattern:
+**Step 2 — Verify the token is working**
 
 ```bash
 # Cohort-based access (partners and organisations)
 curl -s -o /dev/null -w "%{http_code}" \
-  "https://api.airqo.net/api/v2/devices/measurements/cohorts/<COHORT_ID>?token=<TOKEN_VALUE>"
+  "https://api.airqo.net/api/v2/devices/measurements/cohorts/<YOUR_COHORT_ID>?token=<YOUR_TOKEN_VALUE>"
 
 # Grid-based access (cities and municipalities)
 curl -s -o /dev/null -w "%{http_code}" \
-  "https://api.airqo.net/api/v2/devices/measurements/grids/<GRID_ID>?token=<TOKEN_VALUE>"
-
-# Expect: 200 (or 429 if rate-limited, but not 401)
+  "https://api.airqo.net/api/v2/devices/measurements/grids/<YOUR_GRID_ID>?token=<YOUR_TOKEN_VALUE>"
 ```
 
-Re-query the client endpoint and confirm both `auto_suspended: false` and
-`bypass_anomaly_detection: true` are persisted before notifying the owner.
+Expect `200`. A `401` means the token is still suspended. A `429` means the
+token is active but rate-limited.
+
+Reference:
+[Recent Measurements (Cohort)](https://docs.airqo.net/api/for-partners/recent-measurements) ·
+[Recent Measurements (Grid)](https://docs.airqo.net/api/for-cities/recent-measurements)
 
 ---
 
-## Step 6 — Notify the token owner
+## If the token keeps getting suspended
 
-Send a brief message covering:
+If your token is reinstated but suspended again within minutes, it is because
+the same pattern that triggered the original suspension (e.g. requests from
+multiple devices with different User-Agent strings) is still occurring.
 
-1. **What happened** — the token was suspended by the anomaly detector due to
-   `<suspension_reason>` (from `request_pattern.suspension_reason`). This is a
-   false positive caused by [multi-device usage / UA variation / rate spike].
-2. **What was done** — it has been reinstated and marked as a service account
-   so the same heuristic will not trigger again.
-3. **Security recommendation** — because behavioural monitoring is now reduced
-   for this token, they should consider enabling **"Require client secret on
-   every request"** on their API client card under Settings › API. When enabled,
-   every request must also send `X-Client-Secret: <secret>` in the headers,
-   providing defense-in-depth that does not depend on heuristics.
-4. **Invite them to test** and report any remaining 401s.
+This is common for:
+- IoT sensor fleets where multiple physical devices share one token
+- Server-side apps alongside a browser or mobile client using the same token
+- Applications that were recently updated and changed their HTTP client or SDK
+
+**What to do:** contact [support@airqo.net](mailto:support@airqo.net) and
+request that your token be marked as a service account. This disables the
+automated suspension heuristics for your token permanently so high-volume or
+multi-device usage is no longer flagged. Other security protections remain
+active.
 
 ---
 
-## Troubleshooting
+## Security recommendation
 
-**PATCH returns `success: true` but token is still blocked.**
-Inspect `updated_token.request_pattern.auto_suspended` in the response body. If
-it is still `true`, the body was sent flat instead of nested. Resend with the
-nested form (`{ "request_pattern": { "auto_suspended": false } }`) and verify
-the field in the response body.
+If your token was suspended due to a User-Agent change, consider enabling the
+**"Require client secret on every request"** option on your API client card
+under Settings › API.
 
-**403 on the PATCH.**
-The JWT email is not in `SUPER_ADMIN_EMAIL_ALLOWLIST` on the auth-service
-production env. Ask a super-admin to perform the PATCH, or have DevOps add the
-email to the env var.
+When enabled, every API request must also include a `X-Client-Secret` header
+alongside your token:
 
-**`token_status` says `"active"` but the token still 401s.**
-`token_status` only reflects expiry. Check `request_pattern.auto_suspended` on
-the client endpoint (Step 2).
+```
+X-Client-Secret: <your-client-secret>
+```
 
-**Token has a future expiry date but is still blocked.**
-Expiry and suspension are independent. `verifyToken` never loads `expires`
-during auth-request verification. Fix the suspension via Step 3.
+This means that even if your token is exposed, it cannot be used without also
+knowing your client secret — providing an extra layer of protection that does
+not depend on usage monitoring.
 
-**Smoke test returns 500, not 200 or 401.**
-A gateway-level 500 (especially an HTML error page) indicates an
-infrastructure issue upstream of the application — nginx, ingress, or a
-cold-start timeout. Retry; these are usually transient. If it persists, check
-device-registry and auth-service logs around that timestamp.
+---
 
-**Token gets suspended again shortly after reinstatement.**
-`bypass_anomaly_detection: true` was not set, or was set after the application
-had already resumed traffic. The anomaly detector runs asynchronously on every
-passing request — a handful of UA-mismatched calls can push `anomaly_score`
-back above the threshold before the bypass write lands. Always apply bypass
-immediately after reinstatement, before the application makes any calls.
+## Frequently asked questions
+
+**My token shows as active in Settings › API but requests still return 401.**
+The "active" status shown in the UI reflects whether your token has expired —
+it does not reflect suspension. If you are seeing 401s, your token may be
+suspended even if the UI shows it as active. Use the Reinstate option as
+described above.
+
+**I used the PATCH endpoint and got `success: true` but the token is still blocked.**
+The body was almost certainly sent flat (`{ "auto_suspended": false }`) instead
+of nested (`{ "request_pattern": { "auto_suspended": false } }`). Check the
+`updated_token.request_pattern.auto_suspended` field in the response body — if
+it is still `true`, resend with the correct nested form.
+
+**My token expiry date is months away — can it still be suspended?**
+Yes. Expiry and suspension are independent. A token with a future expiry date
+can still be suspended by the anomaly detector. Reinstating restores access
+regardless of the expiry date.
+
+**I got 403 when trying to reinstate via the API.**
+You can only reinstate your own tokens. If you need to reinstate a token
+belonging to another account, contact [support@airqo.net](mailto:support@airqo.net).
+
+**The smoke test returned 500, not 200 or 401.**
+A 500 from the gateway is usually a transient infrastructure issue. Wait a
+minute and retry. If it persists, contact support.
