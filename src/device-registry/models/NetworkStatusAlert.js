@@ -90,12 +90,17 @@ const networkStatusAlertSchema = new Schema(
     network_breakdown: [
       {
         network: { type: String },
-        total_monitors: { type: Number, default: 0 },
-        operational_count: { type: Number, default: 0 },
-        transmitting_count: { type: Number, default: 0 },
-        data_available_count: { type: Number, default: 0 },
-        not_transmitting_count: { type: Number, default: 0 },
-        not_transmitting_percentage: { type: Number, default: 0 },
+        total_monitors: { type: Number, default: 0, min: 0 },
+        operational_count: { type: Number, default: 0, min: 0 },
+        transmitting_count: { type: Number, default: 0, min: 0 },
+        data_available_count: { type: Number, default: 0, min: 0 },
+        not_transmitting_count: { type: Number, default: 0, min: 0 },
+        not_transmitting_percentage: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 100,
+        },
       },
     ],
     // Additional metadata for future analysis
@@ -263,13 +268,15 @@ networkStatusAlertSchema.statics = {
       const stringifiedMessage = JSON.stringify(error || "");
       logger.error(`🐛🐛 Internal Server Error -- ${stringifiedMessage}`);
 
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
     }
   },
 
@@ -341,15 +348,17 @@ networkStatusAlertSchema.statics = {
         { $sort: { avg_not_transmitting_percentage: -1 } },
       ];
 
-      return this.executeAggregation({ pipeline }, next);
+      return await this.executeAggregation({ pipeline }, next);
     } catch (error) {
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
     }
   },
 

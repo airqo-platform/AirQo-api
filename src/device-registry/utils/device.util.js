@@ -674,13 +674,15 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🪲🪲 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
       );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
     }
   },
   getDeviceById: async (req, next) => {
