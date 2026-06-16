@@ -71,6 +71,14 @@ if (isDevelopment()) {
       // the entire codebase to warn-level Slack noise.
       // Usage: const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- <job-name> -- ops-alerts`);
       "ops-alerts": { appenders: ["app"], level: "info" },
+
+      // Dedicated category for token security audit events:
+      //   - Ownership check failures on PATCH /tokens/:token (WARN)
+      //   - Successful changes to request_pattern or bypass_anomaly_detection (INFO)
+      // Sends INFO and above to Slack so every sensitive token action
+      // (including successful ones) is visible without affecting other loggers.
+      // Usage: const securityAuditLogger = log4js.getLogger("token-security-audit");
+      "token-security-audit": { appenders: ["app"], level: "info" },
     },
   };
 
@@ -100,9 +108,19 @@ if (isDevelopment()) {
         appender: "slack",
       };
 
+      // slackInfo — INFO and above. Used only by token-security-audit so every
+      // sensitive token operation (both failures and successful admin changes)
+      // reaches Slack without opening up INFO-level noise from other categories.
+      config.appenders.slackInfo = {
+        type: "logLevelFilter",
+        level: "INFO",
+        appender: "slack",
+      };
+
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
       config.categories["ops-alerts"].appenders.push("slackWarn");
+      config.categories["token-security-audit"].appenders.push("slackInfo");
 
       console.log(
         "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",
