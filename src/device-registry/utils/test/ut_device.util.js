@@ -130,6 +130,178 @@ describe("Device Util", () => {
       expect(error.message).to.equal("Internal Server Error");
     });
   });
+  describe("getDeviceCountSummaryByNetwork", () => {
+    let sandbox;
+    let aggregateStub;
+    let generateFilterStub;
+
+    // Mirrors the real DeviceModel(tenant).aggregate(pipeline).option(...).allowDiskUse(true) chain
+    const createAggregateChain = (result, error) => ({
+      option: sinon.stub().returns({
+        allowDiskUse: sinon
+          .stub()
+          .returns(error ? Promise.reject(error) : Promise.resolve(result)),
+      }),
+    });
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      const deviceModelMock = {
+        aggregate: sinon.stub(),
+      };
+      sandbox.stub(DeviceModel, "default").returns(deviceModelMock);
+      aggregateStub = deviceModelMock.aggregate;
+      generateFilterStub = sandbox.stub(generateFilter, "devices");
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should group results by network and compute percentages", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+
+      aggregateStub.returns(
+        createAggregateChain([
+          {
+            _id: "airqo",
+            total: 100,
+            operational: 70,
+            transmitting: 15,
+            data_available: 5,
+            not_transmitting: 10,
+          },
+          {
+            _id: "iqair",
+            total: 50,
+            operational: 20,
+            transmitting: 5,
+            data_available: 0,
+            not_transmitting: 25,
+          },
+        ]),
+      );
+
+      const result = await deviceUtil.getDeviceCountSummaryByNetwork(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.deep.equal([
+        {
+          network: "airqo",
+          total_monitors: 100,
+          operational_count: 70,
+          transmitting_count: 15,
+          data_available_count: 5,
+          not_transmitting_count: 10,
+          not_transmitting_percentage: 10,
+        },
+        {
+          network: "iqair",
+          total_monitors: 50,
+          operational_count: 20,
+          transmitting_count: 5,
+          data_available_count: 0,
+          not_transmitting_count: 25,
+          not_transmitting_percentage: 50,
+        },
+      ]);
+    });
+
+    it("should build the $group._id expression to fall back to 'unknown' for missing/empty network", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      aggregateStub.returns(createAggregateChain([]));
+
+      await deviceUtil.getDeviceCountSummaryByNetwork(request);
+
+      expect(aggregateStub.calledOnce).to.be.true;
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const groupStage = pipeline.find((stage) => stage.$group);
+      expect(groupStage.$group._id).to.deep.equal({
+        $ifNull: [{ $toLower: "$network" }, "unknown"],
+      });
+    });
+
+    it("should map an already-grouped 'unknown' bucket through to the output", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+
+      aggregateStub.returns(
+        createAggregateChain([
+          {
+            _id: "unknown",
+            total: 10,
+            operational: 0,
+            transmitting: 0,
+            data_available: 0,
+            not_transmitting: 10,
+          },
+        ]),
+      );
+
+      const result = await deviceUtil.getDeviceCountSummaryByNetwork(request);
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([
+        {
+          network: "unknown",
+          total_monitors: 10,
+          operational_count: 0,
+          transmitting_count: 0,
+          data_available_count: 0,
+          not_transmitting_count: 10,
+          not_transmitting_percentage: 100,
+        },
+      ]);
+    });
+
+    it("should return an empty array when no devices match the filter", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      aggregateStub.returns(createAggregateChain([]));
+
+      const result = await deviceUtil.getDeviceCountSummaryByNetwork(request);
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([]);
+    });
+
+    it("should call next with an HttpError when next is provided and aggregation fails", async () => {
+      const request = { query: { tenant: "airqo" } };
+      const next = sinon.spy();
+      generateFilterStub.returns({});
+      const dbError = new Error("Database connection failed");
+      aggregateStub.returns(createAggregateChain(null, dbError));
+
+      await deviceUtil.getDeviceCountSummaryByNetwork(request, next);
+
+      expect(next.calledOnce).to.be.true;
+      const error = next.firstCall.args[0];
+      expect(error).to.be.an.instanceOf(Error);
+      expect(error.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(error.message).to.equal("Internal Server Error");
+    });
+
+    it("should throw instead of crashing when next is not provided and aggregation fails", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      const dbError = new Error("Database connection failed");
+      aggregateStub.returns(createAggregateChain(null, dbError));
+
+      let thrown;
+      try {
+        await deviceUtil.getDeviceCountSummaryByNetwork(request);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.an.instanceOf(Error);
+      expect(thrown.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(thrown.message).to.equal("Internal Server Error");
+    });
+  });
   describe("createOnPlatform", () => {
     let deviceRegisterStub,
       cohortFindByIdStub,
