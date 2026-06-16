@@ -135,6 +135,15 @@ describe("Device Util", () => {
     let aggregateStub;
     let generateFilterStub;
 
+    // Mirrors the real DeviceModel(tenant).aggregate(pipeline).option(...).allowDiskUse(true) chain
+    const createAggregateChain = (result, error) => ({
+      option: sinon.stub().returns({
+        allowDiskUse: sinon
+          .stub()
+          .returns(error ? Promise.reject(error) : Promise.resolve(result)),
+      }),
+    });
+
     beforeEach(() => {
       sandbox = sinon.createSandbox();
       const deviceModelMock = {
@@ -153,24 +162,26 @@ describe("Device Util", () => {
       const request = { query: { tenant: "airqo" } };
       generateFilterStub.returns({});
 
-      aggregateStub.resolves([
-        {
-          _id: "airqo",
-          total: 100,
-          operational: 70,
-          transmitting: 15,
-          data_available: 5,
-          not_transmitting: 10,
-        },
-        {
-          _id: "iqair",
-          total: 50,
-          operational: 20,
-          transmitting: 5,
-          data_available: 0,
-          not_transmitting: 25,
-        },
-      ]);
+      aggregateStub.returns(
+        createAggregateChain([
+          {
+            _id: "airqo",
+            total: 100,
+            operational: 70,
+            transmitting: 15,
+            data_available: 5,
+            not_transmitting: 10,
+          },
+          {
+            _id: "iqair",
+            total: 50,
+            operational: 20,
+            transmitting: 5,
+            data_available: 0,
+            not_transmitting: 25,
+          },
+        ]),
+      );
 
       const result = await deviceUtil.getDeviceCountSummaryByNetwork(request);
 
@@ -198,20 +209,37 @@ describe("Device Util", () => {
       ]);
     });
 
-    it("should group devices with null/empty network under 'unknown'", async () => {
+    it("should build the $group._id expression to fall back to 'unknown' for missing/empty network", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      aggregateStub.returns(createAggregateChain([]));
+
+      await deviceUtil.getDeviceCountSummaryByNetwork(request);
+
+      expect(aggregateStub.calledOnce).to.be.true;
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const groupStage = pipeline.find((stage) => stage.$group);
+      expect(groupStage.$group._id).to.deep.equal({
+        $ifNull: [{ $toLower: "$network" }, "unknown"],
+      });
+    });
+
+    it("should map an already-grouped 'unknown' bucket through to the output", async () => {
       const request = { query: { tenant: "airqo" } };
       generateFilterStub.returns({});
 
-      aggregateStub.resolves([
-        {
-          _id: "unknown",
-          total: 10,
-          operational: 0,
-          transmitting: 0,
-          data_available: 0,
-          not_transmitting: 10,
-        },
-      ]);
+      aggregateStub.returns(
+        createAggregateChain([
+          {
+            _id: "unknown",
+            total: 10,
+            operational: 0,
+            transmitting: 0,
+            data_available: 0,
+            not_transmitting: 10,
+          },
+        ]),
+      );
 
       const result = await deviceUtil.getDeviceCountSummaryByNetwork(request);
 
@@ -232,7 +260,7 @@ describe("Device Util", () => {
     it("should return an empty array when no devices match the filter", async () => {
       const request = { query: { tenant: "airqo" } };
       generateFilterStub.returns({});
-      aggregateStub.resolves([]);
+      aggregateStub.returns(createAggregateChain([]));
 
       const result = await deviceUtil.getDeviceCountSummaryByNetwork(request);
 
@@ -245,14 +273,14 @@ describe("Device Util", () => {
       const next = sinon.spy();
       generateFilterStub.returns({});
       const dbError = new Error("Database connection failed");
-      aggregateStub.rejects(dbError);
+      aggregateStub.returns(createAggregateChain(null, dbError));
 
       await deviceUtil.getDeviceCountSummaryByNetwork(request, next);
 
       expect(next.calledOnce).to.be.true;
       const error = next.firstCall.args[0];
       expect(error).to.be.an.instanceOf(Error);
-      expect(error.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(error.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(error.message).to.equal("Internal Server Error");
     });
 
@@ -260,7 +288,7 @@ describe("Device Util", () => {
       const request = { query: { tenant: "airqo" } };
       generateFilterStub.returns({});
       const dbError = new Error("Database connection failed");
-      aggregateStub.rejects(dbError);
+      aggregateStub.returns(createAggregateChain(null, dbError));
 
       let thrown;
       try {
@@ -270,7 +298,7 @@ describe("Device Util", () => {
       }
 
       expect(thrown).to.be.an.instanceOf(Error);
-      expect(thrown.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(thrown.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(thrown.message).to.equal("Internal Server Error");
     });
   });
