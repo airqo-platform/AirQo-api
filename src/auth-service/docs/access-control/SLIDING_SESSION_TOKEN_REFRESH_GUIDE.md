@@ -101,13 +101,19 @@ if (response.statusCode >= 200 && response.statusCode < 300) {
 
 **JavaScript / TypeScript:**
 ```js
-// In your Axios response interceptor or fetch wrapper
-const newToken = response.headers['x-access-token'];
+// Axios response interceptor
+const newToken = response.headers['x-access-token'];        // Axios: plain object
 if (newToken) {
   const clean = newToken.replace(/^JWT\s+/i, '').trim();
   localStorage.setItem('authToken', clean);
-  // Update your HTTP client's default Authorization header
   apiClient.defaults.headers.common['Authorization'] = `JWT ${clean}`;
+}
+
+// Native fetch (response.headers is a Headers object — use .get())
+const newToken = response.headers.get('x-access-token');    // fetch: Headers API
+if (newToken) {
+  const clean = newToken.replace(/^JWT\s+/i, '').trim();
+  localStorage.setItem('authToken', clean);
 }
 ```
 
@@ -155,7 +161,12 @@ async function getValidToken() {
   const token = localStorage.getItem('authToken');
   if (!token) return null;
 
-  const payload = JSON.parse(atob(token.split('.')[1]));
+  // JWT payloads are base64url-encoded — normalise before decoding
+  const base64Url = token.split('.')[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/').padEnd(
+    Math.ceil(base64Url.length / 4) * 4, '='
+  );
+  const payload = JSON.parse(atob(base64));
   const isExpired = payload.exp * 1000 < Date.now();
 
   if (isExpired) {

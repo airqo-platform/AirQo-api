@@ -50,7 +50,7 @@ You have two options. Use whichever fits your workflow.
 ### Option B — API (for developers)
 
 If you prefer to reinstate programmatically, use your own AirQo JWT (obtained
-by logging in to the platform — see [Authentication →](../api/getting-started/authentication.md)).
+by logging in to the platform).
 
 **Step 1 — Reinstate the token**
 
