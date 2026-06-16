@@ -754,7 +754,7 @@ module.exports = {
     const reasonLine = suspensionReason
       ? `<p><strong>Reason detected:</strong> ${escapeHtml(suspensionReason)}</p>`
       : "";
-    const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/settings`;
+    const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/profile`;
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
