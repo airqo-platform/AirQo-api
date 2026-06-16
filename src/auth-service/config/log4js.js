@@ -123,7 +123,7 @@ if (isDevelopment()) {
       config.categories["token-security-audit"].appenders.push("slackInfo");
 
       console.log(
-        "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",
+        "✅ Slack appender configured successfully (ERROR+ → default/error, WARN+ → ops-alerts, INFO+ → token-security-audit)",
       );
     } catch (error) {
       console.error("❌ Failed to configure Slack appender:", error.message);

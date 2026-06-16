@@ -213,7 +213,7 @@ application resumes traffic. This disables all behavioural scoring permanently
 so the token cannot be auto-suspended again by rate spikes or UA changes.
 
 This field requires the caller's JWT email to be in `SUPER_ADMIN_EMAIL_ALLOWLIST`.
-A non-admin JWT receives 403 even if the rest of the PATCH body is valid.
+A non-admin JWT will have this field silently dropped — the PATCH still returns 200 if other fields are valid.
 
 ```bash
 curl -s -X PATCH \

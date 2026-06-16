@@ -1261,12 +1261,15 @@ const token = {
 
         if (!isEmpty(updatedToken)) {
           // Audit trail — log every sensitive field change with caller identity.
+          // Read from updatedToken (what Mongo persisted) not from update (the
+          // request payload), so the log reflects actual stored values after any
+          // Mongoose coercion or subdocument replacement.
           const auditFields = [];
           if (update.request_pattern !== undefined) {
-            auditFields.push(`request_pattern=${JSON.stringify(update.request_pattern)}`);
+            auditFields.push(`request_pattern=${JSON.stringify(updatedToken.request_pattern)}`);
           }
           if (update.bypass_anomaly_detection !== undefined) {
-            auditFields.push(`bypass_anomaly_detection=${update.bypass_anomaly_detection}`);
+            auditFields.push(`bypass_anomaly_detection=${updatedToken.bypass_anomaly_detection}`);
           }
           if (auditFields.length > 0) {
             securityAuditLogger.info(
