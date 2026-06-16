@@ -1,99 +1,70 @@
-# Sliding Session & Token Refresh Guide
+# Session Management & Token Refresh
 
-**Version:** 2.0 — Last updated: 2026-06-17
+**Version:** 3.0 — Last updated: 2026-06-17
 
 ## Who this is for
 
-Developers working on any AirQo client that makes authenticated API calls:
-
-| App | Stack | HTTP layer |
-|---|---|---|
-| `airqo-frontend/src/mobile` | Flutter | `http` package + `BaseRepository` |
-| `airqo-frontend/src/platform` | Next.js (TypeScript) | `ApiClient` (Axios) |
-| `airqo-frontend/src/vertex` | Next.js (TypeScript) | Axios (`createAxiosInstance`) |
-| `airqo-frontend/src/beacon` | Next.js (JavaScript) | native `fetch` |
+Developers building applications that authenticate users against the AirQo API
+using JWTs — whether a mobile app, a web dashboard, or a server-side integration.
 
 ---
 
-## How the backend keeps sessions alive
+## How sessions work
 
-The backend (`enhancedJWTAuth` middleware) implements a **three-window model**.
-Every authenticated request passes through all three checks in order:
+When a user logs in to AirQo, they receive a JWT that is valid for **24 hours**.
+The API is designed so that active users never have to log in again, even across
+multiple days — as long as your application correctly handles token renewal.
 
-```
-Client sends JWT
-  │
-  ├─ 1. Signature invalid?
-  │      → 401 "Invalid token: ..."
-  │
-  ├─ 2. exp + GRACE_PERIOD < now?
-  │      → 401 "Your session has expired. Please log in again."
-  │
-  ├─ 3. exp < now + REFRESH_WINDOW?   ← token is valid but nearing expiry
-  │      → issue replacement token silently
-  │        set response header:  X-Access-Token: JWT eyJ...
-  │        set response header:  Access-Control-Expose-Headers: X-Access-Token
-  │        request still succeeds with original token
-  │
-  └─ Proceed with request normally
-```
+The session lifetime is governed by three windows:
 
-### Timing configuration
-
-All values are env vars with these production defaults:
-
-| Env var | Default | Effect |
+| Window | Duration | What happens |
 |---|---|---|
-| `JWT_EXPIRES_IN_SECONDS` | **86 400** (24 h) | Lifetime of every issued JWT |
-| `JWT_REFRESH_WINDOW_SECONDS` | **900** (15 min) | Backend issues a new token on any response when the existing one expires within this window |
-| `JWT_GRACE_PERIOD_SECONDS` | **300** (5 min) | Expired tokens are still accepted for this long after `exp` |
-| `JWT_REFRESH_MAX_AGE_SECONDS` | **31 536 000** (1 yr) | Hard ceiling — no token survives longer than this regardless of activity |
+| **Token lifetime** | 24 hours | The JWT is valid for this long after issue |
+| **Refresh window** | Last 15 minutes of the token's life | The API silently issues a replacement token on any successful response |
+| **Grace period** | 5 minutes after expiry | Requests with an expired token are still accepted; no new token is issued |
+| **Hard ceiling** | 1 year of activity | No session survives longer than this regardless of renewal activity |
 
-> **What this means in practice:** a user who opens the app at least once every
-> 24 h will never be logged out — each visit extends the session by another 24 h
-> via the `X-Access-Token` sliding window. The 1-year ceiling prevents truly
-> stale sessions from surviving forever.
+**In practice:** a user who makes at least one API call every 24 hours will never
+be logged out. Each call within the refresh window extends the session by another
+24 hours automatically.
 
 ---
 
-## Two mechanisms, one goal
+## Two ways tokens are renewed
 
-The backend provides two independent paths for clients to stay authenticated.
-Both should be implemented; each covers a different failure mode.
+The API provides two independent renewal paths. Implementing both gives your
+application the smoothest possible session experience.
 
-### Mechanism 1 — Sliding session header (server-push)
+### 1. Sliding session — automatic renewal on every response
 
-On any **successful (2xx) response** where the token is within the 15-minute
-refresh window, the backend sets `X-Access-Token` in the response headers.
-The client must read this header and replace its stored token immediately.
+Whenever an authenticated request is made while the token is within its final
+15-minute window, the API includes a fresh token in the response:
 
-This is the primary keep-alive path for active users. It requires zero extra
-network calls.
-
-**API contract:**
 ```
-Response header (when token is nearing expiry):
+Response header:
   X-Access-Token: JWT eyJ...
   Access-Control-Expose-Headers: X-Access-Token
 ```
 
-The new token value already includes the `JWT ` scheme prefix. Strip it before
-storage; re-add it when constructing `Authorization` headers.
+Your application must read this header on every successful (2xx) response and
+replace the stored token immediately. This costs zero extra network calls.
 
-### Mechanism 2 — Explicit refresh endpoint (client-pull)
+The value already includes the `JWT ` prefix. Strip it before storage and
+re-add it when building your `Authorization` header.
 
-For cases where the client detects a locally expired token **before** making a
-request (e.g. on app resume after a long idle period), there is a dedicated
-refresh endpoint.
+### 2. Explicit refresh — on-demand renewal before a request
 
-**Request:**
+When your application detects that the stored token has already expired (e.g.
+the user re-opens the app after an overnight idle period), call the refresh
+endpoint **before** making the actual request:
+
 ```
-POST /api/v2/users/token/refresh
+POST https://api.airqo.net/api/v2/users/token/refresh
 Authorization: JWT <expired-or-expiring-token>
 Content-Type: application/json
 ```
 
-**Success response (200):**
+**Success (200):**
 ```json
 {
   "success": true,
@@ -102,167 +73,222 @@ Content-Type: application/json
 }
 ```
 
-**Failure response (401 or 4xx):** the token is beyond the grace period and
-cannot be recovered. The client must log the user out.
+Store the new token and use it for the request you were about to make.
 
-> Always use `Authorization: JWT <token>` — not `Authorization: Bearer <token>`.
-> The auth-service only recognises the `JWT` scheme.
+**Failure (401):** the token is too old to be renewed. The user must log in again.
+
+> Always send `Authorization: JWT <token>`. Using `Bearer` instead of `JWT`
+> will result in a 401 on every request.
 
 ---
 
-## The logout failure chain
+## What to implement
 
-When a user is unexpectedly logged out, the failure is almost always one step
-in this chain. Use this as a diagnostic checklist:
+### On every successful (2xx) API response
 
-```
-1. Client checks local token before request
-       │
-       ├─ Token not expired locally → skip to step 3
-       └─ Token expired locally → call POST /api/v2/users/token/refresh
-                                        │
-                                        ├─ 200 → store new token → proceed
-                                        └─ non-200 → fall back to stored token
-                                                            │
-2. Request is made with stored (expired) token
-       │
-3. Server checks token
-       │
-       ├─ exp + grace_period > now → server issues X-Access-Token silently → 200
-       └─ exp + grace_period < now → 401 "Your session has expired"
-                                            │
-4. Client handles 401
-       │
-       ├─ Retry with refreshed token (if not already retried) → back to step 3
-       └─ No retry / refresh failed → trigger logout
+Check for the `X-Access-Token` header. If present, save the new token and use
+it for all subsequent requests.
+
+**Flutter:**
+```dart
+if (response.statusCode >= 200 && response.statusCode < 300) {
+  final newToken = response.headers['x-access-token'];
+  if (newToken != null && newToken.isNotEmpty) {
+    await storage.write(key: 'auth_token', value: stripJwtPrefix(newToken));
+  }
+}
 ```
 
-The most common cause of unexpected logouts is the **client not reading and
-storing `X-Access-Token`** on 2xx responses. If the sliding session update is
-missed, the stored token is never extended and expires normally after 24 h.
+**JavaScript / TypeScript:**
+```js
+// Axios response interceptor
+const newToken = response.headers['x-access-token'];        // Axios: plain object
+if (newToken) {
+  const clean = newToken.replace(/^JWT\s+/i, '').trim();
+  localStorage.setItem('authToken', clean);
+  apiClient.defaults.headers.common['Authorization'] = `JWT ${clean}`;
+}
+
+// Native fetch (response.headers is a Headers object — use .get())
+const newToken = response.headers.get('x-access-token');    // fetch: Headers API
+if (newToken) {
+  const clean = newToken.replace(/^JWT\s+/i, '').trim();
+  localStorage.setItem('authToken', clean);
+}
+```
+
+### Before making a request when the stored token is expired
+
+Check the token expiry locally. If expired, call the refresh endpoint first.
+
+**Flutter:**
+```dart
+Future<String?> getValidToken() async {
+  final token = await storage.read(key: 'auth_token');
+  if (token == null) return null;
+
+  if (JwtDecoder.isExpired(token)) {
+    final refreshed = await refreshToken(token);
+    return refreshed; // null if refresh failed — let the 401 handle it
+  }
+
+  return token;
+}
+
+Future<String?> refreshToken(String expiredToken) async {
+  final response = await http.post(
+    Uri.parse('https://api.airqo.net/api/v2/users/token/refresh'),
+    headers: {
+      'Authorization': 'JWT $expiredToken',
+      'Content-Type': 'application/json',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final body = json.decode(response.body);
+    final newToken = body['token'] as String;
+    await storage.write(key: 'auth_token', value: newToken);
+    return newToken;
+  }
+
+  return null; // Token too old — user must log in again
+}
+```
+
+**JavaScript / TypeScript:**
+```js
+async function getValidToken() {
+  const token = localStorage.getItem('authToken');
+  if (!token) return null;
+
+  // JWT payloads are base64url-encoded — normalise before decoding
+  const base64Url = token.split('.')[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/').padEnd(
+    Math.ceil(base64Url.length / 4) * 4, '='
+  );
+  const payload = JSON.parse(atob(base64));
+  const isExpired = payload.exp * 1000 < Date.now();
+
+  if (isExpired) {
+    return await refreshToken(token);
+  }
+
+  return token;
+}
+
+async function refreshToken(expiredToken) {
+  try {
+    const response = await fetch(
+      'https://api.airqo.net/api/v2/users/token/refresh',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `JWT ${expiredToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (response.ok) {
+      const body = await response.json();
+      const newToken = body.token;
+      localStorage.setItem('authToken', newToken);
+      return newToken;
+    }
+  } catch (_) {}
+
+  return null; // Token too old — user must log in again
+}
+```
+
+### On 401 Unauthorized
+
+A 401 from a non-refresh endpoint means the token was rejected. Before logging
+the user out, try refreshing once:
+
+```js
+// In your error handler / interceptor
+if (response.status === 401 && !request._alreadyRetried) {
+  request._alreadyRetried = true;
+  const newToken = await refreshToken(getCurrentToken());
+  if (newToken) {
+    request.headers['Authorization'] = `JWT ${newToken}`;
+    return retryRequest(request); // retry original call
+  }
+}
+
+// Refresh failed or already retried — log out
+clearSession();
+redirectToLogin();
+```
 
 ---
 
-## Per-app implementation status and what to do
+## Why users get logged out unexpectedly
 
-### Mobile — `airqo-frontend/src/mobile`
+Unexpected logouts follow one predictable chain. Use this to identify where
+your implementation is breaking:
 
-**Status: both mechanisms implemented.**
+```
+1. App opens — stored token is checked
+   │
+   ├─ Not expired → proceed
+   └─ Expired → call POST /api/v2/users/token/refresh
+                    │
+                    ├─ 200 → store new token → proceed
+                    └─ non-200 → use expired token anyway (fallback)
+                                     │
+2. Request sent with expired token
+   │
+3. Server checks the token
+   │
+   ├─ Within 5-minute grace period → succeeds, may issue X-Access-Token
+   └─ Beyond grace period → 401 "Your session has expired"
+                                 │
+4. Client handles the 401
+   │
+   ├─ Tries refresh → retries original request → succeeds
+   └─ No retry / refresh also fails → logout
+```
 
-| Component | File | What it does |
-|---|---|---|
-| `AuthTokenStorage.saveTokenFromHeaders()` | `auth/services/auth_token_storage.dart` | Reads `x-access-token` on every 2xx response (Mechanism 1) |
-| `AuthHelper.refreshTokenIfNeeded()` / `_doRefresh()` | `auth/services/auth_helper.dart` | Calls `/api/v2/users/token/refresh` if local token is expired (Mechanism 2); serialises concurrent refresh calls |
-| `BaseRepository._getToken()` | `shared/repository/base_repository.dart` | Calls `refreshTokenIfNeeded()` before every request; falls back to stored token if refresh fails |
-| `BaseRepository._handleTokenRefresh()` | same | Calls `saveTokenFromHeaders()` on every 2xx |
-| `BaseRepository._isSessionRelated401()` | same | Distinguishes JWT 401s from API-key 401s before triggering logout |
-| `GlobalAuthManager.notifySessionExpired()` | `shared/repository/global_auth_manager.dart` | Fires `SessionExpired` event at most once per session; subsequent concurrent 401s are deduplicated |
-
-**If users are still being logged out:** the failure is almost certainly in
-`AuthHelper._doRefresh()`. Check whether `POST /api/v2/users/token/refresh`
-is returning 200 for your environment. If it returns non-200, the fallback
-path uses the stored expired token → 401 → logout.
-
----
-
-### Platform — `airqo-frontend/src/platform`
-
-**Status: Mechanism 2 implemented. Mechanism 1 (X-Access-Token) not read.**
-
-The `ApiClient` class in `shared/services/apiClient.ts` has:
-
-- **Request interceptor:** if the token expires within 2 minutes (`JWT_REFRESH_SKEW_MS = 120 000`), it calls `_refreshAuthToken()` → `POST /api/v2/users/token/refresh` before the request goes out.
-- **Response interceptor (401):** on a 401, retries the original request once with a freshly refreshed token (`_retry` guard prevents loops). Falls back to dispatching `auth:unauthorized` on the window if the retry also fails.
-- **Concurrent refresh queue:** a `_pendingQueue` ensures that multiple simultaneous requests all wait for one shared refresh instead of issuing duplicates.
-- **Custom events:** dispatches `auth:token-refreshed` (token updated) and `auth:unauthorized` (session terminated) on `window` — listen for these at the app root to drive UI state (e.g. redirect to login).
-
-**Missing: `X-Access-Token` is not read from 2xx responses.** The response
-interceptor handles performance tracking and error logging but does not call
-`saveTokenFromHeaders` or equivalent. Add reading of `response.headers['x-access-token']`
-in the success branch of the response interceptor to enable Mechanism 1.
-
-**Token format note:** tokens are normalised through `normalizeOAuthAccessToken()`
-before use. The `Authorization` header is always constructed as `JWT ${token}`.
-
----
-
-### Vertex — `airqo-frontend/src/vertex`
-
-**Status: neither mechanism fully implemented.**
-
-The `createAxiosInstance()` in `core/apis/axiosConfig.ts` has:
-
-- **Request interceptor:** reads `session.accessToken` from NextAuth and sets
-  `config.headers['Authorization'] = token`. The token value from NextAuth
-  may already include `JWT ` as a prefix — verify that the final header is
-  `Authorization: JWT eyJ...` and not `Authorization: JWT JWT eyJ...`.
-- **Response interceptor:** detects `x-access-token` in the response and logs
-  a warning: *"Received a refreshed auth token, but client-side update is not
-  implemented. The new token will be ignored."* — this is a known stub.
-- **On 401:** calls `clearSessionData()` and redirects to `/login?session_expired=true`.
-  There is no refresh attempt before logging out.
-
-**What needs to be added:**
-1. In the response interceptor success branch, store the `x-access-token` value
-   (Mechanism 1) — replacing the logged warning with actual storage.
-2. On 401, attempt `POST /api/v2/users/token/refresh` once before triggering
-   logout (Mechanism 2). Only redirect if the refresh also fails.
-
----
-
-### Beacon — `airqo-frontend/src/beacon`
-
-**Status: no session refresh mechanism.**
-
-Beacon uses native `fetch` calls in `lib/api.js` with `authService.getToken()`
-for the token. There is no interceptor layer, no `X-Access-Token` handling, and
-no explicit refresh call. Most internal routes are proxied through Next.js API
-routes (`/api/devices/...`), which may handle auth server-side.
-
-**What needs to be added depends on architecture:**
-- If Beacon proxies all AirQo API calls through its own Next.js API routes,
-  token refresh should be handled server-side in those route handlers, reading
-  `X-Access-Token` from the upstream AirQo API response and forwarding it to
-  the browser client.
-- If Beacon makes direct browser-to-API calls, a centralised fetch wrapper
-  (analogous to `BaseRepository` on mobile or `ApiClient` on platform) is
-  needed, implementing both mechanisms.
+**The most common cause** is not reading the `X-Access-Token` header on
+successful responses. If this header is ignored, the stored token is never
+extended and expires normally after 24 hours, logging out every user who has
+been active for more than a day without triggering a proactive refresh.
 
 ---
 
 ## Quick reference
 
-### Authorization header format
+### Authorization header
 
 ```
 Authorization: JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-Never use `Bearer`. The auth-service only accepts the `JWT` scheme.
+Use `JWT`, not `Bearer`.
 
-### Sliding session — what to read on every 2xx response
+### Sliding session header (read on every 2xx response)
 
 ```
 X-Access-Token: JWT eyJ...
 ```
 
-Strip the `JWT ` prefix before storing; prepend it again when constructing
-the `Authorization` header.
-
-### Explicit refresh endpoint
+### Refresh endpoint
 
 ```
-POST /api/v2/users/token/refresh
-Authorization: JWT <current-or-expired-token>
+POST https://api.airqo.net/api/v2/users/token/refresh
+Authorization: JWT <token>
 
-→ 200: { "success": true, "token": "eyJ...", "expiresIn": 86400 }
-→ 401: session cannot be recovered — log the user out
+200 → { "success": true, "token": "eyJ...", "expiresIn": 86400 }
+401 → session cannot be recovered — prompt login
 ```
 
-### On 401 from a non-refresh endpoint
+### On 401 from any other endpoint
 
-1. Was this a first attempt? → call `POST /api/v2/users/token/refresh`, then retry.
-2. Was this already a retry, or did the refresh also 401? → log the user out.
+1. Try `POST /api/v2/users/token/refresh` once
+2. On success, retry the original request with the new token
+3. On failure, clear the session and redirect to login
 
-Do not redirect to login on every 401 without attempting a refresh first —
-that is the primary cause of users being logged out prematurely.
+Never redirect to login immediately on a 401 without attempting a refresh —
+this is the most common cause of premature logouts.
