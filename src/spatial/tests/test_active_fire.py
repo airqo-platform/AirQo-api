@@ -102,7 +102,7 @@ def test_active_fire_view_returns_400_for_bad_day_range():
         response, status = ActiveFireView.get_africa_active_fires()
 
     assert status == 400
-    assert "day_range" in response.get_json()["error"]
+    assert response.get_json()["error"] == "Invalid request parameters."
 
 
 def test_active_fire_view_returns_400_for_bad_hours():
@@ -125,7 +125,7 @@ def test_active_fire_view_returns_503_without_firms_key():
         response, status = ActiveFireView.get_africa_active_fires()
 
     assert status == 503
-    assert "FIRMS_MAP_KEY" in response.get_json()["error"]
+    assert response.get_json()["error"] == "Service is temporarily unavailable."
 
 
 def test_active_fire_route_is_registered_on_existing_spatial_app():

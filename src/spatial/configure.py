@@ -47,9 +47,13 @@ class Config:
         "FIRMS_API_BASE_URL",
         "https://firms.modaps.eosdis.nasa.gov",
     )
-    FIRMS_REQUEST_TIMEOUT_SECONDS = int(
-        os.getenv("FIRMS_REQUEST_TIMEOUT_SECONDS", "30")
-    )
+   
+    _firms_timeout_seconds = os.getenv("FIRMS_REQUEST_TIMEOUT_SECONDS", "30")
+    try:
+        FIRMS_REQUEST_TIMEOUT_SECONDS = int(_firms_timeout_seconds)
+    except (ValueError, TypeError):
+        FIRMS_REQUEST_TIMEOUT_SECONDS = 30
+
     OVERPASS_API_URLS = os.getenv(
         "OVERPASS_API_URLS",
         ",".join(

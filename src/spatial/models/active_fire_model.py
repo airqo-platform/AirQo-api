@@ -94,8 +94,21 @@ class ActiveFireModel:
     ):
         self.map_key = map_key or Config.FIRMS_MAP_KEY
         self.base_url = (base_url or Config.FIRMS_API_BASE_URL).rstrip("/")
-        self.timeout_seconds = timeout_seconds or Config.FIRMS_REQUEST_TIMEOUT_SECONDS
-
+        resolved_timeout = (
+            timeout_seconds 
+            if timeout_seconds is not None 
+            else Config.FIRMS_REQUEST_TIMEOUT_SECONDS
+        )
+        try:
+            self.timeout_seconds = int(resolved_timeout)
+        except (ValueError, TypeError) as error:
+            raise ActiveFireConfigurationError(
+                "FIRMS timeout must be a positive integer."
+            ) from error 
+        if self.timeout_seconds <= 0:
+            raise ActiveFireConfigurationError(
+                "FIRMS timeout must be greater than zero."
+            )
     def fetch_africa_active_fires(
         self,
         source: str = DEFAULT_SOURCE,
@@ -128,9 +141,17 @@ class ActiveFireModel:
             and self._row_meets_confidence(row, min_confidence)
             and self._row_is_within_window(row, window_start, window_end)
         ]
+        def _sort_time(value):
+            try:
+                return f"{int(value):04d}"
+            except (ValueError, TypeError):
+                return ""
         fires = sorted(
             fires,
-            key=lambda item: item.get("acquisition_datetime") or "",
+            key=lambda item: (
+                item.get("acquisition_date") or "",
+                _sort_time(item.get("acquisition_time")),
+            ),
             reverse=True,
         )
         if limit is not None:
