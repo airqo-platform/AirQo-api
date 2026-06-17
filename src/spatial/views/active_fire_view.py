@@ -1,0 +1,49 @@
+"""HTTP view for active-fire outbreaks in Africa."""
+
+import logging
+
+from flask import jsonify, request
+
+from models.active_fire_model import (
+    ActiveFireConfigurationError,
+    ActiveFireModel,
+    ActiveFireUpstreamError,
+    ActiveFireValidationError,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+class ActiveFireView:
+    @staticmethod
+    def get_africa_active_fires():
+        try:
+            data = ActiveFireModel().fetch_africa_active_fires(
+                source=request.args.get("source", ActiveFireModel.DEFAULT_SOURCE),
+                day_range=request.args.get("day_range", 1),
+                date=request.args.get("date"),
+                min_confidence=request.args.get("min_confidence"),
+                limit=request.args.get("limit"),
+                hours=request.args.get("hours"),
+            )
+            return jsonify({"message": "Operation successful", "data": data}), 200
+        except ActiveFireValidationError as error:
+            logger.warning("Active fire request validation failed", exc_info=error)
+            return jsonify({"error": "Invalid request parameters."}), 400
+        except ActiveFireConfigurationError as error:
+            logger.warning("Active fire configuration error", exc_info=error)
+            return jsonify({"error": "Service is temporarily unavailable."}), 503
+        except ActiveFireUpstreamError as error:
+            logger.warning("Active fire upstream provider error", exc_info=error)
+            return jsonify({"error": "Failed to retrieve data from upstream service."}), 502
+        except Exception:
+            logger.exception("Failed to fetch Africa active fires")
+            return (
+                jsonify(
+                    {
+                        "error": "An internal error occurred while processing this request."
+                    }
+                ),
+                500,
+            )

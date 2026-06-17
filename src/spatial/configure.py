@@ -42,6 +42,22 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
+    FIRMS_API_BASE_URL = os.getenv(
+        "FIRMS_API_BASE_URL",
+        "https://firms.modaps.eosdis.nasa.gov",
+    )
+   
+    _firms_timeout_seconds = os.getenv("FIRMS_REQUEST_TIMEOUT_SECONDS", "30")
+    try:
+        FIRMS_REQUEST_TIMEOUT_SECONDS = int(_firms_timeout_seconds)
+    except (ValueError, TypeError):
+        FIRMS_REQUEST_TIMEOUT_SECONDS = 30
+    ACTIVE_FIRE_CACHE_TTL_SECONDS = os.getenv(
+        "ACTIVE_FIRE_CACHE_TTL_SECONDS",
+        "43200",
+    )
+
     OVERPASS_API_URLS = os.getenv(
         "OVERPASS_API_URLS",
         ",".join(
