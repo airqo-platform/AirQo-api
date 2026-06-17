@@ -650,7 +650,7 @@ describe("setGoogleAuth — redirect_after custom-scheme validation", () => {
     ANALYTICS_BASE_URL: "https://analytics.airqo.net",
     VERTEX_BASE_URL: "https://vertex.airqo.net",
     ALLOWED_REDIRECT_ORIGINS: "",
-    ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://",
+    ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://,dataflo://,analytics://",
     OAUTH_COOKIE_DOMAIN: "",
     ENVIRONMENT: "test",
   };
@@ -711,14 +711,20 @@ describe("setGoogleAuth — redirect_after custom-scheme validation", () => {
       expect(res.cookie.calledWith("_oauth_redirect_after", "beacon://home")).to.be.true;
     });
 
-    it("does not set the cookie for an unrecognised custom scheme (evil://hack)", () => {
-      req.query.redirect_after = "evil://hack";
+    it("sets the redirect cookie for dataflo://auth", () => {
+      req.query.redirect_after = "dataflo://auth";
       setGoogleAuth(req, res, next);
-      expect(res.cookie.called).to.be.false;
+      expect(res.cookie.calledWith("_oauth_redirect_after", "dataflo://auth")).to.be.true;
     });
 
-    it("does not set the cookie for a scheme not yet in the allowlist (dataflo://)", () => {
-      req.query.redirect_after = "dataflo://auth";
+    it("sets the redirect cookie for analytics://home", () => {
+      req.query.redirect_after = "analytics://home";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "analytics://home")).to.be.true;
+    });
+
+    it("does not set the cookie for an unrecognised custom scheme (evil://hack)", () => {
+      req.query.redirect_after = "evil://hack";
       setGoogleAuth(req, res, next);
       expect(res.cookie.called).to.be.false;
     });
