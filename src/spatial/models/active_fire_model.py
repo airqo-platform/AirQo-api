@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
+import logging
 import math
+import os
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -12,6 +16,14 @@ import requests
 from shapely.geometry import Point, Polygon
 
 from configure import Config
+
+try:
+    import redis
+except ImportError:  # pragma: no cover - redis is optional at runtime
+    redis = None
+
+
+logger = logging.getLogger(__name__)
 
 
 class ActiveFireError(Exception):
@@ -34,6 +46,8 @@ class ActiveFireModel:
     """Fetch and normalize active fire detections from NASA FIRMS."""
 
     AFRICA_BBOX = (-25.5, -35.0, 63.5, 38.5)
+    CACHE_KEY_PREFIX = "airqo:spatial:active_fires:firms:v2"
+    DEFAULT_CACHE_TTL_SECONDS = 12 * 60 * 60
     DEFAULT_SOURCE = "VIIRS_SNPP_NRT"
     SUPPORTED_SOURCES = {
         "MODIS_NRT",
@@ -91,6 +105,8 @@ class ActiveFireModel:
         map_key: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout_seconds: Optional[int] = None,
+        redis_client=None,
+        cache_ttl_seconds: Optional[int] = None,
     ):
         self.map_key = map_key or Config.FIRMS_MAP_KEY
         self.base_url = (base_url or Config.FIRMS_API_BASE_URL).rstrip("/")
@@ -109,6 +125,12 @@ class ActiveFireModel:
             raise ActiveFireConfigurationError(
                 "FIRMS timeout must be greater than zero."
             )
+
+        self.cache_ttl_seconds = self._resolve_cache_ttl(cache_ttl_seconds)
+        self.redis_client = (
+            redis_client if redis_client is not None else self._init_redis_client()
+        )
+
     def fetch_africa_active_fires(
         self,
         source: str = DEFAULT_SOURCE,
@@ -116,7 +138,7 @@ class ActiveFireModel:
         date: Optional[str] = None,
         min_confidence: Optional[str] = None,
         limit: Optional[int] = None,
-        hours: int = 12,
+        hours: Optional[int] = None,
         now: Optional[datetime] = None,
     ) -> Dict:
         source = self._validate_source(source)
@@ -124,16 +146,28 @@ class ActiveFireModel:
         date = self._validate_date(date)
         min_confidence = self._validate_min_confidence(min_confidence)
         limit = self._validate_limit(limit)
-        hours = self._validate_hours(hours)
         requested_day_range = day_range
-        day_range = max(day_range, math.ceil(hours / 24))
 
         if not self.map_key:
             raise ActiveFireConfigurationError("FIRMS_MAP_KEY is not configured.")
 
         window_end = self._normalize_now(now)
-        window_start = window_end - timedelta(hours=hours)
-        rows = self._fetch_firms_rows(source=source, day_range=day_range, date=date)
+        if hours in (None, ""):
+            query_date = date or window_end.date().isoformat()
+            window_start, window_end = self._date_window(query_date, window_end)
+            fetch_date = query_date
+            hours = None
+        else:
+            hours = self._validate_hours(hours)
+            day_range = max(day_range, math.ceil(hours / 24))
+            window_start = window_end - timedelta(hours=hours)
+            fetch_date = date
+
+        rows = self._fetch_firms_rows(
+            source=source,
+            day_range=day_range,
+            date=fetch_date,
+        )
         fires = [
             self._normalize_fire(row)
             for row in rows
@@ -165,7 +199,7 @@ class ActiveFireModel:
                 "area_coordinates": self._format_bbox(),
                 "day_range": day_range,
                 "requested_day_range": requested_day_range,
-                "date": date,
+                "date": fetch_date,
                 "hours": hours,
                 "window_start": window_start.isoformat(),
                 "window_end": window_end.isoformat(),
@@ -177,6 +211,11 @@ class ActiveFireModel:
         }
 
     def _fetch_firms_rows(self, source: str, day_range: int, date: Optional[str]) -> List[Dict[str, str]]:
+        cache_key = self._cache_key(source=source, day_range=day_range, date=date)
+        cached_rows = self._get_cached_rows(cache_key)
+        if cached_rows is not None:
+            return cached_rows
+
         url_parts = [
             self.base_url,
             "api",
@@ -199,10 +238,121 @@ class ActiveFireModel:
 
         content = response.text.strip()
         if not content:
-            return []
+            rows = []
+            self._set_cached_rows(cache_key, rows)
+            return rows
         if content.lower().startswith("invalid") or "error" in content[:100].lower():
             raise ActiveFireUpstreamError("FIRMS returned an error response.")
-        return list(csv.DictReader(StringIO(content)))
+        rows = list(csv.DictReader(StringIO(content)))
+        self._set_cached_rows(cache_key, rows)
+        return rows
+
+    @staticmethod
+    def _resolve_cache_ttl(cache_ttl_seconds: Optional[int]) -> int:
+        configured_ttl = (
+            cache_ttl_seconds
+            if cache_ttl_seconds is not None
+            else getattr(Config, "ACTIVE_FIRE_CACHE_TTL_SECONDS", None)
+        )
+        if configured_ttl is None:
+            configured_ttl = os.getenv(
+                "ACTIVE_FIRE_CACHE_TTL_SECONDS",
+                str(ActiveFireModel.DEFAULT_CACHE_TTL_SECONDS),
+            )
+        try:
+            ttl_seconds = int(configured_ttl)
+        except (TypeError, ValueError):
+            ttl_seconds = ActiveFireModel.DEFAULT_CACHE_TTL_SECONDS
+        return max(1, min(ttl_seconds, ActiveFireModel.DEFAULT_CACHE_TTL_SECONDS))
+
+    @staticmethod
+    def _init_redis_client():
+        if redis is None:
+            logger.info("Redis library not installed; active-fire caching is disabled.")
+            return None
+
+        redis_url = getattr(Config, "REDIS_URL", None) or os.getenv("REDIS_URL")
+        try:
+            if redis_url:
+                client = redis.from_url(redis_url, decode_responses=True)
+                client.ping()
+                return client
+
+            redis_host = getattr(Config, "REDIS_HOST", None) or os.getenv("REDIS_HOST")
+            redis_port = getattr(Config, "REDIS_PORT", None) or os.getenv("REDIS_PORT")
+            if redis_host and redis_port:
+                client = redis.Redis(
+                    host=redis_host,
+                    port=int(redis_port),
+                    db=int(getattr(Config, "REDIS_DB", None) or os.getenv("REDIS_DB", 0)),
+                    password=getattr(Config, "REDIS_PASSWORD", None) or os.getenv("REDIS_PASSWORD"),
+                    decode_responses=True,
+                )
+                client.ping()
+                return client
+        except Exception:
+            logger.warning("Redis connection failed; active-fire caching is disabled.")
+        return None
+
+    def _cache_key(self, source: str, day_range: int, date: Optional[str]) -> str:
+        payload = {
+            "base_url": self.base_url,
+            "bbox": self._format_bbox(),
+            "date": date,
+            "day_range": day_range,
+            "map_key": self._map_key_fingerprint(),
+            "source": source,
+        }
+        digest = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        return f"{self.CACHE_KEY_PREFIX}:{digest}"
+
+    def _map_key_fingerprint(self) -> Optional[str]:
+        if not self.map_key:
+            return None
+        return hashlib.sha256(self.map_key.encode("utf-8")).hexdigest()
+
+    def _get_cached_rows(self, cache_key: str) -> Optional[List[Dict[str, str]]]:
+        if not self.redis_client:
+            return None
+        try:
+            raw = self.redis_client.get(cache_key)
+            if not raw:
+                return None
+            payload = json.loads(raw)
+            rows = payload.get("rows")
+            if isinstance(rows, list):
+                return rows
+        except Exception:
+            logger.warning("Failed to read active-fire FIRMS cache.", exc_info=True)
+        return None
+
+    def _set_cached_rows(self, cache_key: str, rows: List[Dict[str, str]]) -> None:
+        if not self.redis_client:
+            return
+        payload = {
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+            "latest_acquisition_datetime": self._latest_acquisition_datetime(rows),
+            "rows": rows,
+        }
+        try:
+            self.redis_client.set(
+                cache_key,
+                json.dumps(payload),
+                ex=self.cache_ttl_seconds,
+            )
+        except Exception:
+            logger.warning("Failed to write active-fire FIRMS cache.", exc_info=True)
+
+    @classmethod
+    def _latest_acquisition_datetime(cls, rows: List[Dict[str, str]]) -> Optional[str]:
+        latest = None
+        for row in rows:
+            acquired_at = cls._parse_acquisition_datetime(row)
+            if acquired_at and (latest is None or acquired_at > latest):
+                latest = acquired_at
+        return latest.isoformat() if latest else None
 
     @classmethod
     def _row_is_in_africa(cls, row: Dict[str, str]) -> bool:
@@ -358,6 +508,13 @@ class ActiveFireModel:
         if now.tzinfo is None:
             return now.replace(tzinfo=timezone.utc)
         return now.astimezone(timezone.utc)
+
+    @staticmethod
+    def _date_window(date: str, now: datetime) -> Tuple[datetime, datetime]:
+        window_start = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if window_start.date() == now.date():
+            return window_start, now
+        return window_start, window_start + timedelta(days=1)
 
     @classmethod
     def _format_bbox(cls) -> str:

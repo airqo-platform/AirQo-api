@@ -25,12 +25,12 @@ class ActiveFireView:
                 date=request.args.get("date"),
                 min_confidence=request.args.get("min_confidence"),
                 limit=request.args.get("limit"),
-                hours=request.args.get("hours", 12),
+                hours=request.args.get("hours"),
             )
             return jsonify({"message": "Operation successful", "data": data}), 200
         except ActiveFireValidationError as error:
             logger.warning("Active fire request validation failed", exc_info=error)
-            return jsonify({"error": "Invalid request parameters."}), 400
+            return jsonify({"error": str(error)}), 400
         except ActiveFireConfigurationError as error:
             logger.warning("Active fire configuration error", exc_info=error)
             return jsonify({"error": "Service is temporarily unavailable."}), 503

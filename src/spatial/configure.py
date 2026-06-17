@@ -53,6 +53,10 @@ class Config:
         FIRMS_REQUEST_TIMEOUT_SECONDS = int(_firms_timeout_seconds)
     except (ValueError, TypeError):
         FIRMS_REQUEST_TIMEOUT_SECONDS = 30
+    ACTIVE_FIRE_CACHE_TTL_SECONDS = os.getenv(
+        "ACTIVE_FIRE_CACHE_TTL_SECONDS",
+        "43200",
+    )
 
     OVERPASS_API_URLS = os.getenv(
         "OVERPASS_API_URLS",
