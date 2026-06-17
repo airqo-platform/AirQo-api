@@ -102,7 +102,7 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
 
     const filter = generateFilter.grids(request);
-    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+    const reseponseFromListGrid = await GridModel(tenant).list({ filter }, next);
 
     const gridDetails = reseponseFromListGrid.data[0];
 
@@ -2646,12 +2646,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status
@@ -2729,12 +2730,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status
