@@ -163,6 +163,7 @@ QUERY_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 
 # URLS (ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 ANALYTICS_DEV_BASE_URL=http://localhost:5000
+ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA (Local)
 KAFKA_BOOTSTRAP_SERVERS_DEV=localhost:9092
@@ -209,6 +210,7 @@ QUERY_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 
 # URLS (ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 ANALYTICS_STAGING_BASE_URL=https://staging-analytics.airqo.net
+ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA
 KAFKA_BOOTSTRAP_SERVERS_STAGE=staging-kafka:9092
@@ -250,6 +252,7 @@ DB_NAME_PROD=auth_prod
 
 # URLS (MUST BE HTTPS - ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 ANALYTICS_PRODUCTION_BASE_URL=https://analytics.airqo.net
+ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA
 KAFKA_BOOTSTRAP_SERVERS_PROD=prod-kafka-1:9092,prod-kafka-2:9092,prod-kafka-3:9092

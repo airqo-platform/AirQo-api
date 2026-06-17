@@ -58,7 +58,25 @@ const ANALYTICS_ORIGIN = (() => {
 function validateRedirectUrl(raw) {
   if (!raw || typeof raw !== "string") return null;
   try {
-    const origin = new URL(raw).origin;
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // Custom-scheme deep links (e.g. vertex://) are allowed against an explicit
+      // prefix list instead of origin comparison.
+      const allowedPrefixes = (
+        constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://"
+      )
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const rawLower = raw.toLowerCase();
+      return allowedPrefixes.some((prefix) =>
+        rawLower.startsWith(prefix.toLowerCase())
+      )
+        ? raw
+        : null;
+    }
+    const origin = parsed.origin;
     const candidates = [
       constants.ANALYTICS_BASE_URL,
       constants.VERTEX_BASE_URL,
@@ -93,7 +111,16 @@ function resolveOAuthRedirectContext(req, res) {
   }
   if (req.session) delete req.session.oauthRedirectAfter;
   let redirectOrigin = null;
-  if (validatedUrl) { try { redirectOrigin = new URL(validatedUrl).origin; } catch {} }
+  if (validatedUrl) {
+    try {
+      const parsed = new URL(validatedUrl);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        redirectOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default analytics failure URL.
+    } catch {}
+  }
   let failureRedirectUrl;
   if (redirectOrigin && redirectOrigin !== ANALYTICS_ORIGIN) {
     failureRedirectUrl = `${redirectOrigin}/login?error=oauth_failed`;

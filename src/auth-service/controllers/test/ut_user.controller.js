@@ -1,4 +1,12 @@
 require("module-alias/register");
+
+// Prevent the Cloudinary config guard from aborting module load in test env.
+// Cloudinary is never used during tests; these values are dummies.
+process.env.CLOUD_NAME = process.env.CLOUD_NAME || "test-cloud";
+process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test-key";
+process.env.CLOUDINARY_API_SECRET =
+  process.env.CLOUDINARY_API_SECRET || "test-secret";
+
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
