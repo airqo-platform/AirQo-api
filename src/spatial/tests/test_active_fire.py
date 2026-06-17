@@ -1,0 +1,99 @@
+from pathlib import Path
+import sys
+from unittest.mock import Mock, patch
+
+from flask import Flask
+
+
+SPATIAL_ROOT = Path(__file__).resolve().parents[1]
+if str(SPATIAL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SPATIAL_ROOT))
+
+from models.active_fire_model import ActiveFireModel
+from app_factory import create_app
+from views.active_fire_view import ActiveFireView
+
+
+FIRMS_CSV = """latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+0.32,32.58,330.2,0.42,0.45,2026-06-17,1012,N,VIIRS,n,2.0NRT,290.1,12.4,D
+45.00,32.00,331.2,0.43,0.46,2026-06-17,1010,N,VIIRS,h,2.0NRT,291.1,16.4,D
+-18.90,47.52,335.0,0.44,0.47,2026-06-17,1008,N,VIIRS,h,2.0NRT,292.1,20.4,N
+"""
+
+
+def test_fetch_africa_active_fires_filters_non_africa_rows():
+    response = Mock()
+    response.text = FIRMS_CSV
+    response.raise_for_status.return_value = None
+
+    with patch("models.active_fire_model.requests.get", return_value=response) as get:
+        result = ActiveFireModel(
+            map_key="test-key",
+            base_url="https://firms.test",
+            timeout_seconds=5,
+        ).fetch_africa_active_fires(day_range=1)
+
+    assert result["count"] == 2
+    assert {fire["latitude"] for fire in result["fires"]} == {0.32, -18.9}
+    assert all(-35 <= fire["latitude"] <= 38.5 for fire in result["fires"])
+    get.assert_called_once()
+    assert "/api/area/csv/test-key/VIIRS_SNPP_NRT/-25.5,-35.0,63.5,38.5/1" in get.call_args[0][0]
+
+
+def test_fetch_africa_active_fires_applies_min_confidence_and_limit():
+    response = Mock()
+    response.text = FIRMS_CSV
+    response.raise_for_status.return_value = None
+
+    with patch("models.active_fire_model.requests.get", return_value=response):
+        result = ActiveFireModel(map_key="test-key").fetch_africa_active_fires(
+            min_confidence="high",
+            limit=1,
+        )
+
+    assert result["count"] == 1
+    assert result["fires"][0]["confidence"] == "h"
+
+
+def test_active_fire_view_returns_400_for_bad_day_range():
+    app = Flask(__name__)
+
+    with app.test_request_context("/?day_range=6"):
+        response, status = ActiveFireView.get_africa_active_fires()
+
+    assert status == 400
+    assert "day_range" in response.get_json()["error"]
+
+
+def test_active_fire_view_returns_503_without_firms_key():
+    app = Flask(__name__)
+
+    with app.test_request_context("/"), patch(
+        "models.active_fire_model.Config.FIRMS_MAP_KEY",
+        None,
+    ):
+        response, status = ActiveFireView.get_africa_active_fires()
+
+    assert status == 503
+    assert "FIRMS_MAP_KEY" in response.get_json()["error"]
+
+
+def test_active_fire_route_is_registered_on_existing_spatial_app():
+    app = create_app()
+
+    with patch.object(
+        ActiveFireModel,
+        "fetch_africa_active_fires",
+        return_value={
+            "source": "NASA FIRMS",
+            "product": "VIIRS_SNPP_NRT",
+            "scope": "Africa",
+            "query": {},
+            "count": 0,
+            "fires": [],
+        },
+    ):
+        response = app.test_client().get("/api/v2/spatial/active_fires/africa")
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["scope"] == "Africa"

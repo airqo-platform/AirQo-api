@@ -42,6 +42,14 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
+    FIRMS_API_BASE_URL = os.getenv(
+        "FIRMS_API_BASE_URL",
+        "https://firms.modaps.eosdis.nasa.gov",
+    )
+    FIRMS_REQUEST_TIMEOUT_SECONDS = int(
+        os.getenv("FIRMS_REQUEST_TIMEOUT_SECONDS", "30")
+    )
     OVERPASS_API_URLS = os.getenv(
         "OVERPASS_API_URLS",
         ",".join(

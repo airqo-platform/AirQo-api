@@ -38,6 +38,9 @@ REDIS_CACHE_TTL=3600
 MODEL_DIR_FILE=./models
 OSMNX_CACHE_MAX_FILES=100
 OSMNX_CACHE_MAX_AGE_HOURS=168
+FIRMS_MAP_KEY=your-free-nasa-firms-map-key
+FIRMS_API_BASE_URL=https://firms.modaps.eosdis.nasa.gov
+FIRMS_REQUEST_TIMEOUT_SECONDS=30
 ```
 
 ## Start the microservice
@@ -239,6 +242,7 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
 | `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
 | `/satellite_prediction` | POST | Predict PM2.5 using a Sentinel-2-compatible trained model. |
+| `/active_fires/africa` | GET | Return NASA FIRMS active fire detections filtered to Africa. |
 | `/heatmaps` | GET | Generate and return base64 PNG AQI heatmaps for all cities. |
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
 
@@ -492,6 +496,17 @@ Heatmaps:
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 ```
+
+Africa active fires:
+```bash
+curl "http://127.0.0.1:5000/api/v2/spatial/active_fires/africa?day_range=1&source=VIIRS_SNPP_NRT&min_confidence=nominal"
+```
+
+This endpoint uses NASA FIRMS and requires `FIRMS_MAP_KEY`. Optional query
+parameters are `source`, `day_range` (1-5), `date` (`YYYY-MM-DD`),
+`min_confidence`, and `limit`. The upstream FIRMS area query uses a rectangular
+Africa bounding box, then the API filters returned coordinates against an
+Africa-only geometry before responding.
 
 ## Notes and troubleshooting
 - `must_have_locations` must fall inside the supplied polygon for site selection.
