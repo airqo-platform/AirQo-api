@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime
+import math
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -102,26 +103,34 @@ class ActiveFireModel:
         date: Optional[str] = None,
         min_confidence: Optional[str] = None,
         limit: Optional[int] = None,
+        hours: int = 12,
+        now: Optional[datetime] = None,
     ) -> Dict:
         source = self._validate_source(source)
         day_range = self._validate_day_range(day_range)
         date = self._validate_date(date)
         min_confidence = self._validate_min_confidence(min_confidence)
         limit = self._validate_limit(limit)
+        hours = self._validate_hours(hours)
+        requested_day_range = day_range
+        day_range = max(day_range, math.ceil(hours / 24))
 
         if not self.map_key:
             raise ActiveFireConfigurationError("FIRMS_MAP_KEY is not configured.")
 
+        window_end = self._normalize_now(now)
+        window_start = window_end - timedelta(hours=hours)
         rows = self._fetch_firms_rows(source=source, day_range=day_range, date=date)
         fires = [
             self._normalize_fire(row)
             for row in rows
             if self._row_is_in_africa(row)
             and self._row_meets_confidence(row, min_confidence)
+            and self._row_is_within_window(row, window_start, window_end)
         ]
         fires = sorted(
             fires,
-            key=lambda item: (item.get("acquisition_date") or "", item.get("acquisition_time") or ""),
+            key=lambda item: item.get("acquisition_datetime") or "",
             reverse=True,
         )
         if limit is not None:
@@ -134,7 +143,11 @@ class ActiveFireModel:
             "query": {
                 "area_coordinates": self._format_bbox(),
                 "day_range": day_range,
+                "requested_day_range": requested_day_range,
                 "date": date,
+                "hours": hours,
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
                 "min_confidence": min_confidence,
                 "limit": limit,
             },
@@ -195,10 +208,23 @@ class ActiveFireModel:
         except ValueError:
             return False
 
+    @classmethod
+    def _row_is_within_window(
+        cls,
+        row: Dict[str, str],
+        window_start: datetime,
+        window_end: datetime,
+    ) -> bool:
+        acquired_at = cls._parse_acquisition_datetime(row)
+        if acquired_at is None:
+            return False
+        return window_start <= acquired_at <= window_end
+
     @staticmethod
     def _normalize_fire(row: Dict[str, str]) -> Dict:
         latitude = ActiveFireModel._to_float(row.get("latitude"))
         longitude = ActiveFireModel._to_float(row.get("longitude"))
+        acquired_at = ActiveFireModel._parse_acquisition_datetime(row)
         return {
             "latitude": latitude,
             "longitude": longitude,
@@ -207,6 +233,7 @@ class ActiveFireModel:
             "track": ActiveFireModel._to_float(row.get("track")),
             "acquisition_date": row.get("acq_date"),
             "acquisition_time": row.get("acq_time"),
+            "acquisition_datetime": acquired_at.isoformat() if acquired_at else None,
             "satellite": row.get("satellite"),
             "instrument": row.get("instrument"),
             "confidence": row.get("confidence"),
@@ -220,6 +247,18 @@ class ActiveFireModel:
     def _to_float(value):
         try:
             return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _parse_acquisition_datetime(row: Dict[str, str]) -> Optional[datetime]:
+        date = row.get("acq_date")
+        time = str(row.get("acq_time", "")).strip().zfill(4)
+        try:
+            return datetime.strptime(
+                f"{date} {time}",
+                "%Y-%m-%d %H%M",
+            ).replace(tzinfo=timezone.utc)
         except (TypeError, ValueError):
             return None
 
@@ -280,6 +319,24 @@ class ActiveFireModel:
         if limit < 1:
             raise ActiveFireValidationError("limit must be a positive integer.")
         return limit
+
+    @staticmethod
+    def _validate_hours(hours) -> int:
+        try:
+            hours = int(hours)
+        except (TypeError, ValueError):
+            raise ActiveFireValidationError("hours must be an integer from 1 to 120.")
+        if hours < 1 or hours > 120:
+            raise ActiveFireValidationError("hours must be between 1 and 120.")
+        return hours
+
+    @staticmethod
+    def _normalize_now(now: Optional[datetime]) -> datetime:
+        if now is None:
+            return datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            return now.replace(tzinfo=timezone.utc)
+        return now.astimezone(timezone.utc)
 
     @classmethod
     def _format_bbox(cls) -> str:

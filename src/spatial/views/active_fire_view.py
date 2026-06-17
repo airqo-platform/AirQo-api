@@ -25,6 +25,7 @@ class ActiveFireView:
                 date=request.args.get("date"),
                 min_confidence=request.args.get("min_confidence"),
                 limit=request.args.get("limit"),
+                hours=request.args.get("hours", 12),
             )
             return jsonify({"message": "Operation successful", "data": data}), 200
         except ActiveFireValidationError as error:

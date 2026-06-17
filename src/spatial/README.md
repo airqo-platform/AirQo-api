@@ -242,7 +242,7 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
 | `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
 | `/satellite_prediction` | POST | Predict PM2.5 using a Sentinel-2-compatible trained model. |
-| `/active_fires/africa` | GET | Return NASA FIRMS active fire detections filtered to Africa. |
+| `/active_fires/africa` | GET | Return NASA FIRMS active fire detections in Africa from the last 12 hours by default. |
 | `/heatmaps` | GET | Generate and return base64 PNG AQI heatmaps for all cities. |
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
 
@@ -499,14 +499,15 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 
 Africa active fires:
 ```bash
-curl "http://127.0.0.1:5000/api/v2/spatial/active_fires/africa?day_range=1&source=VIIRS_SNPP_NRT&min_confidence=nominal"
+curl "http://127.0.0.1:5000/api/v2/spatial/active_fires/africa?hours=12&source=VIIRS_SNPP_NRT&min_confidence=nominal"
 ```
 
 This endpoint uses NASA FIRMS and requires `FIRMS_MAP_KEY`. Optional query
-parameters are `source`, `day_range` (1-5), `date` (`YYYY-MM-DD`),
-`min_confidence`, and `limit`. The upstream FIRMS area query uses a rectangular
-Africa bounding box, then the API filters returned coordinates against an
-Africa-only geometry before responding.
+parameters are `source`, `hours` (1-120, default 12), `day_range` (1-5), `date`
+(`YYYY-MM-DD`), `min_confidence`, and `limit`. FIRMS area queries use whole-day
+ranges, so the API fetches enough days to cover the requested hour window, then
+filters detections by UTC acquisition time and Africa-only geometry before
+responding.
 
 ## Notes and troubleshooting
 - `must_have_locations` must fall inside the supplied polygon for site selection.

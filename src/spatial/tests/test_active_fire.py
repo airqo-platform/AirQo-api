@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 from flask import Flask
@@ -20,6 +21,14 @@ FIRMS_CSV = """latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satell
 -18.90,47.52,335.0,0.44,0.47,2026-06-17,1008,N,VIIRS,h,2.0NRT,292.1,20.4,N
 """
 
+FIRMS_WINDOW_CSV = """latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+0.32,32.58,330.2,0.42,0.45,2026-06-17,1012,N,VIIRS,n,2.0NRT,290.1,12.4,D
+0.35,32.59,331.2,0.43,0.46,2026-06-16,2159,N,VIIRS,h,2.0NRT,291.1,16.4,D
+-18.90,47.52,335.0,0.44,0.47,2026-06-16,2200,N,VIIRS,h,2.0NRT,292.1,20.4,N
+"""
+
+NOW = datetime(2026, 6, 17, 10, 12, tzinfo=timezone.utc)
+
 
 def test_fetch_africa_active_fires_filters_non_africa_rows():
     response = Mock()
@@ -31,7 +40,7 @@ def test_fetch_africa_active_fires_filters_non_africa_rows():
             map_key="test-key",
             base_url="https://firms.test",
             timeout_seconds=5,
-        ).fetch_africa_active_fires(day_range=1)
+        ).fetch_africa_active_fires(day_range=1, now=NOW)
 
     assert result["count"] == 2
     assert {fire["latitude"] for fire in result["fires"]} == {0.32, -18.9}
@@ -49,10 +58,41 @@ def test_fetch_africa_active_fires_applies_min_confidence_and_limit():
         result = ActiveFireModel(map_key="test-key").fetch_africa_active_fires(
             min_confidence="high",
             limit=1,
+            now=NOW,
         )
 
     assert result["count"] == 1
     assert result["fires"][0]["confidence"] == "h"
+
+
+def test_fetch_africa_active_fires_defaults_to_last_12_hours():
+    response = Mock()
+    response.text = FIRMS_WINDOW_CSV
+    response.raise_for_status.return_value = None
+
+    with patch("models.active_fire_model.requests.get", return_value=response):
+        result = ActiveFireModel(map_key="test-key").fetch_africa_active_fires(now=NOW)
+
+    assert result["query"]["hours"] == 12
+    assert result["query"]["window_start"] == "2026-06-16T22:12:00+00:00"
+    assert result["count"] == 1
+    assert result["fires"][0]["acquisition_datetime"] == "2026-06-17T10:12:00+00:00"
+
+
+def test_fetch_africa_active_fires_expands_day_range_for_hour_window():
+    response = Mock()
+    response.text = FIRMS_WINDOW_CSV
+    response.raise_for_status.return_value = None
+
+    with patch("models.active_fire_model.requests.get", return_value=response) as get:
+        result = ActiveFireModel(
+            map_key="test-key",
+            base_url="https://firms.test",
+        ).fetch_africa_active_fires(day_range=1, hours=36, now=NOW)
+
+    assert result["query"]["requested_day_range"] == 1
+    assert result["query"]["day_range"] == 2
+    assert "/api/area/csv/test-key/VIIRS_SNPP_NRT/-25.5,-35.0,63.5,38.5/2" in get.call_args[0][0]
 
 
 def test_active_fire_view_returns_400_for_bad_day_range():
@@ -63,6 +103,16 @@ def test_active_fire_view_returns_400_for_bad_day_range():
 
     assert status == 400
     assert "day_range" in response.get_json()["error"]
+
+
+def test_active_fire_view_returns_400_for_bad_hours():
+    app = Flask(__name__)
+
+    with app.test_request_context("/?hours=0"):
+        response, status = ActiveFireView.get_africa_active_fires()
+
+    assert status == 400
+    assert "hours" in response.get_json()["error"]
 
 
 def test_active_fire_view_returns_503_without_firms_key():
