@@ -243,7 +243,7 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
 | `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
 | `/satellite_prediction` | POST | Predict PM2.5 using a Sentinel-2-compatible trained model. |
-| `/active_fires/africa` | GET | Return NASA FIRMS active fire detections in Africa from the last 12 hours by default. |
+| `/active_fires/africa` | GET | Return NASA FIRMS active fire detections in Africa from the last 24 hours by default. |
 | `/heatmaps` | GET | Generate and return base64 PNG AQI heatmaps for all cities. |
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
 
