@@ -102,7 +102,22 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
 
     const filter = generateFilter.grids(request);
-    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+    // Pass a no-op so GridModel's catch block can call next() without throwing
+    // TypeError: next is not a function. getSitesFromGrid has its own catch that
+    // handles the resulting undefined return gracefully.
+    const reseponseFromListGrid = await GridModel(tenant).list(
+      { filter },
+      () => {},
+    );
+
+    if (!reseponseFromListGrid) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve grid data from database" },
+      };
+    }
 
     const gridDetails = reseponseFromListGrid.data[0];
 
@@ -2646,12 +2661,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status
@@ -2729,12 +2745,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status
