@@ -35,6 +35,8 @@ class FakeRedis:
     def __init__(self):
         self.store = {}
         self.ttl_by_key = {}
+    def ping(self):
+        return True
 
     def get(self, key):
         return self.store.get(key)

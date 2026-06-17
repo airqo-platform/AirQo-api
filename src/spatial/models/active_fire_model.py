@@ -496,7 +496,7 @@ class ActiveFireModel:
         try:
             hours = int(hours)
         except (TypeError, ValueError):
-            raise ActiveFireValidationError("hours must be an integer from 1 to 120.")
+            raise ActiveFireValidationError("hours must be an integer from 1 to 120.") from None
         if hours < 1 or hours > 120:
             raise ActiveFireValidationError("hours must be between 1 and 120.")
         return hours
