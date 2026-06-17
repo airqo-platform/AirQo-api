@@ -1187,8 +1187,10 @@ function isAllowedRedirect(url, allowedOrigins) {
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       // Custom schemes (e.g. vertex://) are checked against an explicit prefix
       // allowlist rather than by origin, since custom protocols have no web origin.
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const urlLower = url.toLowerCase();
       return ALLOWED_CUSTOM_SCHEME_PREFIXES.some((prefix) =>
-        url.startsWith(prefix)
+        urlLower.startsWith(prefix.toLowerCase())
       );
     }
     return allowedOrigins.has(parsed.origin);

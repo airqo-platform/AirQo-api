@@ -68,7 +68,11 @@ function validateRedirectUrl(raw) {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      return allowedPrefixes.some((prefix) => raw.startsWith(prefix))
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const rawLower = raw.toLowerCase();
+      return allowedPrefixes.some((prefix) =>
+        rawLower.startsWith(prefix.toLowerCase())
+      )
         ? raw
         : null;
     }

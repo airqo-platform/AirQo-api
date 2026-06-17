@@ -1,7 +1,16 @@
 require("module-alias/register");
+
+// Prevent the Cloudinary config guard from aborting module load in test env.
+// Cloudinary is never used during tests; these values are dummies.
+process.env.CLOUD_NAME = process.env.CLOUD_NAME || "test-cloud";
+process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test-key";
+process.env.CLOUDINARY_API_SECRET =
+  process.env.CLOUDINARY_API_SECRET || "test-secret";
+
 const { expect } = require("chai");
 const sinon = require("sinon");
 const proxyquire = require("proxyquire");
+const rewire = require("rewire");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 
@@ -619,6 +628,136 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       await enhancedJWTAuth(req, res, next);
 
       expect(loggerStub.error.called).to.be.true;
+    });
+  });
+});
+
+describe("setGoogleAuth — redirect_after custom-scheme validation", () => {
+  let setGoogleAuth;
+  let req, res, next;
+  let loggerStub;
+
+  const HttpError = class extends Error {
+    constructor(message, statusCode, errors) {
+      super(message);
+      this.statusCode = statusCode;
+      this.errors = errors;
+    }
+  };
+
+  const constantsStub = {
+    ...constants,
+    ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+    VERTEX_BASE_URL: "https://vertex.airqo.net",
+    ALLOWED_REDIRECT_ORIGINS: "",
+    ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://",
+    OAUTH_COOKIE_DOMAIN: "",
+    ENVIRONMENT: "test",
+  };
+
+  before(() => {
+    loggerStub = { warn: sinon.stub(), error: sinon.stub(), info: sinon.stub() };
+
+    const mod = proxyquire("@middleware/passport", {
+      "@models/User": sinon.stub(),
+      "@models/AccessToken": sinon.stub(),
+      "@models/Client": sinon.stub(),
+      "@models/Permission": sinon.stub(),
+      "@utils/common": {
+        winstonLogger: loggerStub,
+        mailer: {},
+        stringify: sinon.stub(),
+      },
+      "@services/atf.service": { AbstractTokenFactory: sinon.stub() },
+      "@utils/user.util": { _getEffectiveTokenStrategy: sinon.stub() },
+      "@utils/shared": {
+        HttpError,
+        logObject: sinon.stub(),
+        logText: sinon.stub(),
+        logElement: sinon.stub(),
+        extractErrorsFromRequest: sinon.stub().returns(null),
+      },
+      "@services/analytics.service": {},
+      "@config/passport-strategies": { configureStrategies: sinon.stub() },
+      "@config/constants": constantsStub,
+      jsonwebtoken: {
+        verify: sinon.stub(),
+        sign: sinon.stub(),
+        "@noCallThru": true,
+      },
+    });
+
+    setGoogleAuth = mod.setGoogleAuth;
+  });
+
+  beforeEach(() => {
+    req = { query: {}, session: {}, cookies: {} };
+    res = { clearCookie: sinon.stub(), cookie: sinon.stub() };
+    next = sinon.stub();
+  });
+
+  afterEach(() => sinon.restore());
+
+  describe("custom-scheme allowlist", () => {
+    it("sets the redirect cookie for an allowed custom scheme (vertex://login)", () => {
+      req.query.redirect_after = "vertex://login";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "vertex://login")).to.be.true;
+    });
+
+    it("sets the redirect cookie for a second allowed scheme (beacon://home)", () => {
+      req.query.redirect_after = "beacon://home";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "beacon://home")).to.be.true;
+    });
+
+    it("does not set the cookie for an unrecognised custom scheme (evil://hack)", () => {
+      req.query.redirect_after = "evil://hack";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
+    });
+
+    it("does not set the cookie for a scheme not yet in the allowlist (dataflo://)", () => {
+      req.query.redirect_after = "dataflo://auth";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
+    });
+  });
+
+  describe("case-insensitive scheme matching", () => {
+    it("sets the cookie for VERTEX://login (uppercase scheme)", () => {
+      req.query.redirect_after = "VERTEX://login";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "VERTEX://login")).to.be.true;
+    });
+
+    it("sets the cookie for Vertex://login (mixed-case scheme)", () => {
+      req.query.redirect_after = "Vertex://login";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "Vertex://login")).to.be.true;
+    });
+  });
+
+  describe("http/https origin checks are unaffected (regression guard)", () => {
+    it("sets the cookie for an allowed https origin", () => {
+      req.query.redirect_after = "https://analytics.airqo.net/dashboard";
+      setGoogleAuth(req, res, next);
+      expect(
+        res.cookie.calledWith("_oauth_redirect_after", "https://analytics.airqo.net/dashboard")
+      ).to.be.true;
+    });
+
+    it("does not set the cookie for an https URL not in the allowed origins", () => {
+      req.query.redirect_after = "https://evil.com/phish";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
+    });
+  });
+
+  describe("edge cases", () => {
+    it("does not set the cookie when redirect_after is absent", () => {
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
     });
   });
 });
