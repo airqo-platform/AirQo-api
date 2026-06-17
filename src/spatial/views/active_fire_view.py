@@ -28,11 +28,14 @@ class ActiveFireView:
             )
             return jsonify({"message": "Operation successful", "data": data}), 200
         except ActiveFireValidationError as error:
-            return jsonify({"error": str(error)}), 400
+            logger.warning("Active fire request validation failed", exc_info=error)
+            return jsonify({"error": "Invalid request parameters."}), 400
         except ActiveFireConfigurationError as error:
-            return jsonify({"error": str(error)}), 503
+            logger.warning("Active fire configuration error", exc_info=error)
+            return jsonify({"error": "Service is temporarily unavailable."}), 503
         except ActiveFireUpstreamError as error:
-            return jsonify({"error": str(error)}), 502
+            logger.warning("Active fire upstream provider error", exc_info=error)
+            return jsonify({"error": "Failed to retrieve data from upstream service."}), 502
         except Exception:
             logger.exception("Failed to fetch Africa active fires")
             return (
