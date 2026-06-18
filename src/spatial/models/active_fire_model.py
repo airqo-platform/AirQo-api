@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Dict, Iterable, List, Optional, Tuple
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import requests
 from shapely.geometry import Point, Polygon
@@ -109,7 +110,7 @@ class ActiveFireModel:
         cache_ttl_seconds: Optional[int] = None,
     ):
         self.map_key = map_key or Config.FIRMS_MAP_KEY
-        self.base_url = (base_url or Config.FIRMS_API_BASE_URL).rstrip("/")
+        self.base_url = self._sanitize_base_url(base_url or Config.FIRMS_API_BASE_URL)
         resolved_timeout = (
             timeout_seconds 
             if timeout_seconds is not None 
@@ -210,25 +211,72 @@ class ActiveFireModel:
             "fires": fires,
         }
 
-    def _fetch_firms_rows(self, source: str, day_range: int, date: Optional[str]) -> List[Dict[str, str]]:
-        cache_key = self._cache_key(source=source, day_range=day_range, date=date)
-        cached_rows = self._get_cached_rows(cache_key)
-        if cached_rows is not None:
-            return cached_rows
+    @staticmethod
+    def _sanitize_base_url(base_url: str) -> str:
+        candidate = (base_url or "").strip()
+        parsed = urlsplit(candidate)
+        if parsed.scheme.lower() != "https" or not parsed.netloc:
+            raise ActiveFireConfigurationError(
+                "FIRMS API base URL must be an absolute HTTPS URL."
+            )
+        return urlunsplit(
+            (
+                parsed.scheme.lower(),
+                parsed.netloc,
+                parsed.path.rstrip("/"),
+                "",
+                "",
+            )
+        )
 
-        url_parts = [
-            self.base_url,
+    def _build_firms_url(
+        self,
+        source: str,
+        day_range: int,
+        date: Optional[str],
+    ) -> str:
+        path_segments = [
             "api",
             "area",
             "csv",
             self.map_key,
             source,
             self._format_bbox(),
-            str(day_range),
+            day_range,
         ]
         if date:
-            url_parts.append(date)
-        url = "/".join(url_parts)
+            path_segments.append(date)
+
+        encoded_path = "/".join(
+            quote(str(segment), safe=",") for segment in path_segments
+        )
+        base = urlsplit(self.base_url)
+        base_path = base.path.rstrip("/")
+        full_path = f"{base_path}/{encoded_path}" if base_path else f"/{encoded_path}"
+        return urlunsplit((base.scheme, base.netloc, full_path, "", ""))
+
+    def _assert_allowed_firms_url(self, url: str) -> None:
+        configured = urlsplit(self.base_url)
+        candidate = urlsplit(url)
+        if (
+            candidate.scheme.lower() != configured.scheme.lower()
+            or candidate.netloc.lower() != configured.netloc.lower()
+        ):
+            raise ActiveFireUpstreamError("Resolved FIRMS URL is not allowed.")
+
+    def _fetch_firms_rows(
+        self,
+        source: str,
+        day_range: int,
+        date: Optional[str],
+    ) -> List[Dict[str, str]]:
+        cache_key = self._cache_key(source=source, day_range=day_range, date=date)
+        cached_rows = self._get_cached_rows(cache_key)
+        if cached_rows is not None:
+            return cached_rows
+
+        url = self._build_firms_url(source=source, day_range=day_range, date=date)
+        self._assert_allowed_firms_url(url)
 
         try:
             response = requests.get(url, timeout=self.timeout_seconds)
