@@ -49,7 +49,7 @@ class ActiveFireModel:
     AFRICA_BBOX = (-25.5, -35.0, 63.5, 38.5)
     CACHE_KEY_PREFIX = "airqo:spatial:active_fires:firms:v2"
     DEFAULT_CACHE_TTL_SECONDS = 12 * 60 * 60
-    DEFAULT_SOURCE = "VIIRS_SNPP_NRT"
+    DEFAULT_SOURCE = "VIIRS_NOAA20_NRT"
     SUPPORTED_SOURCES = {
         "MODIS_NRT",
         "MODIS_SP",
@@ -195,6 +195,11 @@ class ActiveFireModel:
         return {
             "source": "NASA FIRMS",
             "product": source,
+            "source_options": {
+                "available": sorted(self.SUPPORTED_SOURCES),
+                "selected": source,
+                "default": self.DEFAULT_SOURCE,
+            },
             "scope": "Africa",
             "query": {
                 "area_coordinates": self._format_bbox(),
