@@ -500,7 +500,7 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 
 Africa active fires:
 ```bash
-curl "http://127.0.0.1:5000/api/v2/spatial/active_fires/africa?source=VIIRS_SNPP_NRT&min_confidence=nominal"
+curl "http://127.0.0.1:5000/api/v2/spatial/active_fires/africa?source=VIIRS_NOAA20_NRT&min_confidence=nominal"
 ```
 
 This endpoint uses NASA FIRMS and requires `FIRMS_MAP_KEY`. Optional query
@@ -512,6 +512,29 @@ Results are filtered by UTC acquisition time and Africa-only geometry before
 responding. Raw FIRMS rows are cached in Redis for up to 12 hours by default
 using `ACTIVE_FIRE_CACHE_TTL_SECONDS`; if Redis is unavailable, the endpoint
 falls back to direct FIRMS requests.
+
+The response advertises the valid FIRMS products and the product used for the
+current request:
+
+```json
+{
+  "source": "NASA FIRMS",
+  "product": "VIIRS_NOAA20_NRT",
+  "source_options": {
+    "available": [
+      "MODIS_NRT",
+      "MODIS_SP",
+      "VIIRS_NOAA20_NRT",
+      "VIIRS_NOAA20_SP",
+      "VIIRS_NOAA21_NRT",
+      "VIIRS_SNPP_NRT",
+      "VIIRS_SNPP_SP"
+    ],
+    "selected": "VIIRS_NOAA20_NRT",
+    "default": "VIIRS_NOAA20_NRT"
+  }
+}
+```
 
 ## Notes and troubleshooting
 - `must_have_locations` must fall inside the supplied polygon for site selection.

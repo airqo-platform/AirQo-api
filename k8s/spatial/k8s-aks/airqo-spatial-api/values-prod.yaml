@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-spatial-api
-  tag: prod-cd8c6be1-1781201320
+  tag: prod-b7ad10db-1781760414
 resources:
   limits:
     cpu: 200m
