@@ -60,10 +60,23 @@ def test_fetch_africa_active_fires_filters_non_africa_rows():
         ).fetch_africa_active_fires(day_range=1, now=NOW)
 
     assert result["count"] == 2
+    assert result["source_options"] == {
+        "available": [
+            "MODIS_NRT",
+            "MODIS_SP",
+            "VIIRS_NOAA20_NRT",
+            "VIIRS_NOAA20_SP",
+            "VIIRS_NOAA21_NRT",
+            "VIIRS_SNPP_NRT",
+            "VIIRS_SNPP_SP",
+        ],
+        "selected": "VIIRS_NOAA20_NRT",
+        "default": "VIIRS_NOAA20_NRT",
+    }
     assert {fire["latitude"] for fire in result["fires"]} == {0.32, -18.9}
     assert all(-35 <= fire["latitude"] <= 38.5 for fire in result["fires"])
     get.assert_called_once()
-    assert "/api/area/csv/test-key/VIIRS_SNPP_NRT/-25.5,-35.0,63.5,38.5/1" in get.call_args[0][0]
+    assert "/api/area/csv/test-key/VIIRS_NOAA20_NRT/-25.5,-35.0,63.5,38.5/1" in get.call_args[0][0]
 
 
 def test_fetch_africa_active_fires_applies_min_confidence_and_limit():
@@ -85,6 +98,26 @@ def test_fetch_africa_active_fires_applies_min_confidence_and_limit():
     assert result["fires"][0]["confidence"] == "h"
 
 
+def test_fetch_africa_active_fires_reports_requested_source_as_selected():
+    response = Mock()
+    response.text = FIRMS_CSV
+    response.raise_for_status.return_value = None
+
+    with patch("models.active_fire_model.requests.get", return_value=response):
+        result = ActiveFireModel(
+            map_key="test-key",
+            redis_client=False,
+        ).fetch_africa_active_fires(
+            source="MODIS_NRT",
+            now=NOW,
+        )
+
+    assert result["product"] == "MODIS_NRT"
+    assert result["source_options"]["selected"] == "MODIS_NRT"
+    assert result["source_options"]["default"] == "VIIRS_NOAA20_NRT"
+    assert "MODIS_NRT" in result["source_options"]["available"]
+
+
 def test_fetch_africa_active_fires_defaults_to_today():
     response = Mock()
     response.text = FIRMS_WINDOW_CSV
@@ -103,7 +136,7 @@ def test_fetch_africa_active_fires_defaults_to_today():
     assert result["query"]["window_end"] == "2026-06-17T10:12:00+00:00"
     assert result["count"] == 1
     assert result["fires"][0]["acquisition_datetime"] == "2026-06-17T10:12:00+00:00"
-    assert "/api/area/csv/test-key/VIIRS_SNPP_NRT/-25.5,-35.0,63.5,38.5/1/2026-06-17" in get.call_args[0][0]
+    assert "/api/area/csv/test-key/VIIRS_NOAA20_NRT/-25.5,-35.0,63.5,38.5/1/2026-06-17" in get.call_args[0][0]
 
 
 def test_fetch_africa_active_fires_supports_explicit_rolling_hours():
@@ -137,7 +170,7 @@ def test_fetch_africa_active_fires_expands_day_range_for_hour_window():
 
     assert result["query"]["requested_day_range"] == 1
     assert result["query"]["day_range"] == 2
-    assert "/api/area/csv/test-key/VIIRS_SNPP_NRT/-25.5,-35.0,63.5,38.5/2" in get.call_args[0][0]
+    assert "/api/area/csv/test-key/VIIRS_NOAA20_NRT/-25.5,-35.0,63.5,38.5/2" in get.call_args[0][0]
 
 
 def test_fetch_africa_active_fires_uses_cached_firms_rows():
@@ -227,7 +260,7 @@ def test_active_fire_route_is_registered_on_existing_spatial_app():
         "fetch_africa_active_fires",
         return_value={
             "source": "NASA FIRMS",
-            "product": "VIIRS_SNPP_NRT",
+            "product": "VIIRS_NOAA20_NRT",
             "scope": "Africa",
             "query": {},
             "count": 0,
