@@ -297,6 +297,8 @@ async def sync_sites(db: Session, token: str) -> Dict[str, Any]:
                 if dev_is_new:
                     devices_backfilled += 1
 
+            db.flush()
+
             existing_rows = (
                 db.query(SyncSiteDevice)
                 .filter(SyncSiteDevice.site_id == site_id)

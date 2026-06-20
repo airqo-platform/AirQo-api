@@ -188,6 +188,7 @@ def _upsert_single_grid(
 
     grid_field_changed = _apply_grid_scalars(db_grid, grid_data)
     desired, backfilled = _build_desired_sites(db, grid_data.get("sites", []))
+    db.flush()
     junction_changed = _sync_grid_junctions(db, grid_id, desired)
 
     if is_new:
