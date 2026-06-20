@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const createSiteUtil = require("@utils/site.util");
 const Decimal = require("decimal.js");
+const { validateNetwork } = require("@validators/common");
 
 const countDecimalPlaces = (value) => {
   try {
@@ -320,6 +321,17 @@ const validateMandatorySiteIdentifier = oneOf([
 const validateCreateSite = [
   createCoordinateValidation("latitude", { isQuery: false }),
   createCoordinateValidation("longitude", { isQuery: false }),
+  body("network")
+    .exists()
+    .withMessage("network is missing in your request")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("network cannot be empty")
+    .bail()
+    .toLowerCase()
+    .custom(validateNetwork)
+    .withMessage("the network value is not among the expected ones"),
   body("name")
     .exists()
     .withMessage("the name is is missing in your request")
@@ -373,6 +385,12 @@ const validateSiteMetadata = [
 
 const validateUpdateSite = [
   createTenantValidation({ isOptional: true }),
+  body("network")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update network. The network field is set at site creation and cannot be changed.",
+    ),
   body("name")
     .optional()
     .notEmpty()

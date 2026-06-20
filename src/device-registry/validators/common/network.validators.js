@@ -29,4 +29,4 @@ const validateNetwork = async (value, { req }) => {
   }
 };
 
-module.exports = { validateNetwork };
+module.exports = { validateNetwork, validNetworks };

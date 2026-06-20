@@ -1209,9 +1209,11 @@ siteSchema.statics = {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
 
+      const sanitizedUpdate = sanitizeObject({ ...update }, ["network", "_id"]);
+
       let updatedSite = await this.findOneAndUpdate(
         filter,
-        update,
+        sanitizedUpdate,
         options,
       ).exec();
 

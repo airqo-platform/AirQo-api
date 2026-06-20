@@ -1805,7 +1805,7 @@ deviceSchema.statics = {
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
-      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      const invalidKeys = ["name", "_id", "writeKey", "readKey", "network"];
       // Lifecycle fields may only be written by activity functions (deploy /
       // recall / maintain).  Block them here unless the caller explicitly opts
       // in via opts.allowLifecycleFields — activity callers set this flag.
