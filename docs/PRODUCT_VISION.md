@@ -1,6 +1,6 @@
 # AirQo Digital Products — Value Expansion & Developer Platform Roadmap
 
-> **Audience:** All AirQo software engineers  
+> **Audience:** All AirQo software engineers and anyone involved in the development, promotion, or growth of AirQo's digital product suite  
 > **Purpose:** Shared framework for how each product should evolve to serve broader IoT markets and become reusable developer foundations  
 > **Date:** June 2026
 
@@ -113,7 +113,7 @@ The pitches below are deliberately technology-agnostic. The goal is to lead with
 
 ### 2.6 AirQo AI Platform (ai.airqo.net) — Environmental Intelligence Suite
 
-> **Naming note:** The product was previously referred to internally as "Predict" due to its origins as a forecasting service. Its scope has since expanded significantly. The current working name is **AirQo AI Platform**, which better reflects what the product actually does. If a further rename is considered, the replacement should still communicate breadth of intelligence (not just forecasting) and be distinct enough to stand alone.
+> **Naming note:** Like the Analytics Platform, the **AirQo AI Platform** name is currently under review with the goal of finding something more distinctive that communicates the full breadth of intelligence capabilities it provides, rather than being associated with any single feature. Engineers should avoid baking the current name into hard-to-change places (URLs, API namespaces, package names) until the review concludes.
 
 **The 30-second pitch**
 
