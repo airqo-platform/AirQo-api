@@ -1,6 +1,6 @@
 # AirQo Digital Products — Value Expansion & Developer Platform Roadmap
 
-> **Audience:** All AirQo software engineers  
+> **Audience:** All AirQo software engineers and anyone involved in the development, promotion, or growth of AirQo's digital product suite  
 > **Purpose:** Shared framework for how each product should evolve to serve broader IoT markets and become reusable developer foundations  
 > **Date:** June 2026
 
