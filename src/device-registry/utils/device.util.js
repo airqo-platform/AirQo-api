@@ -3368,7 +3368,7 @@ const deviceUtil = {
 
   getMyDevices: async (request, next) => {
     try {
-      const { user_id, cohort_ids, group_ids } = request.query;
+      const { user_id, cohort_ids, group_ids, status } = request.query;
       const { tenant } = request.query;
       const skip = request.query.skip || 0;
       const limit = request.query.limit || 30;
@@ -3439,6 +3439,18 @@ const deviceUtil = {
 
       if (allCohortIds.length > 0) {
         filter.$or.push({ cohorts: { $in: allCohortIds } });
+      }
+
+      // 4. Apply optional status filter (isOnline + rawOnlineStatus combination)
+      const STATUS_FILTER_MAP = {
+        operational: { isOnline: true, rawOnlineStatus: true },
+        transmitting: { isOnline: false, rawOnlineStatus: true },
+        not_transmitting: { isOnline: false, rawOnlineStatus: false },
+        data_available: { isOnline: true, rawOnlineStatus: false },
+      };
+
+      if (status && STATUS_FILTER_MAP[status]) {
+        Object.assign(filter, STATUS_FILTER_MAP[status]);
       }
 
       const [total, rawDevices] = await Promise.all([
