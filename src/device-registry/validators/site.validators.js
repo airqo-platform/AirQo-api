@@ -322,12 +322,10 @@ const validateCreateSite = [
   createCoordinateValidation("latitude", { isQuery: false }),
   createCoordinateValidation("longitude", { isQuery: false }),
   body("network")
-    .exists()
-    .withMessage("network is missing in your request")
-    .bail()
+    .optional()
     .trim()
     .notEmpty()
-    .withMessage("network cannot be empty")
+    .withMessage("network cannot be empty if provided")
     .bail()
     .toLowerCase()
     .custom(validateNetwork)
