@@ -1,4 +1,4 @@
-const { validateNetwork } = require("./network.validators");
+const { validateNetwork, validNetworks } = require("./network.validators");
 const { validateAdminLevels } = require("./admin-levels.validators");
 const headers = require("./headers.validators");
 const pagination = require("./pagination.validators");
@@ -13,6 +13,7 @@ const {
 
 module.exports = {
   validateNetwork,
+  validNetworks,
   validateAndFixPolygon,
   ensureClosedRing,
   validateCoordinates,

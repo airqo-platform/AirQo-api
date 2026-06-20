@@ -3,6 +3,7 @@ const iot = require("@google-cloud/iot");
 const client = new iot.v1.DeviceManagerClient();
 const createDeviceUtil = require("@utils/device.util");
 const { distance } = require("@utils/common");
+const { validNetworks } = require("@validators/common");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -1492,6 +1493,19 @@ const deviceController = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const tenant = isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
       const { network_override, cohort_id, user_id } = req.body;
+
+      if (network_override) {
+        const normalizedOverride = String(network_override).trim().toLowerCase();
+        const knownNetworks = await validNetworks(tenant);
+        if (!knownNetworks.includes(normalizedOverride)) {
+          next(
+            new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
+              message: `Invalid network_override "${network_override}". Valid networks are: ${knownNetworks.join(", ")}`,
+            }),
+          );
+          return;
+        }
+      }
 
       let devices;
 

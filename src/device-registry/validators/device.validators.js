@@ -487,6 +487,12 @@ const validateCreateDevice = [
 ];
 
 const validateUpdateDevice = [
+  body("network")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update network. The network field is set at device creation and cannot be changed.",
+    ),
   body("mobility")
     .not()
     .exists()
