@@ -1209,7 +1209,14 @@ siteSchema.statics = {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
 
-      const sanitizedUpdate = sanitizeObject({ ...update }, ["network", "_id"]);
+      const PROTECTED = ["network", "_id"];
+      const sanitizedUpdate = sanitizeObject({ ...update }, PROTECTED);
+      const UPDATE_OPERATORS = ["$set", "$unset", "$setOnInsert", "$rename"];
+      for (const op of UPDATE_OPERATORS) {
+        if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+          PROTECTED.forEach((f) => delete sanitizedUpdate[op][f]);
+        }
+      }
 
       let updatedSite = await this.findOneAndUpdate(
         filter,
