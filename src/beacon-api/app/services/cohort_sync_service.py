@@ -202,6 +202,7 @@ def _upsert_single_cohort(
 
     cohort_field_changed = _apply_cohort_scalars(db_cohort, cohort_data)
     desired, backfilled = _build_desired_devices(db, cohort_data.get("devices", []))
+    db.flush()
     junction_changed = _sync_cohort_junctions(db, cohort_id, desired)
 
     if is_new:

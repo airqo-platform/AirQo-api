@@ -541,7 +541,7 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
     for cohort in cohorts:
         inlab = _is_inlab_cohort(cohort)
         for device in cohort.get("devices", []):
-            if inlab or device.get("isActive") is True:
+            if True: # inlab or device.get("isActive") is True:
                 name = device.get("name")
                 # Default to lowcost if category is missing
                 cat = device.get("category", "lowcost")
@@ -620,7 +620,7 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
         cohort_device_metrics = {}
         for dev in cohort.get("devices", []):
             d_name = dev.get("name")
-            if inlab or dev.get("isActive") is True:
+            if True: # inlab or dev.get("isActive") is True:
                 dev_raw = device_raw_data.get(d_name, [])
                 if include_device_data:
                     # Add raw data to device level
@@ -655,7 +655,7 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
         
         for dev in cohort.get("devices", []):
             d_name = dev.get("name")
-            if inlab or dev.get("isActive") is True:
+            if True: # inlab or dev.get("isActive") is True:
                 dev_raw = device_raw_data.get(d_name, [])
                 for record in dev_raw:
                     dt = record.get("datetime")
@@ -1030,7 +1030,7 @@ def _collect_active_device_names(cohorts: List[Dict[str, Any]]) -> Set[str]:
     for cohort in cohorts:
         inlab = _is_inlab_cohort(cohort)
         for dev in cohort.get("devices", []):
-            if (inlab or dev.get("isActive") is True) and dev.get("name"):
+            if dev.get("name"): # (inlab or dev.get("isActive") is True) and dev.get("name"):
                 names.add(dev["name"])
     return names
 
@@ -1089,7 +1089,7 @@ def _enrich_cohort_devices(
 
     for dev in cohort.get("devices", []):
         d_name = dev.get("name")
-        if not (inlab or dev.get("isActive") is True) or not d_name:
+        if not d_name: # not (inlab or dev.get("isActive") is True) or not d_name:
             continue
 
         dev["data"] = mapped_by_device.get(d_name, [])
@@ -1133,7 +1133,7 @@ def _build_series_map(
         lambda: defaultdict(list)
     )
     for dev in cohort.get("devices", []):
-        if not (inlab or dev.get("isActive") is True):
+        if False: # not (inlab or dev.get("isActive") is True):
             continue
         for rec in dev.get("data", []) or []:
             _accumulate_record_into_series(rec, series_map)
