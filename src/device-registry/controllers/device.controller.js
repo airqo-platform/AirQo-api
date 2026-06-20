@@ -1495,8 +1495,9 @@ const deviceController = {
       const { network_override, cohort_id, user_id } = req.body;
 
       if (network_override) {
+        const normalizedOverride = String(network_override).trim().toLowerCase();
         const knownNetworks = await validNetworks(tenant);
-        if (!knownNetworks.includes(network_override.toLowerCase())) {
+        if (!knownNetworks.includes(normalizedOverride)) {
           next(
             new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
               message: `Invalid network_override "${network_override}". Valid networks are: ${knownNetworks.join(", ")}`,
