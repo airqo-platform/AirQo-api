@@ -1805,7 +1805,7 @@ deviceSchema.statics = {
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
-      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      const invalidKeys = ["name", "_id", "writeKey", "readKey", "network"];
       // Lifecycle fields may only be written by activity functions (deploy /
       // recall / maintain).  Block them here unless the caller explicitly opts
       // in via opts.allowLifecycleFields — activity callers set this flag.
@@ -1814,16 +1814,18 @@ deviceSchema.statics = {
       }
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
-      // Also strip lifecycle fields nested inside Mongo update operators so a
+      // Also strip protected fields nested inside Mongo update operators so a
       // payload like { $set: { status: "deployed" } } cannot bypass the guard.
-      if (!opts.allowLifecycleFields) {
-        const UPDATE_OPERATORS = [
-          "$set", "$unset", "$setOnInsert", "$rename",
-          "$inc", "$mul", "$min", "$max",
-          "$push", "$pull", "$addToSet", "$pullAll", "$bit",
-        ];
-        for (const op of UPDATE_OPERATORS) {
-          if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+      const ALWAYS_PROTECTED = ["network", ...invalidKeys];
+      const UPDATE_OPERATORS = [
+        "$set", "$unset", "$setOnInsert", "$rename",
+        "$inc", "$mul", "$min", "$max",
+        "$push", "$pull", "$addToSet", "$pullAll", "$bit",
+      ];
+      for (const op of UPDATE_OPERATORS) {
+        if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+          ALWAYS_PROTECTED.forEach((f) => delete sanitizedUpdate[op][f]);
+          if (!opts.allowLifecycleFields) {
             constants.LIFECYCLE_FIELDS.forEach((f) => delete sanitizedUpdate[op][f]);
           }
         }
