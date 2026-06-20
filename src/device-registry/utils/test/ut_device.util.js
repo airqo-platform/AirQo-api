@@ -3256,5 +3256,73 @@ describe("Device Util", () => {
       expect(projection).to.include("isOnline");
       expect(projection).to.include("rawOnlineStatus");
     });
+
+    describe("status filter", () => {
+      const STATUS_CASES = [
+        {
+          status: "transmitting",
+          expected: { isOnline: false, rawOnlineStatus: true },
+        },
+        {
+          status: "data_available",
+          expected: { isOnline: true, rawOnlineStatus: false },
+        },
+        {
+          status: "operational",
+          expected: { isOnline: true, rawOnlineStatus: true },
+        },
+        {
+          status: "not_transmitting",
+          expected: { isOnline: false, rawOnlineStatus: false },
+        },
+      ];
+
+      STATUS_CASES.forEach(({ status, expected }) => {
+        it(`should add ${JSON.stringify(expected)} to the filter when status=${status}`, async () => {
+          const request = {
+            query: { tenant: "airqo", user_id: VALID_USER_ID, status },
+          };
+          await deviceUtil.getMyDevices(request, () => {});
+
+          const filter = deviceCountStub.firstCall.args[0];
+          expect(filter.isOnline).to.equal(expected.isOnline);
+          expect(filter.rawOnlineStatus).to.equal(expected.rawOnlineStatus);
+        });
+
+        it(`should preserve the $or ownership filter alongside the status filter when status=${status}`, async () => {
+          const request = {
+            query: { tenant: "airqo", user_id: VALID_USER_ID, status },
+          };
+          await deviceUtil.getMyDevices(request, () => {});
+
+          const filter = deviceCountStub.firstCall.args[0];
+          expect(filter).to.have.property("$or");
+          expect(filter.$or).to.be.an("array").with.length.greaterThan(0);
+          expect(filter.$or[0]).to.have.property("owner_id");
+        });
+      });
+
+      it("should not add isOnline or rawOnlineStatus to the filter when status is absent", async () => {
+        const request = {
+          query: { tenant: "airqo", user_id: VALID_USER_ID },
+        };
+        await deviceUtil.getMyDevices(request, () => {});
+
+        const filter = deviceCountStub.firstCall.args[0];
+        expect(filter).to.not.have.property("isOnline");
+        expect(filter).to.not.have.property("rawOnlineStatus");
+      });
+
+      it("should not add isOnline or rawOnlineStatus to the filter when status is unrecognised", async () => {
+        const request = {
+          query: { tenant: "airqo", user_id: VALID_USER_ID, status: "unknown_status" },
+        };
+        await deviceUtil.getMyDevices(request, () => {});
+
+        const filter = deviceCountStub.firstCall.args[0];
+        expect(filter).to.not.have.property("isOnline");
+        expect(filter).to.not.have.property("rawOnlineStatus");
+      });
+    });
   });
 });
