@@ -1265,6 +1265,14 @@ const validateGetMyDevices = [
     .withMessage("organization_id must be a valid MongoDB ObjectId")
     .bail()
     .customSanitizer((value) => ObjectId(value)),
+
+  query("status")
+    .optional()
+    .trim()
+    .isIn(["operational", "transmitting", "not_transmitting", "data_available"])
+    .withMessage(
+      "status must be one of: operational, transmitting, not_transmitting, data_available"
+    ),
 ];
 
 const validateDeviceAvailability = [
