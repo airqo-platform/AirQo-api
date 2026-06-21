@@ -15,6 +15,8 @@ const CompromisedTokenLogSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+CompromisedTokenLogSchema.index({ tokenHash: 1, timestamp: -1 });
+
 CompromisedTokenLogSchema.statics = {
   async logCompromise(details) {
     try {
