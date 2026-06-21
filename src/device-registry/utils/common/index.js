@@ -31,6 +31,19 @@ const LogThrottleManager = require("./log-throttle-manager.util");
 
 const { getSchedule } = require("./cron-schedule.util");
 
+const computeTransmissionStatus = (device) => {
+  const { isOnline, rawOnlineStatus, lastActive } = device;
+  if (lastActive) {
+    const date = new Date(lastActive);
+    if (isNaN(date.getTime())) return "Invalid Date";
+    if (date > new Date(Date.now() + 5 * 60 * 1000)) return "Invalid Date";
+  }
+  if (rawOnlineStatus === true && isOnline === true) return "Operational";
+  if (rawOnlineStatus === true && isOnline !== true) return "Transmitting";
+  if (rawOnlineStatus !== true && isOnline === true) return "Data Available";
+  return "Not Transmitting";
+};
+
 module.exports = {
   getSchedule,
   LogThrottleManager,
@@ -60,4 +73,5 @@ module.exports = {
   monthsFromNow,
   generateFilter,
   handleResponse,
+  computeTransmissionStatus,
 };

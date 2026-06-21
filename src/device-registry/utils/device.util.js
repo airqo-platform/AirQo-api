@@ -14,6 +14,7 @@ const {
   generateFilter,
   claimTokenUtil,
   ActivityLogger,
+  computeTransmissionStatus,
 } = require("@utils/common");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
@@ -1872,10 +1873,15 @@ const deviceUtil = {
         }
       }
 
+      const enrichedResults = paginatedResults.map((device) => ({
+        ...device,
+        transmissionStatus: computeTransmissionStatus(device),
+      }));
+
       return {
         success: true,
         message: "successfully retrieved the device details",
-        data: paginatedResults,
+        data: enrichedResults,
         status: httpStatus.OK,
         meta,
       };
@@ -3458,7 +3464,7 @@ const deviceUtil = {
         DeviceModel(tenant)
           .find(filter)
           .select(
-            "name long_name status isActive isOnline rawOnlineStatus deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
+            "name long_name status isActive isOnline rawOnlineStatus lastActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
           )
           .sort({ claimed_at: -1 })
           .skip(skip)
@@ -3485,6 +3491,7 @@ const deviceUtil = {
       const devices = (rawDevices || []).map(({ site_id, ...dev }) => ({
         ...dev,
         site: site_id ? siteMap.get(site_id.toString()) || null : null,
+        transmissionStatus: computeTransmissionStatus(dev),
       }));
 
       return {

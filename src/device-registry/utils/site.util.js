@@ -15,7 +15,12 @@ const client = new Client({});
 const axiosInstance = () => {
   return axios.create();
 };
-const { generateFilter, stringify, distance } = require("@utils/common");
+const {
+  generateFilter,
+  stringify,
+  distance,
+  computeTransmissionStatus,
+} = require("@utils/common");
 const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- site-util`,
@@ -2417,21 +2422,6 @@ const createSite = {
       return;
     }
   },
-};
-
-const computeTransmissionStatus = (site) => {
-  const { isOnline, rawOnlineStatus, lastActive } = site;
-
-  if (lastActive) {
-    const date = new Date(lastActive);
-    if (isNaN(date.getTime())) return "Invalid Date";
-    if (date > new Date(Date.now() + 5 * 60 * 1000)) return "Invalid Date";
-  }
-
-  if (rawOnlineStatus === true && isOnline === true) return "Operational";
-  if (rawOnlineStatus === true && isOnline !== true) return "Transmitting";
-  if (rawOnlineStatus !== true && isOnline === true) return "Data Available";
-  return "Not Transmitting";
 };
 
 const getMySites = async (request, next) => {
