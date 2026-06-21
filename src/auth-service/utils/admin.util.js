@@ -1313,6 +1313,100 @@ const admin = {
       );
     }
   },
+  createIndex: async (request, next) => {
+    try {
+      const { collectionName, indexSpec, indexOptions = {}, secret, confirm } =
+        request.body;
+      const { tenant } = request.query;
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      if (!collectionName || !indexSpec) {
+        return {
+          success: false,
+          message: "collectionName and indexSpec are required in the request body",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (
+        typeof collectionName !== "string" ||
+        !collectionName.trim() ||
+        typeof indexSpec !== "object" ||
+        Array.isArray(indexSpec) ||
+        Object.keys(indexSpec).length === 0
+      ) {
+        return {
+          success: false,
+          message:
+            "collectionName must be a non-empty string and indexSpec must be a non-empty object",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (process.env.NODE_ENV === "production" && confirm !== "CREATE_INDEX") {
+        return {
+          success: false,
+          message:
+            "Operation requires confirm=CREATE_INDEX in production",
+          status: httpStatus.FORBIDDEN,
+        };
+      }
+
+      const tenantDbConnection = UserModel(tenant).db;
+      if (!tenantDbConnection) {
+        throw new Error(
+          `Could not get database connection for tenant: ${tenant}`
+        );
+      }
+      const db = tenantDbConnection.db;
+      const collections = await db.listCollections().toArray();
+      const collectionExists = collections.some(
+        (c) => c.name === collectionName
+      );
+
+      if (!collectionExists) {
+        return {
+          success: false,
+          message: `Collection '${collectionName}' not found.`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const collection = db.collection(collectionName);
+
+      logger.info(
+        `[DB INDEX CREATE] tenant=${tenant} collection=${collectionName} spec=${JSON.stringify(indexSpec)} options=${JSON.stringify(indexOptions)} actor=${
+          request.user?.email || request.user?._id
+        }`
+      );
+
+      const indexName = await collection.createIndex(indexSpec, indexOptions);
+
+      return {
+        success: true,
+        message: `Successfully created index '${indexName}' on collection '${collectionName}'.`,
+        status: httpStatus.OK,
+        data: { indexName },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Error creating index: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getDocs: async (request, next) => {
     try {
       const docsData = {
