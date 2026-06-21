@@ -848,10 +848,12 @@ const isIPBlacklistedHelper = async (
             try {
               const threshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
               const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-              const recentCount = await CompromisedTokenLogModel("airqo").countDocuments({
-                tokenHash,
-                timestamp: { $gte: since },
-              });
+              const recentCount = (
+                await CompromisedTokenLogModel("airqo").distinct("ip", {
+                  tokenHash,
+                  timestamp: { $gte: since },
+                })
+              ).length;
               if (recentCount < threshold) return;
 
               const suspensionReason =
@@ -1054,7 +1056,7 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
       prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
         { token: rawToken },
         { $set: updates },
-        { lean: true }
+        { new: false, lean: true }
       );
     }
 
