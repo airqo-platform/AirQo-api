@@ -840,6 +840,65 @@ const isIPBlacklistedHelper = async (
           logger.info(
             `Logged compromised token for daily summary. User: ${email}, IP: ${ip}`,
           );
+
+          // Auto-suspend if this token has exceeded the high-compromise threshold.
+          // Uses MongoDB countDocuments — no Redis dependency. Fire-and-forget; never
+          // blocks the IP verdict returned to the current request.
+          Promise.resolve().then(async () => {
+            try {
+              const threshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
+              const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+              const recentCount = await CompromisedTokenLogModel("airqo").countDocuments({
+                tokenHash,
+                timestamp: { $gte: since },
+              });
+              if (recentCount < threshold) return;
+
+              const suspensionReason =
+                `High compromise activity: ${recentCount} unique IP events in 24 hours — token likely exposed in a public-facing application`;
+              const suspendedAt = new Date();
+
+              // Atomic update filtered on auto_suspended: {$ne: true} ensures exactly
+              // one suspension + email even under concurrent requests — the DB write
+              // itself acts as the dedup gate with no Redis or separate TTL document.
+              const prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
+                { token, "request_pattern.auto_suspended": { $ne: true } },
+                {
+                  $set: {
+                    "request_pattern.auto_suspended": true,
+                    "request_pattern.suspension_reason": suspensionReason,
+                    "request_pattern.suspended_at": suspendedAt,
+                  },
+                },
+                { lean: true }
+              );
+              if (!prevDoc) return; // already suspended — no duplicate email
+
+              await mailer
+                .autoSuspendedToken({
+                  email,
+                  firstName: firstName || "",
+                  lastName: lastName || "",
+                  token,
+                  tokenName: listTokenResponse.data[0].name || "",
+                  suspensionReason,
+                  suspendedAt,
+                })
+                .catch((e) =>
+                  logger.error(
+                    `Non-critical: high-compromise suspension email failed: ${e.message}`
+                  )
+                );
+
+              logger.warn(
+                `🚨 Token auto-suspended (high compromise activity) — suffix=...${token.slice(-4)} events=${recentCount}`
+              );
+            } catch (e) {
+              logger.error(
+                `Non-critical: high-compromise suspension check failed: ${e.message}`
+              );
+            }
+          });
         }
       } catch (error) {
         logger.error(
@@ -984,66 +1043,65 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
         logger.warn(
           `🚫 Token auto-suspended by anomaly detector — client=${accessToken.client_id} score=${newScore} reason="${suspensionReason}"`
         );
-
-        // Send one email per token per 24 hours.
-        // Two-layer dedup:
-        //   1. Redis key `autosusp:mail:{tokenHash}` (24-hr TTL) — per-token gate,
-        //      prevents spam when the same token triggers multiple suspensions.
-        //   2. mailer.autoSuspendedToken cooldownDays:1 — per-user-email gate,
-        //      prevents flooding a user who has many tokens suspend simultaneously.
-        // Fire-and-forget — never blocks the DB write below.
-        Promise.resolve().then(async () => {
-          try {
-            const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-            const mailGateKey = `autosusp:mail:${tokenHash}`;
-            const alreadySent = await redisGetAsync(mailGateKey).catch(() => null);
-            if (alreadySent) return; // email already sent for this token today
-
-            // Fetch user details needed for the email.
-            const client = await ClientModel("airqo")
-              .findById(accessToken.client_id)
-              .select("user_id")
-              .lean();
-            if (!client || !client.user_id) return;
-
-            const user = await UserModel("airqo")
-              .findById(client.user_id)
-              .select("email firstName lastName")
-              .lean();
-            if (!user || !user.email) return;
-
-            const emailResponse = await mailer.autoSuspendedToken({
-              email:             user.email,
-              firstName:         user.firstName || "",
-              lastName:          user.lastName  || "",
-              token:             rawToken,
-              tokenName:         accessToken.name || "",
-              suspensionReason:  suspensionReason || "",
-              suspendedAt,
-            });
-
-            if (emailResponse && emailResponse.success !== false) {
-              // Set 24-hour Redis gate so this token does not trigger another
-              // email until the user has had time to act.
-              await redisSetAsync(mailGateKey, "1", 86400).catch(() => {});
-              logger.info(
-                `Auto-suspension email sent — user=${user.email} client=${accessToken.client_id}`
-              );
-            }
-          } catch (mailErr) {
-            logger.error(
-              `Non-critical: auto-suspension email failed for client=${accessToken.client_id}: ${mailErr.message}`
-            );
-          }
-        });
       }
     }
 
+    // Perform the DB write first so the pre-update document (prevDoc) can act as the
+    // dedup gate: if prevDoc shows auto_suspended was already true, someone else already
+    // handled this suspension and we skip the email. No Redis key needed.
+    let prevDoc = null;
     if (Object.keys(updates).length > 0) {
-      await AccessTokenModel("airqo").findOneAndUpdate(
+      prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
         { token: rawToken },
-        { $set: updates }
+        { $set: updates },
+        { lean: true }
       );
+    }
+
+    // Send the suspension email only if this call was the one to flip auto_suspended.
+    if (
+      updates["request_pattern.auto_suspended"] &&
+      prevDoc &&
+      !prevDoc.request_pattern?.auto_suspended
+    ) {
+      const suspensionReasonForEmail = updates["request_pattern.suspension_reason"];
+      const suspendedAtForEmail      = updates["request_pattern.suspended_at"];
+      // Fire-and-forget — never blocks the verify path.
+      Promise.resolve().then(async () => {
+        try {
+          const client = await ClientModel("airqo")
+            .findById(accessToken.client_id)
+            .select("user_id")
+            .lean();
+          if (!client || !client.user_id) return;
+
+          const user = await UserModel("airqo")
+            .findById(client.user_id)
+            .select("email firstName lastName")
+            .lean();
+          if (!user || !user.email) return;
+
+          const emailResponse = await mailer.autoSuspendedToken({
+            email:             user.email,
+            firstName:         user.firstName || "",
+            lastName:          user.lastName  || "",
+            token:             rawToken,
+            tokenName:         accessToken.name || "",
+            suspensionReason:  suspensionReasonForEmail || "",
+            suspendedAt:       suspendedAtForEmail,
+          });
+
+          if (emailResponse && emailResponse.success !== false) {
+            logger.info(
+              `Auto-suspension email sent — user=${user.email} client=${accessToken.client_id}`
+            );
+          }
+        } catch (mailErr) {
+          logger.error(
+            `Non-critical: auto-suspension email failed for client=${accessToken.client_id}: ${mailErr.message}`
+          );
+        }
+      });
     }
   } catch (err) {
     logger.error(`Non-critical: _trackBehaviouralAnomaly error: ${err.message}`);

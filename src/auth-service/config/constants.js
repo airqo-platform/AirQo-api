@@ -62,6 +62,10 @@ function envConfig(env) {
       const v = parseInt(process.env.ANOMALY_SUSPEND_THRESHOLD, 10);
       return Number.isFinite(v) && v > 0 ? v : 10;
     })(),
+    COMPROMISE_SUSPEND_THRESHOLD: (() => {
+      const v = parseInt(process.env.COMPROMISE_SUSPEND_THRESHOLD, 10);
+      return Number.isFinite(v) && v > 0 ? v : 50;
+    })(),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
     POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),
