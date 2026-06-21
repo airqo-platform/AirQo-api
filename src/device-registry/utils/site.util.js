@@ -15,7 +15,12 @@ const client = new Client({});
 const axiosInstance = () => {
   return axios.create();
 };
-const { generateFilter, stringify, distance } = require("@utils/common");
+const {
+  generateFilter,
+  stringify,
+  distance,
+  computeTransmissionStatus,
+} = require("@utils/common");
 const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- site-util`,
@@ -1800,10 +1805,18 @@ const createSite = {
         }
       }
 
+      const enrichedResults =
+        detailLevel === "minimal"
+          ? paginatedResults
+          : paginatedResults.map((site) => ({
+              ...site,
+              transmissionStatus: computeTransmissionStatus(site),
+            }));
+
       return {
         success: true,
         message: "successfully retrieved the site details",
-        data: paginatedResults,
+        data: enrichedResults,
         status: httpStatus.OK,
         meta,
       };
@@ -2510,7 +2523,7 @@ const getMySites = async (request, next) => {
       SiteModel(tenant)
         .find(siteFilter)
         .select(
-          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt",
+          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt isOnline rawOnlineStatus lastActive",
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -2518,10 +2531,15 @@ const getMySites = async (request, next) => {
         .lean(),
     ]);
 
+    const enrichedSites = (sites || []).map((site) => ({
+      ...site,
+      transmissionStatus: computeTransmissionStatus(site),
+    }));
+
     return {
       success: true,
       message: "Sites retrieved successfully",
-      data: sites || [],
+      data: enrichedSites,
       status: httpStatus.OK,
       meta: {
         total,
