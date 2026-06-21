@@ -779,6 +779,38 @@ module.exports = {
           <li>Contact us at <a href="mailto:support@airqo.net">support@airqo.net</a> if you need further assistance.</li>
         </ul>
         <p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> To reduce the chance of this happening again, consider enabling the client secret requirement for your API client under <strong>Settings &rsaquo; API</strong>. When enabled, every request must include your client secret via the <code>X-Client-Secret</code> header, providing an extra layer of protection even if your token is exposed.</p>
+        ${/compromise.activity|exposed|public.facing/i.test(suspensionReason) ? `
+        <h4 style="margin-top:24px; color:#D92D20;">Review your deployment approach</h4>
+        <p>
+          Suspensions triggered by high-volume compromise activity are almost always caused
+          by an API token embedded directly in browser-side code or a public-facing
+          application where web scrapers can harvest it. Please review the following before
+          reinstating or regenerating your token:
+        </p>
+        <ul style="padding-left:20px;">
+          <li style="margin-bottom:8px;">
+            <strong>Never embed your token in frontend code:</strong> Tokens placed in
+            JavaScript files, HTML source, or environment variables bundled into a web app
+            are visible to anyone who opens browser DevTools or inspects network traffic.
+            Always keep your token server-side.
+          </li>
+          <li style="margin-bottom:8px;">
+            <strong>Use a backend proxy:</strong> If your website or mobile app needs AirQo
+            data, route requests through your own backend server. Your server holds the token
+            and proxies the response — the token never reaches the browser.
+          </li>
+          <li style="margin-bottom:8px;">
+            <strong>Audit your public repositories:</strong> Search your GitHub, GitLab, or
+            Bitbucket repositories for your token string. If it was ever committed, treat it
+            as compromised and rotate it immediately, even if the commit has since been deleted.
+          </li>
+          <li style="margin-bottom:8px;">
+            <strong>Check your browser network tab:</strong> Open DevTools &rsaquo; Network
+            on your own application and filter requests to the AirQo API. If you can see
+            your token in a request URL or header, it is also visible to scrapers — move
+            those calls to your backend before generating a new token.
+          </li>
+        </ul>` : ""}
       </td>
     </tr>
     `;
