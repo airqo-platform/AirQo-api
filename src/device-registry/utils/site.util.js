@@ -1805,10 +1805,13 @@ const createSite = {
         }
       }
 
-      const enrichedResults = paginatedResults.map((site) => ({
-        ...site,
-        transmissionStatus: computeTransmissionStatus(site),
-      }));
+      const enrichedResults =
+        detailLevel === "minimal"
+          ? paginatedResults
+          : paginatedResults.map((site) => ({
+              ...site,
+              transmissionStatus: computeTransmissionStatus(site),
+            }));
 
       return {
         success: true,

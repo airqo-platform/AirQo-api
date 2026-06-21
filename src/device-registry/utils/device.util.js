@@ -1873,10 +1873,13 @@ const deviceUtil = {
         }
       }
 
-      const enrichedResults = paginatedResults.map((device) => ({
-        ...device,
-        transmissionStatus: computeTransmissionStatus(device),
-      }));
+      const enrichedResults =
+        detailLevel === "minimal"
+          ? paginatedResults
+          : paginatedResults.map((device) => ({
+              ...device,
+              transmissionStatus: computeTransmissionStatus(device),
+            }));
 
       return {
         success: true,
