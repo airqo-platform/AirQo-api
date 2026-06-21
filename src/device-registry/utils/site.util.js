@@ -1800,10 +1800,15 @@ const createSite = {
         }
       }
 
+      const enrichedResults = paginatedResults.map((site) => ({
+        ...site,
+        transmissionStatus: computeTransmissionStatus(site),
+      }));
+
       return {
         success: true,
         message: "successfully retrieved the site details",
-        data: paginatedResults,
+        data: enrichedResults,
         status: httpStatus.OK,
         meta,
       };
@@ -2414,6 +2419,21 @@ const createSite = {
   },
 };
 
+const computeTransmissionStatus = (site) => {
+  const { isOnline, rawOnlineStatus, lastActive } = site;
+
+  if (lastActive) {
+    const date = new Date(lastActive);
+    if (isNaN(date.getTime())) return "Invalid Date";
+    if (date > new Date(Date.now() + 5 * 60 * 1000)) return "Invalid Date";
+  }
+
+  if (rawOnlineStatus === true && isOnline === true) return "Operational";
+  if (rawOnlineStatus === true && isOnline !== true) return "Transmitting";
+  if (rawOnlineStatus !== true && isOnline === true) return "Data Available";
+  return "Not Transmitting";
+};
+
 const getMySites = async (request, next) => {
   try {
     const { cohort_ids, group_ids } = request.query;
@@ -2510,7 +2530,7 @@ const getMySites = async (request, next) => {
       SiteModel(tenant)
         .find(siteFilter)
         .select(
-          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt",
+          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt isOnline rawOnlineStatus lastActive",
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -2518,10 +2538,15 @@ const getMySites = async (request, next) => {
         .lean(),
     ]);
 
+    const enrichedSites = (sites || []).map((site) => ({
+      ...site,
+      transmissionStatus: computeTransmissionStatus(site),
+    }));
+
     return {
       success: true,
       message: "Sites retrieved successfully",
-      data: sites || [],
+      data: enrichedSites,
       status: httpStatus.OK,
       meta: {
         total,
