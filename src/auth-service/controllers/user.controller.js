@@ -1915,6 +1915,129 @@ const userController = {
     }
   },
 
+  replyToFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.replyToFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateFeedbackNotes: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateFeedbackNotes(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  bulkUpdateFeedbackStatus: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.bulkUpdateFeedbackStatus(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  assignFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.assignFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  addFeedbackWatcher: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.addFeedbackWatcher(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  removeFeedbackWatcher: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.removeFeedbackWatcher(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  registerWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.registerWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listWebhooks: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listWebhooks(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          webhooks: result.data,
+          meta: result.meta,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  deleteWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.deleteWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   updateOnboarding: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

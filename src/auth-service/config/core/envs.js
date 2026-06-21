@@ -164,6 +164,12 @@ const envs = {
     process.env.FEEDBACK_SCREENSHOT_RETENTION_DAYS,
     30,
   ),
+  // How many days a pending actionable item must sit untouched before it
+  // appears in the weekly reminder digest. Configurable without a redeploy.
+  FEEDBACK_REMINDER_THRESHOLD_DAYS: parseNumber(
+    process.env.FEEDBACK_REMINDER_THRESHOLD_DAYS,
+    7,
+  ),
 
   // ── Cloudinary ─────────────────────────────────────────────────────────────
   CLOUD_NAME: process.env.CLOUD_NAME,

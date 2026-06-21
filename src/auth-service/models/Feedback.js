@@ -100,6 +100,77 @@ const FeedbackSchema = new mongoose.Schema(
     metadata: {
       type: mongoose.Schema.Types.Mixed,
     },
+    // Computed at submission time: true if this feedback requires team action
+    // (bugs, feature requests, performance issues, or substantive messages).
+    // Drives the weekly reminder digest — pure rating/appreciation items are excluded.
+    actionable: {
+      type: Boolean,
+      default: true,
+    },
+    // Internal notes visible only to admins — never exposed to the submitter.
+    adminNotes: {
+      type: String,
+      trim: true,
+      maxlength: [2000, "adminNotes cannot exceed 2000 characters"],
+    },
+    // Tracks reminder digest state so the weekly job can skip recently-reminded items.
+    reminderSentAt: {
+      type: Date,
+    },
+    reminderCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Admin replies sent directly to the submitter from within the feedback item.
+    replies: {
+      type: [
+        {
+          message: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: [5000, "Reply message cannot exceed 5000 characters"],
+          },
+          adminEmail: { type: String, trim: true, lowercase: true },
+          adminId: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
+          sentAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    // Assignment — which admin user owns this item.
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "users",
+    },
+    assignedAt: {
+      type: Date,
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "users",
+    },
+    // Watchers receive notifications on status change and admin reply.
+    watchers: {
+      type: [
+        {
+          email: {
+            type: String,
+            required: true,
+            trim: true,
+            lowercase: true,
+            validate: {
+              validator: (v) => validator.isEmail(v),
+              message: "{VALUE} is not a valid email address",
+            },
+          },
+          name: { type: String, trim: true, maxlength: 100 },
+          addedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true },
 );
@@ -109,6 +180,10 @@ FeedbackSchema.index({ tenant: 1, status: 1 });
 FeedbackSchema.index({ tenant: 1, category: 1 });
 FeedbackSchema.index({ tenant: 1, app: 1 });
 FeedbackSchema.index({ email: 1, tenant: 1 });
+// Supports the weekly reminder job query: actionable pending items per tenant
+FeedbackSchema.index({ tenant: 1, actionable: 1, status: 1, createdAt: -1 });
+// Supports assignment queries: all items assigned to a given admin
+FeedbackSchema.index({ tenant: 1, assignedTo: 1, status: 1 });
 
 FeedbackSchema.statics = {
   async register(args) {
@@ -183,7 +258,15 @@ FeedbackSchema.statics = {
       // Whitelist: only pick fields that are intentionally mutable via this
       // path. Any other key in the incoming update object is silently ignored,
       // preventing accidental overwrites of email, subject, message, etc.
-      const MUTABLE_FIELDS = ["status"];
+      const MUTABLE_FIELDS = [
+        "status",
+        "adminNotes",
+        "reminderSentAt",
+        "reminderCount",
+        "assignedTo",
+        "assignedAt",
+        "assignedBy",
+      ];
       const modifiedUpdate = {};
       for (const key of MUTABLE_FIELDS) {
         if (Object.prototype.hasOwnProperty.call(update, key)) {
@@ -210,6 +293,122 @@ FeedbackSchema.statics = {
       return createErrorResponse(err, "update", logger, "feedback");
     }
   },
+
+  async addReply(filter = {}, reply = {}) {
+    try {
+      const options = { new: true, runValidators: true, context: "query" };
+      const updatedFeedback = await this.findOneAndUpdate(
+        filter,
+        { $push: { replies: reply } },
+        options,
+      ).exec();
+
+      if (!isEmpty(updatedFeedback)) {
+        return createSuccessResponse("update", updatedFeedback._doc, "feedback");
+      } else {
+        return createNotFoundResponse("feedback", "update");
+      }
+    } catch (err) {
+      return createErrorResponse(err, "update", logger, "feedback");
+    }
+  },
+
+  // Used by the weekly reminder job to bump counters on batches of documents.
+  async bulkUpdateReminderState(ids = [], sentAt = new Date()) {
+    try {
+      await this.updateMany(
+        { _id: { $in: ids } },
+        { $set: { reminderSentAt: sentAt }, $inc: { reminderCount: 1 } },
+      );
+    } catch (err) {
+      logger.error(`bulkUpdateReminderState failed: ${err.message}`);
+    }
+  },
+
+  async addWatcher(filter = {}, watcher = {}) {
+    try {
+      const options = { new: true, runValidators: true, context: "query" };
+      // $addToSet on a sub-document array matches the whole object — use a
+      // manual duplicate check by email instead so we can return a clean error.
+      const existing = await this.findOne(filter).lean().exec();
+      if (!existing) return createNotFoundResponse("feedback", "update");
+      const alreadyWatching = (existing.watchers || []).some(
+        (w) => w.email === watcher.email,
+      );
+      if (alreadyWatching) {
+        return {
+          success: false,
+          message: "This email is already watching the feedback item",
+          status: httpStatus.CONFLICT,
+          errors: { message: "Watcher already exists" },
+        };
+      }
+      const updated = await this.findOneAndUpdate(
+        filter,
+        { $push: { watchers: watcher } },
+        options,
+      ).exec();
+      if (!isEmpty(updated)) {
+        return createSuccessResponse("update", updated._doc, "feedback");
+      }
+      return createNotFoundResponse("feedback", "update");
+    } catch (err) {
+      return createErrorResponse(err, "update", logger, "feedback");
+    }
+  },
+
+  async removeWatcher(filter = {}, email = "") {
+    try {
+      const options = { new: true };
+      const updated = await this.findOneAndUpdate(
+        filter,
+        { $pull: { watchers: { email: email.toLowerCase().trim() } } },
+        options,
+      ).exec();
+      if (!isEmpty(updated)) {
+        return createSuccessResponse("update", updated._doc, "feedback");
+      }
+      return createNotFoundResponse("feedback", "update");
+    } catch (err) {
+      return createErrorResponse(err, "update", logger, "feedback");
+    }
+  },
+
+  // Bulk status update: validates each transition individually and returns a
+  // per-item success/failure report. Items with invalid transitions are skipped.
+  async bulkModifyStatus(ids = [], requestedStatus = "", transitions = {}) {
+    const succeeded = [];
+    const failed = [];
+
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const existing = await this.findById(id).lean().exec();
+          if (!existing) {
+            failed.push({ id, reason: "Not found" });
+            return;
+          }
+          const allowed = transitions[existing.status] || [];
+          if (!allowed.includes(requestedStatus)) {
+            failed.push({
+              id,
+              reason:
+                allowed.length > 0
+                  ? `Cannot transition "${existing.status}" → "${requestedStatus}". Allowed: ${allowed.join(", ")}`
+                  : `"${existing.status}" is a terminal status`,
+            });
+            return;
+          }
+          await this.findByIdAndUpdate(id, { status: requestedStatus });
+          succeeded.push({ id, previousStatus: existing.status, email: existing.email, subject: existing.subject });
+        } catch (err) {
+          failed.push({ id, reason: err.message });
+        }
+      }),
+    );
+
+    return { succeeded, failed };
+  },
 };
 
 FeedbackSchema.methods = {
@@ -228,6 +427,15 @@ FeedbackSchema.methods = {
       userId: this.userId,
       tenant: this.tenant,
       metadata: this.metadata,
+      actionable: this.actionable,
+      adminNotes: this.adminNotes,
+      reminderSentAt: this.reminderSentAt,
+      reminderCount: this.reminderCount,
+      replies: this.replies,
+      assignedTo: this.assignedTo,
+      assignedAt: this.assignedAt,
+      assignedBy: this.assignedBy,
+      watchers: this.watchers,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

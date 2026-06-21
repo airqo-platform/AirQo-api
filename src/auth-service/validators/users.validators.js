@@ -1594,6 +1594,265 @@ const updateFeedbackStatus = [
     .withMessage(`status must be one of: ${FEEDBACK_STATUSES.join(", ")}`),
 ];
 
+const { WEBHOOK_EVENTS } = require("@models/FeedbackWebhook");
+
+const bulkUpdateFeedbackStatus = [
+  validateTenant,
+  body("feedback_ids")
+    .exists()
+    .withMessage("feedback_ids is required")
+    .bail()
+    .isArray({ min: 1, max: 100 })
+    .withMessage("feedback_ids must be a non-empty array of up to 100 IDs")
+    .bail()
+    .custom((ids) => {
+      for (const id of ids) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+          throw new Error(`Invalid MongoDB ObjectId: ${id}`);
+        }
+      }
+      return true;
+    }),
+  body("status")
+    .exists()
+    .withMessage("status is required")
+    .bail()
+    .notEmpty()
+    .withMessage("status must not be empty")
+    .bail()
+    .isIn(FEEDBACK_STATUSES)
+    .withMessage(`status must be one of: ${FEEDBACK_STATUSES.join(", ")}`),
+];
+
+const assignFeedback = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("userId")
+    .optional({ nullable: true })
+    .custom((v) => {
+      if (v !== null && v !== undefined && !mongoose.Types.ObjectId.isValid(v)) {
+        throw new Error("userId must be a valid MongoDB ObjectId or null");
+      }
+      return true;
+    }),
+];
+
+const addFeedbackWatcher = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("email")
+    .exists()
+    .withMessage("email is required")
+    .bail()
+    .notEmpty()
+    .withMessage("email must not be empty")
+    .bail()
+    .isEmail()
+    .withMessage("email must be a valid email address")
+    .bail()
+    .customSanitizer((v) => v.toLowerCase().trim()),
+  body("name")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("name cannot exceed 100 characters"),
+];
+
+const removeFeedbackWatcher = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  param("watcher_email")
+    .exists()
+    .withMessage("watcher_email param is missing")
+    .bail()
+    .trim()
+    .isEmail()
+    .withMessage("watcher_email must be a valid email address"),
+];
+
+const registerWebhook = [
+  validateTenant,
+  body("name")
+    .exists()
+    .withMessage("name is required")
+    .bail()
+    .notEmpty()
+    .withMessage("name must not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("name cannot exceed 100 characters")
+    .trim(),
+  body("url")
+    .exists()
+    .withMessage("url is required")
+    .bail()
+    .notEmpty()
+    .withMessage("url must not be empty")
+    .bail()
+    .isURL({ protocols: ["https"], require_protocol: true })
+    .withMessage("url must be a valid HTTPS URL")
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage("url cannot exceed 2000 characters")
+    .trim(),
+  body("events")
+    .exists()
+    .withMessage("events is required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("events must be a non-empty array")
+    .bail()
+    .custom((arr) => {
+      const invalid = arr.filter((e) => !WEBHOOK_EVENTS.includes(e));
+      if (invalid.length > 0) {
+        throw new Error(
+          `Invalid events: ${invalid.join(", ")}. Allowed: ${WEBHOOK_EVENTS.join(", ")}`,
+        );
+      }
+      return true;
+    }),
+  body("secret")
+    .exists()
+    .withMessage("secret is required")
+    .bail()
+    .notEmpty()
+    .withMessage("secret must not be empty")
+    .bail()
+    .isLength({ min: 16 })
+    .withMessage("secret must be at least 16 characters")
+    .trim(),
+];
+
+const updateWebhook = [
+  validateTenant,
+  param("webhook_id")
+    .exists()
+    .withMessage("webhook_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("webhook_id must be a valid MongoDB ObjectId"),
+  body("name")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("name must not be empty if provided")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("name cannot exceed 100 characters"),
+  body("url")
+    .optional()
+    .trim()
+    .isURL({ protocols: ["https"], require_protocol: true })
+    .withMessage("url must be a valid HTTPS URL if provided")
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage("url cannot exceed 2000 characters"),
+  body("events")
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage("events must be a non-empty array if provided")
+    .bail()
+    .custom((arr) => {
+      const invalid = arr.filter((e) => !WEBHOOK_EVENTS.includes(e));
+      if (invalid.length > 0) {
+        throw new Error(`Invalid events: ${invalid.join(", ")}`);
+      }
+      return true;
+    }),
+  body("active")
+    .optional()
+    .isBoolean()
+    .withMessage("active must be a boolean if provided"),
+];
+
+const deleteWebhook = [
+  validateTenant,
+  param("webhook_id")
+    .exists()
+    .withMessage("webhook_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("webhook_id must be a valid MongoDB ObjectId"),
+];
+
+const listWebhooks = [
+  validateTenant,
+  query("active")
+    .optional()
+    .isBoolean()
+    .withMessage("active filter must be a boolean string (true or false)"),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("limit must be an integer between 1 and 100"),
+];
+
+const replyToFeedback = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("message")
+    .exists()
+    .withMessage("message is required")
+    .bail()
+    .notEmpty()
+    .withMessage("message must not be empty")
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage("message cannot exceed 5000 characters")
+    .trim(),
+];
+
+const updateFeedbackNotes = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("adminNotes")
+    .exists()
+    .withMessage("adminNotes is required")
+    .bail()
+    .isString()
+    .withMessage("adminNotes must be a string")
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage("adminNotes cannot exceed 2000 characters")
+    .trim(),
+];
+
 const updateOnboarding = [
   validateTenant,
   body("action")
@@ -1680,5 +1939,15 @@ module.exports = {
   listFeedbackSubmissions,
   getFeedbackById,
   updateFeedbackStatus,
+  bulkUpdateFeedbackStatus,
+  assignFeedback,
+  addFeedbackWatcher,
+  removeFeedbackWatcher,
+  replyToFeedback,
+  updateFeedbackNotes,
+  registerWebhook,
+  updateWebhook,
+  deleteWebhook,
+  listWebhooks,
   updateOnboarding,
 };
