@@ -848,12 +848,15 @@ const isIPBlacklistedHelper = async (
             try {
               const threshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
               const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-              const recentCount = (
-                await CompromisedTokenLogModel("airqo").distinct("ip", {
-                  tokenHash,
-                  timestamp: { $gte: since },
-                })
-              ).length;
+              // Aggregation stops at `threshold` unique IPs — avoids materialising
+              // the full distinct-IP set in Node.js memory for high-volume tokens.
+              const [countResult] = await CompromisedTokenLogModel("airqo").aggregate([
+                { $match: { tokenHash, timestamp: { $gte: since } } },
+                { $group: { _id: "$ip" } },
+                { $limit: threshold },
+                { $count: "n" },
+              ]);
+              const recentCount = countResult?.n ?? 0;
               if (recentCount < threshold) return;
 
               const suspensionReason =
@@ -1053,8 +1056,16 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
     // handled this suspension and we skip the email. No Redis key needed.
     let prevDoc = null;
     if (Object.keys(updates).length > 0) {
+      // Gate suspension writes on auto_suspended: {$ne: true} so concurrent requests
+      // cannot overwrite the original suspended_at / suspension_reason after the first
+      // transition false→true. Non-suspension updates use the plain filter so they
+      // are never blocked on already-suspended tokens (which in practice never reach
+      // here due to the line-1465 early-exit, but keeps the intent explicit).
+      const suspensionFilter = updates["request_pattern.auto_suspended"]
+        ? { token: rawToken, "request_pattern.auto_suspended": { $ne: true } }
+        : { token: rawToken };
       prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
-        { token: rawToken },
+        suspensionFilter,
         { $set: updates },
         { new: false, lean: true }
       );
