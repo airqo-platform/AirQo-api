@@ -1928,11 +1928,10 @@ const token = {
       const tokenModel = AccessTokenModel(tenant.toLowerCase());
       const expires = tokenCreationBody.expires || Date.now() + API_TOKEN_TTL_MS;
 
-      let replacedDoc;
-      try {
-        replacedDoc = await tokenModel.findOneAndReplace(
+      const _attemptReplace = async (body) =>
+        tokenModel.findOneAndReplace(
           { client_id: ObjectId(client_id) },
-          { ...tokenCreationBody, expires },
+          { ...body, expires },
           {
             upsert: true,
             new: true,
@@ -1940,16 +1939,33 @@ const token = {
             setDefaultsOnInsert: true,
           },
         );
+
+      let replacedDoc;
+      try {
+        replacedDoc = await _attemptReplace(tokenCreationBody);
       } catch (replaceErr) {
-        if (replaceErr.code === 11000) {
-          return {
-            success: false,
-            message: "A token already exists for one of the provided unique fields",
-            status: httpStatus.CONFLICT,
-            errors: { token: "the token must be unique" },
-          };
+        if (replaceErr.code !== 11000) throw replaceErr;
+        // Astronomically unlikely collision — regenerate and retry once.
+        logger.warn(
+          `Non-critical: token collision on insert for client ${client_id} — regenerating and retrying`
+        );
+        const retryToken = accessCodeGenerator
+          .generate(constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH))
+          .toUpperCase();
+        tokenCreationBody.token = retryToken;
+        try {
+          replacedDoc = await _attemptReplace(tokenCreationBody);
+        } catch (retryErr) {
+          if (retryErr.code === 11000) {
+            return {
+              success: false,
+              message: "A token already exists for one of the provided unique fields",
+              status: httpStatus.CONFLICT,
+              errors: { token: "the token must be unique" },
+            };
+          }
+          throw retryErr;
         }
-        throw replaceErr;
       }
 
       if (!replacedDoc) {
