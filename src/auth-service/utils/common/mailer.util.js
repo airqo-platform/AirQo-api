@@ -890,6 +890,11 @@ const getEmailSubject = (functionName, params) => {
     newMobileAppUser: params.subject || "AirQo Mobile App Notification",
     feedback: params.subject || "AirQo Feedback Submission",
     feedbackConfirmation: "Thank you for your feedback – AirQo",
+    feedbackStatusUpdate: "Update on your AirQo feedback – AirQo",
+    feedbackAdminReply: "A response to your AirQo feedback – AirQo",
+    feedbackWeeklyDigest: "Weekly Digest: Pending Feedback Items – AirQo",
+    feedbackAssigned: "Feedback item assigned to you – AirQo",
+    feedbackWatcherNotification: "Update on a feedback item you are watching – AirQo",
     sendReport: "Your AirQo Account Report",
     siteActivity: "Your AirQo Account: Monitor Deployment/Recall Alert",
     fieldActivity: (() => {
@@ -2792,6 +2797,64 @@ const mailer = {
         new_status: params.new_status,
         reason: params.reason,
         email: params.email,
+      }),
+  ),
+
+  feedbackStatusUpdate: createMailerFunction(
+    "feedbackStatusUpdate",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackStatusUpdate({
+        email: params.email,
+        subject: params.subject,
+        oldStatus: params.oldStatus,
+        newStatus: params.newStatus,
+      }),
+  ),
+
+  feedbackAdminReply: createMailerFunction(
+    "feedbackAdminReply",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackAdminReply({
+        email: params.email,
+        subject: params.subject,
+        replyMessage: params.replyMessage,
+      }),
+  ),
+
+  feedbackWeeklyDigest: createMailerFunction(
+    "feedbackWeeklyDigest",
+    "OPTIONAL",
+    (params) => msgs.feedbackWeeklyDigest({ count: params.count, items: params.items }),
+    (baseMailOptions, params) => ({
+      ...baseMailOptions,
+      to: params.to || constants.SUPPORT_EMAIL,
+    }),
+  ),
+
+  feedbackAssigned: createMailerFunction(
+    "feedbackAssigned",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackAssigned({
+        email: params.email,
+        name: params.name,
+        subject: params.subject,
+        feedbackId: params.feedbackId,
+      }),
+  ),
+
+  feedbackWatcherNotification: createMailerFunction(
+    "feedbackWatcherNotification",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackWatcherNotification({
+        email: params.email,
+        name: params.name,
+        subject: params.subject,
+        event: params.event,
+        detail: params.detail,
       }),
   ),
 };

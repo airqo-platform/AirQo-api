@@ -1817,4 +1817,132 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name: "" });
   },
+
+  feedbackStatusUpdate: ({ email, subject, oldStatus, newStatus }) => {
+    const escapedSubject = escapeHtml(subject || "your feedback");
+    const statusLabel = {
+      reviewed: "Under Review",
+      resolved: "Resolved",
+      archived: "Archived",
+    }[newStatus] || escapeHtml(newStatus);
+
+    const statusMessages = {
+      reviewed: "Our team has picked up your feedback and it is now under review. We will follow up if further information is needed.",
+      resolved: "We are pleased to let you know that your feedback has been resolved. Thank you for helping us improve AirQo.",
+      archived: "Your feedback has been archived. While we may not implement every suggestion, we genuinely appreciate you taking the time to share it.",
+    };
+    const bodyText = statusMessages[newStatus] || `The status of your feedback has been updated to <strong>${statusLabel}</strong>.`;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We have an update on your feedback: <strong>${escapedSubject}</strong>.</p>
+        <p>${bodyText}</p>
+        <p>If you have any questions, feel free to reply to this email or contact us at support@airqo.net.</p>
+        <p>Thank you for being part of the AirQo community.</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackAdminReply: ({ email, subject, replyMessage }) => {
+    const escapedSubject = escapeHtml(subject || "your feedback");
+    const escapedReply = escapeHtml(replyMessage || "").replace(/\n/g, "<br/>");
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Our team has responded to your feedback: <strong>${escapedSubject}</strong>.</p>
+        <div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:16px 0;border-radius:4px;">
+          <p style="margin:0;">${escapedReply}</p>
+        </div>
+        <p>If you have any follow-up questions, please do not hesitate to reach out at support@airqo.net.</p>
+        <p>Thank you for helping us improve AirQo.</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackAssigned: ({ email, name, subject, feedbackId }) => {
+    const escapedSubject = escapeHtml(subject || "a feedback item");
+    const escapedName = escapeHtml(name || "Team member");
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Hi ${escapedName},</p>
+        <p>A feedback item has been assigned to you: <strong>${escapedSubject}</strong>.</p>
+        <p>Please review it in the AirQo Analytics admin panel and take appropriate action.</p>
+        <p>If you have any questions, contact your team lead or reply to this email.</p>
+      </td>
+    </tr>`;
+    // Pass name: "" — EMAIL_BODY adds its own greeting from the name param,
+    // and the content already includes "Hi ${escapedName}". Passing the name
+    // a second time would produce a duplicate greeting in the rendered email.
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackWatcherNotification: ({ email, name, subject, event, detail }) => {
+    const escapedSubject = escapeHtml(subject || "a feedback item");
+    const escapedName = escapeHtml(name || "");
+    const eventMessages = {
+      status_changed: `<p>The status of the feedback item has been updated. ${escapeHtml(detail || "")}</p>`,
+      // reply_added body contains a block-level element — do NOT wrap in <p>
+      // as that produces invalid HTML (<p><div>…</div></p>) which email clients
+      // may mangle. The div is placed as a sibling block instead.
+      reply_added: `<p>A new reply has been posted on the feedback item.</p><div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:12px 0;border-radius:4px;">${escapeHtml(detail || "").replace(/\n/g, "<br/>")}</div>`,
+    };
+    const body = eventMessages[event] || `<p>${escapeHtml(detail || "An update is available on the feedback item.")}</p>`;
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        ${escapedName ? `<p>Hi ${escapedName},</p>` : ""}
+        <p>There is an update on a feedback item you are watching: <strong>${escapedSubject}</strong>.</p>
+        ${body}
+        <p>You are receiving this because you are a watcher on this feedback item. To stop receiving notifications, ask an admin to remove you.</p>
+      </td>
+    </tr>`;
+    // Pass name: "" — same duplicate-greeting reason as feedbackAssigned above.
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackWeeklyDigest: ({ count, items }) => {
+    const rowsHtml = items
+      .map((item) => {
+        const age = Math.floor(
+          (Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        const categoryLabel = escapeHtml(item.category || "general");
+        const subject = escapeHtml(item.subject || "(no subject)");
+        const email = escapeHtml(item.email || "");
+        const reminders = item.reminderCount || 0;
+        return `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${subject}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${email}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-transform:capitalize;">${categoryLabel}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${age}d ago${reminders > 0 ? ` (reminded ${reminders}×)` : ""}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>This is your weekly summary of <strong>${count}</strong> actionable feedback item${count !== 1 ? "s" : ""} that have not yet been attended to.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+          <thead>
+            <tr style="background:#f5f5f5;">
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Subject</th>
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Submitter</th>
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Category</th>
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Age</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <p>Please review and update the status of these items in the AirQo Analytics admin panel.</p>
+      </td>
+    </tr>`;
+    // Use SUPPORT_EMAIL so the footer renders "This email was sent to <address>"
+    // correctly rather than leaving the address blank.
+    return constants.EMAIL_BODY({ email: constants.SUPPORT_EMAIL || "", content, name: "AirQo Support Team" });
+  },
 };
