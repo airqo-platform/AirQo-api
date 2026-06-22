@@ -1940,12 +1940,33 @@ const token = {
           },
         );
 
+      // Resolve which field caused a 11000 from keyPattern (most reliable),
+      // falling back to keyValue if keyPattern is absent.
+      const _collisionField = (err) =>
+        err.keyPattern
+          ? Object.keys(err.keyPattern)[0]
+          : err.keyValue
+          ? Object.keys(err.keyValue)[0]
+          : null;
+
       let replacedDoc;
       try {
         replacedDoc = await _attemptReplace(tokenCreationBody);
       } catch (replaceErr) {
         if (replaceErr.code !== 11000) throw replaceErr;
-        // Astronomically unlikely collision — regenerate and retry once.
+        const conflictField = _collisionField(replaceErr);
+        if (conflictField !== null && conflictField !== "token") {
+          // Definitively not a token collision — retrying won't help.
+          return {
+            success: false,
+            message: "A token already exists for one of the provided unique fields",
+            status: httpStatus.CONFLICT,
+            errors: {
+              [conflictField]: `the ${conflictField} must be unique`,
+            },
+          };
+        }
+        // Astronomically unlikely token collision — regenerate and retry once.
         logger.warn(
           `Non-critical: token collision on insert for client ${client_id} — regenerating and retrying`
         );
@@ -1957,11 +1978,14 @@ const token = {
           replacedDoc = await _attemptReplace(tokenCreationBody);
         } catch (retryErr) {
           if (retryErr.code === 11000) {
+            const retryConflictField = _collisionField(retryErr);
             return {
               success: false,
               message: "A token already exists for one of the provided unique fields",
               status: httpStatus.CONFLICT,
-              errors: { token: "the token must be unique" },
+              errors: {
+                [retryConflictField || "token"]: `the ${retryConflictField || "token"} must be unique`,
+              },
             };
           }
           throw retryErr;
