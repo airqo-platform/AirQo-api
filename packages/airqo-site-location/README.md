@@ -137,14 +137,40 @@ except LocateClientError as error:
 ```
 
 ## Development
+## Test and build
+
+From the repository root:
 
 ```bash
 cd packages/airqo-site-location
+python -m pip install --upgrade build twine
 python -m unittest discover -s tests -v
 python -m build
 python -m twine check dist/*
+python -m twine upload dist/*        
+```
+Remove old build artifacts before creating a release. In PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
+python -m build
+python -m twine check (Get-ChildItem dist -File).FullName
 ```
 
+## Publish to PyPI
+
+Confirm the version in `pyproject.toml` has not already been published, then upload the validated distributions:
+
+```powershell
+python -m twine upload (Get-ChildItem dist -File).FullName
+```
+
+Use `__token__` as the username and your PyPI API token as the password. Verify the release in a clean environment:
+
+```bash
+python -m pip install airqolocate
+python -c "import airqolocate; print(airqolocate.__version__)"
+```
 ## License
 
 MIT
