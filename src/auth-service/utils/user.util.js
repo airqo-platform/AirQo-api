@@ -7585,6 +7585,7 @@ const createUserModule = {
 const FeedbackModel = require("@models/Feedback");
 const { FeedbackWebhookModel } = require("@models/FeedbackWebhook");
 const { dispatchWebhooks } = require("@utils/feedback-webhook.util");
+const { dispatchIntegrations } = require("@utils/feedback-integrations.util");
 const cloudinary = require("@config/cloudinary");
 
 // N1: single helper so all four methods share identical tenant resolution logic.
@@ -7715,6 +7716,11 @@ const feedbackUtil = {
           }
         : {};
       dispatchWebhooks(tenant, "feedback.submitted", submittedPayload).catch(() => {});
+
+      // Fire built-in Slack / JIRA / Trello integrations (best-effort).
+      // Each only runs if its env vars are configured — all three are no-ops
+      // when unconfigured, so this is safe to call unconditionally.
+      dispatchIntegrations(createResult.data || {}).catch(() => {});
 
       return {
         success: true,

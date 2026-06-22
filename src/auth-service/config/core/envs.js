@@ -170,6 +170,19 @@ const envs = {
     process.env.FEEDBACK_REMINDER_THRESHOLD_DAYS,
     7,
   ),
+  // ── Third-party feedback integrations (all optional) ──────────────────────
+  // Set only the vars for the tools your team uses. Any integration whose
+  // required vars are absent is silently skipped — no errors are thrown.
+  //
+  // Slack: paste the Incoming Webhook URL from api.slack.com/apps
+  SLACK_FEEDBACK_WEBHOOK_URL: process.env.SLACK_FEEDBACK_WEBHOOK_URL || null,
+  // JIRA: base URL of your Atlassian instance, admin email, API token,
+  // target project key, and optional issue type override.
+  JIRA_BASE_URL: process.env.JIRA_BASE_URL || null,
+  JIRA_EMAIL: process.env.JIRA_EMAIL || null,
+  JIRA_API_TOKEN: process.env.JIRA_API_TOKEN || null,
+  JIRA_PROJECT_KEY: process.env.JIRA_PROJECT_KEY || null,
+  JIRA_ISSUE_TYPE: process.env.JIRA_ISSUE_TYPE || null,
 
   // ── Cloudinary ─────────────────────────────────────────────────────────────
   CLOUD_NAME: process.env.CLOUD_NAME,
