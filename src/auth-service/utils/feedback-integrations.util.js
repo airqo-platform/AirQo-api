@@ -16,6 +16,9 @@ const httpsPost = (url, body, extraHeaders = {}) =>
     } catch {
       return reject(new Error(`Invalid URL: ${url}`));
     }
+    if (parsed.protocol !== "https:") {
+      return reject(new Error(`Only HTTPS URLs are supported, got: ${parsed.protocol}`));
+    }
     const options = {
       hostname: parsed.hostname,
       port: parsed.port || 443,
@@ -27,9 +30,15 @@ const httpsPost = (url, body, extraHeaders = {}) =>
         ...extraHeaders,
       },
     };
+    const MAX_RESPONSE_BYTES = 1024 * 1024; // 1 MB
     const req = https.request(options, (res) => {
       let data = "";
-      res.on("data", (c) => { data += c; });
+      res.on("data", (c) => {
+        data += c;
+        if (Buffer.byteLength(data) > MAX_RESPONSE_BYTES) {
+          req.destroy(new Error("Response body exceeded 1 MB limit"));
+        }
+      });
       res.on("end", () => resolve({ statusCode: res.statusCode, body: data }));
     });
     req.setTimeout(10000, () => req.destroy(new Error("Timed out")));
@@ -51,6 +60,10 @@ const notifySlack = async (feedback) => {
   const truncatedMessage = feedback.message && feedback.message.length > 300
     ? feedback.message.substring(0, 300) + "…"
     : feedback.message || "(no message)";
+  const prefix = isActionable ? "🔴 Action Required" : "💬 New Feedback";
+  const rawHeader = `${prefix} — ${category}`;
+  // Slack header blocks have a 150-character hard limit.
+  const headerText = rawHeader.length > 150 ? rawHeader.substring(0, 149) + "…" : rawHeader;
 
   const payload = {
     text: `New AirQo feedback: ${feedback.subject || "(no subject)"}`,
@@ -59,7 +72,7 @@ const notifySlack = async (feedback) => {
         type: "header",
         text: {
           type: "plain_text",
-          text: `${isActionable ? "🔴 Action Required" : "💬 New Feedback"} — ${category}`,
+          text: headerText,
         },
       },
       {
