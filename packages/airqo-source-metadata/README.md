@@ -186,12 +186,15 @@ curl "http://127.0.0.1:8010/api/v2/spatial/source_metadata?latitude=0.230918&lon
 If `--platform-token` is omitted, callers must provide `Authorization: Bearer <token>` or a `token` query parameter.
 
 ## Development
+## Build and Publish (PyPI)
 
 ```bash
 cd packages/airqo-source-metadata
 python -m unittest discover -s tests -v
+python -m pip install --upgrade build twine
 python -m build
 python -m twine check dist/*
+python -m twine upload dist/*
 ```
 
 ## License
