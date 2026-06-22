@@ -345,11 +345,21 @@ router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 
 // ================================
 // PERSISTENT FEEDBACK / RATING ROUTES
-// GET    /feedback/upload-url   – public; returns signed Cloudinary upload params
-// POST   /feedback/submit      – public; saves to DB and dispatches support email
-// GET    /feedback/submissions  – admin; list all feedback with filtering
-// GET    /feedback/submissions/:feedback_id – admin; get single submission
-// PATCH  /feedback/submissions/:feedback_id/status – admin; update status
+// GET    /feedback/upload-url                               – public
+// POST   /feedback/submit                                   – public
+// GET    /feedback/submissions                              – admin; list with filtering
+// PATCH  /feedback/submissions/bulk-status                 – admin; bulk status update
+// GET    /feedback/submissions/:feedback_id                – admin; single submission
+// PATCH  /feedback/submissions/:feedback_id/status        – admin; status update + notifies submitter
+// POST   /feedback/submissions/:feedback_id/reply         – admin; reply email to submitter
+// PATCH  /feedback/submissions/:feedback_id/notes         – admin; internal notes
+// PATCH  /feedback/submissions/:feedback_id/assign        – admin; assign to an admin user
+// POST   /feedback/submissions/:feedback_id/watchers      – admin; add watcher
+// DELETE /feedback/submissions/:feedback_id/watchers/:watcher_email – admin; remove watcher
+// POST   /feedback/webhooks                               – admin; register webhook
+// GET    /feedback/webhooks                               – admin; list webhooks
+// PATCH  /feedback/webhooks/:webhook_id                  – admin; update webhook
+// DELETE /feedback/webhooks/:webhook_id                  – admin; delete webhook
 // ================================
 
 router.get(
@@ -376,6 +386,17 @@ router.get(
   userController.listFeedbackSubmissions,
 );
 
+// Must be registered before /:feedback_id routes to prevent "bulk-status" being
+// interpreted as a feedback_id param.
+router.patch(
+  "/feedback/submissions/bulk-status",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.bulkUpdateFeedbackStatus,
+  validate,
+  userController.bulkUpdateFeedbackStatus,
+);
+
 router.get(
   "/feedback/submissions/:feedback_id",
   enhancedJWTAuth,
@@ -392,6 +413,89 @@ router.patch(
   userValidations.updateFeedbackStatus,
   validate,
   userController.updateFeedbackStatus,
+);
+
+router.post(
+  "/feedback/submissions/:feedback_id/reply",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.replyToFeedback,
+  validate,
+  userController.replyToFeedback,
+);
+
+router.patch(
+  "/feedback/submissions/:feedback_id/notes",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.updateFeedbackNotes,
+  validate,
+  userController.updateFeedbackNotes,
+);
+
+router.patch(
+  "/feedback/submissions/:feedback_id/assign",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.assignFeedback,
+  validate,
+  userController.assignFeedback,
+);
+
+router.post(
+  "/feedback/submissions/:feedback_id/watchers",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.addFeedbackWatcher,
+  validate,
+  userController.addFeedbackWatcher,
+);
+
+router.delete(
+  "/feedback/submissions/:feedback_id/watchers/:watcher_email",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.removeFeedbackWatcher,
+  validate,
+  userController.removeFeedbackWatcher,
+);
+
+// ── WEBHOOK MANAGEMENT ────────────────────────────────────────────────────────
+
+router.post(
+  "/feedback/webhooks",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.registerWebhook,
+  validate,
+  userController.registerWebhook,
+);
+
+router.get(
+  "/feedback/webhooks",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listWebhooks,
+  validate,
+  userController.listWebhooks,
+);
+
+router.patch(
+  "/feedback/webhooks/:webhook_id",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.updateWebhook,
+  validate,
+  userController.updateWebhook,
+);
+
+router.delete(
+  "/feedback/webhooks/:webhook_id",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.deleteWebhook,
+  validate,
+  userController.deleteWebhook,
 );
 
 router.post(
