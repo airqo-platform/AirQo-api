@@ -48,6 +48,7 @@ const sendFeedbackReminderDigest = async () => {
 
     try {
       await mailer.feedbackWeeklyDigest({
+        email: constants.SUPPORT_EMAIL,
         to: constants.SUPPORT_EMAIL,
         count,
         items,

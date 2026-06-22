@@ -328,28 +328,30 @@ FeedbackSchema.statics = {
   async addWatcher(filter = {}, watcher = {}) {
     try {
       const options = { new: true, runValidators: true, context: "query" };
-      // $addToSet on a sub-document array matches the whole object — use a
-      // manual duplicate check by email instead so we can return a clean error.
-      const existing = await this.findOne(filter).lean().exec();
-      if (!existing) return createNotFoundResponse("feedback", "update");
-      const alreadyWatching = (existing.watchers || []).some(
-        (w) => w.email === watcher.email,
-      );
-      if (alreadyWatching) {
+      // Combine the caller's filter with an atomic duplicate guard so the
+      // read-check and write happen in a single round-trip, eliminating the
+      // race condition from the previous two-step approach.
+      const atomicFilter = {
+        ...filter,
+        "watchers.email": { $ne: watcher.email },
+      };
+      const updated = await this.findOneAndUpdate(
+        atomicFilter,
+        { $push: { watchers: watcher } },
+        options,
+      ).exec();
+      if (!isEmpty(updated)) {
+        return createSuccessResponse("update", updated._doc, "feedback");
+      }
+      // Distinguish "document not found" from "watcher already exists"
+      const docExists = await this.exists(filter);
+      if (docExists) {
         return {
           success: false,
           message: "This email is already watching the feedback item",
           status: httpStatus.CONFLICT,
           errors: { message: "Watcher already exists" },
         };
-      }
-      const updated = await this.findOneAndUpdate(
-        filter,
-        { $push: { watchers: watcher } },
-        options,
-      ).exec();
-      if (!isEmpty(updated)) {
-        return createSuccessResponse("update", updated._doc, "feedback");
       }
       return createNotFoundResponse("feedback", "update");
     } catch (err) {
@@ -399,8 +401,26 @@ FeedbackSchema.statics = {
             });
             return;
           }
-          await this.findByIdAndUpdate(id, { status: requestedStatus });
-          succeeded.push({ id, previousStatus: existing.status, email: existing.email, subject: existing.subject });
+          // Include existing.status in the filter to detect concurrent status
+          // changes — if another request modified the status between our read
+          // and this write, findOneAndUpdate returns null and we report a failure
+          // instead of silently bypassing the validated transition.
+          const updated = await this.findOneAndUpdate(
+            { _id: id, status: existing.status },
+            { status: requestedStatus },
+            { new: true, runValidators: true },
+          ).exec();
+          if (!updated) {
+            failed.push({ id, reason: "Status changed concurrently — please retry" });
+            return;
+          }
+          succeeded.push({
+            id,
+            previousStatus: existing.status,
+            email: existing.email,
+            subject: existing.subject,
+            watchers: existing.watchers || [],
+          });
         } catch (err) {
           failed.push({ id, reason: err.message });
         }

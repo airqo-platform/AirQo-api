@@ -7699,10 +7699,22 @@ const feedbackUtil = {
         );
       }
 
-      // Fire webhooks (best-effort)
-      dispatchWebhooks(tenant, "feedback.submitted", createResult.data).catch(
-        () => {},
-      );
+      // Fire webhooks — whitelist public fields only; never forward adminNotes,
+      // replies, watchers, or internal tracking fields to external receivers.
+      const submittedPayload = createResult.data
+        ? {
+            feedbackId: createResult.data._id,
+            email: createResult.data.email,
+            subject: createResult.data.subject,
+            category: createResult.data.category,
+            platform: createResult.data.platform,
+            app: createResult.data.app,
+            rating: createResult.data.rating,
+            actionable: createResult.data.actionable,
+            createdAt: createResult.data.createdAt,
+          }
+        : {};
+      dispatchWebhooks(tenant, "feedback.submitted", submittedPayload).catch(() => {});
 
       return {
         success: true,
@@ -7844,11 +7856,19 @@ const feedbackUtil = {
           }
         }
 
-        // Fire webhook (best-effort)
+        // Fire webhook — whitelist public fields only; spreading fb would leak
+        // adminNotes and watcher emails to external webhook receivers.
         dispatchWebhooks(tenant, "feedback.status_changed", {
-          ...fb,
+          feedbackId: fb._id,
+          email: fb.email,
+          subject: fb.subject,
+          category: fb.category,
+          platform: fb.platform,
+          app: fb.app,
+          rating: fb.rating,
           previousStatus: currentStatus,
           newStatus: requestedStatus,
+          createdAt: fb.createdAt,
         }).catch(() => {});
       }
 
@@ -7877,7 +7897,7 @@ const feedbackUtil = {
         FEEDBACK_TRANSITIONS,
       );
 
-      // Notify each successfully-updated submitter + fire bulk webhook (best-effort)
+      // Notify submitters and watchers for each succeeded item (best-effort)
       for (const item of succeeded) {
         mailer.feedbackStatusUpdate({
           email: item.email,
@@ -7885,6 +7905,19 @@ const feedbackUtil = {
           oldStatus: item.previousStatus,
           newStatus: requestedStatus,
         }).catch(() => {});
+
+        if (item.watchers && item.watchers.length > 0) {
+          const statusDetail = `Status changed from "${item.previousStatus}" to "${requestedStatus}".`;
+          for (const watcher of item.watchers) {
+            mailer.feedbackWatcherNotification({
+              email: watcher.email,
+              name: watcher.name,
+              subject: item.subject,
+              event: "status_changed",
+              detail: statusDetail,
+            }).catch(() => {});
+          }
+        }
       }
 
       dispatchWebhooks(tenant, "feedback.bulk_status_changed", {
@@ -7922,6 +7955,33 @@ const feedbackUtil = {
       if (!existing || !existing.success) return existing;
 
       const assigner = request.user || {};
+
+      // Verify the assignee exists and has admin permissions before persisting.
+      // Extend the role check here using your RBAC utilities if the permissions
+      // array is populated with ObjectIds rather than permission-name strings.
+      let assignee = null;
+      if (userId) {
+        assignee = await UserModel(tenant).findById(userId).lean();
+        if (!assignee) {
+          return {
+            success: false,
+            message: "Target user not found",
+            status: httpStatus.NOT_FOUND,
+            errors: { message: `No user found with ID: ${userId}` },
+          };
+        }
+        const hasAdminPermissions =
+          Array.isArray(assignee.permissions) && assignee.permissions.length > 0;
+        if (!hasAdminPermissions) {
+          return {
+            success: false,
+            message: "Feedback can only be assigned to admin users",
+            status: httpStatus.FORBIDDEN,
+            errors: { message: "Target user does not have admin permissions" },
+          };
+        }
+      }
+
       const update = {
         assignedTo: userId || null,
         assignedAt: userId ? new Date() : null,
@@ -7933,11 +7993,10 @@ const feedbackUtil = {
         update,
       });
 
-      if (modifyResult && modifyResult.success && userId) {
-        // Look up assignee details for notification
+      if (modifyResult && modifyResult.success && userId && assignee) {
+        // Send notification using the already-fetched assignee document
         try {
-          const assignee = await UserModel(tenant).findById(userId).lean();
-          if (assignee && assignee.email) {
+          if (assignee.email) {
             await mailer.feedbackAssigned({
               email: assignee.email,
               name: assignee.firstName || assignee.username || assignee.email,

@@ -1874,27 +1874,34 @@ module.exports = {
         <p>If you have any questions, contact your team lead or reply to this email.</p>
       </td>
     </tr>`;
-    return constants.EMAIL_BODY({ email, content, name: escapedName });
+    // Pass name: "" — EMAIL_BODY adds its own greeting from the name param,
+    // and the content already includes "Hi ${escapedName}". Passing the name
+    // a second time would produce a duplicate greeting in the rendered email.
+    return constants.EMAIL_BODY({ email, content, name: "" });
   },
 
   feedbackWatcherNotification: ({ email, name, subject, event, detail }) => {
     const escapedSubject = escapeHtml(subject || "a feedback item");
     const escapedName = escapeHtml(name || "");
     const eventMessages = {
-      status_changed: `The status of the feedback item has been updated. ${escapeHtml(detail || "")}`,
-      reply_added: `A new reply has been posted on the feedback item.<br/><div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:12px 0;border-radius:4px;">${escapeHtml(detail || "").replace(/\n/g, "<br/>")}</div>`,
+      status_changed: `<p>The status of the feedback item has been updated. ${escapeHtml(detail || "")}</p>`,
+      // reply_added body contains a block-level element — do NOT wrap in <p>
+      // as that produces invalid HTML (<p><div>…</div></p>) which email clients
+      // may mangle. The div is placed as a sibling block instead.
+      reply_added: `<p>A new reply has been posted on the feedback item.</p><div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:12px 0;border-radius:4px;">${escapeHtml(detail || "").replace(/\n/g, "<br/>")}</div>`,
     };
-    const body = eventMessages[event] || escapeHtml(detail || "An update is available on the feedback item.");
+    const body = eventMessages[event] || `<p>${escapeHtml(detail || "An update is available on the feedback item.")}</p>`;
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         ${escapedName ? `<p>Hi ${escapedName},</p>` : ""}
         <p>There is an update on a feedback item you are watching: <strong>${escapedSubject}</strong>.</p>
-        <p>${body}</p>
+        ${body}
         <p>You are receiving this because you are a watcher on this feedback item. To stop receiving notifications, ask an admin to remove you.</p>
       </td>
     </tr>`;
-    return constants.EMAIL_BODY({ email, content, name: escapedName });
+    // Pass name: "" — same duplicate-greeting reason as feedbackAssigned above.
+    return constants.EMAIL_BODY({ email, content, name: "" });
   },
 
   feedbackWeeklyDigest: ({ count, items }) => {
@@ -1934,6 +1941,8 @@ module.exports = {
         <p>Please review and update the status of these items in the AirQo Analytics admin panel.</p>
       </td>
     </tr>`;
-    return constants.EMAIL_BODY({ email: "", content, name: "AirQo Support Team" });
+    // Use SUPPORT_EMAIL so the footer renders "This email was sent to <address>"
+    // correctly rather than leaving the address blank.
+    return constants.EMAIL_BODY({ email: constants.SUPPORT_EMAIL || "", content, name: "AirQo Support Team" });
   },
 };

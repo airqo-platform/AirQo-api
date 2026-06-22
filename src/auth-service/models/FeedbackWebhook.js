@@ -89,8 +89,10 @@ FeedbackWebhookSchema.index({ tenant: 1, events: 1, active: 1 });
 FeedbackWebhookSchema.statics = {
   async register(args) {
     try {
-      const data = await this.create({ ...args });
-      if (!isEmpty(data)) {
+      const created = await this.create({ ...args });
+      if (!isEmpty(created)) {
+        const data = created.toObject();
+        delete data.secret;
         return createSuccessResponse("create", data, "webhook");
       }
       return createEmptySuccessResponse("webhook");
@@ -129,7 +131,7 @@ FeedbackWebhookSchema.statics = {
 
   async findSingle(filter = {}) {
     try {
-      const webhook = await this.findOne(filter).lean().exec();
+      const webhook = await this.findOne(filter).select("-secret").lean().exec();
       if (!isEmpty(webhook)) {
         return createSuccessResponse("get", webhook, "webhook");
       }
@@ -170,7 +172,9 @@ FeedbackWebhookSchema.statics = {
     try {
       const result = await this.findOneAndDelete(filter).exec();
       if (!isEmpty(result)) {
-        return createSuccessResponse("delete", result, "webhook");
+        const data = result.toObject ? result.toObject() : { ...result };
+        delete data.secret;
+        return createSuccessResponse("delete", data, "webhook");
       }
       return createNotFoundResponse("webhook", "delete");
     } catch (err) {
