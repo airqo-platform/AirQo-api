@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "airqolocate"
+version = "0.1.1"
+description = "Python client for the AirQo site-location API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+  { name = "AirQo Engineering", email = "data@airqo.net" },
+]
+keywords = [
+  "air quality",
+  "airqo",
+  "geospatial",
+  "sensor placement",
+  "site location",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: GIS",
+]
+
+[project.optional-dependencies]
+geocoding = ["osmnx>=1.9.4,<3"]
+dev = [
+  "build>=1.2",
+  "twine>=5",
+]
+
+[project.urls]
+Homepage = "https://github.com/airqo-platform/AirQo-api"
+Documentation = "https://github.com/airqo-platform/AirQo-api/tree/staging/packages/airqo-site-location"
+Repository = "https://github.com/airqo-platform/AirQo-api"
+Issues = "https://github.com/airqo-platform/AirQo-api/issues"
+
+[tool.setuptools]
+package-dir = { "" = "airqolocate" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["airqolocate"]
+
+[tool.setuptools.package-data]
+airqolocate = ["py.typed"]
