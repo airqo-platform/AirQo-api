@@ -178,16 +178,16 @@ networkStatusAlertSchema.statics = {
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdAlert)) {
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                "Network status alert not created despite successful operation",
-            }
-          )
+        const httpError = new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message:
+              "Network status alert not created despite successful operation",
+          }
         );
+        if (typeof next === "function") return next(httpError);
+        throw httpError;
       }
     } catch (error) {
       logObject("the error", error);
@@ -199,8 +199,13 @@ networkStatusAlertSchema.statics = {
         response[key] = value.message;
         return response;
       });
+      if (!response.message) {
+        response.message = error.message;
+      }
 
-      return next(new HttpError(message, status, response));
+      const httpError = new HttpError(message, status, response);
+      if (typeof next === "function") return next(httpError);
+      throw httpError;
     }
   },
 
