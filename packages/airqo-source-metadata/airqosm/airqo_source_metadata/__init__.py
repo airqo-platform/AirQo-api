@@ -93,6 +93,10 @@ def candidate_sources(
         raise SourceMetadataClientError(
             "Platform response field 'candidate_sources' must be a list."
         )
+    if not all(isinstance(candidate, dict) for candidate in value):
+        raise SourceMetadataClientError(
+            "Platform response field 'candidate_sources' must contain only objects."
+        )
     return value
 
 
