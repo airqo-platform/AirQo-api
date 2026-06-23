@@ -87,7 +87,7 @@ const networkStatusUtil = {
         next
       );
 
-      if (response.success) {
+      if (response && response.success) {
         try {
           const producer = await initializeKafkaProducer();
           await producer.send({

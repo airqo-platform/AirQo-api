@@ -178,7 +178,7 @@ networkStatusAlertSchema.statics = {
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdAlert)) {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -200,7 +200,7 @@ networkStatusAlertSchema.statics = {
         return response;
       });
 
-      next(new HttpError(message, status, response));
+      return next(new HttpError(message, status, response));
     }
   },
 
