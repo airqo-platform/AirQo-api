@@ -555,10 +555,10 @@ describe("email.msgs", () => {
         oldStatus: "pending",
         newStatus: "resolved",
       });
-      // EMAIL_BODY is called with name:"" so it adds no extra greeting.
-      // Count occurrences of "Hi " to confirm at most one greeting exists.
-      const hiCount = (result.match(/\bHi\b/g) || []).length;
-      expect(hiCount).to.be.at.most(1);
+      // EMAIL_BODY adds "Dear <name>," when name is non-empty, or "Hello!" when
+      // name is empty but greetings is non-suppressed. This template passes
+      // name:"" so EMAIL_BODY suppresses all wrapper greetings entirely.
+      expect(result).to.not.match(/Dear .+,|Hello!/);
     });
   });
 
@@ -597,8 +597,9 @@ describe("email.msgs", () => {
         subject: "Test",
         replyMessage: "Hello from admin",
       });
-      const hiCount = (result.match(/\bHi\b/g) || []).length;
-      expect(hiCount).to.be.at.most(1);
+      // Same as feedbackStatusUpdate: name:"" suppresses EMAIL_BODY's wrapper
+      // greeting entirely. If this regresses, "Dear <name>," would appear.
+      expect(result).to.not.match(/Dear .+,|Hello!/);
     });
 
     it("should include the subject in the output", () => {
@@ -641,9 +642,13 @@ describe("email.msgs", () => {
         subject: "Bug",
         feedbackId: "abc",
       });
-      // "Hi Jane" must appear exactly once; EMAIL_BODY gets name:"" so adds none.
+      // Content includes "Hi Jane,"; EMAIL_BODY gets name:"" so must NOT add
+      // its own "Dear Jane," wrapper. Both assertions are needed: the first
+      // confirms the inline greeting is present, the second guards against the
+      // duplicate-greeting regression where EMAIL_BODY also adds one.
       const greetingCount = (result.match(/Hi Jane/g) || []).length;
       expect(greetingCount).to.equal(1);
+      expect(result).to.not.include("Dear Jane,");
     });
 
     it("should fall back to 'Team member' when name is omitted", () => {
@@ -722,9 +727,11 @@ describe("email.msgs", () => {
         event: "status_changed",
         detail: "Status updated",
       });
-      // "Hi Alex" must appear exactly once; EMAIL_BODY gets name:"" so adds none.
+      // Content includes "Hi Alex,"; EMAIL_BODY gets name:"" so must NOT add
+      // its own "Dear Alex," wrapper — same dual-assertion pattern as feedbackAssigned.
       const greetingCount = (result.match(/Hi Alex/g) || []).length;
       expect(greetingCount).to.equal(1);
+      expect(result).to.not.include("Dear Alex,");
     });
   });
 
@@ -785,16 +792,16 @@ describe("email.msgs", () => {
     });
 
     it("footer email should be populated — regression guard for blank email bug", () => {
-      // Before the fix, email:"" was passed to EMAIL_BODY causing a blank footer.
-      // The fix passes constants.SUPPORT_EMAIL || "" ensuring it is non-blank when
-      // the env var is set. Here we verify the function at minimum does not throw
-      // and the constants value flows through correctly.
-      expect(() =>
-        msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] })
-      ).to.not.throw();
-      if (constants.SUPPORT_EMAIL) {
+      // Stub SUPPORT_EMAIL to a known value so the assertion always runs
+      // regardless of environment configuration. The test module and the util
+      // share the same cached constants object, so direct assignment propagates.
+      const saved = constants.SUPPORT_EMAIL;
+      constants.SUPPORT_EMAIL = "support@example.com";
+      try {
         const result = msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] });
-        expect(result).to.include(constants.SUPPORT_EMAIL);
+        expect(result).to.include("support@example.com");
+      } finally {
+        constants.SUPPORT_EMAIL = saved;
       }
     });
 
