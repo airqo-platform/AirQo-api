@@ -3,7 +3,7 @@ import math
 import os
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -213,7 +213,9 @@ def build_request_payload(
     if required_locations:
         payload["must_have_locations"] = required_locations
 
-    if options:
+    if options is not None:
+        if not isinstance(options, Mapping):
+            raise ValueError("options must be a mapping of additional request fields.")
         reserved = payload.keys() & options.keys()
         if reserved or "must_have_locations" in options:
             names = sorted(reserved | ({"must_have_locations"} & options.keys()))
@@ -235,13 +237,17 @@ class LocateClient:
         base_url: str = DEFAULT_PLATFORM_BASE_URL,
         timeout: Union[int, float] = 60,
     ) -> None:
-        if not str(base_url).strip():
+        base_url_value = str(base_url).strip()
+        if not base_url_value:
             raise ValueError("base_url must not be empty.")
+        parsed_base_url = urlparse(base_url_value)
+        if parsed_base_url.scheme not in ("http", "https") or not parsed_base_url.netloc:
+            raise ValueError("base_url must be a valid HTTP or HTTPS URL.")
         timeout_value = _finite_number(timeout, "timeout")
         if timeout_value <= 0:
             raise ValueError("timeout must be greater than zero.")
         self.token = token
-        self.base_url = base_url.rstrip("/")
+        self.base_url = base_url_value.rsplit("/")
         self.timeout = timeout_value
 
     def _resolve_token(self, token: Optional[str]) -> str:
@@ -251,6 +257,8 @@ class LocateClient:
             or os.getenv("AIRQO_PLATFORM_TOKEN")
             or os.getenv("AIRQO_API_TOKEN")
         )
+        if isinstance(resolved, str):
+            resolved = resolved.strip()
         if not resolved:
             raise ValueError(
                 "An AirQo API token is required. Pass token=... or set "
