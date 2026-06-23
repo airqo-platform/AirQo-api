@@ -171,6 +171,6 @@ version is not already present on PyPI.
 python -m twine upload (Get-ChildItem dist -File).FullName
 ``` 
 
-## License
+## License 
 
 MIT. See [LICENSE](LICENSE).
