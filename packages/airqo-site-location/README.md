@@ -11,23 +11,18 @@ place resolved through OpenStreetMap.
 
 ## Installation
 
-Install the core client:
+Install the client and its OSMnx dependency:
 
 ```bash
 pip install airqolocate
 ```
 
-Install named-place geocoding support:
-
-```bash
-pip install "airqolocate[geocoding]"
-```
 
 For local development:
 
 ```bash
 cd packages/airqo-site-location
-python -m pip install -e ".[geocoding,dev]"
+python -m pip install -e ".[dev]"
 ```
 
 ## Authentication
@@ -39,8 +34,6 @@ $env:AIRQO_API_TOKEN = "your-airqo-api-token"
 ```
 
 ## Quick start
-
-Named-place lookup requires the `geocoding` extra:
 
 ```python
 from airqolocate import locate_sites

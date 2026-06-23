@@ -121,8 +121,8 @@ def polygon_from_place(place_name: str) -> Dict[str, Any]:
         import osmnx as ox
     except ImportError as ex:
         raise ImportError(
-            "Place-name lookup requires OSMnx. Install it with "
-            "`pip install 'airqolocate[geocoding]'`."
+            "Place-name lookup requires OSMnx. Reinstall airqolocate to "
+            "restore its required dependencies."
         ) from ex
 
     try:
