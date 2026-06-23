@@ -482,4 +482,328 @@ describe("email.msgs", () => {
       expect(result).to.be.a("string");
     });
   });
+
+  // ── New feedback workflow templates ──────────────────────────────────────────
+
+  describe("feedbackStatusUpdate", () => {
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Map not loading",
+        oldStatus: "pending",
+        newStatus: "resolved",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should HTML-escape the subject", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "<script>alert(1)</script>",
+        oldStatus: "pending",
+        newStatus: "reviewed",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should render correct body copy for reviewed status", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "reviewed",
+      });
+      expect(result).to.include("under review");
+    });
+
+    it("should render correct body copy for resolved status", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "resolved",
+      });
+      expect(result).to.include("has been resolved");
+    });
+
+    it("should render correct body copy for archived status", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "archived",
+      });
+      expect(result).to.include("been archived");
+    });
+
+    it("should fall back gracefully when newStatus is not in the label map", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "custom_status",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+      expect(result).to.include("custom_status");
+    });
+
+    it("should not produce a duplicate greeting line", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "resolved",
+      });
+      // EMAIL_BODY is called with name:"" so it adds no extra greeting.
+      // Count occurrences of "Hi " to confirm at most one greeting exists.
+      const hiCount = (result.match(/\bHi\b/g) || []).length;
+      expect(hiCount).to.be.at.most(1);
+    });
+  });
+
+  describe("feedbackAdminReply", () => {
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Crash on login",
+        replyMessage: "We have fixed the issue.",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should HTML-escape the replyMessage", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Test",
+        replyMessage: "<script>alert(1)</script>",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should convert newlines in replyMessage to <br/>", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Test",
+        replyMessage: "Line one\nLine two",
+      });
+      expect(result).to.include("<br/>");
+    });
+
+    it("should not produce a duplicate greeting line", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Test",
+        replyMessage: "Hello from admin",
+      });
+      const hiCount = (result.match(/\bHi\b/g) || []).length;
+      expect(hiCount).to.be.at.most(1);
+    });
+
+    it("should include the subject in the output", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Unique subject text",
+        replyMessage: "Reply body",
+      });
+      expect(result).to.include("Unique subject text");
+    });
+  });
+
+  describe("feedbackAssigned", () => {
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        name: "Jane",
+        subject: "Bug report",
+        feedbackId: "abc123",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should HTML-escape subject and name", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        name: "<b>Jane</b>",
+        subject: "<script>alert(1)</script>",
+        feedbackId: "abc",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+      expect(result).to.not.include("<b>Jane</b>");
+    });
+
+    it("should not produce a duplicate greeting — regression guard", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        name: "Jane",
+        subject: "Bug",
+        feedbackId: "abc",
+      });
+      // "Hi Jane" must appear exactly once; EMAIL_BODY gets name:"" so adds none.
+      const greetingCount = (result.match(/Hi Jane/g) || []).length;
+      expect(greetingCount).to.equal(1);
+    });
+
+    it("should fall back to 'Team member' when name is omitted", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        subject: "Bug",
+        feedbackId: "abc",
+      });
+      expect(result).to.include("Team member");
+    });
+  });
+
+  describe("feedbackWatcherNotification", () => {
+    it("should return a non-empty HTML string for status_changed event", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "status_changed",
+        detail: "Status changed to resolved",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should return a non-empty HTML string for reply_added event", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "reply_added",
+        detail: "Admin has replied",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("reply_added output should not contain <p><div> — regression guard for invalid HTML nesting", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "reply_added",
+        detail: "Some reply text",
+      });
+      expect(result).to.not.include("<p><div");
+    });
+
+    it("should HTML-escape the detail field", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "status_changed",
+        detail: "<script>alert(1)</script>",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should render fallback copy when event is unknown", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "unknown_event",
+        detail: "Some update",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+      expect(result).to.include("Some update");
+    });
+
+    it("should not produce a duplicate greeting when name is provided — regression guard", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "status_changed",
+        detail: "Status updated",
+      });
+      // "Hi Alex" must appear exactly once; EMAIL_BODY gets name:"" so adds none.
+      const greetingCount = (result.match(/Hi Alex/g) || []).length;
+      expect(greetingCount).to.equal(1);
+    });
+  });
+
+  describe("feedbackWeeklyDigest", () => {
+    const sampleItems = [
+      {
+        subject: "Map tiles broken",
+        email: "user1@example.com",
+        category: "bug",
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+        reminderCount: 1,
+      },
+      {
+        subject: "Add dark mode",
+        email: "user2@example.com",
+        category: "feature_request",
+        createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+        reminderCount: 0,
+      },
+    ];
+
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 2, items: sampleItems });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should render one table row per item", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 2, items: sampleItems });
+      expect(result).to.include("Map tiles broken");
+      expect(result).to.include("Add dark mode");
+    });
+
+    it("should HTML-escape subject and email values in each row", () => {
+      const maliciousItems = [
+        {
+          subject: "<script>alert(1)</script>",
+          email: "<img src=x>@example.com",
+          category: "bug",
+          createdAt: new Date().toISOString(),
+          reminderCount: 0,
+        },
+      ];
+      const result = msgs.feedbackWeeklyDigest({ count: 1, items: maliciousItems });
+      expect(result).to.not.include("<script>");
+      expect(result).to.not.include("<img src=x>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should use singular copy for count of 1", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] });
+      // "1 actionable feedback item" — no trailing 's'
+      expect(result).to.match(/\b1\b.*actionable feedback item[^s]/);
+    });
+
+    it("should use plural copy for count greater than 1", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 3, items: sampleItems });
+      expect(result).to.include("actionable feedback items");
+    });
+
+    it("footer email should be populated — regression guard for blank email bug", () => {
+      // Before the fix, email:"" was passed to EMAIL_BODY causing a blank footer.
+      // The fix passes constants.SUPPORT_EMAIL || "" ensuring it is non-blank when
+      // the env var is set. Here we verify the function at minimum does not throw
+      // and the constants value flows through correctly.
+      expect(() =>
+        msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] })
+      ).to.not.throw();
+      if (constants.SUPPORT_EMAIL) {
+        const result = msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] });
+        expect(result).to.include(constants.SUPPORT_EMAIL);
+      }
+    });
+
+    it("should handle an empty items array without throwing", () => {
+      expect(() =>
+        msgs.feedbackWeeklyDigest({ count: 0, items: [] })
+      ).to.not.throw();
+      const result = msgs.feedbackWeeklyDigest({ count: 0, items: [] });
+      expect(result).to.be.a("string");
+    });
+  });
 });
