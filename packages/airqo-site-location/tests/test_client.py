@@ -74,6 +74,10 @@ class PayloadTests(unittest.TestCase):
 
 
 class LocateClientTests(unittest.TestCase):
+    def test_normalizes_trailing_slash_from_base_url(self):
+        client = LocateClient(base_url="https://platform.airqo.net/")
+        self.assertEqual(client.base_url, "https://platform.airqo.net")
+
     @patch("airqolocate.client.urlopen")
     def test_posts_expected_request(self, mock_urlopen):
         response = MagicMock()

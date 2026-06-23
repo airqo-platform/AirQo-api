@@ -247,7 +247,7 @@ class LocateClient:
         if timeout_value <= 0:
             raise ValueError("timeout must be greater than zero.")
         self.token = token
-        self.base_url = base_url_value.rsplit("/")
+        self.base_url = base_url_value.rstrip("/")
         self.timeout = timeout_value
 
     def _resolve_token(self, token: Optional[str]) -> str:
