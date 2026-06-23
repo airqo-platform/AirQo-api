@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 DEFAULT_PLATFORM_BASE_URL = "https://platform.airqo.net"
 SITE_LOCATION_PATH = "/api/v2/spatial/site_location"
-PACKAGE_VERSION = "0.1.0"
+PACKAGE_VERSION = "0.1.1"
 Number = Union[int, float]
 Coordinate = Tuple[float, float]
 

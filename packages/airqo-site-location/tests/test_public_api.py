@@ -10,7 +10,7 @@ import airqolocate
 
 class PublicApiTests(unittest.TestCase):
     def test_version(self):
-        self.assertEqual(airqolocate.__version__, "0.1.0")
+        self.assertEqual(airqolocate.__version__, "0.1.1")
 
     @patch("airqolocate.LocateClient.locate")
     def test_locate_sites_delegates_to_client(self, mock_locate):
