@@ -154,13 +154,17 @@ class SourceMetadataClient:
             raise SourceMetadataClientError(
                 message, status_code=ex.code, payload=payload
             ) from ex
-        except URLError as ex:
-            raise SourceMetadataClientError(
-                f"Unable to reach the platform source metadata API: {ex.reason}"
-            ) from ex
         except TimeoutError as ex:
             raise SourceMetadataClientError(
                 "The platform source metadata request timed out."
+            ) from ex
+        except URLError as ex:
+            if isinstance(getattr(ex, "reason", None), TimeoutError):
+                raise SourceMetadataClientError(
+                    "The platform source metadata request timed out."
+                ) from ex
+            raise SourceMetadataClientError(
+                f"Unable to reach the platform source metadata API: {ex.reason}"
             ) from ex
 
         payload = self._safe_load_json(body)
