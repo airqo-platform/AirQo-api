@@ -9,17 +9,17 @@
 
 ## Installation
 
-Install with place-name lookup support:
+Install the package:
 
 ```bash
-pip install "airqolocate[geocoding]"
+pip install airqolocate
 ```
 
 From this repository:
 
 ```bash
 cd packages/airqo-site-location
-python -m pip install -e ".[geocoding]"
+python -m pip install -e .
 ```
 
 ## Authentication
