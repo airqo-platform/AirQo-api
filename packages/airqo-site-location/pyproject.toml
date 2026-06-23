@@ -8,7 +8,7 @@ version = "0.1.1"
 description = "Python client for the AirQo site-location API"
 readme = "README.md"
 requires-python = ">=3.9"
-license = "MIT"
+license = { text = "MIT" }
 authors = [
   { name = "AirQo Engineering", email = "data@airqo.net" }
 ]
