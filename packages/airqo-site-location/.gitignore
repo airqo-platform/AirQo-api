@@ -1,0 +1,23 @@
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Python caches and compiled files
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local environment files
+.env
+.env.*
+

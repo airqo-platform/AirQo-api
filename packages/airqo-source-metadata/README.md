@@ -1,234 +1,196 @@
 # airqosm
 
-`airqosm` is a lightweight Python package for:
-- fetching source metadata from the AirQo Platform spatial API
-- normalizing the platform response into a stable `{message, data}` shape
-- inferring likely air pollution source metadata locally from features when needed
+`airqosm` is a lightweight Python client for the AirQo source metadata API. Given a latitude and longitude, it returns ranked likely pollution sources together with the geographic and Sentinel-2 evidence used by the API.
 
-The local inference engine works from:
-- site context (`category`, `landuse`, `natural`, `highway`)
-- satellite pollutant summary means (`SO2`, `HCHO`, `CO`, `NO2`, `O3`, `AOD`)
-
-It can run as:
-- a Python client (`SourceMetadataClient`)
-- a Python library (`SourceMetadataEngine`)
-- an optional Flask API (`airqosm-api`)
 
 ## Requirements
 
-- Python `>=3.9`
-- Dependencies are managed in `pyproject.toml`
+- Python 3.9 or newer
+- An AirQo API token
 
-### Do I need a `requirements.txt`?
-
-No, not for this package.
-
-This package is already standards-based and pip-installable using `pyproject.toml` (PEP 517/518/621).  
-Use `requirements.txt` only if you specifically want a separate pinned file for CI/runtime environments.
-
-## Install
-
-From PyPI:
+## Installation
 
 ```bash
 pip install airqosm
 ```
 
-Install with API server support:
-
-```bash
-pip install "airqosm[api]"
-```
-
-From this monorepo (editable mode):
+From this repository:
 
 ```bash
 cd packages/airqo-source-metadata
 pip install -e .
 ```
 
-## Authentication
-
-This package uses an AirQo API token to call protected AirQo platform endpoints.
-
-Generate your token from AirQo Analytics:
-- Log in at `https://analytics.airqo.net/`
-- Open your account settings
-- Under the API tab, register a client and generate an access token
-
-You can then pass the token directly or set `AIRQO_PLATFORM_TOKEN` / `AIRQO_API_TOKEN`.
-
-## Library Quick Start
-
-Simple import style:
-
-```python
-import airqosm
-
-result = airqosm.source_metadata(
-    latitude=5.798044,
-    longitude=-0.8212,
-    token="your-airqo-api-token",
-)
-
-print(result["data"]["primary_source"])
-```
-
-Direct helper imports:
-
-```python
-from airqosm import candidate_sources, primary_source
-
-print(primary_source(5.798044, -0.8212, token="your-airqo-api-token"))
-print(candidate_sources(5.798044, -0.8212, token="your-airqo-api-token"))
-```
-
-Fetch from AirQo Platform:
-
-```python
-from airqosm import SourceMetadataClient
-
-client = SourceMetadataClient(token="your-airqo-api-token")
-
-response = client.fetch(
-    latitude=5.798044,
-    longitude=-0.8212,
-    include_satellite=True,
-)
-
-print(response["data"]["primary_source"])
-```
-
-The client automatically unwraps singleton list wrappers such as `[[{...}]]` and returns:
-
-```python
-{
-    "message": "Operation successful",
-    "data": {
-        "primary_source": {...},
-        "candidate_sources": [...],
-        ...
-    },
-}
-```
-
-Run local inference from features:
-
-```python
-from airqosm import SourceMetadataEngine
-
-engine = SourceMetadataEngine()
-
-result = engine.build_from_features(
-    latitude=0.322502,
-    longitude=32.584726,
-    site_category={
-        "category": "Urban Background",
-        "landuse": "commercial",
-        "natural": "unknown",
-        "highway": "primary",
-        "area_name": "Kampala",
-        "search_radius": 100,
-        "waterway": "unknown",
-    },
-    satellite_pollutants_mean={
-        "SO2": 0.00007,
-        "HCHO": 0.00012,
-        "CO": 0.05,
-        "NO2": 0.00009,
-        "O3": 0.14,
-        "AOD": 1.2,
-    },
-    include_satellite=True,
-)
-
-print(result["primary_source"])
-```
-
-## Run API
-
-```bash
-airqosm-api --host 0.0.0.0 --port 8010 --platform-token your-airqo-api-token
-```
-
-The API command requires the optional API extra:
+Install the optional local proxy server:
 
 ```bash
 pip install "airqosm[api]"
 ```
 
-Base URL: `http://127.0.0.1:8010`
+## Authentication
 
-### Endpoints
+Pass a token directly or set `AIRQO_PLATFORM_TOKEN` or `AIRQO_API_TOKEN`.
+
+```powershell
+$env:AIRQO_API_TOKEN = "your-airqo-api-token"
+```
+
+Tokens can be generated from the API section of your AirQo Analytics account at <https://analytics.airqo.net/>.
+
+## Quick start
+
+```python
+import airqosm
+
+response = airqosm.source_metadata(
+    latitude=0.230918,
+    longitude=32.614595,
+    include_satellite=True,
+)
+
+print(response["data"]["primary_source"])
+print(response["data"]["candidate_sources"])
+print(response["data"]["evidence"]["sentinel2_context"])
+```
+
+A token may also be passed explicitly:
+
+```python
+from airqosm import SourceMetadataClient
+
+client = SourceMetadataClient(token="your-airqo-api-token", timeout=30)
+response = client.fetch(
+    latitude=0.230918,
+    longitude=32.614595,
+    include_satellite=True,
+)
+```
+
+Convenience helpers return only one part of the response:
+
+```python
+from airqosm import candidate_sources, primary_source
+
+primary = primary_source(0.230918, 32.614595, include_satellite=False)
+candidates = candidate_sources(0.230918, 32.614595)
+```
+
+## Response format
+
+The platform may wrap a single result in one or more singleton arrays. The client removes those wrappers and always returns a dictionary with `message` and `data`:
+
+```json
+{
+  "message": "Operation successful",
+  "data": {
+    "location": {
+      "area_name": "Munyonyo",
+      "latitude": 0.230918,
+      "longitude": 32.614595
+    },
+    "primary_source": {
+      "source_type": "traffic",
+      "confidence": 0.3478
+    },
+    "candidate_sources": [
+      {"source_type": "traffic", "confidence": 0.3478},
+      {"source_type": "mixed_urban", "confidence": 0.3478},
+      {"source_type": "biomass_burning", "confidence": 0.1739}
+    ],
+    "evidence": {
+      "site_category": {
+        "category": "Urban Background",
+        "classification_confidence": 0.65,
+        "classification_method": "nominatim",
+        "highway": "residential"
+      },
+      "reasoning": [
+        "The point is in a built-up urban or residential context.",
+        "Road type 'residential' supports local traffic influence."
+      ],
+      "sentinel2_context": {
+        "provider": "Element 84 Earth Search",
+        "collection": "sentinel-2-l2a",
+        "indices": {
+          "ndvi": 0.7655,
+          "ndbi": -0.2435,
+          "ndwi": -0.6834,
+          "bare_soil_index": -0.2025,
+          "normalized_burn_ratio": 0.5337
+        }
+      },
+      "sentinel2_error": null
+    },
+    "metadata": {
+      "model_version": "2.0.0",
+      "satellite_data_used": true,
+      "cache_hit": false
+    }
+  }
+}
+```
+
+Treat source attribution as contextual evidence, not direct emissions measurement. The API disclaimer and reasoning fields should be retained when results are shown to end users.
+
+## Satellite context
+
+`include_satellite=True` requests free Copernicus Sentinel-2 L2A land-surface context through Element 84 Earth Search. It adds vegetation, built-up, water, bare-soil, and burn-ratio indices.
+
+Set `include_satellite=False` for a faster OSM/site-category-only request.
+
+## Optional query parameters
+
+Additional platform query parameters can be supplied without allowing core request fields to be overwritten:
+
+```python
+response = client.fetch(
+    latitude=0.230918,
+    longitude=32.614595,
+    extra_params={"start_date": "2026-04-23", "end_date": "2026-06-22"},
+)
+```
+
+`extra_params` cannot replace `latitude`, `longitude`, `include_satellite`, or `token`.
+
+## Errors
+
+Invalid coordinates and configuration raise `ValueError`. Network, HTTP, invalid JSON, and malformed platform responses raise `SourceMetadataClientError`:
+
+```python
+from airqosm import SourceMetadataClientError, source_metadata
+
+try:
+    response = source_metadata(0.230918, 32.614595)
+except SourceMetadataClientError as error:
+    print(error.status_code)
+    print(error.payload)
+```
+
+## Optional proxy API
+
+Run a local proxy backed by the AirQo platform:
+
+```bash
+airqosm-api --host 0.0.0.0 --port 8010 --platform-token your-airqo-api-token
+```
+
+Endpoints:
 
 - `GET /healthz`
 - `GET /api/v2/spatial/source_metadata`
-- `POST /api/v1/source-metadata/from-features`
-- `POST /api/v1/source-metadata/batch-from-features`
-
-## API Examples
-
-Coordinate lookup through the platform client:
 
 ```bash
-curl "http://127.0.0.1:8010/api/v2/spatial/source_metadata?latitude=5.798044&longitude=-0.8212&include_satellite=true&token=your-airqo-api-token"
+curl "http://127.0.0.1:8010/api/v2/spatial/source_metadata?latitude=0.230918&longitude=32.614595&include_satellite=true"
 ```
 
-Single request:
+If `--platform-token` is omitted, callers must provide `Authorization: Bearer <token>` or a `token` query parameter.
 
-```bash
-curl -X POST "http://127.0.0.1:8010/api/v1/source-metadata/from-features" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "latitude": 0.322502,
-    "longitude": 32.584726,
-    "site_category": {
-      "category": "Urban Background",
-      "landuse": "commercial",
-      "natural": "unknown",
-      "highway": "primary"
-    },
-    "satellite_pollutants_mean": {
-      "SO2": 0.00007,
-      "HCHO": 0.00012,
-      "CO": 0.05,
-      "NO2": 0.00009,
-      "O3": 0.14,
-      "AOD": 1.2
-    }
-  }'
-```
-
-Batch request:
-
-```bash
-curl -X POST "http://127.0.0.1:8010/api/v1/source-metadata/batch-from-features" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "include_satellite": true,
-    "items": [
-      {
-        "id": "site-1",
-        "latitude": 0.322502,
-        "longitude": 32.584726,
-        "site_category": {"category": "Urban Background", "landuse": "commercial", "natural": "unknown", "highway": "primary"},
-        "satellite_pollutants_mean": {"SO2": 0.00007, "HCHO": 0.00012, "CO": 0.05, "NO2": 0.00009, "O3": 0.14, "AOD": 1.2}
-      },
-      {
-        "id": "site-2",
-        "latitude": 0.347596,
-        "longitude": 32.582520,
-        "site_category": {"category": "Major Highway", "landuse": "industrial", "natural": "unknown", "highway": "trunk"},
-        "satellite_pollutants_mean": {"SO2": 0.0001, "HCHO": 0.00011, "CO": 0.06, "NO2": 0.00012, "O3": 0.13, "AOD": 1.0}
-      }
-    ]
-  }'
-```
-
+## Development
 ## Build and Publish (PyPI)
 
 ```bash
 cd packages/airqo-source-metadata
+python -m unittest discover -s tests -v
 python -m pip install --upgrade build twine
 python -m build
 python -m twine check dist/*
