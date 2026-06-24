@@ -373,9 +373,6 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // app.use("/api/v1/devices", require("@routes/v1"));
 app.use("/api/v2/devices", require("@routes/v2"));
-const { publicRouter: learnPublicRouter, adminRouter: learnAdminRouter } = require("@routes/v2/learn.routes");
-app.use("/api/v2/learn", learnPublicRouter);
-app.use("/api/v2/admin/learn", learnAdminRouter);
 
 // default error handling
 app.use((req, res, next) => {
