@@ -100,17 +100,29 @@ learnGuestSessionSchema.statics = {
       }
       const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const guest_id = `guest_${suffix}`;
-      const created = await this.create({
-        ...args,
-        guest_id,
-        display_name: guest_id,
-      });
-      return {
-        success: true,
-        data: created._doc,
-        message: "guest session created",
-        status: httpStatus.CREATED,
-      };
+      try {
+        const created = await this.create({ ...args, guest_id, display_name: guest_id });
+        return {
+          success: true,
+          data: created._doc,
+          message: "guest session created",
+          status: httpStatus.CREATED,
+        };
+      } catch (createError) {
+        // Concurrent request won the race — re-fetch and return the winner's doc
+        if (createError.code === 11000) {
+          const race = await this.findOne({ device_id: args.device_id }).lean();
+          if (race) {
+            return {
+              success: true,
+              data: race,
+              message: "guest session retrieved",
+              status: httpStatus.OK,
+            };
+          }
+        }
+        throw createError;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(

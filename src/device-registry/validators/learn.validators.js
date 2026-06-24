@@ -1,7 +1,7 @@
 const { query, body, param, validationResult } = require("express-validator");
+const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const isEmpty = require("is-empty");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -25,7 +25,9 @@ const commonTenant = query("tenant")
   .withMessage("tenant cannot be empty if provided")
   .bail()
   .trim()
-  .toLowerCase();
+  .toLowerCase()
+  .isIn(constants.TENANTS)
+  .withMessage("the tenant value is not among the expected ones");
 
 const learnValidations = {
   // -------------------------------------------------------------------------
@@ -44,9 +46,12 @@ const learnValidations = {
       .exists()
       .withMessage("lesson_id is required")
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("lesson_id must not be empty")
-      .trim(),
+      .bail()
+      .isMongoId()
+      .withMessage("lesson_id must be a valid MongoDB ObjectId"),
     validate,
   ],
 
@@ -55,6 +60,7 @@ const learnValidations = {
   // -------------------------------------------------------------------------
 
   createAnonymousSession: [
+    commonTenant,
     body("device_id")
       .exists()
       .withMessage("device_id is required")
@@ -84,8 +90,11 @@ const learnValidations = {
       .exists()
       .withMessage("lesson_id is required")
       .bail()
+      .trim()
       .notEmpty()
-      .trim(),
+      .bail()
+      .isMongoId()
+      .withMessage("lesson_id must be a valid MongoDB ObjectId"),
     body("furthest_activity_index")
       .optional()
       .isInt({ min: 0 })
@@ -128,8 +137,8 @@ const learnValidations = {
       .exists()
       .withMessage("each update must include lesson_id")
       .bail()
-      .notEmpty()
-      .trim(),
+      .trim()
+      .notEmpty(),
     validate,
   ],
 
@@ -138,6 +147,7 @@ const learnValidations = {
   // -------------------------------------------------------------------------
 
   linkGuestProgress: [
+    commonTenant,
     body("device_id")
       .exists()
       .withMessage("device_id is required")
@@ -149,9 +159,9 @@ const learnValidations = {
       .exists()
       .withMessage("guest_id is required")
       .bail()
+      .trim()
       .notEmpty()
-      .withMessage("guest_id must not be empty")
-      .trim(),
+      .withMessage("guest_id must not be empty"),
     validate,
   ],
 
@@ -171,18 +181,18 @@ const learnValidations = {
       .exists()
       .withMessage("title is required")
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("title must not be empty")
       .bail()
       .isLength({ max: 120 })
-      .withMessage("title must not exceed 120 characters")
-      .trim(),
+      .withMessage("title must not exceed 120 characters"),
     body("plain_title_key")
       .exists()
       .withMessage("plain_title_key is required")
       .bail()
-      .notEmpty()
-      .trim(),
+      .trim()
+      .notEmpty(),
     body("cover_image_url")
       .optional()
       .isURL({ protocols: ["https"], require_protocol: true })
@@ -200,23 +210,26 @@ const learnValidations = {
       .exists()
       .withMessage("course_id is required")
       .bail()
+      .trim()
       .notEmpty()
-      .trim(),
+      .bail()
+      .isMongoId()
+      .withMessage("course_id must be a valid MongoDB ObjectId"),
     body("title")
       .exists()
       .withMessage("title is required")
       .bail()
+      .trim()
       .notEmpty()
       .bail()
       .isLength({ max: 120 })
-      .withMessage("title must not exceed 120 characters")
-      .trim(),
+      .withMessage("title must not exceed 120 characters"),
     body("plain_title_key")
       .exists()
       .withMessage("plain_title_key is required")
       .bail()
-      .notEmpty()
-      .trim(),
+      .trim()
+      .notEmpty(),
     body("unit_order")
       .exists()
       .withMessage("unit_order is required")
@@ -232,23 +245,26 @@ const learnValidations = {
       .exists()
       .withMessage("unit_id is required")
       .bail()
+      .trim()
       .notEmpty()
-      .trim(),
+      .bail()
+      .isMongoId()
+      .withMessage("unit_id must be a valid MongoDB ObjectId"),
     body("title")
       .exists()
       .withMessage("title is required")
       .bail()
+      .trim()
       .notEmpty()
       .bail()
       .isLength({ max: 120 })
-      .withMessage("title must not exceed 120 characters")
-      .trim(),
+      .withMessage("title must not exceed 120 characters"),
     body("plain_title_key")
       .exists()
       .withMessage("plain_title_key is required")
       .bail()
-      .notEmpty()
-      .trim(),
+      .trim()
+      .notEmpty(),
     body("lesson_order")
       .exists()
       .withMessage("lesson_order is required")
@@ -269,8 +285,11 @@ const learnValidations = {
       .exists()
       .withMessage("lesson_id is required")
       .bail()
+      .trim()
       .notEmpty()
-      .trim(),
+      .bail()
+      .isMongoId()
+      .withMessage("lesson_id must be a valid MongoDB ObjectId"),
     body("type")
       .exists()
       .withMessage("type is required")
@@ -298,15 +317,18 @@ const learnValidations = {
       .exists()
       .withMessage("course_id is required")
       .bail()
+      .trim()
       .notEmpty()
-      .trim(),
+      .bail()
+      .isMongoId()
+      .withMessage("course_id must be a valid MongoDB ObjectId"),
     body("title")
       .optional()
+      .trim()
       .notEmpty()
       .bail()
       .isLength({ max: 120 })
-      .withMessage("title must not exceed 120 characters")
-      .trim(),
+      .withMessage("title must not exceed 120 characters"),
     body("cover_image_url")
       .optional()
       .isURL({ protocols: ["https"], require_protocol: true })

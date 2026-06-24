@@ -11,7 +11,9 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- learn-util`);
 const isEmpty = require("is-empty");
 
-const STAGES = LearnProgressModel("airqo").schema.statics?.STAGES || [
+const MAX_LEARN_POINTS = 2400;
+
+const STAGES = [
   { index: 0, name: "Curious" },
   { index: 1, name: "Aware" },
   { index: 2, name: "Observer" },
@@ -269,7 +271,7 @@ const learn = {
             learner_type: user_id ? "user" : "guest",
             guest_id: guest_id || undefined,
             total_points: 0,
-            max_points: 2400,
+            max_points: MAX_LEARN_POINTS,
             completed_lessons: 0,
             current_stage: STAGES[0],
             lessons: {},
@@ -302,7 +304,7 @@ const learn = {
           learner_type: doc.learner_type,
           guest_id: doc.guest_id || undefined,
           total_points: doc.total_points,
-          max_points: 2400,
+          max_points: MAX_LEARN_POINTS,
           completed_lessons: doc.completed_lessons,
           current_stage: stage,
           lessons: lessonsOut,
@@ -329,6 +331,14 @@ const learn = {
       const user_id = request.user?.id || null;
       const update = request.body;
 
+      if (!user_id && !device_id) {
+        return {
+          success: false,
+          message: "X-Device-Id header is required for guest progress",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       // Verify lesson exists and is published
       const lessonRes = await LearnLessonModel(tenant).list(
         { filter: { _id: lesson_id } },
@@ -343,7 +353,7 @@ const learn = {
       }
 
       const result = await LearnProgressModel(tenant).upsertLessonProgress(
-        { device_id, guest_id, user_id, lesson_id, update, maxPoints: 2400 },
+        { device_id, guest_id, user_id, lesson_id, update, maxPoints: MAX_LEARN_POINTS },
         next
       );
       if (!result?.success) return result;
@@ -417,7 +427,7 @@ const learn = {
             user_id,
             lesson_id: update.lesson_id,
             update,
-            maxPoints: 2400,
+            maxPoints: MAX_LEARN_POINTS,
           },
           next
         );
@@ -456,7 +466,15 @@ const learn = {
     try {
       const tenant = getTenant(request);
       const { device_id, guest_id } = request.body;
-      const user_id = request.user?.id;
+      const user_id = request.user?.id || null;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "authentication required",
+          status: httpStatus.UNAUTHORIZED,
+        };
+      }
 
       // Verify the guest session exists and is not already linked to another user
       const sessionRes = await LearnGuestSessionModel(tenant)
@@ -480,7 +498,7 @@ const learn = {
       if (!result?.success) return result;
 
       await LearnGuestSessionModel(tenant).findOneAndUpdate(
-        { device_id },
+        { device_id, guest_id },
         { $set: { linked_user_id: user_id, linked_at: new Date() } }
       );
 

@@ -1,28 +1,10 @@
 const httpStatus = require("http-status");
-const { logObject, HttpError, extractErrorsFromRequest } = require("@utils/shared");
+const { HttpError, extractErrorsFromRequest } = require("@utils/shared");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- learn-controller`);
 const learnUtil = require("@utils/learn.util");
 const isEmpty = require("is-empty");
-
-function handleResponse({ result, key = "data", res } = {}) {
-  if (!result) return;
-  const isSuccess = result.success;
-  const status = result.status !== undefined
-    ? result.status
-    : isSuccess ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR;
-  const message = result.message !== undefined ? result.message : (isSuccess ? "Operation Successful" : "Internal Server Error");
-
-  if (isSuccess) {
-    return res.status(status).json({ success: true, message, [key]: result.data });
-  }
-  return res.status(status).json({
-    success: false,
-    message,
-    errors: result.errors || { message },
-  });
-}
 
 const learnController = {
   // ---------------------------------------------------------------------------

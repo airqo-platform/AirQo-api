@@ -16,6 +16,7 @@ const learnCourseSchema = new Schema(
     course_number: {
       type: Number,
       required: [true, "course_number is required"],
+      unique: true,
       min: 1,
     },
     title: {
@@ -182,11 +183,7 @@ learnCourseSchema.statics = {
 const LearnCourseModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    return mongoose.model("learncourses");
-  } catch (error) {
-    return getModelByTenant(dbTenant, "learncourse", learnCourseSchema);
-  }
+  return getModelByTenant(dbTenant, "learncourse", learnCourseSchema);
 };
 
 module.exports = LearnCourseModel;

@@ -10,6 +10,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- learn-progress-model`
 );
 
+const MAX_LEARN_POINTS = 2400;
+
 // Per-lesson progress sub-document
 const lessonProgressSchema = new Schema(
   {
@@ -26,7 +28,6 @@ const lessonProgressSchema = new Schema(
 
 const learnProgressSchema = new Schema(
   {
-    // Either guest_id or user_id is set; user_id takes precedence after account link
     guest_id: { type: String, default: null },
     user_id: { type: String, default: null },
     device_id: { type: String, required: [true, "device_id is required"] },
@@ -69,8 +70,20 @@ function computeStage(totalPoints, maxPoints) {
   return STAGES[0];
 }
 
+// Normalize a lessons field from either a Mongoose Map or a plain object to a plain object
+function normalizeLessons(lessons) {
+  if (!lessons) return {};
+  if (lessons instanceof Map) {
+    const obj = {};
+    lessons.forEach((v, k) => { obj[k] = v; });
+    return obj;
+  }
+  return Object.fromEntries(Object.entries(lessons));
+}
+
 learnProgressSchema.statics = {
   STAGES,
+  MAX_LEARN_POINTS,
   computeStage,
 
   async upsertLessonProgress(
@@ -80,8 +93,6 @@ learnProgressSchema.statics = {
     try {
       const filter = user_id ? { user_id } : { device_id };
       const existing = await this.findOne(filter);
-
-      const lessonKey = `lessons.${lesson_id}`;
       const currentLesson = existing?.lessons?.get(lesson_id) || {};
 
       const furthest = Math.max(
@@ -109,7 +120,6 @@ learnProgressSchema.statics = {
         else if (quizScoreRatio >= 0.5) stars = 2;
         else stars = 1;
       } else if (update.completed) {
-        // re-completion: keep best
         const newPoints = update.quiz_attempts
           ? update.quiz_attempts.filter(
               (a) => a.format !== "free_text" && a.is_correct
@@ -128,41 +138,42 @@ learnProgressSchema.statics = {
         quiz_attempts: update.quiz_attempts || currentLesson.quiz_attempts || [],
       };
 
-      // Recompute totals from scratch after upsert
-      const setOp = { [`lessons.${lesson_id}`]: lessonUpdate };
+      // Compute aggregate totals from existing lessons + updated lesson in one pass
+      let totalPoints = 0;
+      let completedCount = 0;
+      if (existing?.lessons) {
+        existing.lessons.forEach((lp, lid) => {
+          if (lid === lesson_id) return; // replaced below
+          if (lp.completed) {
+            totalPoints += lp.points_earned || 0;
+            completedCount += 1;
+          }
+        });
+      }
+      if (lessonUpdate.completed) {
+        totalPoints += lessonUpdate.points_earned;
+        completedCount += 1;
+      }
+
+      const stage = computeStage(totalPoints, maxPoints || MAX_LEARN_POINTS);
+
+      const setOp = {
+        [`lessons.${lesson_id}`]: lessonUpdate,
+        total_points: totalPoints,
+        completed_lessons: completedCount,
+        current_stage_index: stage.index,
+      };
       if (!existing) {
         setOp.device_id = device_id;
         if (guest_id) setOp.guest_id = guest_id;
         if (user_id) { setOp.user_id = user_id; setOp.learner_type = "user"; }
       }
 
-      const doc = await this.findOneAndUpdate(
+      // Single atomic write — no second findOneAndUpdate needed
+      await this.findOneAndUpdate(
         filter,
         { $set: setOp },
         { upsert: true, new: true }
-      );
-
-      // Recompute aggregate totals
-      let totalPoints = 0;
-      let completedCount = 0;
-      doc.lessons.forEach((lp) => {
-        if (lp.completed) {
-          totalPoints += lp.points_earned;
-          completedCount += 1;
-        }
-      });
-
-      const stage = computeStage(totalPoints, maxPoints || 2400);
-      await this.findOneAndUpdate(
-        filter,
-        {
-          $set: {
-            total_points: totalPoints,
-            completed_lessons: completedCount,
-            current_stage_index: stage.index,
-          },
-        },
-        { new: true }
       );
 
       return {
@@ -218,7 +229,8 @@ learnProgressSchema.statics = {
 
   async mergeGuestToUser({ device_id, guest_id, user_id }, next) {
     try {
-      const guestDoc = await this.findOne({ device_id }).lean();
+      // Work with the existing guest doc (identified by device_id)
+      const guestDoc = await this.findOne({ device_id });
       if (!guestDoc) {
         return {
           success: true,
@@ -228,65 +240,62 @@ learnProgressSchema.statics = {
         };
       }
 
-      const userDoc = await this.findOne({ user_id }).lean();
-      const mergedLessons = {};
-      let lessonsTransferred = 0;
-      let pointsTransferred = 0;
+      // Normalize both lesson maps to plain objects for uniform iteration
+      const guestLessons = normalizeLessons(guestDoc.lessons);
 
-      // Start from existing user lessons
-      if (userDoc?.lessons) {
-        Object.entries(userDoc.lessons).forEach(([lid, lp]) => {
+      // If a separate user doc already exists (e.g. from another device), merge its
+      // lessons in too, keeping the best per lesson, then delete the orphan.
+      const userDoc = await this.findOne({ user_id, device_id: { $ne: device_id } }).lean();
+      const userLessons = userDoc ? normalizeLessons(userDoc.lessons) : {};
+
+      const mergedLessons = { ...guestLessons };
+      Object.entries(userLessons).forEach(([lid, lp]) => {
+        const gl = mergedLessons[lid];
+        if (!gl || (lp.points_earned || 0) > (gl.points_earned || 0)) {
           mergedLessons[lid] = lp;
-        });
-      }
-
-      // Merge guest lessons — keep best
-      if (guestDoc.lessons) {
-        const lessonEntries =
-          guestDoc.lessons instanceof Map
-            ? guestDoc.lessons
-            : new Map(Object.entries(guestDoc.lessons));
-        lessonEntries.forEach((lp, lid) => {
-          const existing = mergedLessons[lid];
-          if (!existing || lp.points_earned > existing.points_earned) {
-            mergedLessons[lid] = lp;
-            lessonsTransferred += 1;
-            pointsTransferred += lp.points_earned || 0;
-          }
-        });
-      }
+        }
+      });
 
       let totalPoints = 0;
       let completedCount = 0;
+      let lessonsTransferred = 0;
+      let pointsTransferred = 0;
+
       Object.values(mergedLessons).forEach((lp) => {
         if (lp.completed) {
           totalPoints += lp.points_earned || 0;
           completedCount += 1;
         }
+        lessonsTransferred += 1;
+        pointsTransferred += lp.points_earned || 0;
       });
 
+      const stage = computeStage(totalPoints, MAX_LEARN_POINTS);
+
+      // Promote the existing guest doc in place — avoids colliding with the unique device_id index
       const lessonsMap = {};
       Object.entries(mergedLessons).forEach(([lid, lp]) => {
         lessonsMap[`lessons.${lid}`] = lp;
       });
 
       await this.findOneAndUpdate(
-        { user_id },
+        { device_id },
         {
           $set: {
             user_id,
-            device_id,
             learner_type: "user",
             total_points: totalPoints,
             completed_lessons: completedCount,
+            current_stage_index: stage.index,
             ...lessonsMap,
           },
-        },
-        { upsert: true, new: true }
+        }
       );
 
-      // Mark guest session as linked
-      await this.findOneAndUpdate({ device_id }, { $set: { linked_user_id: user_id } });
+      // Clean up the orphaned user doc if one existed on another device
+      if (userDoc) {
+        await this.deleteOne({ user_id, device_id: { $ne: device_id } });
+      }
 
       return {
         success: true,

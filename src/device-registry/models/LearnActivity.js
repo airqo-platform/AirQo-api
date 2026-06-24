@@ -11,7 +11,6 @@ const logger = log4js.getLogger(
 );
 
 const ACTIVITY_TYPES = ["article", "video", "image", "quiz"];
-const QUIZ_FORMATS = ["single_choice", "multi_choice", "ranking", "free_text"];
 
 const learnActivitySchema = new Schema(
   {
