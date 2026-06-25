@@ -265,7 +265,7 @@ const envs = {
   ALLOWED_REDIRECT_ORIGINS: process.env.ALLOWED_REDIRECT_ORIGINS,
   // Comma-separated custom URL scheme prefixes (e.g. "vertex://,airqo://") that are
   // allowed as redirect_after targets. These are app deep-link schemes and cannot be
-  // exploited for web phishing. Defaults to "vertex://,airqo://".
+  // exploited for web phishing. (Defaults are enforced in the redirect validation logic.)
   ALLOWED_CUSTOM_SCHEME_PREFIXES: process.env.ALLOWED_CUSTOM_SCHEME_PREFIXES,
 
   // ── API / network ──────────────────────────────────────────────────────────

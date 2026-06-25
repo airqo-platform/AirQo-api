@@ -60,10 +60,10 @@ function validateRedirectUrl(raw) {
   try {
     const parsed = new URL(raw);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      // Custom-scheme deep links (e.g. vertex://) are allowed against an explicit
-      // prefix list instead of origin comparison.
+      // Custom-scheme deep links (e.g. vertex://, airqo://) are allowed against an
+      // explicit prefix list instead of origin comparison.
       const allowedPrefixes = (
-        constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://"
+        constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://,airqo://"
       )
         .split(",")
         .map((s) => s.trim())
