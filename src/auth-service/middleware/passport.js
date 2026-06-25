@@ -1158,11 +1158,11 @@ function resolveAllowedRedirectOrigins() {
 // Computed once at module load — inputs are fixed env vars.
 const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
 
-// Desktop-app deep-link scheme prefixes allowed as redirect_after targets.
-// Custom schemes (e.g. vertex://) cannot be exploited for web phishing since
-// the OS routes them to the registered desktop app, not a website.
+// Deep-link scheme prefixes allowed as redirect_after targets.
+// Custom schemes (e.g. vertex://, airqo://) cannot be exploited for web phishing since
+// the OS routes them to the registered app, not a website.
 const ALLOWED_CUSTOM_SCHEME_PREFIXES = (
-  constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://"
+  constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://,airqo://"
 )
   .split(",")
   .map((s) => s.trim())
