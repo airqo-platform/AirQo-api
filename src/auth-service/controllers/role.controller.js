@@ -444,6 +444,51 @@ const roleController = {
     }
   },
 
+  cleanupUserNetworkRoles: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.cleanupUserNetworkRoles(
+        request,
+        next,
+      );
+      handleStandardResponse(res, result, { successKey: "data" });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  migrateNetworkRolesToGroup: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.migrateNetworkRolesToGroup(
+        request,
+        next,
+      );
+      handleStandardResponse(res, result, { successKey: "data" });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  repairUserRoleAssignment: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.repairUserRoleAssignment(
+        request,
+        next,
+      );
+      handleStandardResponse(res, result, { successKey: "data" });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
   // Get user's group roles
   getUserGroupRoles: async (req, res, next) => {
     try {

@@ -805,6 +805,52 @@ const bulkRoleOperations = [
   ],
 ];
 
+const cleanupUserNetworkRoles = [
+  validateTenant,
+  query("dry_run")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("dry_run must be 'true' or 'false' if provided"),
+];
+
+const migrateNetworkRolesToGroup = [
+  validateTenant,
+  query("dry_run")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("dry_run must be 'true' or 'false' if provided"),
+  query("action")
+    .optional()
+    .isIn(["delete_zero_user"])
+    .withMessage("action must be 'delete_zero_user' if provided"),
+];
+
+const repairUserRoleAssignment = [
+  validateTenant,
+  param("role_id")
+    .exists()
+    .withMessage("role_id param is required")
+    .bail()
+    .notEmpty()
+    .withMessage("role_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("role_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+  param("user_id")
+    .exists()
+    .withMessage("user_id param is required")
+    .bail()
+    .notEmpty()
+    .withMessage("user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -836,4 +882,7 @@ module.exports = {
   getUserPermissionsForGroup,
   bulkPermissionsCheck,
   checkUserPermissionsForActions,
+  cleanupUserNetworkRoles,
+  migrateNetworkRolesToGroup,
+  repairUserRoleAssignment,
 };
