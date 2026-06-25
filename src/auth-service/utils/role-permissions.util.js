@@ -6062,7 +6062,7 @@ const rolePermissionUtil = {
 
       // Count users that actually have non-empty network_roles
       const affectedCount = await UserModel(actualTenant).countDocuments({
-        network_roles: { $exists: true, $not: { $size: 0 } },
+        "network_roles.0": { $exists: true },
       });
 
       if (isDryRun) {
@@ -6075,7 +6075,7 @@ const rolePermissionUtil = {
       }
 
       const result = await UserModel(actualTenant).updateMany(
-        { network_roles: { $exists: true, $not: { $size: 0 } } },
+        { "network_roles.0": { $exists: true } },
         { $set: { network_roles: [] } },
       );
 
@@ -6186,7 +6186,7 @@ const rolePermissionUtil = {
             const network = await NetworkModel(actualTenant)
               .findById(role.network_id)
               .lean();
-            if (network) {
+            if (network && network.net_name) {
               const nameMatch = await GroupModel(actualTenant)
                 .findOne({
                   grp_title: {
@@ -6199,7 +6199,8 @@ const rolePermissionUtil = {
                 matchReason = "name_match";
               }
             }
-          } catch (_) {
+          } catch (err) {
+            if (err.code !== "MODULE_NOT_FOUND") throw err;
             // NetworkModel unavailable — use airqo fallback
           }
 
@@ -6315,7 +6316,7 @@ const rolePermissionUtil = {
   /**
    * Repair a user's role assignment for a given role.
    *
-   * Handles three problems in one atomic sequence:
+   * Handles three problems in one sequential set of operations (not transactional):
    *   1. Phantom entries — null group/network entries left by the missing-return
    *      bug — are cleared from both group_roles and network_roles.
    *   2. Network-scoped roles (retired) — the target group is resolved by
@@ -6364,7 +6365,7 @@ const rolePermissionUtil = {
           const network = await NetworkModel(actualTenant)
             .findById(role.network_id)
             .lean();
-          if (network) {
+          if (network && network.net_name) {
             const nameMatch = await GroupModel(actualTenant)
               .findOne({
                 grp_title: {
@@ -6374,7 +6375,8 @@ const rolePermissionUtil = {
               .lean();
             if (nameMatch) targetGroupId = nameMatch._id;
           }
-        } catch (_) {
+        } catch (err) {
+          if (err.code !== "MODULE_NOT_FOUND") throw err;
           // NetworkModel unavailable — fall through to airqo fallback
         }
       }
