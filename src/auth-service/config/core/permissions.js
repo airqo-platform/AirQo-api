@@ -203,6 +203,17 @@ const PERMISSIONS = PERMISSION_DEFINITIONS.reduce((acc, p) => {
 // Step 2: Create derived constants from the base permissions
 const ALL_PERMISSIONS = PERMISSION_DEFINITIONS.map((p) => p.name);
 
+// Permissions that must ONLY exist on the AirQo platform super admin role.
+// Organization-level super admins must never receive these.
+const SYSTEM_ONLY_PERMISSIONS = Object.freeze([
+  "SYSTEM_ADMIN",
+  "SUPER_ADMIN",
+  "DATABASE_ADMIN",
+  "ADMIN_FULL_ACCESS",
+  "SYSTEM_CONFIGURE",
+  "SYSTEM_MONITOR",
+]);
+
 const DEFAULT_ROLE_DEFINITIONS = {
   AIRQO_SUPER_ADMIN: {
     role_name: "AIRQO_SUPER_ADMIN",
@@ -214,6 +225,20 @@ const DEFAULT_ROLE_DEFINITIONS = {
     ),
     isSystemWide: true,
     grantedIn: "AIRQO_GROUP",
+  },
+  // Template for organization-level super admin roles (e.g. ACME_SUPER_ADMIN).
+  // Identical to AIRQO_SUPER_ADMIN except system-only permissions are excluded
+  // so org admins cannot perform platform-level operations.
+  ORG_SUPER_ADMIN: {
+    role_name: "ORG_SUPER_ADMIN",
+    role_code: "ORG_SUPER_ADMIN",
+    role_description:
+      "Super Administrator for an organization with full org-level access",
+    permissions: ALL_PERMISSIONS.filter(
+      (p) =>
+        !SYSTEM_ONLY_PERMISSIONS.includes(p) &&
+        !["ACCESS_PLATFORM"].includes(p),
+    ),
   },
   AIRQO_ADMIN: {
     role_name: "AIRQO_ADMIN",
@@ -459,6 +484,7 @@ module.exports = {
     DEPRECATED_ROLE_NAMES,
   },
   ...permissionsExport,
+  SYSTEM_ONLY_PERMISSIONS,
   SYSTEM_ADMIN_CONSTANTS,
   RBAC_CONSTANTS,
   AIRQO_GROUP_ID: SYSTEM_ADMIN_CONSTANTS.AIRQO_GROUP_ID,
