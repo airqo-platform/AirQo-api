@@ -920,13 +920,26 @@ const auditAndSyncExistingRoles = async (tenant) => {
           continue;
         }
 
+        // Skip platform/system-wide roles (e.g. bare "SUPER_ADMIN", "SYSTEM_ADMIN").
+        // The audit query excludes ^AIRQO_ names but these non-prefixed system
+        // roles must also be left untouched.
+        if (
+          (constants.SYSTEM_ADMIN_ROLE_NAMES || []).includes(role.role_name) ||
+          (constants.SYSTEM_ADMIN_ROLE_CODES || []).includes(role.role_code)
+        ) {
+          continue;
+        }
+
         // Strip system-only permissions from org-level SUPER_ADMIN roles.
-        // These may have been incorrectly seeded before this fix was applied.
+        // Extends beyond SYSTEM_ONLY_PERMISSIONS to include ACCESS_PLATFORM,
+        // keeping org roles aligned with the ORG_SUPER_ADMIN template.
         if (roleType === "SUPER_ADMIN" && constants.SYSTEM_ONLY_PERMISSIONS) {
+          const permissionsToStrip = [
+            ...(constants.SYSTEM_ONLY_PERMISSIONS || []),
+            "ACCESS_PLATFORM",
+          ];
           const systemPermIds = (role.role_permissions || [])
-            .filter((p) =>
-              constants.SYSTEM_ONLY_PERMISSIONS.includes(p.permission),
-            )
+            .filter((p) => permissionsToStrip.includes(p.permission))
             .map((p) => p._id.toString());
 
           if (systemPermIds.length > 0) {
@@ -941,7 +954,7 @@ const auditAndSyncExistingRoles = async (tenant) => {
 
             rolesUpdated++;
             logText(
-              `🧹 Stripped ${systemPermIds.length} system-only permissions from org role ${role.role_name}`,
+              `🧹 Stripped ${systemPermIds.length} restricted permission(s) from org role ${role.role_name}`,
             );
 
             // Refresh the in-memory view so the missing-permissions check below
