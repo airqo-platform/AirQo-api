@@ -25,7 +25,7 @@ const constantsStub = {
   ANALYTICS_BASE_URL: "https://analytics.airqo.net",
   VERTEX_BASE_URL: "https://vertex.airqo.net",
   ALLOWED_REDIRECT_ORIGINS: "",
-  ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://",
+  ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://,airqo://",
   OAUTH_COOKIE_DOMAIN: "",
   GMAIL_VERIFICATION_SUCCESS_REDIRECT: "https://analytics.airqo.net",
   GMAIL_VERIFICATION_FAILURE_REDIRECT: "https://analytics.airqo.net/user/login",
@@ -117,6 +117,14 @@ describe("googleCallback — custom-scheme redirect_after validation", () => {
       expect(res.redirect.firstCall.args[0]).to.match(/^beacon:\/\//);
     });
 
+    it("redirects to airqo:// deep-link when cookie is airqo://oauth", async () => {
+      req.cookies._oauth_redirect_after = "airqo://oauth";
+      await userController.googleCallback(req, res, next);
+      expect(res.redirect.calledOnce).to.be.true;
+      expect(res.redirect.firstCall.args[0]).to.match(/^airqo:\/\//);
+      expect(res.redirect.firstCall.args[0]).to.include("#token=");
+    });
+
     it("falls back to analytics URL for an unrecognised scheme (evil://hack)", async () => {
       req.cookies._oauth_redirect_after = "evil://hack";
       await userController.googleCallback(req, res, next);
@@ -159,5 +167,114 @@ describe("googleCallback — custom-scheme redirect_after validation", () => {
       expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
       expect(res.redirect.firstCall.args[0]).not.to.include("evil.com");
     });
+  });
+});
+
+describe("googleCallback — custom-scheme allowlist default fallback", () => {
+  let userControllerWithDefaultSchemes;
+  let req, res, next;
+  const FAKE_TOKEN = "fake-jwt-token-default";
+
+  before(() => {
+    const fakeUser = {
+      _id: "user456",
+      email: "default@example.com",
+      toAuthJSON: sinon.stub().resolves({ token: FAKE_TOKEN }),
+    };
+
+    const userModelStub = sinon.stub().returns({
+      findById: sinon.stub().resolves(fakeUser),
+      findByIdAndUpdate: sinon.stub().resolves(),
+    });
+
+    const userUtilStub = {
+      ensureDefaultAirqoRole: sinon.stub().resolves(),
+      _getEffectiveTokenStrategy: sinon.stub(),
+    };
+
+    // Omit ALLOWED_CUSTOM_SCHEME_PREFIXES entirely so the code falls through
+    // to its hardcoded default of "vertex://,airqo://".
+    const constantsStubNoSchemes = {
+      ...constants,
+      ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+      VERTEX_BASE_URL: "https://vertex.airqo.net",
+      ALLOWED_REDIRECT_ORIGINS: "",
+      ALLOWED_CUSTOM_SCHEME_PREFIXES: undefined,
+      OAUTH_COOKIE_DOMAIN: "",
+      GMAIL_VERIFICATION_SUCCESS_REDIRECT: "https://analytics.airqo.net",
+      GMAIL_VERIFICATION_FAILURE_REDIRECT: "https://analytics.airqo.net/user/login",
+      DEFAULT_TENANT: "airqo",
+      ENVIRONMENT: "test",
+    };
+
+    userControllerWithDefaultSchemes = proxyquire("@controllers/user.controller", {
+      "@models/User": userModelStub,
+      "@utils/user.util": userUtilStub,
+      "@utils/shared": {
+        HttpError: class extends Error {
+          constructor(message, statusCode, errors) {
+            super(message);
+            this.statusCode = statusCode;
+            this.errors = errors;
+          }
+        },
+        logObject: sinon.stub(),
+        logText: sinon.stub(),
+        logElement: sinon.stub(),
+        stringify: sinon.stub().returns(""),
+        extractErrorsFromRequest: sinon.stub().returns(null),
+      },
+      "@services/analytics.service": { track: sinon.stub() },
+      "@services/atf.service": { AbstractTokenFactory: sinon.stub() },
+      "@utils/token.util": {},
+      "@config/constants": constantsStubNoSchemes,
+    });
+  });
+
+  beforeEach(() => {
+    req = {
+      query: { tenant: "airqo" },
+      body: {},
+      cookies: {},
+      session: {},
+      user: {
+        _id: "user456",
+        email: "default@example.com",
+        analyticsVersion: 3,
+        verified: true,
+      },
+    };
+    res = {
+      clearCookie: sinon.stub(),
+      cookie: sinon.stub(),
+      redirect: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
+  afterEach(() => sinon.restore());
+
+  it("accepts airqo://oauth when ALLOWED_CUSTOM_SCHEME_PREFIXES is unset (default fallback)", async () => {
+    req.cookies._oauth_redirect_after = "airqo://oauth";
+    await userControllerWithDefaultSchemes.googleCallback(req, res, next);
+    expect(res.redirect.calledOnce).to.be.true;
+    expect(res.redirect.firstCall.args[0]).to.match(/^airqo:\/\//);
+    expect(res.redirect.firstCall.args[0]).to.include("#token=");
+  });
+
+  it("accepts vertex://login when ALLOWED_CUSTOM_SCHEME_PREFIXES is unset (default fallback)", async () => {
+    req.cookies._oauth_redirect_after = "vertex://login";
+    await userControllerWithDefaultSchemes.googleCallback(req, res, next);
+    expect(res.redirect.calledOnce).to.be.true;
+    expect(res.redirect.firstCall.args[0]).to.match(/^vertex:\/\//);
+    expect(res.redirect.firstCall.args[0]).to.include("#token=");
+  });
+
+  it("still rejects evil:// when ALLOWED_CUSTOM_SCHEME_PREFIXES is unset", async () => {
+    req.cookies._oauth_redirect_after = "evil://hack";
+    await userControllerWithDefaultSchemes.googleCallback(req, res, next);
+    expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
+    expect(res.redirect.firstCall.args[0]).not.to.match(/^evil:\/\//);
   });
 });
