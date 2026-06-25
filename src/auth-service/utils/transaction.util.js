@@ -553,18 +553,10 @@ const transactions = {
     // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
-    try {
-      // Implement admin notification mechanism
-      await adminAlertService.sendErrorAlert({
-        errorType: "TRANSACTION_COMPLETION_FAILED",
-        details: {
-          message: error.message,
-          transactionId: eventData?.id,
-        },
-      });
-    } catch (notificationError) {
-      logger.error("Failed to send admin notification", notificationError);
-    }
+    opsLogger.error("TRANSACTION_COMPLETION_FAILED", {
+      message: error.message,
+      transactionId: eventData?.id,
+    });
   },
   handleFailedTransaction: async (eventData) => {
     try {
