@@ -132,6 +132,15 @@ const runStripSystemPermissionsMigration = async (tenant = "airqo") => {
       permissionsStripped,
     });
   } catch (error) {
+    // E11000 means a document with this {name, tenant} already exists but didn't
+    // match the lease filter (e.g. another pod holds a fresh "running" lease).
+    // Treat as a lease conflict — not a migration failure.
+    if (error.code === 11000) {
+      logger.info(
+        `[${MIGRATION_NAME}] Lease already held by another instance — skipping.`,
+      );
+      return;
+    }
     logger.error(`[${MIGRATION_NAME}] Failed: ${error.message}`, error);
     await MigrationTrackerModel(tenant)
       .updateOne(
