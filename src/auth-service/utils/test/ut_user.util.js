@@ -2001,6 +2001,55 @@ describe("create-user-util", function () {
         "Mailchimp update tags error"
       );
     });
+
+    it("should send ADDRESS as a structured object when all components are provided", async () => {
+      const setListMemberStub = sinon
+        .stub(mailchimp.lists, "setListMember")
+        .resolves({ tags: [] });
+      sinon.stub(mailchimp.lists, "updateListMemberTags").resolves(null);
+
+      await subscribeToNewsLetter({
+        body: {
+          email: "user@example.com",
+          tags: ["tag1"],
+          firstName: "Jane",
+          lastName: "Doe",
+          address: "123 Main St",
+          city: "Kampala",
+          state: "Central",
+          zipCode: "00256",
+        },
+      });
+
+      const callArgs = setListMemberStub.firstCall.args[2];
+      expect(callArgs.merge_fields).to.have.property("ADDRESS").that.deep.equals({
+        addr1: "123 Main St",
+        city: "Kampala",
+        state: "Central",
+        zip: "00256",
+      });
+    });
+
+    it("should omit ADDRESS from merge_fields when any address component is missing", async () => {
+      const setListMemberStub = sinon
+        .stub(mailchimp.lists, "setListMember")
+        .resolves({ tags: [] });
+      sinon.stub(mailchimp.lists, "updateListMemberTags").resolves(null);
+
+      // city is absent — ADDRESS must be omitted
+      await subscribeToNewsLetter({
+        body: {
+          email: "user@example.com",
+          tags: ["tag1"],
+          address: "123 Main St",
+          state: "Central",
+          zipCode: "00256",
+        },
+      });
+
+      const callArgs = setListMemberStub.firstCall.args[2];
+      expect(callArgs.merge_fields).to.not.have.property("ADDRESS");
+    });
   });
   describe("deleteMobileUserData", () => {
     afterEach(() => {

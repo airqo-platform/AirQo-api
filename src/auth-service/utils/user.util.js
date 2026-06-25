@@ -5225,10 +5225,16 @@ const createUserModule = {
       const mergeFields = {
         ...(firstName && { FNAME: firstName }),
         ...(lastName && { LNAME: lastName }),
-        ...(address && { ADDRESS: address }),
         ...(city && { CITY: city }),
         ...(state && { STATE: state }),
         ...(zipCode && { ZIP: zipCode }),
+        // ADDRESS requires a complete structured object; omit it when city/state/zip are missing
+        ...(address &&
+          city &&
+          state &&
+          zipCode && {
+            ADDRESS: { addr1: address, city, state, zip: zipCode },
+          }),
       };
 
       const responseFromMailChimp = await mailchimp.lists.setListMember(

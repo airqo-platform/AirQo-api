@@ -864,6 +864,13 @@ const auditAndSyncExistingRoles = async (tenant) => {
       return acc;
     }, {});
 
+    // Org-level _SUPER_ADMIN roles must use the ORG_SUPER_ADMIN template, which
+    // excludes system-only permissions.  The AIRQO_SUPER_ADMIN entry (keyed as
+    // "SUPER_ADMIN" above) contains ALL permissions — overwrite it here so the
+    // audit never re-adds system-level permissions to org super admin roles.
+    rolePermissionTemplates["SUPER_ADMIN"] =
+      constants.DEFAULT_ROLE_DEFINITIONS.ORG_SUPER_ADMIN.permissions;
+
     // OPTIMIZATION: Fetch all possible permissions once
     const allPermissionNames = Object.values(rolePermissionTemplates).flat();
     const allPermissions = await PermissionModel(tenant)
@@ -911,6 +918,51 @@ const auditAndSyncExistingRoles = async (tenant) => {
         if (!roleType) {
           logObject(`⚠️  Unknown role type for: ${role.role_name}, skipping`);
           continue;
+        }
+
+        // Skip platform/system-wide roles (e.g. bare "SUPER_ADMIN", "SYSTEM_ADMIN").
+        // The audit query excludes ^AIRQO_ names but these non-prefixed system
+        // roles must also be left untouched.
+        if (
+          (constants.SYSTEM_ADMIN_ROLE_NAMES || []).includes(role.role_name) ||
+          (constants.SYSTEM_ADMIN_ROLE_CODES || []).includes(role.role_code)
+        ) {
+          continue;
+        }
+
+        // Strip system-only permissions from org-level SUPER_ADMIN roles.
+        // Extends beyond SYSTEM_ONLY_PERMISSIONS to include ACCESS_PLATFORM,
+        // keeping org roles aligned with the ORG_SUPER_ADMIN template.
+        if (roleType === "SUPER_ADMIN" && constants.SYSTEM_ONLY_PERMISSIONS) {
+          const permissionsToStrip = [
+            ...(constants.SYSTEM_ONLY_PERMISSIONS || []),
+            "ACCESS_PLATFORM",
+          ];
+          const systemPermIds = (role.role_permissions || [])
+            .filter((p) => permissionsToStrip.includes(p.permission))
+            .map((p) => p._id.toString());
+
+          if (systemPermIds.length > 0) {
+            const cleanedIds = (role.role_permissions || [])
+              .map((p) => p._id)
+              .filter((id) => !systemPermIds.includes(id.toString()));
+
+            await RoleModel(tenant).findByIdAndUpdate(role._id, {
+              role_permissions: cleanedIds,
+              updatedAt: new Date(),
+            });
+
+            rolesUpdated++;
+            logText(
+              `🧹 Stripped ${systemPermIds.length} restricted permission(s) from org role ${role.role_name}`,
+            );
+
+            // Refresh the in-memory view so the missing-permissions check below
+            // works against the now-cleaned permission set.
+            role.role_permissions = (role.role_permissions || []).filter(
+              (p) => !systemPermIds.includes(p._id.toString()),
+            );
+          }
         }
 
         const expectedPermissions = rolePermissionTemplates[roleType];
@@ -1437,10 +1489,12 @@ const createDefaultRolesForOrganization = async (
   try {
     const orgName = normalizeName(organizationName);
 
-    // Use the new centralized definitions
+    // Use the new centralized definitions.
+    // ORG_SUPER_ADMIN (not AIRQO_SUPER_ADMIN) is intentional: org-level super
+    // admins must not receive system-only permissions like SYSTEM_ADMIN.
     const roleTemplates = [
       {
-        ...constants.DEFAULT_ROLE_DEFINITIONS.AIRQO_SUPER_ADMIN,
+        ...constants.DEFAULT_ROLE_DEFINITIONS.ORG_SUPER_ADMIN,
         role_name: `${orgName}_SUPER_ADMIN`,
         role_description: `Super Administrator for ${organizationName}`,
       },
