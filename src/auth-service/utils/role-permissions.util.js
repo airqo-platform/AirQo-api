@@ -6075,7 +6075,7 @@ const rolePermissionUtil = {
       }
 
       const result = await UserModel(actualTenant).updateMany(
-        { network_roles: { $exists: true } },
+        { network_roles: { $exists: true, $not: { $size: 0 } } },
         { $set: { network_roles: [] } },
       );
 
@@ -6190,7 +6190,7 @@ const rolePermissionUtil = {
               const nameMatch = await GroupModel(actualTenant)
                 .findOne({
                   grp_title: {
-                    $regex: new RegExp(`^${network.net_name}$`, "i"),
+                    $regex: new RegExp(`^${network.net_name.replace(/[.*+?^${}()|\[\]\\]/g, "\\$&")}$`, "i"),
                   },
                 })
                 .lean();
@@ -6368,7 +6368,7 @@ const rolePermissionUtil = {
             const nameMatch = await GroupModel(actualTenant)
               .findOne({
                 grp_title: {
-                  $regex: new RegExp(`^${network.net_name}$`, "i"),
+                  $regex: new RegExp(`^${network.net_name.replace(/[.*+?^${}()|\[\]\\]/g, "\\$&")}$`, "i"),
                 },
               })
               .lean();
