@@ -171,6 +171,6 @@ Use `__token__` as the username and your PyPI API token as the password. Verify 
 python -m pip install airqolocate
 python -c "import airqolocate; print(airqolocate.__version__)"
 ```
-## License
+## License 
 
 MIT
