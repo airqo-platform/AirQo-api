@@ -6147,6 +6147,7 @@ const rolePermissionUtil = {
       const results = {
         total: rolesWithNetwork.length,
         migrated: 0,
+        redirected: 0,
         deleted: 0,
         skipped: 0,
         dry_run: isDryRun,
@@ -6202,23 +6203,84 @@ const rolePermissionUtil = {
             // NetworkModel unavailable — use airqo fallback
           }
 
-          if (!isDryRun) {
-            await RoleModel(actualTenant).findByIdAndUpdate(role._id, {
-              $set: { group_id: targetGroup._id },
-              $unset: { network_id: "" },
+          // If a group-scoped role with the same name already exists for the
+          // target group, migrating in place would violate the unique
+          // { role_name, group_id } index (E11000). Instead, redirect all
+          // user group_roles references to the existing group-scoped role and
+          // delete the network-scoped duplicate.
+          const groupEquivalent = await RoleModel(actualTenant)
+            .findOne({
+              role_name: role.role_name,
+              group_id: targetGroup._id,
+              _id: { $ne: role._id },
+            })
+            .lean();
+
+          if (groupEquivalent) {
+            // Some users may already have the group-scoped equivalent in their
+            // group_roles. Redirecting their stale entry in place would produce
+            // a duplicate subdocument (no unique constraint on array elements).
+            // For those users, pull the stale entry instead of updating it.
+            const usersWithBoth = await UserModel(actualTenant).countDocuments({
+              $and: [
+                { "group_roles.role": role._id },
+                { "group_roles.role": groupEquivalent._id },
+              ],
+            });
+
+            if (!isDryRun) {
+              // Pass 1: users who already have both — just remove the stale entry.
+              if (usersWithBoth > 0) {
+                await UserModel(actualTenant).updateMany(
+                  {
+                    $and: [
+                      { "group_roles.role": role._id },
+                      { "group_roles.role": groupEquivalent._id },
+                    ],
+                  },
+                  { $pull: { group_roles: { role: role._id } } },
+                );
+              }
+              // Pass 2: users who only have the network-scoped entry — redirect it.
+              await UserModel(actualTenant).updateMany(
+                { "group_roles.role": role._id },
+                { $set: { "group_roles.$[elem].role": groupEquivalent._id } },
+                { arrayFilters: [{ "elem.role": role._id }] },
+              );
+              await RoleModel(actualTenant).findByIdAndDelete(role._id);
+            }
+            results.redirected++;
+            results.details.push({
+              role_id: role._id,
+              role_name: role.role_name,
+              user_count: userCount,
+              users_with_both: usersWithBoth,
+              target_group_id: targetGroup._id,
+              target_group: targetGroup.grp_title,
+              equivalent_role_id: groupEquivalent._id,
+              match_reason: matchReason,
+              action: isDryRun
+                ? "would_redirect_to_equivalent"
+                : "redirected_to_equivalent",
+            });
+          } else {
+            if (!isDryRun) {
+              await RoleModel(actualTenant).findByIdAndUpdate(role._id, {
+                $set: { group_id: targetGroup._id },
+                $unset: { network_id: "" },
+              });
+            }
+            results.migrated++;
+            results.details.push({
+              role_id: role._id,
+              role_name: role.role_name,
+              user_count: userCount,
+              target_group_id: targetGroup._id,
+              target_group: targetGroup.grp_title,
+              match_reason: matchReason,
+              action: isDryRun ? "would_migrate" : "migrated",
             });
           }
-
-          results.migrated++;
-          results.details.push({
-            role_id: role._id,
-            role_name: role.role_name,
-            user_count: userCount,
-            target_group_id: targetGroup._id,
-            target_group: targetGroup.grp_title,
-            match_reason: matchReason,
-            action: isDryRun ? "would_migrate" : "migrated",
-          });
         } catch (err) {
           results.skipped++;
           results.details.push({
@@ -6233,8 +6295,8 @@ const rolePermissionUtil = {
       return {
         success: true,
         message: isDryRun
-          ? `Dry run: ${results.migrated} roles would be migrated, ${results.deleted} would be deleted`
-          : `Migration complete: ${results.migrated} roles migrated, ${results.deleted} deleted`,
+          ? `Dry run: ${results.migrated} roles would be migrated, ${results.redirected} would be redirected to equivalent, ${results.deleted} would be deleted`
+          : `Migration complete: ${results.migrated} roles migrated, ${results.redirected} redirected to equivalent, ${results.deleted} deleted`,
         status: httpStatus.OK,
         data: results,
       };
