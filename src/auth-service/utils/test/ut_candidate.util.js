@@ -2,11 +2,11 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
-const createCandidate = require("@utils/create-candidate");
+const createCandidate = require("@utils/candidate.util");
 const UserModel = require("@models/User");
 const CandidateModel = require("@models/Candidate");
 const NetworkModel = require("@models/Network");
-const mailer = require("@utils/mailer");
+const mailer = require("@utils/common");
 
 describe("createCandidate", () => {
   describe("create()", () => {

@@ -146,7 +146,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
       expect(next.firstCall.args[0].message).to.equal("Unauthorized");
-      expect(next.firstCall.args[0].errors[0].message).to.equal(
+      expect(next.firstCall.args[0].errors.message).to.equal(
         "Invalid Authorization header format. Expected 'JWT <token>'",
       );
     });

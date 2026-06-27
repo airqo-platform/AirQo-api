@@ -6,7 +6,7 @@ const request = require("supertest");
 const inquiryRoutes = require("../inquiries");
 
 // Import mock controller for inquiry route (you need to provide mock implementations for this)
-const createInquiryController = require("./mockControllers/create-inquiry");
+const createInquiryController = require("@controllers/inquiry.controller");
 
 describe("Inquiry API Routes", () => {
   let app;

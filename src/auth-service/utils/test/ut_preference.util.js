@@ -7,7 +7,7 @@ const { generateFilter } = require("@utils/common");
 const PreferenceModel = require("@models/Preference");
 const chaiHttp = require("chai-http");
 chai.use(chaiHttp);
-const createPreferenceUtil = require("@utils/create-preference");
+const createPreferenceUtil = require("@utils/preference.util");
 const UserModel = require("@models/User");
 const sinonChai = require("sinon-chai");
 const mongoose = require("mongoose");
@@ -324,7 +324,7 @@ describe("create preference UTIL", function () {
         ]);
 
         const result =
-          await require("@utils/create-preferences").addSelectedSites(
+          await require("@utils/preference.util").addSelectedSites(
             request,
             next
           );
@@ -350,7 +350,7 @@ describe("create preference UTIL", function () {
         );
 
         const result =
-          await require("@utils/create-preferences").addSelectedSites(
+          await require("@utils/preference.util").addSelectedSites(
             request,
             next
           );
@@ -374,7 +374,7 @@ describe("create preference UTIL", function () {
         SelectedSiteModel.insertMany.rejects(new Error("MongoDB error"));
 
         const result =
-          await require("@utils/create-preferences").addSelectedSites(
+          await require("@utils/preference.util").addSelectedSites(
             request,
             next
           );
@@ -401,7 +401,7 @@ describe("create preference UTIL", function () {
         SelectedSiteModel.modify.resolves({ modifiedCount: 1 });
 
         const result =
-          await require("@utils/create-preferences").updateSelectedSite(
+          await require("@utils/preference.util").updateSelectedSite(
             request,
             next
           );
@@ -426,7 +426,7 @@ describe("create preference UTIL", function () {
         SelectedSiteModel.modify.rejects(new Error("MongoDB error"));
 
         const result =
-          await require("@utils/create-preferences").updateSelectedSite(
+          await require("@utils/preference.util").updateSelectedSite(
             request,
             next
           );
@@ -452,7 +452,7 @@ describe("create preference UTIL", function () {
         SelectedSiteModel.remove.resolves({ removedCount: 1 });
 
         const result =
-          await require("@utils/create-preferences").deleteSelectedSite(
+          await require("@utils/preference.util").deleteSelectedSite(
             request,
             next
           );
@@ -476,7 +476,7 @@ describe("create preference UTIL", function () {
         SelectedSiteModel.remove.rejects(new Error("MongoDB error"));
 
         const result =
-          await require("@utils/create-preferences").deleteSelectedSite(
+          await require("@utils/preference.util").deleteSelectedSite(
             request,
             next
           );

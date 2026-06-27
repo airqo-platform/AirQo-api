@@ -2,16 +2,16 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createNetworkUtil = require("@utils/create-network");
+const createNetworkUtil = require("@utils/network.util");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- network-controller`
 );
-const createNetwork = require("@controllers/create-network");
+const createNetwork = require("@controllers/network.controller");
 
 describe("createNetwork", () => {
   describe("getNetworkFromEmail", () => {
@@ -106,7 +106,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(createNetwork, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "create"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -241,7 +241,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(assignUsers, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "assignUsers"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -382,7 +382,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(assignOneUser, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "assignOneUser"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -518,7 +518,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(unAssignUser, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "unAssignUser"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -654,7 +654,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(unAssignManyUsers, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "unAssignManyUsers"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -789,7 +789,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(setManager, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "setManager"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -923,7 +923,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(update, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "update"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -1059,7 +1059,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(refresh, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "refresh"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -1195,7 +1195,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(deleteUser, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "delete"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -1331,7 +1331,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(listUsers, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "list"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");
@@ -1493,7 +1493,7 @@ describe("createNetwork", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(listSummary, "badRequest").returns(res);
       createNetworkUtilStub = sinon.stub(
-        require("../utils/create-network"),
+        require("../utils/network.util"),
         "list"
       );
       logTextStub = sinon.stub(require("../utils/log"), "logText");

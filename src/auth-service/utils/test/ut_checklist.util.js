@@ -8,7 +8,7 @@ const ChecklistModel = require("@models/Checklist");
 const ObjectId = require("mongoose").Types.ObjectId;
 const chaiHttp = require("chai-http");
 chai.use(chaiHttp);
-const createChecklisteUtil = require("@utils/create-checklist");
+const createChecklisteUtil = require("@utils/checklist.util");
 const UserModel = require("@models/User");
 
 describe("create checklist UTIL", () => {

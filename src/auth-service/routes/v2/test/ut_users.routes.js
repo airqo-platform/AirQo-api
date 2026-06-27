@@ -18,7 +18,7 @@ app.use((error, req, res, next) => {
 });
 
 // Import controllers and middleware (if needed)
-const createUserController = require("@controllers/create-user");
+const createUserController = require("@controllers/user.controller");
 
 let createUserControllerStub = {};
 let passportStub = {};

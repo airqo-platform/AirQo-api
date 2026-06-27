@@ -7,7 +7,7 @@ const request = require("supertest");
 const locationHistoryRoutes = require("../locationHistory");
 
 // Import mock controller for location history route (you need to provide mock implementations for this)
-const createLocationHistoryController = require("./mockControllers/create-location-history");
+const createLocationHistoryController = require("@controllers/location-history.controller");
 
 describe("Location History API Routes", () => {
   let app;

@@ -7,7 +7,7 @@ const app = express();
 const expect = chai.expect;
 chai.use(chaiHttp);
 
-const createSearchHistoryController = require("@controllers/create-search-history"); // Replace with the correct path to the controller file
+const createSearchHistoryController = require("@controllers/search-history.controller"); // Replace with the correct path to the controller file
 
 describe("create-search-history Routes", () => {
   describe("headers middleware", () => {

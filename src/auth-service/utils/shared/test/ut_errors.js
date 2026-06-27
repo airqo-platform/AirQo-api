@@ -9,7 +9,7 @@ const {
   badRequest,
   callbackErrors,
   convertErrorArrayToObject,
-} = require("@utils/errors");
+} = require("@utils/shared/errors");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 

@@ -1,7 +1,7 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const mailer = require("@utils/mailer");
+const mailer = require("@utils/common");
 const msgTemplates = require("@utils/email.templates");
 const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");

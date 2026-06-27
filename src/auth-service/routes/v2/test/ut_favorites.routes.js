@@ -5,7 +5,7 @@ const express = require("express");
 const request = require("supertest");
 const router = require("../favorites");
 // Import the controller file (you need to provide a mock implementation for this)
-const createFavoriteController = require("@controllers/create-favorite");
+const createFavoriteController = require("@controllers/favorite.controller");
 
 describe("Favorite Router", () => {
   let app;

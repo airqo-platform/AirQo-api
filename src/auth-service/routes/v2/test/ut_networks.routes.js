@@ -6,9 +6,8 @@ const { expect } = chai;
 
 chai.use(chaiHttp);
 
-// Import the Express app and routes here
-const app = require("../app"); // Update the path as needed
-const networkRouter = require("../networks");
+const app = require("express")();
+const networkRouter = require("../networks.routes");
 
 describe("Network Router API Tests", () => {
   describe("PUT /networks/:net_id/assign-user/:user_id", () => {

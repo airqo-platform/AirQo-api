@@ -6,9 +6,8 @@ const { expect } = chai;
 
 chai.use(chaiHttp);
 
-// Import the Express app and routes here
-const app = require("../app"); // Update the path as needed
-const createCandidateRouter = require("../candidates");
+const app = require("express")();
+const createCandidateRouter = require("../candidates.routes");
 
 describe("Request Access Router API Tests", () => {
   describe("POST /register", () => {

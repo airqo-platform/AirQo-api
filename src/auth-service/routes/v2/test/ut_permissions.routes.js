@@ -7,7 +7,7 @@ const router = require("@routes/v2/permissions");
 const supertest = require("supertest");
 const express = require("express");
 const { validationResult } = require("express-validator");
-const createPermissionController = require("@controllers/create-permission");
+const createPermissionController = require("@controllers/permission.controller");
 
 describe("Permission Router API Tests", () => {
   let app;

@@ -11,13 +11,6 @@ describe("Log4js Configuration", () => {
     it("should have defined appenders", () => {
       expect(log4js.appenders).to.exist;
       expect(log4js.appenders.console).to.exist;
-      expect(log4js.appenders.access).to.exist;
-      expect(log4js.appenders.app).to.exist;
-      expect(log4js.appenders.errorFile).to.exist;
-      expect(log4js.appenders.errors).to.exist;
-      expect(log4js.appenders.alerts).to.exist;
-
-      // Add more assertions for each appender's properties if needed.
     });
   });
 

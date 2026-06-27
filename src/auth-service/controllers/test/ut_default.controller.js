@@ -3,15 +3,15 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
-const createDefaultUtil = require("@utils/create-default");
+const createDefaultUtil = require("@utils/default.util");
 const { generateFilter } = require("@utils/common");
 const {
   badRequest,
   convertErrorArrayToObject,
   tryCatchErrors,
-} = require("@utils/errors");
+} = require("@utils/shared/errors");
 const constants = require("@config/constants");
-const defaults = require("@controllers/create-default");
+const defaults = require("@controllers/default.controller");
 
 describe("defaults controller", () => {
   afterEach(() => {

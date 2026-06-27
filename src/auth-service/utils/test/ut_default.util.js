@@ -2,9 +2,10 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const defaults = require("@utils/create-default");
+const defaults = require("@utils/default.util");
 const { getModelByTenant } = require("@config/database");
 const DefaultsSchema = require("@models/Defaults");
+const { generateFilter } = require("@utils/common");
 
 describe("defaults", () => {
   describe("list method", () => {
