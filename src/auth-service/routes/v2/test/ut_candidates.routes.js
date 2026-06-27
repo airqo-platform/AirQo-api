@@ -8,6 +8,7 @@ chai.use(chaiHttp);
 
 const app = require("express")();
 const createCandidateRouter = require("../candidates.routes");
+app.use("/", createCandidateRouter);
 
 describe("Request Access Router API Tests", () => {
   describe("POST /register", () => {

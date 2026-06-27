@@ -23,7 +23,7 @@ This microservice handles all authentication and authorization for the AirQo pla
 
 ## Folder Structure
 
-```
+```text
 src/auth-service/
 ├── bin/
 │   ├── index.js          # Entry point
@@ -47,7 +47,7 @@ src/auth-service/
 | Version | Base Path  | Status |
 |---------|------------|--------|
 | v2      | `/api/v2`  | Active |
-| v3      | `/api/v3`  | Active (groups, networks, org-requests, users) |
+| v3      | `/api/v3/users`  | Active (users, groups, networks, org-requests) |
 
 Both versions expose a `/health` endpoint and a `/routes` introspection endpoint.
 
@@ -55,7 +55,7 @@ Both versions expose a `/health` endpoint and a `/routes` introspection endpoint
 
 All protected endpoints require:
 
-```
+```http
 Authorization: JWT <token>
 ```
 

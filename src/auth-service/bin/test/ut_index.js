@@ -22,6 +22,7 @@ before(function waitForMongoDB(done) {
   // Wait for the "open" event; RBAC init may still be running, but the
   // driver connection (readyState 1) is sufficient for model stub setup.
   mongoose.connection.once("open", () => done());
+  mongoose.connection.once("error", (err) => done(err));
 });
 
 // Shared stubs for @utils/shared — controls isDevelopment / isProduction

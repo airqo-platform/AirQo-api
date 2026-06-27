@@ -8,6 +8,7 @@ chai.use(chaiHttp);
 
 const app = require("express")();
 const networkRouter = require("../networks.routes");
+app.use("/", networkRouter);
 
 describe("Network Router API Tests", () => {
   describe("PUT /networks/:net_id/assign-user/:user_id", () => {

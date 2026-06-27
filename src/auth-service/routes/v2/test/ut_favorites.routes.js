@@ -3,42 +3,43 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const express = require("express");
 const request = require("supertest");
-const router = require("../favorites");
-// Import the controller file (you need to provide a mock implementation for this)
-const createFavoriteController = require("@controllers/favorite.controller");
+const proxyquire = require("proxyquire").noPreserveCache();
 
 describe("Favorite Router", () => {
   let app;
+  let createFavoriteController;
 
   beforeEach(() => {
+    createFavoriteController = {
+      list: sinon.stub(),
+      create: sinon.stub(),
+      update: sinon.stub(),
+      delete: sinon.stub(),
+      syncFavorites: sinon.stub(),
+    };
+
+    // Require the route AFTER stubs are in place so the router binds our stubs
+    const router = proxyquire("../favorites.routes", {
+      "@controllers/favorite.controller": createFavoriteController,
+    });
+
     app = express();
     app.use(express.json());
-    app.use(router); // Mount the router to the express app
+    app.use(router);
   });
 
   afterEach(() => {
-    sinon.restore(); // Restore Sinon stubs after each test
+    sinon.restore();
   });
 
-  // Test cases for the "/favorites" route
   describe("GET /favorites", () => {
     it("should return a list of favorites with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createFavoriteController, "list").resolves([
-        /* Mocked data here */
-      ]);
+      createFavoriteController.list.callsFake((req, res) =>
+        res.status(200).json([])
+      );
 
-      // Perform the HTTP GET request
       const response = await request(app).get("/favorites").expect(200);
-
-      // Assert the response
       expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
     });
-
-    // Add more test cases for different scenarios (e.g., missing query parameters, error responses, etc.)
   });
-
-  // Test cases for other routes (POST, PUT, DELETE) can be added similarly following the same pattern.
-  // You'll need to mock the behavior of the corresponding controller functions using Sinon.
 });

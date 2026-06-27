@@ -18,22 +18,26 @@ describe("Database Connection and Utility Functions", () => {
   describe("connectToMongoDB", () => {
     it("should connect to the MongoDB and return a promise resolving to a connection", async () => {
       const result = connectToMongoDB();
-      // connectToMongoDB returns a Promise; verify it resolves to a Connection
       expect(result).to.be.an.instanceof(Promise);
       const conn = await result;
       expect(conn).to.exist;
+      // The connection should be open (readyState 1) since the global before hook ensures this
+      expect(conn.readyState).to.equal(1);
     });
   });
 
   describe("getTenantDB", () => {
     it("should create a new connection for the given tenant ID and return a database connection", () => {
-      const tenantId = "airqo"; // must use a tenant the connected DB serves
+      const tenantId = "airqo";
       const modelName = "TestModelForUT";
       const schema = new mongoose.Schema({ name: String });
       const db = getTenantDB(tenantId, modelName, schema);
       expect(db).to.exist;
-      // getTenantDB returns a Mongoose db/connection-like object
       expect(db).to.be.an("object");
+      // db must expose a model() method — that is how database.js uses the tenant DB handle
+      expect(db.model).to.be.a("function");
+      const Model = db.model(modelName);
+      expect(Model).to.exist;
     });
   });
 
