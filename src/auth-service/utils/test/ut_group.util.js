@@ -3,12 +3,16 @@ const chai = require("chai");
 const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createGroup = require("@utils/create-group");
+const createGroup = require("@utils/group.util");
 const GroupModel = require("@models/Group");
 const UserModel = require("@models/User");
 const { generateFilter } = require("@utils/common");
 
 describe("createGroup Module", () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
   describe("removeUniqueConstraint", () => {
     it("should remove unique constraint for each group", async () => {
       // Create a sample array of groups for testing

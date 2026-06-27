@@ -1,78 +1,111 @@
-# Authentication Service.
+# Authentication Service
 
-This authentication microservice is a crucial component of our application's security infrastructure. It handles user authentication & authorization, ensuring that only authenticated users can access protected resources.
+[![Code Coverage](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml)
+[![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/staging/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)
+
+This microservice handles all authentication and authorization for the AirQo platform. It manages users, roles, groups, organizations, tokens, OAuth flows, and access control.
 
 ## Features
 
-- User Registration: This allows new users to create an account by providing their credentials & completing the registration process.
-- User Login: Provides a secure login mechanism for users to authenticate themselves and obtain an access token for subsequent requests.
-- Password Management: Offers password reset and change functionalities to maintain user account security.
-- Token-based Authentication: Utilizes JSON Web Tokens (JWT) for stateless authentication, allowing users to access protected endpoints with a valid token.
-- Role-based Authorization: Implements role-based access control (RBAC) to define granular permissions and restrict certain actions to authorized roles.
-- Token Validation: Verifies the authenticity and validity of tokens during authentication and authorization processes.
-- User Profile Management: Allows users to update their profile information, including personal details and preferences.
-- Security Measures: Implements industry-standard security practices, such as password hashing and encryption, to protect user data and prevent unauthorized access to AirQo Analytics.
+- **User Management**: Registration, login, profile updates, password reset, and account deletion.
+- **Token-based Auth**: JWT tokens issued on login; use `Authorization: JWT <token>` on all protected endpoints.
+- **Token Refresh**: Tokens near expiry are silently refreshed; the new token is returned in the `X-Access-Token` response header.
+- **OAuth 2.0**: Google OAuth login and authorization-code flow for third-party clients.
+- **Role-based Access Control (RBAC)**: Fine-grained permissions scoped to networks, groups, and organizations.
+- **Multi-tenant Support**: All data is tenant-scoped; the active tenant is `airqo`.
+- **API Clients**: Create and manage OAuth clients with scoped API access.
+- **Favorites & Search History**: Per-user favorites and search history synced with Firebase.
+- **Notification Preferences**: Per-user notification settings.
+- **Candidate & Inquiry Flows**: User onboarding and support inquiry management.
+- **Billing & Transactions**: API usage tracking and transaction records.
+- **Firebase Integration**: User lookup and authentication via Firebase Admin SDK.
+- **Mailchimp Integration**: Newsletter subscription management.
 
 ## Folder Structure
 
-```
-.
-├── bin
-│   └── jobs
-├── config
-│   ├── environments
-│   ├── global
-│   └── images
-├── controllers
-├── middleware
-├── models
-├── routes
-│   ├── v1
-│   └── v2
-├── utils
-│   ├── common
-│   ├── scripts
-│   └── shared
-└── validators
+```text
+src/auth-service/
+├── bin/
+│   ├── index.js          # Entry point
+│   ├── server.js         # Express app & HTTP server
+│   └── jobs/             # Background jobs (Kafka consumer, cron)
+├── config/               # Database, constants, log4js, Mailchimp, Redis
+├── controllers/          # Route handlers (thin; delegate to utils)
+├── middleware/           # Passport JWT, headers, rate-limiting, validators
+├── models/               # Mongoose schemas + per-tenant model factories
+├── routes/
+│   ├── v2/               # Main API surface (production)
+│   └── v3/               # Groups, networks, org-requests (newer endpoints)
+├── utils/                # Business logic (one file per domain)
+│   ├── common/           # Shared helpers (mailer, generateFilter, stringify)
+│   └── shared/           # Cross-service utilities (errors, logging)
+└── validators/           # express-validator middleware chains
 ```
 
-For detailed information on the project's code structure and naming conventions, please refer to the [CODEBASE_STRUCTURE](CODEBASE_STRUCTURE.md).
+## API Versions
+
+| Version | Base Path  | Status |
+|---------|------------|--------|
+| v2      | `/api/v2`  | Active |
+| v3      | `/api/v3/users`  | Active (users, groups, networks, org-requests) |
+
+Both versions expose a `/health` endpoint and a `/routes` introspection endpoint.
+
+## Authentication
+
+All protected endpoints require:
+
+```http
+Authorization: JWT <token>
+```
+
+> **Note:** `Bearer` tokens are rejected. Only `JWT` prefix is accepted.
+
+Tokens near expiry are automatically refreshed. Check the `X-Access-Token` response header for the renewed token.
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js v18 or higher
-- npm (or yarn)
-- MongoDB (local or remote; configure `DB_URL` if remote)
-- Redis
-- Mailchimp
-- Google Cloud
-- Paddle
+- npm
+- MongoDB (configure `DB_URL` in your environment file)
+- Redis (configure `REDIS_SERVER` and `REDIS_PORT`)
+- Firebase Admin credentials
+- Mailchimp API key (optional, for newsletter features)
 
 ### Installation
 
-1.  Clone the repository: `git clone https://github.com/airqo-platform/AirQo-api.git`
-2.  Navigate to the project directory: `cd auth-service`
-3.  Install dependencies: `npm install`
+```bash
+git clone https://github.com/airqo-platform/AirQo-api.git
+cd src/auth-service
+npm install
+```
 
 ### Running Locally
 
-1.  Set up your local environment:
-    ```bash
-    cp .env.development.template.json .env.development.json
-    ```
-    Open `.env.development.json` and fill in the required values.
-2.  Start the development server: `npm run dev`
+```bash
+cp .env.development.template.json .env.development.json
+# Fill in the required values
+npm run dev
+```
 
-### Running in Production (Docker)
+The server listens on port `3000` by default (override with the `PORT` environment variable).
 
-1.  Build the Docker image: `docker build -t auth-service .`
-2.  Run the Docker container (setting `NODE_ENV`): `docker run -d -p 3000:3000 -e NODE_ENV=production auth-service`
+### Running with Docker
+
+```bash
+docker build -t auth-service .
+docker run -d -p 3000:3000 -e NODE_ENV=production auth-service
+```
 
 ## Testing
 
-Run tests using: `npm test`
+```bash
+npm test
+```
+
+Tests use Mocha + nyc (Istanbul). Coverage reports are uploaded to Codecov on every push.
 
 ## Contributing
 

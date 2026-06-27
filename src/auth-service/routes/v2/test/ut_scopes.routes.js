@@ -9,7 +9,7 @@ const app = express();
 const router = require("../scopes");
 
 // Import controllers and middleware
-const createScopeController = require("@controllers/create-scope");
+const createScopeController = require("@controllers/scope.controller");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 
 // Sample scope_id for testing

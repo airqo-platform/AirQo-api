@@ -6,7 +6,7 @@ const express = require("express");
 const request = require("supertest");
 const { query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const createDepartmentController = require("@controllers/create-department");
+const createDepartmentController = require("@controllers/department.controller");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 

@@ -3,11 +3,11 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
-const createLocationHistoryUtil = require("@utils/create-location-history");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
+const createLocationHistoryUtil = require("@utils/location-history.util");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
+const { logText, logObject } = require("@utils/shared/log");
 const constants = require("@config/constants");
-const controller = require("@controllers/create-location-history");
+const controller = require("@controllers/location-history.controller");
 
 describe("createLocationHistory", () => {
   afterEach(() => {

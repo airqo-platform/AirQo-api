@@ -3,9 +3,9 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
-const createAccessRequestUtil = require("@utils/create-request");
+const createAccessRequestUtil = require("@utils/request.util");
 const constants = require("@config/constants");
-const createAccessRequest = require("@controllers/create-request");
+const createAccessRequest = require("@controllers/request.controller");
 
 describe("createAccessRequest()", () => {
   describe("requestAccessToGroup", () => {

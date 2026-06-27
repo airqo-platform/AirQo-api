@@ -1,85 +1,84 @@
 require("module-alias/register");
+// Load .env.development.json early so that subsequent test files that require
+// bin/server.js (which guards SESSION_SECRET at module scope) can load cleanly.
+require("@config/env-loader").loadEnvironment();
+
 const { expect } = require("chai");
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
+const proxyquire = require("proxyquire").noCallThru().noPreserveCache();
 
-// Import the functions to be tested
-// const kafkaConsumer = require("@bin/kafka-consumer");
-// const createServer = require("@bin/server");
-const main = require("@bin/index");
+// Global before hook — waits for the MongoDB driver connection to be open
+// before any test in the entire suite runs. Tests that call Model("tenant")
+// directly (e.g. to stub instance methods) need readyState === 1 to succeed.
+// This hook is intentionally placed in the first test file (sorted by mocha).
+before(function waitForMongoDB(done) {
+  this.timeout(20000);
+  const mongoose = require("mongoose");
+  // Start the connection if it hasn't started yet
+  require("@config/database");
 
-const kafkaConsumer = proxyquire("@bin/kafka-consumer", {
-  // Replace the original module with a mock version
-  myModule: {
-    fetchData: () => {
-      // Mock implementation without relying on environmental variables
-      return "Mocked Data";
-    },
-  },
+  if (mongoose.connection.readyState === 1) return done();
+
+  // Wait for the "open" event; RBAC init may still be running, but the
+  // driver connection (readyState 1) is sufficient for model stub setup.
+  mongoose.connection.once("open", () => done());
+  mongoose.connection.once("error", (err) => done(err));
 });
 
-const createServer = proxyquire("@bin/server", {
-  // Replace the original module with a mock version
-  myModule: {
-    fetchData: () => {
-      // Mock implementation without relying on environmental variables
-      return "Mocked Data";
-    },
-  },
-});
+// Shared stubs for @utils/shared — controls isDevelopment / isProduction
+// so the proxyquired index module uses our environment, not the real one.
+function makeSharedStub(sandbox, { dev = true, prod = false } = {}) {
+  return {
+    logObject: sandbox.stub(),
+    EnvironmentDetector: {},
+    isDevelopment: () => dev,
+    isProduction: () => prod,
+    isStaging: () => false,
+    getEnvironment: () => (prod ? "PRODUCTION" : "DEVELOPMENT"),
+    getDetailedInfo: () => ({}),
+    resetCache: sandbox.stub(),
+  };
+}
 
-describe("Main Function", () => {
-  let kafkaConsumerStub;
-  let createServerStub;
+describe("bin/index entrypoint", () => {
+  let sandbox;
 
   beforeEach(() => {
-    kafkaConsumerStub = sinon.stub(kafkaConsumer);
-    createServerStub = sinon.stub(createServer);
+    sandbox = sinon.createSandbox();
+    // Prevent accidental real process exits triggered by error paths
+    sandbox.stub(process, "exit");
   });
 
   afterEach(() => {
-    sinon.restore();
+    sandbox.restore();
   });
 
-  it("should call kafkaConsumer and createServer functions", async () => {
-    try {
-      // Call the main function
-      await main();
+  it("skips Kafka and calls createServer in development mode", () => {
+    const createServerStub = sandbox.stub();
+    const kafkaConsumerStub = sandbox.stub().resolves();
 
-      // Check if the kafkaConsumer and createServer functions are called
-      expect(kafkaConsumerStub.calledOnce).to.be.true;
-      expect(createServerStub.calledOnce).to.be.true;
-    } catch (error) {
-      throw error;
-    }
+    proxyquire("../index", {
+      "@bin/jobs/kafka-consumer": kafkaConsumerStub,
+      "./server": createServerStub,
+      "@utils/shared": makeSharedStub(sandbox, { dev: true, prod: false }),
+    });
+
+    expect(createServerStub.calledOnce).to.be.true;
+    expect(kafkaConsumerStub.called).to.be.false;
   });
 
-  it("should catch and log errors if main function throws an error", async () => {
-    const errorToThrow = new Error("Test error");
-    const consoleErrorSpy = sinon.spy(console, "error");
+  it("calls process.exit(1) when createServer throws", () => {
+    const createServerStub = sandbox
+      .stub()
+      .throws(new Error("simulated server startup failure"));
+    const kafkaConsumerStub = sandbox.stub().resolves();
 
-    // Stub the main function to throw an error
-    sinon.stub(main, "kafkaConsumer").throws(errorToThrow);
+    proxyquire("../index", {
+      "@bin/jobs/kafka-consumer": kafkaConsumerStub,
+      "./server": createServerStub,
+      "@utils/shared": makeSharedStub(sandbox, { dev: true, prod: false }),
+    });
 
-    try {
-      // Call the main function
-      await main();
-
-      // Check if the error is caught and logged
-      expect(
-        consoleErrorSpy.calledOnceWithExactly(
-          "Error starting the application: ",
-          errorToThrow
-        )
-      ).to.be.true;
-    } catch (error) {
-      throw error;
-    } finally {
-      // Restore the stubs and spies
-      sinon.restore();
-      consoleErrorSpy.restore();
-    }
+    expect(process.exit.calledWith(1)).to.be.true;
   });
-
-  // Add more test cases as needed
 });

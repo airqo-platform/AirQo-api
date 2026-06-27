@@ -2,7 +2,7 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const favorites = require("@utils/create-favorite");
+const favorites = require("@utils/favorite.util");
 const { getModelByTenant } = require("@config/database");
 const FavoriteSchema = require("@models/Favorite");
 const UserSchema = require("@models/User");

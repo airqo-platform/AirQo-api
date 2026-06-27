@@ -3,9 +3,9 @@ const sinon = require("sinon");
 const chai = require("chai");
 const expect = chai.expect;
 const { validationResult } = require("express-validator");
-const createSearchHistoryUtil = require("@utils/create-search-history");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
+const createSearchHistoryUtil = require("@utils/search-history.util");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
+const { logText, logObject } = require("@utils/shared/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -14,7 +14,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-search-history-controller`
 );
 
-const createSearchHistory = require("@controllers/create-search-history");
+const createSearchHistory = require("@controllers/search-history.controller");
 
 describe("createSearchHistory Controller", () => {
   describe("syncSearchHistory", () => {
