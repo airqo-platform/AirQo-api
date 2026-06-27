@@ -8,6 +8,8 @@ const {
   escapeHtml,
 } = require("@utils/shared");
 
+const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/profile?tab=api`;
+
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -54,7 +56,7 @@ const buildTokenEmailSegment = ({
     }
   }
 
-  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this under <strong>Settings &rsaquo; API</strong> in <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>.</p>`;
+  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this in <a href="${API_SETTINGS_URL}">your API settings</a> in AirQo Analytics.</p>`;
 
   return { maskedToken, tokenLabel, expiryLine, securityTip };
 };
@@ -652,7 +654,7 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} has expired.</p>
         ${expiryLine}
-        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
+        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client.</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
         ${securityTip}
       </td>
@@ -711,7 +713,7 @@ module.exports = {
           <p>One of your AirQo API tokens is expiring soon. Please regenerate it before it expires to avoid any interruption to your API access.</p>
           ${tokenCallout}
           ${expiryLine}
-          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client — no need to create a new one.</p>
+          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client — no need to create a new one.</p>
           <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
           <p>If you have already regenerated this token, please ignore this message.</p>
           ${securityTip}
@@ -754,7 +756,6 @@ module.exports = {
     const reasonLine = suspensionReason
       ? `<p><strong>Reason detected:</strong> ${escapeHtml(suspensionReason)}</p>`
       : "";
-    const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/profile`;
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -767,7 +768,7 @@ module.exports = {
         <p>This may be a false positive — for example, if you access the API from both a browser and a server-side application, or if you recently updated your API client. If this activity was expected, please follow the steps below to reinstate your token.</p>
         <p><strong>What to do next:</strong></p>
         <ol style="padding-left:20px;">
-          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <a href="${API_SETTINGS_URL}"><strong>Settings &rsaquo; API</strong></a>.</li>
+          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <a href="${API_SETTINGS_URL}"><strong>your API settings</strong></a>.</li>
           <li>Locate the affected token (<code>${maskedToken}</code>${tokenLabel}) on your API client card.</li>
           <li>If it shows as suspended, use the <strong>Reinstate</strong> option to restore access.</li>
           <li>Alternatively, use <strong>Regenerate Token</strong> on your existing client to issue a fresh token — this does not require creating a new client.</li>
@@ -778,7 +779,7 @@ module.exports = {
           <li>Review any applications or integrations that use this token and update them with the new value.</li>
           <li>Contact us at <a href="mailto:support@airqo.net">support@airqo.net</a> if you need further assistance.</li>
         </ul>
-        <p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> To reduce the chance of this happening again, consider enabling the client secret requirement for your API client under <strong>Settings &rsaquo; API</strong>. When enabled, every request must include your client secret via the <code>X-Client-Secret</code> header, providing an extra layer of protection even if your token is exposed.</p>
+        <p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> To reduce the chance of this happening again, consider enabling the client secret requirement for your API client in <a href="${API_SETTINGS_URL}"><strong>your API settings</strong></a>. When enabled, every request must include your client secret via the <code>X-Client-Secret</code> header, providing an extra layer of protection even if your token is exposed.</p>
         ${/compromise.activity|exposed|public.facing/i.test(suspensionReason) ? `
         <h4 style="margin-top:24px; color:#D92D20;">Review your deployment approach</h4>
         <p>
