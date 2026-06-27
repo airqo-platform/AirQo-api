@@ -50,9 +50,6 @@ const accessCodeGenerator = require("generate-password");
 const mockLookUpFirebaseUser = sinon.stub();
 const mockCreateFirebaseUser = sinon.stub();
 
-// Stub the UserModel methods
-const mockUserModel = sinon.stub(UserModel);
-
 describe("create-user-util", function () {
   describe("listLogs", function () {
     it("should return a list of logs", async function () {

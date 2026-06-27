@@ -3,7 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createInquiryUtil = require("@utils/create-inquiry");
+const createInquiryUtil = require("@utils/inquiry.util");
 const {
   mailer,
   stringify,
@@ -11,11 +11,11 @@ const {
   generateFilter,
 } = require("@utils/common");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
+const { logText, logElement, logObject, logError } = require("@utils/shared/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const inquire = require("@controllers/create-inquiry");
+const inquire = require("@controllers/inquiry.controller");
 const chaiHttp = require("chai-http");
 chai.use(chaiHttp);
 const InquiryModel = require("@models/Inquiry");

@@ -4,27 +4,27 @@ const chai = require("chai");
 const { expect } = chai;
 const express = require("express");
 const request = require("supertest");
-const app = express();
-const proxyquire = require("proxyquire");
-const router = require("@routes/v2/users");
 const { ObjectId } = require("mongoose").Types;
+const proxyquire = require("proxyquire");
 chai.use(require("sinon-chai"));
 const { body, query } = require("express-validator");
+
+// Import controllers and middleware (if needed)
+const createUserController = require("@controllers/user.controller");
+
+let createUserControllerStub = {};
+let passportStub = {};
+let route = proxyquire("@routes/v2/users.routes", {
+  "@controllers/user.controller": createUserControllerStub,
+  "@middleware/passport": passportStub,
+});
+
+const app = express();
 app.use(express.json());
 app.use("/", route);
 app.use((error, req, res, next) => {
   // this error handler is necessary otherwise express stops if any middleware throws error
   res.status(500).json({ error: error.toString() });
-});
-
-// Import controllers and middleware (if needed)
-const createUserController = require("@controllers/create-user");
-
-let createUserControllerStub = {};
-let passportStub = {};
-let route = proxyquire("@routes/v1/users", {
-  "@controllers/create-user": createUserControllerStub,
-  "@middleware/passport": passportStub,
 });
 
 const postIdPayload = {

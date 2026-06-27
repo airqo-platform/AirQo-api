@@ -1,29 +1,41 @@
 require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
+const proxyquire = require("proxyquire").noCallThru().noPreserveCache();
 const { expect } = chai;
-const mailchimp = require("@config/mailchimp");
-
-// Replace "path/to" with the actual path to the required modules and files.
 
 describe("Mailchimp Configuration", () => {
-  describe("Mailchimp API Key", () => {
-    it("should have a valid API key", () => {
-      expect(mailchimp.getConfig().apiKey).to.equal(
-        constants.MAILCHIMP_API_KEY
-      );
+  let setConfigStub;
+  let mailchimp;
+
+  beforeEach(() => {
+    setConfigStub = sinon.stub();
+    // Stub the SDK before @config/mailchimp is required so the config call is captured
+    mailchimp = proxyquire("@config/mailchimp", {
+      "@mailchimp/mailchimp_marketing": {
+        setConfig: setConfigStub,
+        lists: {},
+        ping: {},
+      },
     });
   });
 
-  describe("Mailchimp Server", () => {
-    it("should have a valid server prefix", () => {
-      expect(mailchimp.getConfig().server).to.equal(
-        constants.MAILCHIMP_SERVER_PREFIX
-      );
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it("should call setConfig with the expected apiKey and server values", () => {
+    const constants = require("@config/constants");
+    expect(setConfigStub.calledOnce).to.be.true;
+    expect(setConfigStub.firstCall.args[0]).to.deep.equal({
+      apiKey: constants.MAILCHIMP_API_KEY,
+      server: constants.MAILCHIMP_SERVER_PREFIX,
     });
   });
 
-  // Add more test cases to cover additional scenarios or configuration properties.
+  it("should expose mailchimp API surface (lists, ping)", () => {
+    expect(mailchimp).to.exist;
+    expect(mailchimp.lists).to.exist;
+    expect(mailchimp.ping).to.exist;
+  });
 });
-
-// Add more test cases to cover additional scenarios or configuration properties.

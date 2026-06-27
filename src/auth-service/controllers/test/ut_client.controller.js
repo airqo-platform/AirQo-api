@@ -9,7 +9,7 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 
 // Require the module to test
-const createClient = require("@controllers/create-client");
+const createClient = require("@controllers/client.controller");
 
 // Sample request and response objects
 const req = {

@@ -1,8 +1,8 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const createRole = require("@controllers/create-role");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const createRole = require("@controllers/role.controller");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const rolePermissionsUtil = require("@utils/role-permissions.util");
@@ -29,7 +29,7 @@ describe("createRole", () => {
       validationResultStub = sinon.stub();
       badRequestStub = sinon.stub(createRole, "badRequest").returns(res);
       rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "listRole");
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -159,7 +159,7 @@ describe("createRole", () => {
         .returns(true);
       badRequestStub = sinon.stub(listSummary, "badRequest").returns(res);
       rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "listRole");
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -283,7 +283,7 @@ describe("createRole", () => {
         .returns(true);
       badRequestStub = sinon.stub(createRole, "badRequest").returns(res);
       rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "createRole");
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -418,7 +418,7 @@ describe("createRole", () => {
         .returns(true);
       badRequestStub = sinon.stub(updateRole, "badRequest").returns(res);
       rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "updateRole");
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -553,7 +553,7 @@ describe("createRole", () => {
         .returns(true);
       badRequestStub = sinon.stub(deleteRole, "badRequest").returns(res);
       rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "deleteRole");
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -681,7 +681,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "listUsersWithRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -813,7 +813,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "listAvailableUsersForRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -944,8 +944,8 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "assignUserToRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
-      logTextStub = sinon.stub(require("@utils/log"), "logText");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
+      logTextStub = sinon.stub(require("@utils/shared/log"), "logText");
     });
 
     afterEach(() => {
@@ -1060,8 +1060,8 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "assignManyUsersToRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
-      logTextStub = sinon.stub(require("@utils/log"), "logText");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
+      logTextStub = sinon.stub(require("@utils/shared/log"), "logText");
     });
 
     afterEach(() => {
@@ -1183,7 +1183,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "unAssignUserFromRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1297,7 +1297,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "unAssignManyUsersFromRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1420,7 +1420,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "listPermissionsForRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1532,7 +1532,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "listAvailablePermissionsForRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1644,7 +1644,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "assignPermissionsToRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1758,7 +1758,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "unAssignPermissionFromRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1872,7 +1872,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "unAssignManyPermissionsFromRole"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -1986,7 +1986,7 @@ describe("createRole", () => {
         rolePermissionsUtil,
         "updateRolePermissions"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {

@@ -6,7 +6,7 @@ const express = require("express");
 const request = require("supertest");
 const { query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const createClientController = require("@controllers/create-client");
+const createClientController = require("@controllers/client.controller");
 const router = require("../clients");
 
 describe("v1 clients route", () => {

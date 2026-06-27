@@ -3,12 +3,13 @@ const sinon = require("sinon");
 const chai = require("chai");
 const expect = chai.expect;
 const httpStatus = require("http-status");
+const mongoose = require("mongoose");
 const SearchHistoryModel = require("@models/SearchHistory");
 
 const { getModelByTenant } = require("@config/database");
 
 const UserModel = require("@models/User");
-const searchHistories = require("../create-search-history");
+const searchHistories = require("../search-history.util");
 
 describe("Search Histories Util", () => {
   describe("SearchHistoryModel", () => {
@@ -80,12 +81,15 @@ describe("Search Histories Util", () => {
       },
     };
 
-    // Mock the SearchHistoryModel.list function
-    const listStub = sinon.stub(SearchHistoryModel("exampleTenant"), "list");
-
-    // Restore the stub after all test cases are executed
-    after(() => {
-      listStub.restore();
+    // Mock the SearchHistoryModel.list function — created per-test so the
+    // stub is reset between tests and does not require a DB connection at
+    // describe-evaluation time (which runs before the connection is ready).
+    let listStub;
+    beforeEach(() => {
+      listStub = sinon.stub(SearchHistoryModel("exampleTenant"), "list");
+    });
+    afterEach(() => {
+      sinon.restore();
     });
 
     it("should return the response from SearchHistoryModel.list", async () => {
@@ -180,15 +184,14 @@ describe("Search Histories Util", () => {
       },
     };
 
-    // Mock the SearchHistoryModel.remove function
-    const removeStub = sinon.stub(
-      SearchHistoryModel("exampleTenant"),
-      "remove"
-    );
-
-    // Restore the stub after all test cases are executed
-    after(() => {
-      removeStub.restore();
+    // Mock the SearchHistoryModel.remove function — deferred to beforeEach so
+    // it runs after the DB connection is established.
+    let removeStub;
+    beforeEach(() => {
+      removeStub = sinon.stub(SearchHistoryModel("exampleTenant"), "remove");
+    });
+    afterEach(() => {
+      sinon.restore();
     });
 
     it("should return the response from SearchHistoryModel.remove", async () => {

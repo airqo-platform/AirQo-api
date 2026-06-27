@@ -2,8 +2,9 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
+const { generateFilter } = require("@utils/common");
 
-const locationHistories = require("../create-location-history");
+const locationHistories = require("../location-history.util");
 const LocationHistoryModel = require("@models/LocationHistory");
 
 describe("locationHistories", () => {

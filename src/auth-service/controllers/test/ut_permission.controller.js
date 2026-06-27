@@ -1,8 +1,8 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const createPermission = require("@controllers/create-permission");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const createPermission = require("@controllers/permission.controller");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const rolePermissionsUtil = require("@utils/role-permissions.util");
@@ -34,8 +34,8 @@ describe("createPermission", () => {
         rolePermissionsUtil,
         "createPermission"
       );
-      logTextStub = sinon.stub(require("@utils/log"), "logText");
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logTextStub = sinon.stub(require("@utils/shared/log"), "logText");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -174,7 +174,7 @@ describe("createPermission", () => {
         rolePermissionsUtil,
         "listPermission"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -312,7 +312,7 @@ describe("createPermission", () => {
         rolePermissionsUtil,
         "deletePermission"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {
@@ -444,7 +444,7 @@ describe("createPermission", () => {
         rolePermissionsUtil,
         "updatePermission"
       );
-      logObjectStub = sinon.stub(require("@utils/log"), "logObject");
+      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
     });
 
     afterEach(() => {

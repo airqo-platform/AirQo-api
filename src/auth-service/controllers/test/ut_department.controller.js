@@ -4,7 +4,7 @@ const sinon = require("sinon");
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 
-const createDepartment = require("@controllers/create-department");
+const createDepartment = require("@controllers/department.controller");
 const departmentUtil = require("@utils/department.util");
 
 describe("createDepartment module", () => {

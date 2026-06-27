@@ -2,13 +2,14 @@ require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createAccessRequest = require("@utils/create-request");
+const createAccessRequest = require("@utils/request.util");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
-const mailer = require("@utils/mailer");
+const mailer = require("@utils/common");
 const constants = require("@config/constants");
 const { mockRequest, mockResponse } = require("mock-req-res");
+const { generateFilter } = require("@utils/common");
 const { expect } = chai;
 
 describe("createAccessRequest Util", () => {

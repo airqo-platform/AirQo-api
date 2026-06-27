@@ -4,14 +4,14 @@ const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-controller`
 );
-const createGroup = require("@controllers/create-group");
-const createGroupUtil = require("@utils/create-group");
+const createGroup = require("@controllers/group.controller");
+const createGroupUtil = require("@utils/group.util");
 
 describe("createGroup module", () => {
   afterEach(() => {
