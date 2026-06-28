@@ -575,6 +575,7 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
       const result = await userUtil.createFirebaseUser(request, next);
+      if (!result) return;
       sendResponse(res, result[0], "user");
     } catch (error) {
       handleError(error, next);
