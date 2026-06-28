@@ -1,6 +1,6 @@
 require("module-alias/register");
-("use-strict");
-const createEventController = require("../create-event");
+"use strict";
+const createEventController = require("../event.controller");
 
 let chai = require("chai"),
   expect = chai.expect;

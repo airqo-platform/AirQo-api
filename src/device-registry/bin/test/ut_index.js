@@ -7,6 +7,23 @@ const createServer = require("@bin/server");
 const constants = require("@config/constants");
 const log4jsConfiguration = require("@config/log4js");
 
+// Global hook: wait for MongoDB query connection if available, otherwise continue.
+// @bin/server calls connectToMongoDB() at module scope so queryDB already exists.
+before(function (done) {
+  this.timeout(15000);
+  const { connectToMongoDB } = require("@config/database");
+  try {
+    const { queryDB } = connectToMongoDB();
+    // readyState 0 = disconnected (error already fired), 1 = connected — both are terminal
+    if (!queryDB || queryDB.readyState === 0 || queryDB.readyState === 1) return done();
+    // On success or error, just continue — DB tests fail on their own if DB unavailable
+    queryDB.once("open", done);
+    queryDB.once("error", () => done());
+  } catch (_) {
+    done();
+  }
+});
+
 describe("Application Initialization", () => {
   let loggerStub;
   let kafkaConsumerStub;

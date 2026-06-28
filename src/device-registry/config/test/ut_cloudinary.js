@@ -1,45 +1,54 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const cloudinary = require("@config/cloudinary");
+const proxyquire = require("proxyquire").noCallThru().noPreserveCache();
 
 describe("Cloudinary Configuration", () => {
-  // Create stubs for environment variables
+  let configStub;
+  let cloudinary;
+
   const env = {
     CLOUD_NAME: "sample_cloud_name",
     CLOUDINARY_API_KEY: "sample_api_key",
     CLOUDINARY_API_SECRET: "sample_api_secret",
   };
 
-  before(() => {
-    // Stub the process.env object with our custom environment variables
-    sinon.stub(process, "env").value(env);
-  });
+  let origCloudName, origApiKey, origApiSecret;
 
-  after(() => {
-    // Restore the original process.env object after the tests
-    sinon.restore();
-  });
+  beforeEach(() => {
+    // Save and inject env vars so @config/cloudinary reads deterministic values
+    origCloudName = process.env.CLOUD_NAME;
+    origApiKey = process.env.CLOUDINARY_API_KEY;
+    origApiSecret = process.env.CLOUDINARY_API_SECRET;
 
-  describe("Cloudinary Configuration Initialization", () => {
-    it("should initialize Cloudinary with the correct configuration", () => {
-      const cloudinaryConfigSpy = sinon.spy(cloudinary, "config");
+    process.env.CLOUD_NAME = env.CLOUD_NAME;
+    process.env.CLOUDINARY_API_KEY = env.CLOUDINARY_API_KEY;
+    process.env.CLOUDINARY_API_SECRET = env.CLOUDINARY_API_SECRET;
 
-      // Require the module again to trigger the configuration
-      // This should happen inside the cloudinaryConfig module
-      require("./cloudinaryConfig");
+    configStub = sinon.stub();
 
-      // Assert that cloudinary.config was called with the correct values
-      expect(cloudinaryConfigSpy.calledOnce).to.be.true;
-      expect(cloudinaryConfigSpy.firstCall.args[0]).to.deep.equal({
-        cloud_name: env.CLOUD_NAME,
-        api_key: env.CLOUDINARY_API_KEY,
-        api_secret: env.CLOUDINARY_API_SECRET,
-      });
-
-      cloudinaryConfigSpy.restore();
+    // Require @config/cloudinary AFTER env and stubs are in place
+    cloudinary = proxyquire("@config/cloudinary", {
+      cloudinary: { v2: { config: configStub } },
     });
   });
 
-  // Add more describe blocks for other configuration tests if necessary
+  afterEach(() => {
+    process.env.CLOUD_NAME = origCloudName;
+    process.env.CLOUDINARY_API_KEY = origApiKey;
+    process.env.CLOUDINARY_API_SECRET = origApiSecret;
+    sinon.restore();
+  });
+
+  it("should export the cloudinary v2 instance", () => {
+    expect(cloudinary).to.exist;
+  });
+
+  it("should call cloudinary.config with the correct credential values", () => {
+    expect(configStub.calledOnce).to.be.true;
+    const args = configStub.firstCall.args[0];
+    expect(args.cloud_name).to.equal(env.CLOUD_NAME);
+    expect(args.api_key).to.equal(env.CLOUDINARY_API_KEY);
+    expect(args.api_secret).to.equal(env.CLOUDINARY_API_SECRET);
+  });
 });

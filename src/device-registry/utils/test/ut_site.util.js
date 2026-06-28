@@ -1,8 +1,9 @@
+require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
 const { expect } = chai;
-const createSite = require("@utils/create-site");
+const createSite = require("@utils/site.util");
 const SiteModel = require("@models/Site");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 chai.use(sinonChai);
@@ -12,7 +13,7 @@ const client = new Client({});
 const axiosInstance = () => {
   return axios.create();
 };
-const distanceUtil = require("@utils/distance");
+const distanceUtil = require("@utils/common/distance");
 const httpStatus = require("http-status");
 
 describe("createSite Util Functions", () => {
