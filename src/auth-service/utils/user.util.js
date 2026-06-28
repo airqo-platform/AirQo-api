@@ -13,7 +13,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
-const { getAuth } = require("firebase-admin/auth");
+const firebaseAuth = require("firebase-admin/auth");
 const httpStatus = require("http-status");
 const analyticsService = require("@services/analytics.service");
 const constants = require("@config/constants");
@@ -1220,7 +1220,7 @@ const createUserModule = {
         userIdentificationArray.push({ email });
       }
 
-      const getUsersResult = await getAuth().getUsers(userIdentificationArray);
+      const getUsersResult = await firebaseAuth.getAuth().getUsers(userIdentificationArray);
       logObject("getUsersResult", getUsersResult);
 
       const successResponses = getUsersResult.users.map((userRecord) => ({
@@ -1268,7 +1268,7 @@ const createUserModule = {
 
       // Check if either email or phoneNumber is provided
       if (isEmpty(email) && isEmpty(phoneNumber)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Please provide either email or phoneNumber",
           }),
@@ -1283,7 +1283,7 @@ const createUserModule = {
       }
 
       if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "password must be provided when using email",
           }),
@@ -1313,13 +1313,13 @@ const createUserModule = {
       }
 
       // Create the user using the createUser method from Firebase Auth
-      const userRecord = await getAuth().createUser(userObject);
+      const userRecord = await firebaseAuth.getAuth().createUser(userObject);
 
       // Extract the user ID from the created user record
       const { uid } = userRecord;
 
       // You can add more data to the userRecord using the update method if needed
-      // For example, to set custom claims, use: await updateCustomClaims(getAuth(), uid, { isAdmin: true });
+      // For example, to set custom claims, use: await updateCustomClaims(firebaseAuth.getAuth(), uid, { isAdmin: true });
 
       // Return the success response with the user ID
       return [
@@ -1334,23 +1334,14 @@ const createUserModule = {
       logObject("Internal Server Error:", error);
       logObject("error.code", error.code);
       if (error.code && error.code === "auth/email-already-exists") {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: error.message,
           }),
         );
-
-        // return [
-        //   {
-        //     success: false,
-        //     message: "Bad Request Error",
-        //     errors: { message: error.message },
-        //     status: httpStatus.BAD_REQUEST,
-        //   },
-        // ];
       }
 
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1924,7 +1915,7 @@ const createUserModule = {
       const { email } = body;
       const { purpose } = query;
 
-      const link = await getAuth().generateSignInWithEmailLink(
+      const link = await firebaseAuth.getAuth().generateSignInWithEmailLink(
         email,
         constants.ACTION_CODE_SETTINGS,
       );
@@ -4694,7 +4685,7 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -4796,7 +4787,7 @@ const createUserModule = {
       logger.error(
         `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`,
       );
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -5178,7 +5169,7 @@ const createUserModule = {
           isEmpty(responseFromListUser.data) ||
           responseFromListUser.data.length > 1
         ) {
-          next(
+          return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "password reset link is invalid or has expired",
             }),
@@ -5196,7 +5187,7 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -5287,15 +5278,15 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logObject("error.response.body", error.response.body);
-      logger.error(
-        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`,
-      );
-      next(
-        new HttpError("Internal Server Error", error.response.body.status, {
-          message: error.message,
-          ...error.response.body,
-        }),
+      const errBody = error.response?.body || {};
+      logObject("error.response.body", errBody);
+      logger.error(`🐛🐛 Internal Server Error ${stringify(errBody)}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          errBody.status || httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message, ...errBody },
+        ),
       );
     }
   },
@@ -5441,7 +5432,7 @@ const createUserModule = {
         .digest("hex");
 
       if (token !== verificationToken) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid token",
           }),
@@ -5449,7 +5440,7 @@ const createUserModule = {
       }
 
       try {
-        await getAuth().deleteUser(userId);
+        await firebaseAuth.getAuth().deleteUser(userId);
         const collectionList = [
           constants.FIREBASE_COLLECTION_KYA,
           constants.FIREBASE_COLLECTION_ANALYTICS,
