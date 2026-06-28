@@ -5,7 +5,7 @@ const chaiAsPromised = require("chai-as-promised");
 const { expect } = chai;
 chai.use(chaiAsPromised);
 const httpStatus = require("http-status");
-const createKnowYourAir = require("@utils/create-know-your-air");
+const createKnowYourAir = require("@utils/know-your-air.util");
 
 describe("createKnowYourAir Utility Functions", () => {
   describe("KnowYourAirLessonModel", () => {

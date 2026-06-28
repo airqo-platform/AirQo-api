@@ -11,8 +11,8 @@ const request = require("request");
 chai.use(chaiHttp);
 const assert = require("assert");
 const SiteModel = require("../../models/Site");
-const siteController = require("../create-site");
-const siteUtil = require("../../utils/create-site");
+const siteController = require("../site.controller");
+const siteUtil = require("../../utils/site.util");
 
 const stubValue = {
   _id: faker.datatype.uuid(),

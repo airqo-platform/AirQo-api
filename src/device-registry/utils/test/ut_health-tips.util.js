@@ -2,7 +2,7 @@ require("module-alias/register");
 const httpStatus = require("http-status");
 const chai = require("chai");
 const sinon = require("sinon");
-const createHealthTips = require("@utils/create-health-tips");
+const createHealthTips = require("@utils/health-tips.util");
 const { getModelByTenant } = require("@config/database");
 const HealthTipSchema = require("@models/HealthTips");
 const { expect } = chai;

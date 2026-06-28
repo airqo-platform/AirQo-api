@@ -2,7 +2,7 @@ require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
 const HTTPStatus = require("http-status");
-const createPhoto = require("@utils/create-photo");
+const createPhoto = require("@utils/photo.util");
 const expect = chai.expect;
 
 describe("create-photo-util", () => {
