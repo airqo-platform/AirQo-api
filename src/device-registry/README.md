@@ -20,7 +20,7 @@ It follows the Model-View-Controller (MVC) architectural pattern and exposes a R
 ├── models            # Mongoose schemas
 ├── routes
 │   ├── v1            # legacy routes (read-only, no new development)
-│   └── v2            # active routes (28 route files)
+│   └── v2            # active routes (31 route files)
 ├── utils
 │   ├── common        # shared helpers (date, distance, generate-filter, etc.)
 │   ├── messaging     # Kafka / notification utilities

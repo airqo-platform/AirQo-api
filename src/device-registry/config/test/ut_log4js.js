@@ -27,6 +27,6 @@ describe("Log4js Configuration", () => {
   it("should have valid categories with at least a default", () => {
     expect(log4jsModule.categories).to.exist;
     expect(log4jsModule.categories.default).to.exist;
-    expect(log4jsModule.categories.default.appenders).to.be.an("array");
+    expect(log4jsModule.categories.default.appenders).to.be.an("array").that.includes("console");
   });
 });
