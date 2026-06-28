@@ -3,8 +3,8 @@ const sinon = require("sinon");
 const chai = require("chai");
 const faker = require("faker");
 const httpStatus = require("http-status");
-const createCohort = require("@utils/create-cohort");
-const generateFilter = require("@utils/generate-filter");
+const createCohort = require("@utils/cohort.util");
+const generateFilter = require("@utils/common/generate-filter");
 
 const expect = chai.expect;
 

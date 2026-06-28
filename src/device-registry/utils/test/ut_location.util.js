@@ -1,7 +1,7 @@
 require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
-const createLocation = require("@utils/create-location"); // Replace this with the correct path to your createLocation file
+const createLocation = require("@utils/location.util");
 const LocationSchema = require("@models/Location"); // Replace this with the correct path to your LocationSchema file
 const { getModelByTenant } = require("@config/database"); // Replace this with the correct path to your getModelByTenant file
 const httpStatus = require("http-status");

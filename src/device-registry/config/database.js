@@ -135,11 +135,19 @@ const connectToMongoDB = () => {
 
     // Set up global error handlers
     process.on("unhandledRejection", (reason, p) => {
-      logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
+      try {
+        logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
+      } catch {
+        console.error("Unhandled Rejection at: Promise", p, "reason:", reason);
+      }
     });
 
     process.on("uncaughtException", (err) => {
-      logger.error("There was an uncaught error", err);
+      try {
+        logger.error("There was an uncaught error", err);
+      } catch {
+        console.error("There was an uncaught error", err);
+      }
     });
 
     isConnected = true;

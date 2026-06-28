@@ -4,7 +4,7 @@ const chai = require("chai");
 const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
 const { validationResult } = require("express-validator");
-const processImage = require("@controllers/create-photo");
+const processImage = require("@controllers/photo.controller");
 
 chai.use(sinonChai);
 const expect = chai.expect;
