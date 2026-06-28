@@ -1965,15 +1965,23 @@ describe("create-user-util", function () {
 
     it("should return failure response if there is an error during user deletion", async () => {
       const userId = "user123";
-      const token = "valid-token";
+      const creationTime = "2023-07-01T12:34:56";
+      const creationTimeDigits = creationTime.replace(/\D/g, "");
+      const token = require("crypto")
+        .createHash("sha256")
+        .update(`${userId}+${creationTimeDigits}`)
+        .digest("hex");
       const next = sinon.stub();
 
       sinon
         .stub(admin.auth(), "getUser")
-        .resolves({ metadata: { creationTime: "2023-07-01T12:34:56" } });
-      sinon
-        .stub(admin.auth(), "deleteUser")
-        .throws(new Error("Firebase Auth error"));
+        .resolves({ metadata: { creationTime } });
+
+      // The source calls firebaseAuth.getAuth().deleteUser — stub that path
+      const firebaseAuthMod = require("firebase-admin/auth");
+      sinon.stub(firebaseAuthMod, "getAuth").returns({
+        deleteUser: sinon.stub().throws(new Error("Firebase Auth error")),
+      });
 
       await createUser.deleteMobileUserData(
         { params: { userId, token } },
