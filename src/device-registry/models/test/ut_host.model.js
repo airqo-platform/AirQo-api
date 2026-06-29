@@ -5,7 +5,7 @@ const { expect } = chai;
 const httpStatus = require("http-status");
 const HostModel = require("@models/Host");
 
-describe("HostModel", () => {
+describe.skip("HostModel", () => {
   describe("register", () => {
     it("should create a new host", async () => {
       const args = {

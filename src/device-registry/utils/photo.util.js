@@ -206,63 +206,67 @@ const createPhoto = {
       logElement("path", path);
       logElement("resource_type", resource_type);
       logElement("device_name", device_name);
-      return cloudinary.uploader.upload(
-        path,
-        {
-          resource_type: resource_type,
-          public_id: device_name,
-          chunk_size: 6000000,
-          eager: [
-            { width: 300, height: 300, crop: "pad", audio_codec: "none" },
-            {
-              width: 160,
-              height: 100,
-              crop: "crop",
-              gravity: "south",
-              audio_codec: "none",
-            },
-          ],
-          eager_async: true,
-          eager_notification_url: "",
-        },
-        function(error, result) {
-          if (error) {
-            return {
-              success: false,
-              message: "unable to upload image",
-              errors: {
-                message: error,
+      return new Promise((resolve) => {
+        cloudinary.uploader.upload(
+          path,
+          {
+            resource_type: resource_type,
+            public_id: device_name,
+            chunk_size: 6000000,
+            eager: [
+              { width: 300, height: 300, crop: "pad", audio_codec: "none" },
+              {
+                width: 160,
+                height: 100,
+                crop: "crop",
+                gravity: "south",
+                audio_codec: "none",
               },
-              status: httpStatus.BAD_GATEWAY,
-            };
+            ],
+            eager_async: true,
+            eager_notification_url: "",
+          },
+          function(error, result) {
+            if (error) {
+              resolve({
+                success: false,
+                message: "unable to upload image",
+                errors: {
+                  message: error.message || error,
+                },
+                status: httpStatus.BAD_GATEWAY,
+              });
+              return;
+            }
+            if (result) {
+              let response = {};
+              response["body"] = {};
+              response["body"]["image_code"] = result.public_id;
+              response["body"]["image_url"] = result.secure_url;
+              response["body"]["metadata"] = {};
+              response["body"]["metadata"]["public_id"] = result.public_id;
+              response["body"]["metadata"]["version"] = result.version;
+              response["body"]["metadata"]["signature"] = result.signature;
+              response["body"]["metadata"]["width"] = result.width;
+              response["body"]["metadata"]["height"] = result.height;
+              response["body"]["metadata"]["format"] = result.format;
+              response["body"]["metadata"]["resource_type"] =
+                result.resource_type;
+              response["body"]["metadata"]["created_at"] = result.created_at;
+              response["body"]["metadata"]["bytes"] = result.bytes;
+              response["body"]["metadata"]["type"] = result.type;
+              response["body"]["metadata"]["url"] = result.url;
+              response["body"]["metadata"]["secure_url"] = result.secure_url;
+              resolve({
+                success: true,
+                message: "successfully uploaded the media",
+                data: response,
+                status: httpStatus.OK,
+              });
+            }
           }
-          if (result) {
-            let response = {};
-            response["body"]["image_code"] = result.public_id;
-            response["body"]["image_url"] = result.secure_url;
-            response["body"]["metadata"] = {};
-            response["body"]["metadata"]["public_id"] = result.public_id;
-            response["body"]["metadata"]["version"] = result.version;
-            response["body"]["metadata"]["signature"] = result.signature;
-            response["body"]["metadata"]["width"] = result.width;
-            response["body"]["metadata"]["height"] = result.height;
-            response["body"]["metadata"]["format"] = result.format;
-            response["body"]["metadata"]["resource_type"] =
-              result.resource_type;
-            response["body"]["metadata"]["created_at"] = result.created_at;
-            response["body"]["metadata"]["bytes"] = result.bytes;
-            response["body"]["metadata"]["type"] = result.type;
-            response["body"]["metadata"]["url"] = result.url;
-            response["body"]["metadata"]["secure_url"] = result.secure_url;
-            return {
-              success: true,
-              message: "successfully uploaded the media",
-              data: response,
-              status: httpStatus.OK,
-            };
-          }
-        }
-      );
+        );
+      });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
