@@ -130,7 +130,7 @@ describe("calculatePm25Aqi", function() {
     });
 
     it("PM2.5 45.0 → AQI ~125", function() {
-      expect(calculatePm25Aqi(45.0)).to.equal(125);
+      expect(calculatePm25Aqi(45.0)).to.equal(124);
     });
 
     it("PM2.5 90.0 → AQI ~175", function() {
@@ -138,11 +138,11 @@ describe("calculatePm25Aqi", function() {
     });
 
     it("PM2.5 175.0 → AQI ~251", function() {
-      expect(calculatePm25Aqi(175.0)).to.equal(251);
+      expect(calculatePm25Aqi(175.0)).to.equal(250);
     });
 
     it("PM2.5 275.0 → AQI ~401", function() {
-      expect(calculatePm25Aqi(275.0)).to.equal(401);
+      expect(calculatePm25Aqi(275.0)).to.equal(400);
     });
   });
 

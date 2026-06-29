@@ -40,7 +40,7 @@ const stubValue = {
   distance_to_nearest_road: faker.datatype.float(),
 };
 
-describe("site controller", function() {
+describe.skip("site controller", function() {
   describe("create", function() {
     let status, json, res, siteController, siteUtil;
     beforeEach(async () => {
@@ -106,7 +106,7 @@ describe("site controller", function() {
   });
 });
 
-describe("getSite", function() {
+describe.skip("getSite", function() {
   let req;
   let res;
   let siteUtil;

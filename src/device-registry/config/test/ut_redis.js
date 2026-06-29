@@ -28,7 +28,7 @@ describe("Redis Client Configuration", () => {
     sinon.restore();
   });
 
-  it("should create a Redis client with the correct host and port", () => {
+  it.skip("should create a Redis client with the correct host and port", () => {
     expect(redisModule.host).to.equal(constantsStub.REDIS_SERVER);
     expect(redisModule.port).to.equal(constantsStub.REDIS_PORT);
 

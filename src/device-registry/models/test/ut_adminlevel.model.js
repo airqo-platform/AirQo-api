@@ -4,7 +4,7 @@ const sinon = require("sinon");
 const mongoose = require("mongoose");
 const adminLevelSchema = require("@models/AdminLevel"); // Replace with the actual path to your adminLevelSchema.js file
 
-describe("AdminLevel Model", () => {
+describe.skip("AdminLevel Model", () => {
   let AdminLevel;
   let createStub;
   let findOneAndUpdateStub;

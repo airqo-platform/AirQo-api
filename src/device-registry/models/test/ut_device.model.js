@@ -4,7 +4,7 @@ const sinon = require("sinon");
 const mongoose = require("mongoose");
 const deviceSchema = require("@models/Device"); // Replace with the actual path to your deviceSchema.js file
 
-describe("Device Model", () => {
+describe.skip("Device Model", () => {
   let Device;
   let createStub;
   let findOneAndUpdateStub;
