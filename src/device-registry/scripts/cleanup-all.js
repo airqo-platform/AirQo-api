@@ -426,7 +426,7 @@ function main() {
     console.log(`   PIDs: ${uniquePidsToKill.join(", ")}\n`);
 
     console.log("🛡️  To proceed with cleanup, run with --force flag:");
-    console.log("   node cleanup-all.js --force");
+    console.log("   node scripts/cleanup-all.js --force");
     console.log("   npm run cleanup:all -- --force\n");
     return;
   }
@@ -466,7 +466,7 @@ function main() {
     if (isWindows) {
       console.log("💡 Try running as Administrator");
     } else {
-      console.log("💡 Try running with sudo: sudo node cleanup-all.js --force");
+      console.log("💡 Try running with sudo: sudo node scripts/cleanup-all.js --force");
     }
   }
 }
@@ -482,8 +482,8 @@ This script finds and terminates Node.js processes that might be:
 - Using common development ports (3000, 3001, 8000, etc.)
 
 Usage:
-  node cleanup-all.js                 # Preview mode (safe)
-  node cleanup-all.js --force         # Actually kill processes
+  node scripts/cleanup-all.js                 # Preview mode (safe)
+  node scripts/cleanup-all.js --force         # Actually kill processes
   npm run cleanup:all                 # Preview mode via npm
   npm run cleanup:all -- --force      # Force mode via npm
 
