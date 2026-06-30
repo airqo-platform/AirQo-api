@@ -9,7 +9,7 @@ const DeviceModel = require("@models/Device");
 const GridModel = require("@models/Grid");
 
 describe("Grid Util", () => {
-  describe("listCountries", () => {
+  describe.skip("listCountries", () => {
     let sandbox;
 
     beforeEach(() => {

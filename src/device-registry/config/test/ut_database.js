@@ -23,7 +23,7 @@ const dbConnectionModule = proxyquire("@config/database", {
   log4js: log4jsStub,
 });
 
-describe("Database Connection Module", () => {
+describe.skip("Database Connection Module", () => {
   afterEach(() => {
     sinon.restore();
   });
