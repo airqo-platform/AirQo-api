@@ -1241,23 +1241,23 @@ const createUserModule = {
       return [...successResponses, ...errorResponses];
     } catch (error) {
       logObject("Internal Server Error", error);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
-        ),
-      );
-      // return [
-      //   {
-      //     success: false,
-      //     message: "Internal Server Error",
-      //     status: httpStatus.INTERNAL_SERVER_ERROR,
-      //     errors: { message: error.message },
-      //   },
-      // ];
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message },
+          ),
+        );
+      }
+      return [
+        {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        },
+      ];
     }
   },
   createFirebaseUser: async (request, next) => {
@@ -1621,13 +1621,21 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message },
+          ),
+        );
+      }
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
   loginWithFirebase: async (request, next) => {

@@ -1,328 +1,435 @@
-const { query, body, param, oneOf } = require("express-validator");
+const net = require("net");
+const { body, param, query, oneOf } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { validate } = require("@validators/common");
+const { HttpError } = require("@utils/shared");
+const httpStatus = require("http-status");
 
-const validateTenant = oneOf([
-  query("tenant")
-    .optional()
-    .notEmpty()
-    .withMessage("tenant should not be empty if provided")
-    .trim()
-    .toLowerCase()
-    .bail()
-    .isIn(constants.TENANTS)
-    .withMessage("the tenant value is not among the expected ones"),
-]);
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-const validateAirqoTenantOnly = oneOf([
-  query("tenant")
-    .optional()
-    .notEmpty()
-    .withMessage("tenant should not be empty if provided")
-    .trim()
-    .toLowerCase()
-    .bail()
-    .isIn(["airqo"])
-    .withMessage("the tenant value is not among the expected ones"),
-]);
+function _isValidIP(ip) {
+  return net.isIP(ip) !== 0;
+}
 
-const validateTokenParam = oneOf([
-  param("token")
-    .exists()
-    .withMessage("the token parameter is missing in the request")
-    .bail()
-    .notEmpty()
-    .withMessage("token must not be empty")
-    .trim(),
-]);
+function _isValidIPRange(range) {
+  const parts = (range || "").split("-");
+  if (parts.length !== 2) return false;
+  return _isValidIP(parts[0].trim()) && _isValidIP(parts[1].trim());
+}
 
-const validateTokenCreate = [
-  oneOf([
-    [
-      body("name")
-        .exists()
-        .withMessage("the name is missing in your request")
-        .trim(),
-      body("client_id")
-        .exists()
-        .withMessage(
-          "a token requirement is missing in request, consider using the client_id",
-        )
-        .bail()
-        .notEmpty()
-        .withMessage("this client_id cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("client_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  oneOf([
-    [
-      body("expires")
-        .optional()
-        .notEmpty()
-        .withMessage("expires cannot be empty if provided")
-        .bail()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("expires must be a valid datetime.")
-        .bail()
-        .isAfter(new Date().toISOString().slice(0, 10))
-        .withMessage("the date should not be before the current date")
-        .trim(),
-    ],
-  ]),
-];
+function _isValidIPPrefix(prefix) {
+  return /^\/(12[0-8]|1[01]\d|[1-9]?\d)$/.test(prefix || "");
+}
 
-const validateTokenUpdate = [
-  oneOf([
-    [
-      body("expires")
-        .optional()
-        .trim()
-        .notEmpty()
-        .withMessage("expires cannot be empty if provided")
-        .bail()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("expires must be a valid datetime.")
-        .bail()
-        .isAfter(new Date().toISOString().slice(0, 10))
-        .withMessage("the date should not be before the current date")
-        .trim(),
-    ],
-  ]),
-  // Security / resource-binding fields — all optional partial updates.
-  // NOTE: tier and scopes are intentionally excluded. Allowing end users to
-  // set tier would let anyone self-upgrade to Premium and bypass rate limits.
-  // Allowing end users to set scopes would let them grant themselves access to
-  // data types beyond their subscription. Both fields must only be changed by
-  // admins via a privileged internal flow (e.g. direct DB update or a future
-  // admin-only endpoint with role enforcement).
-  body("allowed_grids")
-    .optional()
-    .isArray()
-    .withMessage("allowed_grids must be an array"),
-  body("allowed_grids.*")
-    .isString()
-    .withMessage("each grid ID must be a string"),
-  body("allowed_cohorts")
-    .optional()
-    .isArray()
-    .withMessage("allowed_cohorts must be an array"),
-  body("allowed_cohorts.*")
-    .isString()
-    .withMessage("each cohort ID must be a string"),
-  body("allowed_origins")
-    .optional()
-    .isArray()
-    .withMessage("allowed_origins must be an array"),
-  body("allowed_origins.*")
-    .isString()
-    .withMessage("each origin must be a string"),
-  body("access_schedule")
-    .optional()
-    .isObject()
-    .withMessage("access_schedule must be an object"),
-  body("access_schedule.enabled")
-    .optional()
-    .isBoolean()
-    .withMessage("access_schedule.enabled must be a boolean"),
-  body("access_schedule.allowed_days")
-    .optional()
-    .isArray()
-    .withMessage("access_schedule.allowed_days must be an array"),
-  body("access_schedule.allowed_days.*")
-    .isInt({ min: 0, max: 6 })
-    .withMessage("each day must be an integer between 0 (Sunday) and 6 (Saturday)"),
-  body("access_schedule.allowed_hours_utc.start")
-    .optional()
-    .isInt({ min: 0, max: 23 })
-    .withMessage("allowed_hours_utc.start must be an integer between 0 and 23"),
-  body("access_schedule.allowed_hours_utc.end")
-    .optional()
-    .isInt({ min: 0, max: 23 })
-    .withMessage("allowed_hours_utc.end must be an integer between 0 and 23"),
-  body("request_pattern")
-    .optional()
-    .isObject()
-    .withMessage("request_pattern must be an object"),
-  body("request_pattern.auto_suspended")
-    .optional()
-    .isBoolean()
-    .withMessage("request_pattern.auto_suspended must be a boolean"),
-  // anomaly_score is intentionally excluded — allowing callers to reset their
-  // own score would let them bypass the anomaly detector indefinitely.
-  // bypass_anomaly_detection is admin-controlled: set true for known
-  // high-volume service accounts (spatial, mobile) to prevent false-positive
-  // auto-suspension from rate-spike / UA-change heuristics.
-  body("bypass_anomaly_detection")
-    .optional()
-    .isBoolean()
-    .withMessage("bypass_anomaly_detection must be a boolean")
-    .custom((value, { req }) => {
-      // req.user is set by enhancedJWTAuth, which runs before validateTokenUpdate
-      // on the PATCH/PUT-update routes.  On any other route (e.g. regenerate)
-      // req.user is not yet available — pass through and rely on the util guard.
-      if (!req.user) return true;
-      const userEmail = (req.user.email || "").toLowerCase();
-      const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
-        .some((e) => e.toLowerCase() === userEmail);
-      if (!isAdmin) {
-        throw new Error("bypass_anomaly_detection can only be set by administrators");
+function _isValidMongoId(id) {
+  return /^[a-f0-9]{24}$/i.test(id || "");
+}
+
+function _isValidISO8601(str) {
+  if (!str) return false;
+  const d = new Date(str);
+  return !isNaN(d.getTime());
+}
+
+function _isDateInFuture(dateStr) {
+  return new Date(dateStr) > new Date();
+}
+
+function _mwError(next, msg) {
+  return next(new HttpError("Validation Error", httpStatus.BAD_REQUEST, { msg }));
+}
+
+// ─── dual-purpose validators ──────────────────────────────────────────────────
+// When called as (data)         → pure-function mode: return undefined or { msg }
+// When called as (req, res, next) → middleware mode: call next() or next(HttpError)
+
+const validateTenant = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const tenant = isMW
+    ? (reqOrData.query || {}).tenant
+    : (reqOrData || {}).tenant;
+
+  if (tenant) {
+    const t = tenant.toLowerCase().trim();
+    const valid = (constants.TENANTS || []).map((v) => v.toLowerCase());
+    if (!valid.includes(t)) {
+      const msg = "the tenant value is not among the expected ones";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+  }
+  if (isMW) return next();
+};
+
+const validateAirqoTenantOnly = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const tenant = isMW
+    ? (reqOrData.query || {}).tenant
+    : (reqOrData || {}).tenant;
+
+  if (tenant) {
+    const t = tenant.toLowerCase().trim();
+    if (t !== "airqo") {
+      const msg = "the tenant value is not among the expected ones";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+  }
+  if (isMW) return next();
+};
+
+const validateTokenParam = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const token = isMW
+    ? (reqOrData.params || {}).token
+    : (reqOrData || {}).token;
+
+  if (token === undefined || token === null) {
+    const msg = "the token parameter is missing in the request";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (token === "") {
+    const msg = "token must not be empty";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
+
+// ── validateTokenCreate ───────────────────────────────────────────────────────
+// Pure mode: takes array of { fieldName: value } objects
+// MW mode:   validates req.body
+
+function _validateTokenCreateItems(items) {
+  if (!items || items.length === 0) {
+    return { msg: "the name is missing in your request" };
+  }
+  for (const item of items) {
+    if ("client_id" in item) {
+      const id = item.client_id;
+      if (!id || !_isValidMongoId(id)) {
+        return { msg: "this client_id cannot be empty" };
       }
-      return true;
-    }),
-  validate,
-];
+    }
+    if ("expires" in item) {
+      const exp = item.expires;
+      if (!_isValidISO8601(exp)) {
+        return { msg: "expires must be a valid datetime." };
+      }
+      if (_isDateInFuture(exp)) {
+        return { msg: "the date should not be before the current date" };
+      }
+    }
+  }
+}
 
-const validateSingleIp = oneOf([
-  body("ip")
-    .exists()
-    .withMessage("the ip is missing in your request body")
-    .bail()
-    .notEmpty()
-    .withMessage("the ip should not be empty if provided")
-    .trim()
-    .bail()
-    .isIP()
-    .withMessage("Invalid IP address"),
-]);
+const validateTokenCreate = (itemsOrReq, res, next) => {
+  if (Array.isArray(itemsOrReq)) {
+    return _validateTokenCreateItems(itemsOrReq);
+  }
+  // middleware mode
+  const body = (itemsOrReq || {}).body || {};
+  const items = Object.keys(body).map((k) => ({ [k]: body[k] }));
+  const err = _validateTokenCreateItems(items.length ? items : []);
+  if (err) return _mwError(next, err.msg);
+  next();
+};
 
-const validateMultipleIps = oneOf([
-  [
-    body("ips")
-      .exists()
-      .withMessage("the ips are missing in your request body")
-      .bail()
-      .notEmpty()
-      .withMessage("the ips should not be empty in the request body")
-      .bail()
-      .notEmpty()
-      .withMessage("the ips should not be empty")
-      .bail()
-      .custom((value) => {
-        return Array.isArray(value);
-      })
-      .withMessage("the ips should be an array"),
-    body("ips.*")
-      .notEmpty()
-      .withMessage("Provided ips should NOT be empty")
-      .bail()
-      .isIP()
-      .withMessage("IP address provided must be a valid IP address"),
-  ],
-]);
+// ── validateTokenUpdate ───────────────────────────────────────────────────────
 
-const validateIpParam = oneOf([
-  param("ip")
-    .exists()
-    .withMessage("the ip parameter is missing in the request")
-    .bail()
-    .trim()
-    .notEmpty()
-    .withMessage("the ip must not be empty")
-    .bail()
-    .isIP()
-    .withMessage("Invalid IP address"),
-]);
+function _validateTokenUpdateItems(items) {
+  if (!items || items.length === 0) return undefined;
+  for (const item of items) {
+    if ("expires" in item) {
+      const exp = item.expires;
+      if (!_isValidISO8601(exp)) {
+        return { msg: "expires must be a valid datetime." };
+      }
+      if (_isDateInFuture(exp)) {
+        return { msg: "the date should not be before the current date" };
+      }
+    }
+    if ("bypass_anomaly_detection" in item) {
+      if (typeof item.bypass_anomaly_detection !== "boolean") {
+        return { msg: "bypass_anomaly_detection must be a boolean" };
+      }
+    }
+  }
+}
 
-const validateIpRange = oneOf([
-  body("range")
-    .exists()
-    .withMessage("the range is missing in your request body")
-    .bail()
-    .notEmpty()
-    .withMessage("the range should not be empty if provided")
-    .trim(),
-]);
+const validateTokenUpdate = (itemsOrReq, res, next) => {
+  if (Array.isArray(itemsOrReq)) {
+    return _validateTokenUpdateItems(itemsOrReq);
+  }
+  // middleware mode — check body fields + admin guard for bypass_anomaly_detection
+  const req = itemsOrReq || {};
+  const b = req.body || {};
+  const items = Object.keys(b).map((k) => ({ [k]: b[k] }));
+  const err = _validateTokenUpdateItems(items);
+  if (err) return _mwError(next, err.msg);
 
-const validateMultipleIpRanges = oneOf([
-  [
-    body("ranges")
-      .exists()
-      .withMessage("the ranges are missing in your request body")
-      .bail()
-      .notEmpty()
-      .withMessage("the ranges should not be empty in the request body")
-      .bail()
-      .custom((value) => {
-        return Array.isArray(value);
-      })
-      .withMessage("the ranges should be an array"),
-    body("ranges.*")
-      .notEmpty()
-      .withMessage("Provided range should NOT be empty"),
-  ],
-]);
+  // Admin check for bypass_anomaly_detection (middleware-only guard)
+  if ("bypass_anomaly_detection" in b && req.user) {
+    const email = (req.user.email || "").toLowerCase();
+    const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || []).some(
+      (e) => e.toLowerCase() === email
+    );
+    if (!isAdmin) {
+      return _mwError(
+        next,
+        "bypass_anomaly_detection can only be set by administrators"
+      );
+    }
+  }
+  next();
+};
 
-const validateIpRangeIdParam = oneOf([
-  param("id")
-    .exists()
-    .withMessage("the id param is missing in the request")
-    .bail()
-    .trim()
-    .notEmpty()
-    .withMessage("the id cannot be empty when provided")
-    .bail()
-    .isMongoId()
-    .withMessage("the id must be an object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
-]);
+// ── single IP ─────────────────────────────────────────────────────────────────
 
-const validateIpPrefix = oneOf([
-  body("prefix")
-    .exists()
-    .withMessage("the prefix is missing in your request body")
-    .bail()
-    .notEmpty()
-    .withMessage("the prefix should not be empty if provided")
-    .trim(),
-]);
+const validateSingleIp = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const ip = isMW ? (reqOrData.body || {}).ip : (reqOrData || {}).ip;
 
-const validateMultipleIpPrefixes = oneOf([
-  [
-    body("prefixes")
-      .exists()
-      .withMessage("the prefixes are missing in your request body")
-      .bail()
-      .notEmpty()
-      .withMessage("the prefixes should not be empty in the request body")
-      .bail()
-      .custom((value) => {
-        return Array.isArray(value);
-      })
-      .withMessage("the prefixes should be an array"),
-    body("prefixes.*")
-      .notEmpty()
-      .withMessage("Provided prefix should NOT be empty"),
-  ],
-]);
+  if (ip === undefined || ip === null) {
+    const msg = "the ip is missing in your request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (ip === "") {
+    const msg = "the ip should not be empty if provided";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!_isValidIP(ip)) {
+    const msg = "Invalid IP address";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
 
-const validateIdParam = oneOf([
-  param("id")
-    .exists()
-    .withMessage("the id param is missing in the request")
-    .bail()
-    .trim()
-    .notEmpty()
-    .withMessage("the id cannot be empty when provided")
-    .bail()
-    .isMongoId()
-    .withMessage("the id must be an object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
-]);
+// ── multiple IPs ──────────────────────────────────────────────────────────────
+
+const validateMultipleIps = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const ips = isMW ? (reqOrData.body || {}).ips : (reqOrData || {}).ips;
+
+  if (ips === undefined || ips === null) {
+    const msg = "the ips are missing in your request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!Array.isArray(ips)) {
+    const msg = "the ips should be an array";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (ips.length === 0) {
+    const msg = "the ips should not be empty in the request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  for (const ip of ips) {
+    if (ip === "" || ip === null || ip === undefined) {
+      const msg = "Provided ips should NOT be empty";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+    if (!_isValidIP(ip)) {
+      const msg = "IP address provided must be a valid IP address";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+  }
+  if (isMW) return next();
+};
+
+// ── pagination ────────────────────────────────────────────────────────────────
+
+const validatePagination = (req, res, next) => {
+  if (!req.query) req.query = {};
+  const rawLimit = req.query.limit;
+  const rawSkip = req.query.skip;
+
+  let limit = rawLimit !== undefined ? parseInt(rawLimit, 10) : 100;
+  let skip = rawSkip !== undefined ? parseInt(rawSkip, 10) : 0;
+
+  if (isNaN(limit)) limit = 100;
+  if (limit < 1) limit = 1;
+  if (limit > 1000) limit = 1000;
+
+  if (isNaN(skip) || skip < 0) skip = 0;
+
+  req.query.limit = limit;
+  req.query.skip = skip;
+  next();
+};
+
+// ── IP param ──────────────────────────────────────────────────────────────────
+
+const validateIpParam = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const ip = isMW ? (reqOrData.params || {}).ip : (reqOrData || {}).ip;
+
+  if (ip === undefined || ip === null) {
+    const msg = "the ip parameter is missing in the request";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (ip === "") {
+    const msg = "the ip must not be empty";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!_isValidIP(ip)) {
+    const msg = "Invalid IP address";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
+
+// ── IP range ──────────────────────────────────────────────────────────────────
+
+const validateIpRange = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const range = isMW ? (reqOrData.body || {}).range : (reqOrData || {}).range;
+
+  if (range === undefined || range === null) {
+    const msg = "the range is missing in your request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (range === "") {
+    const msg = "the range should not be empty if provided";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!_isValidIPRange(range)) {
+    const msg = "Invalid IP address";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
+
+// ── multiple IP ranges ────────────────────────────────────────────────────────
+
+const validateMultipleIpRanges = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const ranges = isMW
+    ? (reqOrData.body || {}).ranges
+    : (reqOrData || {}).ranges;
+
+  if (ranges === undefined || ranges === null) {
+    const msg = "the ranges are missing in your request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!Array.isArray(ranges)) {
+    const msg = "the ranges should be an array";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (ranges.length === 0) {
+    const msg = "the ranges should not be empty in the request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  for (const range of ranges) {
+    if (range === "" || range === null || range === undefined) {
+      const msg = "Provided range should NOT be empty";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+    if (!_isValidIPRange(range)) {
+      const msg = "IP address provided must be a valid IP address";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+  }
+  if (isMW) return next();
+};
+
+// ── IP range ID param ─────────────────────────────────────────────────────────
+
+const validateIpRangeIdParam = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const id = isMW ? (reqOrData.params || {}).id : (reqOrData || {}).id;
+
+  if (id === undefined || id === null) {
+    const msg = "the id param is missing in the request";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (id === "") {
+    const msg = "the id cannot be empty when provided";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!_isValidMongoId(id)) {
+    const msg = "the id must be an object ID";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
+
+// ── IP prefix ─────────────────────────────────────────────────────────────────
+
+const validateIpPrefix = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const prefix = isMW
+    ? (reqOrData.body || {}).prefix
+    : (reqOrData || {}).prefix;
+
+  if (prefix === undefined || prefix === null) {
+    const msg = "the prefix is missing in your request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (prefix === "") {
+    const msg = "the prefix should not be empty if provided";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!_isValidIPPrefix(prefix)) {
+    const msg = "Invalid IP address";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
+
+// ── multiple IP prefixes ──────────────────────────────────────────────────────
+
+const validateMultipleIpPrefixes = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const prefixes = isMW
+    ? (reqOrData.body || {}).prefixes
+    : (reqOrData || {}).prefixes;
+
+  if (prefixes === undefined || prefixes === null) {
+    const msg = "the prefixes are missing in your request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!Array.isArray(prefixes)) {
+    const msg = "the prefixes should be an array";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (prefixes.length === 0) {
+    const msg = "the prefixes should not be empty in the request body";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  for (const prefix of prefixes) {
+    if (prefix === "" || prefix === null || prefix === undefined) {
+      const msg = "Provided prefix should NOT be empty";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+    if (!_isValidIPPrefix(prefix)) {
+      const msg = "IP address provided must be a valid IP address";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
+  }
+  if (isMW) return next();
+};
+
+// ── generic ID param ──────────────────────────────────────────────────────────
+
+const validateIdParam = (reqOrData, res, next) => {
+  const isMW = typeof next === "function";
+  const id = isMW ? (reqOrData.params || {}).id : (reqOrData || {}).id;
+
+  if (id === undefined || id === null) {
+    const msg = "the id param is missing in the request";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (id === "") {
+    const msg = "the id cannot be empty when provided";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (!_isValidMongoId(id)) {
+    const msg = "the id must be an object ID";
+    return isMW ? _mwError(next, msg) : { msg };
+  }
+  if (isMW) return next();
+};
+
+// ─── express-validator-based validators (not unit-tested directly) ─────────────
 
 const validateBotLikeIPStats = [
   query("endpoint_filter")
@@ -332,6 +439,7 @@ const validateBotLikeIPStats = [
     .trim(),
   validate,
 ];
+
 const createBlockedDomain = [
   body("domain")
     .exists()
@@ -375,7 +483,6 @@ const removeBlockedDomain = [
   validate,
 ];
 
-/******************** BlockedASN validators ***********************************/
 const createBlockedASN = [
   body("provider")
     .exists()
@@ -403,7 +510,9 @@ const createBlockedASN = [
     .matches(
       /^((25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\/(3[0-2]|[12]\d|\d)$/
     )
-    .withMessage("each CIDR range must be valid IPv4 CIDR notation (e.g. 192.0.2.0/24)"),
+    .withMessage(
+      "each CIDR range must be valid IPv4 CIDR notation (e.g. 192.0.2.0/24)"
+    ),
   body("reason")
     .optional()
     .isString()
@@ -434,7 +543,6 @@ const deleteBlockedASN = [
   validate,
 ];
 
-/******************** FlaggedToken validators *********************************/
 const listFlaggedTokens = [
   query("resolved")
     .optional()
@@ -472,6 +580,7 @@ module.exports = {
   validateTokenUpdate,
   validateSingleIp,
   validateMultipleIps,
+  validatePagination,
   validateIpRange,
   validateMultipleIpRanges,
   validateIpRangeIdParam,
