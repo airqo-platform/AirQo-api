@@ -1,4 +1,11 @@
 require("module-alias/register");
+const rewire = require("rewire");
+// Register model in-memory so factory succeeds without DB
+try {
+  const _schema = rewire("/Permission").__get__("PermissionSchema");
+  const mongoose = require("mongoose");
+  if (!mongoose.modelNames().includes("permissions")) mongoose.model("permissions", _schema);
+} catch (_) {}
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
@@ -8,6 +15,10 @@ const mongoose = require("mongoose");
 const PermissionModel = require("@models/Permission");
 
 describe("PermissionSchema statics and methods", () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
   beforeEach(() => {
     // Clear any stubs or spies before each test case
     sinon.restore();
@@ -23,7 +34,7 @@ describe("PermissionSchema statics and methods", () => {
       };
 
       // Mock the create method of the PermissionModel to return the created permission
-      const createStub = sinon.stub(PermissionModel, "create").resolves({
+      const createStub = sinon.stub(PermissionModel("airqo"), "create").resolves({
         _id: "permission_id",
         permission: "CREATE_POST",
         network_id: "network_id",
@@ -33,7 +44,7 @@ describe("PermissionSchema statics and methods", () => {
       });
 
       // Call the register method
-      const result = await PermissionModel.register(args);
+      const result = await PermissionModel("airqo").register(args);
 
       // Assertions
       expect(result.success).to.be.true;
@@ -61,12 +72,12 @@ describe("PermissionSchema statics and methods", () => {
       };
 
       // Mock the create method of the PermissionModel to throw a validation error
-      const createStub = sinon.stub(PermissionModel, "create").throws({
+      const createStub = sinon.stub(PermissionModel("airqo"), "create").throws({
         keyValue: { permission: args.permission },
       });
 
       // Call the register method
-      const result = await PermissionModel.register(args);
+      const result = await PermissionModel("airqo").register(args);
 
       // Assertions
       expect(result.success).to.be.false;
@@ -99,7 +110,7 @@ describe("PermissionSchema statics and methods", () => {
       const limit = 10;
 
       // Mock the aggregate method of the PermissionModel to return the list of permissions
-      const aggregateStub = sinon.stub(PermissionModel, "aggregate").resolves([
+      const aggregateStub = sinon.stub(PermissionModel("airqo"), "aggregate").resolves([
         {
           _id: "permission_id_1",
           permission: "CREATE_POST",
@@ -116,7 +127,7 @@ describe("PermissionSchema statics and methods", () => {
       ]);
 
       // Call the list method
-      const result = await PermissionModel.list({ skip, limit, filter });
+      const result = await PermissionModel("airqo").list({ skip, limit, filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -201,7 +212,7 @@ describe("PermissionSchema statics and methods", () => {
         .resolves(updatedPermissionData);
 
       // Call the modify method
-      const result = await PermissionModel.modify({ filter, update });
+      const result = await PermissionModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -228,7 +239,7 @@ describe("PermissionSchema statics and methods", () => {
         .resolves(null);
 
       // Call the modify method
-      const result = await PermissionModel.modify({ filter, update });
+      const result = await PermissionModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -258,7 +269,7 @@ describe("PermissionSchema statics and methods", () => {
         .throws(error);
 
       // Call the modify method
-      const result = await PermissionModel.modify({ filter, update });
+      const result = await PermissionModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -303,7 +314,7 @@ describe("PermissionSchema statics and methods", () => {
         .resolves(removedPermissionData);
 
       // Call the remove method
-      const result = await PermissionModel.remove({ filter });
+      const result = await PermissionModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -332,7 +343,7 @@ describe("PermissionSchema statics and methods", () => {
         .resolves(null);
 
       // Call the remove method
-      const result = await PermissionModel.remove({ filter });
+      const result = await PermissionModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -364,7 +375,7 @@ describe("PermissionSchema statics and methods", () => {
         .throws(error);
 
       // Call the remove method
-      const result = await PermissionModel.remove({ filter });
+      const result = await PermissionModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -394,7 +405,7 @@ describe("PermissionSchema statics and methods", () => {
   describe("toJSON method", () => {
     it("should convert the permission document to a JSON object", () => {
       // Create a sample permission document
-      const permission = new PermissionModel({
+      const permission = new (PermissionModel("airqo"))({
         _id: "permission_id",
         permission: "CREATE_POST",
         description: "Permission to create a post",

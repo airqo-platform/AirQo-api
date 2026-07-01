@@ -2,11 +2,14 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
+const httpStatus = require("http-status");
 const createCandidate = require("@utils/candidate.util");
 const UserModel = require("@models/User");
 const CandidateModel = require("@models/Candidate");
 const NetworkModel = require("@models/Network");
-const mailer = require("@utils/common");
+const { mailer } = require("@utils/common");
+const { generateFilter } = require("@utils/common");
+const sampleTenant = "airqo";
 
 describe("createCandidate", () => {
   describe("create()", () => {
@@ -102,12 +105,12 @@ describe("createCandidate", () => {
     beforeEach(() => {
       // Create a fake candidate model
       fakeCandidateModel = {
-        list: () => {},
+        list: sinon.stub(),
       };
 
       // Create a fake generateFilter object for mocking the candidates function
       fakeGenerateFilter = {
-        candidates: () => {},
+        candidates: sinon.stub(),
       };
     });
 
@@ -275,12 +278,12 @@ describe("createCandidate", () => {
     beforeEach(() => {
       // Create a fake candidate model
       fakeCandidateModel = {
-        modify: () => {},
+        modify: sinon.stub(),
       };
 
       // Create a fake generateFilter object for mocking the candidates function
       fakeGenerateFilter = {
-        candidates: () => {},
+        candidates: sinon.stub(),
       };
     });
 
@@ -448,20 +451,20 @@ describe("createCandidate", () => {
     beforeEach(() => {
       // Create a fake candidate model
       fakeCandidateModel = {
-        exists: () => {},
-        find: () => {},
-        remove: () => {},
+        exists: sinon.stub(),
+        find: sinon.stub(),
+        remove: sinon.stub(),
       };
 
       // Create a fake user model
       fakeUserModel = {
-        exists: () => {},
-        register: () => {},
+        exists: sinon.stub(),
+        register: sinon.stub(),
       };
 
       // Create a fake mailer
       fakeMailer = {
-        user: () => {},
+        user: sinon.stub(),
       };
     });
 
@@ -592,7 +595,7 @@ describe("createCandidate", () => {
     beforeEach(() => {
       // Create a fake candidate model
       fakeCandidateModel = {
-        remove: () => {},
+        remove: sinon.stub(),
       };
     });
 

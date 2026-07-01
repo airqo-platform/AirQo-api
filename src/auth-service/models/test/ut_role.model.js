@@ -1,4 +1,11 @@
 require("module-alias/register");
+const rewire = require("rewire");
+// Register model in-memory so factory succeeds without DB
+try {
+  const _schema = rewire("/Role").__get__("RoleSchema");
+  const mongoose = require("mongoose");
+  if (!mongoose.modelNames().includes("roles")) mongoose.model("roles", _schema);
+} catch (_) {}
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
@@ -37,7 +44,7 @@ describe("RoleSchema static methods", () => {
         .resolves(createdRoleData);
 
       // Call the register method
-      const result = await RoleModel.register(roleData);
+      const result = await RoleModel("airqo").register(roleData);
 
       // Assertions
       expect(result.success).to.be.true;
@@ -73,7 +80,7 @@ describe("RoleSchema static methods", () => {
         .resolves(sampleRoles);
 
       // Call the list method
-      const result = await RoleModel.list({ filter, skip, limit });
+      const result = await RoleModel("airqo").list({ filter, skip, limit });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -116,7 +123,7 @@ describe("RoleSchema static methods", () => {
         .resolves(updatedRoleData);
 
       // Call the modify method
-      const result = await RoleModel.modify({ filter, update });
+      const result = await RoleModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -153,7 +160,7 @@ describe("RoleSchema static methods", () => {
         .resolves(removedRoleData);
 
       // Call the remove method
-      const result = await RoleModel.remove({ filter });
+      const result = await RoleModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -179,7 +186,7 @@ describe("RoleSchema instance method", () => {
   describe("toJSON method", () => {
     it("should return the JSON representation of the role", () => {
       // Sample role document
-      const role = new RoleModel({
+      const role = new (RoleModel("airqo"))({
         _id: "role_id_1",
         role_name: "Role 1",
         role_code: "ROLE001",

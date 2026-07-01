@@ -1,16 +1,26 @@
 require("module-alias/register");
+const rewire = require("rewire");
+// Register model in-memory so factory succeeds without DB
+try {
+  const _schema = rewire("/SearchHistory").__get__("SearchHistorySchema");
+  const mongoose = require("mongoose");
+  if (!mongoose.modelNames().includes("searchHistories")) mongoose.model("searchHistories", _schema);
+} catch (_) {}
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 
-const SearchHistorySchema = require("@models/SearchHistory");
+const SearchHistoryModel = require("@models/SearchHistory");
+const SearchHistorySchema = SearchHistoryModel; // alias for test compatibility
+const constants = require("@config/constants");
+const { Types: { ObjectId } } = require("mongoose");
 
 describe("SearchHistorySchema", () => {
   describe("Schema definition", () => {
     it("should have the required fields defined", () => {
-      const schemaKeys = Object.keys(SearchHistorySchema.paths);
+      const schemaKeys = Object.keys(SearchHistoryModel("airqo").schema.paths);
       const requiredFields = [
         "place_id",
         "name",
@@ -24,14 +34,14 @@ describe("SearchHistorySchema", () => {
     });
 
     it("should have the correct data types for each field", () => {
-      const place_id = SearchHistorySchema.paths.place_id.instance;
-      const name = SearchHistorySchema.paths.name.instance;
-      const location = SearchHistorySchema.paths.location.instance;
-      const latitude = SearchHistorySchema.paths.latitude.instance;
-      const longitude = SearchHistorySchema.paths.longitude.instance;
+      const place_id = SearchHistoryModel("airqo").schema.paths.place_id.instance;
+      const name = SearchHistoryModel("airqo").schema.paths.name.instance;
+      const location = SearchHistoryModel("airqo").schema.paths.location.instance;
+      const latitude = SearchHistoryModel("airqo").schema.paths.latitude.instance;
+      const longitude = SearchHistoryModel("airqo").schema.paths.longitude.instance;
       const firebase_user_id =
-        SearchHistorySchema.paths.firebase_user_id.instance;
-      const date_time = SearchHistorySchema.paths.date_time.instance;
+        SearchHistoryModel("airqo").schema.paths.firebase_user_id.instance;
+      const date_time = SearchHistoryModel("airqo").schema.paths.date_time.instance;
 
       expect(place_id).to.equal("String");
       expect(name).to.equal("String");
@@ -43,14 +53,14 @@ describe("SearchHistorySchema", () => {
     });
 
     it("should have the required validators set", () => {
-      const place_id = SearchHistorySchema.paths.place_id.validators;
-      const name = SearchHistorySchema.paths.name.validators;
-      const location = SearchHistorySchema.paths.location.validators;
-      const latitude = SearchHistorySchema.paths.latitude.validators;
-      const longitude = SearchHistorySchema.paths.longitude.validators;
+      const place_id = SearchHistoryModel("airqo").schema.paths.place_id.validators;
+      const name = SearchHistoryModel("airqo").schema.paths.name.validators;
+      const location = SearchHistoryModel("airqo").schema.paths.location.validators;
+      const latitude = SearchHistoryModel("airqo").schema.paths.latitude.validators;
+      const longitude = SearchHistoryModel("airqo").schema.paths.longitude.validators;
       const firebase_user_id =
-        SearchHistorySchema.paths.firebase_user_id.validators;
-      const date_time = SearchHistorySchema.paths.date_time.validators;
+        SearchHistoryModel("airqo").schema.paths.firebase_user_id.validators;
+      const date_time = SearchHistoryModel("airqo").schema.paths.date_time.validators;
 
       expect(place_id).to.not.be.empty;
       expect(name).to.not.be.empty;
@@ -65,7 +75,7 @@ describe("SearchHistorySchema", () => {
   describe("Static methods", () => {
     describe("register", () => {
       it("should create a new Search History and return success response", async () => {
-        const createStub = sinon.stub(SearchHistorySchema, "create");
+        const createStub = sinon.stub(SearchHistoryModel("airqo"), "create");
         const fakeSearchHistory = {
           place_id: "place123",
           name: "Test Place",
@@ -78,7 +88,7 @@ describe("SearchHistorySchema", () => {
         createStub.resolves(fakeSearchHistory);
 
         const args = { ...fakeSearchHistory };
-        const result = await SearchHistorySchema.register(args);
+        const result = await SearchHistoryModel("airqo").register(args);
 
         expect(result).to.deep.equal({
           success: true,
@@ -91,7 +101,7 @@ describe("SearchHistorySchema", () => {
       });
 
       it("should handle an empty response from the database and return success response with an empty data array", async () => {
-        const createStub = sinon.stub(SearchHistorySchema, "create");
+        const createStub = sinon.stub(SearchHistoryModel("airqo"), "create");
         const emptyResponse = null;
         createStub.resolves(emptyResponse);
 
@@ -104,7 +114,7 @@ describe("SearchHistorySchema", () => {
           firebase_user_id: "user123",
           date_time: new Date(),
         };
-        const result = await SearchHistorySchema.register(args);
+        const result = await SearchHistoryModel("airqo").register(args);
 
         expect(result).to.deep.equal({
           success: true,
@@ -118,7 +128,7 @@ describe("SearchHistorySchema", () => {
       });
 
       it("should handle a unique constraint violation and return a conflict response", async () => {
-        const createStub = sinon.stub(SearchHistorySchema, "create");
+        const createStub = sinon.stub(SearchHistoryModel("airqo"), "create");
         const uniqueConstraintViolationError = {
           keyValue: {
             place_id: "place123",
@@ -135,7 +145,7 @@ describe("SearchHistorySchema", () => {
           firebase_user_id: "user123",
           date_time: new Date(),
         };
-        const result = await SearchHistorySchema.register(args);
+        const result = await SearchHistoryModel("airqo").register(args);
 
         expect(result).to.deep.equal({
           success: false,
@@ -149,7 +159,7 @@ describe("SearchHistorySchema", () => {
       });
 
       it("should handle other database-related errors and return an internal server error response", async () => {
-        const createStub = sinon.stub(SearchHistorySchema, "create");
+        const createStub = sinon.stub(SearchHistoryModel("airqo"), "create");
         const otherDatabaseError = new Error("Some database error");
         createStub.rejects(otherDatabaseError);
 
@@ -162,7 +172,7 @@ describe("SearchHistorySchema", () => {
           firebase_user_id: "user123",
           date_time: new Date(),
         };
-        const result = await SearchHistorySchema.register(args);
+        const result = await SearchHistoryModel("airqo").register(args);
 
         expect(result).to.deep.equal({
           success: false,
@@ -184,7 +194,7 @@ describe("SearchHistorySchema", () => {
         const limit = 10;
         const filter = { category: "test_category" };
 
-        const aggregateStub = sinon.stub(SearchHistorySchema, "aggregate");
+        const aggregateStub = sinon.stub(SearchHistoryModel("airqo"), "aggregate");
         const fakeSearchHistories = [
           { _id: ObjectId(), name: "Search 1" },
           { _id: ObjectId(), name: "Search 2" },
@@ -192,7 +202,7 @@ describe("SearchHistorySchema", () => {
         aggregateStub.returnsThis();
         aggregateStub.withArgs().resolves(fakeSearchHistories);
 
-        const result = await SearchHistorySchema.list({ skip, limit, filter });
+        const result = await SearchHistoryModel("airqo").list({ skip, limit, filter });
 
         expect(result).to.deep.equal({
           success: true,
@@ -213,12 +223,12 @@ describe("SearchHistorySchema", () => {
         const limit = 100;
         const filter = {};
 
-        const aggregateStub = sinon.stub(SearchHistorySchema, "aggregate");
+        const aggregateStub = sinon.stub(SearchHistoryModel("airqo"), "aggregate");
         const emptySearchHistories = [];
         aggregateStub.returnsThis();
         aggregateStub.withArgs().resolves(emptySearchHistories);
 
-        const result = await SearchHistorySchema.list({ skip, limit, filter });
+        const result = await SearchHistoryModel("airqo").list({ skip, limit, filter });
 
         expect(result).to.deep.equal({
           success: true,
@@ -235,11 +245,11 @@ describe("SearchHistorySchema", () => {
         const limit = 100;
         const filter = {};
 
-        const aggregateStub = sinon.stub(SearchHistorySchema, "aggregate");
+        const aggregateStub = sinon.stub(SearchHistoryModel("airqo"), "aggregate");
         const databaseError = new Error("Database error");
         aggregateStub.throws(databaseError);
 
-        const result = await SearchHistorySchema.list({ skip, limit, filter });
+        const result = await SearchHistoryModel("airqo").list({ skip, limit, filter });
 
         expect(result).to.deep.equal({
           success: false,
@@ -269,7 +279,7 @@ describe("SearchHistorySchema", () => {
           .withArgs(filter, update, { new: true })
           .resolves(modifiedSearchHistory);
 
-        const result = await SearchHistorySchema.modify({ filter, update });
+        const result = await SearchHistoryModel("airqo").modify({ filter, update });
 
         expect(result).to.deep.equal({
           success: true,
@@ -293,7 +303,7 @@ describe("SearchHistorySchema", () => {
           .withArgs(filter, update, { new: true })
           .resolves(null);
 
-        const result = await SearchHistorySchema.modify({ filter, update });
+        const result = await SearchHistoryModel("airqo").modify({ filter, update });
 
         expect(result).to.deep.equal({
           success: false,
@@ -318,7 +328,7 @@ describe("SearchHistorySchema", () => {
         const databaseError = new Error("Database error");
         findOneAndUpdateStub.throws(databaseError);
 
-        const result = await SearchHistorySchema.modify({ filter, update });
+        const result = await SearchHistoryModel("airqo").modify({ filter, update });
 
         expect(result).to.deep.equal({
           success: false,
@@ -347,7 +357,7 @@ describe("SearchHistorySchema", () => {
           .withArgs(filter, sinon.match.any)
           .resolves(removedSearchHistory);
 
-        const result = await SearchHistorySchema.remove({ filter });
+        const result = await SearchHistoryModel("airqo").remove({ filter });
 
         expect(result).to.deep.equal({
           success: true,
@@ -368,7 +378,7 @@ describe("SearchHistorySchema", () => {
         );
         findOneAndRemoveStub.withArgs(filter, sinon.match.any).resolves(null);
 
-        const result = await SearchHistorySchema.remove({ filter });
+        const result = await SearchHistoryModel("airqo").remove({ filter });
 
         expect(result).to.deep.equal({
           success: false,
@@ -392,7 +402,7 @@ describe("SearchHistorySchema", () => {
         const databaseError = new Error("Database error");
         findOneAndRemoveStub.throws(databaseError);
 
-        const result = await SearchHistorySchema.remove({ filter });
+        const result = await SearchHistoryModel("airqo").remove({ filter });
 
         expect(result).to.deep.equal({
           success: false,
@@ -409,7 +419,7 @@ describe("SearchHistorySchema", () => {
   describe("Instance methods", () => {
     describe("toJSON", () => {
       it("should convert a SearchHistory object to a JSON representation", () => {
-        const searchHistory = new SearchHistorySchema({
+        const searchHistory = new (SearchHistoryModel("airqo"))({
           _id: "1234567890abcdef12345678",
           name: "Test Search",
           location: "Test Location",
@@ -435,7 +445,7 @@ describe("SearchHistorySchema", () => {
       });
 
       it("should exclude additional properties from the JSON representation", () => {
-        const searchHistory = new SearchHistorySchema({
+        const searchHistory = new (SearchHistoryModel("airqo"))({
           _id: "1234567890abcdef12345678",
           name: "Test Search",
           location: "Test Location",

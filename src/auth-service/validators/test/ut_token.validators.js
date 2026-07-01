@@ -26,8 +26,20 @@ const {
 
 chai.use(sinonChai);
 
+const constants = require("@config/constants");
+
 describe("Validation Functions", () => {
   describe("validateTenant", () => {
+    let origTenants;
+    before(() => {
+      origTenants = constants.TENANTS;
+      // Ensure kcca is in TENANTS regardless of module-load-time env state
+      constants.TENANTS = ["kcca", "airqo", "airqount"];
+    });
+    after(() => {
+      constants.TENANTS = origTenants;
+    });
+
     it("should validate KCCA tenant", () => {
       const result = validateTenant({ tenant: "KCCA" });
       expect(result).to.be.undefined;

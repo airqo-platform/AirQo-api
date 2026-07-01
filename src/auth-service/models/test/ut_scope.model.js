@@ -1,7 +1,15 @@
 require("module-alias/register");
+const rewire = require("rewire");
+// Register model in-memory so factory succeeds without DB
+try {
+  const _schema = rewire("/Scope").__get__("ScopeSchema");
+  const mongoose = require("mongoose");
+  if (!mongoose.modelNames().includes("scopes")) mongoose.model("scopes", _schema);
+} catch (_) {}
 const chai = require("chai");
 const expect = chai.expect;
 const mongoose = require("mongoose");
+const httpStatus = require("http-status");
 
 const ScopeModel = require("@models/Scope");
 
@@ -14,7 +22,7 @@ describe("ScopeSchema static methods", () => {
         description: "Scope description 1",
       };
 
-      const result = await ScopeModel.register(args);
+      const result = await ScopeModel("airqo").register(args);
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("Scope created");
@@ -30,7 +38,7 @@ describe("ScopeSchema static methods", () => {
 
   describe("list method", () => {
     it("should list all scopes", async () => {
-      const result = await ScopeModel.list();
+      const result = await ScopeModel("airqo").list();
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("successfully listed the Scopes");
@@ -47,7 +55,7 @@ describe("ScopeSchema static methods", () => {
       const filter = { _id: "existing_scope_id" };
       const update = { description: "Updated description" };
 
-      const result = await ScopeModel.modify({ filter, update });
+      const result = await ScopeModel("airqo").modify({ filter, update });
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("successfully modified the Scope");
@@ -67,7 +75,7 @@ describe("ScopeSchema static methods", () => {
       // Assuming there is an existing scope with ID "existing_scope_id"
       const filter = { _id: "existing_scope_id" };
 
-      const result = await ScopeModel.remove({ filter });
+      const result = await ScopeModel("airqo").remove({ filter });
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("successfully removed the Scope");
@@ -83,7 +91,7 @@ describe("ScopeSchema instance methods", () => {
   describe("toJSON method", () => {
     it("should return the JSON representation of the scope", () => {
       // Sample scope document
-      const scope = new ScopeModel({
+      const scope = new (ScopeModel("airqo"))({
         _id: "scope_id_1",
         scope: "Scope 1",
         description: "Some description",

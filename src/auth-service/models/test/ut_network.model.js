@@ -2,10 +2,22 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
+const rewire = require("rewire");
 const mongoose = require("mongoose");
 const NetworkModel = require("@models/Network");
+// Register the model in-memory so factory succeeds without DB connection
+try {
+  const _NetworkSchema = rewire("@models/Network").__get__("NetworkSchema");
+  if (!mongoose.modelNames().includes("networks")) {
+    mongoose.model("networks", _NetworkSchema);
+  }
+} catch (_) {}
 
 describe("NetworkSchema statics", () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
   describe("register method", () => {
     it("should create a new Network and return success message", async () => {
       // Mock input data for the Network to be created
@@ -17,10 +29,10 @@ describe("NetworkSchema statics", () => {
       };
 
       // Mock the Network.create method to return a successful result
-      const createStub = sinon.stub(NetworkModel, "create").resolves(args);
+      const createStub = sinon.stub(NetworkModel("airqo"), "create").resolves(args);
 
       // Call the register method
-      const result = await NetworkModel.register(args);
+      const result = await NetworkModel("airqo").register(args);
 
       // Assertions
       expect(result.success).to.be.true;
@@ -41,10 +53,10 @@ describe("NetworkSchema statics", () => {
       };
 
       // Mock the Network.create method to return an empty data array
-      const createStub = sinon.stub(NetworkModel, "create").resolves([]);
+      const createStub = sinon.stub(NetworkModel("airqo"), "create").resolves([]);
 
       // Call the register method
-      const result = await NetworkModel.register(args);
+      const result = await NetworkModel("airqo").register(args);
 
       // Assertions
       expect(result.success).to.be.true;
@@ -67,13 +79,13 @@ describe("NetworkSchema statics", () => {
       };
 
       // Mock the Network.create method to throw a duplicate key error
-      const createStub = sinon.stub(NetworkModel, "create").throws({
+      const createStub = sinon.stub(NetworkModel("airqo"), "create").throws({
         code: 11000,
         keyValue: { net_name: "Test Network" },
       });
 
       // Call the register method
-      const result = await NetworkModel.register(args);
+      const result = await NetworkModel("airqo").register(args);
 
       // Assertions
       expect(result.success).to.be.false;
@@ -99,7 +111,7 @@ describe("NetworkSchema statics", () => {
       };
 
       // Mock the Network.create method to throw a validation error
-      const createStub = sinon.stub(NetworkModel, "create").throws({
+      const createStub = sinon.stub(NetworkModel("airqo"), "create").throws({
         errors: {
           net_email: {
             message: "invalid_email is not a valid email!",
@@ -111,7 +123,7 @@ describe("NetworkSchema statics", () => {
       });
 
       // Call the register method
-      const result = await NetworkModel.register(args);
+      const result = await NetworkModel("airqo").register(args);
 
       // Assertions
       expect(result.success).to.be.false;
@@ -157,7 +169,7 @@ describe("NetworkSchema statics", () => {
         .resolves(responseMock);
 
       // Call the list method
-      const result = await NetworkModel.list({ skip, limit, filter });
+      const result = await NetworkModel("airqo").list({ skip, limit, filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -178,10 +190,10 @@ describe("NetworkSchema statics", () => {
       const limit = 10;
 
       // Mock the aggregate method of the NetworkModel to return an empty array
-      const aggregateStub = sinon.stub(NetworkModel, "aggregate").resolves([]);
+      const aggregateStub = sinon.stub(NetworkModel("airqo"), "aggregate").resolves([]);
 
       // Call the list method
-      const result = await NetworkModel.list({ skip, limit, filter });
+      const result = await NetworkModel("airqo").list({ skip, limit, filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -207,7 +219,7 @@ describe("NetworkSchema statics", () => {
         .throws(new Error("Validation error"));
 
       // Call the list method
-      const result = await NetworkModel.list({ skip, limit, filter });
+      const result = await NetworkModel("airqo").list({ skip, limit, filter });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -250,7 +262,7 @@ describe("NetworkSchema statics", () => {
         .resolves(responseMock);
 
       // Call the list method
-      const result = await NetworkModel.list({ skip, limit, filter });
+      const result = await NetworkModel("airqo").list({ skip, limit, filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -291,7 +303,7 @@ describe("NetworkSchema statics", () => {
         });
 
       // Call the modify method
-      const result = await NetworkModel.modify({ filter, update });
+      const result = await NetworkModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -323,7 +335,7 @@ describe("NetworkSchema statics", () => {
         .resolves(null);
 
       // Call the modify method
-      const result = await NetworkModel.modify({ filter, update });
+      const result = await NetworkModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -349,7 +361,7 @@ describe("NetworkSchema statics", () => {
         .throws(new Error("Validation error"));
 
       // Call the modify method
-      const result = await NetworkModel.modify({ filter, update });
+      const result = await NetworkModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -378,7 +390,7 @@ describe("NetworkSchema statics", () => {
         .throws(new Error("Unauthorized"));
 
       // Call the modify method
-      const result = await NetworkModel.modify({ filter, update });
+      const result = await NetworkModel("airqo").modify({ filter, update });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -419,7 +431,7 @@ describe("NetworkSchema statics", () => {
         });
 
       // Call the remove method
-      const result = await NetworkModel.remove({ filter });
+      const result = await NetworkModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -451,7 +463,7 @@ describe("NetworkSchema statics", () => {
         .resolves(null);
 
       // Call the remove method
-      const result = await NetworkModel.remove({ filter });
+      const result = await NetworkModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.true;
@@ -478,7 +490,7 @@ describe("NetworkSchema statics", () => {
         .throws(new Error("Validation error"));
 
       // Call the remove method
-      const result = await NetworkModel.remove({ filter });
+      const result = await NetworkModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -506,7 +518,7 @@ describe("NetworkSchema statics", () => {
         .throws(new Error("Unauthorized"));
 
       // Call the remove method
-      const result = await NetworkModel.remove({ filter });
+      const result = await NetworkModel("airqo").remove({ filter });
 
       // Assertions
       expect(result.success).to.be.false;
@@ -530,7 +542,7 @@ describe("NetworkSchema methods", () => {
   describe("toJSON method", () => {
     it("should return a JSON object with specific properties", () => {
       // Create a new instance of NetworkSchema with mock data
-      const network = new NetworkModel({
+      const network = new (NetworkModel("airqo"))({
         _id: "some_id",
         net_email: "test@example.com",
         net_website: "www.example.com",
