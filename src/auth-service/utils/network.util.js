@@ -132,7 +132,7 @@ const createNetwork = {
         modifiedBody.net_manager_firstname = user.firstName;
         modifiedBody.net_manager_lastname = user.lastName;
       } else if (isEmpty(user)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "creator's details are not provided",
           }),
@@ -159,7 +159,7 @@ const createNetwork = {
         logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
         const net_id = responseFromRegisterNetwork.data._doc._id;
         if (isEmpty(net_id)) {
-          next(
+          return next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
@@ -188,7 +188,7 @@ const createNetwork = {
           logObject("responseFromCreateRole", responseFromCreateRole);
           const role_id = responseFromCreateRole.data._id;
           if (isEmpty(role_id)) {
-            next(
+            return next(
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
@@ -279,7 +279,7 @@ const createNetwork = {
             );
 
             if (isEmpty(updatedUser)) {
-              next(
+              return next(
                 new HttpError(
                   "Internal Server Error",
                   httpStatus.INTERNAL_SERVER_ERROR,
