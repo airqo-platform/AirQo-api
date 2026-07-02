@@ -28,6 +28,7 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual(ring[0], ring[-1])
         self.assertEqual(len(ring), 4)
 
+
     @patch("airqolocate.client.polygon_from_place")
     def test_resolves_named_place_to_polygon(self, mock_polygon_from_place):
         mock_polygon_from_place.return_value = POLYGON
@@ -37,23 +38,22 @@ class PayloadTests(unittest.TestCase):
         )
         mock_polygon_from_place.assert_called_once_with("Kampala, Uganda")
         self.assertEqual(payload["polygon"], POLYGON)
-
     def test_omits_optional_must_have_locations(self):
         payload = build_request_payload(
             polygon=POLYGON,
             num_sensors=5,
+            min_distance_km=2.5,
         )
         self.assertNotIn("must_have_locations", payload)
 
-    def test_preserves_required_location_coordinate_order(self):
+    def test_preserves_must_have_latitude_longitude_order(self):
         payload = build_request_payload(
             polygon=POLYGON,
             num_sensors=5,
             must_have_locations=[[-1.2790166, 36.816709]],
         )
         self.assertEqual(
-            payload["must_have_locations"],
-            [[-1.2790166, 36.816709]],
+            payload["must_have_locations"], [[-1.2790166, 36.816709]]
         )
 
     def test_rejects_more_required_locations_than_sensors(self):
@@ -89,6 +89,7 @@ class LocateClientTests(unittest.TestCase):
         result = LocateClient(token="test-token").locate(
             polygon=POLYGON,
             num_sensors=5,
+            min_distance_km=2.5,
         )
 
         request = mock_urlopen.call_args.args[0]
