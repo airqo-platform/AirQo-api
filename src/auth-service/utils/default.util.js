@@ -57,7 +57,7 @@ const defaults = {
       const user_id = body.user;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "The provided User does not exist",
             value: user_id,

@@ -68,16 +68,23 @@ describe("defaults", () => {
 
   describe("create method", () => {
     let origDefaultsModel;
+    let origUserModel;
     let registerStub;
 
     beforeEach(() => {
       registerStub = sinon.stub();
       origDefaultsModel = rewireDefaults.__get__("DefaultsModel");
+      origUserModel = rewireDefaults.__get__("UserModel");
       rewireDefaults.__set__("DefaultsModel", () => ({ register: registerStub }));
+      // Mock UserModel so findById(user_id).lean() returns a valid user
+      rewireDefaults.__set__("UserModel", () => ({
+        findById: sinon.stub().returns({ lean: sinon.stub().resolves({ _id: "user1" }) }),
+      }));
     });
 
     afterEach(() => {
       rewireDefaults.__set__("DefaultsModel", origDefaultsModel);
+      rewireDefaults.__set__("UserModel", origUserModel);
       sinon.restore();
     });
 
@@ -86,7 +93,7 @@ describe("defaults", () => {
       registerStub.resolves(mockRegisterResponse);
 
       const result = await rewireDefaults.create(
-        { body: {}, query: { tenant: "sample_tenant" } },
+        { body: { user: "user1" }, query: { tenant: "sample_tenant" } },
         sinon.stub()
       );
 
@@ -97,7 +104,7 @@ describe("defaults", () => {
       registerStub.resolves({ success: false, message: "Failed to create default" });
 
       const result = await rewireDefaults.create(
-        { body: {}, query: { tenant: "sample_tenant" } },
+        { body: { user: "user1" }, query: { tenant: "sample_tenant" } },
         sinon.stub()
       );
 
@@ -110,7 +117,7 @@ describe("defaults", () => {
       const next = sinon.stub();
 
       await rewireDefaults.create(
-        { body: {}, query: { tenant: "sample_tenant" } },
+        { body: { user: "user1" }, query: { tenant: "sample_tenant" } },
         next
       );
 

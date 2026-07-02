@@ -73,7 +73,7 @@ describe("create checklist UTIL", () => {
 
     beforeEach(() => {
       request = {
-        body: { user: "user1" },
+        body: { user_id: "user1" },
         query: { tenant: "tenant1" },
       };
       findByIdStub = sinon.stub().returns({ lean: sinon.stub().resolves(null) });
@@ -91,20 +91,19 @@ describe("create checklist UTIL", () => {
     });
 
     it("should return an error response when user_id is empty", async () => {
-      request.body.user = "";
+      request.body.user_id = "";
       const next = sinon.stub();
 
-      const result = await rewireChecklisteUtil.create(request, next);
-      expect(result.success).to.equal(false);
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      await rewireChecklisteUtil.create(request, next);
+      expect(next.called).to.be.true;
     });
 
     it("should return an error response when user is not found", async () => {
       findByIdStub.returns({ lean: sinon.stub().resolves(null) });
       const next = sinon.stub();
 
-      const result = await rewireChecklisteUtil.create(request, next);
-      expect(result).to.have.property("success", false);
+      await rewireChecklisteUtil.create(request, next);
+      expect(next.called).to.be.true;
     });
 
     it("should return the result of ChecklistModel.register when user is found", async () => {
@@ -129,18 +128,17 @@ describe("create checklist UTIL", () => {
   describe("update()", () => {
     let request;
     let modifyStub;
-    let generateFilterStub;
     let origChecklistModel;
 
     beforeEach(() => {
       request = {
         query: { tenant: "tenant1" },
         body: { user: "user1" },
+        params: { user_id: "user1" },
       };
       modifyStub = sinon.stub();
       origChecklistModel = rewireChecklisteUtil.__get__("ChecklistModel");
       rewireChecklisteUtil.__set__("ChecklistModel", () => ({ modify: modifyStub }));
-      generateFilterStub = sinon.stub(generateFilter, "checklists");
     });
 
     afterEach(() => {
@@ -148,25 +146,25 @@ describe("create checklist UTIL", () => {
       sinon.restore();
     });
 
-    it("should return filterResponse when filterResponse.success is false", async () => {
-      generateFilterStub.returns({ success: false });
-      modifyStub.resolves({ success: false });
+    it("should call next when items are missing from body", async () => {
+      const next = sinon.stub();
 
-      const result = await rewireChecklisteUtil.update(request);
-      expect(result).to.have.property("success", false);
+      await rewireChecklisteUtil.update(request, next);
+      expect(next.called).to.be.true;
     });
 
-    it("should return the result of ChecklistModel.modify when filterResponse.success is true", async () => {
+    it("should return the result of ChecklistModel.modify when item is provided", async () => {
+      request.body.items = [{ title: "item1", completed: false }];
       const modifyResult = { success: true };
-      generateFilterStub.returns({ success: true, filter: {} });
       modifyStub.resolves(modifyResult);
+      const next = sinon.stub();
 
-      const result = await rewireChecklisteUtil.update(request);
+      const result = await rewireChecklisteUtil.update(request, next);
       expect(result).to.equal(modifyResult);
     });
 
-    it("should return an error response when an error is thrown", async () => {
-      generateFilterStub.returns({ success: true, filter: {} });
+    it("should call next when modify throws", async () => {
+      request.body.items = [{ title: "item1" }];
       modifyStub.rejects(new Error("Test error"));
       const next = sinon.stub();
 
@@ -187,7 +185,7 @@ describe("create checklist UTIL", () => {
       };
       findOneAndUpdateStub = sinon.stub();
       origChecklistModel = rewireChecklisteUtil.__get__("ChecklistModel");
-      rewireChecklisteUtil.__set__("ChecklistModel", () => ({ findOneAndUpdate: findOneAndUpdateStub }));
+      rewireChecklisteUtil.__set__("ChecklistModel", () => ({ modify: findOneAndUpdateStub }));
       generateFilterStub = sinon.stub(generateFilter, "checklists");
     });
 
@@ -196,15 +194,15 @@ describe("create checklist UTIL", () => {
       sinon.restore();
     });
 
-    it("should return filterResponse when filterResponse.success is false", async () => {
-      generateFilterStub.returns({ success: false });
-      findOneAndUpdateStub.resolves(null);
+    it("should return modify result when modify returns success false", async () => {
+      generateFilterStub.returns({});
+      findOneAndUpdateStub.resolves({ success: false });
 
       const result = await rewireChecklisteUtil.upsert(request);
       expect(result).to.have.property("success", false);
     });
 
-    it("should return the result of ChecklistModel.findOneAndUpdate when filterResponse.success is true", async () => {
+    it("should return the result of ChecklistModel.modify when filterResponse.success is true", async () => {
       const modifyResult = { success: true };
       generateFilterStub.returns({ success: true, filter: {} });
       findOneAndUpdateStub.resolves(modifyResult);
