@@ -894,6 +894,23 @@ class Config:
         "MONGO_SITE_HOURLY_FORECAST_COLLECTION", "site_10days_hourly_forecasts"
     )
     SATELLITE_TRAINING_SCOPE = os.getenv("SATELLITE_TRAINING_SCOPE")
+    SATELLITE_TRAINING_LOOKBACK_DAYS = int(
+        os.getenv("SATELLITE_TRAINING_LOOKBACK_DAYS", "90")
+    )
+    SATELLITE_TRAINING_MIN_SITE_DAYS = int(
+        os.getenv("SATELLITE_TRAINING_MIN_SITE_DAYS", "60")
+    )
+    SATELLITE_TRAINING_MIN_DAY_HOURS = int(
+        os.getenv("SATELLITE_TRAINING_MIN_DAY_HOURS", "12")
+    )
+    SATELLITE_PREDICTION_BUCKET = os.getenv(
+        "SATELLITE_PREDICTION_BUCKET",
+        os.getenv("FORECAST_MODELS_BUCKET"),
+    )
+    SATELLITE_PREDICTION_MODEL_FILE = os.getenv(
+        "SATELLITE_PREDICTION_MODEL_FILE",
+        "satellite_prediction_model.pkl",
+    )
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     MLFLOW_REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI")
     MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")

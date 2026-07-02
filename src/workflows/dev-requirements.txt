@@ -36,7 +36,6 @@ airflow-provider-great-expectations==0.2.8
 sqlalchemy-bigquery==1.11.0
 confluent-kafka==2.5.0
 lz4==4.3.3
-earthengine-api==1.7.19
 tenacity==8.2.2
 netCDF4==1.7.4
 cdsapi==0.7.7
@@ -44,3 +43,5 @@ cfgrib==0.9.15.1
 xarray==2025.6.0
 python-dateutil==2.8.2
 sqlfluff==4.1.0
+pystac-client>=0.8.5,<0.10
+rasterio>=1.4.0

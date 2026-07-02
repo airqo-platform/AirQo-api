@@ -94,3 +94,53 @@ ORDER BY timestamp
 SELECT DISTINCT *
 FROM {satellite_data_table}
 ORDER BY timestamp
+-- name: airqo_daily_data_for_satellite_training
+-- Site-day AirQo PM2.5 labels for Sentinel-2 satellite model training.
+-- Placeholders:
+-- {consolidated_table} -> consolidated hourly AirQo table
+-- {sites_table} -> sites metadata table
+-- {start_timestamp} / {end_timestamp} -> timestamp strings
+-- {min_site_days} -> minimum daily labels per site over the training window
+-- {min_day_hours} -> minimum hourly points required inside a daily label
+
+WITH site_daily AS (
+    SELECT
+        TIMESTAMP(DATE(t1.timestamp)) AS timestamp,
+        t1.site_id,
+        ANY_VALUE(
+            COALESCE(NULLIF(TRIM(t2.display_name), ''), NULLIF(TRIM(t2.name), ''))
+        ) AS site_name,
+        COALESCE(ANY_VALUE(t2.latitude), ANY_VALUE(t2.approximate_latitude)) AS latitude,
+        COALESCE(ANY_VALUE(t2.longitude), ANY_VALUE(t2.approximate_longitude)) AS longitude,
+        AVG(COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5)) AS pm2_5,
+        COUNT(DISTINCT TIMESTAMP_TRUNC(t1.timestamp, HOUR)) AS hourly_points
+    FROM {consolidated_table} AS t1
+    LEFT JOIN {sites_table} AS t2
+        ON t1.site_id = t2.id
+    WHERE t1.timestamp >= TIMESTAMP('{start_timestamp}')
+        AND t1.timestamp <= TIMESTAMP('{end_timestamp}')
+        AND t1.site_id IS NOT NULL
+        AND COALESCE(t1.pm2_5_calibrated_value, t1.pm2_5) IS NOT NULL
+    GROUP BY timestamp, t1.site_id
+    HAVING hourly_points >= {min_day_hours}
+),
+eligible_sites AS (
+    SELECT site_id
+    FROM site_daily
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+    GROUP BY site_id
+    HAVING COUNT(DISTINCT timestamp) >= {min_site_days}
+)
+SELECT
+    site_daily.timestamp,
+    site_daily.site_id,
+    site_daily.site_name,
+    site_daily.latitude,
+    site_daily.longitude,
+    site_daily.pm2_5,
+    site_daily.hourly_points
+FROM site_daily
+INNER JOIN eligible_sites USING (site_id)
+WHERE site_daily.latitude IS NOT NULL
+    AND site_daily.longitude IS NOT NULL
+ORDER BY site_daily.site_id, site_daily.timestamp

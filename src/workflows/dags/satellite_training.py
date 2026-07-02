@@ -1,13 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from airflow.decorators import dag, task
-from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import DateUtils
-from airqo_etl_utils.ml_utils import SatelliteUtils
+from airqo_etl_utils.satellite_model_training import SatelliteModelTrainer
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
@@ -15,58 +13,37 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     dag_id="AirQo-satellite-model-training-job",
     schedule="0 0 1 * *",
     default_args=AirflowUtils.dag_default_configs(),
-    tags=["airqo", "hourly-forecast", "daily-forecast", "training-job", "satellite"],
+    tags=["airqo", "training-job", "satellite", "sentinel-2", "pm2.5"],
 )
 def train_satellite_model():
     @task()
-    def fetch_historical_satellite_data():
-
-        start_date = datetime.now(timezone.utc) - relativedelta(
-            months=int(configuration.SATELLITE_TRAINING_SCOPE)
+    def fetch_airqo_daily_training_data() -> pd.DataFrame:
+        end_timestamp = datetime.now(timezone.utc).replace(
+            minute=0,
+            second=0,
+            microsecond=0,
         )
-        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_satellite_readings(start_date)
-
-    @task()
-    def fetch_historical_ground_monitor_data():
-        current_date = datetime.now(timezone.utc)
-        start_date = current_date - relativedelta(
-            months=int(configuration.SATELLITE_TRAINING_SCOPE)
+        start_timestamp = end_timestamp - timedelta(
+            days=configuration.SATELLITE_TRAINING_LOOKBACK_DAYS
         )
-        start_date = DateUtils.date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_device_data_for_satellite_job(start_date, "train")
+        return BigQueryApi().fetch_airqo_daily_data_for_satellite_training(
+            start_date_time=start_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            end_date_time=end_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            min_site_days=configuration.SATELLITE_TRAINING_MIN_SITE_DAYS,
+            min_day_hours=configuration.SATELLITE_TRAINING_MIN_DAY_HOURS,
+        )
 
     @task()
-    def merge_datasets(
-        ground_data: pd.DataFrame, satellite_data: pd.DataFrame
-    ) -> pd.DataFrame:
-        ground_data["timestamp"] = pd.to_datetime(ground_data["timestamp"])
-        satellite_data["timestamp"] = pd.to_datetime(satellite_data["timestamp"])
-
-        ground_data["city"] = ground_data["city"].str.lower()
-        satellite_data["city"] = satellite_data["city"].str.lower()
-        return ground_data.merge(satellite_data, on=["timestamp", "city"], how="left")
+    def merge_with_sentinel2_features(airqo_daily_data: pd.DataFrame) -> pd.DataFrame:
+        return SatelliteModelTrainer.enrich_airqo_daily_with_sentinel2(airqo_daily_data)
 
     @task()
-    def time_related_features(data):
-        return SatelliteUtils.get_time_features(data, "daily")
+    def train_and_save_model(training_data: pd.DataFrame):
+        return SatelliteModelTrainer.train_and_upload(training_data)
 
-    # @task()
-    # def lag_features_extraction(data, frequency):
-    #     return SatelliteUtils.lag_features(
-    #         data, frequency=frequency, target_col="pm2_5"
-    #     )
-
-    @task()
-    def train_and_save_model(train_data):
-        return SatelliteUtils.train_satellite_model(train_data)
-
-    st_data = fetch_historical_satellite_data()
-    gm_data = fetch_historical_ground_monitor_data()
-    merged_data = merge_datasets(gm_data, st_data)
-    time_data = time_related_features(merged_data)
-    # lag_data = lag_features_extraction(time_data, "daily")
-    train_and_save_model(time_data)
+    airqo_daily_data = fetch_airqo_daily_training_data()
+    training_data = merge_with_sentinel2_features(airqo_daily_data)
+    train_and_save_model(training_data)
 
 
 train_satellite_model()
