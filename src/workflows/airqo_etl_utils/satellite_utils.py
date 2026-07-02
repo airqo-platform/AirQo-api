@@ -6,7 +6,6 @@ from pathlib import Path
 import zipfile
 import tempfile
 
-import ee
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -22,7 +21,20 @@ logger = logging.getLogger("airflow.task")
 
 class SatelliteUtils:
     @staticmethod
+    def _earth_engine():
+        try:
+            import ee
+        except ImportError as exc:
+            raise RuntimeError(
+                "earthengine-api is not installed. Use the CAMS/Copernicus or "
+                "pystac-client satellite workflows instead of the legacy Earth "
+                "Engine extraction path."
+            ) from exc
+        return ee
+
+    @staticmethod
     def initialize_earth_engine():
+        ee = SatelliteUtils._earth_engine()
         ee.Initialize(
             credentials=service_account.Credentials.from_service_account_file(
                 configuration.GOOGLE_APPLICATION_CREDENTIALS,
@@ -32,7 +44,8 @@ class SatelliteUtils:
         )
 
     @staticmethod
-    def extract_data_for_image(image: ee.Image, aoi: ee.Geometry.Point) -> ee.Feature:
+    def extract_data_for_image(image: Any, aoi: Any) -> Any:
+        ee = SatelliteUtils._earth_engine()
         return ee.Feature(
             None,
             image.reduceRegion(
@@ -44,12 +57,13 @@ class SatelliteUtils:
 
     @staticmethod
     def get_satellite_data(
-        aoi: ee.Geometry.Point,
+        aoi: Any,
         collection: str,
         fields: List[str],
         start_date: datetime,
         end_date: datetime,
-    ) -> ee.FeatureCollection:
+    ) -> Any:
+        ee = SatelliteUtils._earth_engine()
         return (
             ee.ImageCollection(collection)
             .filterDate(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
@@ -99,6 +113,7 @@ class SatelliteUtils:
         start_date: datetime,
         end_date: datetime,
     ) -> List[Dict[str, Any]]:
+        ee = SatelliteUtils._earth_engine()
         aoi = ee.Geometry.Point(location["coords"])
         all_data = []
 
@@ -266,8 +281,8 @@ class SatelliteUtils:
                 # ds = ds.squeeze(drop=True)  # Removes dimensions of size 1 (e.g., if height dim becomes 1)
                 logger.info(f"Dataset after resampling and squeezing: {ds.dims}")
 
-                # Convert units from kg/m³ to µg/m³ (assuming this is always needed)
-                # 1 kg = 1e9 µg
+                # Convert units from kg/mÃ‚Â³ to Ã‚Âµg/mÃ‚Â³ (assuming this is always needed)
+                # 1 kg = 1e9 Ã‚Âµg
                 ds[variable_short_name] *= 1e9
                 df = ds.to_dataframe().reset_index()
                 df.columns = [col.lower() for col in df.columns]

@@ -63,3 +63,16 @@ def test_format_raises_on_missing_placeholders(tmp_path):
     q = qm.get_query("site_daily_aggregated")
     with pytest.raises(KeyError):
         q.format(start_date="2025-01-01")
+
+def test_satellite_daily_training_query_is_registered():
+    qm = QueryManager()
+    query = qm.get_query("airqo_daily_data_for_satellite_training")
+
+    assert query.placeholders == {
+        "consolidated_table",
+        "sites_table",
+        "start_timestamp",
+        "end_timestamp",
+        "min_site_days",
+        "min_day_hours",
+    }

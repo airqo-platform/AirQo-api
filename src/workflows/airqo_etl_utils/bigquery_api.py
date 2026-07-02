@@ -1453,6 +1453,59 @@ class BigQueryApi:
         except Exception as e:
             raise RuntimeError(f"Error fetching consolidated site hourly data: {e}") from e
 
+    def fetch_airqo_daily_data_for_satellite_training(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        min_site_days: int,
+        min_day_hours: int,
+    ) -> pd.DataFrame:
+        """Fetch three-month site-day PM2.5 labels for satellite model training.
+
+        The query aggregates the consolidated AirQo hourly table to one row per
+        site-day and joins site coordinates from the sites table. Daily labels
+        better match Sentinel-2 scene cadence than hourly labels.
+        """
+        if min_site_days <= 0:
+            raise ValueError(f"min_site_days must be positive, got {min_site_days}")
+        if min_day_hours <= 0:
+            raise ValueError(f"min_day_hours must be positive, got {min_day_hours}")
+
+        try:
+            start_timestamp = pd.to_datetime(start_date_time, utc=True)
+            end_timestamp = pd.to_datetime(end_date_time, utc=True)
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid datetime format. start_date_time='{start_date_time}', end_date_time='{end_date_time}'"
+            ) from e
+
+        if start_timestamp > end_timestamp:
+            raise ValueError(
+                f"start_date_time must be <= end_date_time, got {start_timestamp} > {end_timestamp}"
+            )
+
+        if not self.consolidated_data_table:
+            raise ValueError("Missing required config: BIGQUERY_ANALYTICS_TABLE.")
+        if not self.sites_table:
+            raise ValueError("Missing required config: BIGQUERY_SITES_SITES_TABLE.")
+
+        query = query_manager.get_query(
+            "airqo_daily_data_for_satellite_training"
+        ).format(
+            consolidated_table=f"`{self.consolidated_data_table}`",
+            sites_table=f"`{self.sites_table}`",
+            start_timestamp=start_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            end_timestamp=end_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            min_site_days=min_site_days,
+            min_day_hours=min_day_hours,
+        )
+        try:
+            return self.execute_data_query(query=query)
+        except Exception as e:
+            raise RuntimeError(
+                f"Error fetching AirQo daily satellite training data: {e}"
+            ) from e
+
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,
