@@ -1,7 +1,6 @@
 require("module-alias/register");
 // Ensure TENANTS includes legacy values before constants module loads
-process.env.TENANTS =
-  process.env.TENANTS || "kcca,airqo,airqount";
+process.env.TENANTS = "kcca,airqo,airqount";
 const chai = require("chai");
 const sinon = require("sinon");
 const sinonChai = require("sinon-chai");

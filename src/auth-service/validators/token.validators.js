@@ -52,6 +52,10 @@ const validateTenant = (reqOrData, res, next) => {
     : (reqOrData || {}).tenant;
 
   if (tenant) {
+    if (typeof tenant !== "string") {
+      const msg = "the tenant value is not among the expected ones";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
     const t = tenant.toLowerCase().trim();
     const valid = (constants.TENANTS || []).map((v) => v.toLowerCase());
     if (!valid.includes(t)) {
@@ -69,6 +73,10 @@ const validateAirqoTenantOnly = (reqOrData, res, next) => {
     : (reqOrData || {}).tenant;
 
   if (tenant) {
+    if (typeof tenant !== "string") {
+      const msg = "the tenant value is not among the expected ones";
+      return isMW ? _mwError(next, msg) : { msg };
+    }
     const t = tenant.toLowerCase().trim();
     if (t !== "airqo") {
       const msg = "the tenant value is not among the expected ones";
@@ -128,6 +136,9 @@ const validateTokenCreate = (itemsOrReq, res, next) => {
   }
   // middleware mode
   const body = (itemsOrReq || {}).body || {};
+  if (!body.name) {
+    return _mwError(next, "the name is missing in your request");
+  }
   const items = Object.keys(body).map((k) => ({ [k]: body[k] }));
   const err = _validateTokenCreateItems(items.length ? items : []);
   if (err) return _mwError(next, err.msg);
@@ -168,7 +179,13 @@ const validateTokenUpdate = (itemsOrReq, res, next) => {
   if (err) return _mwError(next, err.msg);
 
   // Admin check for bypass_anomaly_detection (middleware-only guard)
-  if ("bypass_anomaly_detection" in b && req.user) {
+  if ("bypass_anomaly_detection" in b) {
+    if (!req.user) {
+      return _mwError(
+        next,
+        "bypass_anomaly_detection can only be set by administrators"
+      );
+    }
     const email = (req.user.email || "").toLowerCase();
     const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || []).some(
       (e) => e.toLowerCase() === email

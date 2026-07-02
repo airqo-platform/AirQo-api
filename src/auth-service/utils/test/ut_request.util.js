@@ -539,7 +539,7 @@ describe("createAccessRequest Util", () => {
       sinon.restore();
     });
 
-    it("should handle a valid request and return a success response", async () => {
+    it("should return not-found when the request does not exist", async () => {
       const tenant = "airqo";
       const next = sinon.stub();
       const request = { query: { tenant }, params: { request_id: "req1" } };
@@ -550,11 +550,11 @@ describe("createAccessRequest Util", () => {
 
       const result = await rewireAccessRequest.delete(request, next);
 
-      // delete returns not-found response when request doesn't exist
-      expect(result).to.have.property("success");
+      expect(result).to.have.property("success", false);
+      expect(result).to.have.property("status", httpStatus.NOT_FOUND);
     });
 
-    it("should handle a request with invalid filter data and return an error response", async () => {
+    it("should return not-found for a second null-response scenario", async () => {
       const tenant = "airqo";
       const next = sinon.stub();
       const request = { query: { tenant }, params: { request_id: "req1" } };
@@ -565,7 +565,7 @@ describe("createAccessRequest Util", () => {
 
       const result = await rewireAccessRequest.delete(request, next);
 
-      expect(result).to.have.property("success");
+      expect(result).to.have.property("success", false);
     });
 
     it("should handle an internal server error and return an error response", async () => {

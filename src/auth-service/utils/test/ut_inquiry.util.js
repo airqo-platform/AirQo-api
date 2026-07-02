@@ -190,117 +190,119 @@ describe("inquire", () => {
 
   describe("update method", () => {
     let origInquiryModel;
+    let origGenerateFilter;
 
     beforeEach(() => {
       origInquiryModel = rewireInquiry.__get__("InquiryModel");
+      origGenerateFilter = rewireInquiry.__get__("generateFilter");
     });
 
     afterEach(() => {
       rewireInquiry.__set__("InquiryModel", origInquiryModel);
+      rewireInquiry.__set__("generateFilter", origGenerateFilter);
       sinon.restore();
     });
 
     it("should update inquiry successfully", async () => {
-      // update() calls generatFilter.inquiry (typo in implementation) → throws ReferenceError
-      // Implementation always throws, so next is always called with error
+      const modifyStub = sinon.stub().resolves({ success: true, data: {} });
+      rewireInquiry.__set__("InquiryModel", () => ({ modify: modifyStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
       const next = sinon.stub();
-      await rewireInquiry.update(
-        {
-          body: { tenant: "sample_tenant", status: "resolved" },
-          query: {},
-          params: {},
-        },
+
+      const result = await rewireInquiry.update(
+        { body: { tenant: "airqo", status: "resolved" }, query: {}, params: {} },
         next
       );
 
-      sinon.assert.calledOnce(next);
-      expect(next.firstCall.args[0]).to.be.instanceOf(Error);
-    });
-
-    it("should handle errors during updating and return failure response", async () => {
-      const next = sinon.stub();
-      await rewireInquiry.update(
-        {
-          body: { tenant: "sample_tenant" },
-          query: {},
-          params: {},
-        },
-        next
-      );
-
-      sinon.assert.calledOnce(next);
-      expect(next.firstCall.args[0]).to.be.instanceOf(Error);
+      expect(result).to.have.property("success", true);
     });
 
     it("should handle unsuccessful update and return failure response", async () => {
+      const modifyStub = sinon.stub().resolves({ success: false, message: "Not found" });
+      rewireInquiry.__set__("InquiryModel", () => ({ modify: modifyStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
       const next = sinon.stub();
-      await rewireInquiry.update(
-        {
-          body: { tenant: "sample_tenant" },
-          query: {},
-          params: {},
-        },
+
+      const result = await rewireInquiry.update(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
         next
       );
 
-      expect(next.called).to.be.true;
+      expect(result).to.have.property("success", false);
+    });
+
+    it("should handle errors during updating and call next with error", async () => {
+      rewireInquiry.__set__("generateFilter", {
+        inquiry: sinon.stub().throws(new Error("Filter error")),
+      });
+      const next = sinon.stub();
+
+      await rewireInquiry.update(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0]).to.be.instanceOf(Error);
     });
   });
 
   describe("delete method", () => {
     let origInquiryModel;
+    let origGenerateFilter;
 
     beforeEach(() => {
       origInquiryModel = rewireInquiry.__get__("InquiryModel");
+      origGenerateFilter = rewireInquiry.__get__("generateFilter");
     });
 
     afterEach(() => {
       rewireInquiry.__set__("InquiryModel", origInquiryModel);
+      rewireInquiry.__set__("generateFilter", origGenerateFilter);
       sinon.restore();
     });
 
     it("should delete inquiry successfully", async () => {
-      // delete() also calls generatFilter.inquiry (typo) → throws
+      const removeStub = sinon.stub().resolves({ success: true, data: {} });
+      rewireInquiry.__set__("InquiryModel", () => ({ remove: removeStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
       const next = sinon.stub();
+
+      const result = await rewireInquiry.delete(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
+
+      expect(result).to.have.property("success", true);
+    });
+
+    it("should handle unsuccessful deletion and return failure response", async () => {
+      const removeStub = sinon.stub().resolves({ success: false, message: "Not found" });
+      rewireInquiry.__set__("InquiryModel", () => ({ remove: removeStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
+      const next = sinon.stub();
+
+      const result = await rewireInquiry.delete(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
+
+      expect(result).to.have.property("success", false);
+    });
+
+    it("should handle errors during deletion and call next with error", async () => {
+      rewireInquiry.__set__("generateFilter", {
+        inquiry: sinon.stub().throws(new Error("Filter error")),
+      });
+      const next = sinon.stub();
+
       await rewireInquiry.delete(
-        {
-          body: { tenant: "sample_tenant" },
-          query: {},
-          params: {},
-        },
+        { body: { tenant: "airqo" }, query: {}, params: {} },
         next
       );
 
       sinon.assert.calledOnce(next);
       expect(next.firstCall.args[0]).to.be.instanceOf(Error);
-    });
-
-    it("should handle errors during deletion and return failure response", async () => {
-      const next = sinon.stub();
-      await rewireInquiry.delete(
-        {
-          body: { tenant: "sample_tenant" },
-          query: {},
-          params: {},
-        },
-        next
-      );
-
-      expect(next.called).to.be.true;
-    });
-
-    it("should handle unsuccessful deletion and return failure response", async () => {
-      const next = sinon.stub();
-      await rewireInquiry.delete(
-        {
-          body: { tenant: "sample_tenant" },
-          query: {},
-          params: {},
-        },
-        next
-      );
-
-      expect(next.called).to.be.true;
     });
   });
 });

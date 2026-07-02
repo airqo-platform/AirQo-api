@@ -330,8 +330,7 @@ describe("createNetworkUtil", () => {
 
       await rewireNetworkUtil.create(request, next);
 
-      // next may be called more than once (no early return after network-exists check)
-      expect(next.called).to.be.true;
+      sinon.assert.calledOnce(next);
       const err = next.firstCall.args[0];
       expect(err).to.be.instanceOf(Error);
       expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);

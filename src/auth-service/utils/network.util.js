@@ -117,7 +117,7 @@ const createNetwork = {
         .findOne({ net_website: modifiedBody.net_website })
         .lean();
       if (!isEmpty(networkObject)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network for ${modifiedBody.net_website} already exists`,
           }),

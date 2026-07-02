@@ -1621,15 +1621,6 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      if (typeof next === "function") {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: error.message },
-          ),
-        );
-      }
       return {
         success: false,
         message: "Internal Server Error",
