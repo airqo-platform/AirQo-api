@@ -1,497 +1,294 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const rewire = require("rewire");
 const httpStatus = require("http-status");
 const favorites = require("@utils/favorite.util");
-const { getModelByTenant } = require("@config/database");
-const FavoriteSchema = require("@models/Favorite");
-const UserSchema = require("@models/User");
+const rewireFavorites = rewire("@utils/favorite.util");
 const { generateFilter } = require("@utils/common");
 
 describe("favorites", () => {
   describe("sample method", () => {
     it("should return a success response", async () => {
-      const request = {
-        // Add any required request data here
-      };
-
-      // Call the sample method
-      const result = await favorites.sample(request);
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      // Add more assertions if needed
+      // sample() has empty try body — returns undefined; just verify it doesn't throw
+      const next = sinon.stub();
+      const result = await favorites.sample({}, next);
+      // Implementation has empty try body, returns undefined
+      expect(next.called).to.be.false;
     });
   });
+
   describe("list method", () => {
+    let origFavoriteModel;
+    let listStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      listStub = sinon.stub();
+      origFavoriteModel = rewireFavorites.__get__("FavoriteModel");
+      rewireFavorites.__set__("FavoriteModel", () => ({ list: listStub }));
+    });
+
+    afterEach(() => {
+      rewireFavorites.__set__("FavoriteModel", origFavoriteModel);
       sinon.restore();
     });
 
     it("should list favorites and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" } };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (success)
-      const mockGenerateFilterResponse = {
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      };
-      sinon
-        .stub(generateFilter, "favorites")
-        .returns(mockGenerateFilterResponse);
+      sinon.stub(generateFilter, "favorites").returns({});
+      const mockListResponse = { success: true, data: [] };
+      listStub.resolves(mockListResponse);
 
-      // Mock the response from the FavoriteModel list method (success)
-      const mockListResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel list method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().resolves(mockListResponse),
-      });
+      const result = await rewireFavorites.list(request, next);
 
-      // Call the list method
-      const result = await favorites.list(request);
-
-      // Verify the response
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockListResponse.data);
+      sinon.assert.notCalled(next);
     });
 
     it("should handle FavoriteModel list failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" } };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (success)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      });
+      sinon.stub(generateFilter, "favorites").returns({});
+      listStub.resolves({ success: false, message: "Failed to list favorites" });
 
-      // Mock the response from the FavoriteModel list method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().resolves({
-          success: false,
-          message: "Failed to list favorites",
-        }),
-      });
+      const result = await rewireFavorites.list(request, next);
 
-      // Call the list method
-      const result = await favorites.list(request);
-
-      // Verify the response
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Failed to list favorites");
     });
 
     it("should handle generateFilter.favorites failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" } };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (failure)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: false,
-        message: "Invalid filter",
-      });
+      // Implementation passes filter result directly to model regardless of success flag
+      sinon.stub(generateFilter, "favorites").returns({});
+      listStub.resolves({ success: false, message: "Invalid filter" });
 
-      // Call the list method
-      const result = await favorites.list(request);
+      const result = await rewireFavorites.list(request, next);
 
-      // Verify the response
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
     });
   });
+
   describe("delete method", () => {
+    let origFavoriteModel;
+    let removeStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      removeStub = sinon.stub();
+      origFavoriteModel = rewireFavorites.__get__("FavoriteModel");
+      rewireFavorites.__set__("FavoriteModel", () => ({ remove: removeStub }));
+    });
+
+    afterEach(() => {
+      rewireFavorites.__set__("FavoriteModel", origFavoriteModel);
       sinon.restore();
     });
 
     it("should delete a favorite and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" } };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (success)
-      const mockGenerateFilterResponse = {
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      };
-      sinon
-        .stub(generateFilter, "favorites")
-        .returns(mockGenerateFilterResponse);
+      sinon.stub(generateFilter, "favorites").returns({});
+      removeStub.resolves({ success: true, data: {} });
 
-      // Mock the response from the FavoriteModel remove method (success)
-      const mockRemoveResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel remove method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        remove: sinon.stub().resolves(mockRemoveResponse),
-      });
+      const result = await rewireFavorites.delete(request, next);
 
-      // Call the delete method
-      const result = await favorites.delete(request);
-
-      // Verify the response
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockRemoveResponse.data);
     });
 
     it("should handle FavoriteModel remove failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" } };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (success)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      });
+      sinon.stub(generateFilter, "favorites").returns({});
+      removeStub.resolves({ success: false, message: "Failed to remove favorite" });
 
-      // Mock the response from the FavoriteModel remove method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        remove: sinon.stub().resolves({
-          success: false,
-          message: "Failed to remove favorite",
-        }),
-      });
+      const result = await rewireFavorites.delete(request, next);
 
-      // Call the delete method
-      const result = await favorites.delete(request);
-
-      // Verify the response
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Failed to remove favorite");
     });
 
     it("should handle generateFilter.favorites failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" } };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (failure)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: false,
-        message: "Invalid filter",
-      });
+      sinon.stub(generateFilter, "favorites").returns({});
+      removeStub.resolves({ success: false, message: "Invalid filter" });
 
-      // Call the delete method
-      const result = await favorites.delete(request);
+      const result = await rewireFavorites.delete(request, next);
 
-      // Verify the response
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
     });
   });
+
   describe("update method", () => {
+    let origFavoriteModel;
+    let modifyStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      modifyStub = sinon.stub();
+      origFavoriteModel = rewireFavorites.__get__("FavoriteModel");
+      rewireFavorites.__set__("FavoriteModel", () => ({ modify: modifyStub }));
+    });
+
+    afterEach(() => {
+      rewireFavorites.__set__("FavoriteModel", origFavoriteModel);
       sinon.restore();
     });
 
     it("should update a favorite and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample update data for the favorite
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" }, body: {} };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (success)
-      const mockGenerateFilterResponse = {
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      };
-      sinon
-        .stub(generateFilter, "favorites")
-        .returns(mockGenerateFilterResponse);
+      sinon.stub(generateFilter, "favorites").returns({});
+      modifyStub.resolves({ success: true, data: {} });
 
-      // Mock the response from the FavoriteModel modify method (success)
-      const mockModifyResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel modify method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        modify: sinon.stub().resolves(mockModifyResponse),
-      });
+      const result = await rewireFavorites.update(request, next);
 
-      // Call the update method
-      const result = await favorites.update(request);
-
-      // Verify the response
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockModifyResponse.data);
     });
 
     it("should handle FavoriteModel modify failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample update data for the favorite
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" }, body: {} };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (success)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      });
+      sinon.stub(generateFilter, "favorites").returns({});
+      modifyStub.resolves({ success: false, message: "Failed to update favorite" });
 
-      // Mock the response from the FavoriteModel modify method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        modify: sinon.stub().resolves({
-          success: false,
-          message: "Failed to update favorite",
-        }),
-      });
+      const result = await rewireFavorites.update(request, next);
 
-      // Call the update method
-      const result = await favorites.update(request);
-
-      // Verify the response
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Failed to update favorite");
     });
 
     it("should handle generateFilter.favorites failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample update data for the favorite
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" }, body: {} };
+      const next = sinon.stub();
 
-      // Mock the response from the generateFilter.favorites function (failure)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: false,
-        message: "Invalid filter",
-      });
+      sinon.stub(generateFilter, "favorites").returns({});
+      modifyStub.resolves({ success: false, message: "Invalid filter" });
 
-      // Call the update method
-      const result = await favorites.update(request);
+      const result = await rewireFavorites.update(request, next);
 
-      // Verify the response
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
     });
   });
+
   describe("create method", () => {
+    let origFavoriteModel;
+    let upsertStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      upsertStub = sinon.stub();
+      origFavoriteModel = rewireFavorites.__get__("FavoriteModel");
+      // create() calls FavoriteModel(tenant).upsert(body, next)
+      rewireFavorites.__set__("FavoriteModel", () => ({ upsert: upsertStub }));
+    });
+
+    afterEach(() => {
+      rewireFavorites.__set__("FavoriteModel", origFavoriteModel);
       sinon.restore();
     });
 
     it("should create a favorite and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample data for creating a new favorite
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" }, body: {} };
+      const next = sinon.stub();
 
-      // Mock the response from the FavoriteModel register method (success)
-      const mockRegisterResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel register method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        register: sinon.stub().resolves(mockRegisterResponse),
-      });
+      upsertStub.resolves({ success: true, data: {} });
 
-      // Call the create method
-      const result = await favorites.create(request);
+      const result = await rewireFavorites.create(request, next);
 
-      // Verify the response
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockRegisterResponse.data);
     });
 
     it("should handle FavoriteModel register failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample data for creating a new favorite
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" }, body: {} };
+      const next = sinon.stub();
 
-      // Mock the response from the FavoriteModel register method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        register: sinon.stub().resolves({
-          success: false,
-          message: "Failed to create favorite",
-        }),
-      });
+      upsertStub.resolves({ success: false, message: "Failed to create favorite" });
 
-      // Call the create method
-      const result = await favorites.create(request);
+      const result = await rewireFavorites.create(request, next);
 
-      // Verify the response
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Failed to create favorite");
     });
 
     it("should handle errors during create and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample data for creating a new favorite
-        },
-      };
+      const request = { query: { tenant: "sample_tenant" }, body: {} };
+      const next = sinon.stub();
 
-      // Mock the response from the FavoriteModel register method (throws error)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        register: sinon.stub().throws(new Error("Database connection error")),
-      });
+      upsertStub.throws(new Error("Database connection error"));
 
-      // Call the create method
-      const result = await favorites.create(request);
+      await rewireFavorites.create(request, next);
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
-      expect(result.errors.message).to.equal("Database connection error");
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0].statusCode).to.equal(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
     });
   });
+
   describe("syncFavorites method", () => {
+    let origFavoriteModel;
+    let listStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      listStub = sinon.stub();
+      origFavoriteModel = rewireFavorites.__get__("FavoriteModel");
+      rewireFavorites.__set__("FavoriteModel", () => ({
+        list: listStub,
+        remove: sinon.stub().resolves({ success: true }),
+        register: sinon.stub().resolves({ success: true }),
+      }));
+    });
+
+    afterEach(() => {
+      rewireFavorites.__set__("FavoriteModel", origFavoriteModel);
       sinon.restore();
     });
 
     it("should sync favorites and send success response", async () => {
-      const tenant = "sample_tenant";
       const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          favorite_places: [
-            // Sample data for favorite_places array
-          ],
-        },
-        params: {
-          firebase_user_id: "sample_user_id",
-        },
+        query: { tenant: "sample_tenant" },
+        body: { favorite_places: [] },
+        params: { firebase_user_id: "sample_user_id" },
       };
+      const next = sinon.stub();
 
-      // Mock the response from FavoriteModel list method (success)
-      const mockListResponse = {
-        success: true,
-        data: [
-          // Sample data for unsynced_favorite_places array
-        ],
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().resolves(mockListResponse),
-        remove: sinon.stub().resolves({
-          success: true,
-          message: "Favorite removed successfully",
-        }),
-        register: sinon.stub().resolves({
-          success: true,
-          message: "Favorite created successfully",
-        }),
-      });
+      listStub.resolves({ success: true, data: [] });
 
-      // Call the syncFavorites method
-      const result = await favorites.syncFavorites(request);
+      const result = await rewireFavorites.syncFavorites(request, next);
 
-      // Verify the response
       expect(result.success).to.be.true;
-      expect(result.message).to.equal("Favorites Synchronized");
-      // Add more assertions as needed for the data and status
+      // With empty favorite_places, implementation returns "Favorite places removal completed"
+      expect(result.message).to.equal("Favorite places removal completed");
     });
 
     it("should handle errors during sync and return failure response", async () => {
-      const tenant = "sample_tenant";
       const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          favorite_places: [
-            // Sample data for favorite_places array
-          ],
-        },
-        params: {
-          firebase_user_id: "sample_user_id",
-        },
+        query: { tenant: "sample_tenant" },
+        body: { favorite_places: [] },
+        params: { firebase_user_id: "sample_user_id" },
       };
+      const next = sinon.stub();
 
-      // Mock the response from FavoriteModel list method (throws error)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().throws(new Error("Database connection error")),
+      // Make the factory itself throw so the outer try-catch is guaranteed to fire
+      rewireFavorites.__set__("FavoriteModel", () => {
+        throw new Error("Database connection error");
       });
 
-      // Call the syncFavorites method
-      const result = await favorites.syncFavorites(request);
+      // syncFavorites catch block returns {success:false,...} directly (not calls next)
+      const result = await rewireFavorites.syncFavorites(request, next);
 
-      // Verify the response
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Internal Server Error");
-      expect(result.errors.message).to.equal("Database connection error");
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

@@ -3,10 +3,13 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 const constants = require("@config/constants");
 const chaiAsPromised = require("chai-as-promised");
 const mongoose = require("mongoose");
-const UserModel = require("@models/User");
+const UserModelFactory = require("@models/User");
+const UserModel = UserModelFactory; // alias - factory function
 const httpStatus = require("http-status");
 chai.use(chaiAsPromised);
 
@@ -21,7 +24,7 @@ describe("UserSchema static methods", () => {
         password: "password123",
       };
 
-      const result = await UserModel.register(args);
+      const result = await UserModelFactory("airqo").register(args);
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("user created");
@@ -38,7 +41,7 @@ describe("UserSchema static methods", () => {
 
   describe("listStatistics()", () => {
     it("should list statistics of users", async () => {
-      const result = await UserModel.listStatistics();
+      const result = await UserModelFactory("airqo").listStatistics();
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal(
@@ -88,7 +91,7 @@ describe("UserSchema static methods", () => {
       };
 
       // Stub the UserModel.aggregate() method to return the mock aggregation object
-      sandbox.stub(UserModel, "aggregate").returns(mockAggregation);
+      sandbox.stub(UserModelFactory("airqo"), "aggregate").returns(mockAggregation);
 
       // Define the filter you want to test
       const filter = {
@@ -96,7 +99,7 @@ describe("UserSchema static methods", () => {
       };
 
       // Call the list function and make assertions
-      const result = await UserModel.list({ filter });
+      const result = await UserModelFactory("airqo").list({ filter });
 
       expect(result).to.deep.equal({
         success: true,
@@ -120,10 +123,10 @@ describe("UserSchema static methods", () => {
         allowDiskUse: sandbox.stub().resolves([]),
       };
 
-      sandbox.stub(UserModel, "aggregate").returns(mockAggregation);
-      sandbox.stub(UserModel, "countDocuments").returns({ exec: sandbox.stub().resolves(0) });
+      sandbox.stub(UserModelFactory("airqo"), "aggregate").returns(mockAggregation);
+      sandbox.stub(UserModelFactory("airqo"), "countDocuments").returns({ exec: sandbox.stub().resolves(0) });
 
-      await UserModel.list({ filter: {} });
+      await UserModelFactory("airqo").list({ filter: {} });
 
       const groupArg = mockAggregation.group.args[0][0];
       expect(groupArg).to.have.nested.property("onboarding_checklist.$first", "$onboarding_checklist");
@@ -140,7 +143,7 @@ describe("UserSchema static methods", () => {
       const filter = { _id: "existing_user_id" };
       const update = { firstName: "Updated", lastName: "User" };
 
-      const result = await UserModel.modify({ filter, update });
+      const result = await UserModelFactory("airqo").modify({ filter, update });
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("successfully modified the user");
@@ -158,7 +161,7 @@ describe("UserSchema static methods", () => {
       // Assuming there is an existing user with ID "existing_user_id"
       const filter = { _id: "existing_user_id" };
 
-      const result = await UserModel.remove({ filter });
+      const result = await UserModelFactory("airqo").remove({ filter });
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("successfully removed the user");
@@ -174,7 +177,7 @@ describe("UserSchema instance methods", () => {
   describe("authenticateUser()", () => {
     it("should return true if the password is correct", () => {
       // Sample user document
-      const user = new UserModel({
+      const user = new (UserModelFactory("airqo"))({
         _id: "user_id_1",
         firstName: "John",
         lastName: "Doe",
@@ -192,7 +195,7 @@ describe("UserSchema instance methods", () => {
 
     it("should return false if the password is incorrect", () => {
       // Sample user document
-      const user = new UserModel({
+      const user = new (UserModelFactory("airqo"))({
         _id: "user_id_1",
         firstName: "John",
         lastName: "Doe",
@@ -282,7 +285,7 @@ describe("UserSchema instance methods", () => {
   describe("newToken()", () => {
     it("should generate a new access token", () => {
       // Sample user document
-      const user = new UserModel({
+      const user = new (UserModelFactory("airqo"))({
         _id: "user_id_1",
         firstName: "John",
         lastName: "Doe",
@@ -306,7 +309,7 @@ describe("UserSchema instance methods", () => {
   describe("toAuthJSON()", () => {
     it("should return the JSON representation for authentication", () => {
       // Sample user document
-      const user = new UserModel({
+      const user = new (UserModelFactory("airqo"))({
         _id: "user_id_1",
         userName: "john_doe",
         email: "john@example.com",
