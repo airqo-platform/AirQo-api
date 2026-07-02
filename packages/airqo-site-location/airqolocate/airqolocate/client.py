@@ -6,10 +6,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+
 DEFAULT_PLATFORM_BASE_URL = "https://platform.airqo.net"
 SITE_LOCATION_PATH = "/api/v2/spatial/site_location"
 PACKAGE_VERSION = "0.1.1"
-
 Number = Union[int, float]
 Coordinate = Tuple[float, float]
 
@@ -59,9 +59,9 @@ def _finite_number(value: Any, field: str) -> float:
 def _coordinate_pair(value: Any, *, order: str, field: str) -> Coordinate:
     if not isinstance(value, (list, tuple)) or len(value) != 2:
         raise ValueError(f"{field} must contain exactly two coordinates.")
-
     first = _finite_number(value[0], f"{field}[0]")
     second = _finite_number(value[1], f"{field}[1]")
+
     if order == "longitude_latitude":
         longitude, latitude = first, second
     else:
@@ -74,9 +74,7 @@ def _coordinate_pair(value: Any, *, order: str, field: str) -> Coordinate:
     return first, second
 
 
-def build_polygon(
-    coordinates: Sequence[Sequence[Sequence[Number]]],
-) -> Dict[str, Any]:
+def build_polygon(coordinates: Sequence[Sequence[Sequence[Number]]]) -> Dict[str, Any]:
     """Validate polygon coordinates and return the API polygon object.
 
     Polygon positions use GeoJSON order: ``[longitude, latitude]``.
@@ -111,8 +109,12 @@ def build_polygon(
     return {"coordinates": rings}
 
 
+
 def polygon_from_place(place_name: str) -> Dict[str, Any]:
-    """Resolve a named place to its largest OSM administrative polygon."""
+    """Resolve a named place to its largest OSM administrative polygon.
+
+    Requires the optional ``geocoding`` dependency: ``airqolocate[geocoding]``.
+    """
     name = str(place_name).strip()
     if not name:
         raise ValueError("place name must not be empty.")
@@ -121,8 +123,8 @@ def polygon_from_place(place_name: str) -> Dict[str, Any]:
         import osmnx as ox
     except ImportError as ex:
         raise ImportError(
-            "Place-name lookup requires OSMnx. Reinstall airqolocate to "
-            "restore its required dependencies."
+            "Place-name lookup requires OSMnx. Install it with "
+            "`pip install 'airqolocate[geocoding]'`."
         ) from ex
 
     try:
@@ -244,7 +246,6 @@ class LocateClient:
         timeout_value = _finite_number(timeout, "timeout")
         if timeout_value <= 0:
             raise ValueError("timeout must be greater than zero.")
-
         self.token = token
         self.base_url = base_url_value.rstrip("/")
         self.timeout = timeout_value
@@ -275,8 +276,8 @@ class LocateClient:
         token: Optional[str] = None,
         options: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create recommended sensor locations inside a place or polygon."""
-        request_payload = build_request_payload(
+        """Create recommended sensor locations inside a polygon."""
+        payload = build_request_payload(
             polygon=polygon,
             num_sensors=num_sensors,
             min_distance_km=min_distance_km,
@@ -286,7 +287,7 @@ class LocateClient:
         query = urlencode({"token": self._resolve_token(token)})
         request = Request(
             f"{self.base_url}{SITE_LOCATION_PATH}?{query}",
-            data=json.dumps(request_payload).encode("utf-8"),
+            data=json.dumps(payload).encode("utf-8"),
             method="POST",
             headers={
                 "Accept": "application/json",
@@ -300,14 +301,12 @@ class LocateClient:
                 body = response.read().decode("utf-8")
         except HTTPError as ex:
             raw_body = ex.read().decode("utf-8", errors="replace")
-            error_payload = self._load_error_payload(raw_body)
-            message = self._error_message(error_payload) or (
+            payload = self._load_error_payload(raw_body)
+            message = self._error_message(payload) or (
                 f"Platform request failed with status {ex.code}."
             )
             raise LocateClientError(
-                message,
-                status_code=ex.code,
-                payload=error_payload,
+                message, status_code=ex.code, payload=payload
             ) from ex
         except URLError as ex:
             raise LocateClientError(
@@ -322,7 +321,6 @@ class LocateClient:
             decoded = json.loads(body)
         except json.JSONDecodeError as ex:
             raise LocateClientError("Platform response was not valid JSON.") from ex
-
         try:
             return normalize_platform_response(decoded)
         except ValueError as ex:

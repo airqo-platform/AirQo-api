@@ -11,6 +11,7 @@ from .client import (
     resolve_polygon,
 )
 
+
 __version__ = "0.1.1"
 
 
@@ -25,7 +26,7 @@ def locate_sites(
     timeout: Union[int, float] = 60,
     options: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Create recommended AirQo sensor locations for a place or polygon."""
+    """Create recommended AirQo sensor locations for a polygon."""
     return LocateClient(
         token=token,
         base_url=base_url,
