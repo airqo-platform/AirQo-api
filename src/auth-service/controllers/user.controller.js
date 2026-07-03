@@ -1960,6 +1960,17 @@ const userController = {
     }
   },
 
+  listFeedbackStaff: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listFeedbackStaff(request, next);
+      sendResponse(res, result, "staff");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   addFeedbackWatcher: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

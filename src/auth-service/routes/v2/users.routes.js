@@ -347,6 +347,7 @@ router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 // PERSISTENT FEEDBACK / RATING ROUTES
 // GET    /feedback/upload-url                               – public
 // POST   /feedback/submit                                   – public
+// GET    /feedback/staff                                    – admin; list assignable staff members
 // GET    /feedback/submissions                              – admin; list with filtering
 // PATCH  /feedback/submissions/bulk-status                 – admin; bulk status update
 // GET    /feedback/submissions/:feedback_id                – admin; single submission
@@ -375,6 +376,13 @@ router.post(
   userValidations.submitFeedback,
   validate,
   userController.submitFeedback,
+);
+
+router.get(
+  "/feedback/staff",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userController.listFeedbackStaff,
 );
 
 router.get(

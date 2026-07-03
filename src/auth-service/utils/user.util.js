@@ -8379,6 +8379,34 @@ const feedbackUtil = {
       );
     }
   },
+
+  listFeedbackStaff: async (request, next) => {
+    try {
+      const tenant = resolveFeedbackTenant(request.query);
+      // Staff are users with at least one permission — matching the check in assignFeedback.
+      const staff = await UserModel(tenant)
+        .find(
+          { permissions: { $exists: true, $not: { $size: 0 } } },
+          { _id: 1, firstName: 1, lastName: 1, email: 1, userName: 1 },
+        )
+        .lean();
+      return {
+        success: true,
+        message: "Staff members retrieved successfully",
+        data: staff,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
 };
 
 const computeUserOnboardingChecklist = (user) => {
