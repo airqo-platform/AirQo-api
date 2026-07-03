@@ -6,6 +6,7 @@ const {
   HttpError,
   extractErrorsFromRequest,
   escapeHtml,
+  sanitizeHtml,
 } = require("@utils/shared");
 
 const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/profile?tab=api`;
@@ -1848,13 +1849,16 @@ module.exports = {
 
   feedbackAdminReply: ({ email, subject, replyMessage }) => {
     const escapedSubject = escapeHtml(subject || "your feedback");
-    const escapedReply = escapeHtml(replyMessage || "").replace(/\n/g, "<br/>");
+    // replyMessage comes from the admin's rich text editor and may contain
+    // HTML formatting tags — sanitize to strip dangerous content while
+    // preserving intended formatting (bold, italics, lists, etc.).
+    const safeReply = sanitizeHtml(replyMessage || "");
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Our team has responded to your feedback: <strong>${escapedSubject}</strong>.</p>
         <div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:16px 0;border-radius:4px;">
-          <p style="margin:0;">${escapedReply}</p>
+          ${safeReply}
         </div>
         <p>If you have any follow-up questions, please do not hesitate to reach out at support@airqo.net.</p>
         <p>Thank you for helping us improve AirQo.</p>
@@ -1889,7 +1893,8 @@ module.exports = {
       // reply_added body contains a block-level element — do NOT wrap in <p>
       // as that produces invalid HTML (<p><div>…</div></p>) which email clients
       // may mangle. The div is placed as a sibling block instead.
-      reply_added: `<p>A new reply has been posted on the feedback item.</p><div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:12px 0;border-radius:4px;">${escapeHtml(detail || "").replace(/\n/g, "<br/>")}</div>`,
+      // detail is HTML from a rich text editor — sanitize, not escape.
+      reply_added: `<p>A new reply has been posted on the feedback item.</p><div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:12px 0;border-radius:4px;">${sanitizeHtml(detail || "")}</div>`,
     };
     const body = eventMessages[event] || `<p>${escapeHtml(detail || "An update is available on the feedback item.")}</p>`;
     const content = `

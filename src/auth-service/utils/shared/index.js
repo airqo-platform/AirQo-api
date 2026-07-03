@@ -1,6 +1,6 @@
 const { HttpError, extractErrorsFromRequest } = require("./errors");
 const { logElement, logText, logObject } = require("./log");
-const { escapeHtml } = require("./html.util");
+const { escapeHtml, sanitizeHtml } = require("./html.util");
 const { sanitizeEmailString } = require("./string.util");
 const stringify = require("./stringify.util");
 
@@ -44,6 +44,7 @@ module.exports = {
   resetCache,
   HttpError,
   escapeHtml,
+  sanitizeHtml,
   sanitizeEmailString,
   extractErrorsFromRequest,
   logElement,

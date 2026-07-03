@@ -7611,6 +7611,10 @@ const FEEDBACK_TRANSITIONS = {
   archived: [],
 };
 
+// Single source of truth for "user has at least one permission" — used both in
+// assignFeedback (runtime check) and listFeedbackStaff (DB query).
+const STAFF_PERMISSION_FILTER = { "permissions.0": { $exists: true } };
+
 const feedbackUtil = {
   submitFeedback: async (request, next) => {
     try {
@@ -8366,6 +8370,34 @@ const feedbackUtil = {
         success: true,
         message: "Onboarding state updated successfully",
         data: computeUserOnboardingChecklist(updatedUser),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  listFeedbackStaff: async (request, next) => {
+    try {
+      const tenant = resolveFeedbackTenant(request.query);
+      // Uses STAFF_PERMISSION_FILTER — shared with the assignFeedback eligibility check.
+      const staff = await UserModel(tenant)
+        .find(
+          STAFF_PERMISSION_FILTER,
+          { _id: 1, firstName: 1, lastName: 1, email: 1, userName: 1 },
+        )
+        .lean();
+      return {
+        success: true,
+        message: "Staff members retrieved successfully",
+        data: staff,
         status: httpStatus.OK,
       };
     } catch (error) {

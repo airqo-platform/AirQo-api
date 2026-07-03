@@ -502,4 +502,21 @@ describe("User API Routes", () => {
       );
     });
   });
+
+  describe("GET /feedback/staff", () => {
+    it("should return 200 and call listFeedbackStaff when authenticated", async () => {
+      createUserControllerStub.listFeedbackStaff = sinon
+        .stub()
+        .callsFake((req, res) => res.status(200).json({ success: true, data: [] }));
+      passportStub.setJWTAuth = sinon.stub().callsNext();
+      passportStub.authJWT = sinon.stub().callsNext();
+
+      const res = await request(app)
+        .get("/feedback/staff")
+        .set("Authorization", "JWT testtoken");
+
+      expect(res.status).to.equal(200);
+      expect(createUserControllerStub.listFeedbackStaff).to.have.been.calledOnce;
+    });
+  });
 });
