@@ -7611,6 +7611,10 @@ const FEEDBACK_TRANSITIONS = {
   archived: [],
 };
 
+// Single source of truth for "user has at least one permission" — used both in
+// assignFeedback (runtime check) and listFeedbackStaff (DB query).
+const STAFF_PERMISSION_FILTER = { "permissions.0": { $exists: true } };
+
 const feedbackUtil = {
   submitFeedback: async (request, next) => {
     try {
@@ -8383,10 +8387,10 @@ const feedbackUtil = {
   listFeedbackStaff: async (request, next) => {
     try {
       const tenant = resolveFeedbackTenant(request.query);
-      // Staff are users with at least one permission — matching the check in assignFeedback.
+      // Uses STAFF_PERMISSION_FILTER — shared with the assignFeedback eligibility check.
       const staff = await UserModel(tenant)
         .find(
-          { permissions: { $exists: true, $not: { $size: 0 } } },
+          STAFF_PERMISSION_FILTER,
           { _id: 1, firstName: 1, lastName: 1, email: 1, userName: 1 },
         )
         .lean();

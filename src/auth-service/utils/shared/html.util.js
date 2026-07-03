@@ -17,30 +17,45 @@ const ALLOWED_TAGS = new Set([
   "a", "span", "div",
 ]);
 
+// Only these URI schemes are safe to preserve in <a href>.
+const SAFE_HREF_SCHEMES = /^(https?:|mailto:)/i;
+
 const sanitizeHtml = (html) => {
   if (!html) return "";
-  // Remove script/style/iframe/object/embed/form blocks entirely (including content).
-  let result = html.replace(
-    /<(script|style|iframe|object|embed|form|input|button|select|textarea)[\s\S]*?<\/\1\s*>/gi,
-    "",
-  );
-  // Strip self-closing dangerous tags.
-  result = result.replace(/<(script|style|iframe|object|embed|input|button)[^>]*\/?>/gi, "");
+
+  // Loop until stable — prevents nested/partial tag bypass (e.g. <scr<script>ipt>).
+  let result = html;
+  let previous;
+  do {
+    previous = result;
+    result = result.replace(
+      /<(script|style|iframe|object|embed|form|input|button|select|textarea)[\s\S]*?<\/\1\s*>/gi,
+      "",
+    );
+  } while (result !== previous);
+
+  // Strip self-closing dangerous tags; loop until stable for the same reason.
+  do {
+    previous = result;
+    result = result.replace(
+      /<(script|style|iframe|object|embed|input|button)[^>]*\/?>/gi,
+      "",
+    );
+  } while (result !== previous);
+
   // Process remaining tags: keep allowed ones, strip the rest.
   result = result.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g, (match, tag, attrs) => {
     const lowerTag = tag.toLowerCase();
     if (!ALLOWED_TAGS.has(lowerTag)) return "";
     // Closing tags need no attribute processing.
     if (match.startsWith("</")) return `</${lowerTag}>`;
-    // Strip event handlers and javascript: hrefs; keep safe href/target on <a>.
+    // For <a>, allowlist only http/https/mailto — blocklisting javascript: can
+    // be bypassed via HTML entities or whitespace; allowlisting is unambiguous.
     let safeAttrs = "";
     if (lowerTag === "a") {
       const hrefMatch = attrs.match(/href\s*=\s*["']?([^"'\s>]*)["']?/i);
-      if (hrefMatch) {
-        const href = hrefMatch[1];
-        if (!/^javascript:/i.test(href)) {
-          safeAttrs = ` href="${escapeHtml(href)}" rel="noopener noreferrer" target="_blank"`;
-        }
+      if (hrefMatch && SAFE_HREF_SCHEMES.test(hrefMatch[1])) {
+        safeAttrs = ` href="${escapeHtml(hrefMatch[1])}" rel="noopener noreferrer" target="_blank"`;
       }
     }
     const selfClose = match.endsWith("/>") ? "/" : "";
