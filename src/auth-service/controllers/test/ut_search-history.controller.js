@@ -1,501 +1,264 @@
 require("module-alias/register");
+const { expect } = require("chai");
 const sinon = require("sinon");
-const chai = require("chai");
-const expect = chai.expect;
-const { validationResult } = require("express-validator");
-const createSearchHistoryUtil = require("@utils/search-history.util");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const { logText, logObject } = require("@utils/shared/log");
-const constants = require("@config/constants");
-const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-search-history-controller`
-);
+const rewire = require("rewire");
+const searchHistoryUtil = require("@utils/search-history.util");
 
-const createSearchHistory = require("@controllers/search-history.controller");
+const createSearchHistory = rewire("@controllers/search-history.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
 
 describe("createSearchHistory Controller", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    createSearchHistory.__set__("extractErrorsFromRequest", realExtractErrors);
+  });
+
   describe("syncSearchHistory", () => {
-    afterEach(() => {
-      sinon.restore();
+    it("should sync search histories successfully", async () => {
+      sinon.stub(searchHistoryUtil, "syncSearchHistories").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Search Histories Synchronized",
+        data: [{ id: "1", name: "Search History 1" }],
+      });
+
+      await createSearchHistory.syncSearchHistory(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, search_histories: sinon.match.array })).to.be.true;
     });
 
-    it("should sync search history and return success response", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "syncSearchHistories")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Search Histories Synchronized",
-          data: [{ id: "1", name: "Search History 1" }],
-        });
+    it("should handle syncing failure", async () => {
+      sinon.stub(searchHistoryUtil, "syncSearchHistories").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Sync failed",
+        errors: { message: "Error" },
+      });
 
-      await createSearchHistoryController.syncSearchHistory(req, res);
+      await createSearchHistory.syncSearchHistory(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: true,
-          message: "Search Histories Synchronized",
-          search_histories: [{ id: "1", name: "Search History 1" }],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const validationResultErrorsStub = sinon
-        .stub(validationResult, "errors")
-        .returns([{ nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] }]);
-      const badRequestStub = sinon.stub(global, "badRequest").returns({});
+      createSearchHistory.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createSearchHistoryController.syncSearchHistory(req, res);
+      await createSearchHistory.syncSearchHistory(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(validationResultErrorsStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWithExactly(res, "bad request errors", {
-          nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }],
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle internal server errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "syncSearchHistories")
-        .throws(new Error("Some error message"));
-      const loggerErrorStub = sinon.stub(console, "error");
+    it("should handle unexpected errors", async () => {
+      sinon.stub(searchHistoryUtil, "syncSearchHistories").rejects(new Error("Unexpected error"));
 
-      await createSearchHistoryController.syncSearchHistory(req, res);
+      await createSearchHistory.syncSearchHistory(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(loggerErrorStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.INTERNAL_SERVER_ERROR))
-        .to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some error message" },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("create", () => {
-    afterEach(() => {
-      sinon.restore();
+    it("should create search history successfully", async () => {
+      sinon.stub(searchHistoryUtil, "create").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Search History created successfully",
+        data: { id: "1", name: "Search History 1" },
+      });
+
+      await createSearchHistory.create(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, created_search_history: sinon.match.object })).to.be.true;
     });
 
-    it("should create search history and return success response", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "create")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Search History created successfully",
-          data: { id: "1", name: "Search History 1" },
-        });
+    it("should handle creation failure", async () => {
+      sinon.stub(searchHistoryUtil, "create").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Create failed",
+        errors: { message: "Error" },
+      });
 
-      await createSearchHistoryController.create(req, res);
+      await createSearchHistory.create(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: true,
-          message: "Search History created successfully",
-          created_search_history: { id: "1", name: "Search History 1" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const validationResultErrorsStub = sinon
-        .stub(validationResult, "errors")
-        .returns([{ nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] }]);
-      const badRequestStub = sinon.stub(global, "badRequest").returns({});
+      createSearchHistory.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createSearchHistoryController.create(req, res);
+      await createSearchHistory.create(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(validationResultErrorsStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWithExactly(res, "bad request errors", {
-          nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }],
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle internal server errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "create")
-        .throws(new Error("Some error message"));
-      const loggerErrorStub = sinon.stub(console, "error");
+    it("should handle unexpected errors", async () => {
+      sinon.stub(searchHistoryUtil, "create").rejects(new Error("Unexpected error"));
 
-      await createSearchHistoryController.create(req, res);
+      await createSearchHistory.create(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(loggerErrorStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.INTERNAL_SERVER_ERROR))
-        .to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some error message" },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("list", () => {
-    afterEach(() => {
-      sinon.restore();
+    it("should list search histories successfully", async () => {
+      sinon.stub(searchHistoryUtil, "list").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Search Histories listed successfully",
+        data: [{ id: "1" }, { id: "2" }],
+      });
+
+      await createSearchHistory.list(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, search_histories: sinon.match.array })).to.be.true;
     });
 
-    it("should list search histories and return success response", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "list")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Search Histories listed successfully",
-          data: [
-            { id: "1", name: "Search History 1" },
-            { id: "2", name: "Search History 2" },
-          ],
-        });
+    it("should handle listing failure", async () => {
+      sinon.stub(searchHistoryUtil, "list").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "List failed",
+        errors: { message: "Error" },
+      });
 
-      await createSearchHistoryController.list(req, res);
+      await createSearchHistory.list(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: true,
-          message: "Search Histories listed successfully",
-          search_histories: [
-            { id: "1", name: "Search History 1" },
-            { id: "2", name: "Search History 2" },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const validationResultErrorsStub = sinon
-        .stub(validationResult, "errors")
-        .returns([{ nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] }]);
-      const badRequestStub = sinon.stub(global, "badRequest").returns({});
+      createSearchHistory.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createSearchHistoryController.list(req, res);
+      await createSearchHistory.list(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(validationResultErrorsStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWithExactly(res, "bad request errors", {
-          nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }],
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle internal server errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "list")
-        .throws(new Error("Some error message"));
-      const loggerErrorStub = sinon.stub(console, "error");
+    it("should handle unexpected errors", async () => {
+      sinon.stub(searchHistoryUtil, "list").rejects(new Error("Unexpected error"));
 
-      await createSearchHistoryController.list(req, res);
+      await createSearchHistory.list(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(loggerErrorStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.INTERNAL_SERVER_ERROR))
-        .to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some error message" },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("delete", () => {
-    afterEach(() => {
-      sinon.restore();
+    it("should delete search histories successfully", async () => {
+      sinon.stub(searchHistoryUtil, "delete").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Search Histories deleted successfully",
+        data: [{ id: "1" }, { id: "2" }],
+      });
+
+      await createSearchHistory.delete(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, deleted_search_histories: sinon.match.array })).to.be.true;
     });
 
-    it("should delete search histories and return success response", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "delete")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Search Histories deleted successfully",
-          data: [
-            { id: "1", name: "Search History 1" },
-            { id: "2", name: "Search History 2" },
-          ],
-        });
+    it("should handle deletion failure", async () => {
+      sinon.stub(searchHistoryUtil, "delete").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Delete failed",
+        errors: { message: "Error" },
+      });
 
-      await createSearchHistoryController.delete(req, res);
+      await createSearchHistory.delete(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: true,
-          message: "Search Histories deleted successfully",
-          deleted_search_histories: [
-            { id: "1", name: "Search History 1" },
-            { id: "2", name: "Search History 2" },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const validationResultErrorsStub = sinon
-        .stub(validationResult, "errors")
-        .returns([{ nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] }]);
-      const badRequestStub = sinon.stub(global, "badRequest").returns({});
+      createSearchHistory.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createSearchHistoryController.delete(req, res);
+      await createSearchHistory.delete(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(validationResultErrorsStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWithExactly(res, "bad request errors", {
-          nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }],
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle internal server errors", async () => {
-      const req = { query: { tenant: "test_tenant" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "delete")
-        .throws(new Error("Some error message"));
-      const loggerErrorStub = sinon.stub(console, "error");
+    it("should handle unexpected errors", async () => {
+      sinon.stub(searchHistoryUtil, "delete").rejects(new Error("Unexpected error"));
 
-      await createSearchHistoryController.delete(req, res);
+      await createSearchHistory.delete(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(loggerErrorStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.INTERNAL_SERVER_ERROR))
-        .to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some error message" },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("update", () => {
-    afterEach(() => {
-      sinon.restore();
+    it("should update search history successfully", async () => {
+      sinon.stub(searchHistoryUtil, "update").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Search History updated successfully",
+        data: { id: "1", name: "Updated Search History" },
+      });
+
+      await createSearchHistory.update(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, updated_search_history: sinon.match.object })).to.be.true;
     });
 
-    it("should update search history and return success response", async () => {
-      const req = {
-        query: { tenant: "test_tenant" },
-        body: { id: "1", name: "Updated Search History" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "update")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Search History updated successfully",
-          data: { id: "1", name: "Updated Search History" },
-        });
+    it("should handle update failure", async () => {
+      sinon.stub(searchHistoryUtil, "update").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Update failed",
+        errors: { message: "Error" },
+      });
 
-      await createSearchHistoryController.update(req, res);
+      await createSearchHistory.update(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: true,
-          message: "Search History updated successfully",
-          updated_search_history: { id: "1", name: "Updated Search History" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "test_tenant" },
-        body: { id: "1", name: "" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const validationResultErrorsStub = sinon
-        .stub(validationResult, "errors")
-        .returns([{ nestedErrors: [{ msg: "Name is required" }] }]);
-      const badRequestStub = sinon.stub(global, "badRequest").returns({});
+      createSearchHistory.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createSearchHistoryController.update(req, res);
+      await createSearchHistory.update(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(validationResultErrorsStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWithExactly(res, "bad request errors", {
-          nestedErrors: [{ msg: "Name is required" }],
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle internal server errors", async () => {
-      const req = {
-        query: { tenant: "test_tenant" },
-        body: { id: "1", name: "Updated Search History" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createSearchHistoryUtilStub = sinon
-        .stub(createSearchHistoryUtil, "update")
-        .throws(new Error("Some error message"));
-      const loggerErrorStub = sinon.stub(console, "error");
+    it("should handle unexpected errors", async () => {
+      sinon.stub(searchHistoryUtil, "update").rejects(new Error("Unexpected error"));
 
-      await createSearchHistoryController.update(req, res);
+      await createSearchHistory.update(req, res, next);
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createSearchHistoryUtilStub.calledOnce).to.be.true;
-      expect(loggerErrorStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWithExactly(httpStatus.INTERNAL_SERVER_ERROR))
-        .to.be.true;
-      expect(
-        res.json.calledOnceWithExactly({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some error message" },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

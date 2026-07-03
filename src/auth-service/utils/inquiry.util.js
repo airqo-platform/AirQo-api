@@ -1,5 +1,5 @@
 const InquiryModel = require("@models/Inquiry");
-const { mailer } = require("@utils/common");
+const { mailer, generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -104,7 +104,7 @@ const inquiry = {
         ...request.params,
       };
       const update = request.body;
-      const filter = await generatFilter.inquiry(request, next);
+      const filter = await generateFilter.inquiry(request, next);
       const responseFromModifyInquiry = await InquiryModel(
         tenant.toLowerCase()
       ).modify(
@@ -134,7 +134,7 @@ const inquiry = {
         ...request.query,
         ...request.params,
       };
-      const filter = await generatFilter.inquiry(request, next);
+      const filter = await generateFilter.inquiry(request, next);
 
       const responseFromRemoveInquiry = await InquiryModel(
         tenant.toLowerCase()

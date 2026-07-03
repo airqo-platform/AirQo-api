@@ -20,13 +20,11 @@ class PublicApiTests(unittest.TestCase):
                 [[32.0, 0.0], [32.1, 0.0], [32.0, 0.1], [32.0, 0.0]]
             ]
         }
-
         result = airqolocate.locate_sites(
             polygon,
             num_sensors=2,
             token="token",
         )
-
         self.assertEqual(result, {"site_location": []})
         self.assertEqual(mock_locate.call_args.kwargs["num_sensors"], 2)
 

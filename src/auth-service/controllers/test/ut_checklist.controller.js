@@ -1,585 +1,199 @@
 require("module-alias/register");
-const sinon = require("sinon");
 const { expect } = require("chai");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const constants = require("@config/constants");
+const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createChecklistController = require("@controllers/checklist.controller");
-const { validationResult } = require("express-validator");
+const rewire = require("rewire");
+const checklistUtil = require("@utils/checklist.util");
 
-describe("create preference controller", () => {
+const checklistController = rewire("@controllers/checklist.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
+
+describe("checklist controller", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    checklistController.__set__("extractErrorsFromRequest", realExtractErrors);
+  });
+
   describe("update()", () => {
     it("should update a checklist and return a success response", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      // Stub createChecklistUtil.update to return a success response
-      const createChecklistUtil = {
-        update: sinon.stub().resolves({
-          success: true,
-          status: 200,
-          message: "Update successful",
-          data: { checklist: {} },
-        }),
-      };
-
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the update function
-      await createChecklistController.update(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with the correct status and data
-      sinon.assert.calledWith(res.status, 200);
-      sinon.assert.calledWith(res.json, {
+      sinon.stub(checklistUtil, "update").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Update successful",
-        default: { checklist: {} },
+        data: { checklist: {} },
       });
+
+      await checklistController.update(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, checklist: sinon.match.object })).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      // Stub validationResult to return validation errors
-      const validationResultStub = sinon.stub().returns({
-        isEmpty: () => false,
-        errors: [{ nestedErrors: ["Validation Error"] }],
-      });
+      checklistController.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
+      await checklistController.update(req, res, next);
 
-      // Call the update function
-      await createChecklistController.update(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with a bad request status and errors
-      sinon.assert.calledWith(res.status, 400);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "bad request errors",
-        default: {},
-        errors: { message: "Validation Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle an error from createChecklistUtil.update", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+      sinon.stub(checklistUtil, "update").rejects(new Error("Unexpected error"));
 
-      // Stub createChecklistUtil.update to return an error response
-      const createChecklistUtil = {
-        update: sinon.stub().rejects(new Error("Update Error")),
-      };
+      await checklistController.update(req, res, next);
 
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the update function
-      await createChecklistController.update(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with an internal server error status and error message
-      sinon.assert.calledWith(res.status, 500);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Update Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("create()", () => {
     it("should create a checklist and return a success response", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      // Stub createChecklistUtil.create to return a success response
-      const createChecklistUtil = {
-        create: sinon.stub().resolves({
-          success: true,
-          status: 200,
-          message: "Create successful",
-          data: { checklist: {} },
-        }),
-      };
-
-      // Mock request and response objects
-      const req = {
-        body: {},
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the create function
-      await createChecklistController.create(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with the correct status and data
-      sinon.assert.calledWith(res.status, 200);
-      sinon.assert.calledWith(res.json, {
+      sinon.stub(checklistUtil, "create").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Create successful",
-        default: { checklist: {} },
+        data: { item: "checklist" },
       });
+
+      await checklistController.create(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, checklist: sinon.match.object })).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      // Stub validationResult to return validation errors
-      const validationResultStub = sinon.stub().returns({
-        isEmpty: () => false,
-        errors: [{ nestedErrors: ["Validation Error"] }],
-      });
+      checklistController.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock request and response objects
-      const req = {
-        body: {},
-        query: { tenant: "" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
+      await checklistController.create(req, res, next);
 
-      // Call the create function
-      await createChecklistController.create(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with a bad request status and errors
-      sinon.assert.calledWith(res.status, 400);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "bad request errors",
-        default: {},
-        errors: { message: "Validation Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle an error from createChecklistUtil.create", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+      sinon.stub(checklistUtil, "create").rejects(new Error("Unexpected error"));
 
-      // Stub createChecklistUtil.create to return an error response
-      const createChecklistUtil = {
-        create: sinon.stub().rejects(new Error("Create Error")),
-      };
+      await checklistController.create(req, res, next);
 
-      // Mock request and response objects
-      const req = {
-        body: {},
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the create function
-      await createChecklistController.create(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with an internal server error status and error message
-      sinon.assert.calledWith(res.status, 500);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Create Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("upsert()", () => {
     it("should upsert a checklist and return a success response", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      // Stub createChecklistUtil.upsert to return a success response
-      const createChecklistUtil = {
-        upsert: sinon.stub().resolves({
-          success: true,
-          status: 200,
-          message: "Upsert successful",
-          data: { checklist: {} },
-        }),
-      };
-
-      // Mock request and response objects
-      const req = {
-        body: {},
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the upsert function
-      await createChecklistController.upsert(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with the correct status and data
-      sinon.assert.calledWith(res.status, 200);
-      sinon.assert.calledWith(res.json, {
+      sinon.stub(checklistUtil, "upsert").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Upsert successful",
-        default: { checklist: {} },
+        data: { item: "checklist" },
       });
+
+      await checklistController.upsert(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, checklist: sinon.match.object })).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      // Stub validationResult to return validation errors
-      const validationResultStub = sinon.stub().returns({
-        isEmpty: () => false,
-        errors: [{ nestedErrors: ["Validation Error"] }],
-      });
+      checklistController.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock request and response objects
-      const req = {
-        body: {},
-        query: { tenant: "" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
+      await checklistController.upsert(req, res, next);
 
-      // Call the upsert function
-      await createChecklistController.upsert(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with a bad request status and errors
-      sinon.assert.calledWith(res.status, 400);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "bad request errors",
-        default: {},
-        errors: { message: "Validation Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle an error from createChecklistUtil.upsert", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+      sinon.stub(checklistUtil, "upsert").rejects(new Error("Unexpected error"));
 
-      // Stub createChecklistUtil.upsert to return an error response
-      const createChecklistUtil = {
-        upsert: sinon.stub().rejects(new Error("Upsert Error")),
-      };
+      await checklistController.upsert(req, res, next);
 
-      // Mock request and response objects
-      const req = {
-        body: {},
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the upsert function
-      await createChecklistController.upsert(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with an internal server error status and error message
-      sinon.assert.calledWith(res.status, 500);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Upsert Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("list()", () => {
     it("should list all checklists and return a success response", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      // Stub createChecklistUtil.list to return a success response
-      const createChecklistUtil = {
-        list: sinon.stub().resolves({
-          success: true,
-          status: 200,
-          message: "List successful",
-          data: { checklists: [] },
-        }),
-      };
-
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the list function
-      await createChecklistController.list(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with the correct status and data
-      sinon.assert.calledWith(res.status, 200);
-      sinon.assert.calledWith(res.json, {
+      sinon.stub(checklistUtil, "list").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "List successful",
-        checklists: [],
+        data: [{ item: "checklist1" }],
       });
+
+      await checklistController.list(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, checklists: sinon.match.array })).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      // Stub validationResult to return validation errors
-      const validationResultStub = sinon.stub().returns({
-        isEmpty: () => false,
-        errors: [{ nestedErrors: ["Validation Error"] }],
-      });
+      checklistController.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
+      await checklistController.list(req, res, next);
 
-      // Call the list function
-      await createChecklistController.list(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with a bad request status and errors
-      sinon.assert.calledWith(res.status, 400);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "bad request errors",
-        errors: { message: "Validation Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle an error from createChecklistUtil.list", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+      sinon.stub(checklistUtil, "list").rejects(new Error("Unexpected error"));
 
-      // Stub createChecklistUtil.list to return an error response
-      const createChecklistUtil = {
-        list: sinon.stub().rejects(new Error("List Error")),
-      };
+      await checklistController.list(req, res, next);
 
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the list function
-      await createChecklistController.list(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with an internal server error status and error message
-      sinon.assert.calledWith(res.status, 500);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "List Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("delete()", () => {
-    it("should delete a default and return a success response", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      // Stub createChecklistUtil.delete to return a success response
-      const createChecklistUtil = {
-        delete: sinon.stub().resolves({
-          success: true,
-          status: 200,
-          message: "Delete successful",
-          data: { default: {} },
-        }),
-      };
-
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the delete function
-      await createChecklistController.delete(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with the correct status and data
-      sinon.assert.calledWith(res.status, 200);
-      sinon.assert.calledWith(res.json, {
+    it("should delete a checklist and return a success response", async () => {
+      sinon.stub(checklistUtil, "delete").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Delete successful",
-        default: { default: {} },
+        data: { item: "checklist" },
       });
+
+      await checklistController.delete(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, checklist: sinon.match.object })).to.be.true;
     });
 
     it("should handle bad request errors", async () => {
-      // Stub validationResult to return validation errors
-      const validationResultStub = sinon.stub().returns({
-        isEmpty: () => false,
-        errors: [{ nestedErrors: ["Validation Error"] }],
-      });
+      checklistController.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
+      await checklistController.delete(req, res, next);
 
-      // Call the delete function
-      await createChecklistController.delete(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with a bad request status and errors
-      sinon.assert.calledWith(res.status, 400);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "bad request errors",
-        errors: { message: "Validation Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle an error from createChecklistUtil.delete", async () => {
-      // Stub validationResult to return an empty result
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+      sinon.stub(checklistUtil, "delete").rejects(new Error("Unexpected error"));
 
-      // Stub createChecklistUtil.delete to return an error response
-      const createChecklistUtil = {
-        delete: sinon.stub().rejects(new Error("Delete Error")),
-      };
+      await checklistController.delete(req, res, next);
 
-      // Mock request and response objects
-      const req = {
-        query: { tenant: "sampleTenant" },
-      };
-      const res = {
-        status: sinon.spy(),
-        json: sinon.spy(),
-      };
-
-      // Call the delete function
-      await createChecklistController.delete(
-        req,
-        res,
-        validationResultStub,
-        createChecklistUtil
-      );
-
-      // Assert that the response was sent with an internal server error status and error message
-      sinon.assert.calledWith(res.status, 500);
-      sinon.assert.calledWith(res.json, {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Delete Error" },
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });
