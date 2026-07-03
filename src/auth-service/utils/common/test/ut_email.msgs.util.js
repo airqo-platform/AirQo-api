@@ -572,23 +572,24 @@ describe("email.msgs", () => {
       expect(result).to.be.a("string").and.not.be.empty;
     });
 
-    it("should HTML-escape the replyMessage", () => {
+    it("should strip script tags from replyMessage (sanitize, not escape)", () => {
       const result = msgs.feedbackAdminReply({
         email: "user@example.com",
         subject: "Test",
         replyMessage: "<script>alert(1)</script>",
       });
       expect(result).to.not.include("<script>");
-      expect(result).to.include("&lt;script&gt;");
+      // sanitizeHtml removes the block entirely — no escaped remnant expected.
+      expect(result).to.not.include("alert(1)");
     });
 
-    it("should convert newlines in replyMessage to <br/>", () => {
+    it("should preserve safe HTML formatting tags in replyMessage", () => {
       const result = msgs.feedbackAdminReply({
         email: "user@example.com",
         subject: "Test",
-        replyMessage: "Line one\nLine two",
+        replyMessage: "<p>Hello <strong>world</strong></p>",
       });
-      expect(result).to.include("<br/>");
+      expect(result).to.include("<strong>world</strong>");
     });
 
     it("should not produce a duplicate greeting line", () => {
