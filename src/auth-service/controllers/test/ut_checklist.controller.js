@@ -9,7 +9,7 @@ const checklistController = rewire("@controllers/checklist.controller");
 const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
 const mockBadRequest = () => [{ param: "key", message: "required" }];
 
-describe("create preference controller", () => {
+describe("checklist controller", () => {
   let req, res, next;
 
   beforeEach(() => {
@@ -164,7 +164,7 @@ describe("create preference controller", () => {
   });
 
   describe("delete()", () => {
-    it("should delete a default and return a success response", async () => {
+    it("should delete a checklist and return a success response", async () => {
       sinon.stub(checklistUtil, "delete").resolves({
         success: true,
         status: httpStatus.OK,

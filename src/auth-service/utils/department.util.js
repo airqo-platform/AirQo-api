@@ -172,6 +172,130 @@ const department = {
       }
     } catch (error) {}
   },
+
+  listUsersWithDepartment: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant, limit, skip } = { ...query, ...params };
+      const filter = generateFilter.departments(request, next);
+      const response = await DepartmentModel(tenant.toLowerCase()).list(
+        { filter, limit, skip },
+        next
+      );
+      if (!response.success) return response;
+      const dept = response.data && response.data[0];
+      return {
+        success: true,
+        message: "successfully retrieved users with department",
+        data: dept ? dept.dep_users || [] : [],
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  listAvailableUsersForDepartment: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant, limit, skip } = { ...query, ...params };
+      const filter = generateFilter.departments(request, next);
+      const deptResponse = await DepartmentModel(tenant.toLowerCase()).list(
+        { filter },
+        next
+      );
+      if (!deptResponse.success) return deptResponse;
+      const assignedIds =
+        deptResponse.data && deptResponse.data[0]
+          ? (deptResponse.data[0].dep_users || []).map((u) => u._id || u)
+          : [];
+      const UserModel = require("@models/User");
+      return await UserModel(tenant.toLowerCase()).list(
+        { filter: { _id: { $nin: assignedIds } }, limit, skip },
+        next
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  assignUserToDepartment: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const { tenant } = { ...query, ...params };
+      const { user_id, department_id } = { ...params, ...body };
+      const updated = await DepartmentModel(tenant.toLowerCase()).findByIdAndUpdate(
+        department_id,
+        { $addToSet: { dep_users: user_id } },
+        { new: true }
+      );
+      if (!updated) {
+        return {
+          success: false,
+          message: "Department not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Department not found" },
+        };
+      }
+      return {
+        success: true,
+        message: "User assigned to department",
+        data: updated,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  unAssignUserFromDepartment: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const { tenant } = { ...query, ...params };
+      const { user_id, department_id } = { ...params, ...body };
+      const updated = await DepartmentModel(tenant.toLowerCase()).findByIdAndUpdate(
+        department_id,
+        { $pull: { dep_users: user_id } },
+        { new: true }
+      );
+      if (!updated) {
+        return {
+          success: false,
+          message: "Department not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Department not found" },
+        };
+      }
+      return {
+        success: true,
+        message: "User unassigned from department",
+        data: updated,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
 };
 
 module.exports = department;
