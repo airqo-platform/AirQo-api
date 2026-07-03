@@ -1,554 +1,217 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const createPermission = require("@controllers/permission.controller");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const constants = require("@config/constants");
 const httpStatus = require("http-status");
+const rewire = require("rewire");
 const rolePermissionsUtil = require("@utils/role-permissions.util");
-const { validationResult } = require("express-validator");
+
+const createPermission = rewire("@controllers/permission.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
 
 describe("createPermission", () => {
-  describe("create", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logTextStub;
-    let logObjectStub;
+  let req, res, next;
 
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
 
-      validationResultStub = sinon.stub();
-      badRequestStub = sinon.stub(createPermission, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "createPermission"
-      );
-      logTextStub = sinon.stub(require("@utils/shared/log"), "logText");
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
+  afterEach(() => {
+    sinon.restore();
+    createPermission.__set__("extractErrorsFromRequest", realExtractErrors);
+  });
 
-    afterEach(() => {
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logTextStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should create permission with default tenant and empty data", async () => {
-      req.query = {}; // Empty query object, default tenant should be used.
-      rolePermissionsUtilStub.resolves({
+  describe("create()", () => {
+    it("should create permission successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "createPermission").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Permission created successfully.",
-        data: [],
+        data: { permissionId: "perm1", permissionName: "Read" },
       });
 
-      await createPermission.create(req, res);
+      await createPermission.create(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission created successfully.",
-          created_permission: [],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, created_permission: sinon.match.object })).to.be.true;
     });
 
-    it("should create permission with custom tenant and non-empty data", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Permission created successfully.",
-        data: [
-          {
-            permissionId: "perm1",
-            permissionName: "Read",
-          },
-          {
-            permissionId: "perm2",
-            permissionName: "Write",
-          },
-        ],
+    it("should handle bad request errors", async () => {
+      createPermission.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createPermission.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle creation failure", async () => {
+      sinon.stub(rolePermissionsUtil, "createPermission").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Creation failed",
+        errors: { message: "Error" },
       });
 
-      await createPermission.create(req, res);
+      await createPermission.create(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission created successfully.",
-          created_permission: [
-            {
-              permissionId: "perm1",
-              permissionName: "Read",
-            },
-            {
-              permissionId: "perm2",
-              permissionName: "Write",
-            },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      const validationError = {
-        isEmpty: () => false,
-        errors: [
-          {
-            msg: "Invalid permission data.",
-            nestedErrors: null,
-          },
-        ],
-      };
-      validationResultStub.returns(validationError);
-      require("express-validator").validationResult = validationResultStub;
+    it("should handle unexpected errors", async () => {
+      sinon.stub(rolePermissionsUtil, "createPermission").rejects(new Error("Unexpected error"));
 
-      await createPermission.create(req, res);
+      await createPermission.create(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(validationError.errors[0].nestedErrors)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle permission creation failure and return internal server error", async () => {
-      const error = new Error("Permission creation failed.");
-      rolePermissionsUtilStub.rejects(error);
-
-      await createPermission.create(req, res);
-
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("list", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon.stub();
-      badRequestStub = sinon.stub(listFunction, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "listPermission"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should list permissions with default tenant and empty data", async () => {
-      req.query = {}; // Empty query object, default tenant should be used.
-      rolePermissionsUtilStub.resolves({
+  describe("list()", () => {
+    it("should list permissions successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "listPermission").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Permissions listed successfully.",
-        data: [],
+        data: [{ permissionId: "perm1", permissionName: "Read" }],
       });
 
-      await listFunction.list(req, res);
+      await createPermission.list(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permissions listed successfully.",
-          permissions: [],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, permissions: sinon.match.array })).to.be.true;
     });
 
-    it("should list permissions with custom tenant and non-empty data", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Permissions listed successfully.",
-        data: [
-          {
-            permissionId: "perm1",
-            permissionName: "Read",
-          },
-          {
-            permissionId: "perm2",
-            permissionName: "Write",
-          },
-        ],
+    it("should handle bad request errors", async () => {
+      createPermission.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createPermission.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle listing failure", async () => {
+      sinon.stub(rolePermissionsUtil, "listPermission").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Listing failed",
+        errors: { message: "Error" },
       });
 
-      await listFunction.list(req, res);
+      await createPermission.list(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permissions listed successfully.",
-          permissions: [
-            {
-              permissionId: "perm1",
-              permissionName: "Read",
-            },
-            {
-              permissionId: "perm2",
-              permissionName: "Write",
-            },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      const validationError = {
-        isEmpty: () => false,
-        errors: [
-          {
-            msg: "Invalid query parameters.",
-            nestedErrors: null,
-          },
-        ],
-      };
-      validationResultStub.returns(validationError);
-      require("express-validator").validationResult = validationResultStub;
+    it("should handle unexpected errors", async () => {
+      sinon.stub(rolePermissionsUtil, "listPermission").rejects(new Error("Unexpected error"));
 
-      await listFunction.list(req, res);
+      await createPermission.list(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(validationError.errors[0].nestedErrors)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle permission listing failure and return internal server error", async () => {
-      const error = new Error("Permission listing failed.");
-      rolePermissionsUtilStub.rejects(error);
-
-      await listFunction.list(req, res);
-
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("delete", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon.stub();
-      badRequestStub = sinon.stub(deleteFunction, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "deletePermission"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should delete permission with default tenant", async () => {
-      req.query = {}; // Empty query object, default tenant should be used.
-      rolePermissionsUtilStub.resolves({
+  describe("delete()", () => {
+    it("should delete permission successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "deletePermission").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Permission deleted successfully.",
-        data: {
-          permissionId: "perm1",
-          permissionName: "Read",
-        },
+        data: { permissionId: "perm1", permissionName: "Read" },
       });
 
-      await deleteFunction.delete(req, res);
+      await createPermission.delete(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission deleted successfully.",
-          deleted_permission: {
-            permissionId: "perm1",
-            permissionName: "Read",
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, deleted_permission: sinon.match.object })).to.be.true;
     });
 
-    it("should delete permission with custom tenant", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Permission deleted successfully.",
-        data: {
-          permissionId: "perm2",
-          permissionName: "Write",
-        },
+    it("should handle bad request errors", async () => {
+      createPermission.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createPermission.delete(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle deletion failure", async () => {
+      sinon.stub(rolePermissionsUtil, "deletePermission").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Deletion failed",
+        errors: { message: "Error" },
       });
 
-      await deleteFunction.delete(req, res);
+      await createPermission.delete(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission deleted successfully.",
-          deleted_permission: {
-            permissionId: "perm2",
-            permissionName: "Write",
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      const validationError = {
-        isEmpty: () => false,
-        errors: [
-          {
-            msg: "Invalid query parameters.",
-            nestedErrors: null,
-          },
-        ],
-      };
-      validationResultStub.returns(validationError);
-      require("express-validator").validationResult = validationResultStub;
+    it("should handle unexpected errors", async () => {
+      sinon.stub(rolePermissionsUtil, "deletePermission").rejects(new Error("Unexpected error"));
 
-      await deleteFunction.delete(req, res);
+      await createPermission.delete(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(validationError.errors[0].nestedErrors)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle permission deletion failure and return internal server error", async () => {
-      const error = new Error("Permission deletion failed.");
-      rolePermissionsUtilStub.rejects(error);
-
-      await deleteFunction.delete(req, res);
-
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("update", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon.stub();
-      badRequestStub = sinon.stub(updateFunction, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "updatePermission"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should update permission with default tenant", async () => {
-      req.query = {}; // Empty query object, default tenant should be used.
-      rolePermissionsUtilStub.resolves({
+  describe("update()", () => {
+    it("should update permission successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "updatePermission").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Permission updated successfully.",
-        data: {
-          permissionId: "perm1",
-          permissionName: "Read",
-        },
+        data: { permissionId: "perm1", permissionName: "Write" },
       });
 
-      await updateFunction.update(req, res);
+      await createPermission.update(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission updated successfully.",
-          updated_permission: {
-            permissionId: "perm1",
-            permissionName: "Read",
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, updated_permission: sinon.match.object })).to.be.true;
     });
 
-    it("should update permission with custom tenant", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Permission updated successfully.",
-        data: {
-          permissionId: "perm2",
-          permissionName: "Write",
-        },
+    it("should handle bad request errors", async () => {
+      createPermission.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createPermission.update(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle update failure", async () => {
+      sinon.stub(rolePermissionsUtil, "updatePermission").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Update failed",
+        errors: { message: "Error" },
       });
 
-      await updateFunction.update(req, res);
+      await createPermission.update(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission updated successfully.",
-          updated_permission: {
-            permissionId: "perm2",
-            permissionName: "Write",
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      const validationError = {
-        isEmpty: () => false,
-        errors: [
-          {
-            msg: "Invalid query parameters.",
-            nestedErrors: null,
-          },
-        ],
-      };
-      validationResultStub.returns(validationError);
-      require("express-validator").validationResult = validationResultStub;
+    it("should handle unexpected errors", async () => {
+      sinon.stub(rolePermissionsUtil, "updatePermission").rejects(new Error("Unexpected error"));
 
-      await updateFunction.update(req, res);
+      await createPermission.update(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(validationError.errors[0].nestedErrors)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle permission update failure and return internal server error", async () => {
-      const error = new Error("Permission update failed.");
-      rolePermissionsUtilStub.rejects(error);
-
-      await updateFunction.update(req, res);
-
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

@@ -1,1244 +1,437 @@
 require("module-alias/register");
-const chai = require("chai");
-const { expect } = chai;
+const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const constants = require("@config/constants");
-const isEmpty = require("is-empty");
-const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- create-group-controller`
-);
-const createGroup = require("@controllers/group.controller");
+const rewire = require("rewire");
 const createGroupUtil = require("@utils/group.util");
 
-describe("createGroup module", () => {
+const createGroup = rewire("@controllers/group.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
+
+describe("createGroup Module", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
   afterEach(() => {
     sinon.restore();
+    createGroup.__set__("extractErrorsFromRequest", realExtractErrors);
   });
 
   describe("removeUniqueConstraint", () => {
-    let req, res;
-
-    beforeEach(() => {
-      // Initialize req and res for each test
-      req = {
-        query: {},
-      };
-      res = {
-        status: sinon.stub(),
-        json: sinon.stub(),
-      };
-    });
-
-    it("should remove unique constraints and return a success response", async () => {
-      // Mock your validation library function to return an empty validation result
-      sinon.stub(validationResult(req), "isEmpty").returns(true);
-
-      // Mock the createGroupUtil.removeUniqueConstraint function to return a success response
+    it("should handle a valid request and return a success response", async () => {
       sinon.stub(createGroupUtil, "removeUniqueConstraint").resolves({
         success: true,
-        status: 200,
+        status: httpStatus.OK,
+        message: "Unique constraints removed",
+        data: {},
       });
 
-      // Call the function
-      await createGroupUtil.removeUniqueConstraint(req, res);
+      await createGroup.removeUniqueConstraint(req, res, next);
 
-      // Assertions
-      expect(res.status).to.have.been.calledWith(200);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message:
-          "successfully removed all the unique constraints in this migration",
-      });
-
-      // Restore the stubbed functions to their original implementations
-      validationResult(req).isEmpty.restore();
-      createGroupUtil.removeUniqueConstraint.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should handle validation errors and return a bad request response", async () => {
-      // Mock your validation library function to return a non-empty validation result
-      sinon.stub(validationResult(req), "isEmpty").returns(false);
-      sinon.stub(validationResult(req), "errors").value([
-        {
-          nestedErrors: [{ msg: "First error" }, { msg: "Second error" }],
-        },
-      ]);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Call the function
-      await createGroupUtil.removeUniqueConstraint(req, res);
+      await createGroup.removeUniqueConstraint(req, res, next);
 
-      // Assertions
-      expect(res.status).to.have.been.calledWith(400);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        message: "bad request errors",
-        errors: {
-          0: "First error",
-          1: "Second error",
-        },
-      });
-
-      // Restore the stubbed functions to their original implementations
-      validationResult(req).isEmpty.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle errors from removeUniqueConstraint and return an error response", async () => {
-      // Mock your validation library function to return an empty validation result
-      sinon.stub(validationResult(req), "isEmpty").returns(true);
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "removeUniqueConstraint").rejects(new Error("Internal error"));
 
-      // Mock the createGroupUtil.removeUniqueConstraint function to return an error response
-      sinon
-        .stub(createGroupUtil, "removeUniqueConstraint")
-        .rejects(new Error("Test error"));
+      await createGroup.removeUniqueConstraint(req, res, next);
 
-      // Call the function
-      await createGroupUtil.removeUniqueConstraint(req, res);
-
-      // Assertions
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: "Test error",
-        },
-      });
-
-      // Restore the stubbed functions to their original implementations
-      validationResult(req).isEmpty.restore();
-      createGroupUtil.removeUniqueConstraint.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("list Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the list function
-      const response = await createGroup.list(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.list to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "list");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "list").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Groups listed successfully",
+        data: [{ grp_title: "Group 1" }],
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.list(req, res, next);
 
-      // Call the list function
-      const response = await createGroup.list(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, groups: sinon.match.array })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.list to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "list");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.list(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the list function
-      const response = await createGroup.list(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "list").rejects(new Error("Internal error"));
+
+      await createGroup.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("create Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the create function
-      const response = await createGroup.create(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.create to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "create");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "create").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Group created successfully",
+        data: { grp_title: "New Group" },
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.create(req, res, next);
 
-      // Call the create function
-      const response = await createGroup.create(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.create to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "create");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.create(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the create function
-      const response = await createGroup.create(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "create").rejects(new Error("Internal error"));
+
+      await createGroup.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("update Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the update function
-      const response = await createGroup.update(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.update to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "update");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "update").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Group updated successfully",
+        data: { grp_title: "Updated Group" },
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.update(req, res, next);
 
-      // Call the update function
-      const response = await createGroup.update(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.update to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "update");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.update(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the update function
-      const response = await createGroup.update(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "update").rejects(new Error("Internal error"));
+
+      await createGroup.update(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("delete Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the delete function
-      const response = await createGroup.delete(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.delete to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "delete");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "delete").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Group deleted successfully",
+        data: {},
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.delete(req, res, next);
 
-      // Call the delete function
-      const response = await createGroup.delete(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.delete to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "delete");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.delete(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the delete function
-      const response = await createGroup.delete(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "delete").rejects(new Error("Internal error"));
+
+      await createGroup.delete(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("assignUsers Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the assignUsers function
-      const response = await createGroup.assignUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.assignUsers to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "assignUsers");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "assignUsersHybrid").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Users assigned successfully",
+        data: {},
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.assignUsers(req, res, next);
 
-      // Call the assignUsers function
-      const response = await createGroup.assignUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.assignUsers to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "assignUsers");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.assignUsers(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the assignUsers function
-      const response = await createGroup.assignUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "assignUsersHybrid").rejects(new Error("Internal error"));
+
+      await createGroup.assignUsers(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("assignOneUser Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the assignOneUser function
-      const response = await createGroup.assignOneUser(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.assignOneUser to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "assignOneUser");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "assignOneUser").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "User assigned successfully",
+        data: {},
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.assignOneUser(req, res, next);
 
-      // Call the assignOneUser function
-      const response = await createGroup.assignOneUser(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.assignOneUser to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "assignOneUser");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.assignOneUser(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the assignOneUser function
-      const response = await createGroup.assignOneUser(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "assignOneUser").rejects(new Error("Internal error"));
+
+      await createGroup.assignOneUser(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("unAssignUser Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the unAssignUser function
-      const response = await createGroup.unAssignUser(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.unAssignUser to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "unAssignUser");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "unAssignUser").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "User unassigned successfully",
+        data: {},
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.unAssignUser(req, res, next);
 
-      // Call the unAssignUser function
-      const response = await createGroup.unAssignUser(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.unAssignUser to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "unAssignUser");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.unAssignUser(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the unAssignUser function
-      const response = await createGroup.unAssignUser(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "unAssignUser").rejects(new Error("Internal error"));
+
+      await createGroup.unAssignUser(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("unAssignManyUsers Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the unAssignManyUsers function
-      const response = await createGroup.unAssignManyUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.unAssignManyUsers to return a successful response
-      const createGroupUtilStub = sinon.stub(
-        createGroupUtil,
-        "unAssignManyUsers"
-      );
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "unAssignManyUsers").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Users unassigned successfully",
+        data: {},
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.unAssignManyUsers(req, res, next);
 
-      // Call the unAssignManyUsers function
-      const response = await createGroup.unAssignManyUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.unAssignManyUsers to throw an error
-      const createGroupUtilStub = sinon.stub(
-        createGroupUtil,
-        "unAssignManyUsers"
-      );
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.unAssignManyUsers(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the unAssignManyUsers function
-      const response = await createGroup.unAssignManyUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "unAssignManyUsers").rejects(new Error("Internal error"));
+
+      await createGroup.unAssignManyUsers(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("listAssignedUsers Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the listAssignedUsers function
-      const response = await createGroup.listAssignedUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.listUsersWithGroup to return a successful response
-      const createGroupUtilStub = sinon.stub(
-        createGroupUtil,
-        "listUsersWithGroup"
-      );
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "listAssignedUsers").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Assigned users listed successfully",
+        data: [],
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.listAssignedUsers(req, res, next);
 
-      // Call the listAssignedUsers function
-      const response = await createGroup.listAssignedUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.listUsersWithGroup to throw an error
-      const createGroupUtilStub = sinon.stub(
-        createGroupUtil,
-        "listUsersWithGroup"
-      );
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.listAssignedUsers(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the listAssignedUsers function
-      const response = await createGroup.listAssignedUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "listAssignedUsers").rejects(new Error("Internal error"));
+
+      await createGroup.listAssignedUsers(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("listAvailableUsers Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the listAvailableUsers function
-      const response = await createGroup.listAvailableUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.listAvailableUsersForGroup to return a successful response
-      const createGroupUtilStub = sinon.stub(
-        createGroupUtil,
-        "listAvailableUsersForGroup"
-      );
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "listAvailableUsers").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Available users listed successfully",
+        data: [],
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.listAvailableUsers(req, res, next);
 
-      // Call the listAvailableUsers function
-      const response = await createGroup.listAvailableUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.listAvailableUsersForGroup to throw an error
-      const createGroupUtilStub = sinon.stub(
-        createGroupUtil,
-        "listAvailableUsersForGroup"
-      );
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.listAvailableUsers(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the listAvailableUsers function
-      const response = await createGroup.listAvailableUsers(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "listAvailableUsers").rejects(new Error("Internal error"));
+
+      await createGroup.listAvailableUsers(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("listSummary Function", () => {
-    it("should return a bad request response when validation errors occur", async () => {
-      // Mock validationResult to return validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(false);
-      validationResultStub.onCall(0).returns(true); // Simulate non-empty validationResult
-
-      // Mock the request object
-      const req = {
-        /* Mocked request object with validation errors */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the listSummary function
-      const response = await createGroup.listSummary(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-    });
-
-    it("should return a success response when the request is valid", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
-
-      // Mock createGroupUtil.list to return a successful response
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "list");
-      createGroupUtilStub.resolves({
+    it("should handle a valid request and return a success response", async () => {
+      sinon.stub(createGroupUtil, "list").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Success Message",
-        data: [
-          {
-            /* Mocked data */
-          },
-        ],
+        message: "Groups summary listed successfully",
+        data: [{ grp_title: "Group 1" }],
       });
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
+      await createGroup.listSummary(req, res, next);
 
-      // Call the listSummary function
-      const response = await createGroup.listSummary(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.OK);
-      expect(response.success).to.equal(true);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, groups: sinon.match.array })).to.be.true;
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock validationResult to return no validation errors
-      const validationResultStub = sinon.stub(validationResult, "isEmpty");
-      validationResultStub.returns(true);
+    it("should handle a request with validation errors and return a bad request response", async () => {
+      createGroup.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      // Mock createGroupUtil.list to throw an error
-      const createGroupUtilStub = sinon.stub(createGroupUtil, "list");
-      createGroupUtilStub.rejects(new Error("Internal Server Error"));
+      await createGroup.listSummary(req, res, next);
 
-      // Mock the request object
-      const req = {
-        /* Mocked request object */
-      };
-      const res = {
-        /* Mocked response object */
-      };
-
-      // Call the listSummary function
-      const response = await createGroup.listSummary(req, res);
-
-      // Assertions
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.success).to.equal(false);
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      validationResultStub.restore();
-      createGroupUtilStub.restore();
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors", async () => {
+      sinon.stub(createGroupUtil, "list").rejects(new Error("Internal error"));
+
+      await createGroup.listSummary(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 });

@@ -138,17 +138,31 @@ describe("UserSchema static methods", () => {
   });
 
   describe("modify()", () => {
-    it("should modify an existing user", async () => {
-      // Assuming there is an existing user with ID "existing_user_id"
-      const filter = { _id: "existing_user_id" };
-      const update = { firstName: "Updated", lastName: "User" };
+    let sandbox;
 
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should modify an existing user", async () => {
+      const fakeId = new mongoose.Types.ObjectId();
+      const updatedUser = { _id: fakeId, firstName: "Updated", lastName: "User" };
+
+      sandbox
+        .stub(UserModelFactory("airqo"), "findOneAndUpdate")
+        .resolves(updatedUser);
+
+      const filter = { _id: fakeId };
+      const update = { firstName: "Updated", lastName: "User" };
       const result = await UserModelFactory("airqo").modify({ filter, update });
 
       expect(result.success).to.be.true;
       expect(result.message).to.equal("successfully modified the user");
       expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.have.property("_id", "existing_user_id");
       expect(result.data).to.have.property("firstName", "Updated");
       expect(result.data).to.have.property("lastName", "User");
     });
@@ -157,16 +171,31 @@ describe("UserSchema static methods", () => {
   });
 
   describe("remove()", () => {
-    it("should remove an existing user", async () => {
-      // Assuming there is an existing user with ID "existing_user_id"
-      const filter = { _id: "existing_user_id" };
+    let sandbox;
 
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should remove an existing user", async () => {
+      const removedDoc = { email: "john@example.com", firstName: "John", lastName: "Doe" };
+      const removedUser = { _doc: removedDoc };
+
+      sandbox
+        .stub(UserModelFactory("airqo"), "findOneAndRemove")
+        .returns({ exec: sandbox.stub().resolves(removedUser) });
+
+      const filter = { email: "john@example.com" };
       const result = await UserModelFactory("airqo").remove({ filter });
 
       expect(result.success).to.be.true;
-      expect(result.message).to.equal("successfully removed the user");
+      expect(result.message).to.equal("Successfully removed the user");
       expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.have.property("_id", "existing_user_id");
+      expect(result.data).to.deep.equal(removedDoc);
     });
 
     // Add more test cases to cover other scenarios

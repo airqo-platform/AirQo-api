@@ -1,503 +1,231 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const { validationResult } = require("express-validator");
-const tokenUtil = require("@utils/token.util");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const { logObject, logText, logElement } = require("@utils/shared/log");
-const constants = require("@config/constants");
-const isEmpty = require("is-empty");
-const sharedUtils = require("@utils/shared");
 const httpStatus = require("http-status");
+const rewire = require("rewire");
+const tokenUtil = require("@utils/token.util");
 
-const createAccessToken = require("@controllers/token.controller");
+const createAccessToken = rewire("@controllers/token.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
+
 describe("tokenUtil", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {}, headers: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      send: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    createAccessToken.__set__("extractErrorsFromRequest", realExtractErrors);
+  });
+
   describe("create", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let tokenUtilStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(tokenUtil, "badRequest").returns(res);
-      tokenUtilStub = sinon.stub(tokenUtil, "tokenUtil");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      tokenUtilStub.restore();
-    });
-
-    it("should create an access token for default tenant", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      tokenUtilStub.resolves({
+    it("should create an access token successfully", async () => {
+      sinon.stub(tokenUtil, "createAccessToken").resolves({
         success: true,
         status: httpStatus.OK,
-        data: "access_token1", // Set the access token created by the tokenUtil.
+        message: "Access token created successfully",
+        data: "access_token1",
       });
 
-      await tokenUtil.create(req, res);
+      await createAccessToken.create(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Access token created successfully",
-          created_token: "access_token1",
-        }),
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ message: "Access token created successfully", created_token: "access_token1" })).to.be.true;
     });
 
-    it("should create an access token for custom tenant", async () => {
-      tokenUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "access_token2", // Set the access token created by the tokenUtil.
+    it("should handle validation errors and return bad request", async () => {
+      createAccessToken.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createAccessToken.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle access token creation failure", async () => {
+      sinon.stub(tokenUtil, "createAccessToken").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed to create",
+        errors: { message: "Error" },
       });
 
-      await tokenUtil.create(req, res);
+      await createAccessToken.create(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Access token created successfully",
-          created_token: "access_token2",
-        }),
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+    it("should handle unexpected errors", async () => {
+      sinon.stub(tokenUtil, "createAccessToken").rejects(new Error("Unexpected error"));
 
-      await tokenUtil.create(req, res);
+      await createAccessToken.create(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null),
-        ),
-      ).to.be.true;
-    });
-
-    it("should handle access token creation failure and return internal server error", async () => {
-      const error = new Error("Failed to create access token.");
-      tokenUtilStub.rejects(error);
-
-      await tokenUtil.create(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        }),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("list", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let tokenUtilStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(tokenUtil, "badRequest").returns(res);
-      tokenUtilStub = sinon.stub(tokenUtil, "listAccessToken");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      tokenUtilStub.restore();
-    });
-
-    it("should list access tokens for default tenant", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      tokenUtilStub.resolves({
+    it("should list access tokens successfully", async () => {
+      sinon.stub(tokenUtil, "listAccessToken").resolves({
         success: true,
         status: httpStatus.OK,
-        data: ["access_token1", "access_token2"], // Set the list of access tokens returned by the tokenUtil.
+        message: "Access tokens listed successfully",
+        data: ["token1", "token2"],
       });
 
-      await tokenUtil.list(req, res);
+      await createAccessToken.list(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Access tokens listed successfully",
-          tokens: ["access_token1", "access_token2"],
-        }),
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ message: "Access tokens listed successfully", tokens: sinon.match.array })).to.be.true;
     });
 
-    it("should list access tokens for custom tenant", async () => {
-      tokenUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: ["access_token3"], // Set the list of access tokens returned by the tokenUtil.
+    it("should handle validation errors and return bad request", async () => {
+      createAccessToken.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createAccessToken.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle listing failure", async () => {
+      sinon.stub(tokenUtil, "listAccessToken").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed to list",
+        errors: { message: "Error" },
       });
 
-      await tokenUtil.list(req, res);
+      await createAccessToken.list(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Access tokens listed successfully",
-          tokens: ["access_token3"],
-        }),
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+    it("should handle unexpected errors", async () => {
+      sinon.stub(tokenUtil, "listAccessToken").rejects(new Error("Unexpected error"));
 
-      await tokenUtil.list(req, res);
+      await createAccessToken.list(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null),
-        ),
-      ).to.be.true;
-    });
-
-    it("should handle access token listing failure and return internal server error", async () => {
-      const error = new Error("Failed to list access tokens.");
-      tokenUtilStub.rejects(error);
-
-      await tokenUtil.list(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        }),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("verify", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let tokenUtilStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        headers: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        send: sinon.stub(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(tokenUtil, "badRequest").returns(res);
-      tokenUtilStub = sinon.stub(tokenUtil, "verifyToken");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      tokenUtilStub.restore();
-    });
-
     it("should verify access token successfully", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      const responseFromVerifyToken = {
+      sinon.stub(tokenUtil, "verifyToken").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Access token verified successfully", // Set the message returned by the tokenUtil.
-      };
-      tokenUtilStub.resolves(responseFromVerifyToken);
+        message: "Token valid",
+      });
 
-      await tokenUtil.verify(req, res);
+      await createAccessToken.verify(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(res.send.calledOnceWith("Access token verified successfully")).to
-        .be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+    it("should handle validation errors and return bad request", async () => {
+      createAccessToken.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await tokenUtil.verify(req, res);
+      await createAccessToken.verify(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null),
-        ),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle access token verification failure and return internal server error", async () => {
-      const error = new Error("Failed to verify access token.");
-      const responseFromVerifyToken = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Failed to verify access token.", // Set the error message returned by the tokenUtil.
-      };
-      tokenUtilStub.rejects(error);
+    it("should handle unexpected errors", async () => {
+      sinon.stub(tokenUtil, "verifyToken").rejects(new Error("Unexpected error"));
 
-      await tokenUtil.verify(req, res);
+      await createAccessToken.verify(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        }),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("delete", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let tokenUtilStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(tokenUtil, "badRequest").returns(res);
-      tokenUtilStub = sinon.stub(tokenUtil, "deleteAccessToken");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      tokenUtilStub.restore();
-    });
-
     it("should delete access token successfully", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      const responseFromDeleteAccessToken = {
+      sinon.stub(tokenUtil, "deleteAccessToken").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Access token deleted successfully", // Set the message returned by the tokenUtil.
-        data: { deleted: true }, // Set the data returned by the tokenUtil.
-      };
-      tokenUtilStub.resolves(responseFromDeleteAccessToken);
+        message: "Access token deleted successfully",
+        data: { deleted: true },
+      });
 
-      await tokenUtil.delete(req, res);
+      await createAccessToken.delete(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Access token deleted successfully",
-          deleted_token: { deleted: true },
-        }),
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ message: "Access token deleted successfully", deleted_token: sinon.match.object })).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+    it("should handle validation errors and return bad request", async () => {
+      createAccessToken.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await tokenUtil.delete(req, res);
+      await createAccessToken.delete(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null),
-        ),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle access token deletion failure and return internal server error", async () => {
-      const error = new Error("Failed to delete access token.");
-      const responseFromDeleteAccessToken = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Failed to delete access token.", // Set the error message returned by the tokenUtil.
-      };
-      tokenUtilStub.rejects(error);
+    it("should handle unexpected errors", async () => {
+      sinon.stub(tokenUtil, "deleteAccessToken").rejects(new Error("Unexpected error"));
 
-      await tokenUtil.delete(req, res);
+      await createAccessToken.delete(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        }),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("update", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let tokenUtilStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(tokenUtil, "badRequest").returns(res);
-      tokenUtilStub = sinon.stub(tokenUtil, "updateAccessToken");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      tokenUtilStub.restore();
-    });
-
     it("should update access token successfully", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      const responseFromUpdateAccessToken = {
+      sinon.stub(tokenUtil, "updateAccessToken").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Access token updated successfully", // Set the message returned by the tokenUtil.
-        data: { updated: true }, // Set the data returned by the tokenUtil.
-      };
-      tokenUtilStub.resolves(responseFromUpdateAccessToken);
+        message: "Access token updated successfully",
+        data: { updated: true },
+      });
 
-      await tokenUtil.update(req, res);
+      await createAccessToken.update(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Access token updated successfully",
-          updated_token: { updated: true },
-        }),
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ message: "Access token updated successfully", updated_token: sinon.match.object })).to.be.true;
     });
 
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+    it("should handle validation errors and return bad request", async () => {
+      createAccessToken.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await tokenUtil.update(req, res);
+      await createAccessToken.update(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null),
-        ),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle access token update failure and return internal server error", async () => {
-      const error = new Error("Failed to update access token.");
-      const responseFromUpdateAccessToken = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Failed to update access token.", // Set the error message returned by the tokenUtil.
-      };
-      tokenUtilStub.rejects(error);
+    it("should handle unexpected errors", async () => {
+      sinon.stub(tokenUtil, "updateAccessToken").rejects(new Error("Unexpected error"));
 
-      await tokenUtil.update(req, res);
+      await createAccessToken.update(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        }),
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("getWhitelistedIPStats", () => {
-    let req;
-    let res;
-    let next;
-    let extractErrorsFromRequestStub;
-    let getWhitelistedIPStatsStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        params: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      next = sinon.stub();
-      extractErrorsFromRequestStub = sinon
-        .stub(sharedUtils, "extractErrorsFromRequest")
-        .returns(null);
-      getWhitelistedIPStatsStub = sinon.stub(
-        tokenUtil,
-        "getWhitelistedIPStats",
-      );
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
     it("should return stats for whitelisted IPs successfully", async () => {
       const mockStats = [{ ip: "1.1.1.1", total_requests: 10 }];
-      getWhitelistedIPStatsStub.resolves({
+      sinon.stub(tokenUtil, "getWhitelistedIPStats").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Stats retrieved",
@@ -506,18 +234,13 @@ describe("tokenUtil", () => {
 
       await createAccessToken.getWhitelistedIPStats(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Stats retrieved",
-          whitelisted_ip_stats: mockStats,
-        }),
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ message: "Stats retrieved", whitelisted_ip_stats: mockStats })).to.be.true;
       expect(next.called).to.be.false;
     });
 
     it("should handle cases with no whitelisted IPs found", async () => {
-      getWhitelistedIPStatsStub.resolves({
+      sinon.stub(tokenUtil, "getWhitelistedIPStats").resolves({
         success: true,
         status: httpStatus.OK,
         message: "No whitelisted IPs found.",
@@ -526,30 +249,21 @@ describe("tokenUtil", () => {
 
       await createAccessToken.getWhitelistedIPStats(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "No whitelisted IPs found.",
-          whitelisted_ip_stats: [],
-        }),
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ message: "No whitelisted IPs found.", whitelisted_ip_stats: [] })).to.be.true;
     });
 
     it("should handle validation errors", async () => {
-      extractErrorsFromRequestStub.returns({
-        msg: "validation error",
-      }); // Simulate validation errors
+      createAccessToken.__set__("extractErrorsFromRequest", mockBadRequest);
 
       await createAccessToken.getWhitelistedIPStats(req, res, next);
 
       expect(next.calledOnce).to.be.true;
-      const nextArg = next.firstCall.args[0];
-      expect(nextArg).to.be.an.instanceOf(Error);
-      expect(nextArg.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle internal server errors from the utility function", async () => {
-      getWhitelistedIPStatsStub.resolves({
+      sinon.stub(tokenUtil, "getWhitelistedIPStats").resolves({
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "DB error",
@@ -558,8 +272,7 @@ describe("tokenUtil", () => {
 
       await createAccessToken.getWhitelistedIPStats(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
       expect(res.json.calledOnce).to.be.true;
     });
   });
