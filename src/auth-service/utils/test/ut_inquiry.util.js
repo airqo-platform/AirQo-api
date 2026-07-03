@@ -1,121 +1,90 @@
 require("module-alias/register");
+const sinon = require("sinon");
+const chai = require("chai");
+const expect = chai.expect;
+const httpStatus = require("http-status");
+const rewire = require("rewire");
+const { mailer } = require("@utils/common");
+const inquire = require("../inquiry.util");
+const rewireInquiry = rewire("../inquiry.util");
+
 describe("inquire", () => {
   describe("create method", () => {
+    let origInquiryModel;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      origInquiryModel = rewireInquiry.__get__("InquiryModel");
+    });
+
+    afterEach(() => {
+      rewireInquiry.__set__("InquiryModel", origInquiryModel);
       sinon.restore();
     });
 
     it("should create an inquiry and send email successfully", async () => {
-      const tenant = "sample_tenant";
-      const fullName = "John Doe";
-      const email = "john@example.com";
-      const message = "Sample inquiry message";
-      const category = "General Inquiry";
-      const firstName = "John";
-      const lastName = "Doe";
-
-      // Mock the response from InquiryModel register method (success)
       const mockRegisterResponse = {
         success: true,
-        data: {
-          // Sample data for created inquiry
-        },
+        data: { _id: "inquiry_id" },
       };
-      sinon.stub(inquire, "InquiryModel").returns({
-        register: sinon.stub().resolves(mockRegisterResponse),
-      });
+      const registerStub = sinon.stub().resolves(mockRegisterResponse);
+      rewireInquiry.__set__("InquiryModel", () => ({ register: registerStub }));
 
-      // Mock the response from mailer inquiry method (success)
       const mockMailerResponse = {
         success: true,
         status: httpStatus.OK,
       };
       sinon.stub(mailer, "inquiry").resolves(mockMailerResponse);
 
-      // Call the create method
-      const callback = sinon.stub();
-      await inquire.create(
+      const next = sinon.stub();
+      const result = await rewireInquiry.create(
         {
-          fullName,
-          email,
-          message,
-          category,
-          tenant,
-          firstName,
-          lastName,
+          body: {
+            fullName: "John Doe",
+            email: "john@example.com",
+            message: "Sample inquiry",
+            category: "General",
+            tenant: "sample_tenant",
+            firstName: "John",
+            lastName: "Doe",
+          },
+          query: {},
+          params: {},
         },
-        callback
+        next
       );
 
-      // Verify the callback
-      sinon.assert.calledWith(callback, {
-        success: true,
-        message: "inquiry successfully created",
-        data: mockRegisterResponse.data,
-        status: httpStatus.OK,
-      });
+      expect(result.success).to.equal(true);
+      expect(result.message).to.equal("inquiry successfully created");
+      sinon.assert.notCalled(next);
     });
 
     it("should handle errors during create and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const fullName = "John Doe";
-      const email = "john@example.com";
-      const message = "Sample inquiry message";
-      const category = "General Inquiry";
-      const firstName = "John";
-      const lastName = "Doe";
+      const registerStub = sinon
+        .stub()
+        .throws(new Error("Database connection error"));
+      rewireInquiry.__set__("InquiryModel", () => ({ register: registerStub }));
 
-      // Mock the response from InquiryModel register method (throws error)
-      sinon.stub(inquire, "InquiryModel").returns({
-        register: sinon.stub().throws(new Error("Database connection error")),
-      });
-
-      // Call the create method
-      const callback = sinon.stub();
-      await inquire.create(
+      const next = sinon.stub();
+      await rewireInquiry.create(
         {
-          fullName,
-          email,
-          message,
-          category,
-          tenant,
-          firstName,
-          lastName,
+          body: { tenant: "sample_tenant", fullName: "John" },
+          query: {},
+          params: {},
         },
-        callback
+        next
       );
 
-      // Verify the callback
-      sinon.assert.calledWith(callback, {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Database connection error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
 
     it("should handle email sending failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const fullName = "John Doe";
-      const email = "john@example.com";
-      const message = "Sample inquiry message";
-      const category = "General Inquiry";
-      const firstName = "John";
-      const lastName = "Doe";
+      const mockRegisterResponse = { success: true, data: { _id: "id" } };
+      const registerStub = sinon.stub().resolves(mockRegisterResponse);
+      rewireInquiry.__set__("InquiryModel", () => ({ register: registerStub }));
 
-      // Mock the response from InquiryModel register method (success)
-      const mockRegisterResponse = {
-        success: true,
-        data: {
-          // Sample data for created inquiry
-        },
-      };
-      sinon.stub(inquire, "InquiryModel").returns({
-        register: sinon.stub().resolves(mockRegisterResponse),
-      });
-
-      // Mock the response from mailer inquiry method (failure)
       const mockMailerResponse = {
         success: false,
         errors: { message: "Failed to send email" },
@@ -123,269 +92,217 @@ describe("inquire", () => {
       };
       sinon.stub(mailer, "inquiry").resolves(mockMailerResponse);
 
-      // Call the create method
-      const callback = sinon.stub();
-      await inquire.create(
+      const next = sinon.stub();
+      const result = await rewireInquiry.create(
         {
-          fullName,
-          email,
-          message,
-          category,
-          tenant,
-          firstName,
-          lastName,
+          body: {
+            fullName: "John",
+            email: "john@example.com",
+            tenant: "sample_tenant",
+          },
+          query: {},
+          params: {},
         },
-        callback
+        next
       );
 
-      // Verify the callback
-      sinon.assert.calledWith(callback, mockMailerResponse);
+      expect(result).to.deep.equal(mockMailerResponse);
     });
   });
+
   describe("list method", () => {
+    let origInquiryModel;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      origInquiryModel = rewireInquiry.__get__("InquiryModel");
+    });
+
+    afterEach(() => {
+      rewireInquiry.__set__("InquiryModel", origInquiryModel);
       sinon.restore();
     });
 
     it("should list inquiries successfully", async () => {
-      const tenant = "sample_tenant";
-      const filter = { status: "open" };
-      const limit = 10;
-      const skip = 0;
-
-      // Mock the response from InquiryModel list method (success)
       const mockListResponse = {
         success: true,
         message: "Inquiries listed successfully",
-        data: [
-          // Sample data for listed inquiries
-        ],
+        data: [],
       };
-      sinon.stub(inquire, "InquiryModel").returns({
-        list: sinon.stub().resolves(mockListResponse),
-      });
+      const listStub = sinon.stub().resolves(mockListResponse);
+      rewireInquiry.__set__("InquiryModel", () => ({ list: listStub }));
 
-      // Call the list method
-      const response = await inquire.list({
-        tenant,
-        filter,
-        limit,
-        skip,
-      });
+      const next = sinon.stub();
+      const response = await rewireInquiry.list(
+        {
+          body: {},
+          query: { tenant: "sample_tenant", filter: {}, limit: 10, skip: 0 },
+          params: {},
+        },
+        next
+      );
 
-      // Verify the response
       expect(response).to.deep.equal(mockListResponse);
     });
 
     it("should handle errors during listing and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = { status: "open" };
-      const limit = 10;
-      const skip = 0;
+      const listStub = sinon
+        .stub()
+        .throws(new Error("Database connection error"));
+      rewireInquiry.__set__("InquiryModel", () => ({ list: listStub }));
 
-      // Mock the response from InquiryModel list method (throws error)
-      sinon.stub(inquire, "InquiryModel").returns({
-        list: sinon.stub().throws(new Error("Database connection error")),
-      });
+      const next = sinon.stub();
+      await rewireInquiry.list(
+        {
+          body: {},
+          query: { tenant: "sample_tenant" },
+          params: {},
+        },
+        next
+      );
 
-      // Call the list method
-      const response = await inquire.list({
-        tenant,
-        filter,
-        limit,
-        skip,
-      });
-
-      // Verify the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "utils server error",
-        error: "Database connection error",
-      });
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
 
     it("should handle unsuccessful listing and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = { status: "open" };
-      const limit = 10;
-      const skip = 0;
-
-      // Mock the response from InquiryModel list method (failure)
       const mockListResponse = {
         success: false,
         message: "Error listing inquiries",
         error: "Invalid filter",
       };
-      sinon.stub(inquire, "InquiryModel").returns({
-        list: sinon.stub().resolves(mockListResponse),
-      });
+      const listStub = sinon.stub().resolves(mockListResponse);
+      rewireInquiry.__set__("InquiryModel", () => ({ list: listStub }));
 
-      // Call the list method
-      const response = await inquire.list({
-        tenant,
-        filter,
-        limit,
-        skip,
-      });
+      const next = sinon.stub();
+      const response = await rewireInquiry.list(
+        {
+          body: {},
+          query: { tenant: "sample_tenant" },
+          params: {},
+        },
+        next
+      );
 
-      // Verify the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Error listing inquiries",
-        error: "Invalid filter",
-      });
+      expect(response).to.deep.equal(mockListResponse);
     });
   });
+
   describe("update method", () => {
+    let origInquiryModel;
+    let origGenerateFilter;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      origInquiryModel = rewireInquiry.__get__("InquiryModel");
+      origGenerateFilter = rewireInquiry.__get__("generateFilter");
+    });
+
+    afterEach(() => {
+      rewireInquiry.__set__("InquiryModel", origInquiryModel);
+      rewireInquiry.__set__("generateFilter", origGenerateFilter);
       sinon.restore();
     });
 
     it("should update inquiry successfully", async () => {
-      const tenant = "sample_tenant";
-      const filter = { _id: "sample_id" };
-      const update = { status: "resolved" };
+      const modifyStub = sinon.stub().resolves({ success: true, data: {} });
+      rewireInquiry.__set__("InquiryModel", () => ({ modify: modifyStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
+      const next = sinon.stub();
 
-      // Mock the response from InquiryModel modify method (success)
-      const mockModifyResponse = {
-        success: true,
-        message: "Inquiry updated successfully",
-        data: {
-          // Updated inquiry data
-        },
-      };
-      sinon.stub(inquire, "InquiryModel").returns({
-        modify: sinon.stub().resolves(mockModifyResponse),
-      });
+      const result = await rewireInquiry.update(
+        { body: { tenant: "airqo", status: "resolved" }, query: {}, params: {} },
+        next
+      );
 
-      // Call the update method
-      const response = await inquire.update(tenant, filter, update);
-
-      // Verify the response
-      expect(response).to.deep.equal(mockModifyResponse);
-    });
-
-    it("should handle errors during updating and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = { _id: "sample_id" };
-      const update = { status: "resolved" };
-
-      // Mock the response from InquiryModel modify method (throws error)
-      sinon.stub(inquire, "InquiryModel").returns({
-        modify: sinon.stub().throws(new Error("Database connection error")),
-      });
-
-      // Call the update method
-      const response = await inquire.update(tenant, filter, update);
-
-      // Verify the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "util server error",
-        error: "Database connection error",
-      });
+      expect(result).to.have.property("success", true);
     });
 
     it("should handle unsuccessful update and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = { _id: "sample_id" };
-      const update = { status: "resolved" };
+      const modifyStub = sinon.stub().resolves({ success: false, message: "Not found" });
+      rewireInquiry.__set__("InquiryModel", () => ({ modify: modifyStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
+      const next = sinon.stub();
 
-      // Mock the response from InquiryModel modify method (failure)
-      const mockModifyResponse = {
-        success: false,
-        message: "Error updating inquiry",
-        error: "Invalid filter",
-      };
-      sinon.stub(inquire, "InquiryModel").returns({
-        modify: sinon.stub().resolves(mockModifyResponse),
+      const result = await rewireInquiry.update(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
+
+      expect(result).to.have.property("success", false);
+    });
+
+    it("should handle errors during updating and call next with error", async () => {
+      rewireInquiry.__set__("generateFilter", {
+        inquiry: sinon.stub().throws(new Error("Filter error")),
       });
+      const next = sinon.stub();
 
-      // Call the update method
-      const response = await inquire.update(tenant, filter, update);
+      await rewireInquiry.update(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
 
-      // Verify the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Error updating inquiry",
-        error: "Invalid filter",
-      });
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0]).to.be.instanceOf(Error);
     });
   });
+
   describe("delete method", () => {
+    let origInquiryModel;
+    let origGenerateFilter;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      origInquiryModel = rewireInquiry.__get__("InquiryModel");
+      origGenerateFilter = rewireInquiry.__get__("generateFilter");
+    });
+
+    afterEach(() => {
+      rewireInquiry.__set__("InquiryModel", origInquiryModel);
+      rewireInquiry.__set__("generateFilter", origGenerateFilter);
       sinon.restore();
     });
 
     it("should delete inquiry successfully", async () => {
-      const tenant = "sample_tenant";
-      const filter = { _id: "sample_id" };
+      const removeStub = sinon.stub().resolves({ success: true, data: {} });
+      rewireInquiry.__set__("InquiryModel", () => ({ remove: removeStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
+      const next = sinon.stub();
 
-      // Mock the response from InquiryModel remove method (success)
-      const mockRemoveResponse = {
-        success: true,
-        message: "Inquiry deleted successfully",
-        data: {
-          // Deleted inquiry data
-        },
-      };
-      sinon.stub(inquire, "InquiryModel").returns({
-        remove: sinon.stub().resolves(mockRemoveResponse),
-      });
+      const result = await rewireInquiry.delete(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
 
-      // Call the delete method
-      const response = await inquire.delete(tenant, filter);
-
-      // Verify the response
-      expect(response).to.deep.equal(mockRemoveResponse);
-    });
-
-    it("should handle errors during deletion and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = { _id: "sample_id" };
-
-      // Mock the response from InquiryModel remove method (throws error)
-      sinon.stub(inquire, "InquiryModel").returns({
-        remove: sinon.stub().throws(new Error("Database connection error")),
-      });
-
-      // Call the delete method
-      const response = await inquire.delete(tenant, filter);
-
-      // Verify the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "util server error",
-        error: "Database connection error",
-      });
+      expect(result).to.have.property("success", true);
     });
 
     it("should handle unsuccessful deletion and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = { _id: "sample_id" };
+      const removeStub = sinon.stub().resolves({ success: false, message: "Not found" });
+      rewireInquiry.__set__("InquiryModel", () => ({ remove: removeStub }));
+      rewireInquiry.__set__("generateFilter", { inquiry: sinon.stub().returns({}) });
+      const next = sinon.stub();
 
-      // Mock the response from InquiryModel remove method (failure)
-      const mockRemoveResponse = {
-        success: false,
-        message: "Error deleting inquiry",
-        error: "Invalid filter",
-      };
-      sinon.stub(inquire, "InquiryModel").returns({
-        remove: sinon.stub().resolves(mockRemoveResponse),
+      const result = await rewireInquiry.delete(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
+
+      expect(result).to.have.property("success", false);
+    });
+
+    it("should handle errors during deletion and call next with error", async () => {
+      rewireInquiry.__set__("generateFilter", {
+        inquiry: sinon.stub().throws(new Error("Filter error")),
       });
+      const next = sinon.stub();
 
-      // Call the delete method
-      const response = await inquire.delete(tenant, filter);
+      await rewireInquiry.delete(
+        { body: { tenant: "airqo" }, query: {}, params: {} },
+        next
+      );
 
-      // Verify the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Error deleting inquiry",
-        error: "Invalid filter",
-      });
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0]).to.be.instanceOf(Error);
     });
   });
 });

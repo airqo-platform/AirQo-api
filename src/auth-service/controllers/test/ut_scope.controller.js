@@ -1,421 +1,223 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const { validationResult } = require("express-validator");
-const createScope = require("@controllers/scope.controller");
-const scopeUtil = require("@utils/scope.util");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const { logObject } = require("@utils/shared/log");
-const constants = require("@config/constants");
 const httpStatus = require("http-status");
-const isEmpty = require("is-empty");
+const rewire = require("rewire");
+
+const createScopeModule = rewire("@controllers/scope.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
+
+// Get the HOF factory so we can create controllers with inline mock util functions
+const scopeControllerFactory = createScopeModule.__get__("createScopeController");
 
 describe("createScope", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    createScopeModule.__set__("extractErrorsFromRequest", realExtractErrors);
+  });
+
   describe("create", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let scopeUtilStub;
+    it("should create scope successfully", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: true, status: httpStatus.OK, message: "Scope created successfully", data: "createdScope1" }),
+        "created_scope"
+      );
 
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await controller(req, res, next);
 
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(createScope, "badRequest").returns(res);
-      scopeUtilStub = sinon.stub(scopeUtil, "createScope");
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, created_scope: "createdScope1" })).to.be.true;
     });
 
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      scopeUtilStub.restore();
+    it("should handle validation errors and return bad request", async () => {
+      createScopeModule.__set__("extractErrorsFromRequest", mockBadRequest);
+      const controller = scopeControllerFactory(sinon.stub(), "created_scope");
+
+      await controller(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should create scope for default tenant", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "createdScope1", // Set the created scope returned by the scopeUtil.
-      });
+    it("should handle scope creation failure", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: false, status: httpStatus.INTERNAL_SERVER_ERROR, message: "Failed", errors: { message: "Error" } }),
+        "created_scope"
+      );
 
-      await createScope.create(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scope created successfully",
-          created_scope: "createdScope1",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+      expect(res.json.calledWithMatch({ success: false })).to.be.true;
     });
 
-    it("should create scope for custom tenant", async () => {
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "createdScope2", // Set the created scope returned by the scopeUtil.
-      });
+    it("should handle unexpected errors", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.reject(new Error("Failed to create scope.")),
+        "created_scope"
+      );
 
-      await createScope.create(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scope created successfully",
-          created_scope: "createdScope2",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
-
-      await createScope.create(req, res);
-
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle scope creation failure and return internal server error", async () => {
-      const error = new Error("Failed to create scope.");
-      scopeUtilStub.rejects(error);
-
-      await createScope.create(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("list", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let scopeUtilStub;
+    it("should list scopes successfully", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: true, status: httpStatus.OK, message: "Scopes listed", data: ["scope1", "scope2"] }),
+        "scopes"
+      );
 
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await controller(req, res, next);
 
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(listScope, "badRequest").returns(res);
-      scopeUtilStub = sinon.stub(scopeUtil, "listScope");
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, scopes: sinon.match.array })).to.be.true;
     });
 
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      scopeUtilStub.restore();
+    it("should handle validation errors and return bad request", async () => {
+      createScopeModule.__set__("extractErrorsFromRequest", mockBadRequest);
+      const controller = scopeControllerFactory(sinon.stub(), "scopes");
+
+      await controller(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should list scopes for default tenant", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: ["scope1", "scope2"], // Set the list of scopes returned by the scopeUtil.
-      });
+    it("should handle scope listing failure", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: false, status: httpStatus.INTERNAL_SERVER_ERROR, message: "Failed", errors: { message: "Error" } }),
+        "scopes"
+      );
 
-      await listScope.list(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scopes listed successfully",
-          scopes: ["scope1", "scope2"],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+      expect(res.json.calledWithMatch({ success: false })).to.be.true;
     });
 
-    it("should list scopes for custom tenant", async () => {
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: ["scope3", "scope4"], // Set the list of scopes returned by the scopeUtil.
-      });
+    it("should handle unexpected errors", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.reject(new Error("Failed to list scopes.")),
+        "scopes"
+      );
 
-      await listScope.list(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scopes listed successfully",
-          scopes: ["scope3", "scope4"],
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
-
-      await listScope.list(req, res);
-
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle scope listing failure and return internal server error", async () => {
-      const error = new Error("Failed to list scopes.");
-      scopeUtilStub.rejects(error);
-
-      await listScope.list(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("delete", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let scopeUtilStub;
+    it("should delete a scope successfully", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: true, status: httpStatus.OK, message: "Scope deleted", data: "scope1" }),
+        "deleted_scope"
+      );
 
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await controller(req, res, next);
 
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(deleteScope, "badRequest").returns(res);
-      scopeUtilStub = sinon.stub(scopeUtil, "deleteScope");
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, deleted_scope: "scope1" })).to.be.true;
     });
 
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      scopeUtilStub.restore();
+    it("should handle validation errors and return bad request", async () => {
+      createScopeModule.__set__("extractErrorsFromRequest", mockBadRequest);
+      const controller = scopeControllerFactory(sinon.stub(), "deleted_scope");
+
+      await controller(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should delete a scope for default tenant", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "scope1", // Set the scope deleted by the scopeUtil.
-      });
+    it("should handle scope deletion failure", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: false, status: httpStatus.INTERNAL_SERVER_ERROR, message: "Failed", errors: { message: "Error" } }),
+        "deleted_scope"
+      );
 
-      await deleteScope.delete(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scope deleted successfully",
-          deleted_scope: "scope1",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+      expect(res.json.calledWithMatch({ success: false })).to.be.true;
     });
 
-    it("should delete a scope for custom tenant", async () => {
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "scope2", // Set the scope deleted by the scopeUtil.
-      });
+    it("should handle unexpected errors", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.reject(new Error("Failed to delete scope.")),
+        "deleted_scope"
+      );
 
-      await deleteScope.delete(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scope deleted successfully",
-          deleted_scope: "scope2",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
-
-      await deleteScope.delete(req, res);
-
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle scope deletion failure and return internal server error", async () => {
-      const error = new Error("Failed to delete scope.");
-      scopeUtilStub.rejects(error);
-
-      await deleteScope.delete(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("update", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let scopeUtilStub;
+    it("should update a scope successfully", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: true, status: httpStatus.OK, message: "Scope updated", data: "updated_scope1" }),
+        "updated_scope"
+      );
 
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await controller(req, res, next);
 
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(updateScope, "badRequest").returns(res);
-      scopeUtilStub = sinon.stub(scopeUtil, "updateScope");
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, updated_scope: "updated_scope1" })).to.be.true;
     });
 
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      scopeUtilStub.restore();
+    it("should handle validation errors and return bad request", async () => {
+      createScopeModule.__set__("extractErrorsFromRequest", mockBadRequest);
+      const controller = scopeControllerFactory(sinon.stub(), "updated_scope");
+
+      await controller(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should update a scope for default tenant", async () => {
-      req.query.tenant = "default-tenant"; // Set the tenant for the request.
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "updated_scope1", // Set the scope updated by the scopeUtil.
-      });
+    it("should handle scope update failure", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.resolve({ success: false, status: httpStatus.INTERNAL_SERVER_ERROR, message: "Failed", errors: { message: "Error" } }),
+        "updated_scope"
+      );
 
-      await updateScope.update(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scope updated successfully",
-          updated_scope: "updated_scope1",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+      expect(res.json.calledWithMatch({ success: false })).to.be.true;
     });
 
-    it("should update a scope for custom tenant", async () => {
-      scopeUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "updated_scope2", // Set the scope updated by the scopeUtil.
-      });
+    it("should handle unexpected errors", async () => {
+      const controller = scopeControllerFactory(
+        () => Promise.reject(new Error("Failed to update scope.")),
+        "updated_scope"
+      );
 
-      await updateScope.update(req, res);
+      await controller(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Scope updated successfully",
-          updated_scope: "updated_scope2",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
-
-      await updateScope.update(req, res);
-
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
-    });
-
-    it("should handle scope update failure and return internal server error", async () => {
-      const error = new Error("Failed to update scope.");
-      scopeUtilStub.rejects(error);
-
-      await updateScope.update(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

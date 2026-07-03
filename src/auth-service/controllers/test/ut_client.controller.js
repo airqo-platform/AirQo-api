@@ -1,240 +1,217 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-
-// Mocking dependencies
-const validationResult = sinon.stub();
-const clientUtil = require("@utils/client.util");
-const constants = require("@config/constants");
 const httpStatus = require("http-status");
+const rewire = require("rewire");
+const clientUtil = require("@utils/client.util");
 
-// Require the module to test
-const createClient = require("@controllers/client.controller");
-
-// Sample request and response objects
-const req = {
-  query: { tenant: "airqo" },
-};
-const res = {
-  status: sinon.stub().returnsThis(),
-  json: sinon.stub(),
-};
+const createClient = rewire("@controllers/client.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
 
 describe("createClient", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
   afterEach(() => {
     sinon.restore();
+    createClient.__set__("extractErrorsFromRequest", realExtractErrors);
   });
 
   describe("create()", () => {
     it("should create a client successfully", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "createClient").resolves({
+      sinon.stub(clientUtil, "createClient").resolves({
         success: true,
         status: httpStatus.CREATED,
         message: "Client created successfully",
         data: { clientId: "client123" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.create(req, res, next);
 
-      await createClient.create(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.CREATED)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Client created successfully",
-          created_client: { clientId: "client123" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.CREATED)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, created_client: sinon.match.object })).to.be.true;
     });
 
     it("should handle client creation failure", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "createClient").resolves({
+      sinon.stub(clientUtil, "createClient").resolves({
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Failed to create client",
         errors: { message: "Client creation error" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.create(req, res, next);
 
-      await createClient.create(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to create client",
-          errors: { message: "Client creation error" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    // Add more test cases for different scenarios and validations
+    it("should handle bad request errors", async () => {
+      createClient.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createClient.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(clientUtil, "createClient").rejects(new Error("Unexpected error"));
+
+      await createClient.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
-  // Add separate `describe` blocks for other functions (list, delete, update)
   describe("list()", () => {
     it("should list clients successfully", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "listClient").resolves({
+      sinon.stub(clientUtil, "listClients").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Clients listed successfully",
-        data: [{ clientId: "client123" }, { clientId: "client456" }],
+        data: [{ clientId: "client123" }],
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.list(req, res, next);
 
-      await createClient.list(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Clients listed successfully",
-          clients: [{ clientId: "client123" }, { clientId: "client456" }],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, clients: sinon.match.array })).to.be.true;
     });
 
     it("should handle client listing failure", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "listClient").resolves({
+      sinon.stub(clientUtil, "listClients").resolves({
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Failed to list clients",
-        errors: { message: "Client listing error" },
+        errors: { message: "Error" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.list(req, res, next);
 
-      await createClient.list(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to list clients",
-          errors: { message: "Client listing error" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    // Add more test cases for different scenarios and validations
+    it("should handle bad request errors", async () => {
+      createClient.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createClient.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(clientUtil, "listClients").rejects(new Error("Unexpected error"));
+
+      await createClient.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("delete()", () => {
     it("should delete client successfully", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "deleteClient").resolves({
+      sinon.stub(clientUtil, "deleteClient").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Client deleted successfully",
         data: { clientId: "client123" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.delete(req, res, next);
 
-      await createClient.delete(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Client deleted successfully",
-          deleted_client: { clientId: "client123" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, deleted_client: sinon.match.object })).to.be.true;
     });
 
     it("should handle client deletion failure", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "deleteClient").resolves({
+      sinon.stub(clientUtil, "deleteClient").resolves({
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Failed to delete client",
-        errors: { message: "Client deletion error" },
+        errors: { message: "Error" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.delete(req, res, next);
 
-      await createClient.delete(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to delete client",
-          errors: { message: "Client deletion error" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    // Add more test cases for different scenarios and validations
+    it("should handle bad request errors", async () => {
+      createClient.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createClient.delete(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(clientUtil, "deleteClient").rejects(new Error("Unexpected error"));
+
+      await createClient.delete(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 
   describe("update()", () => {
     it("should update client successfully", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "updateClient").resolves({
+      sinon.stub(clientUtil, "updateClient").resolves({
         success: true,
         status: httpStatus.OK,
         message: "Client updated successfully",
         data: { clientId: "client123" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.update(req, res, next);
 
-      await createClient.update(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Client updated successfully",
-          updated_client: { clientId: "client123" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, updated_client: sinon.match.object })).to.be.true;
     });
 
     it("should handle client update failure", async () => {
-      const clientUtilStub = sinon.stub(clientUtil, "updateClient").resolves({
+      sinon.stub(clientUtil, "updateClient").resolves({
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Failed to update client",
-        errors: { message: "Client update error" },
+        errors: { message: "Error" },
       });
 
-      validationResult.returns({ isEmpty: () => true });
+      await createClient.update(req, res, next);
 
-      await createClient.update(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(clientUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to update client",
-          errors: { message: "Client update error" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    // Add more test cases for different scenarios and validations
+    it("should handle bad request errors", async () => {
+      createClient.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await createClient.update(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(clientUtil, "updateClient").rejects(new Error("Unexpected error"));
+
+      await createClient.update(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
   });
 });

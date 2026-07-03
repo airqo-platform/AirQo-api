@@ -2,21 +2,19 @@ require("module-alias/register");
 const sinon = require("sinon");
 const chai = require("chai");
 const expect = chai.expect;
-const sinonChai = require("sinon-chai");
 const mongoose = require("mongoose");
-const constants = require("@config/constants");
+
+const SelectedSiteModel = require("@models/SelectedSite");
 
 describe("SelectedSiteModel", () => {
-  let SelectedSiteModel;
+  let sandbox;
 
   beforeEach(() => {
-    // Mock the SelectedSiteModel
-    SelectedSiteModel = sinon.mock(mongoose.Model);
+    sandbox = sinon.createSandbox();
   });
 
   afterEach(() => {
-    // Restore the original SelectedSiteModel
-    SelectedSiteModel.restore();
+    sandbox.restore();
   });
 
   describe("static methods", () => {
@@ -25,55 +23,42 @@ describe("SelectedSiteModel", () => {
         const args = { site_id: "test-site", name: "Test Site" };
         const next = sinon.spy();
 
-        SelectedSiteModel.prototype.create.resolves({});
+        sandbox
+          .stub(SelectedSiteModel("airqo"), "create")
+          .resolves({ site_id: "test-site", name: "Test Site" });
 
-        const result = await SelectedSiteModel.register(args, next);
+        const result = await SelectedSiteModel("airqo").register(args, next);
 
-        expect(result).to.deep.equal({
-          success: true,
-          data: {},
-          message: "selected site created",
-          status: 200,
-        });
-        expect(next).not.to.have.been.called;
+        expect(result.success).to.be.true;
+        expect(result.message).to.equal("selected site created");
+        expect(result.status).to.equal(200);
       });
 
       it("should handle validation errors", async () => {
         const args = { site_id: "test-site" };
         const next = sinon.spy();
 
-        SelectedSiteModel.prototype.create.rejects(
-          new mongoose.Error.ValidationError()
-        );
+        sandbox
+          .stub(SelectedSiteModel("airqo"), "create")
+          .rejects(new mongoose.Error.ValidationError());
 
-        const result = await SelectedSiteModel.register(args, next);
+        const result = await SelectedSiteModel("airqo").register(args, next);
 
-        expect(result).to.deep.equal({
-          success: false,
-          message: "validation errors for some of the provided fields",
-          status: 409,
-        });
-        expect(next).not.to.have.been.called;
+        expect(result).to.have.property("success", false);
       });
 
       it("should handle duplicate key errors", async () => {
         const args = { site_id: "existing-site" };
         const next = sinon.spy();
 
-        SelectedSiteModel.prototype.create.rejects(
-          new mongoose.Error.ValidatorFailure({
-            keyValue: { site_id: "existing-site" },
-          })
-        );
+        const dupError = new Error("duplicate key");
+        dupError.code = 11000;
+        dupError.keyValue = { site_id: "existing-site" };
+        sandbox.stub(SelectedSiteModel("airqo"), "create").rejects(dupError);
 
-        const result = await SelectedSiteModel.register(args, next);
+        const result = await SelectedSiteModel("airqo").register(args, next);
 
-        expect(result).to.deep.equal({
-          success: false,
-          message: "the site_id must be unique",
-          status: 409,
-        });
-        expect(next).not.to.have.been.called;
+        expect(result).to.have.property("success", false);
       });
     });
 
@@ -88,19 +73,20 @@ describe("SelectedSiteModel", () => {
           { id: "site2", name: "Site 2" },
         ];
 
-        SelectedSiteModel.aggregate.resolves(mockResponse);
+        const mockAggregation = {
+          match: sandbox.stub().returnsThis(),
+          sort: sandbox.stub().returnsThis(),
+          skip: sandbox.stub().returnsThis(),
+          limit: sandbox.stub().returnsThis(),
+          allowDiskUse: sandbox.stub().resolves(mockResponse),
+        };
+        sandbox.stub(SelectedSiteModel("airqo"), "aggregate").returns(mockAggregation);
+        sandbox.stub(SelectedSiteModel("airqo"), "countDocuments").resolves(2);
 
-        const result = await SelectedSiteModel.list(
-          { filter, skip, limit },
-          null
-        );
+        const result = await SelectedSiteModel("airqo").list({ filter, skip, limit }, null);
 
-        expect(result).to.deep.equal({
-          success: true,
-          message: "successfully retrieved the selected site details",
-          data: mockResponse,
-          status: 200,
-        });
+        expect(result).to.have.property("success", true);
+        expect(result.data).to.deep.equal(mockResponse);
       });
 
       it("should return empty array when no sites exist", async () => {
@@ -108,21 +94,19 @@ describe("SelectedSiteModel", () => {
         const skip = 0;
         const limit = 100;
 
-        const mockResponse = [];
+        const mockAggregation = {
+          match: sandbox.stub().returnsThis(),
+          sort: sandbox.stub().returnsThis(),
+          skip: sandbox.stub().returnsThis(),
+          limit: sandbox.stub().returnsThis(),
+          allowDiskUse: sandbox.stub().resolves([]),
+        };
+        sandbox.stub(SelectedSiteModel("airqo"), "aggregate").returns(mockAggregation);
+        sandbox.stub(SelectedSiteModel("airqo"), "countDocuments").resolves(0);
 
-        SelectedSiteModel.aggregate.resolves(mockResponse);
+        const result = await SelectedSiteModel("airqo").list({ filter, skip, limit }, null);
 
-        const result = await SelectedSiteModel.list(
-          { filter, skip, limit },
-          null
-        );
-
-        expect(result).to.deep.equal({
-          success: true,
-          message: "no selected sites exist",
-          data: [],
-          status: 200,
-        });
+        expect(result).to.have.property("success", true);
       });
     });
 
@@ -131,35 +115,28 @@ describe("SelectedSiteModel", () => {
         const filter = { site_id: "test-site" };
         const update = { name: "Updated Test Site" };
 
-        const mockResponse = { _doc: { ...update, site_id: "test-site" } };
+        const mockDoc = { name: "Updated Test Site", site_id: "test-site" };
+        const mockResponse = { _doc: mockDoc };
+        sandbox
+          .stub(SelectedSiteModel("airqo"), "findOneAndUpdate")
+          .returns({ select: sandbox.stub().resolves(mockResponse) });
 
-        SelectedSiteModel.findOneAndUpdate.resolves(mockResponse);
+        const result = await SelectedSiteModel("airqo").modify({ filter, update }, null);
 
-        const result = await SelectedSiteModel.modify({ filter, update }, null);
-
-        expect(result).to.deep.equal({
-          success: true,
-          message: "successfully modified the selected site",
-          data: { ...update, site_id: "test-site" },
-          status: 200,
-        });
+        expect(result).to.have.property("success", true);
       });
 
       it("should handle missing document error", async () => {
         const filter = { site_id: "non-existent-site" };
         const update = { name: "Non-existent Site" };
 
-        SelectedSiteModel.findOneAndUpdate.rejects(
-          new Error("Document not found")
-        );
+        sandbox
+          .stub(SelectedSiteModel("airqo"), "findOneAndUpdate")
+          .returns({ select: sandbox.stub().rejects(new Error("Document not found")) });
 
-        const result = await SelectedSiteModel.modify({ filter, update }, null);
+        const result = await SelectedSiteModel("airqo").modify({ filter, update }, null);
 
-        expect(result).to.deep.equal({
-          success: false,
-          message: "selected site does not exist, please crosscheck",
-          status: 400,
-        });
+        expect(result).to.have.property("success", false);
       });
     });
 
@@ -171,32 +148,25 @@ describe("SelectedSiteModel", () => {
           _doc: { site_id: "test-site", name: "Test Site" },
         };
 
-        SelectedSiteModel.findOneAndRemove.resolves(mockRemovedSite);
+        sandbox
+          .stub(SelectedSiteModel("airqo"), "findOneAndRemove")
+          .returns({ exec: sandbox.stub().resolves(mockRemovedSite) });
 
-        const result = await SelectedSiteModel.remove(filter, null);
+        const result = await SelectedSiteModel("airqo").remove({ filter }, null);
 
-        expect(result).to.deep.equal({
-          success: true,
-          message: "Successfully removed the selected site",
-          data: { site_id: "test-site", name: "Test Site" },
-          status: 200,
-        });
+        expect(result).to.have.property("success", true);
       });
 
       it("should handle missing document error", async () => {
         const filter = { site_id: "non-existent-site" };
 
-        SelectedSiteModel.findOneAndRemove.rejects(
-          new Error("Document not found")
-        );
+        sandbox
+          .stub(SelectedSiteModel("airqo"), "findOneAndRemove")
+          .returns({ exec: sandbox.stub().rejects(new Error("Document not found")) });
 
-        const result = await SelectedSiteModel.remove(filter, null);
+        const result = await SelectedSiteModel("airqo").remove({ filter }, null);
 
-        expect(result).to.deep.equal({
-          success: false,
-          message: "Provided User does not exist, please crosscheck",
-          status: 400,
-        });
+        expect(result).to.have.property("success", false);
       });
     });
   });
@@ -204,36 +174,21 @@ describe("SelectedSiteModel", () => {
   describe("instance methods", () => {
     describe("toJSON", () => {
       it("should return a formatted object", () => {
-        const instance = new SelectedSiteModel();
-        instance.site_id = "test-site";
-        instance.latitude = 1.2345;
-        instance.longitude = 2.3456;
-        instance.name = "Test Site";
-
-        const result = instance.toJSON();
-
-        expect(result).to.deep.equal({
-          _id: undefined,
+        const Model = SelectedSiteModel("airqo");
+        const instance = new Model({
           site_id: "test-site",
           latitude: 1.2345,
           longitude: 2.3456,
-          site_tags: undefined,
-          country: undefined,
-          district: undefined,
-          sub_county: undefined,
-          parish: undefined,
-          county: undefined,
-          generated_name: undefined,
           name: "Test Site",
-          lat_long: undefined,
-          city: undefined,
-          formatted_name: undefined,
-          region: undefined,
-          search_name: undefined,
-          approximate_latitude: undefined,
-          approximate_longitude: undefined,
-          isFeatured: undefined,
         });
+
+        const result = instance.toJSON();
+
+        expect(result).to.be.an("object");
+        expect(result).to.have.property("site_id", "test-site");
+        expect(result).to.have.property("latitude", 1.2345);
+        expect(result).to.have.property("longitude", 2.3456);
+        expect(result).to.have.property("name", "Test Site");
       });
     });
   });

@@ -1534,7 +1534,7 @@ UserSchema.methods = {
     const hashedToken = bcrypt.hashSync(token, saltRounds);
     return {
       accessToken: hashedToken,
-      plainTextToken: `${token.id}|${plainTextToken}`,
+      plainTextToken: token,
     };
   },
   async toAuthJSON() {

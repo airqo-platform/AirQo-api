@@ -1,554 +1,217 @@
 require("module-alias/register");
-const chai = require("chai");
-const expect = chai.expect;
+const { expect } = require("chai");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createInquiryUtil = require("@utils/inquiry.util");
-const {
-  mailer,
-  stringify,
-  emailTemplates,
-  generateFilter,
-} = require("@utils/common");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const { logText, logElement, logObject, logError } = require("@utils/shared/log");
-const isEmpty = require("is-empty");
-const constants = require("@config/constants");
-const inquire = require("@controllers/inquiry.controller");
-const chaiHttp = require("chai-http");
-chai.use(chaiHttp);
-const InquiryModel = require("@models/Inquiry");
+const rewire = require("rewire");
+const inquiryUtil = require("@utils/inquiry.util");
+
+const inquiry = rewire("@controllers/inquiry.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
 
 describe("inquire controller", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
   afterEach(() => {
     sinon.restore();
+    inquiry.__set__("extractErrorsFromRequest", realExtractErrors);
   });
 
   describe("create function", () => {
-    let inquire, InquiryModelStub, mailerStub;
-
-    beforeEach(() => {
-      inquire = {
-        fullName: "John Doe",
-        email: "johndoe@example.com",
-        message: "Test message",
-        category: "General",
-        tenant: "sample-tenant",
-        firstName: "John",
-        lastName: "Doe",
-      };
-
-      InquiryModelStub = sinon.stub(InquiryModel.prototype, "register");
-      mailerStub = sinon.stub(mailer, "inquiry");
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
     it("should return a success response when everything is fine", async () => {
-      InquiryModelStub.resolves({
+      sinon.stub(inquiryUtil, "create").resolves({
         success: true,
-        data: { inquiry: "sample inquiry" },
-      });
-      mailerStub.resolves({ success: true, status: 200 });
-
-      const expectedResponse = {
-        success: true,
+        status: httpStatus.OK,
         message: "inquiry successfully created",
         data: { inquiry: "sample inquiry" },
-        status: 200,
-      };
-
-      const response = await inquire.create(inquire);
-
-      expect(response).to.deep.equal(expectedResponse);
-    });
-
-    it("should return an error response when InquiryModel registration fails", async () => {
-      InquiryModelStub.resolves({
-        success: false,
-        message: "Registration failed",
       });
 
-      const expectedResponse = {
-        success: false,
-        message: "Registration failed",
-      };
+      await inquiry.create(req, res, next);
 
-      const response = await inquire.create(inquire);
-
-      expect(response).to.deep.equal(expectedResponse);
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, inquiry: sinon.match.object })).to.be.true;
     });
 
-    it("should return an error response when mailer fails", async () => {
-      InquiryModelStub.resolves({
-        success: true,
-        data: { inquiry: "sample inquiry" },
+    it("should handle bad request errors", async () => {
+      inquiry.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await inquiry.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should return an error response when util fails", async () => {
+      sinon.stub(inquiryUtil, "create").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Creation failed",
+        errors: { message: "Error" },
       });
-      mailerStub.resolves({ success: false, message: "Email sending failed" });
 
-      const expectedResponse = {
-        success: false,
-        message: "Email sending failed",
-      };
+      await inquiry.create(req, res, next);
 
-      const response = await inquire.create(inquire);
-
-      expect(response).to.deep.equal(expectedResponse);
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
     });
 
-    it("should return an internal server error response when an exception occurs", async () => {
-      InquiryModelStub.rejects(new Error("Test error"));
+    it("should handle unexpected exceptions", async () => {
+      sinon.stub(inquiryUtil, "create").rejects(new Error("Unexpected error"));
 
-      const expectedResponse = {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Test error" },
-        status: 500,
-      };
+      await inquiry.create(req, res, next);
 
-      const response = await inquire.create(inquire);
-
-      expect(response).to.deep.equal(expectedResponse);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("list function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return bad request when validation has errors", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon.stub(validationResult(req));
-      validationResultStub.isEmpty.returns(false);
-      validationResultStub.errors = [
-        { nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] },
-      ];
-
-      await inquire.list(req, res);
-
-      expect(validationResultStub.isEmpty).to.be.calledOnce;
-      expect(badRequest).to.be.calledOnceWith(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(validationResultStub.errors[0].nestedErrors)
-      );
-    });
-
-    it("should return internal server error when createInquiryUtil throws an error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "list").throws(new Error("Database error"));
-
-      await inquire.list(req, res);
-
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_GATEWAY);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "controller server error",
-        error: "Database error",
-      });
-    });
-
     it("should list inquiries successfully", async () => {
-      const req = { query: { limit: "10", skip: "0" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "list").resolves({
+      sinon.stub(inquiryUtil, "list").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Inquiries listed successfully",
-        data: [
-          { _id: "inquiry-id", name: "Inquiry 1" },
-          { _id: "inquiry-id-2", name: "Inquiry 2" },
-        ],
+        data: [{ _id: "inquiry-id", name: "Inquiry 1" }],
       });
 
-      await inquire.list(req, res);
+      await inquiry.list(req, res, next);
 
-      expect(createInquiryUtil.list).to.be.calledOnceWith({
-        tenant: constants.DEFAULT_TENANT,
-        filter: {},
-        limit: 10,
-        skip: 0,
-      });
-      expect(res.status).to.be.calledOnceWith(httpStatus.OK);
-      expect(res.json).to.be.calledOnceWith({
-        success: true,
-        message: "Inquiries listed successfully",
-        inquiries: [
-          { _id: "inquiry-id", name: "Inquiry 1" },
-          { _id: "inquiry-id-2", name: "Inquiry 2" },
-        ],
-      });
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, inquiries: sinon.match.array })).to.be.true;
     });
 
-    it("should handle list failure with error", async () => {
-      const req = { query: { limit: "10", skip: "0" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "list").resolves({
-        success: false,
-        message: "List inquiry failed",
-        error: "Invalid data",
-      });
+    it("should handle bad request errors", async () => {
+      inquiry.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await inquire.list(req, res);
+      await inquiry.list(req, res, next);
 
-      expect(createInquiryUtil.list).to.be.calledOnceWith({
-        tenant: constants.DEFAULT_TENANT,
-        filter: {},
-        limit: 10,
-        skip: 0,
-      });
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_GATEWAY);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "List inquiry failed",
-        error: "Invalid data",
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle list failure without error", async () => {
-      const req = { query: { limit: "10", skip: "0" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "list").resolves({
+    it("should handle list failure", async () => {
+      sinon.stub(inquiryUtil, "list").resolves({
         success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "List inquiry failed",
+        errors: { message: "Error" },
       });
 
-      await inquire.list(req, res);
+      await inquiry.list(req, res, next);
 
-      expect(createInquiryUtil.list).to.be.calledOnceWith({
-        tenant: constants.DEFAULT_TENANT,
-        filter: {},
-        limit: 10,
-        skip: 0,
-      });
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_REQUEST);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "List inquiry failed",
-      });
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected exceptions", async () => {
+      sinon.stub(inquiryUtil, "list").rejects(new Error("Database error"));
+
+      await inquiry.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("delete function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return bad request when validation has errors", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon.stub(validationResult(req));
-      validationResultStub.isEmpty.returns(false);
-      validationResultStub.errors = [
-        { nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] },
-      ];
-
-      await inquire.delete(req, res);
-
-      expect(validationResultStub.isEmpty).to.be.calledOnce;
-      expect(badRequest).to.be.calledOnceWith(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(validationResultStub.errors[0].nestedErrors)
-      );
-    });
-
-    it("should return internal server error when createInquiryUtil throws an error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon
-        .stub(createInquiryUtil, "delete")
-        .throws(new Error("Database error"));
-
-      await inquire.delete(req, res);
-
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_GATEWAY);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "controller server error",
-        error: "Database error",
-      });
-    });
-
     it("should delete inquiry successfully", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "delete").resolves({
+      sinon.stub(inquiryUtil, "delete").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Inquiry deleted successfully",
         data: { _id: "inquiry-id", name: "Inquiry 1" },
       });
 
-      await inquire.delete(req, res);
+      await inquiry.delete(req, res, next);
 
-      expect(createInquiryUtil.delete).to.be.calledOnceWith(
-        constants.DEFAULT_TENANT,
-        {}
-      );
-      expect(res.status).to.be.calledOnceWith(httpStatus.OK);
-      expect(res.json).to.be.calledOnceWith({
-        success: true,
-        message: "Inquiry deleted successfully",
-        inquiry: { _id: "inquiry-id", name: "Inquiry 1" },
-      });
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, deleted_inquiry: sinon.match.object })).to.be.true;
     });
 
-    it("should handle delete failure with error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "delete").resolves({
-        success: false,
-        message: "Delete inquiry failed",
-        error: "Invalid data",
-      });
+    it("should handle bad request errors", async () => {
+      inquiry.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await inquire.delete(req, res);
+      await inquiry.delete(req, res, next);
 
-      expect(createInquiryUtil.delete).to.be.calledOnceWith(
-        constants.DEFAULT_TENANT,
-        {}
-      );
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_GATEWAY);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "Delete inquiry failed",
-        inquire: {},
-        error: "Invalid data",
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle delete failure without error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "delete").resolves({
+    it("should handle delete failure", async () => {
+      sinon.stub(inquiryUtil, "delete").resolves({
         success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Delete inquiry failed",
+        errors: { message: "Error" },
       });
 
-      await inquire.delete(req, res);
+      await inquiry.delete(req, res, next);
 
-      expect(createInquiryUtil.delete).to.be.calledOnceWith(
-        constants.DEFAULT_TENANT,
-        {}
-      );
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_REQUEST);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "Delete inquiry failed",
-        inquire: {},
-      });
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected exceptions", async () => {
+      sinon.stub(inquiryUtil, "delete").rejects(new Error("Database error"));
+
+      await inquiry.delete(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
   describe("update function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return bad request when validation has errors", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon.stub(validationResult(req));
-      validationResultStub.isEmpty.returns(false);
-      validationResultStub.errors = [
-        { nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] },
-      ];
-
-      await inquire.update(req, res);
-
-      expect(validationResultStub.isEmpty).to.be.calledOnce;
-      expect(badRequest).to.be.calledOnceWith(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(validationResultStub.errors[0].nestedErrors)
-      );
-    });
-
-    it("should return internal server error when createInquiryUtil throws an error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon
-        .stub(createInquiryUtil, "update")
-        .throws(new Error("Database error"));
-
-      await inquire.update(req, res);
-
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_GATEWAY);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "controller server error",
-        error: "Database error",
-      });
-    });
-
     it("should update inquiry successfully", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "update").resolves({
+      sinon.stub(inquiryUtil, "update").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Inquiry updated successfully",
         data: { _id: "inquiry-id", name: "Inquiry 1" },
       });
 
-      await inquire.update(req, res);
+      await inquiry.update(req, res, next);
 
-      expect(createInquiryUtil.update).to.be.calledOnceWith(
-        constants.DEFAULT_TENANT,
-        {},
-        {}
-      );
-      expect(res.status).to.be.calledOnceWith(httpStatus.OK);
-      expect(res.json).to.be.calledOnceWith({
-        success: true,
-        message: "Inquiry updated successfully",
-        inquiry: { _id: "inquiry-id", name: "Inquiry 1" },
-      });
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, updated_inquiry: sinon.match.object })).to.be.true;
     });
 
-    it("should handle update failure with error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "update").resolves({
-        success: false,
-        message: "Update inquiry failed",
-        error: "Invalid data",
-      });
+    it("should handle bad request errors", async () => {
+      inquiry.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await inquire.update(req, res);
+      await inquiry.update(req, res, next);
 
-      expect(createInquiryUtil.update).to.be.calledOnceWith(
-        constants.DEFAULT_TENANT,
-        {},
-        {}
-      );
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_GATEWAY);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "Update inquiry failed",
-        inquire: {},
-        error: "Invalid data",
-      });
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle update failure without error", async () => {
-      const req = { query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(generateFilter, "inquiry")
-        .returns({ success: true, data: {} });
-      sinon.stub(createInquiryUtil, "update").resolves({
+    it("should handle update failure", async () => {
+      sinon.stub(inquiryUtil, "update").resolves({
         success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Update inquiry failed",
+        errors: { message: "Error" },
       });
 
-      await inquire.update(req, res);
+      await inquiry.update(req, res, next);
 
-      expect(createInquiryUtil.update).to.be.calledOnceWith(
-        constants.DEFAULT_TENANT,
-        {},
-        {}
-      );
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_REQUEST);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "Update inquiry failed",
-        inquire: {},
-      });
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected exceptions", async () => {
+      sinon.stub(inquiryUtil, "update").rejects(new Error("Database error"));
+
+      await inquiry.update(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

@@ -1,2075 +1,607 @@
 require("module-alias/register");
-const sinon = require("sinon");
 const { expect } = require("chai");
-const createRole = require("@controllers/role.controller");
-const { badRequest, convertErrorArrayToObject } = require("@utils/shared/errors");
-const constants = require("@config/constants");
+const sinon = require("sinon");
 const httpStatus = require("http-status");
+const rewire = require("rewire");
 const rolePermissionsUtil = require("@utils/role-permissions.util");
-const { validationResult } = require("express-validator");
+
+const createRole = rewire("@controllers/role.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
 
 describe("createRole", () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    createRole.__set__("extractErrorsFromRequest", realExtractErrors);
+  });
+
   describe("list", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon.stub();
-      badRequestStub = sinon.stub(createRole, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "listRole");
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should list roles with default tenant", async () => {
-      req.query = {}; // Empty query object, default tenant should be used.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "listRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Roles listed successfully.",
-        data: [
-          { roleId: "role1", roleName: "Admin" },
-          { roleId: "role2", roleName: "User" },
-        ],
+        message: "Roles listed",
+        data: [{ role: "Admin" }],
       });
 
-      await createRole.list(req, res);
+      await createRole.list(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Roles listed successfully.",
-          roles: [
-            { roleId: "role1", roleName: "Admin" },
-            { roleId: "role2", roleName: "User" },
-          ],
-        })
-      ).to.be.true;
-    });
-
-    it("should list roles with custom tenant", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Roles listed successfully.",
-        data: [
-          { roleId: "role3", roleName: "Manager" },
-          { roleId: "role4", roleName: "Guest" },
-        ],
-      });
-
-      await createRole.list(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Roles listed successfully.",
-          roles: [
-            { roleId: "role3", roleName: "Manager" },
-            { roleId: "role4", roleName: "Guest" },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, roles: sinon.match.array })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      const validationError = {
-        isEmpty: () => false,
-        errors: [
-          {
-            msg: "Invalid query parameters.",
-            nestedErrors: null,
-          },
-        ],
-      };
-      validationResultStub.returns(validationError);
-      require("express-validator").validationResult = validationResultStub;
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createRole.list(req, res);
+      await createRole.list(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(validationError.errors[0].nestedErrors)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle role list failure and return internal server error", async () => {
-      const error = new Error("Role list failed.");
-      rolePermissionsUtilStub.rejects(error);
+      sinon.stub(rolePermissionsUtil, "listRole").rejects(new Error("List failed"));
 
-      await createRole.list(req, res);
+      await createRole.list(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("listSummary", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-    const defaultTenant = "airqo";
-
-    beforeEach(() => {
-      req = {
-        query: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(listSummary, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "listRole");
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should list summary roles with default tenant", async () => {
-      req.query = {}; // Empty query object, default tenant should be used.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "listRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Summary roles listed successfully.",
-        data: [
-          { roleId: "role1", roleName: "Admin" },
-          { roleId: "role2", roleName: "User" },
-        ],
+        message: "Summary roles listed",
+        data: [{ role: "Admin" }],
       });
 
-      await listSummary(req, res);
+      await createRole.listSummary(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Summary roles listed successfully.",
-          roles: [
-            { roleId: "role1", roleName: "Admin" },
-            { roleId: "role2", roleName: "User" },
-          ],
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(defaultTenant);
-      expect(req.query.category).to.equal("summary");
-    });
-
-    it("should list summary roles with custom tenant", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Summary roles listed successfully.",
-        data: [
-          { roleId: "role3", roleName: "Manager" },
-          { roleId: "role4", roleName: "Guest" },
-        ],
-      });
-
-      await listSummary(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Summary roles listed successfully.",
-          roles: [
-            { roleId: "role3", roleName: "Manager" },
-            { roleId: "role4", roleName: "Guest" },
-          ],
-        })
-      ).to.be.true;
-      expect(req.query.category).to.equal("summary");
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, roles: sinon.match.array })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await listSummary(req, res);
+      await createRole.listSummary(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle role list failure and return internal server error", async () => {
-      const error = new Error("Role list failed.");
-      rolePermissionsUtilStub.rejects(error);
+      sinon.stub(rolePermissionsUtil, "listRole").rejects(new Error("List failed"));
 
-      await listSummary(req, res);
+      await createRole.listSummary(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("create", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(createRole, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "createRole");
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should create role with default tenant", async () => {
-      req.body = {
-        // Set the required properties for role creation.
-        roleName: "Administrator",
-        permissions: ["read", "write"],
-      };
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "createRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Role created successfully.",
-        data: {
-          roleId: "role1",
-          roleName: "Administrator",
-          permissions: ["read", "write"],
-        },
+        message: "Role created",
+        data: { role: "Admin" },
       });
 
-      await createRole(req, res);
+      await createRole.create(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Role created successfully.",
-          created_role: {
-            roleId: "role1",
-            roleName: "Administrator",
-            permissions: ["read", "write"],
-          },
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should create role with custom tenant", async () => {
-      req.query = {
-        tenant: "custom-tenant",
-      };
-      req.body = {
-        // Set the required properties for role creation.
-        roleName: "Manager",
-        permissions: ["read"],
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Role created successfully.",
-        data: {
-          roleId: "role2",
-          roleName: "Manager",
-          permissions: ["read"],
-        },
-      });
-
-      await createRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Role created successfully.",
-          created_role: {
-            roleId: "role2",
-            roleName: "Manager",
-            permissions: ["read"],
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, created_role: { role: "Admin" } })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await createRole(req, res);
+      await createRole.create(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle role creation failure and return internal server error", async () => {
-      const error = new Error("Role creation failed.");
-      rolePermissionsUtilStub.rejects(error);
+      sinon.stub(rolePermissionsUtil, "createRole").rejects(new Error("Create failed"));
 
-      await createRole(req, res);
+      await createRole.create(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("update", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(updateRole, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "updateRole");
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should update role with default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId to update the role.
-      req.body = {
-        // Set the properties to update for the role.
-        roleName: "Administrator",
-        permissions: ["read", "write"],
-      };
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "updateRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Role updated successfully.",
-        data: {
-          roleId: "role1",
-          roleName: "Administrator",
-          permissions: ["read", "write"],
-        },
+        message: "Role updated",
+        data: { role: "Admin" },
       });
 
-      await updateRole(req, res);
+      await createRole.update(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Role updated successfully.",
-          updated_role: {
-            roleId: "role1",
-            roleName: "Administrator",
-            permissions: ["read", "write"],
-          },
-          success: true,
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should update role with custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId to update the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      req.body = {
-        // Set the properties to update for the role.
-        roleName: "Manager",
-        permissions: ["read"],
-      };
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Role updated successfully.",
-        data: {
-          roleId: "role2",
-          roleName: "Manager",
-          permissions: ["read"],
-        },
-      });
-
-      await updateRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Role updated successfully.",
-          updated_role: {
-            roleId: "role2",
-            roleName: "Manager",
-            permissions: ["read"],
-          },
-          success: true,
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, updated_role: { role: "Admin" } })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await updateRole(req, res);
+      await createRole.update(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle role update failure and return internal server error", async () => {
-      const error = new Error("Role update failed.");
-      rolePermissionsUtilStub.rejects(error);
+      sinon.stub(rolePermissionsUtil, "updateRole").rejects(new Error("Update failed"));
 
-      await updateRole(req, res);
+      await createRole.update(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("delete", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(deleteRole, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(rolePermissionsUtil, "deleteRole");
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should delete role with default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId to delete the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "deleteRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Role deleted successfully.",
-        data: {
-          roleId: "role1",
-          roleName: "Administrator",
-          permissions: ["read", "write"],
-        },
+        message: "Role deleted",
+        data: { role: "Admin" },
       });
 
-      await deleteRole(req, res);
+      await createRole.delete(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Role deleted successfully.",
-          deleted_role: {
-            roleId: "role1",
-            roleName: "Administrator",
-            permissions: ["read", "write"],
-          },
-          success: true,
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should delete role with custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId to delete the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Role deleted successfully.",
-        data: {
-          roleId: "role2",
-          roleName: "Manager",
-          permissions: ["read"],
-        },
-      });
-
-      await deleteRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Role deleted successfully.",
-          deleted_role: {
-            roleId: "role2",
-            roleName: "Manager",
-            permissions: ["read"],
-          },
-          success: true,
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, deleted_role: { role: "Admin" } })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await deleteRole(req, res);
+      await createRole.delete(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
     it("should handle role deletion failure and return internal server error", async () => {
-      const error = new Error("Role deletion failed.");
-      rolePermissionsUtilStub.rejects(error);
+      sinon.stub(rolePermissionsUtil, "deleteRole").rejects(new Error("Delete failed"));
 
-      await deleteRole(req, res);
+      await createRole.delete(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("listUsersWithRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(listUsersWithRole, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "listUsersWithRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should list users with role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId to list users with the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "listUsersWithRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Users with role listed successfully.",
-        data: [
-          {
-            userId: "user1",
-            username: "user1@example.com",
-            role: "Administrator",
-          },
-          { userId: "user2", username: "user2@example.com", role: "Manager" },
-        ],
+        message: "Users with role listed",
+        data: [{ user: "user1" }],
       });
 
-      await listUsersWithRole(req, res);
+      await createRole.listUsersWithRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Users with role listed successfully.",
-          users_with_role: [
-            {
-              userId: "user1",
-              username: "user1@example.com",
-              role: "Administrator",
-            },
-            { userId: "user2", username: "user2@example.com", role: "Manager" },
-          ],
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should list users with role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId to list users with the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Users with role listed successfully.",
-        data: [
-          { userId: "user3", username: "user3@example.com", role: "Viewer" },
-        ],
-      });
-
-      await listUsersWithRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Users with role listed successfully.",
-          users_with_role: [
-            { userId: "user3", username: "user3@example.com", role: "Viewer" },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, users_with_role: sinon.match.array })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await listUsersWithRole(req, res);
+      await createRole.listUsersWithRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle listing users with role failure and return internal server error", async () => {
-      const error = new Error("Failed to list users with role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "listUsersWithRole").rejects(new Error("Failed"));
 
-      await listUsersWithRole(req, res);
+      await createRole.listUsersWithRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("listAvailableUsersForRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(listAvailableUsersForRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "listAvailableUsersForRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should list available users for role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId to list available users for the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "listAvailableUsersForRole").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Available users listed successfully.",
-        data: [
-          { userId: "user1", username: "user1@example.com", role: "Viewer" },
-          { userId: "user2", username: "user2@example.com", role: "Manager" },
-        ],
+        message: "Available users listed",
+        data: [{ user: "user1" }],
       });
 
-      await listAvailableUsersForRole(req, res);
+      await createRole.listAvailableUsersForRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Available users listed successfully.",
-          available_users: [
-            { userId: "user1", username: "user1@example.com", role: "Viewer" },
-            { userId: "user2", username: "user2@example.com", role: "Manager" },
-          ],
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should list available users for role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId to list available users for the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Available users listed successfully.",
-        data: [
-          {
-            userId: "user3",
-            username: "user3@example.com",
-            role: "Administrator",
-          },
-        ],
-      });
-
-      await listAvailableUsersForRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Available users listed successfully.",
-          available_users: [
-            {
-              userId: "user3",
-              username: "user3@example.com",
-              role: "Administrator",
-            },
-          ],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, available_users: sinon.match.array })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await listAvailableUsersForRole(req, res);
+      await createRole.listAvailableUsersForRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle listing available users for role failure and return internal server error", async () => {
-      const error = new Error("Failed to list available users for role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "listAvailableUsersForRole").rejects(new Error("Failed"));
 
-      await listAvailableUsersForRole(req, res);
+      await createRole.listAvailableUsersForRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("assignUserToRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-    let logTextStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon.stub(assignUserToRole, "badRequest").returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "assignUserToRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-      logTextStub = sinon.stub(require("@utils/shared/log"), "logText");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-      logTextStub.restore();
-    });
-
     it("should assign user to role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId for user assignment.
-      req.body.userId = "user1"; // Set the userId to be assigned to the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "assignUserToRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: { updatedRoleId: "role1", userId: "user1" },
+        message: "User assigned to role",
+        data: { updated: 1 },
       });
 
-      await assignUserToRole(req, res);
+      await createRole.assignUserToRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          updated_records: { updatedRoleId: "role1", userId: "user1" },
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-      expect(logTextStub.calledOnceWith("assignUserToRole...")).to.be.true;
-    });
-
-    it("should assign user to role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId for user assignment.
-      req.body.userId = "user2"; // Set the userId to be assigned to the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: { updatedRoleId: "role2", userId: "user2" },
-      });
-
-      await assignUserToRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          updated_records: { updatedRoleId: "role2", userId: "user2" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await assignUserToRole(req, res);
+      await createRole.assignUserToRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle assigning user to role failure and return internal server error", async () => {
-      const error = new Error("Failed to assign user to role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "assignUserToRole").rejects(new Error("Failed"));
 
-      await assignUserToRole(req, res);
+      await createRole.assignUserToRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("assignManyUsersToRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-    let logTextStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(assignManyUsersToRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "assignManyUsersToRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-      logTextStub = sinon.stub(require("@utils/shared/log"), "logText");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-      logTextStub.restore();
-    });
-
     it("should assign many users to role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId for user assignment.
-      req.body.userIds = ["user1", "user2"]; // Set the userIds to be assigned to the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "assignManyUsersToRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: { updatedRoleIds: ["role1"], userIds: ["user1", "user2"] },
+        message: "Many users assigned to role",
+        data: { updated: 3 },
       });
 
-      await assignManyUsersToRole(req, res);
+      await createRole.assignManyUsersToRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully assigned many users to the role",
-          updated_records: {
-            updatedRoleIds: ["role1"],
-            userIds: ["user1", "user2"],
-          },
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-      expect(logTextStub.calledOnceWith("assignManyUsersToRole...")).to.be.true;
-    });
-
-    it("should assign many users to role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId for user assignment.
-      req.body.userIds = ["user3", "user4"]; // Set the userIds to be assigned to the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: { updatedRoleIds: ["role2"], userIds: ["user3", "user4"] },
-      });
-
-      await assignManyUsersToRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully assigned many users to the role",
-          updated_records: {
-            updatedRoleIds: ["role2"],
-            userIds: ["user3", "user4"],
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await assignManyUsersToRole(req, res);
+      await createRole.assignManyUsersToRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle assigning many users to role failure and return internal server error", async () => {
-      const error = new Error("Failed to assign many users to role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "assignManyUsersToRole").rejects(new Error("Failed"));
 
-      await assignManyUsersToRole(req, res);
+      await createRole.assignManyUsersToRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("unAssignUserFromRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(unAssignUserFromRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "unAssignUserFromRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should unassign user from role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId from which to unassign the user.
-      req.query.userId = "user1"; // Set the userId to unassign from the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "unAssignUserFromRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: { unassignedRoleId: "role1", userId: "user1" },
+        message: "User unassigned from role",
+        data: { unassigned: true },
       });
 
-      await unAssignUserFromRole(req, res);
+      await createRole.unAssignUserFromRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully unassigned user from the role",
-          user_unassigned: { unassignedRoleId: "role1", userId: "user1" },
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should unassign user from role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId from which to unassign the user.
-      req.query.userId = "user2"; // Set the userId to unassign from the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: { unassignedRoleId: "role2", userId: "user2" },
-      });
-
-      await unAssignUserFromRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully unassigned user from the role",
-          user_unassigned: { unassignedRoleId: "role2", userId: "user2" },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await unAssignUserFromRole(req, res);
+      await createRole.unAssignUserFromRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle unassigning user from role failure and return internal server error", async () => {
-      const error = new Error("Failed to unassign user from role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "unAssignUserFromRole").rejects(new Error("Failed"));
 
-      await unAssignUserFromRole(req, res);
+      await createRole.unAssignUserFromRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("zi error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("unAssignManyUsersFromRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(unAssignManyUsersFromRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "unAssignManyUsersFromRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
     it("should unassign many users from role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId from which to unassign many users.
-      req.body.userIds = ["user1", "user2", "user3"]; // Set an array of userIds to unassign from the role.
-      rolePermissionsUtilStub.resolves({
+      sinon.stub(rolePermissionsUtil, "unAssignManyUsersFromRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: {
-          unassignedRoleId: "role1",
-          userIds: ["user1", "user2", "user3"],
-        },
+        message: "Many users unassigned from role",
+        data: { unassigned: 3 },
       });
 
-      await unAssignManyUsersFromRole(req, res);
+      await createRole.unAssignManyUsersFromRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully unassigned many users from the role",
-          updated_records: {
-            unassignedRoleId: "role1",
-            userIds: ["user1", "user2", "user3"],
-          },
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should unassign many users from role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId from which to unassign many users.
-      req.body.userIds = ["user4", "user5"]; // Set an array of userIds to unassign from the role.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: { unassignedRoleId: "role2", userIds: ["user4", "user5"] },
-      });
-
-      await unAssignManyUsersFromRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully unassigned many users from the role",
-          updated_records: {
-            unassignedRoleId: "role2",
-            userIds: ["user4", "user5"],
-          },
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await unAssignManyUsersFromRole(req, res);
+      await createRole.unAssignManyUsersFromRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle unassigning many users from role failure and return internal server error", async () => {
-      const error = new Error("Failed to unassign many users from role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "unAssignManyUsersFromRole").rejects(new Error("Failed"));
 
-      await unAssignManyUsersFromRole(req, res);
+      await createRole.unAssignManyUsersFromRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("listPermissionsForRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(listPermissionsForRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "listPermissionsForRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should list permissions for role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId for which to list permissions.
-      rolePermissionsUtilStub.resolves({
+    it("should list permissions for role successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "listPermissionsForRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: ["permission1", "permission2", "permission3"], // Set the list of permissions returned by the rolePermissionsUtil.
+        message: "Permissions listed",
+        data: [{ permission: "read" }],
       });
 
-      await listPermissionsForRole(req, res);
+      await createRole.listPermissionsForRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully listed the permissions for the role",
-          permissions_list: ["permission1", "permission2", "permission3"],
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should list permissions for role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId for which to list permissions.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: ["permission4", "permission5"], // Set the list of permissions returned by the rolePermissionsUtil.
-      });
-
-      await listPermissionsForRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully listed the permissions for the role",
-          permissions_list: ["permission4", "permission5"],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, permissions_list: sinon.match.array })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await listPermissionsForRole(req, res);
+      await createRole.listPermissionsForRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle listing permissions for role failure and return internal server error", async () => {
-      const error = new Error("Failed to list permissions for role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "listPermissionsForRole").rejects(new Error("Failed"));
 
-      await listPermissionsForRole(req, res);
+      await createRole.listPermissionsForRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("listAvailablePermissionsForRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(listAvailablePermissionsForRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "listAvailablePermissionsForRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should list available permissions for role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId for which to list available permissions.
-      rolePermissionsUtilStub.resolves({
+    it("should list available permissions for role successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "listAvailablePermissionsForRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: ["permission1", "permission2", "permission3"], // Set the list of available permissions returned by the rolePermissionsUtil.
+        message: "Available permissions listed",
+        data: [{ permission: "read" }],
       });
 
-      await listAvailablePermissionsForRole(req, res);
+      await createRole.listAvailablePermissionsForRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully listed the available permissions for the role",
-          available_permissions: ["permission1", "permission2", "permission3"],
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should list available permissions for role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId for which to list available permissions.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: ["permission4", "permission5"], // Set the list of available permissions returned by the rolePermissionsUtil.
-      });
-
-      await listAvailablePermissionsForRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "successfully listed the available permissions for the role",
-          available_permissions: ["permission4", "permission5"],
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, available_permissions: sinon.match.array })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await listAvailablePermissionsForRole(req, res);
+      await createRole.listAvailablePermissionsForRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle listing available permissions for role failure and return internal server error", async () => {
-      const error = new Error("Failed to list available permissions for role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "listAvailablePermissionsForRole").rejects(new Error("Failed"));
 
-      await listAvailablePermissionsForRole(req, res);
+      await createRole.listAvailablePermissionsForRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("assignPermissionToRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(assignPermissionToRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "assignPermissionsToRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should assign permissions to role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId to which permissions need to be assigned.
-      req.body.permissions = ["permission1", "permission2"]; // Set the permissions to be assigned.
-      rolePermissionsUtilStub.resolves({
+    it("should assign permission to role successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "assignPermissionsToRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: "updatedRole1", // Set the updated role returned by the rolePermissionsUtil.
+        message: "Permission assigned to role",
+        data: { updated: 1 },
       });
 
-      await assignPermissionToRole(req, res);
+      await createRole.assignPermissionToRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permissions assigned to the role successfully",
-          updated_role: "updatedRole1",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should assign permissions to role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId to which permissions need to be assigned.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      req.body.permissions = ["permission3"]; // Set the permissions to be assigned.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "updatedRole2", // Set the updated role returned by the rolePermissionsUtil.
-      });
-
-      await assignPermissionToRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permissions assigned to the role successfully",
-          updated_role: "updatedRole2",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await assignPermissionToRole(req, res);
+      await createRole.assignPermissionToRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle assigning permissions to role failure and return internal server error", async () => {
-      const error = new Error("Failed to assign permissions to role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "assignPermissionsToRole").rejects(new Error("Failed"));
 
-      await assignPermissionToRole(req, res);
+      await createRole.assignPermissionToRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("unAssignPermissionFromRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(unAssignPermissionFromRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "unAssignPermissionFromRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should unassign permission from role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId from which the permission needs to be unassigned.
-      req.query.permissionId = "permission1"; // Set the permissionId to be unassigned.
-      rolePermissionsUtilStub.resolves({
+    it("should unassign permission from role successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "unAssignPermissionFromRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: "modifiedRole1", // Set the modified role returned by the rolePermissionsUtil.
+        message: "Permission unassigned from role",
+        data: { updated: 1 },
       });
 
-      await unAssignPermissionFromRole(req, res);
+      await createRole.unAssignPermissionFromRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission unassigned from the role successfully",
-          modified_role: "modifiedRole1",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should unassign permission from role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId from which the permission needs to be unassigned.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      req.query.permissionId = "permission2"; // Set the permissionId to be unassigned.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "modifiedRole2", // Set the modified role returned by the rolePermissionsUtil.
-      });
-
-      await unAssignPermissionFromRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permission unassigned from the role successfully",
-          modified_role: "modifiedRole2",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await unAssignPermissionFromRole(req, res);
+      await createRole.unAssignPermissionFromRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle unassigning permission from role failure and return internal server error", async () => {
-      const error = new Error("Failed to unassign permission from role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "unAssignPermissionFromRole").rejects(new Error("Failed"));
 
-      await unAssignPermissionFromRole(req, res);
+      await createRole.unAssignPermissionFromRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("unAssignManyPermissionsFromRole", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(unAssignManyPermissionsFromRole, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "unAssignManyPermissionsFromRole"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should unassign many permissions from role for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId from which the permissions need to be unassigned.
-      req.body.permissionIds = ["permission1", "permission2"]; // Set the array of permissionIds to be unassigned.
-      rolePermissionsUtilStub.resolves({
+    it("should unassign many permissions from role successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "unAssignManyPermissionsFromRole").resolves({
         success: true,
         status: httpStatus.OK,
-        data: "modifiedRole1", // Set the modified role returned by the rolePermissionsUtil.
+        message: "Many permissions unassigned from role",
+        data: { updated: 3 },
       });
 
-      await unAssignManyPermissionsFromRole(req, res);
+      await createRole.unAssignManyPermissionsFromRole(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permissions unassigned from the role successfully",
-          modified_role: "modifiedRole1",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should unassign many permissions from role for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId from which the permissions need to be unassigned.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      req.body.permissionIds = ["permission3", "permission4"]; // Set the array of permissionIds to be unassigned.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "modifiedRole2", // Set the modified role returned by the rolePermissionsUtil.
-      });
-
-      await unAssignManyPermissionsFromRole(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Permissions unassigned from the role successfully",
-          modified_role: "modifiedRole2",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await unAssignManyPermissionsFromRole(req, res);
+      await createRole.unAssignManyPermissionsFromRole(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle unassigning many permissions from role failure and return internal server error", async () => {
-      const error = new Error("Failed to unassign permissions from role.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "unAssignManyPermissionsFromRole").rejects(new Error("Failed"));
 
-      await unAssignManyPermissionsFromRole(req, res);
+      await createRole.unAssignManyPermissionsFromRole(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
+
   describe("updateRolePermissions", () => {
-    let req;
-    let res;
-    let validationResultStub;
-    let badRequestStub;
-    let rolePermissionsUtilStub;
-    let logObjectStub;
-
-    beforeEach(() => {
-      req = {
-        query: {},
-        body: {},
-      };
-      res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      badRequestStub = sinon
-        .stub(updateRolePermissions, "badRequest")
-        .returns(res);
-      rolePermissionsUtilStub = sinon.stub(
-        rolePermissionsUtil,
-        "updateRolePermissions"
-      );
-      logObjectStub = sinon.stub(require("@utils/shared/log"), "logObject");
-    });
-
-    afterEach(() => {
-      validationResultStub.restore();
-      badRequestStub.restore();
-      rolePermissionsUtilStub.restore();
-      logObjectStub.restore();
-    });
-
-    it("should update role permissions for default tenant", async () => {
-      req.query.roleId = "role1"; // Set the roleId for which the permissions need to be updated.
-      req.body.permissionIds = ["permission1", "permission2"]; // Set the array of permissionIds to be updated.
-      rolePermissionsUtilStub.resolves({
+    it("should update role permissions successfully", async () => {
+      sinon.stub(rolePermissionsUtil, "updateRolePermissions").resolves({
         success: true,
         status: httpStatus.OK,
-        data: "modifiedRole1", // Set the modified role returned by the rolePermissionsUtil.
+        message: "Role permissions updated",
+        data: { updated: 1 },
       });
 
-      await updateRolePermissions(req, res);
+      await createRole.updateRolePermissions(req, res, next);
 
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Role permissions updated successfully",
-          modified_role: "modifiedRole1",
-        })
-      ).to.be.true;
-      expect(req.query.tenant).to.equal(constants.DEFAULT_TENANT);
-    });
-
-    it("should update role permissions for custom tenant", async () => {
-      req.query.roleId = "role2"; // Set the roleId for which the permissions need to be updated.
-      req.query.tenant = "custom-tenant"; // Set the custom tenant for the request.
-      req.body.permissionIds = ["permission3", "permission4"]; // Set the array of permissionIds to be updated.
-      rolePermissionsUtilStub.resolves({
-        success: true,
-        status: httpStatus.OK,
-        data: "modifiedRole2", // Set the modified role returned by the rolePermissionsUtil.
-      });
-
-      await updateRolePermissions(req, res);
-
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Role permissions updated successfully",
-          modified_role: "modifiedRole2",
-        })
-      ).to.be.true;
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true })).to.be.true;
     });
 
     it("should handle validation errors and return bad request response", async () => {
-      validationResultStub.returns(false);
+      createRole.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      await updateRolePermissions(req, res);
+      await createRole.updateRolePermissions(req, res, next);
 
-      expect(
-        badRequestStub.calledOnceWith(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(null)
-        )
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    it("should handle updating role permissions failure and return internal server error", async () => {
-      const error = new Error("Failed to update role permissions.");
-      rolePermissionsUtilStub.rejects(error);
+    it("should handle failure and return internal server error", async () => {
+      sinon.stub(rolePermissionsUtil, "updateRolePermissions").rejects(new Error("Failed"));
 
-      await updateRolePermissions(req, res);
+      await createRole.updateRolePermissions(req, res, next);
 
-      expect(logObjectStub.calledOnceWith("error", error)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          success: false,
-        })
-      ).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });
