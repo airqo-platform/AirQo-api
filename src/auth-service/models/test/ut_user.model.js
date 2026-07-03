@@ -268,7 +268,7 @@ describe("UserSchema instance methods", () => {
       // Verify the token content
       const decodedToken = jwt.verify(token, constants.JWT_SECRET);
       expect(decodedToken).to.have.property("_id", user._id.toString());
-      expect(decodedToken).to.have.property("username", user.userName);
+      expect(decodedToken).to.have.property("userName", user.userName);
       expect(decodedToken).to.have.property("firstName", user.firstName);
       expect(decodedToken).to.have.property("lastName", user.lastName);
       expect(decodedToken).to.have.property("email", user.email);
@@ -336,7 +336,7 @@ describe("UserSchema instance methods", () => {
   });
 
   describe("toAuthJSON()", () => {
-    it("should return the JSON representation for authentication", () => {
+    it("should return the JSON representation for authentication", async () => {
       // Sample user document
       const user = new (UserModelFactory("airqo"))({
         _id: "user_id_1",
@@ -346,7 +346,7 @@ describe("UserSchema instance methods", () => {
       });
 
       // Call the toAuthJSON method
-      const result = user.toAuthJSON();
+      const result = await user.toAuthJSON();
 
       // Assertions
       expect(result).to.be.an("object");
