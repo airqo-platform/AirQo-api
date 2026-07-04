@@ -972,8 +972,7 @@ const learn = {
         };
       }
 
-      const lessonsRes = await LearnLessonModel(tenant).list({ filter: { unit_id } }, next);
-      const lessonIds = (lessonsRes?.data || []).map((l) => l._id);
+      const lessonIds = await LearnLessonModel(tenant).distinct("_id", { unit_id });
 
       if (lessonIds.length) {
         await LearnActivityModel(tenant).deleteMany({ lesson_id: { $in: lessonIds } });
