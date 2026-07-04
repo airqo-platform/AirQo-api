@@ -311,6 +311,166 @@ const learnValidations = {
     validate,
   ],
 
+  listCourses: [commonTenant, validate],
+
+  getCourse: [
+    commonTenant,
+    param("course_id")
+      .exists()
+      .withMessage("course_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("course_id must be a valid MongoDB ObjectId"),
+    validate,
+  ],
+
+  deleteCourse: [
+    commonTenant,
+    param("course_id")
+      .exists()
+      .withMessage("course_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("course_id must be a valid MongoDB ObjectId"),
+    validate,
+  ],
+
+  updateUnit: [
+    commonTenant,
+    param("unit_id")
+      .exists()
+      .withMessage("unit_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("unit_id must be a valid MongoDB ObjectId"),
+    body("title")
+      .optional()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isLength({ max: 120 })
+      .withMessage("title must not exceed 120 characters"),
+    body("plain_title_key")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("plain_title_key must not be empty"),
+    body("unit_order")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("unit_order must be a positive integer"),
+    validate,
+  ],
+
+  deleteUnit: [
+    commonTenant,
+    param("unit_id")
+      .exists()
+      .withMessage("unit_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("unit_id must be a valid MongoDB ObjectId"),
+    validate,
+  ],
+
+  updateLesson: [
+    commonTenant,
+    param("lesson_id")
+      .exists()
+      .withMessage("lesson_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("lesson_id must be a valid MongoDB ObjectId"),
+    body("title")
+      .optional()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isLength({ max: 120 })
+      .withMessage("title must not exceed 120 characters"),
+    body("plain_title_key")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("plain_title_key must not be empty"),
+    body("lesson_order")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("lesson_order must be a positive integer"),
+    body("cover_image_url")
+      .optional()
+      .isURL({ protocols: ["https"], require_protocol: true })
+      .withMessage("cover_image_url must be a valid HTTPS URL"),
+    body("completion_message").optional().trim(),
+    validate,
+  ],
+
+  deleteLesson: [
+    commonTenant,
+    param("lesson_id")
+      .exists()
+      .withMessage("lesson_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("lesson_id must be a valid MongoDB ObjectId"),
+    validate,
+  ],
+
+  updateActivity: [
+    commonTenant,
+    param("activity_id")
+      .exists()
+      .withMessage("activity_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("activity_id must be a valid MongoDB ObjectId"),
+    body("type")
+      .optional()
+      .isIn(["article", "video", "image", "quiz"])
+      .withMessage("type must be one of: article, video, image, quiz"),
+    body("order")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("order must be a positive integer"),
+    body("payload").optional().isObject().withMessage("payload must be an object"),
+    validate,
+  ],
+
+  deleteActivity: [
+    commonTenant,
+    param("activity_id")
+      .exists()
+      .withMessage("activity_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("activity_id must be a valid MongoDB ObjectId"),
+    validate,
+  ],
+
   updateCourse: [
     commonTenant,
     param("course_id")
