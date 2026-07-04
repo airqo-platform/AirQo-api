@@ -84,7 +84,7 @@ const AccessTokenSchema = new mongoose.Schema(
       auto_suspended: { type: Boolean, default: false },
       suspension_reason: { type: String },
       suspended_at: { type: Date },
-      // Incremented on every auto-suspension; used to lower the re-suspension
+      // Incremented on high-compromise auto-suspension; used to lower the re-suspension
       // threshold for repeat offenders after reinstatement.
       suspension_count: { type: Number, default: 0 },
     },

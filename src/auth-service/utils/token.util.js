@@ -853,7 +853,7 @@ const isIPBlacklistedHelper = async (
               const baseThreshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
               const requestPattern = listTokenResponse.data[0].request_pattern || {};
 
-              // suspension_count is incremented on every auto-suspension. For tokens
+              // suspension_count is incremented on high-compromise auto-suspension. For tokens
               // suspended before this field was added, fall back to checking whether
               // suspended_at is set (meaning the token has been suspended at least once).
               const trackedCount = requestPattern.suspension_count ?? 0;
@@ -864,10 +864,14 @@ const isIPBlacklistedHelper = async (
                   ? 1
                   : 0;
 
-              // Halve the threshold for each prior suspension, floored at 20.
-              // priorSuspensions=0 → 50, =1 → 25, =2 → 20, =3+ → 20
+              // Halve the threshold for each prior suspension, floored at
+              // min(20, baseThreshold) so a configured baseThreshold below 20
+              // is never accidentally raised by the floor.
+              // e.g. base=50: priorSuspensions=0→50, =1→25, =2→20, =3+→20
+              //      base=10: priorSuspensions=0→10, =1→10, =2+→10
+              const floor = Math.min(20, baseThreshold);
               const effectiveThreshold = Math.max(
-                20,
+                floor,
                 Math.floor(baseThreshold / Math.pow(2, priorSuspensions))
               );
 
@@ -1351,6 +1355,17 @@ const token = {
         if (update.bypass_anomaly_detection !== undefined) {
           if (!isAdmin) {
             delete update.bypass_anomaly_detection;
+          }
+        }
+        // Expand request_pattern into dotted-path keys before passing to
+        // findByIdAndUpdate. Without this, Mongoose's implicit $set would
+        // replace the entire request_pattern subdocument, silently wiping
+        // suspension_count, suspended_at, and other tracking fields.
+        if (update.request_pattern && typeof update.request_pattern === "object") {
+          const rp = update.request_pattern;
+          delete update.request_pattern;
+          for (const [k, v] of Object.entries(rp)) {
+            update[`request_pattern.${k}`] = v;
           }
         }
         const updatedToken = await AccessTokenModel(tenant)
