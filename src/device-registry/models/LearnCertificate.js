@@ -75,6 +75,7 @@ learnCertificateSchema.statics = {
           response.message = "duplicate value";
         });
       } else if (!isEmpty(error.errors)) {
+        status = httpStatus.BAD_REQUEST;
         Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response.message = value.message;

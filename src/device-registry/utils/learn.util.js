@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const httpStatus = require("http-status");
 const LearnCourseModel = require("@models/LearnCourse");
 const LearnUnitModel = require("@models/LearnUnit");
@@ -25,9 +26,10 @@ const STAGES = [
 function generateVerificationCode() {
   const year = new Date().getFullYear();
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const bytes = crypto.randomBytes(8);
   let suffix = "";
-  for (let i = 0; i < 4; i++) {
-    suffix += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 8; i++) {
+    suffix += chars[bytes[i] % chars.length];
   }
   return `AQ-${year}-LEARN-${suffix}`;
 }
@@ -1459,10 +1461,7 @@ const learn = {
       }
 
       const name =
-        learner_name ||
-        request.user?.displayName ||
-        request.user?.email ||
-        "Learner";
+        learner_name || request.user?.displayName || "Learner";
 
       const certResult = await LearnCertificateModel(tenant).register(
         {
@@ -1470,7 +1469,7 @@ const learn = {
           course_id,
           learner_name: name,
           verification_code,
-          share_url: `https://airqo.net/learn/cert/${verification_code}`,
+          share_url: `https://airqo.net/learn/cert/${verification_code}?tenant=${tenant}`,
         },
         next
       );
@@ -1640,7 +1639,6 @@ const learn = {
           scope: "global",
           entries: topLearners.map((l, i) => ({
             rank: i + 1,
-            user_id: l.user_id,
             total_points: l.total_points,
             completed_lessons: l.completed_lessons,
             current_stage: STAGES[l.current_stage_index] || STAGES[0],
@@ -1686,6 +1684,7 @@ const learn = {
         { device_id, guest_id, user_id },
         next
       );
+      if (progressRes && !progressRes.success) return progressRes;
       const progressDoc = progressRes?.data || null;
       const lessonsMap =
         progressDoc?.lessons instanceof Map
@@ -1699,6 +1698,8 @@ const learn = {
       ]);
 
       if (!coursesRes?.success) return coursesRes;
+      if (!unitsRes?.success) return unitsRes;
+      if (!lessonsRes?.success) return lessonsRes;
 
       const unitsByCourse = {};
       (unitsRes?.data || []).forEach((u) => {

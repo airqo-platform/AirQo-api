@@ -180,7 +180,14 @@ const learnValidations = {
       .bail()
       .isMongoId()
       .withMessage("course_id must be a valid MongoDB ObjectId"),
-    body("learner_name").optional().trim().notEmpty().withMessage("learner_name must not be empty if provided"),
+    body("learner_name")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("learner_name must not be empty if provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("learner_name must not exceed 100 characters"),
     validate,
   ],
 
@@ -194,7 +201,11 @@ const learnValidations = {
       .bail()
       .trim()
       .notEmpty()
-      .withMessage("verification_code must not be empty"),
+      .withMessage("verification_code must not be empty")
+      .bail()
+      .toUpperCase()
+      .matches(/^AQ-\d{4}-LEARN-[A-Z0-9]{8}$/)
+      .withMessage("verification_code must match format AQ-YYYY-LEARN-XXXXXXXX"),
     validate,
   ],
 
