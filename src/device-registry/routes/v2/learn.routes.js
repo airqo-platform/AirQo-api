@@ -25,7 +25,7 @@ router.put("/progress/lessons/:lesson_id", learnValidations.updateLessonProgress
 router.post("/progress/sync", learnValidations.syncProgress, learnController.syncProgress);
 
 // ---------------------------------------------------------------------------
-// Option 3 — Account linking, Certificates & Leaderboard (JWT enforced at nginx gateway)
+// Option 3 — Account linking & Leaderboard (JWT), Certificates (JWT; verify is public), Course progress summary (guest or JWT)
 // ---------------------------------------------------------------------------
 
 router.post("/progress/link", learnValidations.linkGuestProgress, learnController.linkGuestProgress);
