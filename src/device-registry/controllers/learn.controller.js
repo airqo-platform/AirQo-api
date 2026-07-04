@@ -303,6 +303,231 @@ const learnController = {
     }
   },
 
+  listCourses: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.listCourses(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          courses: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  getCourse: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.getCourse(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          course: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.NOT_FOUND).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  deleteCourse: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.deleteCourse(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  updateUnit: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.updateUnit(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          unit: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  deleteUnit: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.deleteUnit(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  updateLesson: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.updateLesson(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          lesson: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  deleteLesson: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.deleteLesson(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  updateActivity: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.updateActivity(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          activity: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  deleteActivity: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.deleteActivity(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
   updateCourse: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
