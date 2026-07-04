@@ -1468,7 +1468,7 @@ const learn = {
           course_id,
           learner_name: name,
           verification_code,
-          share_url: `https://airqo.net/learn/cert/${verification_code}?tenant=${tenant}`,
+          share_url: `https://airqo.net/learn/cert/${verification_code}`,
         },
         next
       );
