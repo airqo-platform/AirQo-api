@@ -166,6 +166,61 @@ const learnValidations = {
   ],
 
   // -------------------------------------------------------------------------
+  // Option 3 — Certificates & Leaderboard
+  // -------------------------------------------------------------------------
+
+  issueCertificate: [
+    commonTenant,
+    body("course_id")
+      .exists()
+      .withMessage("course_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .bail()
+      .isMongoId()
+      .withMessage("course_id must be a valid MongoDB ObjectId"),
+    body("learner_name")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("learner_name must not be empty if provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("learner_name must not exceed 100 characters"),
+    validate,
+  ],
+
+  listCertificates: [commonTenant, validate],
+
+  verifyCertificate: [
+    commonTenant,
+    param("verification_code")
+      .exists()
+      .withMessage("verification_code is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("verification_code must not be empty")
+      .bail()
+      .toUpperCase()
+      .matches(/^AQ-\d{4}-LEARN-[A-Z0-9]{8}$/)
+      .withMessage("verification_code must match format AQ-YYYY-LEARN-XXXXXXXX"),
+    validate,
+  ],
+
+  getLeaderboard: [
+    commonTenant,
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage("limit must be an integer between 1 and 100"),
+    validate,
+  ],
+
+  getCourseProgress: [commonTenant, validate],
+
+  // -------------------------------------------------------------------------
   // Admin — Course authoring
   // -------------------------------------------------------------------------
 
