@@ -844,23 +844,49 @@ const isIPBlacklistedHelper = async (
           // Auto-suspend if this token has exceeded the high-compromise threshold.
           // Uses MongoDB countDocuments — no Redis dependency. Fire-and-forget; never
           // blocks the IP verdict returned to the current request.
+          //
+          // Repeat offenders (tokens reinstated after a prior auto-suspension) get a
+          // progressively lower threshold so chronic abuse triggers re-suspension even
+          // at lower unique-IP volumes. The floor is 20 unique IPs per 24 hours.
           Promise.resolve().then(async () => {
             try {
-              const threshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
+              const baseThreshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
+              const requestPattern = listTokenResponse.data[0].request_pattern || {};
+
+              // suspension_count is incremented on every auto-suspension. For tokens
+              // suspended before this field was added, fall back to checking whether
+              // suspended_at is set (meaning the token has been suspended at least once).
+              const trackedCount = requestPattern.suspension_count ?? 0;
+              const priorSuspensions =
+                trackedCount > 0
+                  ? trackedCount
+                  : requestPattern.suspended_at
+                  ? 1
+                  : 0;
+
+              // Halve the threshold for each prior suspension, floored at 20.
+              // priorSuspensions=0 → 50, =1 → 25, =2 → 20, =3+ → 20
+              const effectiveThreshold = Math.max(
+                20,
+                Math.floor(baseThreshold / Math.pow(2, priorSuspensions))
+              );
+
               const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-              // Aggregation stops at `threshold` unique IPs — avoids materialising
-              // the full distinct-IP set in Node.js memory for high-volume tokens.
+              // Aggregation stops at effectiveThreshold unique IPs — avoids
+              // materialising the full distinct-IP set for high-volume tokens.
               const [countResult] = await CompromisedTokenLogModel("airqo").aggregate([
                 { $match: { tokenHash, timestamp: { $gte: since } } },
                 { $group: { _id: "$ip" } },
-                { $limit: threshold },
+                { $limit: effectiveThreshold },
                 { $count: "n" },
               ]);
               const recentCount = countResult?.n ?? 0;
-              if (recentCount < threshold) return;
+              if (recentCount < effectiveThreshold) return;
 
               const suspensionReason =
-                `High compromise activity: ${recentCount} unique IP events in 24 hours — token likely exposed in a public-facing application`;
+                priorSuspensions > 0
+                  ? `Repeat compromise activity: ${recentCount} unique IP events in 24 hours (reduced threshold of ${effectiveThreshold} applies — token has ${priorSuspensions} prior suspension(s))`
+                  : `High compromise activity: ${recentCount} unique IP events in 24 hours — token likely exposed in a public-facing application`;
               const suspendedAt = new Date();
 
               // Atomic update filtered on auto_suspended: {$ne: true} ensures exactly
@@ -874,6 +900,7 @@ const isIPBlacklistedHelper = async (
                     "request_pattern.suspension_reason": suspensionReason,
                     "request_pattern.suspended_at": suspendedAt,
                   },
+                  $inc: { "request_pattern.suspension_count": 1 },
                 },
                 { lean: true }
               );
@@ -896,7 +923,7 @@ const isIPBlacklistedHelper = async (
                 );
 
               logger.warn(
-                `🚨 Token auto-suspended (high compromise activity) — suffix=...${token.slice(-4)} events=${recentCount}`
+                `🚨 Token auto-suspended (high compromise activity) — suffix=...${token.slice(-4)} events=${recentCount} threshold=${effectiveThreshold} priorSuspensions=${priorSuspensions}`
               );
             } catch (e) {
               logger.error(
