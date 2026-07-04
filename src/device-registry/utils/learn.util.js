@@ -26,10 +26,9 @@ const STAGES = [
 function generateVerificationCode() {
   const year = new Date().getFullYear();
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const bytes = crypto.randomBytes(8);
   let suffix = "";
   for (let i = 0; i < 8; i++) {
-    suffix += chars[bytes[i] % chars.length];
+    suffix += chars[crypto.randomInt(chars.length)];
   }
   return `AQ-${year}-LEARN-${suffix}`;
 }
