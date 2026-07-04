@@ -676,6 +676,513 @@ const learn = {
     }
   },
 
+  // ---------------------------------------------------------------------------
+  // Admin — Read & Delete (Course / Unit / Lesson / Activity)
+  // ---------------------------------------------------------------------------
+
+  listCourses: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const [coursesRes, unitsRes, lessonsRes, activitiesRes] = await Promise.all([
+        LearnCourseModel(tenant).list({}, next),
+        LearnUnitModel(tenant).list({}, next),
+        LearnLessonModel(tenant).list({}, next),
+        LearnActivityModel(tenant).list({}, next),
+      ]);
+
+      if (!coursesRes?.success) return coursesRes;
+
+      const unitIdToCourseId = {};
+      const unitCountByCourse = {};
+      (unitsRes?.data || []).forEach((u) => {
+        const cid = u.course_id.toString();
+        unitIdToCourseId[u._id.toString()] = cid;
+        unitCountByCourse[cid] = (unitCountByCourse[cid] || 0) + 1;
+      });
+
+      const lessonIdToCourseId = {};
+      const lessonCountByCourse = {};
+      (lessonsRes?.data || []).forEach((l) => {
+        const cid = unitIdToCourseId[l.unit_id.toString()];
+        if (cid) {
+          lessonIdToCourseId[l._id.toString()] = cid;
+          lessonCountByCourse[cid] = (lessonCountByCourse[cid] || 0) + 1;
+        }
+      });
+
+      const activityCountByCourse = {};
+      (activitiesRes?.data || []).forEach((a) => {
+        const cid = lessonIdToCourseId[a.lesson_id.toString()];
+        if (cid) activityCountByCourse[cid] = (activityCountByCourse[cid] || 0) + 1;
+      });
+
+      const courses = coursesRes.data.map((c) => {
+        const cid = c._id.toString();
+        return {
+          _id: c._id,
+          course_number: c.course_number,
+          title: c.title,
+          plain_title_key: c.plain_title_key,
+          cover_image_url: c.cover_image_url || null,
+          published: c.published,
+          catalog_version: c.catalog_version || null,
+          unit_count: unitCountByCourse[cid] || 0,
+          lesson_count: lessonCountByCourse[cid] || 0,
+          activity_count: activityCountByCourse[cid] || 0,
+          created_at: c.createdAt,
+          updated_at: c.updatedAt,
+        };
+      });
+
+      return {
+        success: true,
+        data: courses,
+        message: "successfully retrieved courses",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  getCourse: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { course_id } = request.params;
+
+      const courseRes = await LearnCourseModel(tenant).list(
+        { filter: { _id: course_id } },
+        next
+      );
+      if (!courseRes?.success || !courseRes.data?.length) {
+        return { success: false, message: "course not found", status: httpStatus.NOT_FOUND };
+      }
+
+      const course = courseRes.data[0];
+      const unitsRes = await LearnUnitModel(tenant).list({ filter: { course_id } }, next);
+      const units = (unitsRes?.data || []).sort((a, b) => a.unit_order - b.unit_order);
+      const unitIds = units.map((u) => u._id);
+
+      const lessonsRes = await LearnLessonModel(tenant).list(
+        { filter: { unit_id: { $in: unitIds } } },
+        next
+      );
+      const lessons = lessonsRes?.data || [];
+      const lessonIds = lessons.map((l) => l._id);
+
+      const activitiesRes = await LearnActivityModel(tenant).list(
+        { filter: { lesson_id: { $in: lessonIds } } },
+        next
+      );
+      const activities = activitiesRes?.data || [];
+
+      const lessonsByUnit = {};
+      lessons.forEach((l) => {
+        const uid = l.unit_id.toString();
+        if (!lessonsByUnit[uid]) lessonsByUnit[uid] = [];
+        lessonsByUnit[uid].push(l);
+      });
+
+      const activitiesByLesson = {};
+      activities.forEach((a) => {
+        const lid = a.lesson_id.toString();
+        if (!activitiesByLesson[lid]) activitiesByLesson[lid] = [];
+        activitiesByLesson[lid].push(a);
+      });
+
+      return {
+        success: true,
+        data: {
+          _id: course._id,
+          course_number: course.course_number,
+          title: course.title,
+          plain_title_key: course.plain_title_key,
+          cover_image_url: course.cover_image_url || null,
+          published: course.published,
+          catalog_version: course.catalog_version || null,
+          units: units.map((unit) => {
+            const unitLessons = (lessonsByUnit[unit._id.toString()] || []).sort(
+              (a, b) => a.lesson_order - b.lesson_order
+            );
+            return {
+              _id: unit._id,
+              title: unit.title,
+              plain_title_key: unit.plain_title_key,
+              unit_order: unit.unit_order,
+              lessons: unitLessons.map((lesson) => {
+                const lessonActivities = (
+                  activitiesByLesson[lesson._id.toString()] || []
+                ).sort((a, b) => a.order - b.order);
+                return {
+                  _id: lesson._id,
+                  title: lesson.title,
+                  plain_title_key: lesson.plain_title_key,
+                  lesson_order: lesson.lesson_order,
+                  cover_image_url: lesson.cover_image_url || null,
+                  completion_message: lesson.completion_message || null,
+                  activities: lessonActivities.map((act) => ({
+                    _id: act._id,
+                    type: act.type,
+                    order: act.order,
+                    payload: act.payload,
+                  })),
+                };
+              }),
+            };
+          }),
+        },
+        message: "successfully retrieved course",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  deleteCourse: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { course_id } = request.params;
+
+      const courseRes = await LearnCourseModel(tenant).list(
+        { filter: { _id: course_id } },
+        next
+      );
+      if (!courseRes?.success || !courseRes.data?.length) {
+        return { success: false, message: "course not found", status: httpStatus.NOT_FOUND };
+      }
+
+      if (courseRes.data[0].published) {
+        return {
+          success: false,
+          message: "cannot delete a published course — unpublish it first",
+          status: httpStatus.CONFLICT,
+        };
+      }
+
+      const unitsRes = await LearnUnitModel(tenant).list({ filter: { course_id } }, next);
+      const unitIds = (unitsRes?.data || []).map((u) => u._id);
+
+      if (unitIds.length) {
+        const lessonsRes = await LearnLessonModel(tenant).list(
+          { filter: { unit_id: { $in: unitIds } } },
+          next
+        );
+        const lessonIds = (lessonsRes?.data || []).map((l) => l._id);
+
+        if (lessonIds.length) {
+          await LearnActivityModel(tenant).deleteMany({ lesson_id: { $in: lessonIds } });
+        }
+        await LearnLessonModel(tenant).deleteMany({ unit_id: { $in: unitIds } });
+        await LearnUnitModel(tenant).deleteMany({ course_id });
+      }
+
+      await LearnCourseModel(tenant).remove({ filter: { _id: course_id } }, next);
+
+      return {
+        success: true,
+        data: {},
+        message: "course deleted successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  updateUnit: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { unit_id } = request.params;
+      const updates = request.body;
+
+      const unitRes = await LearnUnitModel(tenant).list({ filter: { _id: unit_id } }, next);
+      if (!unitRes?.success || !unitRes.data?.length) {
+        return { success: false, message: "unit not found", status: httpStatus.NOT_FOUND };
+      }
+
+      return await LearnUnitModel(tenant).modify(
+        { filter: { _id: unit_id }, update: updates },
+        next
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  deleteUnit: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { unit_id } = request.params;
+
+      const unitRes = await LearnUnitModel(tenant).list({ filter: { _id: unit_id } }, next);
+      if (!unitRes?.success || !unitRes.data?.length) {
+        return { success: false, message: "unit not found", status: httpStatus.NOT_FOUND };
+      }
+
+      const unit = unitRes.data[0];
+      const courseRes = await LearnCourseModel(tenant).list(
+        { filter: { _id: unit.course_id } },
+        next
+      );
+      if (courseRes?.data?.length && courseRes.data[0].published) {
+        return {
+          success: false,
+          message: "cannot delete a unit from a published course — unpublish the course first",
+          status: httpStatus.CONFLICT,
+        };
+      }
+
+      const lessonsRes = await LearnLessonModel(tenant).list({ filter: { unit_id } }, next);
+      const lessonIds = (lessonsRes?.data || []).map((l) => l._id);
+
+      if (lessonIds.length) {
+        await LearnActivityModel(tenant).deleteMany({ lesson_id: { $in: lessonIds } });
+        await LearnLessonModel(tenant).deleteMany({ unit_id });
+      }
+
+      await LearnUnitModel(tenant).remove({ filter: { _id: unit_id } }, next);
+
+      return {
+        success: true,
+        data: {},
+        message: "unit deleted successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  updateLesson: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { lesson_id } = request.params;
+      const updates = request.body;
+
+      const lessonRes = await LearnLessonModel(tenant).list(
+        { filter: { _id: lesson_id } },
+        next
+      );
+      if (!lessonRes?.success || !lessonRes.data?.length) {
+        return { success: false, message: "lesson not found", status: httpStatus.NOT_FOUND };
+      }
+
+      return await LearnLessonModel(tenant).modify(
+        { filter: { _id: lesson_id }, update: updates },
+        next
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  deleteLesson: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { lesson_id } = request.params;
+
+      const lessonRes = await LearnLessonModel(tenant).list(
+        { filter: { _id: lesson_id } },
+        next
+      );
+      if (!lessonRes?.success || !lessonRes.data?.length) {
+        return { success: false, message: "lesson not found", status: httpStatus.NOT_FOUND };
+      }
+
+      const lesson = lessonRes.data[0];
+      const unitRes = await LearnUnitModel(tenant).list(
+        { filter: { _id: lesson.unit_id } },
+        next
+      );
+      if (unitRes?.data?.length) {
+        const courseRes = await LearnCourseModel(tenant).list(
+          { filter: { _id: unitRes.data[0].course_id } },
+          next
+        );
+        if (courseRes?.data?.length && courseRes.data[0].published) {
+          return {
+            success: false,
+            message: "cannot delete a lesson from a published course — unpublish the course first",
+            status: httpStatus.CONFLICT,
+          };
+        }
+      }
+
+      await LearnActivityModel(tenant).deleteMany({ lesson_id });
+      await LearnLessonModel(tenant).remove({ filter: { _id: lesson_id } }, next);
+
+      return {
+        success: true,
+        data: {},
+        message: "lesson deleted successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  updateActivity: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { activity_id } = request.params;
+      const { type, order, payload } = request.body;
+
+      const activityRes = await LearnActivityModel(tenant).list(
+        { filter: { _id: activity_id } },
+        next
+      );
+      if (!activityRes?.success || !activityRes.data?.length) {
+        return { success: false, message: "activity not found", status: httpStatus.NOT_FOUND };
+      }
+
+      const effectiveType = type || activityRes.data[0].type;
+
+      if (payload !== undefined) {
+        if (effectiveType === "article" && isEmpty(payload?.body)) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            errors: { "payload.body": "body is required for article activities" },
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
+        if (
+          effectiveType === "video" &&
+          isEmpty(payload?.video_url) &&
+          isEmpty(payload?.youtube_id)
+        ) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            errors: {
+              "payload.video_url": "video_url or youtube_id is required for video activities",
+            },
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
+        if (effectiveType === "quiz" && isEmpty(payload?.format)) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            errors: { "payload.format": "format is required for quiz activities" },
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
+      }
+
+      const updates = {};
+      if (type !== undefined) updates.type = type;
+      if (order !== undefined) updates.order = order;
+      if (payload !== undefined) updates.payload = payload;
+
+      return await LearnActivityModel(tenant).modify(
+        { filter: { _id: activity_id }, update: updates },
+        next
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  deleteActivity: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { activity_id } = request.params;
+
+      const activityRes = await LearnActivityModel(tenant).list(
+        { filter: { _id: activity_id } },
+        next
+      );
+      if (!activityRes?.success || !activityRes.data?.length) {
+        return { success: false, message: "activity not found", status: httpStatus.NOT_FOUND };
+      }
+
+      const activity = activityRes.data[0];
+      const lessonRes = await LearnLessonModel(tenant).list(
+        { filter: { _id: activity.lesson_id } },
+        next
+      );
+      if (lessonRes?.data?.length) {
+        const unitRes = await LearnUnitModel(tenant).list(
+          { filter: { _id: lessonRes.data[0].unit_id } },
+          next
+        );
+        if (unitRes?.data?.length) {
+          const courseRes = await LearnCourseModel(tenant).list(
+            { filter: { _id: unitRes.data[0].course_id } },
+            next
+          );
+          if (courseRes?.data?.length && courseRes.data[0].published) {
+            return {
+              success: false,
+              message:
+                "cannot delete an activity from a published course — unpublish the course first",
+              status: httpStatus.CONFLICT,
+            };
+          }
+        }
+      }
+
+      await LearnActivityModel(tenant).remove({ filter: { _id: activity_id } }, next);
+
+      return {
+        success: true,
+        data: {},
+        message: "activity deleted successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
   updateCourse: async (request, next) => {
     try {
       const tenant = getTenant(request);

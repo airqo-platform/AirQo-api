@@ -34,10 +34,22 @@ router.post("/progress/link", learnValidations.linkGuestProgress, learnControlle
 // Admin — Course Authoring (admin JWT enforced at nginx gateway)
 // ---------------------------------------------------------------------------
 
+router.get("/admin/courses", learnValidations.listCourses, learnController.listCourses);
 router.post("/admin/courses", learnValidations.createCourse, learnController.createCourse);
-router.post("/admin/courses/:course_id/units", learnValidations.addUnit, learnController.addUnit);
-router.post("/admin/units/:unit_id/lessons", learnValidations.addLesson, learnController.addLesson);
-router.post("/admin/lessons/:lesson_id/activities", learnValidations.addActivity, learnController.addActivity);
+router.get("/admin/courses/:course_id", learnValidations.getCourse, learnController.getCourse);
 router.patch("/admin/courses/:course_id", learnValidations.updateCourse, learnController.updateCourse);
+router.delete("/admin/courses/:course_id", learnValidations.deleteCourse, learnController.deleteCourse);
+
+router.post("/admin/courses/:course_id/units", learnValidations.addUnit, learnController.addUnit);
+router.patch("/admin/units/:unit_id", learnValidations.updateUnit, learnController.updateUnit);
+router.delete("/admin/units/:unit_id", learnValidations.deleteUnit, learnController.deleteUnit);
+
+router.post("/admin/units/:unit_id/lessons", learnValidations.addLesson, learnController.addLesson);
+router.patch("/admin/lessons/:lesson_id", learnValidations.updateLesson, learnController.updateLesson);
+router.delete("/admin/lessons/:lesson_id", learnValidations.deleteLesson, learnController.deleteLesson);
+
+router.post("/admin/lessons/:lesson_id/activities", learnValidations.addActivity, learnController.addActivity);
+router.patch("/admin/activities/:activity_id", learnValidations.updateActivity, learnController.updateActivity);
+router.delete("/admin/activities/:activity_id", learnValidations.deleteActivity, learnController.deleteActivity);
 
 module.exports = router;
