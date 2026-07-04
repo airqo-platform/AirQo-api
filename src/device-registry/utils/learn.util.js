@@ -685,12 +685,19 @@ const learn = {
       const tenant = getTenant(request);
       const [coursesRes, unitsRes, lessonsRes, activitiesRes] = await Promise.all([
         LearnCourseModel(tenant).list({}, next),
-        LearnUnitModel(tenant).list({}, next),
-        LearnLessonModel(tenant).list({}, next),
-        LearnActivityModel(tenant).list({}, next),
+        LearnUnitModel(tenant).list({ limit: 0 }, next),
+        LearnLessonModel(tenant).list({ limit: 0 }, next),
+        LearnActivityModel(tenant).list({ limit: 0 }, next),
       ]);
 
       if (!coursesRes?.success) return coursesRes;
+      if (!unitsRes?.success || !lessonsRes?.success || !activitiesRes?.success) {
+        return {
+          success: false,
+          message: "failed to retrieve course count data",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
 
       const unitIdToCourseId = {};
       const unitCountByCourse = {};
@@ -764,19 +771,22 @@ const learn = {
       }
 
       const course = courseRes.data[0];
-      const unitsRes = await LearnUnitModel(tenant).list({ filter: { course_id } }, next);
+      const unitsRes = await LearnUnitModel(tenant).list(
+        { filter: { course_id }, limit: 0 },
+        next
+      );
       const units = (unitsRes?.data || []).sort((a, b) => a.unit_order - b.unit_order);
       const unitIds = units.map((u) => u._id);
 
       const lessonsRes = await LearnLessonModel(tenant).list(
-        { filter: { unit_id: { $in: unitIds } } },
+        { filter: { unit_id: { $in: unitIds } }, limit: 0 },
         next
       );
       const lessons = lessonsRes?.data || [];
       const lessonIds = lessons.map((l) => l._id);
 
       const activitiesRes = await LearnActivityModel(tenant).list(
-        { filter: { lesson_id: { $in: lessonIds } } },
+        { filter: { lesson_id: { $in: lessonIds } }, limit: 0 },
         next
       );
       const activities = activitiesRes?.data || [];
@@ -870,15 +880,12 @@ const learn = {
         };
       }
 
-      const unitsRes = await LearnUnitModel(tenant).list({ filter: { course_id } }, next);
-      const unitIds = (unitsRes?.data || []).map((u) => u._id);
+      const unitIds = await LearnUnitModel(tenant).distinct("_id", { course_id });
 
       if (unitIds.length) {
-        const lessonsRes = await LearnLessonModel(tenant).list(
-          { filter: { unit_id: { $in: unitIds } } },
-          next
-        );
-        const lessonIds = (lessonsRes?.data || []).map((l) => l._id);
+        const lessonIds = await LearnLessonModel(tenant).distinct("_id", {
+          unit_id: { $in: unitIds },
+        });
 
         if (lessonIds.length) {
           await LearnActivityModel(tenant).deleteMany({ lesson_id: { $in: lessonIds } });
@@ -909,12 +916,17 @@ const learn = {
     try {
       const tenant = getTenant(request);
       const { unit_id } = request.params;
-      const updates = request.body;
+      const { title, plain_title_key, unit_order } = request.body;
 
       const unitRes = await LearnUnitModel(tenant).list({ filter: { _id: unit_id } }, next);
       if (!unitRes?.success || !unitRes.data?.length) {
         return { success: false, message: "unit not found", status: httpStatus.NOT_FOUND };
       }
+
+      const updates = {};
+      if (title !== undefined) updates.title = title;
+      if (plain_title_key !== undefined) updates.plain_title_key = plain_title_key;
+      if (unit_order !== undefined) updates.unit_order = unit_order;
 
       return await LearnUnitModel(tenant).modify(
         { filter: { _id: unit_id }, update: updates },
@@ -945,7 +957,14 @@ const learn = {
         { filter: { _id: unit.course_id } },
         next
       );
-      if (courseRes?.data?.length && courseRes.data[0].published) {
+      if (!courseRes?.success) {
+        return {
+          success: false,
+          message: "failed to verify parent course status",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+      if (courseRes.data?.length && courseRes.data[0].published) {
         return {
           success: false,
           message: "cannot delete a unit from a published course — unpublish the course first",
@@ -983,7 +1002,8 @@ const learn = {
     try {
       const tenant = getTenant(request);
       const { lesson_id } = request.params;
-      const updates = request.body;
+      const { title, plain_title_key, lesson_order, cover_image_url, completion_message } =
+        request.body;
 
       const lessonRes = await LearnLessonModel(tenant).list(
         { filter: { _id: lesson_id } },
@@ -992,6 +1012,13 @@ const learn = {
       if (!lessonRes?.success || !lessonRes.data?.length) {
         return { success: false, message: "lesson not found", status: httpStatus.NOT_FOUND };
       }
+
+      const updates = {};
+      if (title !== undefined) updates.title = title;
+      if (plain_title_key !== undefined) updates.plain_title_key = plain_title_key;
+      if (lesson_order !== undefined) updates.lesson_order = lesson_order;
+      if (cover_image_url !== undefined) updates.cover_image_url = cover_image_url;
+      if (completion_message !== undefined) updates.completion_message = completion_message;
 
       return await LearnLessonModel(tenant).modify(
         { filter: { _id: lesson_id }, update: updates },
@@ -1025,12 +1052,26 @@ const learn = {
         { filter: { _id: lesson.unit_id } },
         next
       );
-      if (unitRes?.data?.length) {
+      if (!unitRes?.success) {
+        return {
+          success: false,
+          message: "failed to verify parent course status",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+      if (unitRes.data?.length) {
         const courseRes = await LearnCourseModel(tenant).list(
           { filter: { _id: unitRes.data[0].course_id } },
           next
         );
-        if (courseRes?.data?.length && courseRes.data[0].published) {
+        if (!courseRes?.success) {
+          return {
+            success: false,
+            message: "failed to verify parent course status",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+        if (courseRes.data?.length && courseRes.data[0].published) {
           return {
             success: false,
             message: "cannot delete a lesson from a published course — unpublish the course first",
@@ -1073,9 +1114,11 @@ const learn = {
       }
 
       const effectiveType = type || activityRes.data[0].type;
+      const effectivePayload =
+        payload !== undefined ? payload : activityRes.data[0].payload;
 
-      if (payload !== undefined) {
-        if (effectiveType === "article" && isEmpty(payload?.body)) {
+      if (payload !== undefined || type !== undefined) {
+        if (effectiveType === "article" && isEmpty(effectivePayload?.body)) {
           return {
             success: false,
             message: "validation errors for some of the provided fields",
@@ -1085,8 +1128,8 @@ const learn = {
         }
         if (
           effectiveType === "video" &&
-          isEmpty(payload?.video_url) &&
-          isEmpty(payload?.youtube_id)
+          isEmpty(effectivePayload?.video_url) &&
+          isEmpty(effectivePayload?.youtube_id)
         ) {
           return {
             success: false,
@@ -1097,7 +1140,7 @@ const learn = {
             status: httpStatus.UNPROCESSABLE_ENTITY,
           };
         }
-        if (effectiveType === "quiz" && isEmpty(payload?.format)) {
+        if (effectiveType === "quiz" && isEmpty(effectivePayload?.format)) {
           return {
             success: false,
             message: "validation errors for some of the provided fields",
@@ -1144,17 +1187,38 @@ const learn = {
         { filter: { _id: activity.lesson_id } },
         next
       );
-      if (lessonRes?.data?.length) {
+      if (!lessonRes?.success) {
+        return {
+          success: false,
+          message: "failed to verify parent course status",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+      if (lessonRes.data?.length) {
         const unitRes = await LearnUnitModel(tenant).list(
           { filter: { _id: lessonRes.data[0].unit_id } },
           next
         );
-        if (unitRes?.data?.length) {
+        if (!unitRes?.success) {
+          return {
+            success: false,
+            message: "failed to verify parent course status",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+        if (unitRes.data?.length) {
           const courseRes = await LearnCourseModel(tenant).list(
             { filter: { _id: unitRes.data[0].course_id } },
             next
           );
-          if (courseRes?.data?.length && courseRes.data[0].published) {
+          if (!courseRes?.success) {
+            return {
+              success: false,
+              message: "failed to verify parent course status",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+          if (courseRes.data?.length && courseRes.data[0].published) {
             return {
               success: false,
               message:

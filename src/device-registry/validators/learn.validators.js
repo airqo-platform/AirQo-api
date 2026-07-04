@@ -359,7 +359,11 @@ const learnValidations = {
       .bail()
       .isLength({ max: 120 })
       .withMessage("title must not exceed 120 characters"),
-    body("plain_title_key").optional().trim().notEmpty(),
+    body("plain_title_key")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("plain_title_key must not be empty"),
     body("unit_order")
       .optional()
       .isInt({ min: 1 })
@@ -399,7 +403,11 @@ const learnValidations = {
       .bail()
       .isLength({ max: 120 })
       .withMessage("title must not exceed 120 characters"),
-    body("plain_title_key").optional().trim().notEmpty(),
+    body("plain_title_key")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("plain_title_key must not be empty"),
     body("lesson_order")
       .optional()
       .isInt({ min: 1 })
