@@ -51,6 +51,7 @@ const learnProgressSchema = new Schema(
 learnProgressSchema.index({ guest_id: 1 }, { sparse: true });
 learnProgressSchema.index({ user_id: 1 }, { sparse: true });
 learnProgressSchema.index({ device_id: 1 }, { unique: true });
+learnProgressSchema.index({ learner_type: 1, total_points: -1 });
 
 const STAGES = [
   { index: 0, name: "Curious" },

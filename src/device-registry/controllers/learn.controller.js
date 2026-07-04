@@ -200,6 +200,135 @@ const learnController = {
   },
 
   // ---------------------------------------------------------------------------
+  // Option 3 — Certificates & Leaderboard
+  // ---------------------------------------------------------------------------
+
+  issueCertificate: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.issueCertificate(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.CREATED).json({
+          success: true,
+          ...result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  listCertificates: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.listCertificates(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          certificates: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  verifyCertificate: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.verifyCertificate(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          ...result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.NOT_FOUND).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  getLeaderboard: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.getLeaderboard(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          ...result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  getCourseProgress: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.getCourseProgress(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          courses: result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  // ---------------------------------------------------------------------------
   // Admin — Course Authoring
   // ---------------------------------------------------------------------------
 

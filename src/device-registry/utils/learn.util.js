@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const httpStatus = require("http-status");
 const LearnCourseModel = require("@models/LearnCourse");
 const LearnUnitModel = require("@models/LearnUnit");
@@ -5,6 +6,7 @@ const LearnLessonModel = require("@models/LearnLesson");
 const LearnActivityModel = require("@models/LearnActivity");
 const LearnGuestSessionModel = require("@models/LearnGuestSession");
 const LearnProgressModel = require("@models/LearnProgress");
+const LearnCertificateModel = require("@models/LearnCertificate");
 const constants = require("@config/constants");
 const { logObject, HttpError } = require("@utils/shared");
 const log4js = require("log4js");
@@ -20,6 +22,16 @@ const STAGES = [
   { index: 3, name: "Champion" },
   { index: 4, name: "Defender" },
 ];
+
+function generateVerificationCode() {
+  const year = new Date().getFullYear();
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let suffix = "";
+  for (let i = 0; i < 8; i++) {
+    suffix += chars[crypto.randomInt(chars.length)];
+  }
+  return `AQ-${year}-LEARN-${suffix}`;
+}
 
 function getTenant(request) {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1316,6 +1328,433 @@ const learn = {
         { filter: { _id: course_id }, update: updates },
         next
       );
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+  // ---------------------------------------------------------------------------
+  // Option 3 — Certificates
+  // ---------------------------------------------------------------------------
+
+  issueCertificate: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const user_id = request.user?.id || null;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "authentication required",
+          status: httpStatus.UNAUTHORIZED,
+        };
+      }
+
+      const { course_id, learner_name } = request.body;
+
+      const courseRes = await LearnCourseModel(tenant).list(
+        { filter: { _id: course_id, published: true } },
+        next
+      );
+      if (!courseRes?.success || !courseRes.data?.length) {
+        return { success: false, message: "course not found", status: httpStatus.NOT_FOUND };
+      }
+
+      // Idempotent — return existing certificate if already issued
+      const existingRes = await LearnCertificateModel(tenant).list(
+        { filter: { user_id, course_id } },
+        next
+      );
+      if (existingRes?.success && existingRes.data?.length) {
+        const cert = existingRes.data[0];
+        return {
+          success: true,
+          data: {
+            certificate_id: cert._id,
+            learner_name: cert.learner_name,
+            verification_code: cert.verification_code,
+            share_url: cert.share_url,
+            issued_at: cert.createdAt,
+          },
+          message: "certificate already issued",
+          status: httpStatus.OK,
+        };
+      }
+
+      // Verify all lessons in the course are completed
+      const unitsRes = await LearnUnitModel(tenant).list({ filter: { course_id } }, next);
+      if (!unitsRes?.success) {
+        return {
+          success: false,
+          message: "failed to verify course completion",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+      const unitIds = (unitsRes.data || []).map((u) => u._id);
+
+      const lessonIds = unitIds.length
+        ? await LearnLessonModel(tenant).distinct("_id", { unit_id: { $in: unitIds } })
+        : [];
+
+      if (!lessonIds.length) {
+        return {
+          success: false,
+          message: "course not complete — finish all lessons before requesting certificate",
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
+
+      const progressRes = await LearnProgressModel(tenant).findProgress({ user_id }, next);
+      const progressDoc = progressRes?.data || null;
+
+      if (!progressDoc) {
+        return {
+          success: false,
+          message: "course not complete — finish all lessons before requesting certificate",
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
+
+      const lessonsMap =
+        progressDoc.lessons instanceof Map
+          ? progressDoc.lessons
+          : new Map(Object.entries(progressDoc.lessons || {}));
+
+      const allComplete = lessonIds.every((lid) => {
+        const lp = lessonsMap.get(lid.toString());
+        return lp?.completed === true;
+      });
+
+      if (!allComplete) {
+        return {
+          success: false,
+          message: "course not complete — finish all lessons before requesting certificate",
+          status: httpStatus.UNPROCESSABLE_ENTITY,
+        };
+      }
+
+      // Generate a unique verification code
+      let verification_code;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const candidate = generateVerificationCode();
+        const collision = await LearnCertificateModel(tenant).list(
+          { filter: { verification_code: candidate } },
+          next
+        );
+        if (!collision?.data?.length) {
+          verification_code = candidate;
+          break;
+        }
+      }
+
+      if (!verification_code) {
+        return {
+          success: false,
+          message: "failed to generate a unique verification code — please retry",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      const name =
+        learner_name || request.user?.displayName || "Learner";
+
+      const certResult = await LearnCertificateModel(tenant).register(
+        {
+          user_id,
+          course_id,
+          learner_name: name,
+          verification_code,
+          share_url: `https://airqo.net/learn/cert/${verification_code}?tenant=${tenant}`,
+        },
+        next
+      );
+      if (!certResult?.success) return certResult;
+
+      const cert = certResult.data;
+      return {
+        success: true,
+        data: {
+          certificate_id: cert._id,
+          learner_name: cert.learner_name,
+          verification_code: cert.verification_code,
+          share_url: cert.share_url,
+          issued_at: cert.createdAt,
+        },
+        message: "certificate issued",
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  listCertificates: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const user_id = request.user?.id || null;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "authentication required",
+          status: httpStatus.UNAUTHORIZED,
+        };
+      }
+
+      const certsRes = await LearnCertificateModel(tenant).list(
+        { filter: { user_id } },
+        next
+      );
+      if (!certsRes?.success) return certsRes;
+
+      return {
+        success: true,
+        data: (certsRes.data || []).map((c) => ({
+          certificate_id: c._id,
+          course_id: c.course_id,
+          learner_name: c.learner_name,
+          verification_code: c.verification_code,
+          share_url: c.share_url,
+          issued_at: c.createdAt,
+        })),
+        message: "successfully retrieved certificates",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  verifyCertificate: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { verification_code } = request.params;
+
+      const certsRes = await LearnCertificateModel(tenant).list(
+        { filter: { verification_code } },
+        next
+      );
+      if (!certsRes?.success || !certsRes.data?.length) {
+        return {
+          success: false,
+          message: "certificate not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const cert = certsRes.data[0];
+      const courseRes = await LearnCourseModel(tenant).list(
+        { filter: { _id: cert.course_id } },
+        next
+      );
+      const course = courseRes?.data?.[0] || null;
+
+      return {
+        success: true,
+        data: {
+          certificate_id: cert._id,
+          learner_name: cert.learner_name,
+          verification_code: cert.verification_code,
+          course_title: course?.title || null,
+          share_url: cert.share_url,
+          issued_at: cert.createdAt,
+          valid: true,
+        },
+        message: "certificate is valid",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Option 3 — Leaderboard
+  // ---------------------------------------------------------------------------
+
+  getLeaderboard: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const user_id = request.user?.id || null;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message:
+            "authentication required — create an account to view the leaderboard",
+          status: httpStatus.UNAUTHORIZED,
+        };
+      }
+
+      const limit = Math.min(parseInt(request.query.limit) || 20, 100);
+      const LearnProgress = LearnProgressModel(tenant);
+
+      const topLearners = await LearnProgress.find({
+        learner_type: "user",
+        total_points: { $gt: 0 },
+      })
+        .sort({ total_points: -1 })
+        .limit(limit)
+        .select("user_id total_points current_stage_index completed_lessons")
+        .lean();
+
+      // Determine caller's rank when they fall outside the top N
+      const currentUserInTop = topLearners.some((l) => l.user_id === user_id);
+      let currentUserRank = null;
+
+      if (!currentUserInTop) {
+        const userProgress = await LearnProgress.findOne({ user_id }).lean();
+        if (userProgress) {
+          const ahead = await LearnProgress.countDocuments({
+            learner_type: "user",
+            total_points: { $gt: userProgress.total_points },
+          });
+          currentUserRank = ahead + 1;
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          scope: "global",
+          entries: topLearners.map((l, i) => ({
+            rank: i + 1,
+            total_points: l.total_points,
+            completed_lessons: l.completed_lessons,
+            current_stage: STAGES[l.current_stage_index] || STAGES[0],
+            is_current_user: l.user_id === user_id,
+          })),
+          current_user_rank: currentUserInTop
+            ? topLearners.findIndex((l) => l.user_id === user_id) + 1
+            : currentUserRank,
+        },
+        message: "successfully retrieved leaderboard",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Bonus — per-course progress summary
+  // ---------------------------------------------------------------------------
+
+  getCourseProgress: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const device_id = request.headers["x-device-id"];
+      const guest_id = request.headers["x-guest-id"] || null;
+      const user_id = request.user?.id || null;
+
+      if (!user_id && !device_id) {
+        return {
+          success: false,
+          message: "X-Device-Id header is required for guest progress",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const progressRes = await LearnProgressModel(tenant).findProgress(
+        { device_id, guest_id, user_id },
+        next
+      );
+      if (progressRes && !progressRes.success) return progressRes;
+      const progressDoc = progressRes?.data || null;
+      const lessonsMap =
+        progressDoc?.lessons instanceof Map
+          ? progressDoc.lessons
+          : new Map(Object.entries(progressDoc?.lessons || {}));
+
+      const [coursesRes, unitsRes, lessonsRes] = await Promise.all([
+        LearnCourseModel(tenant).list({ filter: { published: true } }, next),
+        LearnUnitModel(tenant).list({ limit: 0 }, next),
+        LearnLessonModel(tenant).list({ limit: 0 }, next),
+      ]);
+
+      if (!coursesRes?.success) return coursesRes;
+      if (!unitsRes?.success) return unitsRes;
+      if (!lessonsRes?.success) return lessonsRes;
+
+      const unitsByCourse = {};
+      (unitsRes?.data || []).forEach((u) => {
+        const cid = u.course_id.toString();
+        if (!unitsByCourse[cid]) unitsByCourse[cid] = [];
+        unitsByCourse[cid].push(u._id.toString());
+      });
+
+      const lessonsByUnit = {};
+      (lessonsRes?.data || []).forEach((l) => {
+        const uid = l.unit_id.toString();
+        if (!lessonsByUnit[uid]) lessonsByUnit[uid] = [];
+        lessonsByUnit[uid].push(l._id.toString());
+      });
+
+      const courses = coursesRes.data.map((course) => {
+        const cid = course._id.toString();
+        const unitIds = unitsByCourse[cid] || [];
+        const allLessonIds = unitIds.flatMap((uid) => lessonsByUnit[uid] || []);
+        const total_lessons = allLessonIds.length;
+
+        let completed_lessons = 0;
+        let points_earned = 0;
+        let total_stars = 0;
+
+        allLessonIds.forEach((lid) => {
+          const lp = lessonsMap.get(lid);
+          if (lp?.completed) {
+            completed_lessons++;
+            points_earned += lp.points_earned || 0;
+            total_stars += lp.stars || 0;
+          }
+        });
+
+        return {
+          course_id: course._id,
+          title: course.title,
+          course_number: course.course_number,
+          cover_image_url: course.cover_image_url || null,
+          total_lessons,
+          completed_lessons,
+          points_earned,
+          is_complete: total_lessons > 0 && completed_lessons === total_lessons,
+          average_stars:
+            completed_lessons > 0
+              ? Math.round((total_stars / completed_lessons) * 10) / 10
+              : 0,
+        };
+      });
+
+      return {
+        success: true,
+        data: courses,
+        message: "successfully retrieved course progress",
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
