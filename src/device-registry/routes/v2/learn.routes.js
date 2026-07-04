@@ -25,10 +25,17 @@ router.put("/progress/lessons/:lesson_id", learnValidations.updateLessonProgress
 router.post("/progress/sync", learnValidations.syncProgress, learnController.syncProgress);
 
 // ---------------------------------------------------------------------------
-// Option 3 — Account linking (JWT enforced at nginx gateway)
+// Option 3 — Account linking, Certificates & Leaderboard (JWT enforced at nginx gateway)
 // ---------------------------------------------------------------------------
 
 router.post("/progress/link", learnValidations.linkGuestProgress, learnController.linkGuestProgress);
+router.get("/progress/courses", learnValidations.getCourseProgress, learnController.getCourseProgress);
+
+router.post("/certificates/named", learnValidations.issueCertificate, learnController.issueCertificate);
+router.get("/certificates", learnValidations.listCertificates, learnController.listCertificates);
+router.get("/certificates/verify/:verification_code", learnValidations.verifyCertificate, learnController.verifyCertificate);
+
+router.get("/leaderboard", learnValidations.getLeaderboard, learnController.getLeaderboard);
 
 // ---------------------------------------------------------------------------
 // Admin — Course Authoring (admin JWT enforced at nginx gateway)
