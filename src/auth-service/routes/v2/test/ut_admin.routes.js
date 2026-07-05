@@ -1,5 +1,8 @@
 require("module-alias/register");
 
+const VALID_SETUP_KEY = "setup-key-stub";
+const INVALID_SETUP_KEY = "wrong-key-stub";
+
 // Stub cloudinary before any module in the chain can load it
 const cloudinaryPath = require.resolve("cloudinary");
 if (!require.cache[cloudinaryPath]) {
@@ -104,7 +107,7 @@ describe("Admin Routes", () => {
       const response = await request(app)
         .post("/rbac-reset")
         .query({ tenant: "airqo" })
-        .send({ secret: "test-secret", dry_run: true });
+        .send({ secret: VALID_SETUP_KEY, dry_run: true });
 
       expect(response.status).to.equal(200);
       expect(response.body.success).to.equal(true);
@@ -123,7 +126,7 @@ describe("Admin Routes", () => {
       const response = await request(app)
         .post("/rbac-reset")
         .query({ tenant: "airqo" })
-        .send({ secret: "wrong-secret" });
+        .send({ secret: INVALID_SETUP_KEY });
 
       expect(response.status).to.equal(403);
       expect(response.body.success).to.equal(false);
@@ -144,7 +147,7 @@ describe("Admin Routes", () => {
       const response = await request(app)
         .post("/rbac-initialize")
         .query({ tenant: "airqo" })
-        .send({ secret: "test-secret" });
+        .send({ secret: VALID_SETUP_KEY });
 
       expect(response.status).to.equal(200);
       expect(response.body.success).to.equal(true);
@@ -210,7 +213,7 @@ describe("Admin Routes", () => {
       const response = await request(app)
         .post("/maintenance/cache-clear")
         .query({ tenant: "airqo" })
-        .send({ secret: "test" });
+        .send({ secret: VALID_SETUP_KEY });
 
       expect(response.status).to.be.oneOf([400, 401, 403, 422, 500]);
     });

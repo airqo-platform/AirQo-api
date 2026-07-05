@@ -34,6 +34,8 @@ const sinon = require("sinon");
 const httpStatus = require("http-status");
 const { FeedbackWebhookModel, WEBHOOK_EVENTS } = require("@models/FeedbackWebhook");
 
+const WEBHOOK_SECRET_STUB = "webhook-secret-stub";
+
 describe("FeedbackWebhookModel", () => {
   afterEach(() => {
     sinon.restore();
@@ -52,7 +54,7 @@ describe("FeedbackWebhookModel", () => {
         name: "My Webhook",
         url: "https://example.com/hook",
         events: ["feedback.submitted"],
-        secret: "mysupersecret16ch",
+        secret: WEBHOOK_SECRET_STUB,
         tenant: "airqo",
       };
 
@@ -85,7 +87,7 @@ describe("FeedbackWebhookModel", () => {
         name: "My Webhook",
         url: "https://example.com/hook",
         events: ["feedback.submitted"],
-        secret: "mysupersecret16ch",
+        secret: WEBHOOK_SECRET_STUB,
         tenant: "airqo",
       });
 
