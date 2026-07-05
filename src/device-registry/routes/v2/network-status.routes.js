@@ -45,4 +45,10 @@ router.get(
   networkStatusController.getUptimeSummary
 );
 
+router.get(
+  "/breakdown",
+  oneOf(networkStatusValidations.getNetworkBreakdown),
+  networkStatusController.getNetworkBreakdown
+);
+
 module.exports = router;
