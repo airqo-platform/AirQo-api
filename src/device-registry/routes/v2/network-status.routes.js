@@ -47,7 +47,7 @@ router.get(
 
 router.get(
   "/breakdown",
-  oneOf(networkStatusValidations.getNetworkBreakdown),
+  ...networkStatusValidations.getNetworkBreakdown,
   networkStatusController.getNetworkBreakdown
 );
 

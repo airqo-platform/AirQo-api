@@ -146,12 +146,11 @@ const networkStatusUtil = {
 
       if (network) {
         filter.network_breakdown = {
-          $elemMatch: {
-            network: network.toLowerCase(),
-            not_transmitting_percentage: { $gte: 35 },
-          },
+          $elemMatch: { network: network.toLowerCase() },
         };
-      } else if (threshold_exceeded !== undefined) {
+      }
+
+      if (threshold_exceeded !== undefined) {
         filter.threshold_exceeded = threshold_exceeded === "true";
       }
 

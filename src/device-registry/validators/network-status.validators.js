@@ -3,6 +3,7 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
+const { validateNetwork } = require("@validators/common");
 
 const commonValidations = {
   tenant: [
@@ -23,9 +24,11 @@ const commonValidations = {
       .withMessage("network cannot be empty if provided")
       .bail()
       .trim()
-      .toLowerCase()
       .isString()
-      .withMessage("network must be a string"),
+      .withMessage("network must be a string")
+      .bail()
+      .toLowerCase()
+      .custom(validateNetwork),
   ],
   dateRange: [
     query("start_date")
