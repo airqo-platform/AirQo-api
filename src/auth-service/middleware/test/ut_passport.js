@@ -100,6 +100,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         logElement: sinon.stub(),
         extractErrorsFromRequest: sinon.stub(),
       },
+      log4js: {
+        getLogger: sinon.stub().returns(loggerStub),
+      },
       jsonwebtoken: {
         verify: jwtVerifyStub,
         sign: sinon.stub(),
@@ -461,7 +464,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
+      await nextCalled;
 
       expect(res.set.calledWith("X-Access-Token")).to.be.true;
       expect(
@@ -487,7 +492,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         createToken: sinon.stub().rejects(new Error("Token creation failed")),
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
+      await nextCalled;
 
       // Should still proceed despite refresh failure
       expect(next.calledOnce).to.be.true;
@@ -625,9 +632,13 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         createToken: sinon.stub().rejects(new Error("Refresh failed")),
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
+      await nextCalled;
 
-      expect(loggerStub.error.called).to.be.true;
+      // The middleware uses logger.warn (not logger.error) for best-effort
+      // refresh failures since the existing token is still valid.
+      expect(loggerStub.warn.called).to.be.true;
     });
   });
 });
