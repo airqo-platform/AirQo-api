@@ -329,7 +329,7 @@ describe("token util", () => {
 
     it("should return null for a completely invalid URL", () => {
       const domain = rewireToken.extractAndNormalizeDomain(":::invalid");
-      expect(domain).to.satisfy((d) => d === null || typeof d === "string");
+      expect(domain).to.equal(null);
     });
   });
 
@@ -347,11 +347,8 @@ describe("token util", () => {
 
       const result = await rewireToken.createBlockedDomain(req, next);
 
-      if (result) {
-        expect(result.success).to.equal(true);
-      } else {
-        expect(next.called).to.equal(true);
-      }
+      expect(result).to.not.equal(undefined);
+      expect(result.success).to.equal(true);
     });
   });
 
@@ -371,9 +368,8 @@ describe("token util", () => {
 
       const result = await rewireToken.listBlockedDomains(req, next);
 
-      if (result) {
-        expect(result.success).to.equal(true);
-      }
+      expect(result).to.not.equal(undefined);
+      expect(result.success).to.equal(true);
     });
   });
 
@@ -423,15 +419,15 @@ describe("token util", () => {
         }),
       }));
 
-      const result = await rewireToken.updateAccessToken(req, next);
-
-      rewireToken.__set__("constants", origConstants);
-
-      if (result) {
-        expect(result).to.have.property("success", true);
-      } else {
-        expect(next.called).to.equal(false);
+      let result;
+      try {
+        result = await rewireToken.updateAccessToken(req, next);
+      } finally {
+        rewireToken.__set__("constants", origConstants);
       }
+
+      expect(result).to.not.equal(undefined);
+      expect(result).to.have.property("success", true);
     });
   });
 

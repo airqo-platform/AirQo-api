@@ -109,7 +109,7 @@ npm test
 
 Tests use Mocha + nyc (Istanbul). Coverage reports are uploaded to Codecov on every push.
 
-**Last recorded test run:**
+**Last recorded test run (historical; run `npm test` for current results):**
 
 | Result | Count | Percentage |
 |---|---|---|

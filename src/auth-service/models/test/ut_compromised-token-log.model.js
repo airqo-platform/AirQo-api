@@ -40,8 +40,6 @@ describe("CompromisedTokenLogModel", () => {
       expect(result).to.be.an("object");
       expect(result.success).to.equal(true);
       expect(result.data).to.include({ email: "user@example.com" });
-
-      createStub.restore();
     });
 
     it("should return failure when create throws", async () => {
@@ -58,8 +56,6 @@ describe("CompromisedTokenLogModel", () => {
 
       expect(result.success).to.equal(false);
       expect(result.message).to.equal("DB write failed");
-
-      createStub.restore();
     });
   });
 });

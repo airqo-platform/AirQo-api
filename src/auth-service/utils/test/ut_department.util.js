@@ -91,6 +91,7 @@ describe("department util", () => {
       await rewireDept.updateDepartment(req, next);
 
       expect(next.calledOnce).to.equal(true);
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
@@ -126,6 +127,7 @@ describe("department util", () => {
       await rewireDept.deleteDepartment(req, next);
 
       expect(next.calledOnce).to.equal(true);
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
@@ -162,6 +164,7 @@ describe("department util", () => {
       await rewireDept.listDepartment(req, next);
 
       expect(next.calledOnce).to.equal(true);
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });

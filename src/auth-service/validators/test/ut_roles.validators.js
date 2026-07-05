@@ -1,4 +1,5 @@
 require("module-alias/register");
+const ORIG_TENANTS_ENV = process.env.TENANTS;
 process.env.TENANTS = "kcca,airqo,airqount";
 const chai = require("chai");
 const sinon = require("sinon");
@@ -85,6 +86,7 @@ describe("roles validators", () => {
   });
   after(() => {
     constants.TENANTS = origTenants;
+    process.env.TENANTS = ORIG_TENANTS_ENV;
   });
 
   describe("pagination middleware", () => {

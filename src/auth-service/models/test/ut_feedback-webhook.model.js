@@ -15,7 +15,7 @@ try {
 const database = require("@config/database");
 if (database.getModelByTenant.__isPatched !== true) {
   const _orig = database.getModelByTenant;
-  database.getModelByTenant = (tenant, modelName, schema) => {
+  const patchedGetModelByTenant = (tenant, modelName, schema) => {
     const plural = modelName + "s";
     if (mongoose.modelNames().includes(plural)) return mongoose.model(plural);
     if (mongoose.modelNames().includes(modelName)) return mongoose.model(modelName);
@@ -25,7 +25,9 @@ if (database.getModelByTenant.__isPatched !== true) {
       return mongoose.model(modelName);
     }
   };
-  database.getModelByTenant.__isPatched = true;
+  patchedGetModelByTenant.__isPatched = true;
+  patchedGetModelByTenant.__orig = _orig;
+  database.getModelByTenant = patchedGetModelByTenant;
 }
 
 const chai = require("chai");
@@ -37,6 +39,11 @@ const { FeedbackWebhookModel, WEBHOOK_EVENTS } = require("@models/FeedbackWebhoo
 const WEBHOOK_SECRET_STUB = "webhook-secret-stub";
 
 describe("FeedbackWebhookModel", () => {
+  after(() => {
+    if (database.getModelByTenant.__orig) {
+      database.getModelByTenant = database.getModelByTenant.__orig;
+    }
+  });
   afterEach(() => {
     sinon.restore();
   });

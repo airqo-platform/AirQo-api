@@ -10,7 +10,6 @@ const rewireAdmin = rewire("@utils/admin.util");
 describe("admin util", () => {
   let req, next;
   let origUserModel, origRoleModel, origPermissionModel, origGroupModel;
-  let origRolePermissionsUtil;
 
   beforeEach(() => {
     req = {
@@ -28,7 +27,6 @@ describe("admin util", () => {
     origRoleModel = rewireAdmin.__get__("RoleModel");
     origPermissionModel = rewireAdmin.__get__("PermissionModel");
     origGroupModel = rewireAdmin.__get__("GroupModel");
-    origRolePermissionsUtil = null;
   });
 
   afterEach(() => {
@@ -44,11 +42,9 @@ describe("admin util", () => {
       rewireAdmin.__set__("PermissionModel", () => ({
         countDocuments: sinon.stub().resolves(10),
       }));
-      rewireAdmin.__set__("RoleModel", () => ({
-        countDocuments: sinon.stub()
-          .onFirstCall().resolves(5)
-          .onSecondCall().resolves(3),
-      }));
+      const roleCountStub = sinon.stub().onFirstCall().resolves(5).onSecondCall().resolves(3);
+      const sharedRoleModel = { countDocuments: roleCountStub };
+      rewireAdmin.__set__("RoleModel", () => sharedRoleModel);
 
       const result = await rewireAdmin.checkRBACHealth(req, next);
 
@@ -61,11 +57,9 @@ describe("admin util", () => {
       rewireAdmin.__set__("PermissionModel", () => ({
         countDocuments: sinon.stub().resolves(0),
       }));
-      rewireAdmin.__set__("RoleModel", () => ({
-        countDocuments: sinon.stub()
-          .onFirstCall().resolves(5)
-          .onSecondCall().resolves(0),
-      }));
+      const roleCountStub = sinon.stub().onFirstCall().resolves(5).onSecondCall().resolves(0);
+      const sharedRoleModel = { countDocuments: roleCountStub };
+      rewireAdmin.__set__("RoleModel", () => sharedRoleModel);
 
       const result = await rewireAdmin.checkRBACHealth(req, next);
 

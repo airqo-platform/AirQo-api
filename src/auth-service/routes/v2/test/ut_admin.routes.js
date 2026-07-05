@@ -184,7 +184,7 @@ describe("Admin Routes", () => {
 
       const response = await request(app).get("/audit/users").query({ tenant: "airqo" });
 
-      expect(response.status).to.be.oneOf([400, 401, 403, 422, 500]);
+      expect(response.status).to.be.oneOf([400, 401, 403, 422]);
     });
 
     it("GET /audit/roles returns 401 without JWT (real router)", async () => {
@@ -198,7 +198,7 @@ describe("Admin Routes", () => {
 
       const response = await request(app).get("/audit/roles").query({ tenant: "airqo" });
 
-      expect(response.status).to.be.oneOf([400, 401, 403, 422, 500]);
+      expect(response.status).to.be.oneOf([400, 401, 403, 422]);
     });
 
     it("POST /maintenance/cache-clear returns 401 without JWT (real router)", async () => {
@@ -215,7 +215,7 @@ describe("Admin Routes", () => {
         .query({ tenant: "airqo" })
         .send({ secret: VALID_SETUP_KEY });
 
-      expect(response.status).to.be.oneOf([400, 401, 403, 422, 500]);
+      expect(response.status).to.be.oneOf([400, 401, 403, 422]);
     });
   });
 });

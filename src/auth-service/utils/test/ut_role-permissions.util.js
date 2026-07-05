@@ -132,9 +132,9 @@ describe("role-permissions util", () => {
 
       const result = await rewireRPU.listPermissionsForRole(req, next);
 
-      if (result) {
-        expect(result.success).to.equal(true);
-      }
+      expect(next.called).to.equal(false);
+      expect(result).to.not.equal(undefined);
+      expect(result.success).to.equal(true);
     });
 
     it("should return failure when role list fails", async () => {
@@ -155,9 +155,9 @@ describe("role-permissions util", () => {
 
       const result = await rewireRPU.listPermissionsForRole(req, next);
 
-      if (result) {
-        expect(result.success).to.equal(false);
-      }
+      expect(next.called).to.equal(false);
+      expect(result).to.not.equal(undefined);
+      expect(result.success).to.equal(false);
     });
   });
 

@@ -81,10 +81,10 @@ describe("feedback-integrations util", () => {
   describe("notifySlack (internal via httpsPost)", () => {
     it("should skip Slack dispatch when SLACK_FEEDBACK_WEBHOOK_URL is not set", async () => {
       const origConstants = rewireIntegrations.__get__("constants");
-      rewireIntegrations.__set__("constants", {
-        ...origConstants,
-        SLACK_FEEDBACK_WEBHOOK_URL: null,
-      });
+      rewireIntegrations.__set__("constants", { ...origConstants, SLACK_FEEDBACK_WEBHOOK_URL: null });
+      const origHttpsPost = rewireIntegrations.__get__("httpsPost");
+      const httpsPostSpy = sinon.stub().resolves({});
+      rewireIntegrations.__set__("httpsPost", httpsPostSpy);
 
       const notifySlack = rewireIntegrations.__get__("notifySlack");
 
@@ -96,21 +96,20 @@ describe("feedback-integrations util", () => {
       }
 
       expect(threw).to.equal(false);
+      expect(httpsPostSpy.called).to.equal(false);
 
       rewireIntegrations.__set__("constants", origConstants);
+      rewireIntegrations.__set__("httpsPost", origHttpsPost);
     });
   });
 
   describe("createJiraIssue (internal)", () => {
     it("should skip JIRA when required config is missing", async () => {
       const origConstants = rewireIntegrations.__get__("constants");
-      rewireIntegrations.__set__("constants", {
-        ...origConstants,
-        JIRA_BASE_URL: null,
-        JIRA_EMAIL: null,
-        JIRA_API_TOKEN: null,
-        JIRA_PROJECT_KEY: null,
-      });
+      rewireIntegrations.__set__("constants", { ...origConstants, JIRA_BASE_URL: null, JIRA_EMAIL: null, JIRA_API_TOKEN: null, JIRA_PROJECT_KEY: null });
+      const origHttpsPost = rewireIntegrations.__get__("httpsPost");
+      const httpsPostSpy = sinon.stub().resolves({});
+      rewireIntegrations.__set__("httpsPost", httpsPostSpy);
 
       const createJiraIssue = rewireIntegrations.__get__("createJiraIssue");
 
@@ -122,19 +121,18 @@ describe("feedback-integrations util", () => {
       }
 
       expect(threw).to.equal(false);
+      expect(httpsPostSpy.called).to.equal(false);
 
       rewireIntegrations.__set__("constants", origConstants);
+      rewireIntegrations.__set__("httpsPost", origHttpsPost);
     });
 
     it("should skip JIRA when feedback is not actionable", async () => {
       const origConstants = rewireIntegrations.__get__("constants");
-      rewireIntegrations.__set__("constants", {
-        ...origConstants,
-        JIRA_BASE_URL: "https://jira.example.com",
-        JIRA_EMAIL: "user@example.com",
-        JIRA_API_TOKEN: "token",
-        JIRA_PROJECT_KEY: "PROJ",
-      });
+      rewireIntegrations.__set__("constants", { ...origConstants, JIRA_BASE_URL: "https://jira.example.com", JIRA_EMAIL: "user@example.com", JIRA_API_TOKEN: "token", JIRA_PROJECT_KEY: "PROJ" });
+      const origHttpsPost = rewireIntegrations.__get__("httpsPost");
+      const httpsPostSpy = sinon.stub().resolves({});
+      rewireIntegrations.__set__("httpsPost", httpsPostSpy);
 
       const createJiraIssue = rewireIntegrations.__get__("createJiraIssue");
 
@@ -146,8 +144,10 @@ describe("feedback-integrations util", () => {
       }
 
       expect(threw).to.equal(false);
+      expect(httpsPostSpy.called).to.equal(false);
 
       rewireIntegrations.__set__("constants", origConstants);
+      rewireIntegrations.__set__("httpsPost", origHttpsPost);
     });
   });
 

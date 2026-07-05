@@ -32,6 +32,9 @@ const httpStatus = require("http-status");
 const FeedbackModel = require("@models/Feedback");
 
 describe("FeedbackModel", () => {
+  after(() => {
+    database.getModelByTenant = _origGetModelByTenant;
+  });
   afterEach(() => {
     sinon.restore();
   });
