@@ -3,6 +3,7 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
+const { validateNetwork } = require("@validators/common");
 
 const commonValidations = {
   tenant: [
@@ -15,6 +16,38 @@ const commonValidations = {
       .toLowerCase()
       .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
+  ],
+  network: [
+    query("network")
+      .optional()
+      .notEmpty()
+      .withMessage("network cannot be empty if provided")
+      .bail()
+      .trim()
+      .isString()
+      .withMessage("network must be a string")
+      .bail()
+      .toLowerCase()
+      .custom(validateNetwork),
+  ],
+  dateRange: [
+    query("start_date")
+      .optional()
+      .isISO8601()
+      .withMessage("start_date must be a valid ISO 8601 date"),
+    query("end_date")
+      .optional()
+      .isISO8601()
+      .withMessage("end_date must be a valid ISO 8601 date")
+      .custom((value, { req }) => {
+        if (
+          req.query.start_date &&
+          new Date(value) <= new Date(req.query.start_date)
+        ) {
+          throw new Error("end_date must be after start_date");
+        }
+        return true;
+      }),
   ],
 };
 
@@ -89,23 +122,8 @@ const networkStatusValidations = {
 
   list: [
     ...commonValidations.tenant,
-    query("start_date")
-      .optional()
-      .isISO8601()
-      .withMessage("start_date must be a valid ISO 8601 date"),
-    query("end_date")
-      .optional()
-      .isISO8601()
-      .withMessage("end_date must be a valid ISO 8601 date")
-      .custom((value, { req }) => {
-        if (
-          req.query.start_date &&
-          new Date(value) <= new Date(req.query.start_date)
-        ) {
-          throw new Error("end_date must be after start_date");
-        }
-        return true;
-      }),
+    ...commonValidations.network,
+    ...commonValidations.dateRange,
     query("status")
       .optional()
       .isIn(["OK", "WARNING", "CRITICAL"])
@@ -118,62 +136,39 @@ const networkStatusValidations = {
 
   getStatistics: [
     ...commonValidations.tenant,
-    query("start_date")
-      .optional()
-      .isISO8601()
-      .withMessage("start_date must be a valid ISO 8601 date"),
-    query("end_date")
-      .optional()
-      .isISO8601()
-      .withMessage("end_date must be a valid ISO 8601 date")
-      .custom((value, { req }) => {
-        if (
-          req.query.start_date &&
-          new Date(value) <= new Date(req.query.start_date)
-        ) {
-          throw new Error("end_date must be after start_date");
-        }
-        return true;
-      }),
+    ...commonValidations.network,
+    ...commonValidations.dateRange,
   ],
 
   getHourlyTrends: [
     ...commonValidations.tenant,
-    query("start_date")
-      .optional()
-      .isISO8601()
-      .withMessage("start_date must be a valid ISO 8601 date"),
-    query("end_date")
-      .optional()
-      .isISO8601()
-      .withMessage("end_date must be a valid ISO 8601 date")
-      .custom((value, { req }) => {
-        if (
-          req.query.start_date &&
-          new Date(value) <= new Date(req.query.start_date)
-        ) {
-          throw new Error("end_date must be after start_date");
-        }
-        return true;
-      }),
+    ...commonValidations.network,
+    ...commonValidations.dateRange,
   ],
 
   getRecentAlerts: [
     ...commonValidations.tenant,
+    ...commonValidations.network,
     query("hours")
       .optional()
-      .isInt({ min: 1, max: 168 }) // Max 1 week
+      .isInt({ min: 1, max: 168 })
       .withMessage("hours must be between 1 and 168")
       .toInt(),
   ],
 
   getUptimeSummary: [
     ...commonValidations.tenant,
+    ...commonValidations.network,
     query("days")
       .optional()
-      .isInt({ min: 1, max: 90 }) // Max 3 months
+      .isInt({ min: 1, max: 90 })
       .withMessage("days must be between 1 and 90")
       .toInt(),
+  ],
+
+  getNetworkBreakdown: [
+    ...commonValidations.tenant,
+    ...commonValidations.dateRange,
   ],
 };
 
