@@ -870,7 +870,7 @@ UserSchema.statics = {
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "Successfully retrieved the user statistics",
+          message: "successfully retrieved the user statistics",
           data: response[0],
           status: httpStatus.OK,
         };
