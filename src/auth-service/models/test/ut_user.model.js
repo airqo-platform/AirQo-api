@@ -29,17 +29,20 @@ describe("UserSchema static methods", () => {
 
       sandbox.stub(UserModelFactory("airqo"), "create").resolves(fakeUser);
 
-      const result = await UserModelFactory("airqo").register(args);
-      sandbox.restore();
+      try {
+        const result = await UserModelFactory("airqo").register(args);
 
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("user created");
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.have.property("_id");
-      expect(result.data.firstName).to.equal("John");
-      expect(result.data.lastName).to.equal("Doe");
-      expect(result.data.userName).to.equal("john_doe");
-      expect(result.data.email).to.equal("john@example.com");
+        expect(result.success).to.be.true;
+        expect(result.message).to.equal("user created");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(result.data).to.have.property("_id");
+        expect(result.data.firstName).to.equal("John");
+        expect(result.data.lastName).to.equal("Doe");
+        expect(result.data.userName).to.equal("john_doe");
+        expect(result.data.email).to.equal("john@example.com");
+      } finally {
+        sandbox.restore();
+      }
     });
 
     // Add more test cases to cover other scenarios
@@ -47,14 +50,38 @@ describe("UserSchema static methods", () => {
 
   describe("listStatistics()", () => {
     it("should list statistics of users", async () => {
-      const result = await UserModelFactory("airqo").listStatistics();
+      const sandbox = sinon.createSandbox();
+      const mockStats = {
+        users: { number: 5 },
+        active_users: { number: 2 },
+        api_users: { number: 1 },
+      };
 
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        "successfully retrieved the user statistics"
-      );
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.be.an("object");
+      const mockAggregation = {
+        match: sandbox.stub().returnsThis(),
+        sort: sandbox.stub().returnsThis(),
+        lookup: sandbox.stub().returnsThis(),
+        group: sandbox.stub().returnsThis(),
+        project: sandbox.stub().returnsThis(),
+        allowDiskUse: sandbox.stub().resolves([mockStats]),
+      };
+
+      sandbox
+        .stub(UserModelFactory("airqo"), "aggregate")
+        .returns(mockAggregation);
+
+      try {
+        const result = await UserModelFactory("airqo").listStatistics();
+
+        expect(result.success).to.be.true;
+        expect(result.message).to.equal(
+          "successfully retrieved the user statistics"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(result.data).to.deep.equal(mockStats);
+      } finally {
+        sandbox.restore();
+      }
     });
 
     // Add more test cases to cover other scenarios

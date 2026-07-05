@@ -464,10 +464,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
-      // The refresh path has two async hops (lean + createToken) before res.set
-      // is reached; flush all pending microtasks before asserting.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await nextCalled;
 
       expect(res.set.calledWith("X-Access-Token")).to.be.true;
       expect(
@@ -493,10 +492,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         createToken: sinon.stub().rejects(new Error("Token creation failed")),
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
-      // Flush all pending microtasks so the async callback chain completes
-      // before asserting (refresh failure + auth user lookup = multiple hops).
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await nextCalled;
 
       // Should still proceed despite refresh failure
       expect(next.calledOnce).to.be.true;
@@ -634,9 +632,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         createToken: sinon.stub().rejects(new Error("Refresh failed")),
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
-      // Flush microtasks so the async refresh-failure path completes.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await nextCalled;
 
       // The middleware uses logger.warn (not logger.error) for best-effort
       // refresh failures since the existing token is still valid.
