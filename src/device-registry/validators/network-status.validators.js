@@ -66,26 +66,26 @@ const networkStatusValidations = {
       .bail()
       .isInt({ min: 0 })
       .withMessage("total_deployed_devices must be a non-negative integer"),
-    body("offline_devices_count")
+    body("not_transmitting_devices_count")
       .exists()
-      .withMessage("offline_devices_count is required")
+      .withMessage("not_transmitting_devices_count is required")
       .bail()
       .isInt({ min: 0 })
-      .withMessage("offline_devices_count must be a non-negative integer")
+      .withMessage("not_transmitting_devices_count must be a non-negative integer")
       .custom((value, { req }) => {
         if (value > req.body.total_deployed_devices) {
           throw new Error(
-            "offline_devices_count cannot exceed total_deployed_devices",
+            "not_transmitting_devices_count cannot exceed total_deployed_devices",
           );
         }
         return true;
       }),
-    body("offline_percentage")
+    body("not_transmitting_percentage")
       .exists()
-      .withMessage("offline_percentage is required")
+      .withMessage("not_transmitting_percentage is required")
       .bail()
       .isFloat({ min: 0, max: 100 })
-      .withMessage("offline_percentage must be between 0 and 100"),
+      .withMessage("not_transmitting_percentage must be between 0 and 100"),
     body("status")
       .exists()
       .withMessage("status is required")

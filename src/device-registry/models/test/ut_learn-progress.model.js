@@ -53,26 +53,7 @@ describe("LearnProgress Model", () => {
   });
 
   describe("Static: computeStage", () => {
-    const { computeStage } = (() => {
-      const MAX = 2400;
-      function computeStage(totalPoints, maxPoints) {
-        const STAGES = [
-          { index: 0, name: "Curious" },
-          { index: 1, name: "Aware" },
-          { index: 2, name: "Observer" },
-          { index: 3, name: "Champion" },
-          { index: 4, name: "Defender" },
-        ];
-        if (!maxPoints || maxPoints === 0) return STAGES[0];
-        const ratio = totalPoints / maxPoints;
-        if (ratio >= 1.0) return STAGES[4];
-        if (ratio >= 0.75) return STAGES[3];
-        if (ratio >= 0.5) return STAGES[2];
-        if (ratio >= 0.25) return STAGES[1];
-        return STAGES[0];
-      }
-      return { computeStage, MAX };
-    })();
+    const computeStage = (...args) => Model.computeStage(...args);
 
     it("should return Curious for 0 points", () => {
       const stage = computeStage(0, 2400);

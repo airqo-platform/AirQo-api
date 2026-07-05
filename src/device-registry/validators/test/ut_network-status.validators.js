@@ -53,8 +53,8 @@ describe("networkStatusValidations", () => {
     const validBody = {
       checked_at: new Date().toISOString(),
       total_deployed_devices: 100,
-      offline_devices_count: 10,
-      offline_percentage: 10,
+      not_transmitting_devices_count: 10,
+      not_transmitting_percentage: 10,
       status: "OK",
       message: "ok",
       threshold_exceeded: false,
@@ -95,10 +95,10 @@ describe("networkStatusValidations", () => {
       expect(validationResult(req).isEmpty()).to.be.false;
     });
 
-    it("should fail when offline_devices_count exceeds total_deployed_devices", async () => {
+    it("should fail when not_transmitting_devices_count exceeds total_deployed_devices", async () => {
       const req = mockRequest(
         {},
-        { ...validBody, total_deployed_devices: 50, offline_devices_count: 100 }
+        { ...validBody, total_deployed_devices: 50, not_transmitting_devices_count: 100 }
       );
       await runMiddlewareChain(validations.create, req);
       const errors = validationResult(req);
