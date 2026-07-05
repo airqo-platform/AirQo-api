@@ -725,8 +725,9 @@ const createServer = () => {
   });
 
   // Memory usage monitoring (optional - for debugging)
-  if (isDev) {
-    process.on("exit", (code) => {
+  if (isDev && !createServer._exitMonitorRegistered) {
+    createServer._exitMonitorRegistered = true;
+    process.once("exit", (code) => {
       const memUsage = process.memoryUsage();
       console.log(`📊 Process exiting with code ${code}. Memory usage:`, {
         rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,

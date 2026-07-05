@@ -16,6 +16,8 @@ chai.use(chaiAsPromised);
 describe("UserSchema static methods", () => {
   describe("register()", () => {
     it("should register a new user", async () => {
+      const sandbox = sinon.createSandbox();
+      const fakeId = new mongoose.Types.ObjectId();
       const args = {
         firstName: "John",
         lastName: "Doe",
@@ -23,17 +25,24 @@ describe("UserSchema static methods", () => {
         email: "john@example.com",
         password: "password123",
       };
+      const fakeUser = { _id: fakeId, ...args };
 
-      const result = await UserModelFactory("airqo").register(args);
+      sandbox.stub(UserModelFactory("airqo"), "create").resolves(fakeUser);
 
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("user created");
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.have.property("_id");
-      expect(result.data.firstName).to.equal("John");
-      expect(result.data.lastName).to.equal("Doe");
-      expect(result.data.userName).to.equal("john_doe");
-      expect(result.data.email).to.equal("john@example.com");
+      try {
+        const result = await UserModelFactory("airqo").register(args);
+
+        expect(result.success).to.be.true;
+        expect(result.message).to.equal("user created");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(result.data).to.have.property("_id");
+        expect(result.data.firstName).to.equal("John");
+        expect(result.data.lastName).to.equal("Doe");
+        expect(result.data.userName).to.equal("john_doe");
+        expect(result.data.email).to.equal("john@example.com");
+      } finally {
+        sandbox.restore();
+      }
     });
 
     // Add more test cases to cover other scenarios
@@ -41,14 +50,38 @@ describe("UserSchema static methods", () => {
 
   describe("listStatistics()", () => {
     it("should list statistics of users", async () => {
-      const result = await UserModelFactory("airqo").listStatistics();
+      const sandbox = sinon.createSandbox();
+      const mockStats = {
+        users: { number: 5 },
+        active_users: { number: 2 },
+        api_users: { number: 1 },
+      };
 
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        "successfully retrieved the user statistics"
-      );
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.be.an("array");
+      const mockAggregation = {
+        match: sandbox.stub().returnsThis(),
+        sort: sandbox.stub().returnsThis(),
+        lookup: sandbox.stub().returnsThis(),
+        group: sandbox.stub().returnsThis(),
+        project: sandbox.stub().returnsThis(),
+        allowDiskUse: sandbox.stub().resolves([mockStats]),
+      };
+
+      sandbox
+        .stub(UserModelFactory("airqo"), "aggregate")
+        .returns(mockAggregation);
+
+      try {
+        const result = await UserModelFactory("airqo").listStatistics();
+
+        expect(result.success).to.be.true;
+        expect(result.message).to.equal(
+          "successfully retrieved the user statistics"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(result.data).to.deep.equal(mockStats);
+      } finally {
+        sandbox.restore();
+      }
     });
 
     // Add more test cases to cover other scenarios
@@ -70,12 +103,8 @@ describe("UserSchema static methods", () => {
     });
 
     it("should return user details with valid filter", async () => {
-      // Create a mock response
-      const mockResponse = [
-        // Mock user data here
-      ];
+      const mockResponse = [{ _id: new mongoose.Types.ObjectId(), email: "test@example.com" }];
 
-      // Create a mock aggregation object with expected methods
       const mockAggregation = {
         match: sandbox.stub().returnsThis(),
         lookup: sandbox.stub().returnsThis(),
@@ -86,19 +115,16 @@ describe("UserSchema static methods", () => {
         sort: sandbox.stub().returnsThis(),
         skip: sandbox.stub().returnsThis(),
         limit: sandbox.stub().returnsThis(),
-        allowDiskUse: sandbox.stub().returnsThis(),
-        exec: sandbox.stub().resolves(mockResponse), // Resolve with your mock data
+        allowDiskUse: sandbox.stub().resolves(mockResponse),
+        exec: sandbox.stub().resolves(mockResponse),
       };
 
-      // Stub the UserModel.aggregate() method to return the mock aggregation object
       sandbox.stub(UserModelFactory("airqo"), "aggregate").returns(mockAggregation);
+      sandbox
+        .stub(UserModelFactory("airqo"), "countDocuments")
+        .returns({ exec: sandbox.stub().resolves(1) });
 
-      // Define the filter you want to test
-      const filter = {
-        // Define your filter here
-      };
-
-      // Call the list function and make assertions
+      const filter = {};
       const result = await UserModelFactory("airqo").list({ filter });
 
       expect(result).to.deep.equal({
@@ -106,6 +132,13 @@ describe("UserSchema static methods", () => {
         message: "successfully retrieved the user details",
         data: mockResponse,
         status: httpStatus.OK,
+        meta: {
+          total: 1,
+          skip: 0,
+          limit: 100,
+          page: 1,
+          pages: 1,
+        },
       });
     });
 
@@ -337,20 +370,18 @@ describe("UserSchema instance methods", () => {
 
   describe("toAuthJSON()", () => {
     it("should return the JSON representation for authentication", async () => {
-      // Sample user document
+      const userId = new mongoose.Types.ObjectId();
       const user = new (UserModelFactory("airqo"))({
-        _id: "user_id_1",
+        _id: userId,
         userName: "john_doe",
         email: "john@example.com",
         password: "password123",
       });
 
-      // Call the toAuthJSON method
       const result = await user.toAuthJSON();
 
-      // Assertions
       expect(result).to.be.an("object");
-      expect(result).to.have.property("_id", "user_id_1");
+      expect(result._id.toString()).to.equal(userId.toString());
       expect(result).to.have.property("userName", "john_doe");
       expect(result).to.have.property("email", "john@example.com");
       expect(result).to.have.property("token");
