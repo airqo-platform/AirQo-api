@@ -156,6 +156,7 @@ networkStatusAlertSchema.methods = {
       environment: this.environment,
       day_of_week: this.day_of_week,
       hour_of_day: this.hour_of_day,
+      network_breakdown: this.network_breakdown,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
@@ -327,7 +328,7 @@ networkStatusAlertSchema.statics = {
     }
   },
 
-  async getStatisticsByNetwork({ filter = {} } = {}, next) {
+  async getStatisticsByNetwork({ filter = {}, network } = {}, next) {
     try {
       const pipeline = [
         { $match: filter },
@@ -337,6 +338,9 @@ networkStatusAlertSchema.statics = {
             preserveNullAndEmptyArrays: false,
           },
         },
+        ...(network
+          ? [{ $match: { "network_breakdown.network": network.toLowerCase() } }]
+          : []),
         {
           $group: {
             _id: "$network_breakdown.network",
@@ -354,6 +358,100 @@ networkStatusAlertSchema.statics = {
       ];
 
       return await this.executeAggregation({ pipeline }, next);
+    } catch (error) {
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
+    }
+  },
+
+  async getHourlyTrendsByNetwork({ filter = {}, network } = {}, next) {
+    try {
+      const pipeline = [
+        { $match: filter },
+        {
+          $unwind: {
+            path: "$network_breakdown",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        { $match: { "network_breakdown.network": network.toLowerCase() } },
+        {
+          $group: {
+            _id: {
+              hour: "$hour_of_day",
+              dayOfWeek: "$day_of_week",
+            },
+            avg_not_transmitting_percentage: {
+              $avg: "$network_breakdown.not_transmitting_percentage",
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { "_id.dayOfWeek": 1, "_id.hour": 1 } },
+      ];
+
+      return this.executeAggregation({ pipeline }, next);
+    } catch (error) {
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
+    }
+  },
+
+  async getUptimeSummaryByNetwork({ filter = {}, network } = {}, next) {
+    try {
+      const pipeline = [
+        { $match: filter },
+        {
+          $unwind: {
+            path: "$network_breakdown",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        { $match: { "network_breakdown.network": network.toLowerCase() } },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m-%d", date: "$checked_at" },
+            },
+            avgOfflinePercentage: {
+              $avg: "$network_breakdown.not_transmitting_percentage",
+            },
+            maxOfflinePercentage: {
+              $max: "$network_breakdown.not_transmitting_percentage",
+            },
+            minOfflinePercentage: {
+              $min: "$network_breakdown.not_transmitting_percentage",
+            },
+            totalChecks: { $sum: 1 },
+            alertsTriggered: {
+              $sum: {
+                $cond: [
+                  { $gte: ["$network_breakdown.not_transmitting_percentage", 35] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ];
+
+      return this.executeAggregation({ pipeline }, next);
     } catch (error) {
       const httpError = new HttpError(
         "Internal Server Error",
