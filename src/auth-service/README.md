@@ -2,6 +2,8 @@
 
 [![Code Coverage](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml)
 [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/staging/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)
+[![Passing Tests](https://img.shields.io/badge/tests%20passing-1286%20%E2%80%94%2099.4%25-brightgreen)](#testing)
+[![Failing Tests](https://img.shields.io/badge/tests%20failing-8%20%E2%80%94%200.6%25-yellow)](#testing)
 
 This microservice handles all authentication and authorization for the AirQo platform. It manages users, roles, groups, organizations, tokens, OAuth flows, and access control.
 
@@ -106,6 +108,14 @@ npm test
 ```
 
 Tests use Mocha + nyc (Istanbul). Coverage reports are uploaded to Codecov on every push.
+
+**Last recorded test run (historical; run `npm test` for current results):**
+
+| Result | Count | Percentage |
+|---|---|---|
+| ✅ Passing | 1286 | 99.4% |
+| ❌ Failing | 8 | 0.6% |
+| ⏭ Pending | 88 | — |
 
 ## Contributing
 
