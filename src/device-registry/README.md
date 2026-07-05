@@ -2,6 +2,8 @@
 
 [![Code Coverage](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml)
 [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/staging/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)
+[![Passing Tests](https://img.shields.io/badge/tests%20passing-791%20%E2%80%94%20100%25-brightgreen)](#running-tests)
+[![Failing Tests](https://img.shields.io/badge/tests%20failing-0%20%E2%80%94%200%25-brightgreen)](#running-tests)
 
 Device Registry manages devices, sites, events, grids, cohorts, and the activities that occur within a monitoring network. It is the central registry for all physical and logical entities in the AirQo platform.
 
@@ -125,6 +127,14 @@ npm test
 ```
 
 This runs the unit-test suite under `nyc` and writes an lcov coverage report to `coverage/lcov.info`. Coverage is uploaded to Codecov automatically in CI.
+
+**Last recorded test run:**
+
+| Result | Count | Percentage |
+|---|---|---|
+| ✅ Passing | 791 | 100% |
+| ❌ Failing | 0 | 0% |
+| ⏭ Pending | 291 | — |
 
 ### Running with Docker
 
