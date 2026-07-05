@@ -134,6 +134,7 @@ describe("LearnGuestSession Model", () => {
 
       expect(result.success).to.be.true;
       expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.include({ device_id: "dev-race", guest_id: "guest_winner" });
     });
   });
 

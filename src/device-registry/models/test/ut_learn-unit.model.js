@@ -115,6 +115,7 @@ describe("LearnUnit Model", () => {
 
       expect(result.success).to.be.true;
       expect(result.data).to.deep.equal(fakeUnits);
+      expect(fakeQuery.sort.calledWith({ unit_order: 1 })).to.be.true;
     });
 
     it("should call next when find throws", async () => {

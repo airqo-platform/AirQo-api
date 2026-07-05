@@ -128,6 +128,18 @@ describe("networkStatusController", () => {
 
       expect(res.json.called).to.be.false;
     });
+
+    it("should call next with HttpError when createAlert throws unexpectedly", async () => {
+      networkStatusUtilStub.createAlert.rejects(new Error("unexpected failure"));
+      const req = makeReq({ body: { status: "OK" } });
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(res.json.called).to.be.false;
+    });
   });
 
   describe("list", () => {

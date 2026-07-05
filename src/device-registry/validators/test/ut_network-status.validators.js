@@ -29,15 +29,8 @@ const runMiddlewareChain = (chain, req) =>
 
 describe("networkStatusValidations", () => {
   let validations;
-  let NetworkModelStub;
 
   before(() => {
-    // Stub the NetworkModel used by validateNetwork to avoid real DB calls
-    const networkNames = ["airqo", "iqair"];
-    NetworkModelStub = sinon.stub().returns({
-      distinct: sinon.stub().resolves(networkNames),
-    });
-
     validations = require("@validators/network-status.validators");
   });
 

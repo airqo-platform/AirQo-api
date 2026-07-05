@@ -149,8 +149,6 @@ describe("LearnProgress Model", () => {
     });
 
     it("should return progress data on success", async () => {
-      sinon.stub(Model, "findOne").returns({ lean: undefined });
-      Model.findOne.restore();
       sinon.stub(Model, "findOne").resolves(null);
       sinon.stub(Model, "findOneAndUpdate").resolves({});
       const next = sinon.spy();

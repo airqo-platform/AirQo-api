@@ -73,7 +73,7 @@ describe("LearnActivity Model", () => {
       expect(result.message).to.equal("activity created");
     });
 
-    it("should call next on duplicate key error (11000)", async () => {
+    it("should call next with CONFLICT and duplicate value on 11000 error", async () => {
       const error = new Error("dup");
       error.code = 11000;
       error.keyPattern = { lesson_id: 1, order: 1 };
@@ -83,9 +83,12 @@ describe("LearnActivity Model", () => {
       await Model.register({}, next);
 
       expect(next.calledOnce).to.be.true;
+      const httpError = next.firstCall.args[0];
+      expect(httpError.statusCode).to.equal(httpStatus.CONFLICT);
+      expect(JSON.stringify(httpError.errors)).to.include("duplicate value");
     });
 
-    it("should call next on validation error", async () => {
+    it("should call next with CONFLICT and field message on validation error", async () => {
       const error = new Error("val");
       error.errors = { type: { message: "type is required" } };
       sinon.stub(Model, "create").rejects(error);
@@ -94,6 +97,9 @@ describe("LearnActivity Model", () => {
       await Model.register({}, next);
 
       expect(next.calledOnce).to.be.true;
+      const httpError = next.firstCall.args[0];
+      expect(httpError.statusCode).to.equal(httpStatus.CONFLICT);
+      expect(JSON.stringify(httpError.errors)).to.include("type is required");
     });
   });
 
