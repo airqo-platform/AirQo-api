@@ -16,9 +16,9 @@ from models.site_category_model import SiteCategoryModel
 from models.sentinel2_context_model import Sentinel2ContextModel
 from models.SatellitePredictionModel import SatellitePredictionModel
 from models.source_metadata_model import SourceMetadataModel
-from configure import (
+from configure import _resolve_credentials_path
+from models.trained_model_cache import (
     _clear_trained_model_cache_for_tests,
-    _resolve_credentials_path,
     get_trained_model_from_gcs,
 )
 from views.site_category_view import SiteCategorizationView
@@ -749,8 +749,8 @@ def test_satellite_model_loader_uses_memory_cache_after_first_download(
     tmp_path,
     monkeypatch,
 ):
-    import configure
     import joblib
+    from models import trained_model_cache
 
     model = {"name": "satellite-model"}
     serialized_model = BytesIO()
@@ -776,11 +776,11 @@ def test_satellite_model_loader_uses_memory_cache_after_first_download(
             return BytesIO(model_bytes)
 
     monkeypatch.setattr(
-        configure.Config,
+        trained_model_cache.Config,
         "SATELLITE_MODEL_CACHE_DIR",
         str(tmp_path),
     )
-    monkeypatch.setattr(configure.gcsfs, "GCSFileSystem", FakeGCSFileSystem)
+    monkeypatch.setattr(trained_model_cache.gcsfs, "GCSFileSystem", FakeGCSFileSystem)
 
     first_model, first_error = get_trained_model_from_gcs(
         "project",

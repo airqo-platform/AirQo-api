@@ -8,9 +8,10 @@ import pandas as pd
 from flask import jsonify, request
 from google.oauth2 import service_account
 
-from configure import Config, get_trained_model_from_gcs
+from configure import Config
 from configure import _resolve_credentials_path
 from models.SatellitePredictionModel import SatellitePredictionModel
+from models.trained_model_cache import get_trained_model_from_gcs
 from models.site_category_model import SiteCategoryModel
 
 
