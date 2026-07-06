@@ -30,6 +30,24 @@ const commonValidations = {
       .toLowerCase()
       .custom(validateNetwork),
   ],
+  cohort_id: [
+    query("cohort_id")
+      .optional()
+      .notEmpty()
+      .withMessage("cohort_id cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isMongoId()
+      .withMessage("cohort_id must be a valid MongoDB ObjectId")
+      .bail()
+      .custom((value, { req }) => {
+        if (req.query.network) {
+          throw new Error("Provide either network or cohort_id, not both");
+        }
+        return true;
+      }),
+  ],
   dateRange: [
     query("start_date")
       .optional()
@@ -123,6 +141,7 @@ const networkStatusValidations = {
   list: [
     ...commonValidations.tenant,
     ...commonValidations.network,
+    ...commonValidations.cohort_id,
     ...commonValidations.dateRange,
     query("status")
       .optional()
@@ -137,18 +156,21 @@ const networkStatusValidations = {
   getStatistics: [
     ...commonValidations.tenant,
     ...commonValidations.network,
+    ...commonValidations.cohort_id,
     ...commonValidations.dateRange,
   ],
 
   getHourlyTrends: [
     ...commonValidations.tenant,
     ...commonValidations.network,
+    ...commonValidations.cohort_id,
     ...commonValidations.dateRange,
   ],
 
   getRecentAlerts: [
     ...commonValidations.tenant,
     ...commonValidations.network,
+    ...commonValidations.cohort_id,
     query("hours")
       .optional()
       .isInt({ min: 1, max: 168 })
@@ -159,6 +181,7 @@ const networkStatusValidations = {
   getUptimeSummary: [
     ...commonValidations.tenant,
     ...commonValidations.network,
+    ...commonValidations.cohort_id,
     query("days")
       .optional()
       .isInt({ min: 1, max: 90 })
@@ -167,6 +190,11 @@ const networkStatusValidations = {
   ],
 
   getNetworkBreakdown: [
+    ...commonValidations.tenant,
+    ...commonValidations.dateRange,
+  ],
+
+  getCohortBreakdown: [
     ...commonValidations.tenant,
     ...commonValidations.dateRange,
   ],

@@ -192,6 +192,31 @@ describe("networkStatusValidations", () => {
       await runMiddlewareChain(validations.list, req);
       expect(validationResult(req).isEmpty()).to.be.true;
     });
+
+    it("should pass with a valid cohort_id", async () => {
+      const req = mockRequest({ cohort_id: "60f5a1b2c3d4e5f678901234" });
+      await runMiddlewareChain(validations.list, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+
+    it("should fail with an invalid cohort_id", async () => {
+      const req = mockRequest({ cohort_id: "not-an-object-id" });
+      await runMiddlewareChain(validations.list, req);
+      expect(validationResult(req).isEmpty()).to.be.false;
+    });
+
+    it("should fail when both network and cohort_id are provided", async () => {
+      const req = mockRequest({
+        network: "airqo",
+        cohort_id: "60f5a1b2c3d4e5f678901234",
+      });
+      await runMiddlewareChain(validations.list, req);
+      const errors = validationResult(req);
+      expect(errors.isEmpty()).to.be.false;
+      expect(
+        errors.array().some((e) => e.msg.includes("not both"))
+      ).to.be.true;
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -262,6 +287,18 @@ describe("networkStatusValidations", () => {
     it("should pass with no params", async () => {
       const req = mockRequest({});
       await runMiddlewareChain(validations.getNetworkBreakdown, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getCohortBreakdown
+  // ---------------------------------------------------------------------------
+
+  describe("getCohortBreakdown", () => {
+    it("should pass with no params", async () => {
+      const req = mockRequest({});
+      await runMiddlewareChain(validations.getCohortBreakdown, req);
       expect(validationResult(req).isEmpty()).to.be.true;
     });
   });

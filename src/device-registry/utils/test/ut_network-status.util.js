@@ -18,9 +18,12 @@ describe("networkStatusUtil", () => {
       list: sinon.stub(),
       getStatistics: sinon.stub(),
       getStatisticsByNetwork: sinon.stub(),
+      getStatisticsByCohort: sinon.stub(),
       getHourlyTrends: sinon.stub(),
       getHourlyTrendsByNetwork: sinon.stub(),
+      getHourlyTrendsByCohort: sinon.stub(),
       getUptimeSummaryByNetwork: sinon.stub(),
+      getUptimeSummaryByCohort: sinon.stub(),
       executeAggregation: sinon.stub(),
     };
 
@@ -222,6 +225,22 @@ describe("networkStatusUtil", () => {
       expect(passedArgs.filter).to.have.property("network_breakdown");
     });
 
+    it("should add cohort elemMatch filter when cohort_id query param is provided", async () => {
+      modelInstance.list.resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await networkStatusUtil.list(
+        { query: { tenant: "airqo", cohort_id: "60f5a1b2c3d4e5f678901234" } },
+        next
+      );
+
+      const passedArgs = modelInstance.list.firstCall.args[0];
+      expect(passedArgs.filter).to.have.property("cohort_breakdown");
+      expect(passedArgs.filter.cohort_breakdown.$elemMatch).to.deep.equal({
+        cohort_id: "60f5a1b2c3d4e5f678901234",
+      });
+    });
+
     it("should call next on error", async () => {
       modelInstance.list.rejects(new Error("db error"));
       const next = sinon.spy();
@@ -253,6 +272,18 @@ describe("networkStatusUtil", () => {
 
       expect(modelInstance.getStatisticsByNetwork.calledOnce).to.be.true;
     });
+
+    it("should call getStatisticsByCohort when cohort_id query param is provided", async () => {
+      modelInstance.getStatisticsByCohort.resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await networkStatusUtil.getStatistics(
+        { query: { tenant: "airqo", cohort_id: "60f5a1b2c3d4e5f678901234" } },
+        next
+      );
+
+      expect(modelInstance.getStatisticsByCohort.calledOnce).to.be.true;
+    });
   });
 
   describe("getHourlyTrends", () => {
@@ -275,6 +306,18 @@ describe("networkStatusUtil", () => {
       );
 
       expect(modelInstance.getHourlyTrendsByNetwork.calledOnce).to.be.true;
+    });
+
+    it("should call getHourlyTrendsByCohort when cohort_id is specified", async () => {
+      modelInstance.getHourlyTrendsByCohort.resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await networkStatusUtil.getHourlyTrends(
+        { query: { tenant: "airqo", cohort_id: "60f5a1b2c3d4e5f678901234" } },
+        next
+      );
+
+      expect(modelInstance.getHourlyTrendsByCohort.calledOnce).to.be.true;
     });
   });
 
@@ -304,6 +347,19 @@ describe("networkStatusUtil", () => {
       const passedArgs = modelInstance.list.firstCall.args[0];
       expect(passedArgs.filter).to.have.property("network_breakdown");
     });
+
+    it("should add cohort breakdown elemMatch filter when cohort_id is provided", async () => {
+      modelInstance.list.resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await networkStatusUtil.getRecentAlerts(
+        { query: { tenant: "airqo", cohort_id: "60f5a1b2c3d4e5f678901234" } },
+        next
+      );
+
+      const passedArgs = modelInstance.list.firstCall.args[0];
+      expect(passedArgs.filter).to.have.property("cohort_breakdown");
+    });
   });
 
   describe("getUptimeSummary", () => {
@@ -317,6 +373,18 @@ describe("networkStatusUtil", () => {
       );
 
       expect(modelInstance.getUptimeSummaryByNetwork.calledOnce).to.be.true;
+    });
+
+    it("should call getUptimeSummaryByCohort when cohort_id is provided", async () => {
+      modelInstance.getUptimeSummaryByCohort.resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await networkStatusUtil.getUptimeSummary(
+        { query: { tenant: "airqo", days: "7", cohort_id: "60f5a1b2c3d4e5f678901234" } },
+        next
+      );
+
+      expect(modelInstance.getUptimeSummaryByCohort.calledOnce).to.be.true;
     });
 
     it("should call executeAggregation for global uptime when no network", async () => {
@@ -343,6 +411,22 @@ describe("networkStatusUtil", () => {
       );
 
       expect(modelInstance.getStatisticsByNetwork.calledOnce).to.be.true;
+    });
+  });
+
+  describe("getCohortBreakdown", () => {
+    it("should call getStatisticsByCohort without a specific cohort_id", async () => {
+      modelInstance.getStatisticsByCohort.resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await networkStatusUtil.getCohortBreakdown(
+        { query: { tenant: "airqo" } },
+        next
+      );
+
+      expect(modelInstance.getStatisticsByCohort.calledOnce).to.be.true;
+      const passedArgs = modelInstance.getStatisticsByCohort.firstCall.args[0];
+      expect(passedArgs.cohort_id).to.be.undefined;
     });
   });
 });

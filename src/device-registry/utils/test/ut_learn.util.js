@@ -287,6 +287,28 @@ describe("learnUtil", () => {
       expect(result.data.total_points).to.equal(50);
       expect(result.data.lessons).to.have.property("lid1");
     });
+
+    it("should derive max_points only from published-course quiz activities", async () => {
+      progressInstance.findProgress.resolves({ success: true, data: null });
+      courseInstance.list.resolves({ success: true, data: [{ _id: "c1" }] });
+      unitInstance.list.resolves({ success: true, data: [{ _id: "u1", course_id: "c1" }] });
+      lessonInstance.list.resolves({ success: true, data: [{ _id: "l1", unit_id: "u1" }] });
+      activityInstance.list.resolves({
+        success: true,
+        data: [{ type: "quiz", payload: { format: "single_choice" } }],
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getProgress(
+        makeReq({ headers: { "x-device-id": "dev-001" } }),
+        next
+      );
+
+      expect(
+        courseInstance.list.calledWithMatch({ filter: { published: true } })
+      ).to.be.true;
+      expect(result.data.max_points).to.equal(10);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -352,6 +374,106 @@ describe("learnUtil", () => {
 
       expect(result.success).to.be.true;
       expect(result.data).to.have.property("stars", 2);
+    });
+
+    it("should grade quiz attempts server-side using the stored correct answer", async () => {
+      const lessonId = new mongoose.Types.ObjectId().toString();
+      const activityId = new mongoose.Types.ObjectId().toString();
+      lessonInstance.list
+        .onFirstCall()
+        .resolves({ success: true, data: [{ _id: lessonId, unit_id: "u1", lesson_order: 1 }] })
+        .onSecondCall()
+        .resolves({ success: true, data: [] });
+
+      activityInstance.list.resolves({
+        success: true,
+        data: [
+          {
+            _id: activityId,
+            type: "quiz",
+            payload: { format: "single_choice", options: ["a", "b"], correct_index: 1 },
+          },
+        ],
+      });
+
+      progressInstance.upsertLessonProgress.resolves({
+        success: true,
+        data: {
+          lesson_id: lessonId,
+          stars: 3,
+          points_earned: 10,
+          total_points: 10,
+          current_stage: { index: 0, name: "Curious" },
+          completed: true,
+        },
+      });
+
+      const next = sinon.spy();
+      await learnUtil.updateLessonProgress(
+        makeReq({
+          params: { lesson_id: lessonId },
+          headers: { "x-device-id": "dev-001" },
+          body: {
+            completed: true,
+            quiz_attempts: [
+              {
+                activity_id: activityId,
+                format: "single_choice",
+                selected_index: 1,
+                is_correct: false, // client under-reports — server should override
+              },
+            ],
+          },
+        }),
+        next
+      );
+
+      const passedUpdate = progressInstance.upsertLessonProgress.firstCall.args[0].update;
+      expect(passedUpdate.quiz_attempts[0].is_correct).to.equal(true);
+    });
+
+    it("should trust the client's is_correct when the activity can't be verified", async () => {
+      const lessonId = new mongoose.Types.ObjectId().toString();
+      lessonInstance.list
+        .onFirstCall()
+        .resolves({ success: true, data: [{ _id: lessonId, unit_id: "u1", lesson_order: 1 }] })
+        .onSecondCall()
+        .resolves({ success: true, data: [] });
+
+      progressInstance.upsertLessonProgress.resolves({
+        success: true,
+        data: {
+          lesson_id: lessonId,
+          stars: 1,
+          points_earned: 0,
+          total_points: 0,
+          current_stage: { index: 0, name: "Curious" },
+          completed: true,
+        },
+      });
+
+      const next = sinon.spy();
+      await learnUtil.updateLessonProgress(
+        makeReq({
+          params: { lesson_id: lessonId },
+          headers: { "x-device-id": "dev-001" },
+          body: {
+            completed: true,
+            quiz_attempts: [
+              {
+                activity_id: "not-a-valid-object-id",
+                format: "single_choice",
+                selected_index: 0,
+                is_correct: true,
+              },
+            ],
+          },
+        }),
+        next
+      );
+
+      const passedUpdate = progressInstance.upsertLessonProgress.firstCall.args[0].update;
+      expect(passedUpdate.quiz_attempts[0].is_correct).to.equal(true);
     });
   });
 
@@ -453,6 +575,67 @@ describe("learnUtil", () => {
         makeReq({
           params: { lesson_id: "l1" },
           body: { type: "article", order: 1, payload: { body: "some content" } },
+        }),
+        next
+      );
+
+      expect(activityInstance.register.calledOnce).to.be.true;
+      expect(result.success).to.be.true;
+    });
+
+    it("should reject quiz activity with an unrecognized format", async () => {
+      const next = sinon.spy();
+      const result = await learnUtil.addActivity(
+        makeReq({
+          params: { lesson_id: "l1" },
+          body: {
+            type: "quiz",
+            order: 1,
+            payload: { format: "matching", options: ["a", "b"] },
+          },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.UNPROCESSABLE_ENTITY);
+      expect(result.errors).to.have.property("payload.format");
+    });
+
+    it("should reject single_choice quiz missing correct_index", async () => {
+      const next = sinon.spy();
+      const result = await learnUtil.addActivity(
+        makeReq({
+          params: { lesson_id: "l1" },
+          body: {
+            type: "quiz",
+            order: 1,
+            payload: { format: "single_choice", options: ["a", "b"] },
+          },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.UNPROCESSABLE_ENTITY);
+      expect(result.errors).to.have.property("payload.correct_index");
+    });
+
+    it("should call model.register for a valid single_choice quiz", async () => {
+      activityInstance.register.resolves({
+        success: true,
+        data: { type: "quiz" },
+        status: httpStatus.CREATED,
+      });
+      const next = sinon.spy();
+      const result = await learnUtil.addActivity(
+        makeReq({
+          params: { lesson_id: "l1" },
+          body: {
+            type: "quiz",
+            order: 1,
+            payload: { format: "single_choice", options: ["a", "b"], correct_index: 0 },
+          },
         }),
         next
       );
@@ -569,6 +752,57 @@ describe("learnUtil", () => {
 
       expect(result.success).to.be.true;
       expect(result.data).to.have.property("user_id", "user-1");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getLeaderboard
+  // ---------------------------------------------------------------------------
+
+  describe("getLeaderboard", () => {
+    it("should return UNAUTHORIZED when no user_id", async () => {
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(makeReq(), next);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.UNAUTHORIZED);
+    });
+
+    it("should compute current_stage live from total_points and catalog-derived max_points", async () => {
+      // Catalog: 1 published course/unit/lesson with 2 gradable quiz activities => max_points = 20
+      courseInstance.list.resolves({ success: true, data: [{ _id: "c1" }] });
+      unitInstance.list.resolves({ success: true, data: [{ _id: "u1", course_id: "c1" }] });
+      lessonInstance.list.resolves({ success: true, data: [{ _id: "l1", unit_id: "u1" }] });
+      activityInstance.list.resolves({
+        success: true,
+        data: [
+          { type: "quiz", payload: { format: "single_choice" } },
+          { type: "quiz", payload: { format: "single_choice" } },
+        ],
+      });
+
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            user_id: "user-1",
+            learner_type: "user",
+            total_points: 20,
+            completed_lessons: 2,
+          },
+        ]),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({ user: { id: "user-1" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.entries[0].current_stage.name).to.equal("Defender");
     });
   });
 

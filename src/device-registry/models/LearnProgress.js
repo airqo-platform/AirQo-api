@@ -9,8 +9,17 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- learn-progress-model`
 );
+const {
+  STAGES,
+  computeStage,
+  POINTS_PER_QUESTION,
+  DEFAULT_MAX_LEARN_POINTS,
+} = require("@utils/learn-progress.constants");
 
-const MAX_LEARN_POINTS = 2400;
+// Retained as the fallback max-points value for callers that don't pass one
+// explicitly (e.g. legacy calls to mergeGuestToUser). Callers should prefer
+// passing the catalog-derived value from utils/learn.util.js.
+const MAX_LEARN_POINTS = DEFAULT_MAX_LEARN_POINTS;
 
 // Per-lesson progress sub-document
 const lessonProgressSchema = new Schema(
@@ -52,24 +61,6 @@ learnProgressSchema.index({ guest_id: 1 }, { sparse: true });
 learnProgressSchema.index({ user_id: 1 }, { sparse: true });
 learnProgressSchema.index({ device_id: 1 }, { unique: true });
 learnProgressSchema.index({ learner_type: 1, total_points: -1 });
-
-const STAGES = [
-  { index: 0, name: "Curious" },
-  { index: 1, name: "Aware" },
-  { index: 2, name: "Observer" },
-  { index: 3, name: "Champion" },
-  { index: 4, name: "Defender" },
-];
-
-function computeStage(totalPoints, maxPoints) {
-  if (!maxPoints || maxPoints === 0) return STAGES[0];
-  const ratio = totalPoints / maxPoints;
-  if (ratio >= 1.0) return STAGES[4];
-  if (ratio >= 0.75) return STAGES[3];
-  if (ratio >= 0.5) return STAGES[2];
-  if (ratio >= 0.25) return STAGES[1];
-  return STAGES[0];
-}
 
 // Normalize a lessons field from either a Mongoose Map or a plain object to a plain object
 function normalizeLessons(lessons) {
@@ -114,7 +105,7 @@ learnProgressSchema.statics = {
         );
         const correct = graded.filter((a) => a.is_correct).length;
         quizScoreRatio = graded.length > 0 ? correct / graded.length : 1.0;
-        pointsEarned = correct * 10;
+        pointsEarned = correct * POINTS_PER_QUESTION;
 
         if (graded.length === 0) stars = 1;
         else if (quizScoreRatio === 1.0) stars = 3;
@@ -124,7 +115,7 @@ learnProgressSchema.statics = {
         const newPoints = update.quiz_attempts
           ? update.quiz_attempts.filter(
               (a) => a.format !== "free_text" && a.is_correct
-            ).length * 10
+            ).length * POINTS_PER_QUESTION
           : pointsEarned;
         pointsEarned = Math.max(pointsEarned, newPoints);
       }
@@ -228,7 +219,7 @@ learnProgressSchema.statics = {
     }
   },
 
-  async mergeGuestToUser({ device_id, guest_id, user_id }, next) {
+  async mergeGuestToUser({ device_id, guest_id, user_id, maxPoints }, next) {
     try {
       // Work with the existing guest doc (identified by device_id)
       const guestDoc = await this.findOne({ device_id });
@@ -271,7 +262,7 @@ learnProgressSchema.statics = {
         pointsTransferred += lp.points_earned || 0;
       });
 
-      const stage = computeStage(totalPoints, MAX_LEARN_POINTS);
+      const stage = computeStage(totalPoints, maxPoints || MAX_LEARN_POINTS);
 
       // Promote the existing guest doc in place — avoids colliding with the unique device_id index
       const lessonsMap = {};
