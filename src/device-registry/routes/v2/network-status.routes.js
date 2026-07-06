@@ -51,4 +51,10 @@ router.get(
   networkStatusController.getNetworkBreakdown
 );
 
+router.get(
+  "/breakdown/cohorts",
+  ...networkStatusValidations.getCohortBreakdown,
+  networkStatusController.getCohortBreakdown
+);
+
 module.exports = router;
