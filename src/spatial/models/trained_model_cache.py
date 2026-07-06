@@ -138,19 +138,20 @@ def _download_model_from_gcs(
             return None, f"Model object gs://{object_path} was not found."
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with fs.open(object_path, "rb") as source:
-            with tempfile.NamedTemporaryFile(
-                dir=cache_path.parent,
-                delete=False,
-            ) as destination:
-                temp_path = Path(destination.name)
-                shutil.copyfileobj(source, destination)
-
+        temp_path = None
         try:
+            with fs.open(object_path, "rb") as source:
+                with tempfile.NamedTemporaryFile(
+                    dir=cache_path.parent,
+                    delete=False,
+                ) as destination:
+                    temp_path = Path(destination.name)
+                    shutil.copyfileobj(source, destination)
+
             temp_path.replace(cache_path)
             model = joblib.load(cache_path)
         finally:
-            if temp_path.exists():
+            if temp_path is not None and temp_path.exists():
                 temp_path.unlink()
 
         _set_memory_cache(cache_key, model)
