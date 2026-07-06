@@ -686,6 +686,105 @@ const deviceUtil = {
       throw httpError;
     }
   },
+  getDeviceCountSummaryByCohort: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
+
+      const pipeline = [
+        { $match: filter },
+        { $unwind: { path: "$cohorts", preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: "$cohorts",
+            total: { $sum: 1 },
+            operational: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            data_available: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            not_transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
+
+      const cohortIds = results.map((r) => r._id);
+      const cohorts = await CohortModel(tenant)
+        .find({ _id: { $in: cohortIds } })
+        .select("_id name")
+        .lean();
+      const cohortNameById = {};
+      cohorts.forEach((c) => {
+        cohortNameById[c._id.toString()] = c.name;
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved per-cohort health summary.",
+        data: results.map((r) => ({
+          cohort_id: r._id.toString(),
+          cohort_name: cohortNameById[r._id.toString()] || "unknown",
+          total_monitors: r.total,
+          operational_count: r.operational,
+          transmitting_count: r.transmitting,
+          data_available_count: r.data_available,
+          not_transmitting_count: r.not_transmitting,
+          not_transmitting_percentage:
+            r.total > 0
+              ? parseFloat(((r.not_transmitting / r.total) * 100).toFixed(2))
+              : 0,
+        })),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
+    }
+  },
   getDeviceById: async (req, next) => {
     try {
       const { id } = req.params;

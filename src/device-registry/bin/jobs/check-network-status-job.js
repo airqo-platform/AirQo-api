@@ -85,6 +85,17 @@ const checkNetworkStatus = async () => {
       logger.warn(`Could not fetch per-network breakdown: ${networkBreakdownError.message}`);
     }
 
+    // Fetch per-cohort breakdown (non-blocking — failure doesn't affect main alert)
+    let cohortBreakdown = [];
+    try {
+      const perCohortResult = await deviceUtil.getDeviceCountSummaryByCohort(request);
+      if (perCohortResult && perCohortResult.success) {
+        cohortBreakdown = perCohortResult.data;
+      }
+    } catch (cohortBreakdownError) {
+      logger.warn(`Could not fetch per-cohort breakdown: ${cohortBreakdownError.message}`);
+    }
+
     if (totalDeployedDevices === 0) {
       logText("No deployed devices found");
       logger.warn("🙀🙀 No deployed devices found.");
@@ -159,6 +170,7 @@ const checkNetworkStatus = async () => {
       threshold_exceeded: notTransmittingPercentage >= UPTIME_THRESHOLD,
       threshold_value: UPTIME_THRESHOLD,
       network_breakdown: networkBreakdown,
+      cohort_breakdown: cohortBreakdown,
     };
 
     const alertResult = await networkStatusUtil.createAlert({
