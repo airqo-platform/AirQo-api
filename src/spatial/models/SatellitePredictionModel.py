@@ -3,10 +3,8 @@
 from datetime import datetime, timedelta, timezone
 import math
 import os
-
 import pandas as pd
 import requests
-
 from models.sentinel2_context_model import Sentinel2ContextModel
 
 
@@ -29,10 +27,13 @@ class SatellitePredictionModel:
         latitude = float(latitude)
         longitude = float(longitude)
         date_text = timestamp.strftime("%Y%m%d")
-        fallback_days = max(
-            0,
-            int(os.getenv("NASA_POWER_WEATHER_FALLBACK_DAYS", "7")),
-        )
+        try:
+            fallback_days = max(
+                0,
+                int(os.getenv("NASA_POWER_WEATHER_FALLBACK_DAYS", "7")),
+            )
+        except (ValueError, TypeError):
+            fallback_days = 7
         start_text = (timestamp - timedelta(days=fallback_days)).strftime("%Y%m%d")
         end_text = (timestamp + timedelta(days=fallback_days)).strftime("%Y%m%d")
         url = (
@@ -45,7 +46,10 @@ class SatellitePredictionModel:
             f"&end={end_text}"
             "&format=JSON"
         )
-        timeout = float(os.getenv("NASA_POWER_REQUEST_TIMEOUT_SECONDS", "30"))
+        try:
+            timeout = float(os.getenv("NASA_POWER_REQUEST_TIMEOUT_SECONDS", "30"))
+        except (ValueError, TypeError):
+            timeout = 30
         try:
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()

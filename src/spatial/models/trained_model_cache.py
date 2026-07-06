@@ -52,7 +52,7 @@ def _get_memory_cache(cache_key, object_path):
     with _MODEL_CACHE_LOCK:
         cached_model = _MODEL_MEMORY_CACHE.get(cache_key)
     if cached_model is not None:
-        logger.warning(
+        logger.info(
             "SATELLITE_PREDICTION_MODEL_SOURCE=memory object=gs://%s",
             object_path,
         )
