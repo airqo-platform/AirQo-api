@@ -118,7 +118,8 @@ const learnValidations = {
     body("quiz_attempts.*.selected_index")
       .optional()
       .isInt({ min: 0 })
-      .withMessage("quiz_attempts[].selected_index must be a non-negative integer"),
+      .withMessage("quiz_attempts[].selected_index must be a non-negative integer")
+      .toInt(),
     body("quiz_attempts.*.selected_indices")
       .optional()
       .isArray()
@@ -126,7 +127,8 @@ const learnValidations = {
     body("quiz_attempts.*.selected_indices.*")
       .optional()
       .isInt({ min: 0 })
-      .withMessage("quiz_attempts[].selected_indices[] must be non-negative integers"),
+      .withMessage("quiz_attempts[].selected_indices[] must be non-negative integers")
+      .toInt(),
     body("quiz_attempts.*.selected_order")
       .optional()
       .isArray()
@@ -134,7 +136,8 @@ const learnValidations = {
     body("quiz_attempts.*.selected_order.*")
       .optional()
       .isInt({ min: 0 })
-      .withMessage("quiz_attempts[].selected_order[] must be non-negative integers"),
+      .withMessage("quiz_attempts[].selected_order[] must be non-negative integers")
+      .toInt(),
     validate,
   ],
 

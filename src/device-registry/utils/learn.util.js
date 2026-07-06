@@ -15,18 +15,47 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- learn-util`);
 const isEmpty = require("is-empty");
 const {
   STAGES,
+  computeStage,
   POINTS_PER_QUESTION,
   DEFAULT_MAX_LEARN_POINTS,
 } = require("@utils/learn-progress.constants");
 
+// Lesson ids belonging to published courses only — draft/unpublished course
+// content is invisible to learners and must not count toward max_points.
+async function getPublishedLessonIds(tenant, next) {
+  const coursesRes = await LearnCourseModel(tenant).list(
+    { filter: { published: true }, limit: 0 },
+    next
+  );
+  const courseIds = (coursesRes?.data || []).map((c) => c._id);
+  if (courseIds.length === 0) return [];
+
+  const unitsRes = await LearnUnitModel(tenant).list(
+    { filter: { course_id: { $in: courseIds } }, limit: 0 },
+    next
+  );
+  const unitIds = (unitsRes?.data || []).map((u) => u._id);
+  if (unitIds.length === 0) return [];
+
+  const lessonsRes = await LearnLessonModel(tenant).list(
+    { filter: { unit_id: { $in: unitIds } }, limit: 0 },
+    next
+  );
+  return (lessonsRes?.data || []).map((l) => l._id);
+}
+
 // The true "max points" for the Learn stage/level calculation is derived from
-// the live catalog (one gradable quiz question = POINTS_PER_QUESTION), not a
-// hardcoded number — otherwise adding/removing lessons via Course Management
-// silently desyncs the stage shown from the points actually earned.
+// the live, published catalog (one gradable quiz question =
+// POINTS_PER_QUESTION), not a hardcoded number — otherwise adding/removing
+// lessons via Course Management silently desyncs the stage shown from the
+// points actually earned.
 async function getMaxLearnPoints(tenant, next) {
   try {
+    const lessonIds = await getPublishedLessonIds(tenant, next);
+    if (lessonIds.length === 0) return DEFAULT_MAX_LEARN_POINTS;
+
     const activitiesRes = await LearnActivityModel(tenant).list(
-      { filter: { type: "quiz" } },
+      { filter: { type: "quiz", lesson_id: { $in: lessonIds } }, limit: 0 },
       next
     );
     const gradableCount = (activitiesRes?.data || []).filter(
@@ -36,6 +65,7 @@ async function getMaxLearnPoints(tenant, next) {
       ? gradableCount * POINTS_PER_QUESTION
       : DEFAULT_MAX_LEARN_POINTS;
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- getMaxLearnPoints: ${error.message}`);
     return DEFAULT_MAX_LEARN_POINTS;
   }
 }
@@ -121,11 +151,13 @@ async function gradeQuizAttempts(tenant, quizAttempts, next) {
       return attempt;
     }
     const activity = activitiesById.get(String(attempt.activity_id));
-    const isCorrect =
-      activity?.type === "quiz"
-        ? isAttemptCorrect(attempt, activity.payload)
-        : false;
-    return { ...attempt, is_correct: isCorrect };
+    if (activity?.type !== "quiz") {
+      // Can't verify this one server-side (missing/invalid activity_id, or it
+      // doesn't resolve to a real quiz activity) — fall back to trusting the
+      // client rather than failing the attempt closed.
+      return attempt;
+    }
+    return { ...attempt, is_correct: isAttemptCorrect(attempt, activity.payload) };
   });
 }
 
@@ -137,6 +169,14 @@ async function gradeQuizAttempts(tenant, quizAttempts, next) {
 function validateQuizCorrectAnswer(payload) {
   const { format, options, correct_index, correct_indices, correct_order } =
     payload || {};
+
+  const allowedFormats = ["single_choice", "multi_choice", "ranking", "free_text"];
+  if (!allowedFormats.includes(format)) {
+    return {
+      field: "payload.format",
+      message: `format must be one of: ${allowedFormats.join(", ")}`,
+    };
+  }
   if (format === "free_text") return null;
 
   if (!Array.isArray(options) || options.length < 2) {
@@ -470,7 +510,10 @@ const learn = {
         };
       }
 
-      const stage = STAGES[doc.current_stage_index] || STAGES[0];
+      // Recomputed live from total_points/maxPoints rather than trusting the
+      // persisted current_stage_index, which can go stale if the catalog
+      // (and therefore maxPoints) has changed since the last progress write.
+      const stage = computeStage(doc.total_points, maxPoints);
       const lessonsOut = {};
       if (doc.lessons) {
         const entries =
@@ -1825,6 +1868,7 @@ const learn = {
 
       const limit = Math.min(parseInt(request.query.limit) || 20, 100);
       const LearnProgress = LearnProgressModel(tenant);
+      const maxPoints = await getMaxLearnPoints(tenant, next);
 
       // Guests are ranked alongside registered users — they're identified by
       // a random display name/icon (see LearnGuestSession) rather than being
@@ -1834,9 +1878,7 @@ const learn = {
       })
         .sort({ total_points: -1 })
         .limit(limit)
-        .select(
-          "user_id guest_id learner_type total_points current_stage_index completed_lessons"
-        )
+        .select("user_id guest_id learner_type total_points completed_lessons")
         .lean();
 
       const guestIds = topLearners
@@ -1883,7 +1925,10 @@ const learn = {
               avatar_icon: guestIdentity?.avatar_icon || undefined,
               total_points: l.total_points,
               completed_lessons: l.completed_lessons,
-              current_stage: STAGES[l.current_stage_index] || STAGES[0],
+              // Computed live so a leaderboard row can never disagree with
+              // getProgress/getCatalog if the catalog changed since this
+              // learner's last write.
+              current_stage: computeStage(l.total_points, maxPoints),
               is_current_user: l.user_id === user_id,
             };
           }),
