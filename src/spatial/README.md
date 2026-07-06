@@ -29,6 +29,7 @@ PROJECT_BUCKET=airqo_prediction_bucket
 SATELLITE_PREDICTION_BUCKET=airqo_prediction_bucket
 BIGQUERY_SATELLITE_MODEL_PREDICTIONS=project.dataset.satellite_predictions
 SATELLITE_PREDICTION_MODEL_FILE=satellite_prediction_model_new.pkl
+SATELLITE_MODEL_CACHE_DIR=/tmp/airqo_spatial_models
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
@@ -251,7 +252,7 @@ All routes are prefixed with `/api/v2/spatial`.
 
 ## `/satellite_prediction` API
 
-Use `/satellite_prediction` to predict PM2.5 for one latitude/longitude and date using the deployed `satellite_prediction_model_new.pkl` model. The model is loaded from `SATELLITE_PREDICTION_BUCKET` and the API only runs inference.
+Use `/satellite_prediction` to predict PM2.5 for one latitude/longitude and date using the deployed `satellite_prediction_model_new.pkl` model. The model is loaded from `SATELLITE_PREDICTION_BUCKET` on cache miss, then reused from memory and `SATELLITE_MODEL_CACHE_DIR` so repeated API calls do not download it from GCS every time.
 
 Single-date request body:
 ```json
@@ -272,7 +273,7 @@ Daily range request body:
 }
 ```
 
-`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the selected Sentinel-2 scene date. Models that only declare Sentinel-2 features continue to avoid the weather request.
+`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. Responses include `place_name` and `place` from reverse geocoding the latitude/longitude. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the selected Sentinel-2 scene date. Models that only declare Sentinel-2 features continue to avoid the weather request.
 
 ## `/polygon_site_location` API
 

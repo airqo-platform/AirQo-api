@@ -2,6 +2,8 @@
 import logging
 import os
 from pathlib import Path
+import tempfile
+from threading import RLock
 from typing import Optional, Tuple
 
 import gcsfs
@@ -39,6 +41,10 @@ class Config:
     SATELLITE_PREDICTION_MODEL_FILE = os.getenv(
         "SATELLITE_PREDICTION_MODEL_FILE",
         "satellite_prediction_model_new.pkl",
+    )
+    SATELLITE_MODEL_CACHE_DIR = os.getenv(
+        "SATELLITE_MODEL_CACHE_DIR",
+        "/tmp/airqo_spatial_models",
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -141,6 +147,35 @@ def _resolve_credentials_path(credentials_path):
     return None
 
 
+_MODEL_MEMORY_CACHE = {}
+_MODEL_CACHE_LOCK = RLock()
+
+
+def _model_cache_key(project_name, bucket_name, source_blob_name):
+    return (
+        project_name or "",
+        bucket_name.strip("/"),
+        source_blob_name.lstrip("/"),
+    )
+
+
+def _model_cache_path(bucket_name, source_blob_name):
+    cache_dir = Path(
+        Config.SATELLITE_MODEL_CACHE_DIR
+        or os.path.join(tempfile.gettempdir(), "airqo_spatial_models")
+    )
+    safe_name = "__".join(
+        part.replace("/", "_").replace("\\", "_")
+        for part in (bucket_name.strip("/"), source_blob_name.lstrip("/"))
+    )
+    return cache_dir / safe_name
+
+
+def _clear_trained_model_cache_for_tests():
+    with _MODEL_CACHE_LOCK:
+        _MODEL_MEMORY_CACHE.clear()
+
+
 def get_trained_model_from_gcs(
     project_name,
     bucket_name,
@@ -152,28 +187,80 @@ def get_trained_model_from_gcs(
         return None, "Prediction model object name is not configured."
 
     object_path = f"{bucket_name.strip('/')}/{source_blob_name.lstrip('/')}"
-    credentials_path = _resolve_credentials_path(Config.CREDENTIALS)
-    try:
-        token = (
-            credentials_path
-            if credentials_path
-            else "google_default"
-        )
-        fs = gcsfs.GCSFileSystem(
-            project=project_name or None,
-            token=token,
-        )
-        if not fs.exists(object_path):
-            return None, f"Model object gs://{object_path} was not found."
-        with fs.open(object_path, "rb") as handle:
-            return joblib.load(handle), None
-    except Exception as error:
-        logger.exception("Failed to load trained model from gs://%s", object_path)
-        if Config.CREDENTIALS and not credentials_path:
-            return (
-                None,
-                "The configured GOOGLE_APPLICATION_CREDENTIALS file does not "
-                "exist at the configured path or the supported spatial mount "
-                f"locations: {Config.CREDENTIALS}",
+    cache_key = _model_cache_key(project_name, bucket_name, source_blob_name)
+    cache_path = _model_cache_path(bucket_name, source_blob_name)
+
+    with _MODEL_CACHE_LOCK:
+        cached_model = _MODEL_MEMORY_CACHE.get(cache_key)
+        if cached_model is not None:
+            return cached_model, None
+
+        if cache_path.is_file():
+            try:
+                model = joblib.load(cache_path)
+                _MODEL_MEMORY_CACHE[cache_key] = model
+                logger.info(
+                    "Loaded prediction model from local cache: %s",
+                    cache_path,
+                )
+                return model, None
+            except Exception:
+                logger.exception(
+                    "Failed to load cached prediction model from %s",
+                    cache_path,
+                )
+                try:
+                    cache_path.unlink()
+                except OSError:
+                    logger.warning(
+                        "Could not remove invalid cached model: %s",
+                        cache_path,
+                    )
+
+        credentials_path = _resolve_credentials_path(Config.CREDENTIALS)
+        try:
+            token = (
+                credentials_path
+                if credentials_path
+                else "google_default"
             )
-        return None, "Failed to load prediction model from cloud storage."
+            fs = gcsfs.GCSFileSystem(
+                project=project_name or None,
+                token=token,
+            )
+            if not fs.exists(object_path):
+                return None, f"Model object gs://{object_path} was not found."
+
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with fs.open(object_path, "rb") as source:
+                with tempfile.NamedTemporaryFile(
+                    dir=cache_path.parent,
+                    delete=False,
+                ) as destination:
+                    temp_path = Path(destination.name)
+                    destination.write(source.read())
+
+            try:
+                temp_path.replace(cache_path)
+                model = joblib.load(cache_path)
+            finally:
+                if temp_path.exists():
+                    temp_path.unlink()
+
+            _MODEL_MEMORY_CACHE[cache_key] = model
+            logger.info(
+                "Downloaded prediction model from gs://%s to local cache: %s",
+                object_path,
+                cache_path,
+            )
+            return model, None
+        except Exception:
+            logger.exception("Failed to load trained model from gs://%s", object_path)
+            if Config.CREDENTIALS and not credentials_path:
+                return (
+                    None,
+                    "The configured GOOGLE_APPLICATION_CREDENTIALS file does not "
+                    "exist at the configured path or the supported spatial mount "
+                    f"locations: {Config.CREDENTIALS}",
+                )
+            return None, "Failed to load prediction model from cloud storage."

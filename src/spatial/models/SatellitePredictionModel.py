@@ -123,6 +123,7 @@ class SatellitePredictionModel:
             "dayofweek": int(feature_timestamp.weekday()),
             "week": int(feature_timestamp.strftime("%V")),
         }
+        cls._add_interaction_features(features)
         if requested_timestamp is not None:
             features["requested_date"] = requested_timestamp.strftime("%Y-%m-%d")
 
@@ -139,7 +140,45 @@ class SatellitePredictionModel:
         return features, context
 
     @staticmethod
-    def get_feature_names(model):
+    def _multiply_feature(features, *names):
+        result = 1.0
+        for name in names:
+            value = features.get(name)
+            if value is None:
+                return None
+            result *= float(value)
+        return result
+
+    @classmethod
+    def _add_interaction_features(cls, features):
+        features["day_aod"] = cls._multiply_feature(
+            features,
+            "day",
+            "aerosol_optical_thickness",
+        )
+        features["ndvi_aod"] = cls._multiply_feature(
+            features,
+            "ndvi",
+            "aerosol_optical_thickness",
+        )
+        features["ndvi_bsi"] = cls._multiply_feature(
+            features,
+            "ndvi",
+            "bare_soil_index",
+        )
+        features["lat_aod"] = cls._multiply_feature(
+            features,
+            "latitude",
+            "aerosol_optical_thickness",
+        )
+        features["lon_aod"] = cls._multiply_feature(
+            features,
+            "longitude",
+            "aerosol_optical_thickness",
+        )
+
+    @classmethod
+    def get_feature_names(cls, model):
         feature_names = getattr(model, "feature_names_in_", None)
         if feature_names is not None:
             return [str(name) for name in feature_names]

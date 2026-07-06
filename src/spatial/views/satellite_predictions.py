@@ -11,6 +11,7 @@ from google.oauth2 import service_account
 from configure import Config, get_trained_model_from_gcs
 from configure import _resolve_credentials_path
 from models.SatellitePredictionModel import SatellitePredictionModel
+from models.site_category_model import SiteCategoryModel
 
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,51 @@ class SatellitePredictionView:
         return None, None, "Provide either timestamp or starttime and endtime.", 400
 
     @staticmethod
+    def _place_from_coordinates(latitude, longitude):
+        try:
+            reverse_result = SiteCategoryModel()._reverse_geocode(
+                latitude,
+                longitude,
+            )
+        except Exception:
+            logger.exception("Failed to reverse-geocode satellite prediction point")
+            return {"name": None, "display_name": None}
+
+        if reverse_result.get("_error"):
+            return {"name": None, "display_name": None}
+
+        address = reverse_result.get("address") or {}
+        name = (
+            reverse_result.get("name")
+            or address.get("suburb")
+            or address.get("village")
+            or address.get("town")
+            or address.get("city")
+            or address.get("municipality")
+            or address.get("county")
+            or reverse_result.get("display_name")
+        )
+        return {
+            "name": name,
+            "display_name": reverse_result.get("display_name"),
+            "address": {
+                key: value
+                for key, value in address.items()
+                if key
+                in {
+                    "suburb",
+                    "village",
+                    "town",
+                    "city",
+                    "municipality",
+                    "county",
+                    "state",
+                    "country",
+                }
+            },
+        }
+
+    @staticmethod
     def _save_prediction(result):
         credentials_path = _resolve_credentials_path(Config.CREDENTIALS)
         if not (
@@ -132,7 +178,7 @@ class SatellitePredictionView:
         return True
 
     @classmethod
-    def _predict_for_date(cls, model, latitude, longitude, date):
+    def _predict_for_date(cls, model, latitude, longitude, date, place=None):
         prediction, features, context = SatellitePredictionModel.predict(
             model=model,
             latitude=latitude,
@@ -144,6 +190,8 @@ class SatellitePredictionView:
             "pm2_5_prediction": round(prediction, 3),
             "latitude": latitude,
             "longitude": longitude,
+            "place_name": (place or {}).get("name"),
+            "place": place or {"name": None, "display_name": None},
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data_source": "Copernicus Sentinel-2 L2A via Element 84 Earth Search",
             "weather_source": features.get("weather_source"),
@@ -182,6 +230,11 @@ class SatellitePredictionView:
                 503,
             )
 
+        place = SatellitePredictionView._place_from_coordinates(
+            latitude,
+            longitude,
+        )
+
         try:
             results = [
                 SatellitePredictionView._predict_for_date(
@@ -189,6 +242,7 @@ class SatellitePredictionView:
                     latitude=latitude,
                     longitude=longitude,
                     date=date,
+                    place=place,
                 )
                 for date in dates
             ]
@@ -236,6 +290,8 @@ class SatellitePredictionView:
                     {
                         "latitude": latitude,
                         "longitude": longitude,
+                        "place_name": place.get("name"),
+                        "place": place,
                         "starttime": dates[0],
                         "endtime": dates[-1],
                         "count": len(results),
