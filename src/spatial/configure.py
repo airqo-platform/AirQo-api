@@ -38,7 +38,7 @@ class Config:
     )
     SATELLITE_PREDICTION_MODEL_FILE = os.getenv(
         "SATELLITE_PREDICTION_MODEL_FILE",
-        "satellite_prediction_model.pkl",
+        "satellite_prediction_model_new.pkl",
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")

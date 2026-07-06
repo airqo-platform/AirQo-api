@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import os
 
 import pandas as pd
+import requests
 
 from models.sentinel2_context_model import Sentinel2ContextModel
 
@@ -12,7 +13,83 @@ class SatellitePredictionModel:
     """Build schema-aware model input from the free Sentinel-2 archive."""
 
     @staticmethod
-    def extract_data_for_location(latitude, longitude, start_date=None, end_date=None):
+    def _normalize_utc_timestamp(value):
+        timestamp = pd.Timestamp(value)
+        if pd.isna(timestamp):
+            raise ValueError("date must be a valid ISO date or timestamp.")
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.tz_localize("UTC")
+        else:
+            timestamp = timestamp.tz_convert("UTC")
+        return timestamp
+
+    @staticmethod
+    def _nasa_power_weather(latitude, longitude, timestamp):
+        date_text = timestamp.strftime("%Y%m%d")
+        url = (
+            "https://power.larc.nasa.gov/api/temporal/daily/point"
+            "?parameters=T2M,RH2M"
+            "&community=AG"
+            f"&longitude={longitude}"
+            f"&latitude={latitude}"
+            f"&start={date_text}"
+            f"&end={date_text}"
+            "&format=JSON"
+        )
+        timeout = float(os.getenv("NASA_POWER_REQUEST_TIMEOUT_SECONDS", "30"))
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        parameters = response.json()["properties"]["parameter"]
+
+        temperature = parameters["T2M"].get(date_text)
+        humidity = parameters["RH2M"].get(date_text)
+        if temperature == -999:
+            temperature = None
+        if humidity == -999:
+            humidity = None
+
+        return {
+            "temperature": (
+                round(float(temperature), 2)
+                if temperature is not None
+                else None
+            ),
+            "humidity": (
+                round(float(humidity), 2)
+                if humidity is not None
+                else None
+            ),
+            "weather_source": "NASA POWER",
+        }
+
+    @staticmethod
+    def _needs_weather(feature_names):
+        weather_features = {
+            "temperature",
+            "humidity",
+            "air_temperature",
+            "relative_humidity",
+        }
+        return bool(weather_features.intersection(feature_names or []))
+
+    @classmethod
+    def extract_data_for_location(
+        cls,
+        latitude,
+        longitude,
+        date=None,
+        start_date=None,
+        end_date=None,
+        feature_names=None,
+    ):
+        requested_timestamp = (
+            cls._normalize_utc_timestamp(date)
+            if date
+            else None
+        )
+        if requested_timestamp is not None and not end_date:
+            end_date = requested_timestamp.strftime("%Y-%m-%d")
+
         context = Sentinel2ContextModel().get_context(
             latitude=latitude,
             longitude=longitude,
@@ -26,6 +103,7 @@ class SatellitePredictionModel:
             if scene_datetime
             else datetime.now(timezone.utc)
         )
+        feature_timestamp = cls._normalize_utc_timestamp(timestamp)
 
         features = {
             "ndvi": indices.get("ndvi"),
@@ -39,12 +117,25 @@ class SatellitePredictionModel:
             "scene_cloud_cover": context.get("scene_cloud_cover"),
             "latitude": float(latitude),
             "longitude": float(longitude),
-            "year": timestamp.year,
-            "month": timestamp.month,
-            "day": timestamp.day,
-            "dayofweek": timestamp.weekday(),
-            "week": int(timestamp.strftime("%V")),
+            "year": int(feature_timestamp.year),
+            "month": int(feature_timestamp.month),
+            "day": int(feature_timestamp.day),
+            "dayofweek": int(feature_timestamp.weekday()),
+            "week": int(feature_timestamp.strftime("%V")),
         }
+        if requested_timestamp is not None:
+            features["requested_date"] = requested_timestamp.strftime("%Y-%m-%d")
+
+        if cls._needs_weather(feature_names):
+            weather = cls._nasa_power_weather(
+                latitude=latitude,
+                longitude=longitude,
+                timestamp=feature_timestamp,
+            )
+            features.update(weather)
+            features["air_temperature"] = weather["temperature"]
+            features["relative_humidity"] = weather["humidity"]
+
         return features, context
 
     @staticmethod
@@ -100,14 +191,18 @@ class SatellitePredictionModel:
         model,
         latitude,
         longitude,
+        date=None,
         start_date=None,
         end_date=None,
     ):
+        feature_names = cls.get_feature_names(model)
         features, context = cls.extract_data_for_location(
             latitude=latitude,
             longitude=longitude,
+            date=date,
             start_date=start_date,
             end_date=end_date,
+            feature_names=feature_names,
         )
         model_input = cls.prepare_model_input(model, features)
         prediction = model.predict(model_input)[0]

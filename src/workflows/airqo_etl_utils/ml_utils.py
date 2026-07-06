@@ -884,7 +884,7 @@ class SatelliteUtils(BaseMlUtils):
         filestorage.save_file_object(
             bucket=bucket,
             obj=model,
-            destination_file="satellite_prediction_model.pkl",
+            destination_file="satellite_prediction_model_new.pkl",
         )
 
 

@@ -15,6 +15,7 @@ from models.SatellitePredictionModel import SatellitePredictionModel
 from models.source_metadata_model import SourceMetadataModel
 from configure import _resolve_credentials_path
 from views.site_category_view import SiteCategorizationView
+from views.satellite_predictions import SatellitePredictionView
 
 
 def setup_function():
@@ -295,6 +296,173 @@ def test_satellite_prediction_uses_declared_sentinel2_feature_schema():
     assert prediction == 24.5
     assert features["ndvi"] == 0.35
     assert returned_context["scene_id"] == "test-scene"
+
+
+def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
+    class WeatherModel:
+        feature_names_in_ = [
+            "temperature",
+            "humidity",
+            "year",
+            "month",
+            "day",
+        ]
+
+        def predict(self, data):
+            assert list(data.columns) == list(self.feature_names_in_)
+            assert data.loc[0, "temperature"] == 24.25
+            assert data.loc[0, "humidity"] == 71.5
+            assert data.loc[0, "year"] == 2026
+            assert data.loc[0, "month"] == 6
+            assert data.loc[0, "day"] == 20
+            return [18.75]
+
+    class WeatherResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "properties": {
+                    "parameter": {
+                        "T2M": {"20260620": 24.25},
+                        "RH2M": {"20260620": 71.5},
+                    }
+                }
+            }
+
+    context = {
+        "scene_id": "test-scene",
+        "scene_datetime": "2026-06-20T08:00:00+00:00",
+        "scene_cloud_cover": 3.0,
+        "indices": {
+            "ndvi": 0.35,
+            "ndbi": 0.05,
+            "ndwi": -0.2,
+            "bare_soil_index": 0.04,
+            "normalized_burn_ratio": 0.2,
+        },
+        "aerosol_optical_thickness": 0.12,
+    }
+
+    with (
+        patch.object(
+            Sentinel2ContextModel,
+            "get_context",
+            return_value=context,
+        ) as get_context,
+        patch(
+            "models.SatellitePredictionModel.requests.get",
+            return_value=WeatherResponse(),
+        ) as get_weather,
+    ):
+        prediction, features, _ = SatellitePredictionModel.predict(
+            model=WeatherModel(),
+            latitude=0.3476,
+            longitude=32.5825,
+            date="2026-06-20",
+        )
+
+    assert prediction == 18.75
+    assert features["requested_date"] == "2026-06-20"
+    assert features["weather_source"] == "NASA POWER"
+    assert features["air_temperature"] == 24.25
+    assert features["relative_humidity"] == 71.5
+    get_context.assert_called_once_with(
+        latitude=0.3476,
+        longitude=32.5825,
+        start_date=None,
+        end_date="2026-06-20",
+    )
+    assert "20260620" in get_weather.call_args.args[0]
+
+
+def test_satellite_prediction_view_returns_daily_pm25_for_starttime_endtime():
+    app = Flask(__name__)
+
+    class Model:
+        pass
+
+    def fake_predict(model, latitude, longitude, date):
+        return (
+            20.0 if date == "2026-06-20" else 21.0,
+            {
+                "requested_date": date,
+                "weather_source": "NASA POWER",
+            },
+            {
+                "scene_id": f"scene-{date}",
+                "scene_datetime": f"{date}T08:00:00+00:00",
+            },
+        )
+
+    payload = {
+        "latitude": 0.3476,
+        "longitude": 32.5825,
+        "starttime": "2026-06-20",
+        "endtime": "2026-06-21",
+    }
+
+    with (
+        app.test_request_context(
+            "/satellite_prediction",
+            method="POST",
+            json=payload,
+        ),
+        patch(
+            "views.satellite_predictions.get_trained_model_from_gcs",
+            return_value=(Model(), None),
+        ),
+        patch(
+            "views.satellite_predictions.SatellitePredictionModel.predict",
+            side_effect=fake_predict,
+        ) as predict,
+        patch.object(SatellitePredictionView, "_save_prediction", return_value=False),
+    ):
+        response, status = SatellitePredictionView.make_predictions()
+
+    body = response.get_json()
+    assert status == 200
+    assert body["starttime"] == "2026-06-20"
+    assert body["endtime"] == "2026-06-21"
+    assert body["count"] == 2
+    assert body["max_days"] == 30
+    assert [item["date"] for item in body["daily_pm2_5"]] == [
+        "2026-06-20",
+        "2026-06-21",
+    ]
+    assert [item["pm2_5_prediction"] for item in body["daily_pm2_5"]] == [
+        20.0,
+        21.0,
+    ]
+    assert [call.kwargs["date"] for call in predict.call_args_list] == [
+        "2026-06-20",
+        "2026-06-21",
+    ]
+
+
+def test_satellite_prediction_view_rejects_ranges_over_30_days_before_model_load():
+    app = Flask(__name__)
+    payload = {
+        "latitude": 0.3476,
+        "longitude": 32.5825,
+        "starttime": "2026-06-01",
+        "endtime": "2026-07-01",
+    }
+
+    with (
+        app.test_request_context(
+            "/satellite_prediction",
+            method="POST",
+            json=payload,
+        ),
+        patch("views.satellite_predictions.get_trained_model_from_gcs") as load_model,
+    ):
+        response, status = SatellitePredictionView.make_predictions()
+
+    assert status == 400
+    assert "30 days" in response.get_json()["error"]
+    load_model.assert_not_called()
 
 
 def test_satellite_prediction_rejects_legacy_model_schema():

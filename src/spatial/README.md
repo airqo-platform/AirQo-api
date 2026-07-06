@@ -28,7 +28,7 @@ BIGQUERY_HOURLY_CONSOLIDATED=project.dataset.hourly_consolidated
 PROJECT_BUCKET=airqo_prediction_bucket
 SATELLITE_PREDICTION_BUCKET=airqo_prediction_bucket
 BIGQUERY_SATELLITE_MODEL_PREDICTIONS=project.dataset.satellite_predictions
-SATELLITE_PREDICTION_MODEL_FILE=satellite_prediction_model.pkl
+SATELLITE_PREDICTION_MODEL_FILE=satellite_prediction_model_new.pkl
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
@@ -42,6 +42,7 @@ FIRMS_MAP_KEY=your-free-nasa-firms-map-key
 FIRMS_API_BASE_URL=https://firms.modaps.eosdis.nasa.gov
 FIRMS_REQUEST_TIMEOUT_SECONDS=30
 ACTIVE_FIRE_CACHE_TTL_SECONDS=43200
+NASA_POWER_REQUEST_TIMEOUT_SECONDS=30
 ```
 
 ## Start the microservice
@@ -246,6 +247,32 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/active_fires/africa` | GET | Return NASA FIRMS active fire detections in Africa from the last 24 hours by default. |
 | `/heatmaps` | GET | Generate and return base64 PNG AQI heatmaps for all cities. |
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
+
+
+## `/satellite_prediction` API
+
+Use `/satellite_prediction` to predict PM2.5 for one latitude/longitude and date using the deployed `satellite_prediction_model_new.pkl` model. The model is loaded from `SATELLITE_PREDICTION_BUCKET` and the API only runs inference.
+
+Single-date request body:
+```json
+{
+  "latitude": 0.3476,
+  "longitude": 32.5825,
+  "timestamp": "2026-06-20"
+}
+```
+
+Daily range request body:
+```json
+{
+  "latitude": 0.3476,
+  "longitude": 32.5825,
+  "starttime": "2026-06-20",
+  "endtime": "2026-06-20"
+}
+```
+
+`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the selected Sentinel-2 scene date. Models that only declare Sentinel-2 features continue to avoid the weather request.
 
 ## `/polygon_site_location` API
 
