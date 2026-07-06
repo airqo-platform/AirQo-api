@@ -25,6 +25,8 @@ class SatellitePredictionModel:
 
     @staticmethod
     def _nasa_power_weather(latitude, longitude, timestamp):
+        latitude = float(latitude)
+        longitude = float(longitude)
         date_text = timestamp.strftime("%Y%m%d")
         url = (
             "https://power.larc.nasa.gov/api/temporal/daily/point"
@@ -37,10 +39,12 @@ class SatellitePredictionModel:
             "&format=JSON"
         )
         timeout = float(os.getenv("NASA_POWER_REQUEST_TIMEOUT_SECONDS", "30"))
-        response = requests.get(url, timeout=timeout)
-        response.raise_for_status()
-        parameters = response.json()["properties"]["parameter"]
-
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status()
+            parameters = response.json()["properties"]["parameter"]
+        except (requests.RequestException, KeyError, ValueError):
+            return {"temperature": None, "humidity": None, "weather_source": None}
         temperature = parameters["T2M"].get(date_text)
         humidity = parameters["RH2M"].get(date_text)
         if temperature == -999:
