@@ -88,8 +88,8 @@ class Sentinel2ContextModel:
             datetime=f"{start_date}/{end_date}",
             query={"eo:cloud_cover": {"lt": self.max_cloud_cover}},
             sortby=[
-                {"field": "properties.eo:cloud_cover", "direction": "asc"},
                 {"field": "properties.datetime", "direction": "desc"},
+                {"field": "properties.eo:cloud_cover", "direction": "asc"},
             ],
             max_items=5,
         )

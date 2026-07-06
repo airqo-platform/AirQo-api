@@ -193,15 +193,25 @@ def get_trained_model_from_gcs(
     with _MODEL_CACHE_LOCK:
         cached_model = _MODEL_MEMORY_CACHE.get(cache_key)
         if cached_model is not None:
+            logger.warning(
+                "SATELLITE_PREDICTION_MODEL_SOURCE=memory object=gs://%s",
+                object_path,
+            )
             return cached_model, None
 
         if cache_path.is_file():
+            logger.warning(
+                "SATELLITE_PREDICTION_MODEL_SOURCE=tmp status=attempt path=%s object=gs://%s",
+                cache_path,
+                object_path,
+            )
             try:
                 model = joblib.load(cache_path)
                 _MODEL_MEMORY_CACHE[cache_key] = model
-                logger.info(
-                    "Loaded prediction model from local cache: %s",
+                logger.warning(
+                    "SATELLITE_PREDICTION_MODEL_SOURCE=tmp path=%s object=gs://%s",
                     cache_path,
+                    object_path,
                 )
                 return model, None
             except Exception:
@@ -219,6 +229,10 @@ def get_trained_model_from_gcs(
 
         credentials_path = _resolve_credentials_path(Config.CREDENTIALS)
         try:
+            logger.warning(
+                "SATELLITE_PREDICTION_MODEL_SOURCE=gcs status=attempt object=gs://%s",
+                object_path,
+            )
             token = (
                 credentials_path
                 if credentials_path
@@ -248,8 +262,8 @@ def get_trained_model_from_gcs(
                     temp_path.unlink()
 
             _MODEL_MEMORY_CACHE[cache_key] = model
-            logger.info(
-                "Downloaded prediction model from gs://%s to local cache: %s",
+            logger.warning(
+                "SATELLITE_PREDICTION_MODEL_SOURCE=gcs object=gs://%s cached_at=%s",
                 object_path,
                 cache_path,
             )

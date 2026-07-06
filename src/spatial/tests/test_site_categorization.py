@@ -314,6 +314,7 @@ def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
             "year",
             "month",
             "day",
+            "dayofweek",
         ]
 
         def predict(self, data):
@@ -323,6 +324,7 @@ def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
             assert data.loc[0, "year"] == 2026
             assert data.loc[0, "month"] == 6
             assert data.loc[0, "day"] == 20
+            assert data.loc[0, "dayofweek"] == 5
             return [18.75]
 
     class WeatherResponse:
@@ -341,7 +343,7 @@ def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
 
     context = {
         "scene_id": "test-scene",
-        "scene_datetime": "2026-06-20T08:00:00+00:00",
+        "scene_datetime": "2026-06-18T08:00:00+00:00",
         "scene_cloud_cover": 3.0,
         "indices": {
             "ndvi": 0.35,
@@ -373,6 +375,7 @@ def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
 
     assert prediction == 18.75
     assert features["requested_date"] == "2026-06-20"
+    assert features["scene_date"] == "2026-06-18"
     assert features["weather_source"] == "NASA POWER"
     assert features["air_temperature"] == 24.25
     assert features["relative_humidity"] == 71.5
@@ -576,7 +579,7 @@ def test_satellite_prediction_builds_full_deployed_model_feature_schema():
 
     context = {
         "scene_id": "test-scene",
-        "scene_datetime": "2026-06-20T08:00:00+00:00",
+        "scene_datetime": "2026-06-18T08:00:00+00:00",
         "scene_cloud_cover": 3.0,
         "indices": {
             "ndvi": 0.35,

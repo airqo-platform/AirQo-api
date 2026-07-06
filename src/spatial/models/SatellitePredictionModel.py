@@ -98,12 +98,13 @@ class SatellitePredictionModel:
         )
         indices = context.get("indices") or {}
         scene_datetime = context.get("scene_datetime")
-        timestamp = (
+        scene_timestamp = (
             datetime.fromisoformat(scene_datetime.replace("Z", "+00:00"))
             if scene_datetime
             else datetime.now(timezone.utc)
         )
-        feature_timestamp = cls._normalize_utc_timestamp(timestamp)
+        scene_timestamp = cls._normalize_utc_timestamp(scene_timestamp)
+        feature_timestamp = requested_timestamp or scene_timestamp
 
         features = {
             "ndvi": indices.get("ndvi"),
@@ -126,6 +127,7 @@ class SatellitePredictionModel:
         cls._add_interaction_features(features)
         if requested_timestamp is not None:
             features["requested_date"] = requested_timestamp.strftime("%Y-%m-%d")
+        features["scene_date"] = scene_timestamp.strftime("%Y-%m-%d")
 
         if cls._needs_weather(feature_names):
             weather = cls._nasa_power_weather(

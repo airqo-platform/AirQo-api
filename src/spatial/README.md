@@ -273,7 +273,7 @@ Daily range request body:
 }
 ```
 
-`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. Responses include `place_name` and `place` from reverse geocoding the latitude/longitude. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the selected Sentinel-2 scene date. Models that only declare Sentinel-2 features continue to avoid the weather request.
+`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. Responses include `place_name` and `place` from reverse geocoding the latitude/longitude. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the requested prediction date. Models that only declare Sentinel-2 features continue to avoid the weather request. Sentinel-2 surface features come from the newest usable scene available up to the requested date, so adjacent daily predictions can share the same `scene_id` when no newer satellite pass is available.
 
 ## `/polygon_site_location` API
 
