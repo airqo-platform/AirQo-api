@@ -115,6 +115,26 @@ const learnValidations = {
       .optional()
       .isIn(["single_choice", "multi_choice", "ranking", "free_text"])
       .withMessage("quiz_attempts[].format must be a valid quiz format"),
+    body("quiz_attempts.*.selected_index")
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("quiz_attempts[].selected_index must be a non-negative integer"),
+    body("quiz_attempts.*.selected_indices")
+      .optional()
+      .isArray()
+      .withMessage("quiz_attempts[].selected_indices must be an array"),
+    body("quiz_attempts.*.selected_indices.*")
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("quiz_attempts[].selected_indices[] must be non-negative integers"),
+    body("quiz_attempts.*.selected_order")
+      .optional()
+      .isArray()
+      .withMessage("quiz_attempts[].selected_order must be an array"),
+    body("quiz_attempts.*.selected_order.*")
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("quiz_attempts[].selected_order[] must be non-negative integers"),
     validate,
   ],
 

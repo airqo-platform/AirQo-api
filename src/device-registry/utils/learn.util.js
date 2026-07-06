@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const httpStatus = require("http-status");
 const LearnCourseModel = require("@models/LearnCourse");
 const LearnUnitModel = require("@models/LearnUnit");
@@ -12,16 +13,186 @@ const { logObject, HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- learn-util`);
 const isEmpty = require("is-empty");
+const {
+  STAGES,
+  POINTS_PER_QUESTION,
+  DEFAULT_MAX_LEARN_POINTS,
+} = require("@utils/learn-progress.constants");
 
-const MAX_LEARN_POINTS = 2400;
+// The true "max points" for the Learn stage/level calculation is derived from
+// the live catalog (one gradable quiz question = POINTS_PER_QUESTION), not a
+// hardcoded number — otherwise adding/removing lessons via Course Management
+// silently desyncs the stage shown from the points actually earned.
+async function getMaxLearnPoints(tenant, next) {
+  try {
+    const activitiesRes = await LearnActivityModel(tenant).list(
+      { filter: { type: "quiz" } },
+      next
+    );
+    const gradableCount = (activitiesRes?.data || []).filter(
+      (a) => a.payload?.format && a.payload.format !== "free_text"
+    ).length;
+    return gradableCount > 0
+      ? gradableCount * POINTS_PER_QUESTION
+      : DEFAULT_MAX_LEARN_POINTS;
+  } catch (error) {
+    return DEFAULT_MAX_LEARN_POINTS;
+  }
+}
 
-const STAGES = [
-  { index: 0, name: "Curious" },
-  { index: 1, name: "Aware" },
-  { index: 2, name: "Observer" },
-  { index: 3, name: "Champion" },
-  { index: 4, name: "Defender" },
-];
+// Checks one submitted quiz attempt against the correct-answer fields stored on
+// the activity's own payload (as authored in Course Management), rather than
+// trusting whatever `is_correct` a client sends.
+function isAttemptCorrect(attempt, quizPayload = {}) {
+  switch (attempt.format) {
+    case "single_choice":
+      return (
+        typeof quizPayload.correct_index === "number" &&
+        attempt.selected_index === quizPayload.correct_index
+      );
+    case "multi_choice": {
+      const expected = Array.isArray(quizPayload.correct_indices)
+        ? [...quizPayload.correct_indices].sort((a, b) => a - b)
+        : [];
+      const selected = Array.isArray(attempt.selected_indices)
+        ? [...attempt.selected_indices].sort((a, b) => a - b)
+        : [];
+      return (
+        expected.length > 0 &&
+        expected.length === selected.length &&
+        expected.every((v, i) => v === selected[i])
+      );
+    }
+    case "ranking": {
+      const expected = Array.isArray(quizPayload.correct_order)
+        ? quizPayload.correct_order
+        : [];
+      const selected = Array.isArray(attempt.selected_order)
+        ? attempt.selected_order
+        : [];
+      return (
+        expected.length > 0 &&
+        expected.length === selected.length &&
+        expected.every((v, i) => v === selected[i])
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+// A quiz attempt only carries a real answer (`selected_index` /
+// `selected_indices` / `selected_order`) once the calling client has been
+// updated to submit it — until then we fall back to trusting the client's
+// own `is_correct` so existing app versions keep working unchanged.
+function attemptHasSubmittedAnswer(attempt) {
+  return (
+    attempt.selected_index !== undefined ||
+    attempt.selected_indices !== undefined ||
+    attempt.selected_order !== undefined
+  );
+}
+
+// Re-grades quiz_attempts server-side wherever a real answer was submitted,
+// looking up each attempt's activity by its actual LearnActivity _id.
+async function gradeQuizAttempts(tenant, quizAttempts, next) {
+  if (!Array.isArray(quizAttempts) || quizAttempts.length === 0) {
+    return quizAttempts;
+  }
+
+  const gradableAttempts = quizAttempts.filter(
+    (a) =>
+      a.format !== "free_text" &&
+      attemptHasSubmittedAnswer(a) &&
+      mongoose.Types.ObjectId.isValid(a.activity_id)
+  );
+  if (gradableAttempts.length === 0) return quizAttempts;
+
+  const activitiesRes = await LearnActivityModel(tenant).list(
+    { filter: { _id: { $in: gradableAttempts.map((a) => a.activity_id) } } },
+    next
+  );
+  const activitiesById = new Map(
+    (activitiesRes?.data || []).map((a) => [a._id.toString(), a])
+  );
+
+  return quizAttempts.map((attempt) => {
+    if (!attemptHasSubmittedAnswer(attempt) || attempt.format === "free_text") {
+      return attempt;
+    }
+    const activity = activitiesById.get(String(attempt.activity_id));
+    const isCorrect =
+      activity?.type === "quiz"
+        ? isAttemptCorrect(attempt, activity.payload)
+        : false;
+    return { ...attempt, is_correct: isCorrect };
+  });
+}
+
+// Beyond requiring `format`, a quiz payload must carry a correct-answer field
+// matching that format — otherwise the question can never be graded
+// server-side (see gradeQuizAttempts above), and Course Management would
+// silently ship an unscorable question. Returns null when valid, or
+// { field, message } describing the first problem found.
+function validateQuizCorrectAnswer(payload) {
+  const { format, options, correct_index, correct_indices, correct_order } =
+    payload || {};
+  if (format === "free_text") return null;
+
+  if (!Array.isArray(options) || options.length < 2) {
+    return {
+      field: "payload.options",
+      message: "options must be an array with at least 2 items",
+    };
+  }
+
+  if (format === "single_choice") {
+    if (
+      !Number.isInteger(correct_index) ||
+      correct_index < 0 ||
+      correct_index >= options.length
+    ) {
+      return {
+        field: "payload.correct_index",
+        message: "correct_index must be a valid index into payload.options",
+      };
+    }
+  } else if (format === "multi_choice") {
+    if (!Array.isArray(correct_indices) || correct_indices.length === 0) {
+      return {
+        field: "payload.correct_indices",
+        message:
+          "correct_indices must be a non-empty array of option indices",
+      };
+    }
+    const unique = new Set(correct_indices);
+    const allValid = correct_indices.every(
+      (i) => Number.isInteger(i) && i >= 0 && i < options.length
+    );
+    if (unique.size !== correct_indices.length || !allValid) {
+      return {
+        field: "payload.correct_indices",
+        message: "correct_indices must contain unique, valid option indices",
+      };
+    }
+  } else if (format === "ranking") {
+    if (!Array.isArray(correct_order) || correct_order.length !== options.length) {
+      return {
+        field: "payload.correct_order",
+        message: "correct_order must list every option index exactly once",
+      };
+    }
+    const sorted = [...correct_order].sort((a, b) => a - b);
+    const expected = options.map((_, i) => i);
+    if (JSON.stringify(sorted) !== JSON.stringify(expected)) {
+      return {
+        field: "payload.correct_order",
+        message: "correct_order must be a permutation of payload.options indices",
+      };
+    }
+  }
+  return null;
+}
 
 function generateVerificationCode() {
   const year = new Date().getFullYear();
@@ -132,6 +303,8 @@ const learn = {
       const result = await buildCatalog(tenant, next);
       if (!result?.success) return result;
 
+      const maxPoints = await getMaxLearnPoints(tenant, next);
+
       const latestCourse = await LearnCourseModel(tenant)
         .findOne({ published: true })
         .sort({ updatedAt: -1 })
@@ -147,6 +320,7 @@ const learn = {
         data: {
           catalog_version: catalogVersion,
           stages: STAGES,
+          max_points: maxPoints,
           courses: result.data,
         },
         message: "successfully retrieved learn catalog",
@@ -239,6 +413,7 @@ const learn = {
         data: {
           guest_id: session.guest_id,
           display_name: session.display_name,
+          avatar_icon: session.avatar_icon,
           created_at: session.createdAt,
         },
         message: result.message,
@@ -275,6 +450,8 @@ const learn = {
       );
       if (!result?.success) return result;
 
+      const maxPoints = await getMaxLearnPoints(tenant, next);
+
       const doc = result.data;
       if (!doc) {
         return {
@@ -283,7 +460,7 @@ const learn = {
             learner_type: user_id ? "user" : "guest",
             guest_id: guest_id || undefined,
             total_points: 0,
-            max_points: MAX_LEARN_POINTS,
+            max_points: maxPoints,
             completed_lessons: 0,
             current_stage: STAGES[0],
             lessons: {},
@@ -316,7 +493,7 @@ const learn = {
           learner_type: doc.learner_type,
           guest_id: doc.guest_id || undefined,
           total_points: doc.total_points,
-          max_points: MAX_LEARN_POINTS,
+          max_points: maxPoints,
           completed_lessons: doc.completed_lessons,
           current_stage: stage,
           lessons: lessonsOut,
@@ -364,8 +541,17 @@ const learn = {
         };
       }
 
+      if (Array.isArray(update.quiz_attempts) && update.quiz_attempts.length) {
+        update.quiz_attempts = await gradeQuizAttempts(
+          tenant,
+          update.quiz_attempts,
+          next
+        );
+      }
+
+      const maxPoints = await getMaxLearnPoints(tenant, next);
       const result = await LearnProgressModel(tenant).upsertLessonProgress(
-        { device_id, guest_id, user_id, lesson_id, update, maxPoints: MAX_LEARN_POINTS },
+        { device_id, guest_id, user_id, lesson_id, update, maxPoints },
         next
       );
       if (!result?.success) return result;
@@ -424,6 +610,7 @@ const learn = {
       let lastStage = STAGES[0];
       let totalPoints = 0;
       let mergedCount = 0;
+      const maxPoints = await getMaxLearnPoints(tenant, next);
 
       for (const update of updates) {
         const lessonRes = await LearnLessonModel(tenant).list(
@@ -432,6 +619,14 @@ const learn = {
         );
         if (!lessonRes?.success || !lessonRes.data?.length) continue;
 
+        if (Array.isArray(update.quiz_attempts) && update.quiz_attempts.length) {
+          update.quiz_attempts = await gradeQuizAttempts(
+            tenant,
+            update.quiz_attempts,
+            next
+          );
+        }
+
         const result = await LearnProgressModel(tenant).upsertLessonProgress(
           {
             device_id,
@@ -439,7 +634,7 @@ const learn = {
             user_id,
             lesson_id: update.lesson_id,
             update,
-            maxPoints: MAX_LEARN_POINTS,
+            maxPoints,
           },
           next
         );
@@ -503,8 +698,9 @@ const learn = {
         };
       }
 
+      const maxPoints = await getMaxLearnPoints(tenant, next);
       const result = await LearnProgressModel(tenant).mergeGuestToUser(
-        { device_id, guest_id, user_id },
+        { device_id, guest_id, user_id, maxPoints },
         next
       );
       if (!result?.success) return result;
@@ -672,6 +868,17 @@ const learn = {
           errors: { "payload.format": "format is required for quiz activities" },
           status: httpStatus.UNPROCESSABLE_ENTITY,
         };
+      }
+      if (type === "quiz" && !isEmpty(payload?.format)) {
+        const answerError = validateQuizCorrectAnswer(payload);
+        if (answerError) {
+          return {
+            success: false,
+            message: "validation errors for some of the provided fields",
+            errors: { [answerError.field]: answerError.message },
+            status: httpStatus.UNPROCESSABLE_ENTITY,
+          };
+        }
       }
 
       return await LearnActivityModel(tenant).register(
@@ -1159,6 +1366,17 @@ const learn = {
             status: httpStatus.UNPROCESSABLE_ENTITY,
           };
         }
+        if (effectiveType === "quiz" && !isEmpty(effectivePayload?.format)) {
+          const answerError = validateQuizCorrectAnswer(effectivePayload);
+          if (answerError) {
+            return {
+              success: false,
+              message: "validation errors for some of the provided fields",
+              errors: { [answerError.field]: answerError.message },
+              status: httpStatus.UNPROCESSABLE_ENTITY,
+            };
+          }
+        }
       }
 
       const updates = {};
@@ -1608,14 +1826,32 @@ const learn = {
       const limit = Math.min(parseInt(request.query.limit) || 20, 100);
       const LearnProgress = LearnProgressModel(tenant);
 
+      // Guests are ranked alongside registered users — they're identified by
+      // a random display name/icon (see LearnGuestSession) rather than being
+      // excluded outright.
       const topLearners = await LearnProgress.find({
-        learner_type: "user",
         total_points: { $gt: 0 },
       })
         .sort({ total_points: -1 })
         .limit(limit)
-        .select("user_id total_points current_stage_index completed_lessons")
+        .select(
+          "user_id guest_id learner_type total_points current_stage_index completed_lessons"
+        )
         .lean();
+
+      const guestIds = topLearners
+        .filter((l) => l.learner_type === "guest" && l.guest_id)
+        .map((l) => l.guest_id);
+      let guestIdentityByGuestId = new Map();
+      if (guestIds.length > 0) {
+        const guestSessions = await LearnGuestSessionModel(tenant)
+          .find({ guest_id: { $in: guestIds } })
+          .select("guest_id display_name avatar_icon")
+          .lean();
+        guestIdentityByGuestId = new Map(
+          guestSessions.map((s) => [s.guest_id, s])
+        );
+      }
 
       // Determine caller's rank when they fall outside the top N
       const currentUserInTop = topLearners.some((l) => l.user_id === user_id);
@@ -1625,7 +1861,6 @@ const learn = {
         const userProgress = await LearnProgress.findOne({ user_id }).lean();
         if (userProgress) {
           const ahead = await LearnProgress.countDocuments({
-            learner_type: "user",
             total_points: { $gt: userProgress.total_points },
           });
           currentUserRank = ahead + 1;
@@ -1636,13 +1871,22 @@ const learn = {
         success: true,
         data: {
           scope: "global",
-          entries: topLearners.map((l, i) => ({
-            rank: i + 1,
-            total_points: l.total_points,
-            completed_lessons: l.completed_lessons,
-            current_stage: STAGES[l.current_stage_index] || STAGES[0],
-            is_current_user: l.user_id === user_id,
-          })),
+          entries: topLearners.map((l, i) => {
+            const guestIdentity =
+              l.learner_type === "guest"
+                ? guestIdentityByGuestId.get(l.guest_id)
+                : null;
+            return {
+              rank: i + 1,
+              learner_type: l.learner_type,
+              display_name: guestIdentity?.display_name || undefined,
+              avatar_icon: guestIdentity?.avatar_icon || undefined,
+              total_points: l.total_points,
+              completed_lessons: l.completed_lessons,
+              current_stage: STAGES[l.current_stage_index] || STAGES[0],
+              is_current_user: l.user_id === user_id,
+            };
+          }),
           current_user_rank: currentUserInTop
             ? topLearners.findIndex((l) => l.user_id === user_id) + 1
             : currentUserRank,

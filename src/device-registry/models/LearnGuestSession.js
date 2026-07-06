@@ -10,6 +10,31 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- learn-guest-session-model`
 );
 
+// Word lists + icon set used to give every guest a friendly, anonymous
+// identity for leaderboard display instead of exposing their raw guest_id
+// (e.g. "guest_lz3k9f2a"). Picked once at session creation and kept for the
+// lifetime of the guest session so the name/icon stay stable across requests.
+const NAME_ADJECTIVES = [
+  "Curious", "Bright", "Swift", "Gentle", "Bold", "Sunny", "Clever", "Calm",
+  "Vivid", "Windy", "Misty", "Breezy", "Cosmic", "Cheerful", "Fearless",
+];
+const NAME_ANIMALS = [
+  "Falcon", "Otter", "Panda", "Heron", "Fox", "Koala", "Toucan", "Lynx",
+  "Dolphin", "Sparrow", "Badger", "Gazelle", "Owl", "Rabbit", "Wolf",
+];
+const AVATAR_ICONS = [
+  "🦊", "🦦", "🐼", "🦅", "🐨", "🦜", "🐬", "🦉", "🐇", "🦋", "🐸", "🦩",
+];
+
+function generateGuestIdentity() {
+  const adjective =
+    NAME_ADJECTIVES[Math.floor(Math.random() * NAME_ADJECTIVES.length)];
+  const animal = NAME_ANIMALS[Math.floor(Math.random() * NAME_ANIMALS.length)];
+  const suffix = Math.floor(Math.random() * 900 + 100); // 3-digit tail avoids collisions reading like real usernames
+  const avatar_icon = AVATAR_ICONS[Math.floor(Math.random() * AVATAR_ICONS.length)];
+  return { display_name: `${adjective} ${animal} ${suffix}`, avatar_icon };
+}
+
 const learnGuestSessionSchema = new Schema(
   {
     device_id: {
@@ -24,6 +49,10 @@ const learnGuestSessionSchema = new Schema(
       trim: true,
     },
     display_name: {
+      type: String,
+      trim: true,
+    },
+    avatar_icon: {
       type: String,
       trim: true,
     },
@@ -100,8 +129,14 @@ learnGuestSessionSchema.statics = {
       }
       const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const guest_id = `guest_${suffix}`;
+      const { display_name, avatar_icon } = generateGuestIdentity();
       try {
-        const created = await this.create({ ...args, guest_id, display_name: guest_id });
+        const created = await this.create({
+          ...args,
+          guest_id,
+          display_name,
+          avatar_icon,
+        });
         return {
           success: true,
           data: created._doc,
