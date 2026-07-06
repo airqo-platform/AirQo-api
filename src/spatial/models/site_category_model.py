@@ -122,7 +122,7 @@ class SiteCategoryModel:
             )
         except Exception as error:
             logger.warning("Nominatim reverse lookup failed: %s", error)
-            return {"_error": str(error)}
+            return {"_error": "reverse_geocode_failed"}
 
     def _overpass_query(self, latitude, longitude):
         local_radius = min(self.search_radius_m, 150)
