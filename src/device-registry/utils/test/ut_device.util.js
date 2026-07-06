@@ -297,6 +297,171 @@ describe("Device Util", () => {
       expect(thrown.message).to.equal("Internal Server Error");
     });
   });
+  describe("getDeviceCountSummaryByCohort", () => {
+    let sandbox;
+    let aggregateStub;
+    let generateFilterStub;
+    let cohortFindStub;
+
+    // Mirrors the real DeviceModel(tenant).aggregate(pipeline).option(...).allowDiskUse(true) chain
+    const createAggregateChain = (result, error) => ({
+      option: sinon.stub().returns({
+        allowDiskUse: sinon
+          .stub()
+          .returns(error ? Promise.reject(error) : Promise.resolve(result)),
+      }),
+    });
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      aggregateStub = sandbox.stub();
+      cohortFindStub = sandbox.stub();
+      const modelStub = sandbox.stub(mongoose, "model");
+      modelStub.withArgs("devices").returns({ aggregate: aggregateStub });
+      modelStub.withArgs("cohorts").returns({ find: cohortFindStub });
+      generateFilterStub = sandbox.stub(generateFilter, "devices");
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should group results by cohort, look up cohort names, and compute percentages", async () => {
+      const cohortIdA = new mongoose.Types.ObjectId();
+      const cohortIdB = new mongoose.Types.ObjectId();
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+
+      aggregateStub.returns(
+        createAggregateChain([
+          {
+            _id: cohortIdA,
+            total: 100,
+            operational: 70,
+            transmitting: 15,
+            data_available: 5,
+            not_transmitting: 10,
+          },
+          {
+            _id: cohortIdB,
+            total: 50,
+            operational: 20,
+            transmitting: 5,
+            data_available: 0,
+            not_transmitting: 25,
+          },
+        ]),
+      );
+
+      cohortFindStub.returns({
+        select: sinon.stub().returns({
+          lean: sinon.stub().resolves([
+            { _id: cohortIdA, name: "Kampala Cohort" },
+            { _id: cohortIdB, name: "Jinja Cohort" },
+          ]),
+        }),
+      });
+
+      const result = await deviceUtil.getDeviceCountSummaryByCohort(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.deep.equal([
+        {
+          cohort_id: cohortIdA.toString(),
+          cohort_name: "Kampala Cohort",
+          total_monitors: 100,
+          operational_count: 70,
+          transmitting_count: 15,
+          data_available_count: 5,
+          not_transmitting_count: 10,
+          not_transmitting_percentage: 10,
+        },
+        {
+          cohort_id: cohortIdB.toString(),
+          cohort_name: "Jinja Cohort",
+          total_monitors: 50,
+          operational_count: 20,
+          transmitting_count: 5,
+          data_available_count: 0,
+          not_transmitting_count: 25,
+          not_transmitting_percentage: 50,
+        },
+      ]);
+    });
+
+    it("should unwind the cohorts array in the pipeline", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      aggregateStub.returns(createAggregateChain([]));
+      cohortFindStub.returns({
+        select: sinon.stub().returns({ lean: sinon.stub().resolves([]) }),
+      });
+
+      await deviceUtil.getDeviceCountSummaryByCohort(request);
+
+      expect(aggregateStub.calledOnce).to.be.true;
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const unwindStage = pipeline.find((stage) => stage.$unwind);
+      expect(unwindStage.$unwind.path).to.equal("$cohorts");
+      expect(unwindStage.$unwind.preserveNullAndEmptyArrays).to.be.false;
+    });
+
+    it("should default cohort_name to 'unknown' when the cohort can't be found", async () => {
+      const cohortId = new mongoose.Types.ObjectId();
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      aggregateStub.returns(
+        createAggregateChain([
+          {
+            _id: cohortId,
+            total: 10,
+            operational: 5,
+            transmitting: 2,
+            data_available: 1,
+            not_transmitting: 2,
+          },
+        ]),
+      );
+      cohortFindStub.returns({
+        select: sinon.stub().returns({ lean: sinon.stub().resolves([]) }),
+      });
+
+      const result = await deviceUtil.getDeviceCountSummaryByCohort(request);
+
+      expect(result.data[0].cohort_name).to.equal("unknown");
+    });
+
+    it("should return an empty array when no devices match the filter", async () => {
+      const request = { query: { tenant: "airqo" } };
+      generateFilterStub.returns({});
+      aggregateStub.returns(createAggregateChain([]));
+      cohortFindStub.returns({
+        select: sinon.stub().returns({ lean: sinon.stub().resolves([]) }),
+      });
+
+      const result = await deviceUtil.getDeviceCountSummaryByCohort(request);
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([]);
+    });
+
+    it("should call next with an HttpError when aggregation fails", async () => {
+      const request = { query: { tenant: "airqo" } };
+      const next = sinon.spy();
+      generateFilterStub.returns({});
+      const dbError = new Error("Database connection failed");
+      aggregateStub.returns(createAggregateChain(null, dbError));
+
+      await deviceUtil.getDeviceCountSummaryByCohort(request, next);
+
+      expect(next.calledOnce).to.be.true;
+      const error = next.firstCall.args[0];
+      expect(error).to.be.an.instanceOf(Error);
+      expect(error.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(error.message).to.equal("Internal Server Error");
+    });
+  });
   describe("createOnPlatform", () => {
     let sandbox;
     let deviceRegisterStub,

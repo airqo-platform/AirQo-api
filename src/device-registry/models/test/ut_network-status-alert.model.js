@@ -91,6 +91,12 @@ describe("NetworkStatusAlert Model", () => {
     it("should have timestamps enabled", () => {
       expect(Model.schema.options.timestamps).to.be.true;
     });
+
+    it("should define cohort_breakdown as an array field", () => {
+      const path = Model.schema.path("cohort_breakdown");
+      expect(path).to.exist;
+      expect(path.instance).to.equal("Array");
+    });
   });
 
   describe("Static method: register", () => {
@@ -210,6 +216,119 @@ describe("NetworkStatusAlert Model", () => {
       const next = sinon.spy();
 
       await Model.executeAggregation({ pipeline: [] }, next);
+
+      expect(next.calledOnce).to.be.true;
+    });
+  });
+
+  describe("Static method: getStatisticsByCohort", () => {
+    it("should unwind cohort_breakdown, match cohort_id, and call executeAggregation", async () => {
+      const execStub = sinon
+        .stub(Model, "executeAggregation")
+        .resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await Model.getStatisticsByCohort(
+        { filter: {}, cohort_id: "60f5a1b2c3d4e5f678901234" },
+        next
+      );
+
+      expect(execStub.calledOnce).to.be.true;
+      const { pipeline } = execStub.firstCall.args[0];
+      expect(
+        pipeline.some(
+          (stage) => stage.$unwind && stage.$unwind.path === "$cohort_breakdown"
+        )
+      ).to.be.true;
+      expect(
+        pipeline.some(
+          (stage) =>
+            stage.$match &&
+            stage.$match["cohort_breakdown.cohort_id"] ===
+              "60f5a1b2c3d4e5f678901234"
+        )
+      ).to.be.true;
+    });
+
+    it("should call next when aggregation fails", async () => {
+      sinon.stub(Model, "aggregate").rejects(new Error("cohort agg error"));
+      const next = sinon.spy();
+
+      await Model.getStatisticsByCohort({ filter: {} }, next);
+
+      expect(next.calledOnce).to.be.true;
+    });
+  });
+
+  describe("Static method: getHourlyTrendsByCohort", () => {
+    it("should match on cohort_id and call executeAggregation", async () => {
+      const execStub = sinon
+        .stub(Model, "executeAggregation")
+        .resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await Model.getHourlyTrendsByCohort(
+        { filter: {}, cohort_id: "60f5a1b2c3d4e5f678901234" },
+        next
+      );
+
+      expect(execStub.calledOnce).to.be.true;
+      const { pipeline } = execStub.firstCall.args[0];
+      expect(
+        pipeline.some(
+          (stage) =>
+            stage.$match &&
+            stage.$match["cohort_breakdown.cohort_id"] ===
+              "60f5a1b2c3d4e5f678901234"
+        )
+      ).to.be.true;
+    });
+
+    it("should call next when aggregation fails", async () => {
+      sinon.stub(Model, "aggregate").rejects(new Error("trend agg error"));
+      const next = sinon.spy();
+
+      await Model.getHourlyTrendsByCohort(
+        { filter: {}, cohort_id: "60f5a1b2c3d4e5f678901234" },
+        next
+      );
+
+      expect(next.calledOnce).to.be.true;
+    });
+  });
+
+  describe("Static method: getUptimeSummaryByCohort", () => {
+    it("should match on cohort_id and call executeAggregation", async () => {
+      const execStub = sinon
+        .stub(Model, "executeAggregation")
+        .resolves({ success: true, data: [] });
+      const next = sinon.spy();
+
+      await Model.getUptimeSummaryByCohort(
+        { filter: {}, cohort_id: "60f5a1b2c3d4e5f678901234" },
+        next
+      );
+
+      expect(execStub.calledOnce).to.be.true;
+      const { pipeline } = execStub.firstCall.args[0];
+      expect(
+        pipeline.some(
+          (stage) =>
+            stage.$match &&
+            stage.$match["cohort_breakdown.cohort_id"] ===
+              "60f5a1b2c3d4e5f678901234"
+        )
+      ).to.be.true;
+    });
+
+    it("should call next when aggregation fails", async () => {
+      sinon.stub(Model, "aggregate").rejects(new Error("uptime agg error"));
+      const next = sinon.spy();
+
+      await Model.getUptimeSummaryByCohort(
+        { filter: {}, cohort_id: "60f5a1b2c3d4e5f678901234" },
+        next
+      );
 
       expect(next.calledOnce).to.be.true;
     });

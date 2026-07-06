@@ -37,8 +37,16 @@ const commonValidations = {
       .withMessage("cohort_id cannot be empty if provided")
       .bail()
       .trim()
+      .toLowerCase()
       .isMongoId()
-      .withMessage("cohort_id must be a valid MongoDB ObjectId"),
+      .withMessage("cohort_id must be a valid MongoDB ObjectId")
+      .bail()
+      .custom((value, { req }) => {
+        if (req.query.network) {
+          throw new Error("Provide either network or cohort_id, not both");
+        }
+        return true;
+      }),
   ],
   dateRange: [
     query("start_date")

@@ -37,6 +37,7 @@ describe("networkStatusController", () => {
       getRecentAlerts: sinon.stub(),
       getUptimeSummary: sinon.stub(),
       getNetworkBreakdown: sinon.stub(),
+      getCohortBreakdown: sinon.stub(),
     };
 
     sharedStub = {
@@ -265,6 +266,26 @@ describe("networkStatusController", () => {
       await controller.getNetworkBreakdown(req, res, next);
 
       expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      const jsonArgs = res.json.firstCall.args[0];
+      expect(jsonArgs.data).to.have.lengthOf(1);
+    });
+  });
+
+  describe("getCohortBreakdown", () => {
+    it("should return cohort breakdown data on success", async () => {
+      networkStatusUtilStub.getCohortBreakdown.resolves({
+        success: true,
+        data: [{ _id: "60f5a1b2c3d4e5f678901234", avg_not_transmitting_percentage: 10 }],
+        status: httpStatus.OK,
+      });
+      const req = makeReq();
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.getCohortBreakdown(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(networkStatusUtilStub.getCohortBreakdown.calledOnce).to.be.true;
       const jsonArgs = res.json.firstCall.args[0];
       expect(jsonArgs.data).to.have.lengthOf(1);
     });

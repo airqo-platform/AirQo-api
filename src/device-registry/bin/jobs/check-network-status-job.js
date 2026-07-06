@@ -27,6 +27,17 @@ const SUMMARY_JOB_LOG_TYPE = "network-status-summary";
 
 const logThrottleManager = new LogThrottleManager();
 
+// Runs a best-effort breakdown fetch, returning [] instead of throwing on failure
+const fetchBreakdownSafely = async (fetchFn, request, label) => {
+  try {
+    const result = await fetchFn(request);
+    return result && result.success ? result.data : [];
+  } catch (error) {
+    logger.warn(`Could not fetch ${label} breakdown: ${error.message}`);
+    return [];
+  }
+};
+
 const checkNetworkStatus = async () => {
   // Restrict job to run only in production
   if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
@@ -74,27 +85,12 @@ const checkNetworkStatus = async () => {
     const totalDeployedDevices = total_monitors;
     const notTransmittingDevicesCount = not_transmitting;
 
-    // Fetch per-network breakdown (non-blocking — failure doesn't affect main alert)
-    let networkBreakdown = [];
-    try {
-      const perNetworkResult = await deviceUtil.getDeviceCountSummaryByNetwork(request);
-      if (perNetworkResult && perNetworkResult.success) {
-        networkBreakdown = perNetworkResult.data;
-      }
-    } catch (networkBreakdownError) {
-      logger.warn(`Could not fetch per-network breakdown: ${networkBreakdownError.message}`);
-    }
-
-    // Fetch per-cohort breakdown (non-blocking — failure doesn't affect main alert)
-    let cohortBreakdown = [];
-    try {
-      const perCohortResult = await deviceUtil.getDeviceCountSummaryByCohort(request);
-      if (perCohortResult && perCohortResult.success) {
-        cohortBreakdown = perCohortResult.data;
-      }
-    } catch (cohortBreakdownError) {
-      logger.warn(`Could not fetch per-cohort breakdown: ${cohortBreakdownError.message}`);
-    }
+    // Fetch per-network and per-cohort breakdowns in parallel
+    // (non-blocking — failure of either doesn't affect the main alert)
+    const [networkBreakdown, cohortBreakdown] = await Promise.all([
+      fetchBreakdownSafely(deviceUtil.getDeviceCountSummaryByNetwork, request, "per-network"),
+      fetchBreakdownSafely(deviceUtil.getDeviceCountSummaryByCohort, request, "per-cohort"),
+    ]);
 
     if (totalDeployedDevices === 0) {
       logText("No deployed devices found");
