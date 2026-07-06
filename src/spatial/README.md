@@ -237,7 +237,7 @@ docker inspect airqo-spatial-test
 ## API authentication
 Requests to this service are not authenticated by default, but the service itself uses `AIRQO_API_TOKEN` to pull upstream data. Protect deployments behind your API gateway or add middleware if you need request-level auth.
 
-## Endpoint quick reference
+## Endpoint quick reference 
 All routes are prefixed with `/api/v2/spatial`.
 
 | Endpoint | Method | Purpose |
