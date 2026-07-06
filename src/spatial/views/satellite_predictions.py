@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 class SatellitePredictionView:
     MAX_DAILY_RANGE_DAYS = 30
+    PREDICTION_DISCLAIMER = (
+        "Satellite PM2.5 predictions are model estimates based on available "  
+        "satellite, weather, and location features. They are not regulatory " 
+        "monitoring measurements and should be interpreted with uncertainty."
+    )
 
     @staticmethod
     def _coordinates(payload):
@@ -299,10 +304,13 @@ class SatellitePredictionView:
                         "endtime": dates[-1],
                         "count": len(results),
                         "max_days": SatellitePredictionView.MAX_DAILY_RANGE_DAYS,
+                        "disclaimer": SatellitePredictionView.PREDICTION_DISCLAIMER,
                         "daily_pm2_5": results,
                     }
                 ),
                 200,
             )
 
-        return jsonify(results[0]), 200
+        result = dict(results[0])
+        result["disclaimer"] = SatellitePredictionView.PREDICTION_DISCLAIMER
+        return jsonify(result), 200

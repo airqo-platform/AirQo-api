@@ -591,6 +591,7 @@ def test_satellite_prediction_view_returns_daily_pm25_for_starttime_endtime():
     assert body["max_days"] == 30
     assert body["place_name"] == "Kampala"
     assert body["place"]["display_name"] == "Kampala, Central Region, Uganda"
+    assert body["disclaimer"] == SatellitePredictionView.PREDICTION_DISCLAIMER
     assert [item["date"] for item in body["daily_pm2_5"]] == [
         "2026-06-20",
         "2026-06-21",
@@ -608,6 +609,54 @@ def test_satellite_prediction_view_returns_daily_pm25_for_starttime_endtime():
         "2026-06-21",
     ]
     place_lookup.assert_called_once_with(0.3476, 32.5825)
+
+
+def test_satellite_prediction_view_returns_disclaimer_for_single_date():
+    app = Flask(__name__)
+
+    class Model:
+        pass
+
+    payload = {
+        "latitude": 0.3476,
+        "longitude": 32.5825,
+        "timestamp": "2026-06-20",
+    }
+
+    with (
+        app.test_request_context(
+            "/satellite_prediction",
+            method="POST",
+            json=payload,
+        ),
+        patch(
+            "views.satellite_predictions.get_trained_model_from_gcs",
+            return_value=(Model(), None),
+        ),
+        patch(
+            "views.satellite_predictions.SatellitePredictionModel.predict",
+            return_value=(
+                20.0,
+                {"requested_date": "2026-06-20"},
+                {
+                    "scene_id": "scene-2026-06-20",
+                    "scene_datetime": "2026-06-20T08:00:00+00:00",
+                },
+            ),
+        ),
+        patch.object(SatellitePredictionView, "_save_prediction", return_value=False),
+        patch.object(
+            SatellitePredictionView,
+            "_place_from_coordinates",
+            return_value={"name": "Kampala", "display_name": "Kampala"},
+        ),
+    ):
+        response, status = SatellitePredictionView.make_predictions()
+
+    body = response.get_json()
+    assert status == 200
+    assert body["date"] == "2026-06-20"
+    assert body["disclaimer"] == SatellitePredictionView.PREDICTION_DISCLAIMER
 
 
 def test_satellite_prediction_view_rejects_ranges_over_30_days_before_model_load():
