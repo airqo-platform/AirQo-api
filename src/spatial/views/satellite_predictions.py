@@ -195,6 +195,8 @@ class SatellitePredictionView:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data_source": "Copernicus Sentinel-2 L2A via Element 84 Earth Search",
             "weather_source": features.get("weather_source"),
+            "weather_date": features.get("weather_date"),
+            "weather_date_offset_days": features.get("weather_date_offset_days"),
             "requested_date": features.get("requested_date"),
             "scene_id": context.get("scene_id"),
             "scene_datetime": context.get("scene_datetime"),

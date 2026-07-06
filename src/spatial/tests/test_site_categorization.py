@@ -385,9 +385,119 @@ def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
         start_date=None,
         end_date="2026-06-20",
     )
-    assert "20260620" in get_weather.call_args.args[0]
+    weather_url = get_weather.call_args.args[0]
+    assert "start=20260613" in weather_url
+    assert "end=20260627" in weather_url
 
 
+def test_satellite_prediction_weather_uses_nearest_complete_day(monkeypatch):
+    class WeatherResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "properties": {
+                    "parameter": {
+                        "T2M": {
+                            "20260618": 23.1,
+                            "20260620": -999,
+                            "20260622": 25.7,
+                        },
+                        "RH2M": {
+                            "20260618": 69.4,
+                            "20260620": -999,
+                            "20260622": 73.8,
+                        },
+                    }
+                }
+            }
+
+    monkeypatch.setenv("NASA_POWER_WEATHER_FALLBACK_DAYS", "2")
+    with patch(
+        "models.SatellitePredictionModel.requests.get",
+        return_value=WeatherResponse(),
+    ) as get_weather:
+        weather = SatellitePredictionModel._nasa_power_weather(
+            latitude=0.3476,
+            longitude=32.5825,
+            timestamp=SatellitePredictionModel._normalize_utc_timestamp(
+                "2026-06-20"
+            ),
+        )
+
+    assert weather["temperature"] == 23.1
+    assert weather["humidity"] == 69.4
+    assert weather["weather_date"] == "2026-06-18"
+    assert weather["weather_date_offset_days"] == -2
+    weather_url = get_weather.call_args.args[0]
+    assert "start=20260618" in weather_url
+    assert "end=20260622" in weather_url
+def test_satellite_prediction_weather_falls_back_to_era5_when_nasa_missing():
+    context = {
+        "scene_id": "test-scene",
+        "scene_datetime": "2026-06-18T08:00:00+00:00",
+        "scene_cloud_cover": 3.0,
+        "indices": {
+            "ndvi": 0.35,
+            "ndbi": 0.05,
+            "ndwi": -0.2,
+            "bare_soil_index": 0.04,
+            "normalized_burn_ratio": 0.2,
+        },
+        "aerosol_optical_thickness": 0.12,
+    }
+
+    class WeatherModel:
+        feature_names_in_ = ["temperature", "humidity"]
+
+        def predict(self, data):
+            assert data.loc[0, "temperature"] == 24.6
+            assert data.loc[0, "humidity"] == 68.4
+            return [18.75]
+
+    with (
+        patch.object(
+            Sentinel2ContextModel,
+            "get_context",
+            return_value=context,
+        ),
+        patch.object(
+            SatellitePredictionModel,
+            "_nasa_power_weather",
+            return_value={
+                "temperature": None,
+                "humidity": None,
+                "weather_source": None,
+            },
+        ),
+        patch.object(
+            SatellitePredictionModel,
+            "_era5_weather",
+            return_value={
+                "temperature": 24.6,
+                "humidity": 68.4,
+                "weather_source": "ERA5 Planetary Computer",
+                "weather_date": "2026-06-20",
+                "weather_date_offset_days": 0,
+            },
+        ) as era5_weather,
+    ):
+        prediction, features, _ = SatellitePredictionModel.predict(
+            model=WeatherModel(),
+            latitude=0.3476,
+            longitude=32.5825,
+            date="2026-06-20",
+        )
+
+    assert prediction == 18.75
+    assert features["temperature"] == 24.6
+    assert features["humidity"] == 68.4
+    assert features["air_temperature"] == 24.6
+    assert features["relative_humidity"] == 68.4
+    assert features["weather_source"] == "ERA5 Planetary Computer"
+    assert features["weather_date"] == "2026-06-20"
+    era5_weather.assert_called_once()
 def test_satellite_prediction_place_lookup_uses_reverse_geocode_name():
     reverse_result = {
         "name": "Makerere",
@@ -675,12 +785,12 @@ def test_satellite_model_loader_uses_memory_cache_after_first_download(
     first_model, first_error = get_trained_model_from_gcs(
         "project",
         "bucket",
-        "models/satellite_prediction_model_new.pkl",
+        "models/satellite_prediction_model_v2.pkl",
     )
     second_model, second_error = get_trained_model_from_gcs(
         "project",
         "bucket",
-        "models/satellite_prediction_model_new.pkl",
+        "models/satellite_prediction_model_v2.pkl",
     )
 
     assert first_error is None
@@ -689,12 +799,12 @@ def test_satellite_model_loader_uses_memory_cache_after_first_download(
     assert second_model is first_model
     assert len(FakeGCSFileSystem.instances) == 1
     assert FakeGCSFileSystem.instances[0].exists_calls == [
-        "bucket/models/satellite_prediction_model_new.pkl"
+        "bucket/models/satellite_prediction_model_v2.pkl"
     ]
     assert FakeGCSFileSystem.instances[0].open_calls == [
-        ("bucket/models/satellite_prediction_model_new.pkl", "rb")
+        ("bucket/models/satellite_prediction_model_v2.pkl", "rb")
     ]
-    assert (tmp_path / "bucket__models_satellite_prediction_model_new.pkl").is_file()
+    assert (tmp_path / "bucket__models_satellite_prediction_model_v2.pkl").is_file()
 
 
 def test_spatial_credentials_resolve_from_supported_mount(tmp_path, monkeypatch):

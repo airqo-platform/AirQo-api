@@ -40,7 +40,7 @@ class Config:
     )
     SATELLITE_PREDICTION_MODEL_FILE = os.getenv(
         "SATELLITE_PREDICTION_MODEL_FILE",
-        "satellite_prediction_model_new.pkl",
+        "satellite_prediction_model_v2.pkl",
     )
     SATELLITE_MODEL_CACHE_DIR = os.getenv(
         "SATELLITE_MODEL_CACHE_DIR",

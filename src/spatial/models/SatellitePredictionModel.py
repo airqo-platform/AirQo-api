@@ -1,6 +1,7 @@
 """PM2.5 prediction features sourced from free Sentinel-2 STAC data."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import math
 import os
 
 import pandas as pd
@@ -28,14 +29,20 @@ class SatellitePredictionModel:
         latitude = float(latitude)
         longitude = float(longitude)
         date_text = timestamp.strftime("%Y%m%d")
+        fallback_days = max(
+            0,
+            int(os.getenv("NASA_POWER_WEATHER_FALLBACK_DAYS", "7")),
+        )
+        start_text = (timestamp - timedelta(days=fallback_days)).strftime("%Y%m%d")
+        end_text = (timestamp + timedelta(days=fallback_days)).strftime("%Y%m%d")
         url = (
             "https://power.larc.nasa.gov/api/temporal/daily/point"
             "?parameters=T2M,RH2M"
             "&community=AG"
             f"&longitude={longitude}"
             f"&latitude={latitude}"
-            f"&start={date_text}"
-            f"&end={date_text}"
+            f"&start={start_text}"
+            f"&end={end_text}"
             "&format=JSON"
         )
         timeout = float(os.getenv("NASA_POWER_REQUEST_TIMEOUT_SECONDS", "30"))
@@ -45,26 +52,174 @@ class SatellitePredictionModel:
             parameters = response.json()["properties"]["parameter"]
         except (requests.RequestException, KeyError, ValueError):
             return {"temperature": None, "humidity": None, "weather_source": None}
-        temperature = parameters["T2M"].get(date_text)
-        humidity = parameters["RH2M"].get(date_text)
-        if temperature == -999:
-            temperature = None
-        if humidity == -999:
-            humidity = None
+
+        requested_midnight = timestamp.normalize().to_pydatetime()
+        candidates = []
+        for candidate_date, temperature in (parameters.get("T2M") or {}).items():
+            humidity = (parameters.get("RH2M") or {}).get(candidate_date)
+            if temperature in (None, -999) or humidity in (None, -999):
+                continue
+            try:
+                candidate_timestamp = datetime.strptime(
+                    candidate_date,
+                    "%Y%m%d",
+                ).replace(tzinfo=timezone.utc)
+                candidates.append(
+                    (
+                        abs((candidate_timestamp - requested_midnight).days),
+                        candidate_date,
+                        float(temperature),
+                        float(humidity),
+                    )
+                )
+            except (TypeError, ValueError):
+                continue
+
+        if not candidates:
+            return {"temperature": None, "humidity": None, "weather_source": None}
+
+        _, weather_date, temperature, humidity = min(
+            candidates,
+            key=lambda item: (item[0], abs(int(item[1]) - int(date_text))),
+        )
+        weather_timestamp = datetime.strptime(weather_date, "%Y%m%d").replace(
+            tzinfo=timezone.utc
+        )
 
         return {
-            "temperature": (
-                round(float(temperature), 2)
-                if temperature is not None
-                else None
-            ),
-            "humidity": (
-                round(float(humidity), 2)
-                if humidity is not None
-                else None
-            ),
+            "temperature": round(float(temperature), 2),
+            "humidity": round(float(humidity), 2),
             "weather_source": "NASA POWER",
+            "weather_date": weather_timestamp.strftime("%Y-%m-%d"),
+            "weather_date_offset_days": int(
+                (weather_timestamp - requested_midnight).days
+            ),
         }
+    @staticmethod
+    def _relative_humidity_from_temp_dewpoint(temp_c, dewpoint_c):
+        humidity = 100 * (
+            math.exp((17.625 * dewpoint_c) / (243.04 + dewpoint_c))
+            / math.exp((17.625 * temp_c) / (243.04 + temp_c))
+        )
+        return float(max(0.0, min(100.0, humidity)))
+
+    @classmethod
+    def _era5_weather(cls, latitude, longitude, timestamp):
+        from pystac_client import Client
+        import planetary_computer
+        import xarray as xr
+
+        latitude = float(latitude)
+        longitude = float(longitude)
+        timestamp = cls._normalize_utc_timestamp(timestamp)
+        month_text = timestamp.strftime("%Y-%m")
+        stac_url = os.getenv(
+            "PLANETARY_COMPUTER_STAC_URL",
+            "https://planetarycomputer.microsoft.com/api/stac/v1",
+        )
+        collection = os.getenv("ERA5_COLLECTION", "era5-pds")
+
+        catalog = Client.open(
+            stac_url,
+            modifier=planetary_computer.sign_inplace,
+        )
+        search = catalog.search(
+            collections=[collection],
+            datetime=month_text,
+            query={"era5:kind": {"eq": "an"}},
+            max_items=1,
+        )
+        items = list(search.items())
+        if not items:
+            raise LookupError(f"No ERA5 item found for {month_text}")
+
+        item = items[0]
+        if "zarr-abfs" not in item.assets:
+            raise ValueError(
+                "ERA5 item does not have zarr-abfs asset. "
+                f"Available assets: {list(item.assets.keys())}"
+            )
+
+        asset = item.assets["zarr-abfs"]
+        dataset = xr.open_zarr(
+            asset.href,
+            storage_options=asset.extra_fields.get("xarray:storage_options", {}),
+            consolidated=True,
+        )
+
+        variable_options = {
+            "temperature": (
+                "air_temperature_at_2_metres",
+                "2m_temperature",
+                "t2m",
+            ),
+            "dewpoint": (
+                "dew_point_temperature_at_2_metres",
+                "2m_dewpoint_temperature",
+                "d2m",
+            ),
+        }
+        temp_var = next(
+            name for name in variable_options["temperature"]
+            if name in dataset.data_vars
+        )
+        dewpoint_var = next(
+            name for name in variable_options["dewpoint"]
+            if name in dataset.data_vars
+        )
+        lat_name = "lat" if "lat" in dataset.coords else "latitude"
+        lon_name = "lon" if "lon" in dataset.coords else "longitude"
+        time_name = "time"
+
+        era5_longitude = longitude
+        try:
+            lon_max = float(dataset[lon_name].max())
+            if lon_max > 180 and era5_longitude < 0:
+                era5_longitude += 360
+        except Exception:
+            pass
+
+        selection = {
+            time_name: timestamp.to_datetime64(),
+            lat_name: latitude,
+            lon_name: era5_longitude,
+        }
+        temp_k = dataset[temp_var].sel(selection, method="nearest").values.item()
+        dewpoint_k = dataset[dewpoint_var].sel(
+            selection,
+            method="nearest",
+        ).values.item()
+
+        temp_c = float(temp_k) - 273.15
+        dewpoint_c = float(dewpoint_k) - 273.15
+        humidity = cls._relative_humidity_from_temp_dewpoint(temp_c, dewpoint_c)
+
+        return {
+            "temperature": round(temp_c, 2),
+            "humidity": round(humidity, 2),
+            "weather_source": "ERA5 Planetary Computer",
+            "weather_date": timestamp.strftime("%Y-%m-%d"),
+            "weather_date_offset_days": 0,
+        }
+
+    @classmethod
+    def _weather_features(cls, latitude, longitude, timestamp):
+        weather = cls._nasa_power_weather(
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=timestamp,
+        )
+        if weather.get("temperature") is not None and weather.get("humidity") is not None:
+            return weather
+
+        try:
+            return cls._era5_weather(
+                latitude=latitude,
+                longitude=longitude,
+                timestamp=timestamp,
+            )
+        except Exception:
+            return weather
 
     @staticmethod
     def _needs_weather(feature_names):
@@ -134,7 +289,7 @@ class SatellitePredictionModel:
         features["scene_date"] = scene_timestamp.strftime("%Y-%m-%d")
 
         if cls._needs_weather(feature_names):
-            weather = cls._nasa_power_weather(
+            weather = cls._weather_features(
                 latitude=latitude,
                 longitude=longitude,
                 timestamp=feature_timestamp,

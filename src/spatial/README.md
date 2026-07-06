@@ -28,7 +28,7 @@ BIGQUERY_HOURLY_CONSOLIDATED=project.dataset.hourly_consolidated
 PROJECT_BUCKET=airqo_prediction_bucket
 SATELLITE_PREDICTION_BUCKET=airqo_prediction_bucket
 BIGQUERY_SATELLITE_MODEL_PREDICTIONS=project.dataset.satellite_predictions
-SATELLITE_PREDICTION_MODEL_FILE=satellite_prediction_model_new.pkl
+SATELLITE_PREDICTION_MODEL_FILE=satellite_prediction_model_v2.pkl
 SATELLITE_MODEL_CACHE_DIR=/tmp/airqo_spatial_models
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -44,6 +44,9 @@ FIRMS_API_BASE_URL=https://firms.modaps.eosdis.nasa.gov
 FIRMS_REQUEST_TIMEOUT_SECONDS=30
 ACTIVE_FIRE_CACHE_TTL_SECONDS=43200
 NASA_POWER_REQUEST_TIMEOUT_SECONDS=30
+NASA_POWER_WEATHER_FALLBACK_DAYS=7
+PLANETARY_COMPUTER_STAC_URL=https://planetarycomputer.microsoft.com/api/stac/v1
+ERA5_COLLECTION=era5-pds
 ```
 
 ## Start the microservice
@@ -252,7 +255,7 @@ All routes are prefixed with `/api/v2/spatial`.
 
 ## `/satellite_prediction` API
 
-Use `/satellite_prediction` to predict PM2.5 for one latitude/longitude and date using the deployed `satellite_prediction_model_new.pkl` model. The model is loaded from `SATELLITE_PREDICTION_BUCKET` on cache miss, then reused from memory and `SATELLITE_MODEL_CACHE_DIR` so repeated API calls do not download it from GCS every time.
+Use `/satellite_prediction` to predict PM2.5 for one latitude/longitude and date using the deployed `satellite_prediction_model_v2.pkl` model. The model is loaded from `SATELLITE_PREDICTION_BUCKET` on cache miss, then reused from memory and `SATELLITE_MODEL_CACHE_DIR` so repeated API calls do not download it from GCS every time.
 
 Single-date request body:
 ```json
@@ -273,7 +276,7 @@ Daily range request body:
 }
 ```
 
-`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. Responses include `place_name` and `place` from reverse geocoding the latitude/longitude. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the requested prediction date. Models that only declare Sentinel-2 features continue to avoid the weather request. Sentinel-2 surface features come from the newest usable scene available up to the requested date, so adjacent daily predictions can share the same `scene_id` when no newer satellite pass is available.
+`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. Responses include `place_name` and `place` from reverse geocoding the latitude/longitude. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the requested prediction date, falling back to the nearest complete NASA POWER day within `NASA_POWER_WEATHER_FALLBACK_DAYS` when the requested day is missing, then falling back to ERA5 from Microsoft Planetary Computer if NASA POWER still cannot provide complete weather features. Models that only declare Sentinel-2 features continue to avoid the weather request. Sentinel-2 surface features come from the newest usable scene available up to the requested date, so adjacent daily predictions can share the same `scene_id` when no newer satellite pass is available.
 
 ## `/polygon_site_location` API
 
