@@ -102,13 +102,13 @@ const acceptInvitation = [
     body("firstName")
       .optional()
       .trim()
-      .isLength({ min: 1, max: 50 })
-      .withMessage("firstName must be between 1 and 50 characters"),
+      .isLength({ min: 1, max: 100 })
+      .withMessage("firstName must be between 1 and 100 characters"),
     body("lastName")
       .optional()
       .trim()
-      .isLength({ min: 1, max: 50 })
-      .withMessage("lastName must be between 1 and 50 characters"),
+      .isLength({ min: 1, max: 100 })
+      .withMessage("lastName must be between 1 and 100 characters"),
     body("password")
       .optional()
       .isLength({ min: 6 })

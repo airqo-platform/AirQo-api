@@ -357,26 +357,28 @@ const firebaseSignup = oneOf([
     .withMessage("the phoneNumber must be valid"),
 ]);
 
-const syncAnalyticsAndMobile = oneOf([
-  body("firebase_uid")
-    .exists()
-    .withMessage(
-      "the firebase_uid is missing in body, consider using firebase_uid",
-    )
-    .bail()
-    .notEmpty()
-    .withMessage("the firebase_uid must not be empty")
-    .bail()
-    .trim(),
-  body("email")
-    .exists()
-    .withMessage("the email is missing in body, consider using email")
-    .bail()
-    .notEmpty()
-    .withMessage("the email is missing in body, consider using email")
-    .bail()
-    .isEmail()
-    .withMessage("this is not a valid email address"),
+const syncAnalyticsAndMobile = [
+  oneOf([
+    body("firebase_uid")
+      .exists()
+      .withMessage(
+        "the firebase_uid is missing in body, consider using firebase_uid",
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the firebase_uid must not be empty")
+      .bail()
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .notEmpty()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+  ]),
   body("phoneNumber")
     .optional()
     .notEmpty()
@@ -384,9 +386,17 @@ const syncAnalyticsAndMobile = oneOf([
     .bail()
     .isMobilePhone()
     .withMessage("the phoneNumber must be valid"),
-  body("firstName").optional().trim(),
-  body("lastName").optional().trim(),
-]);
+  body("firstName")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("firstName cannot exceed 100 characters"),
+  body("lastName")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("lastName cannot exceed 100 characters"),
+];
 
 const emailReport = oneOf([
   body("senderEmail")
@@ -508,12 +518,22 @@ const registerUser = [
       .exists()
       .withMessage("firstName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("lastName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("email")
       .exists()
       .withMessage("email is missing in your request")
@@ -550,12 +570,22 @@ const createUser = [
       .exists()
       .withMessage("firstName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("lastName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("category")
       .exists()
       .withMessage("category is missing in your request")
@@ -789,13 +819,17 @@ const newsletterSubscribe = [
       .notEmpty()
       .withMessage("the provided firstName should not be empty IF provided")
       .bail()
-      .trim(),
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .optional()
       .notEmpty()
       .withMessage("the provided lastName should not be empty IF provided")
       .bail()
-      .trim(),
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("address")
       .optional()
       .notEmpty()
@@ -1128,12 +1162,22 @@ const registerViaOrgSlug = [
     .exists()
     .withMessage("firstName is missing in your request")
     .bail()
-    .trim(),
+    .trim()
+    .notEmpty()
+    .withMessage("firstName should not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("firstName cannot exceed 100 characters"),
   body("lastName")
     .exists()
     .withMessage("lastName is missing in your request")
     .bail()
-    .trim(),
+    .trim()
+    .notEmpty()
+    .withMessage("lastName should not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("lastName cannot exceed 100 characters"),
   body("email")
     .exists()
     .withMessage("email is missing in your request")
