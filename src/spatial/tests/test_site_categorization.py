@@ -152,6 +152,87 @@ def test_categorization_uses_useful_fallback_instead_of_unknown_category():
     assert model.last_details["classification_method"] == "nominatim"
 
 
+def test_sentinel2_search_prioritizes_low_cloud_cover(monkeypatch):
+    captured = {}
+
+    class FakeSearch:
+        def items(self):
+            return []
+
+    class FakeCatalog:
+        def search(self, **kwargs):
+            captured["search_kwargs"] = kwargs
+            return FakeSearch()
+
+    class FakeClient:
+        @staticmethod
+        def open(url):
+            captured["url"] = url
+            return FakeCatalog()
+
+    monkeypatch.setenv("SENTINEL2_MAX_ITEMS", "17")
+    monkeypatch.setitem(
+        sys.modules,
+        "pystac_client",
+        type("FakePystacClient", (), {"Client": FakeClient}),
+    )
+
+    items = Sentinel2ContextModel()._search_items(
+        latitude=0.3476,
+        longitude=32.5825,
+        start_date="2026-06-01",
+        end_date="2026-06-20",
+    )
+
+    assert items == []
+    assert captured["search_kwargs"]["sortby"] == [
+        {"field": "properties.eo:cloud_cover", "direction": "asc"},
+        {"field": "properties.datetime", "direction": "desc"},
+    ]
+    assert captured["search_kwargs"]["max_items"] == 17
+
+def test_sentinel2_context_uses_cloudy_point_as_degraded_fallback():
+    class FakeItem:
+        id = "S2C_31NEH_20260524_0_L2A"
+
+    model = Sentinel2ContextModel()
+
+    def fake_sample(item, latitude, longitude, allow_cloudy_point=False):
+        if not allow_cloudy_point:
+            raise ValueError("Cloudy or invalid Sentinel-2 point (SCL=3.0)")
+        return {
+            "scene_id": item.id,
+            "scene_datetime": "2026-05-24T08:00:00+00:00",
+            "scene_cloud_cover": 12.0,
+            "scene_classification": 3,
+            "point_is_cloudy": True,
+            "point_quality": "cloudy_point_fallback",
+            "indices": {
+                "ndvi": 0.35,
+                "ndbi": 0.05,
+                "ndwi": -0.2,
+                "bare_soil_index": 0.04,
+                "normalized_burn_ratio": 0.2,
+            },
+            "aerosol_optical_thickness": 0.12,
+        }
+
+    with (
+        patch.object(model, "_search_items", return_value=[FakeItem()]),
+        patch.object(model, "_sample_item", side_effect=fake_sample) as sample,
+    ):
+        context = model.get_context(
+            latitude=0.3476,
+            longitude=32.5825,
+            end_date="2026-05-24",
+        )
+
+    assert context["scene_classification"] == 3
+    assert context["point_is_cloudy"] is True
+    assert context["point_quality"] == "cloudy_point_fallback"
+    assert context["indices"]["ndvi"] == 0.35
+    assert sample.call_args_list[-1].kwargs["allow_cloudy_point"] is True
+
 def test_source_metadata_uses_free_sentinel2_context():
     category_result = (
         "Urban Commercial",
@@ -375,20 +456,74 @@ def test_satellite_prediction_adds_date_and_weather_for_weather_schema():
 
     assert prediction == 18.75
     assert features["requested_date"] == "2026-06-20"
-    assert features["scene_date"] == "2026-06-18"
+    assert features["scene_date"] is None
     assert features["weather_source"] == "NASA POWER"
     assert features["air_temperature"] == 24.25
     assert features["relative_humidity"] == 71.5
-    get_context.assert_called_once_with(
-        latitude=0.3476,
-        longitude=32.5825,
-        start_date=None,
-        end_date="2026-06-20",
-    )
+    get_context.assert_not_called()
     weather_url = get_weather.call_args.args[0]
     assert "start=20260613" in weather_url
     assert "end=20260627" in weather_url
 
+
+def test_satellite_prediction_can_use_weather_features_without_sentinel2():
+    class WeatherOnlyModel:
+        feature_names_in_ = [
+            "temperature",
+            "humidity",
+            "latitude",
+            "longitude",
+            "year",
+            "month",
+            "day",
+            "dayofweek",
+            "week",
+        ]
+
+        def predict(self, data):
+            assert list(data.columns) == list(self.feature_names_in_)
+            assert data.loc[0, "temperature"] == 24.25
+            assert data.loc[0, "humidity"] == 71.5
+            assert data.loc[0, "latitude"] == 0.3476
+            assert data.loc[0, "longitude"] == 32.5825
+            assert data.loc[0, "year"] == 2026
+            assert data.loc[0, "month"] == 6
+            assert data.loc[0, "day"] == 20
+            return [18.75]
+
+    class WeatherResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "properties": {
+                    "parameter": {
+                        "T2M": {"20260620": 24.25},
+                        "RH2M": {"20260620": 71.5},
+                    }
+                }
+            }
+
+    with (
+        patch.object(Sentinel2ContextModel, "get_context") as get_context,
+        patch(
+            "models.SatellitePredictionModel.requests.get",
+            return_value=WeatherResponse(),
+        ),
+    ):
+        prediction, features, context = SatellitePredictionModel.predict(
+            model=WeatherOnlyModel(),
+            latitude=0.3476,
+            longitude=32.5825,
+            date="2026-06-20",
+        )
+
+    assert prediction == 18.75
+    assert features["weather_source"] == "NASA POWER"
+    assert features["scene_date"] is None
+    assert context["sentinel2_used"] is False
+    get_context.assert_not_called()
 
 def test_satellite_prediction_weather_uses_nearest_complete_day(monkeypatch):
     class WeatherResponse:

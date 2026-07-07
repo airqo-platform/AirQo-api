@@ -199,7 +199,11 @@ class SatellitePredictionView:
             "place_name": (place or {}).get("name"),
             "place": place or {"name": None, "display_name": None},
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data_source": "Copernicus Sentinel-2 L2A via Element 84 Earth Search",
+            "data_source": (
+                "Copernicus Sentinel-2 L2A via Element 84 Earth Search"
+                if context.get("sentinel2_used")
+                else features.get("weather_source")
+            ),
             "weather_source": features.get("weather_source"),
             "weather_date": features.get("weather_date"),
             "weather_date_offset_days": features.get("weather_date_offset_days"),

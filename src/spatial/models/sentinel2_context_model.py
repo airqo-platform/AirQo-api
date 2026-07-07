@@ -36,6 +36,14 @@ class Sentinel2ContextModel:
             7,
             min(int(os.getenv("SENTINEL2_SEARCH_DAYS", "60")), 365),
         )
+        self.max_items = max(
+            1,
+            min(int(os.getenv("SENTINEL2_MAX_ITEMS", "10")), 50),
+        )
+        self.allow_cloudy_point_fallback = os.getenv(
+            "SENTINEL2_ALLOW_CLOUDY_POINT_FALLBACK",
+            "true",
+        ).strip().lower() not in {"0", "false", "no"}
 
     @staticmethod
     def _parse_date(value, fallback):
@@ -88,10 +96,10 @@ class Sentinel2ContextModel:
             datetime=f"{start_date}/{end_date}",
             query={"eo:cloud_cover": {"lt": self.max_cloud_cover}},
             sortby=[
-                {"field": "properties.datetime", "direction": "desc"},
                 {"field": "properties.eo:cloud_cover", "direction": "asc"},
+                {"field": "properties.datetime", "direction": "desc"},
             ],
-            max_items=5,
+            max_items=self.max_items,
         )
         return list(search.items())
 
@@ -118,7 +126,7 @@ class Sentinel2ContextModel:
                     return None
                 return value * scale
 
-    def _sample_item(self, item, latitude, longitude):
+    def _sample_item(self, item, latitude, longitude, allow_cloudy_point=False):
         import rasterio
         from rasterio._env import set_proj_data_search_path
 
@@ -163,7 +171,7 @@ class Sentinel2ContextModel:
             }
 
         scl = sampled["scl"]
-        if scl is None or int(round(scl)) in self.CLOUD_SCL_CLASSES:
+        if scl is None:
             raise ValueError(f"Cloudy or invalid Sentinel-2 point (SCL={scl})")
 
         reflectance = {
@@ -173,6 +181,11 @@ class Sentinel2ContextModel:
         aot = sampled["aot"]
         if any(value is None for value in reflectance.values()):
             raise ValueError("One or more Sentinel-2 reflectance bands had no valid data")
+
+        scl_class = int(round(scl))
+        point_is_cloudy = scl_class in self.CLOUD_SCL_CLASSES
+        if point_is_cloudy and not allow_cloudy_point:
+            raise ValueError(f"Cloudy or invalid Sentinel-2 point (SCL={scl})")
 
         blue = reflectance["blue"]
         green = reflectance["green"]
@@ -185,7 +198,9 @@ class Sentinel2ContextModel:
             "scene_id": item.id,
             "scene_datetime": item.datetime.isoformat() if item.datetime else None,
             "scene_cloud_cover": item.properties.get("eo:cloud_cover"),
-            "scene_classification": int(round(scl)),
+            "scene_classification": scl_class,
+            "point_is_cloudy": point_is_cloudy,
+            "point_quality": "cloudy_point_fallback" if point_is_cloudy else "clear",
             "indices": {
                 "ndvi": self._safe_index(nir - red, nir + red),
                 "ndbi": self._safe_index(swir16 - nir, swir16 + nir),
@@ -228,29 +243,48 @@ class Sentinel2ContextModel:
             start_text,
             end_text,
         )
+
+        def finalize_result(result):
+            result.update(
+                {
+                    "provider": "Element 84 Earth Search",
+                    "collection": self.COLLECTION,
+                    "date_range": {
+                        "start_date": start_text,
+                        "end_date": end_text,
+                    },
+                    "elapsed_ms": round(
+                        (time.perf_counter() - started_at) * 1000,
+                        2,
+                    ),
+                    "cache_hit": False,
+                }
+            )
+            self._set_cached(cache_key, result)
+            return result
+
         errors = []
         for item in items:
             try:
-                result = self._sample_item(item, latitude, longitude)
-                result.update(
-                    {
-                        "provider": "Element 84 Earth Search",
-                        "collection": self.COLLECTION,
-                        "date_range": {
-                            "start_date": start_text,
-                            "end_date": end_text,
-                        },
-                        "elapsed_ms": round(
-                            (time.perf_counter() - started_at) * 1000,
-                            2,
-                        ),
-                        "cache_hit": False,
-                    }
+                return finalize_result(
+                    self._sample_item(item, latitude, longitude)
                 )
-                self._set_cached(cache_key, result)
-                return result
             except Exception as error:
                 errors.append(f"{item.id}: {error}")
+
+        if self.allow_cloudy_point_fallback:
+            for item in items:
+                try:
+                    return finalize_result(
+                        self._sample_item(
+                            item,
+                            latitude,
+                            longitude,
+                            allow_cloudy_point=True,
+                        )
+                    )
+                except Exception:
+                    continue
 
         if not items:
             raise LookupError("No Sentinel-2 scenes matched the date and cloud filters")

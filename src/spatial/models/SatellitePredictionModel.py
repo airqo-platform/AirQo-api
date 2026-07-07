@@ -235,6 +235,24 @@ class SatellitePredictionModel:
         }
         return bool(weather_features.intersection(feature_names or []))
 
+    @staticmethod
+    def _needs_sentinel2(feature_names):
+        sentinel2_features = {
+            "ndvi",
+            "ndbi",
+            "ndwi",
+            "bare_soil_index",
+            "normalized_burn_ratio",
+            "aerosol_optical_thickness",
+            "scene_cloud_cover",
+            "day_aod",
+            "ndvi_aod",
+            "ndvi_bsi",
+            "lat_aod",
+            "lon_aod",
+        }
+        return not feature_names or bool(sentinel2_features.intersection(feature_names))
+
     @classmethod
     def extract_data_for_location(
         cls,
@@ -253,22 +271,37 @@ class SatellitePredictionModel:
         if requested_timestamp is not None and not end_date:
             end_date = requested_timestamp.strftime("%Y-%m-%d")
 
-        context = Sentinel2ContextModel().get_context(
-            latitude=latitude,
-            longitude=longitude,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        indices = context.get("indices") or {}
-        scene_datetime = context.get("scene_datetime")
-        scene_timestamp = (
-            datetime.fromisoformat(scene_datetime.replace("Z", "+00:00"))
-            if scene_datetime
-            else datetime.now(timezone.utc)
-        )
-        scene_timestamp = cls._normalize_utc_timestamp(scene_timestamp)
-        feature_timestamp = requested_timestamp or scene_timestamp
+        context = {
+            "provider": None,
+            "collection": None,
+            "scene_id": None,
+            "scene_datetime": None,
+            "sentinel2_used": False,
+        }
+        indices = {}
+        scene_timestamp = None
+        if cls._needs_sentinel2(feature_names):
+            context = Sentinel2ContextModel().get_context(
+                latitude=latitude,
+                longitude=longitude,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            context = {**context, "sentinel2_used": True}
+            indices = context.get("indices") or {}
+            scene_datetime = context.get("scene_datetime")
+            scene_timestamp = (
+                datetime.fromisoformat(scene_datetime.replace("Z", "+00:00"))
+                if scene_datetime
+                else datetime.now(timezone.utc)
+            )
+            scene_timestamp = cls._normalize_utc_timestamp(scene_timestamp)
 
+        feature_timestamp = (
+            requested_timestamp
+            or scene_timestamp
+            or cls._normalize_utc_timestamp(datetime.now(timezone.utc))
+        )
         features = {
             "ndvi": indices.get("ndvi"),
             "ndbi": indices.get("ndbi"),
@@ -290,7 +323,11 @@ class SatellitePredictionModel:
         cls._add_interaction_features(features)
         if requested_timestamp is not None:
             features["requested_date"] = requested_timestamp.strftime("%Y-%m-%d")
-        features["scene_date"] = scene_timestamp.strftime("%Y-%m-%d")
+        features["scene_date"] = (
+            scene_timestamp.strftime("%Y-%m-%d")
+            if scene_timestamp is not None
+            else None
+        )
 
         if cls._needs_weather(feature_names):
             weather = cls._weather_features(
