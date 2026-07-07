@@ -1855,17 +1855,14 @@ const learn = {
   getLeaderboard: async (request, next) => {
     try {
       const tenant = getTenant(request);
+      const device_id = request.headers["x-device-id"];
       const user_id = request.user?.id || null;
+      const hasIdentity = Boolean(user_id || device_id);
 
-      if (!user_id) {
-        return {
-          success: false,
-          message:
-            "authentication required — create an account to view the leaderboard",
-          status: httpStatus.UNAUTHORIZED,
-        };
-      }
-
+      // The leaderboard is public, read-only, aggregate data -- viewing it
+      // never requires an identity. user_id/device_id are only used below
+      // to personalize the response (is_current_user/current_user_rank)
+      // when the caller happens to be identifiable.
       const limit = Math.min(parseInt(request.query.limit) || 20, 100);
       const LearnProgress = LearnProgressModel(tenant);
       const maxPoints = await getMaxLearnPoints(tenant, next);
@@ -1878,8 +1875,17 @@ const learn = {
       })
         .sort({ total_points: -1 })
         .limit(limit)
-        .select("user_id guest_id learner_type total_points completed_lessons")
+        .select(
+          "user_id device_id guest_id learner_type total_points completed_lessons"
+        )
         .lean();
+
+      // Matches the caller against their own progress row -- user_id when
+      // JWT-authenticated, otherwise device_id (unique per LearnProgress
+      // doc, same convention used by getProgress/findProgress). Always
+      // false for a fully anonymous caller (no identity to match).
+      const isCaller = (l) =>
+        hasIdentity && (user_id ? l.user_id === user_id : l.device_id === device_id);
 
       const guestIds = topLearners
         .filter((l) => l.learner_type === "guest" && l.guest_id)
@@ -1895,12 +1901,17 @@ const learn = {
         );
       }
 
-      // Determine caller's rank when they fall outside the top N
-      const currentUserInTop = topLearners.some((l) => l.user_id === user_id);
+      // Determine caller's rank when they fall outside the top N -- skipped
+      // entirely for a fully anonymous caller (no identity to look up, and
+      // an unguarded { device_id: undefined } filter would otherwise be
+      // stripped by Mongoose into an unfiltered findOne({}), matching an
+      // arbitrary document).
+      const currentUserInTop = topLearners.some(isCaller);
       let currentUserRank = null;
 
-      if (!currentUserInTop) {
-        const userProgress = await LearnProgress.findOne({ user_id }).lean();
+      if (!currentUserInTop && hasIdentity) {
+        const callerFilter = user_id ? { user_id } : { device_id };
+        const userProgress = await LearnProgress.findOne(callerFilter).lean();
         if (userProgress) {
           const ahead = await LearnProgress.countDocuments({
             total_points: { $gt: userProgress.total_points },
@@ -1929,11 +1940,11 @@ const learn = {
               // getProgress/getCatalog if the catalog changed since this
               // learner's last write.
               current_stage: computeStage(l.total_points, maxPoints),
-              is_current_user: l.user_id === user_id,
+              is_current_user: isCaller(l),
             };
           }),
           current_user_rank: currentUserInTop
-            ? topLearners.findIndex((l) => l.user_id === user_id) + 1
+            ? topLearners.findIndex(isCaller) + 1
             : currentUserRank,
         },
         message: "successfully retrieved leaderboard",

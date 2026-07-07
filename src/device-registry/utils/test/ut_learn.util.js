@@ -760,12 +760,55 @@ describe("learnUtil", () => {
   // ---------------------------------------------------------------------------
 
   describe("getLeaderboard", () => {
-    it("should return UNAUTHORIZED when no user_id", async () => {
+    it("should return the leaderboard for a fully anonymous caller (no device_id, no user_id), without personalization", async () => {
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            device_id: "dev-001",
+            learner_type: "guest",
+            total_points: 30,
+            completed_lessons: 3,
+          },
+        ]),
+      });
+
       const next = sinon.spy();
       const result = await learnUtil.getLeaderboard(makeReq(), next);
 
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.UNAUTHORIZED);
+      expect(result.success).to.be.true;
+      expect(result.data.entries[0].is_current_user).to.be.false;
+      expect(result.data.current_user_rank).to.be.null;
+      // No identity was supplied, so no per-caller lookup should have run.
+      expect(progressInstance.findOne.called).to.be.false;
+    });
+
+    it("should allow a guest identified by X-Device-Id to view the leaderboard", async () => {
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            device_id: "dev-001",
+            learner_type: "guest",
+            total_points: 30,
+            completed_lessons: 3,
+          },
+        ]),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({ headers: { "x-device-id": "dev-001" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.entries[0].is_current_user).to.be.true;
+      expect(result.data.current_user_rank).to.equal(1);
     });
 
     it("should compute current_stage live from total_points and catalog-derived max_points", async () => {
