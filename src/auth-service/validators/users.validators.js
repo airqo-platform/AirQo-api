@@ -357,26 +357,28 @@ const firebaseSignup = oneOf([
     .withMessage("the phoneNumber must be valid"),
 ]);
 
-const syncAnalyticsAndMobile = oneOf([
-  body("firebase_uid")
-    .exists()
-    .withMessage(
-      "the firebase_uid is missing in body, consider using firebase_uid",
-    )
-    .bail()
-    .notEmpty()
-    .withMessage("the firebase_uid must not be empty")
-    .bail()
-    .trim(),
-  body("email")
-    .exists()
-    .withMessage("the email is missing in body, consider using email")
-    .bail()
-    .notEmpty()
-    .withMessage("the email is missing in body, consider using email")
-    .bail()
-    .isEmail()
-    .withMessage("this is not a valid email address"),
+const syncAnalyticsAndMobile = [
+  oneOf([
+    body("firebase_uid")
+      .exists()
+      .withMessage(
+        "the firebase_uid is missing in body, consider using firebase_uid",
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the firebase_uid must not be empty")
+      .bail()
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .notEmpty()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+  ]),
   body("phoneNumber")
     .optional()
     .notEmpty()
@@ -394,7 +396,7 @@ const syncAnalyticsAndMobile = oneOf([
     .trim()
     .isLength({ max: 100 })
     .withMessage("lastName cannot exceed 100 characters"),
-]);
+];
 
 const emailReport = oneOf([
   body("senderEmail")

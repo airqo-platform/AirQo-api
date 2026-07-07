@@ -178,12 +178,14 @@ const confirm = [
     body("firstName")
       .exists()
       .withMessage("the firstName should be provided")
+      .bail()
       .trim()
       .isLength({ max: 100 })
       .withMessage("the firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("the lastName should be provided")
+      .bail()
       .trim()
       .isLength({ max: 100 })
       .withMessage("the lastName cannot exceed 100 characters"),
