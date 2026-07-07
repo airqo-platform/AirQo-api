@@ -169,7 +169,10 @@ GuestUserSchema.statics = {
 
   async findOne({ filter = {}, next } = {}) {
     try {
-      const guestUser = await this.findOne(filter).exec();
+      // This static shadows Mongoose's built-in Model.findOne, so we must
+      // call the base implementation explicitly -- `this.findOne(...)`
+      // here would recurse into this very function forever.
+      const guestUser = await mongoose.Model.findOne.call(this, filter).exec();
 
       if (!isEmpty(guestUser)) {
         return createSuccessResponse("find", guestUser, "guest user", {
