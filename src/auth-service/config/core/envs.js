@@ -188,6 +188,16 @@ const envs = {
   CLOUD_NAME: process.env.CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  // Clean Air Forum selfies: the Cloudinary upload preset should tag every
+  // upload with CLEAN_AIR_FORUM_SELFIE_TAG. The daily cron job in
+  // bin/jobs/selfie-cleanup-job.js deletes tagged Cloudinary assets (and
+  // their Mongo records) after CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS days,
+  // so storage/cost doesn't grow unbounded after each event.
+  CLEAN_AIR_FORUM_SELFIE_TAG: "clean-air-forum-selfie",
+  CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS: parseNumber(
+    process.env.CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS,
+    90,
+  ),
   // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
   // uses this URL for login location lookups; when absent, geolocation is
   // skipped entirely (returns null) to avoid plaintext HTTP calls.
