@@ -6,6 +6,11 @@
 process.env.CLOUD_NAME = process.env.CLOUD_NAME || "test";
 process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test";
 process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test";
+// The malformed-token tests exercise jwt.verify() inside enhancedJWTAuth. With
+// no secret at all, some jsonwebtoken code paths can behave inconsistently
+// across versions/environments -- shim a dummy secret so verification always
+// fails deterministically on the token itself (400/401), not on missing config.
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test";
 
 require("module-alias/register");
 const chai = require("chai");

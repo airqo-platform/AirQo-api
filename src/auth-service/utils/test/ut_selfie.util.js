@@ -276,10 +276,14 @@ describe("selfie util", () => {
       expect(selfieModelInstance.remove.calledOnce).to.be.true;
     });
 
-    it("skips the Cloudinary destroy but still removes the record when Cloudinary isn't configured", async () => {
-      // No Cloudinary env vars are set in this test environment, so the
-      // real destroyCloudinaryAsset() naturally takes the "not configured"
-      // branch -- verifying it doesn't throw and the record is still removed.
+    it("still removes the record even when Cloudinary deletion is a no-op", async () => {
+      // Stubbed explicitly rather than relying on Cloudinary env vars being
+      // absent -- other test files in this suite set dummy Cloudinary env
+      // vars at process level, and depending on Mocha's file load order
+      // within a single run, ambient env state here would be nondeterministic
+      // (and could otherwise attempt a real, offline Cloudinary API call).
+      const destroyStub = sinon.stub().resolves();
+      selfieUtil.__set__("destroyCloudinaryAsset", destroyStub);
       selfieModelInstance.findOne.resolves({
         success: true,
         data: { imageUrl: VALID_URL },
@@ -295,6 +299,7 @@ describe("selfie util", () => {
 
       const result = await selfieUtil.delete(request, next);
 
+      expect(destroyStub.calledOnce).to.be.true;
       expect(result.success).to.be.true;
       expect(selfieModelInstance.remove.calledOnce).to.be.true;
     });
