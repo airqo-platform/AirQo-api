@@ -1,14 +1,14 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: staging-analytics-virtual-server
+  name: staging-nexus-virtual-server
   namespace: staging
 spec:
-  host: staging-analytics.airqo.net
+  host: staging-nexus.airqo.net
   upstreams:
     - name: analytics
       service: airqo-stage-next-platform-svc
-      port: 3000  
+      port: 3000
     - name: auth-service
       service: airqo-stage-auth-api-svc
       port: 3000
@@ -26,7 +26,7 @@ spec:
       port: 4001
     - name: view
       service: airqo-stage-view-api-svc
-      port: 8080  
+      port: 8080
     - name: spatial
       service: airqo-stage-spatial-api-svc
       port: 5000
@@ -36,9 +36,7 @@ spec:
   routes:
     - path: /
       action:
-        redirect:
-          url: https://staging-nexus.airqo.net
-          code: 301
+        pass: analytics
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -94,7 +92,7 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json  
+                value: application/json
     - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
       action:
         proxy:
