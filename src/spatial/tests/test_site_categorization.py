@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 
 import pytest
+import pandas as pd
 from unittest.mock import patch
 
 from flask import Flask
@@ -633,6 +634,8 @@ def test_satellite_prediction_weather_falls_back_to_era5_when_nasa_missing():
     assert features["weather_source"] == "ERA5 Planetary Computer"
     assert features["weather_date"] == "2026-06-20"
     era5_weather.assert_called_once()
+
+
 def test_satellite_prediction_place_lookup_uses_reverse_geocode_name():
     reverse_result = {
         "name": "Makerere",
@@ -745,6 +748,66 @@ def test_satellite_prediction_view_returns_daily_pm25_for_starttime_endtime():
     ]
     place_lookup.assert_called_once_with(0.3476, 32.5825)
 
+
+def test_satellite_prediction_view_rejects_future_timestamp_before_model_load():
+    app = Flask(__name__)
+    payload = {
+        "latitude": 0.3476,
+        "longitude": 32.5825,
+        "timestamp": "2026-07-08",
+    }
+
+    with (
+        app.test_request_context(
+            "/satellite_prediction",
+            method="POST",
+            json=payload,
+        ),
+        patch.object(
+            SatellitePredictionView,
+            "_today_utc",
+            return_value=pd.Timestamp("2026-07-07", tz="UTC"),
+        ),
+        patch("views.satellite_predictions.get_trained_model_from_gcs") as load_model,
+    ):
+        response, status = SatellitePredictionView.make_predictions()
+
+    assert status == 503
+    assert response.get_json() == {
+        "error": "Sentinel-2 features are currently unavailable for this location."
+    }
+    load_model.assert_not_called()
+
+
+def test_satellite_prediction_view_rejects_future_range_before_model_load():
+    app = Flask(__name__)
+    payload = {
+        "latitude": 0.3476,
+        "longitude": 32.5825,
+        "starttime": "2026-07-07",
+        "endtime": "2026-07-08",
+    }
+
+    with (
+        app.test_request_context(
+            "/satellite_prediction",
+            method="POST",
+            json=payload,
+        ),
+        patch.object(
+            SatellitePredictionView,
+            "_today_utc",
+            return_value=pd.Timestamp("2026-07-07", tz="UTC"),
+        ),
+        patch("views.satellite_predictions.get_trained_model_from_gcs") as load_model,
+    ):
+        response, status = SatellitePredictionView.make_predictions()
+
+    assert status == 503
+    assert response.get_json() == {
+        "error": "Sentinel-2 features are currently unavailable for this location."
+    }
+    load_model.assert_not_called()
 
 def test_satellite_prediction_view_returns_disclaimer_for_single_date():
     app = Flask(__name__)

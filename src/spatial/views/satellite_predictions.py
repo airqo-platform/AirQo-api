@@ -55,6 +55,18 @@ class SatellitePredictionView:
             timestamp = timestamp.tz_convert("UTC")
         return timestamp.normalize(), None
 
+    @staticmethod
+    def _today_utc():
+        return pd.Timestamp(datetime.now(timezone.utc)).normalize()
+
+    @staticmethod
+    def _future_date_error():
+        return "Sentinel-2 features are currently unavailable for this location."
+
+    @classmethod
+    def _is_future_date(cls, timestamp):
+        return timestamp > cls._today_utc()
+
     @classmethod
     def _prediction_dates(cls, payload):
         start_value = (
@@ -93,6 +105,8 @@ class SatellitePredictionView:
                 return None, None, error, 400
             if start > end:
                 return None, None, "starttime must be on or before endtime.", 400
+            if cls._is_future_date(start) or cls._is_future_date(end):
+                return None, None, cls._future_date_error(), 503
 
             day_count = int((end - start).days) + 1
             if day_count > cls.MAX_DAILY_RANGE_DAYS:
@@ -113,6 +127,8 @@ class SatellitePredictionView:
             timestamp, error = cls._parse_date(timestamp_value, "timestamp")
             if error:
                 return None, None, error, 400
+            if cls._is_future_date(timestamp):
+                return None, None, cls._future_date_error(), 503
             return [timestamp.strftime("%Y-%m-%d")], "single", None, None
 
         return None, None, "Provide either timestamp or starttime and endtime.", 400
