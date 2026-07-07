@@ -3,6 +3,19 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
 
+function isTrustedCloudinarySelfieUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "res.cloudinary.com" &&
+      url.pathname.includes("/clean_air_forum_selfies/")
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
 const validateTenant = oneOf([
   query("tenant")
     .optional()
@@ -55,7 +68,12 @@ const create = [
     .bail()
     .trim()
     .isURL({ require_protocol: true })
-    .withMessage("imageUrl must be a valid URL"),
+    .withMessage("imageUrl must be a valid URL")
+    .bail()
+    .custom(isTrustedCloudinarySelfieUrl)
+    .withMessage(
+      "imageUrl must be an https://res.cloudinary.com/.../clean_air_forum_selfies/... URL"
+    ),
   body("locationName")
     .optional()
     .trim()
@@ -75,6 +93,11 @@ const create = [
     .trim()
     .isLength({ max: 40 })
     .withMessage("displayName cannot exceed 40 characters"),
+  body("avatarIcon")
+    .optional()
+    .trim()
+    .isLength({ max: 8 })
+    .withMessage("avatarIcon cannot exceed 8 characters"),
   body("guest_id").optional().trim(),
 ];
 

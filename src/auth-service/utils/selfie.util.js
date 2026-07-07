@@ -46,10 +46,11 @@ async function destroyCloudinaryAsset(publicId) {
 
 async function resolveSubmitterIdentity({ request, tenant, body }) {
   if (request.user && request.user._id) {
+    const fallbackIdentity = body.avatarIcon ? {} : generateGuestIdentity();
     return {
       user_id: request.user._id,
       displayName: body.displayName || request.user.userName,
-      avatarIcon: body.avatarIcon,
+      avatarIcon: body.avatarIcon || fallbackIdentity.avatarIcon,
       guest_id: undefined,
     };
   }
@@ -63,7 +64,7 @@ async function resolveSubmitterIdentity({ request, tenant, body }) {
       GuestUserModel(tenant)
         .modify({
           filter: { guest_id: body.guest_id },
-          update: { lastActive: new Date() },
+          update: { $set: { lastActive: new Date() } },
         })
         .catch((error) => {
           logger.error(
@@ -102,9 +103,20 @@ const selfie = {
         body,
       });
 
+      // Whitelist client-settable fields explicitly -- moderation/audit
+      // fields (hidden, hiddenAt, hiddenBy) must never be settable directly
+      // from a public request body.
+      const allowedBody = {
+        eventId: body.eventId,
+        imageUrl: body.imageUrl,
+        locationName: body.locationName,
+        pm25Value: body.pm25Value,
+        aqiCategory: body.aqiCategory,
+      };
+
       const response = await SelfieModel(tenant).register(
         {
-          ...body,
+          ...allowedBody,
           ...identity,
         },
         next

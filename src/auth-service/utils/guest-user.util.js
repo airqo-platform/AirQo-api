@@ -41,9 +41,11 @@ const guestUser = {
           })
         );
       }
-      // check if guest user exists
+      // Atomically claim (find + remove in one op) the guest record up
+      // front, so two concurrent convert requests for the same guest_id
+      // can't both pass an existence check before either one deletes it.
       const guestUser = await GuestUserModel(tenant)
-        .findOne({ guest_id })
+        .findOneAndDelete({ guest_id })
         .lean();
 
       if (isEmpty(guestUser)) {
@@ -71,14 +73,18 @@ const guestUser = {
       const newUser = await UserModel(tenant).register(registrationBody, next);
 
       if (!newUser || newUser.success === false) {
+        // Registration failed after the guest record was already claimed
+        // (deleted) above -- restore it so the guest isn't lost and the
+        // client can retry the conversion.
+        try {
+          await GuestUserModel(tenant).create(guestUser);
+        } catch (restoreError) {
+          logger.error(
+            `🐛🐛 Failed to restore guest ${guest_id} after failed conversion -- ${restoreError.message}`
+          );
+        }
         return newUser;
       }
-
-      //delete guest
-      const responseFromDeleteGuest = await GuestUserModel(tenant).remove(
-        { guest_id },
-        next
-      );
 
       return newUser;
     } catch (error) {

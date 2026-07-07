@@ -123,6 +123,12 @@ SelfieSchema.statics = {
     try {
       const selfies = await this.aggregate()
         .match(filter)
+        .project({
+          user_id: 0,
+          guest_id: 0,
+          hiddenBy: 0,
+          hiddenAt: 0,
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -150,6 +156,14 @@ SelfieSchema.statics = {
 
   async modify({ filter = {}, update = {}, next } = {}) {
     try {
+      if (isEmpty(filter)) {
+        return createErrorResponse(
+          new Error("A filter is required to update a selfie"),
+          "update",
+          logger,
+          "selfie"
+        );
+      }
       const modifiedSelfie = await this.findOneAndUpdate(filter, update, {
         new: true,
       }).exec();
