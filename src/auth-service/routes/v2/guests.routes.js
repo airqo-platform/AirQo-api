@@ -15,6 +15,7 @@ router.post(
 );
 router.post(
   "/convert",
+  guestUserValidations.convertGuest,
   enhancedJWTAuth,
   validate,
   guestUserController.convertGuest
