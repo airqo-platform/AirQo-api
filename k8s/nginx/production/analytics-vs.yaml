@@ -36,7 +36,9 @@ spec:
   routes:
     - path: /
       action:
-        pass: analytics
+        redirect:
+          url: https://nexus.airqo.net
+          code: 301
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

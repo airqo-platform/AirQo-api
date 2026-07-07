@@ -1,44 +1,42 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: staging-analytics-virtual-server
-  namespace: staging
+  name: nexus-virtual-server
+  namespace: production
 spec:
-  host: staging-analytics.airqo.net
+  host: nexus.airqo.net
   upstreams:
     - name: analytics
-      service: airqo-stage-next-platform-svc
-      port: 3000  
+      service: airqo-next-platform-svc
+      port: 3000
     - name: auth-service
-      service: airqo-stage-auth-api-svc
+      service: airqo-auth-api-svc
       port: 3000
     - name: device-registry
-      service: airqo-stage-device-registry-api-svc
+      service: airqo-device-registry-api-svc
       port: 3000
     - name: analytics-api
-      service: airqo-stage-analytics-api-svc
+      service: airqo-analytics-api-svc
       port: 5000
     - name: predict
-      service: airqo-stage-prediction-api-svc
+      service: airqo-prediction-api-svc
       port: 5000
     - name: calibrate
-      service: airqo-stage-calibrate-api-svc
+      service: airqo-calibrate-api-svc
       port: 4001
     - name: view
-      service: airqo-stage-view-api-svc
-      port: 8080  
+      service: airqo-view-api-svc
+      port: 8080
     - name: spatial
-      service: airqo-stage-spatial-api-svc
+      service: airqo-spatial-api-svc
       port: 5000
     - name: beacon
-      service: airqo-stage-beacon-api-svc
+      service: airqo-beacon-api-svc
       port: 8000
   routes:
     - path: /
       action:
-        redirect:
-          url: https://staging-nexus.airqo.net
-          code: 301
+        pass: analytics
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -55,7 +53,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/analytics
+    - path: ~ /api\/v[1-3]\/(?:public\/)?analytics
       action:
         proxy:
           upstream: analytics-api
@@ -63,6 +61,10 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+              - name: Access-Control-Allow-Methods
+                value: "GET, POST, OPTIONS, PUT, DELETE"
+              - name: Access-Control-Allow-Headers
+                value: "Content-Type, Authorization, X-Requested-With, X-Auth-Token"
     - path: ~ /api\/v[1-2]\/predict
       action:
         proxy:
@@ -94,7 +96,7 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json  
+                value: application/json
     - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
       action:
         proxy:
