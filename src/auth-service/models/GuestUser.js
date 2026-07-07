@@ -167,25 +167,6 @@ GuestUserSchema.statics = {
     }
   },
 
-  async findOne({ filter = {}, next } = {}) {
-    try {
-      const guestUser = await this.findOne(filter).exec();
-
-      if (!isEmpty(guestUser)) {
-        return createSuccessResponse("find", guestUser, "guest user", {
-          message: "successfully retrieved the guest user",
-        });
-      } else {
-        return createNotFoundResponse(
-          "guest user",
-          "find",
-          "guest user not found"
-        );
-      }
-    } catch (err) {
-      return createErrorResponse(err, "find", logger, "guest user");
-    }
-  },
 };
 const GuestUserModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";

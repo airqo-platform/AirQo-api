@@ -180,7 +180,10 @@ SelfieSchema.statics = {
 
   async findOne({ filter = {}, next } = {}) {
     try {
-      const selfie = await this.findOne(filter).exec();
+      // This static shadows Mongoose's built-in Model.findOne, so we must
+      // call the base implementation explicitly -- `this.findOne(...)`
+      // here would recurse into this very function forever.
+      const selfie = await mongoose.Model.findOne.call(this, filter).exec();
 
       if (!isEmpty(selfie)) {
         return createSuccessResponse("find", selfie, "selfie", {
