@@ -11,6 +11,7 @@ const {
   createNotFoundResponse,
   createEmptySuccessResponse,
 } = require("@utils/shared");
+const { generateGuestIdentity } = require("@utils/common");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- guest-user-model`
 );
@@ -32,6 +33,16 @@ const GuestUserSchema = new Schema(
       type: String,
       trim: true,
     },
+    displayName: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+    avatarIcon: {
+      type: String,
+      trim: true,
+      maxlength: 8,
+    },
   },
   { timestamps: true }
 );
@@ -43,9 +54,14 @@ GuestUserSchema.statics = {
         .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
         .toUpperCase();
 
+      const identity =
+        args.displayName && args.avatarIcon ? {} : generateGuestIdentity();
+
       const createdGuestUser = await this.create({
         guest_id: guestId,
         ...args,
+        displayName: args.displayName || identity.displayName,
+        avatarIcon: args.avatarIcon || identity.avatarIcon,
       });
 
       if (!isEmpty(createdGuestUser)) {

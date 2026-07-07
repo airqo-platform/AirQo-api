@@ -53,25 +53,26 @@ const guestUser = {
           })
         );
       }
+      // Layer the guest's stored identity fields under whatever the
+      // client explicitly supplied — client-provided values always win,
+      // guest data only fills in what's missing.
+      const registrationBody = { ...body };
+      if (!registrationBody.firstName && guestUser.firstName) {
+        registrationBody.firstName = guestUser.firstName;
+      }
+      if (!registrationBody.lastName && guestUser.lastName) {
+        registrationBody.lastName = guestUser.lastName;
+      }
+      if (!registrationBody.userName && guestUser.displayName) {
+        registrationBody.userName = guestUser.displayName;
+      }
+
       // create new user
-      const newUser = await UserModel(tenant).register(body, next);
-      const newUserId = newUser.data._id;
+      const newUser = await UserModel(tenant).register(registrationBody, next);
 
-      // Migrate the data
-      const updatedFields = {
-        $set: {
-          //  migrate data from guest to new user
-          // ... your guest user fields here
-          // add the new id
-          user: newUserId,
-        },
-      };
-
-      const responseFromUpdateUser = await UserModel(tenant).modify(
-        { _id: newUserId },
-        updatedFields,
-        next
-      );
+      if (!newUser || newUser.success === false) {
+        return newUser;
+      }
 
       //delete guest
       const responseFromDeleteGuest = await GuestUserModel(tenant).remove(
@@ -79,7 +80,7 @@ const guestUser = {
         next
       );
 
-      return responseFromUpdateUser;
+      return newUser;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
