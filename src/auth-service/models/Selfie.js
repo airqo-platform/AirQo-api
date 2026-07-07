@@ -179,6 +179,35 @@ SelfieSchema.statics = {
       return createErrorResponse(err, "find", logger, "selfie");
     }
   },
+
+  async remove({ filter = {}, next } = {}) {
+    try {
+      const removedSelfie = await this.findOneAndRemove(filter).exec();
+
+      if (!isEmpty(removedSelfie)) {
+        return createSuccessResponse("delete", removedSelfie, "selfie");
+      } else {
+        return createNotFoundResponse("selfie", "delete", "selfie not found");
+      }
+    } catch (err) {
+      return createErrorResponse(err, "delete", logger, "selfie");
+    }
+  },
+
+  async removeMany({ filter = {}, next } = {}) {
+    try {
+      const result = await this.deleteMany(filter).exec();
+
+      return {
+        success: true,
+        message: "successfully deleted stale selfies",
+        data: { deletedCount: result.deletedCount },
+        status: httpStatus.OK,
+      };
+    } catch (err) {
+      return createErrorResponse(err, "delete", logger, "selfie");
+    }
+  },
 };
 
 const SelfieModel = (tenant) => {

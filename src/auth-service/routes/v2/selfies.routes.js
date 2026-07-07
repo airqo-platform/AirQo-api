@@ -34,4 +34,13 @@ router.patch(
   selfieController.hide
 );
 
+router.delete(
+  "/:id",
+  selfieValidations.delete,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  validate,
+  selfieController.delete
+);
+
 module.exports = router;

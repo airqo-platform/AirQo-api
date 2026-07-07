@@ -91,8 +91,11 @@ const list = [
 
 const hide = [validateTenant, validateIdParam];
 
+const deleteSelfie = [validateTenant, validateIdParam];
+
 module.exports = {
   create,
   list,
   hide,
+  delete: deleteSelfie,
 };

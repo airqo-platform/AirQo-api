@@ -8,6 +8,42 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- selfie-util`);
 
+function extractCloudinaryPublicId(imageUrl) {
+  try {
+    const url = new URL(imageUrl);
+    const match = url.pathname.match(/\/upload\/(?:v\d+\/)?(.+?)\.[a-zA-Z0-9]+$/);
+    return match ? match[1] : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function destroyCloudinaryAsset(publicId) {
+  if (!publicId) {
+    return;
+  }
+  const isCloudinaryConfigured =
+    !!constants.CLOUD_NAME &&
+    !!constants.CLOUDINARY_API_KEY &&
+    !!constants.CLOUDINARY_API_SECRET;
+
+  if (!isCloudinaryConfigured) {
+    logger.warn(
+      `Cloudinary not configured — skipping asset deletion for ${publicId}`
+    );
+    return;
+  }
+
+  try {
+    const cloudinary = require("@config/cloudinary");
+    await cloudinary.uploader.destroy(publicId);
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Failed to delete Cloudinary asset ${publicId} -- ${error.message}`
+    );
+  }
+}
+
 async function resolveSubmitterIdentity({ request, tenant, body }) {
   if (request.user && request.user._id) {
     return {
@@ -125,6 +161,39 @@ const selfie = {
             },
           },
         },
+        next
+      );
+
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  delete: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant, id } = { ...query, ...params };
+
+      const existing = await SelfieModel(tenant).findOne({
+        filter: { _id: id },
+      });
+
+      if (!existing || existing.success === false) {
+        return existing;
+      }
+
+      const publicId = extractCloudinaryPublicId(existing.data.imageUrl);
+      await destroyCloudinaryAsset(publicId);
+
+      const response = await SelfieModel(tenant).remove(
+        { filter: { _id: id } },
         next
       );
 
