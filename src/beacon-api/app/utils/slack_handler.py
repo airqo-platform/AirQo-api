@@ -77,10 +77,11 @@ class SlackWebhookHandler(logging.Handler):
                 },
             ]
 
-            httpx.post(
-                self.webhook_url,
-                json={"blocks": blocks},
-                timeout=self.timeout,
-            )
+            threading.Thread(
+                target=httpx.post,
+                args=(self.webhook_url,),
+                kwargs={"json": {"blocks": blocks}, "timeout": self.timeout},
+                daemon=True,
+            ).start()
         except Exception:
             self.handleError(record)  # logs to stderr, never raises into FastAPI
