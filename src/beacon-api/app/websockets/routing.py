@@ -122,9 +122,9 @@ async def ws_agents_endpoint(websocket: WebSocket):
                                 update_dict["result"] = result
                             if job_status in ["COMPLETED", "FAILED"]:
                                 update_dict["completed_at"] = datetime.now(timezone.utc)
-                            
-                            await job_service.device_job_repo.update(db, db_obj=job, obj_in=update_dict)
-                            
+
+                            from app.services.job import device_job_repo
+                            await device_job_repo.update(db, db_obj=job, obj_in=update_dict)
                             # Publish update
                             await redis_service.publish_to_session(str(job.session_id), {
                                 "event": "job_status",
