@@ -62,9 +62,8 @@ async def ws_webrtc_signaling_endpoint(
 
         # Mark as connected in db
         member.connected = True
-        member.connected_at = asyncio.get_event_loop().time() # or datetime.utcnow()
-        import datetime
-        member.connected_at = datetime.datetime.now(datetime.timezone.utc)
+        from datetime import datetime, timezone
+        member.connected_at = datetime.now(timezone.utc)
         await db.commit()
 
     # Accept the connection
