@@ -224,8 +224,8 @@ async def ws_sessions_endpoint(
                     success = await session_service.release_control(db, session_id, user_id)
                     await websocket.send_json({
                         "type": "control_response",
-                        "success": not success,  # True if release failed (still control), False if released
-                        "controller_user_id": None if success else user_id
+                        "success": success,
+                        "controller_user_id": None if success else await redis_service.get_session_controller(session_id_str),
                     })
 
             elif msg_type == "execute_command":
