@@ -225,12 +225,21 @@ async def sync_cohorts(db: Session, token: str) -> Dict[str, Any]:
 
     Embedded devices are backfilled into sync_device non-authoritatively.
     """
-    all_cohorts = await _fetch_all_cohorts(token)
+    try:
+        all_cohorts = await _fetch_all_cohorts(token)
 
-    if not all_cohorts:
+        if not all_cohorts:
+            return {
+                "success": True,
+                "message": "No cohorts found on platform",
+                "cohorts_synced": 0,
+                "devices_backfilled": 0,
+            }
+    except Exception as exc:
+        logger.exception(f"Cohort sync failed: {exc}")
         return {
-            "success": True,
-            "message": "No cohorts found on platform",
+            "success": False,
+            "message": "Cohort sync failed",
             "cohorts_synced": 0,
             "devices_backfilled": 0,
         }
