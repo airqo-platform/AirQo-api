@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 import base64
 
