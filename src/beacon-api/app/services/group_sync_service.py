@@ -153,12 +153,20 @@ async def sync_groups(db: Session, token: str) -> Dict[str, Any]:
     Fetch all groups from the platform API, upsert into sync_group,
     and rebuild the sync_group_cohort junction.
     """
-    all_groups = await _fetch_all_groups(token)
+    try:
+        all_groups = await _fetch_all_groups(token)
 
-    if all_groups is None:
+        if all_groups is None:
+            return {
+                "success": False,
+                "message": "Failed to fetch groups from platform",
+                "groups_synced": 0,
+            }
+    except Exception as exc:
+        logger.exception(f"Group sync failed: {exc}")
         return {
             "success": False,
-            "message": "Failed to fetch groups from platform",
+            "message": "Group sync failed",
             "groups_synced": 0,
         }
 

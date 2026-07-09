@@ -211,12 +211,21 @@ async def sync_grids(db: Session, token: str) -> Dict[str, Any]:
 
     Embedded sites are backfilled into sync_site non-authoritatively.
     """
-    all_grids = await _fetch_all_grids(token)
+    try:
+        all_grids = await _fetch_all_grids(token)
 
-    if all_grids is None:
+        if all_grids is None:
+            return {
+                "success": False,
+                "message": "Failed to fetch grids from platform",
+                "grids_synced": 0,
+                "sites_backfilled": 0,
+            }
+    except Exception as exc:
+        logger.exception(f"Grid sync failed: {exc}")
         return {
             "success": False,
-            "message": "Failed to fetch grids from platform",
+            "message": "Grid sync failed",
             "grids_synced": 0,
             "sites_backfilled": 0,
         }
