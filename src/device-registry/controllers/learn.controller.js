@@ -24,6 +24,7 @@ const learnController = {
           success: true,
           catalog_version: result.data.catalog_version,
           stages: result.data.stages,
+          max_points: result.data.max_points,
           courses: result.data.courses,
         });
       }

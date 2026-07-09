@@ -101,6 +101,27 @@ describe("learnController", () => {
       expect(jsonArgs).to.have.property("courses");
     });
 
+    it("should include max_points from the util result", async () => {
+      learnUtilStub.getCatalog.resolves({
+        success: true,
+        data: {
+          catalog_version: "2025-01-01",
+          stages: [],
+          max_points: 2400,
+          courses: [],
+        },
+        status: httpStatus.OK,
+      });
+      const req = makeReq();
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.getCatalog(req, res, next);
+
+      const jsonArgs = res.json.firstCall.args[0];
+      expect(jsonArgs.max_points).to.equal(2400);
+    });
+
     it("should call next when validation fails", async () => {
       sharedStub.extractErrorsFromRequest.returns({ field: "error" });
       const req = makeReq();
