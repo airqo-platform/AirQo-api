@@ -138,6 +138,111 @@ describe("LearnGuestSession Model", () => {
     });
   });
 
+  describe("Static method: findOrCreate — username + event scoping", () => {
+    it("should create a new session with a chosen username when it's available in that event", async () => {
+      sinon
+        .stub(Model, "findOne")
+        .onFirstCall().returns({ lean: sinon.stub().resolves(null) }) // no existing device_id session
+        .onSecondCall().returns({ lean: sinon.stub().resolves(null) }); // username available
+      const fakeCreated = {
+        _id: "new-id",
+        _doc: {
+          device_id: "dev-new",
+          guest_id: "guest_new",
+          username: "Thabo",
+          event_id: "pretoria-2026",
+        },
+      };
+      sinon.stub(Model, "create").resolves(fakeCreated);
+      const next = sinon.spy();
+
+      const result = await Model.findOrCreate(
+        { device_id: "dev-new", username: "Thabo", event_id: "pretoria-2026" },
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.CREATED);
+      expect(next.called).to.be.false;
+    });
+
+    it("should reject creation via next(CONFLICT) when the username is already taken in that event", async () => {
+      sinon
+        .stub(Model, "findOne")
+        .onFirstCall().returns({ lean: sinon.stub().resolves(null) }) // no existing device_id session
+        .onSecondCall().returns({
+          lean: sinon.stub().resolves({ _id: "other-id", username: "Thabo" }),
+        }); // clash
+      const createStub = sinon.stub(Model, "create");
+      const next = sinon.spy();
+
+      const result = await Model.findOrCreate(
+        { device_id: "dev-new-2", username: "Thabo", event_id: "pretoria-2026" },
+        next
+      );
+
+      expect(result).to.be.undefined;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.CONFLICT);
+      expect(createStub.called).to.be.false;
+    });
+
+    it("should update the username on an existing session when the new name is available", async () => {
+      const existingSession = {
+        _id: "session-1",
+        device_id: "dev-001",
+        guest_id: "guest_existing",
+        username: null,
+        event_id: "pretoria-2026",
+      };
+      sinon
+        .stub(Model, "findOne")
+        .onFirstCall().returns({ lean: sinon.stub().resolves(existingSession) })
+        .onSecondCall().returns({ lean: sinon.stub().resolves(null) }); // username available
+      sinon.stub(Model, "findOneAndUpdate").returns({
+        lean: sinon.stub().resolves({ ...existingSession, username: "Thabo" }),
+      });
+      const next = sinon.spy();
+
+      const result = await Model.findOrCreate(
+        { device_id: "dev-001", username: "Thabo" },
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data.username).to.equal("Thabo");
+    });
+
+    it("should reject an update via next(CONFLICT) when the new username is already taken in that event", async () => {
+      const existingSession = {
+        _id: "session-1",
+        device_id: "dev-001",
+        guest_id: "guest_existing",
+        username: null,
+        event_id: "pretoria-2026",
+      };
+      sinon
+        .stub(Model, "findOne")
+        .onFirstCall().returns({ lean: sinon.stub().resolves(existingSession) })
+        .onSecondCall().returns({
+          lean: sinon.stub().resolves({ _id: "other-id", username: "Thabo" }),
+        }); // clash
+      const updateStub = sinon.stub(Model, "findOneAndUpdate");
+      const next = sinon.spy();
+
+      const result = await Model.findOrCreate(
+        { device_id: "dev-001", username: "Thabo" },
+        next
+      );
+
+      expect(result).to.be.undefined;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.CONFLICT);
+      expect(updateStub.called).to.be.false;
+    });
+  });
+
   describe("Static method: modify", () => {
     it("should return success when session is updated", async () => {
       const fakeUpdated = {

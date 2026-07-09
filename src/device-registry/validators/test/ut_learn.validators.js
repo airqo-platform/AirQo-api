@@ -129,6 +129,27 @@ describe("learnValidations", () => {
       await runMiddlewareChain(validations.createAnonymousSession, req);
       expect(validationResult(req).isEmpty()).to.be.true;
     });
+
+    it("should pass with a valid username and event_id", async () => {
+      const req = mockRequest(
+        {},
+        { ...validBody, username: "Thabo M.", event_id: "pretoria-2026" }
+      );
+      await runMiddlewareChain(validations.createAnonymousSession, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+
+    it("should fail when username is shorter than 3 characters", async () => {
+      const req = mockRequest({}, { ...validBody, username: "Th" });
+      await runMiddlewareChain(validations.createAnonymousSession, req);
+      expect(validationResult(req).isEmpty()).to.be.false;
+    });
+
+    it("should fail when username contains disallowed characters", async () => {
+      const req = mockRequest({}, { ...validBody, username: "Thabo<script>" });
+      await runMiddlewareChain(validations.createAnonymousSession, req);
+      expect(validationResult(req).isEmpty()).to.be.false;
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -351,6 +372,12 @@ describe("learnValidations", () => {
       const req = mockRequest({ limit: "0" });
       await runMiddlewareChain(validations.getLeaderboard, req);
       expect(validationResult(req).isEmpty()).to.be.false;
+    });
+
+    it("should pass when a valid event_id is provided", async () => {
+      const req = mockRequest({ event_id: "pretoria-2026" });
+      await runMiddlewareChain(validations.getLeaderboard, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
     });
   });
 

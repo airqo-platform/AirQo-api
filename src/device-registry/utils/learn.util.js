@@ -20,6 +20,27 @@ const {
   DEFAULT_MAX_LEARN_POINTS,
 } = require("@utils/learn-progress.constants");
 
+const AVATAR_BACKGROUND_COLORS = [
+  "#F97316", "#10B981", "#3B82F6", "#EF4444",
+  "#8B5CF6", "#EC4899", "#EAB308", "#14B8A6",
+];
+const AVATAR_FALLBACK_ICONS = LearnGuestSessionModel.AVATAR_ICONS || ["🙂"];
+
+// Builds a self-contained, deterministic avatar image (a data URI, no
+// external service or upload step) from a stable seed (guest_id/user_id) so
+// every leaderboard entry has an image without requiring a photo upload.
+function buildAvatarImageUrl({ seed, icon }) {
+  const hash = crypto.createHash("sha256").update(String(seed || "")).digest();
+  const background = AVATAR_BACKGROUND_COLORS[hash[0] % AVATAR_BACKGROUND_COLORS.length];
+  const resolvedIcon = icon || AVATAR_FALLBACK_ICONS[hash[1] % AVATAR_FALLBACK_ICONS.length];
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">` +
+    `<rect width="128" height="128" rx="64" fill="${background}"/>` +
+    `<text x="50%" y="54%" font-size="64" text-anchor="middle" dominant-baseline="middle">${resolvedIcon}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
 // Lesson ids belonging to published courses only — draft/unpublished course
 // content is invisible to learners and must not count toward max_points.
 async function getPublishedLessonIds(tenant, next) {
@@ -439,10 +460,10 @@ const learn = {
   createAnonymousSession: async (request, next) => {
     try {
       const tenant = getTenant(request);
-      const { device_id, app_version, platform } = request.body;
+      const { device_id, app_version, platform, username, event_id } = request.body;
 
       const result = await LearnGuestSessionModel(tenant).findOrCreate(
-        { device_id, app_version, platform },
+        { device_id, app_version, platform, username, event_id },
         next
       );
       if (!result?.success) return result;
@@ -452,8 +473,14 @@ const learn = {
         success: true,
         data: {
           guest_id: session.guest_id,
-          display_name: session.display_name,
+          display_name: session.username || session.display_name,
           avatar_icon: session.avatar_icon,
+          avatar_image_url: buildAvatarImageUrl({
+            seed: session.guest_id,
+            icon: session.avatar_icon,
+          }),
+          username: session.username || null,
+          event_id: session.event_id || null,
           created_at: session.createdAt,
         },
         message: result.message,
@@ -1858,6 +1885,7 @@ const learn = {
       const device_id = request.headers["x-device-id"];
       const user_id = request.user?.id || null;
       const hasIdentity = Boolean(user_id || device_id);
+      const event_id = request.query.event_id || null;
 
       // The leaderboard is public, read-only, aggregate data -- viewing it
       // never requires an identity. user_id/device_id are only used below
@@ -1867,12 +1895,39 @@ const learn = {
       const LearnProgress = LearnProgressModel(tenant);
       const maxPoints = await getMaxLearnPoints(tenant, next);
 
+      const progressFilter = { total_points: { $gt: 0 } };
+
+      // For a one-off quiz/event (e.g. an in-person stall), scope entries to
+      // only the guest sessions (and any accounts they later linked to) that
+      // joined under that event_id, instead of the global leaderboard.
+      if (event_id) {
+        const eventSessions = await LearnGuestSessionModel(tenant)
+          .find({ event_id })
+          .select("guest_id linked_user_id")
+          .lean();
+        const eventGuestIds = eventSessions.map((s) => s.guest_id);
+        const eventUserIds = eventSessions
+          .filter((s) => s.linked_user_id)
+          .map((s) => s.linked_user_id);
+
+        if (eventGuestIds.length === 0 && eventUserIds.length === 0) {
+          return {
+            success: true,
+            data: { scope: "event", event_id, entries: [], current_user_rank: null },
+            message: "successfully retrieved leaderboard",
+            status: httpStatus.OK,
+          };
+        }
+        progressFilter.$or = [
+          { guest_id: { $in: eventGuestIds } },
+          { user_id: { $in: eventUserIds } },
+        ];
+      }
+
       // Guests are ranked alongside registered users — they're identified by
       // a random display name/icon (see LearnGuestSession) rather than being
       // excluded outright.
-      const topLearners = await LearnProgress.find({
-        total_points: { $gt: 0 },
-      })
+      const topLearners = await LearnProgress.find(progressFilter)
         .sort({ total_points: -1 })
         .limit(limit)
         .select(
@@ -1894,7 +1949,7 @@ const learn = {
       if (guestIds.length > 0) {
         const guestSessions = await LearnGuestSessionModel(tenant)
           .find({ guest_id: { $in: guestIds } })
-          .select("guest_id display_name avatar_icon")
+          .select("guest_id display_name avatar_icon username")
           .lean();
         guestIdentityByGuestId = new Map(
           guestSessions.map((s) => [s.guest_id, s])
@@ -1911,9 +1966,16 @@ const learn = {
 
       if (!currentUserInTop && hasIdentity) {
         const callerFilter = user_id ? { user_id } : { device_id };
-        const userProgress = await LearnProgress.findOne(callerFilter).lean();
+        // When scoped to an event, the caller's own doc must also satisfy the
+        // event's guest/user membership -- otherwise someone who never joined
+        // this event would still get back a rank computed against it.
+        const scopedCallerFilter = progressFilter.$or
+          ? { ...callerFilter, $or: progressFilter.$or }
+          : callerFilter;
+        const userProgress = await LearnProgress.findOne(scopedCallerFilter).lean();
         if (userProgress) {
           const ahead = await LearnProgress.countDocuments({
+            ...progressFilter,
             total_points: { $gt: userProgress.total_points },
           });
           currentUserRank = ahead + 1;
@@ -1923,17 +1985,29 @@ const learn = {
       return {
         success: true,
         data: {
-          scope: "global",
+          scope: event_id ? "event" : "global",
+          ...(event_id ? { event_id } : {}),
           entries: topLearners.map((l, i) => {
             const guestIdentity =
               l.learner_type === "guest"
                 ? guestIdentityByGuestId.get(l.guest_id)
                 : null;
+            // A guest's own chosen username (set via the anonymous-session
+            // endpoint) takes precedence over the auto-generated display name.
+            const resolvedName =
+              guestIdentity?.username || guestIdentity?.display_name || undefined;
+            const avatarIcon = guestIdentity?.avatar_icon || undefined;
             return {
               rank: i + 1,
               learner_type: l.learner_type,
-              display_name: guestIdentity?.display_name || undefined,
-              avatar_icon: guestIdentity?.avatar_icon || undefined,
+              display_name: resolvedName,
+              avatar_icon: avatarIcon,
+              // Auto-generated server-side so the leaderboard always has an
+              // image to show without requiring a photo upload from the learner.
+              avatar_image_url: buildAvatarImageUrl({
+                seed: l.guest_id || l.user_id || l.device_id,
+                icon: avatarIcon,
+              }),
               total_points: l.total_points,
               completed_lessons: l.completed_lessons,
               // Computed live so a leaderboard row can never disagree with
