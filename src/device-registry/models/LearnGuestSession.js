@@ -181,7 +181,7 @@ learnGuestSessionSchema.statics = {
           const updated = await this.findOneAndUpdate(
             { _id: existing._id },
             { username, ...(event_id !== undefined ? { event_id } : {}) },
-            { new: true }
+            { new: true, runValidators: true }
           ).lean();
           return {
             success: true,
