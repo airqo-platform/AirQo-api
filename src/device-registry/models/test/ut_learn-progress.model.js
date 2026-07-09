@@ -166,5 +166,213 @@ describe("LearnProgress Model", () => {
       expect(result.success).to.be.true;
       expect(result.data).to.have.property("lesson_id", "lesson-2");
     });
+
+    it("should overwrite stars/points/quiz_score_ratio on a replay that scores better", async () => {
+      const existingLessons = new Map([
+        [
+          "lesson-3",
+          {
+            completed: true,
+            stars: 1,
+            points_earned: 10,
+            quiz_score_ratio: 1 / 3,
+            furthest_activity_index: 4,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+            ],
+          },
+        ],
+      ]);
+      sinon.stub(Model, "findOne").resolves({ lessons: existingLessons });
+      sinon.stub(Model, "findOneAndUpdate").resolves({});
+      const next = sinon.spy();
+
+      const result = await Model.upsertLessonProgress(
+        {
+          device_id: "dev-003",
+          lesson_id: "lesson-3",
+          update: {
+            completed: true,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+              { activity_id: "a2", format: "single_choice", is_correct: true },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+            ],
+          },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      expect(result.data.stars).to.equal(3);
+      expect(result.data.points_earned).to.equal(30);
+    });
+
+    it("should not downgrade stars/quiz_score_ratio on a replay that ties on points but has a worse ratio", async () => {
+      // Previous best: 3/3 correct = 30 points, ratio 1.0, 3 stars.
+      const existingLessons = new Map([
+        [
+          "lesson-3b",
+          {
+            completed: true,
+            stars: 3,
+            points_earned: 30,
+            quiz_score_ratio: 1,
+            furthest_activity_index: 3,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+              { activity_id: "a2", format: "single_choice", is_correct: true },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+            ],
+          },
+        ],
+      ]);
+      sinon.stub(Model, "findOne").resolves({ lessons: existingLessons });
+      const findOneAndUpdateStub = sinon
+        .stub(Model, "findOneAndUpdate")
+        .resolves({});
+      const next = sinon.spy();
+
+      // Replay: 3/6 correct — also 30 points, but a worse ratio (0.5) and stars (2).
+      const result = await Model.upsertLessonProgress(
+        {
+          device_id: "dev-003b",
+          lesson_id: "lesson-3b",
+          update: {
+            completed: true,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+              { activity_id: "a2", format: "single_choice", is_correct: true },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+              { activity_id: "a4", format: "single_choice", is_correct: false },
+              { activity_id: "a5", format: "single_choice", is_correct: false },
+              { activity_id: "a6", format: "single_choice", is_correct: false },
+            ],
+          },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      expect(result.data.stars).to.equal(3);
+      expect(result.data.points_earned).to.equal(30);
+
+      const setOp = findOneAndUpdateStub.firstCall.args[1].$set;
+      expect(setOp["lessons.lesson-3b"].quiz_score_ratio).to.equal(1);
+      expect(setOp["lessons.lesson-3b"].quiz_attempts).to.have.lengthOf(3);
+    });
+
+    it("should keep the previous best result (stars, points, and quiz_attempts together) on a replay that scores worse", async () => {
+      const existingLessons = new Map([
+        [
+          "lesson-4",
+          {
+            completed: true,
+            stars: 3,
+            points_earned: 30,
+            quiz_score_ratio: 1,
+            furthest_activity_index: 4,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+              { activity_id: "a2", format: "single_choice", is_correct: true },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+            ],
+          },
+        ],
+      ]);
+      sinon.stub(Model, "findOne").resolves({ lessons: existingLessons });
+      const findOneAndUpdateStub = sinon
+        .stub(Model, "findOneAndUpdate")
+        .resolves({});
+      const next = sinon.spy();
+
+      const result = await Model.upsertLessonProgress(
+        {
+          device_id: "dev-004",
+          lesson_id: "lesson-4",
+          update: {
+            completed: true,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: false },
+              { activity_id: "a2", format: "single_choice", is_correct: false },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+            ],
+          },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      expect(result.data.stars).to.equal(3);
+      expect(result.data.points_earned).to.equal(30);
+
+      const setOp = findOneAndUpdateStub.firstCall.args[1].$set;
+      expect(setOp["lessons.lesson-4"].quiz_attempts).to.have.lengthOf(3);
+      expect(
+        setOp["lessons.lesson-4"].quiz_attempts.every((a) => a.is_correct)
+      ).to.be.true;
+    });
+
+    it("should persist free_text_response independent of quiz scoring", async () => {
+      sinon.stub(Model, "findOne").resolves(null);
+      const findOneAndUpdateStub = sinon
+        .stub(Model, "findOneAndUpdate")
+        .resolves({});
+      const next = sinon.spy();
+
+      await Model.upsertLessonProgress(
+        {
+          device_id: "dev-005",
+          lesson_id: "lesson-5",
+          update: {
+            completed: true,
+            free_text_response: "Because air pollution affects everyone.",
+          },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      const setOp = findOneAndUpdateStub.firstCall.args[1].$set;
+      expect(setOp["lessons.lesson-5"].free_text_response).to.equal(
+        "Because air pollution affects everyone."
+      );
+    });
+
+    it("should keep the previous free_text_response when a later update omits it", async () => {
+      const existingLessons = new Map([
+        [
+          "lesson-6",
+          {
+            completed: true,
+            stars: 1,
+            points_earned: 0,
+            quiz_score_ratio: 1,
+            furthest_activity_index: 2,
+            free_text_response: "My first answer.",
+          },
+        ],
+      ]);
+      sinon.stub(Model, "findOne").resolves({ lessons: existingLessons });
+      const findOneAndUpdateStub = sinon
+        .stub(Model, "findOneAndUpdate")
+        .resolves({});
+      const next = sinon.spy();
+
+      await Model.upsertLessonProgress(
+        {
+          device_id: "dev-006",
+          lesson_id: "lesson-6",
+          update: { completed: true, furthest_activity_index: 3 },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      const setOp = findOneAndUpdateStub.firstCall.args[1].$set;
+      expect(setOp["lessons.lesson-6"].free_text_response).to.equal(
+        "My first answer."
+      );
+    });
   });
 });

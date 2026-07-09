@@ -553,6 +553,8 @@ const learn = {
             stars: lp.stars,
             points_earned: lp.points_earned,
             quiz_score_ratio: lp.quiz_score_ratio,
+            furthest_activity_index: lp.furthest_activity_index ?? 0,
+            free_text_response: lp.free_text_response || null,
           };
         });
       }
