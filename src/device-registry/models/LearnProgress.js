@@ -179,7 +179,17 @@ learnProgressSchema.statics = {
       if (!existing) {
         setOp.device_id = device_id;
         if (guest_id) setOp.guest_id = guest_id;
-        if (user_id) { setOp.user_id = user_id; setOp.learner_type = "user"; }
+        // findOneAndUpdate(..., { upsert: true }) does not apply schema
+        // defaults on insert, so learner_type must be set explicitly here for
+        // every new document — otherwise a guest's doc is created with no
+        // learner_type at all, which breaks any read path that matches on it
+        // (e.g. the leaderboard's guest-identity/display-name lookup).
+        if (user_id) {
+          setOp.user_id = user_id;
+          setOp.learner_type = "user";
+        } else {
+          setOp.learner_type = "guest";
+        }
       }
 
       // Single atomic write — no second findOneAndUpdate needed

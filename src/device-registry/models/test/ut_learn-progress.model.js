@@ -167,6 +167,31 @@ describe("LearnProgress Model", () => {
       expect(result.data).to.have.property("lesson_id", "lesson-2");
     });
 
+    it("should explicitly set learner_type on a brand-new guest document", async () => {
+      // findOneAndUpdate(upsert: true) doesn't apply schema defaults on insert,
+      // so learner_type must be written explicitly here or a new guest doc is
+      // created with no learner_type at all (the bug this test guards against).
+      sinon.stub(Model, "findOne").resolves(null);
+      const findOneAndUpdateStub = sinon
+        .stub(Model, "findOneAndUpdate")
+        .resolves({});
+      const next = sinon.spy();
+
+      await Model.upsertLessonProgress(
+        {
+          device_id: "dev-007",
+          guest_id: "guest-007",
+          lesson_id: "lesson-7",
+          update: { completed: false, furthest_activity_index: 1 },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      const setOp = findOneAndUpdateStub.firstCall.args[1].$set;
+      expect(setOp.learner_type).to.equal("guest");
+    });
+
     it("should overwrite stars/points/quiz_score_ratio on a replay that scores better", async () => {
       const existingLessons = new Map([
         [

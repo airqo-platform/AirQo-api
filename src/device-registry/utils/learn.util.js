@@ -562,7 +562,8 @@ const learn = {
       return {
         success: true,
         data: {
-          learner_type: doc.learner_type,
+          // Fall back for documents predating explicit learner_type writes.
+          learner_type: doc.learner_type || (doc.user_id ? "user" : "guest"),
           guest_id: doc.guest_id || undefined,
           total_points: doc.total_points,
           max_points: maxPoints,
@@ -1944,8 +1945,13 @@ const learn = {
       const isCaller = (l) =>
         hasIdentity && (user_id ? l.user_id === user_id : l.device_id === device_id);
 
+      // Keyed off the absence of user_id rather than learner_type === "guest":
+      // documents created before learner_type was set explicitly on insert
+      // (findOneAndUpdate upsert doesn't apply schema defaults) can have it
+      // missing entirely, which would otherwise silently exclude a real guest
+      // from the display-name/avatar lookup below.
       const guestIds = topLearners
-        .filter((l) => l.learner_type === "guest" && l.guest_id)
+        .filter((l) => !l.user_id && l.guest_id)
         .map((l) => l.guest_id);
       let guestIdentityByGuestId = new Map();
       if (guestIds.length > 0) {
@@ -1990,10 +1996,9 @@ const learn = {
           scope: event_id ? "event" : "global",
           ...(event_id ? { event_id } : {}),
           entries: topLearners.map((l, i) => {
-            const guestIdentity =
-              l.learner_type === "guest"
-                ? guestIdentityByGuestId.get(l.guest_id)
-                : null;
+            const guestIdentity = !l.user_id
+              ? guestIdentityByGuestId.get(l.guest_id)
+              : null;
             // A guest's own chosen username (set via the anonymous-session
             // endpoint) takes precedence over the auto-generated display name.
             const resolvedName =
@@ -2001,7 +2006,8 @@ const learn = {
             const avatarIcon = guestIdentity?.avatar_icon || undefined;
             return {
               rank: i + 1,
-              learner_type: l.learner_type,
+              // Fall back for documents predating explicit learner_type writes.
+              learner_type: l.learner_type || (l.user_id ? "user" : "guest"),
               display_name: resolvedName,
               avatar_icon: avatarIcon,
               // Auto-generated server-side so the leaderboard always has an
