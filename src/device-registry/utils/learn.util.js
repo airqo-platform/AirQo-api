@@ -30,7 +30,7 @@ const AVATAR_FALLBACK_ICONS = LearnGuestSessionModel.AVATAR_ICONS || ["🙂"];
 // external service or upload step) from a stable seed (guest_id/user_id) so
 // every leaderboard entry has an image without requiring a photo upload.
 function buildAvatarImageUrl({ seed, icon }) {
-  const hash = crypto.createHash("md5").update(String(seed || "")).digest();
+  const hash = crypto.createHash("sha256").update(String(seed || "")).digest();
   const background = AVATAR_BACKGROUND_COLORS[hash[0] % AVATAR_BACKGROUND_COLORS.length];
   const resolvedIcon = icon || AVATAR_FALLBACK_ICONS[hash[1] % AVATAR_FALLBACK_ICONS.length];
   const svg =
@@ -1966,7 +1966,13 @@ const learn = {
 
       if (!currentUserInTop && hasIdentity) {
         const callerFilter = user_id ? { user_id } : { device_id };
-        const userProgress = await LearnProgress.findOne(callerFilter).lean();
+        // When scoped to an event, the caller's own doc must also satisfy the
+        // event's guest/user membership -- otherwise someone who never joined
+        // this event would still get back a rank computed against it.
+        const scopedCallerFilter = progressFilter.$or
+          ? { ...callerFilter, $or: progressFilter.$or }
+          : callerFilter;
+        const userProgress = await LearnProgress.findOne(scopedCallerFilter).lean();
         if (userProgress) {
           const ahead = await LearnProgress.countDocuments({
             ...progressFilter,

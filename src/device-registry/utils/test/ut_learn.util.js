@@ -961,6 +961,49 @@ describe("learnUtil", () => {
       expect(result.data.entries).to.deep.equal([]);
       expect(progressInstance.find.called).to.be.false;
     });
+
+    it("should not assign an event rank to a caller who has progress but never joined that event", async () => {
+      // Only guest_1 joined the "pretoria-2026" event.
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([{ guest_id: "guest_1", linked_user_id: null }]),
+      });
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            guest_id: "guest_1",
+            learner_type: "guest",
+            total_points: 50,
+            completed_lessons: 5,
+          },
+        ]),
+      });
+      // Caller's own doc exists (they've played before) but under a device_id
+      // that isn't part of the event's guest/user id set.
+      progressInstance.findOne = sinon.stub().returns({
+        lean: sinon.stub().resolves(null),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({
+          query: { tenant: "airqo", event_id: "pretoria-2026" },
+          headers: { "x-device-id": "dev-outsider" },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      // The outsider's own-progress lookup must have been scoped to the
+      // event's $or membership filter, not just their device_id.
+      expect(progressInstance.findOne).to.have.been.calledWith(
+        sinon.match({ device_id: "dev-outsider", $or: sinon.match.array })
+      );
+      expect(result.data.current_user_rank).to.be.null;
+    });
   });
 
   // ---------------------------------------------------------------------------
