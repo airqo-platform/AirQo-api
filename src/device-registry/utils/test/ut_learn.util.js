@@ -319,7 +319,16 @@ describe("learnUtil", () => {
           completed_lessons: 1,
           current_stage_index: 0,
           lessons: new Map([
-            ["lid1", { completed: true, stars: 2, points_earned: 20, quiz_score_ratio: 0.8 }],
+            [
+              "lid1",
+              {
+                completed: true,
+                stars: 2,
+                points_earned: 20,
+                quiz_score_ratio: 0.8,
+                furthest_activity_index: 4,
+              },
+            ],
           ]),
         },
       });
@@ -332,6 +341,10 @@ describe("learnUtil", () => {
       expect(result.success).to.be.true;
       expect(result.data.total_points).to.equal(50);
       expect(result.data.lessons).to.have.property("lid1");
+      expect(result.data.lessons.lid1.furthest_activity_index).to.equal(4);
+      // lid1 has no free_text_response in the fixture — should fall back to null,
+      // not be omitted from the response.
+      expect(result.data.lessons.lid1.free_text_response).to.be.null;
     });
 
     it("should derive max_points only from published-course quiz activities", async () => {

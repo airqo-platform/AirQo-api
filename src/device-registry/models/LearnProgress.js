@@ -31,6 +31,7 @@ const lessonProgressSchema = new Schema(
     quiz_score_ratio: { type: Number, default: 0, min: 0, max: 1 },
     furthest_activity_index: { type: Number, default: 0, min: 0 },
     quiz_attempts: { type: Schema.Types.Mixed, default: [] },
+    free_text_response: { type: String, default: null, trim: true, maxlength: 2000 },
   },
   { _id: false }
 );
@@ -95,29 +96,48 @@ learnProgressSchema.statics = {
       let stars = currentLesson.stars || 0;
       let pointsEarned = currentLesson.points_earned || 0;
       let quizScoreRatio = currentLesson.quiz_score_ratio || 0;
+      let quizAttempts = currentLesson.quiz_attempts || [];
       let completed = currentLesson.completed || false;
+      // Free text has no "better/worse" — the latest non-empty submission wins,
+      // independent of the quiz replay-scoring comparison below.
+      let freeTextResponse = currentLesson.free_text_response || null;
+      if (update.free_text_response) {
+        freeTextResponse = update.free_text_response;
+      }
 
-      if (update.completed && !currentLesson.completed) {
-        completed = true;
+      if (update.completed) {
         const attempts = update.quiz_attempts || [];
         const graded = attempts.filter(
           (a) => a.format !== "free_text" && a.is_correct !== undefined
         );
         const correct = graded.filter((a) => a.is_correct).length;
-        quizScoreRatio = graded.length > 0 ? correct / graded.length : 1.0;
-        pointsEarned = correct * POINTS_PER_QUESTION;
+        const newQuizScoreRatio = graded.length > 0 ? correct / graded.length : 1.0;
+        const newPointsEarned = correct * POINTS_PER_QUESTION;
+        const newStars =
+          graded.length === 0
+            ? 1
+            : newQuizScoreRatio === 1.0
+            ? 3
+            : newQuizScoreRatio >= 0.5
+            ? 2
+            : 1;
 
-        if (graded.length === 0) stars = 1;
-        else if (quizScoreRatio === 1.0) stars = 3;
-        else if (quizScoreRatio >= 0.5) stars = 2;
-        else stars = 1;
-      } else if (update.completed) {
-        const newPoints = update.quiz_attempts
-          ? update.quiz_attempts.filter(
-              (a) => a.format !== "free_text" && a.is_correct
-            ).length * POINTS_PER_QUESTION
-          : pointsEarned;
-        pointsEarned = Math.max(pointsEarned, newPoints);
+        // First completion always applies. On replay, only overwrite the stored
+        // result if it is not worse than the current best — stars, points,
+        // quiz_score_ratio and quiz_attempts move together so a replay can never
+        // leave points and stars reflecting two different attempts. Points alone
+        // can tie (e.g. 3/3 vs 3/6 both earn 30) while the ratio is worse, so a
+        // tie only overwrites when the ratio is at least as good too.
+        const isBetterOrEqual =
+          newPointsEarned > pointsEarned ||
+          (newPointsEarned === pointsEarned && newQuizScoreRatio >= quizScoreRatio);
+        if (!currentLesson.completed || isBetterOrEqual) {
+          stars = newStars;
+          pointsEarned = newPointsEarned;
+          quizScoreRatio = newQuizScoreRatio;
+          quizAttempts = attempts;
+        }
+        completed = true;
       }
 
       const lessonUpdate = {
@@ -127,7 +147,8 @@ learnProgressSchema.statics = {
         points_earned: pointsEarned,
         quiz_score_ratio: quizScoreRatio,
         furthest_activity_index: furthest,
-        quiz_attempts: update.quiz_attempts || currentLesson.quiz_attempts || [],
+        quiz_attempts: quizAttempts,
+        free_text_response: freeTextResponse,
       };
 
       // Compute aggregate totals from existing lessons + updated lesson in one pass

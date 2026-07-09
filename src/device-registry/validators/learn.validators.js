@@ -153,6 +153,11 @@ const learnValidations = {
       .isInt({ min: 0 })
       .withMessage("quiz_attempts[].selected_order[] must be non-negative integers")
       .toInt(),
+    body("free_text_response")
+      .optional()
+      .trim()
+      .isLength({ max: 2000 })
+      .withMessage("free_text_response must not exceed 2000 characters"),
     validate,
   ],
 
@@ -177,6 +182,11 @@ const learnValidations = {
       .bail()
       .trim()
       .notEmpty(),
+    body("updates.*.free_text_response")
+      .optional()
+      .trim()
+      .isLength({ max: 2000 })
+      .withMessage("updates[].free_text_response must not exceed 2000 characters"),
     validate,
   ],
 
