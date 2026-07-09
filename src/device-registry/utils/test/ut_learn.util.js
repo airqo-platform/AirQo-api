@@ -235,6 +235,52 @@ describe("learnUtil", () => {
       expect(result.success).to.be.true;
       expect(result.data).to.have.property("guest_id", "guest_abc");
     });
+
+    it("should pass a chosen username/event_id through to the model and surface them plus a generated avatar_image_url", async () => {
+      guestSessionInstance.findOrCreate.resolves({
+        success: true,
+        data: {
+          guest_id: "guest_abc",
+          display_name: "Curious Falcon 482",
+          avatar_icon: "🦊",
+          username: "Thabo",
+          event_id: "pretoria-2026",
+          createdAt: new Date(),
+        },
+        message: "guest session created",
+        status: httpStatus.CREATED,
+      });
+      const next = sinon.spy();
+      const result = await learnUtil.createAnonymousSession(
+        makeReq({
+          body: { device_id: "dev-001", username: "Thabo", event_id: "pretoria-2026" },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(guestSessionInstance.findOrCreate).to.have.been.calledWith(
+        sinon.match({ device_id: "dev-001", username: "Thabo", event_id: "pretoria-2026" })
+      );
+      // The guest's own chosen username takes over the display_name shown back to the client.
+      expect(result.data.display_name).to.equal("Thabo");
+      expect(result.data.username).to.equal("Thabo");
+      expect(result.data.event_id).to.equal("pretoria-2026");
+      expect(result.data.avatar_image_url).to.match(/^data:image\/svg\+xml;base64,/);
+    });
+
+    it("should propagate a conflict (undefined result) when the model rejects a taken username", async () => {
+      guestSessionInstance.findOrCreate.resolves(undefined);
+      const next = sinon.spy();
+      const result = await learnUtil.createAnonymousSession(
+        makeReq({
+          body: { device_id: "dev-002", username: "Thabo", event_id: "pretoria-2026" },
+        }),
+        next
+      );
+
+      expect(result).to.be.undefined;
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -846,6 +892,117 @@ describe("learnUtil", () => {
 
       expect(result.success).to.be.true;
       expect(result.data.entries[0].current_stage.name).to.equal("Defender");
+    });
+
+    it("should scope entries to a single event_id and resolve a guest's custom username + avatar_image_url", async () => {
+      guestSessionInstance.find = sinon.stub().callsFake((filter) => {
+        if (filter && filter.event_id) {
+          return {
+            select: sinon.stub().returnsThis(),
+            lean: sinon.stub().resolves([{ guest_id: "guest_1", linked_user_id: null }]),
+          };
+        }
+        return {
+          select: sinon.stub().returnsThis(),
+          lean: sinon.stub().resolves([
+            {
+              guest_id: "guest_1",
+              display_name: "Curious Falcon 482",
+              avatar_icon: "🦊",
+              username: "Thabo",
+            },
+          ]),
+        };
+      });
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            guest_id: "guest_1",
+            learner_type: "guest",
+            total_points: 50,
+            completed_lessons: 5,
+          },
+        ]),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({ query: { tenant: "airqo", event_id: "pretoria-2026" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.scope).to.equal("event");
+      expect(result.data.event_id).to.equal("pretoria-2026");
+      expect(result.data.entries[0].display_name).to.equal("Thabo");
+      expect(result.data.entries[0].avatar_image_url).to.match(
+        /^data:image\/svg\+xml;base64,/
+      );
+    });
+
+    it("should return an empty event-scoped leaderboard without querying progress when nobody joined that event", async () => {
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([]),
+      });
+      progressInstance.find = sinon.stub();
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({ query: { tenant: "airqo", event_id: "no-participants" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.scope).to.equal("event");
+      expect(result.data.entries).to.deep.equal([]);
+      expect(progressInstance.find.called).to.be.false;
+    });
+
+    it("should not assign an event rank to a caller who has progress but never joined that event", async () => {
+      // Only guest_1 joined the "pretoria-2026" event.
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([{ guest_id: "guest_1", linked_user_id: null }]),
+      });
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            guest_id: "guest_1",
+            learner_type: "guest",
+            total_points: 50,
+            completed_lessons: 5,
+          },
+        ]),
+      });
+      // Caller's own doc exists (they've played before) but under a device_id
+      // that isn't part of the event's guest/user id set.
+      progressInstance.findOne = sinon.stub().returns({
+        lean: sinon.stub().resolves(null),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({
+          query: { tenant: "airqo", event_id: "pretoria-2026" },
+          headers: { "x-device-id": "dev-outsider" },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      // The outsider's own-progress lookup must have been scoped to the
+      // event's $or membership filter, not just their device_id.
+      expect(progressInstance.findOne).to.have.been.calledWith(
+        sinon.match({ device_id: "dev-outsider", $or: sinon.match.array })
+      );
+      expect(result.data.current_user_rank).to.be.null;
     });
   });
 

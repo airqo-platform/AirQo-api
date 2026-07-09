@@ -75,6 +75,21 @@ const learnValidations = {
       .optional()
       .isIn(["android", "ios"])
       .withMessage("platform must be android or ios"),
+    body("username")
+      .optional()
+      .trim()
+      .isLength({ min: 3, max: 30 })
+      .withMessage("username must be between 3 and 30 characters")
+      .bail()
+      .matches(/^[A-Za-z0-9 _.-]+$/)
+      .withMessage(
+        "username may only contain letters, numbers, spaces, underscores, hyphens and periods"
+      ),
+    body("event_id")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage("event_id must be between 1 and 100 characters"),
     validate,
   ],
 
@@ -238,6 +253,11 @@ const learnValidations = {
       .optional()
       .isInt({ min: 1, max: 100 })
       .withMessage("limit must be an integer between 1 and 100"),
+    query("event_id")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage("event_id must be between 1 and 100 characters"),
     validate,
   ],
 

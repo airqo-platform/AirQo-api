@@ -56,6 +56,25 @@ const learnGuestSessionSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Client-chosen name that overrides display_name on the leaderboard once
+    // set (e.g. the in-person "stall" quiz flow, where a participant types
+    // their own name instead of keeping the random adjective+animal one).
+    username: {
+      type: String,
+      trim: true,
+      minlength: 3,
+      maxlength: 30,
+      default: null,
+    },
+    // Opaque scope id for one-off quiz events (e.g. a specific forum/stall).
+    // Username uniqueness is enforced per event_id, not globally, so the
+    // same chosen name can be reused across unrelated events.
+    event_id: {
+      type: String,
+      trim: true,
+      default: null,
+      index: true,
+    },
     app_version: {
       type: String,
       trim: true,
@@ -78,6 +97,13 @@ const learnGuestSessionSchema = new Schema(
 );
 
 learnGuestSessionSchema.index({ device_id: 1 }, { unique: true });
+// Scopes username uniqueness to a single event_id (docs without a username
+// are excluded via the partial filter so untouched guest sessions never
+// collide on this index).
+learnGuestSessionSchema.index(
+  { event_id: 1, username: 1 },
+  { unique: true, partialFilterExpression: { username: { $type: "string" } } }
+);
 
 learnGuestSessionSchema.statics = {
   async register(args, next) {
@@ -116,21 +142,73 @@ learnGuestSessionSchema.statics = {
     }
   },
 
+  async assertUsernameAvailable({ event_id = null, username, excludeId } = {}) {
+    if (typeof username !== "string") return;
+    const filter = { event_id: event_id || null, username };
+    if (excludeId) filter._id = { $ne: excludeId };
+    const clash = await this.findOne(filter).lean();
+    if (clash) {
+      const error = new Error("this username is already taken for this event");
+      error.isUsernameConflict = true;
+      throw error;
+    }
+  },
+
   async findOrCreate(args, next) {
     try {
-      const existing = await this.findOne({ device_id: args.device_id }).lean();
+      const { device_id, username, event_id } = args;
+      const existing = await this.findOne({ device_id }).lean();
+
       if (existing) {
-        return {
-          success: true,
-          data: existing,
-          message: "guest session retrieved",
-          status: httpStatus.OK,
-        };
+        const wantsUsernameChange =
+          typeof username === "string" && username !== existing.username;
+        if (!wantsUsernameChange) {
+          return {
+            success: true,
+            data: existing,
+            message: "guest session retrieved",
+            status: httpStatus.OK,
+          };
+        }
+
+        const scopeEventId = event_id !== undefined ? event_id : existing.event_id;
+        try {
+          await this.assertUsernameAvailable({
+            event_id: scopeEventId,
+            username,
+            excludeId: existing._id,
+          });
+          const updated = await this.findOneAndUpdate(
+            { _id: existing._id },
+            { username, ...(event_id !== undefined ? { event_id } : {}) },
+            { new: true, runValidators: true }
+          ).lean();
+          return {
+            success: true,
+            data: updated,
+            message: "guest session updated",
+            status: httpStatus.OK,
+          };
+        } catch (updateError) {
+          if (updateError.isUsernameConflict || updateError.code === 11000) {
+            next(
+              new HttpError("Bad Request Error", httpStatus.CONFLICT, {
+                username: "this username is already taken for this event",
+              })
+            );
+            return;
+          }
+          throw updateError;
+        }
       }
+
       const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const guest_id = `guest_${suffix}`;
       const { display_name, avatar_icon } = generateGuestIdentity();
+
       try {
+        await this.assertUsernameAvailable({ event_id, username });
+
         const created = await this.create({
           ...args,
           guest_id,
@@ -144,9 +222,25 @@ learnGuestSessionSchema.statics = {
           status: httpStatus.CREATED,
         };
       } catch (createError) {
-        // Concurrent request won the race — re-fetch and return the winner's doc
+        if (createError.isUsernameConflict) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.CONFLICT, {
+              username: "this username is already taken for this event",
+            })
+          );
+          return;
+        }
         if (createError.code === 11000) {
-          const race = await this.findOne({ device_id: args.device_id }).lean();
+          if (createError.keyPattern && createError.keyPattern.username) {
+            next(
+              new HttpError("Bad Request Error", httpStatus.CONFLICT, {
+                username: "this username is already taken for this event",
+              })
+            );
+            return;
+          }
+          // Concurrent request won the device_id race — re-fetch and return the winner's doc
+          const race = await this.findOne({ device_id }).lean();
           if (race) {
             return {
               success: true,
@@ -210,5 +304,7 @@ const LearnGuestSessionModel = (tenant) => {
     );
   }
 };
+
+LearnGuestSessionModel.AVATAR_ICONS = AVATAR_ICONS;
 
 module.exports = LearnGuestSessionModel;
