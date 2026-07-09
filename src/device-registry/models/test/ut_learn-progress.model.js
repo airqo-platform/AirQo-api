@@ -208,6 +208,60 @@ describe("LearnProgress Model", () => {
       expect(result.data.points_earned).to.equal(30);
     });
 
+    it("should not downgrade stars/quiz_score_ratio on a replay that ties on points but has a worse ratio", async () => {
+      // Previous best: 3/3 correct = 30 points, ratio 1.0, 3 stars.
+      const existingLessons = new Map([
+        [
+          "lesson-3b",
+          {
+            completed: true,
+            stars: 3,
+            points_earned: 30,
+            quiz_score_ratio: 1,
+            furthest_activity_index: 3,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+              { activity_id: "a2", format: "single_choice", is_correct: true },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+            ],
+          },
+        ],
+      ]);
+      sinon.stub(Model, "findOne").resolves({ lessons: existingLessons });
+      const findOneAndUpdateStub = sinon
+        .stub(Model, "findOneAndUpdate")
+        .resolves({});
+      const next = sinon.spy();
+
+      // Replay: 3/6 correct — also 30 points, but a worse ratio (0.5) and stars (2).
+      const result = await Model.upsertLessonProgress(
+        {
+          device_id: "dev-003b",
+          lesson_id: "lesson-3b",
+          update: {
+            completed: true,
+            quiz_attempts: [
+              { activity_id: "a1", format: "single_choice", is_correct: true },
+              { activity_id: "a2", format: "single_choice", is_correct: true },
+              { activity_id: "a3", format: "single_choice", is_correct: true },
+              { activity_id: "a4", format: "single_choice", is_correct: false },
+              { activity_id: "a5", format: "single_choice", is_correct: false },
+              { activity_id: "a6", format: "single_choice", is_correct: false },
+            ],
+          },
+          maxPoints: 2400,
+        },
+        next
+      );
+
+      expect(result.data.stars).to.equal(3);
+      expect(result.data.points_earned).to.equal(30);
+
+      const setOp = findOneAndUpdateStub.firstCall.args[1].$set;
+      expect(setOp["lessons.lesson-3b"].quiz_score_ratio).to.equal(1);
+      expect(setOp["lessons.lesson-3b"].quiz_attempts).to.have.lengthOf(3);
+    });
+
     it("should keep the previous best result (stars, points, and quiz_attempts together) on a replay that scores worse", async () => {
       const existingLessons = new Map([
         [

@@ -31,7 +31,7 @@ const lessonProgressSchema = new Schema(
     quiz_score_ratio: { type: Number, default: 0, min: 0, max: 1 },
     furthest_activity_index: { type: Number, default: 0, min: 0 },
     quiz_attempts: { type: Schema.Types.Mixed, default: [] },
-    free_text_response: { type: String, default: null },
+    free_text_response: { type: String, default: null, trim: true, maxlength: 2000 },
   },
   { _id: false }
 );
@@ -123,10 +123,15 @@ learnProgressSchema.statics = {
             : 1;
 
         // First completion always applies. On replay, only overwrite the stored
-        // result if it scores at least as well — stars, points, quiz_score_ratio
-        // and quiz_attempts move together so a replay can never leave points and
-        // stars reflecting two different attempts.
-        if (!currentLesson.completed || newPointsEarned >= pointsEarned) {
+        // result if it is not worse than the current best — stars, points,
+        // quiz_score_ratio and quiz_attempts move together so a replay can never
+        // leave points and stars reflecting two different attempts. Points alone
+        // can tie (e.g. 3/3 vs 3/6 both earn 30) while the ratio is worse, so a
+        // tie only overwrites when the ratio is at least as good too.
+        const isBetterOrEqual =
+          newPointsEarned > pointsEarned ||
+          (newPointsEarned === pointsEarned && newQuizScoreRatio >= quizScoreRatio);
+        if (!currentLesson.completed || isBetterOrEqual) {
           stars = newStars;
           pointsEarned = newPointsEarned;
           quizScoreRatio = newQuizScoreRatio;
