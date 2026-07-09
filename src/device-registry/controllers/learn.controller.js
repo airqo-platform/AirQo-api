@@ -80,6 +80,10 @@ const learnController = {
           success: true,
           guest_id: result.data.guest_id,
           display_name: result.data.display_name,
+          avatar_icon: result.data.avatar_icon,
+          avatar_image_url: result.data.avatar_image_url,
+          username: result.data.username,
+          event_id: result.data.event_id,
           created_at: result.data.created_at,
         });
       }
