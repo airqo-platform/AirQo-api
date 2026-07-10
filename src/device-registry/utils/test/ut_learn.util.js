@@ -956,6 +956,48 @@ describe("learnUtil", () => {
       );
     });
 
+    it("should still resolve a guest's display_name/avatar when learner_type is missing on the progress doc (legacy data)", async () => {
+      // Reproduces a real production gap: documents created via the upsert
+      // write path before learner_type was explicitly set on insert have no
+      // learner_type field at all — not even the "guest" default — so the
+      // guest-identity lookup must not depend on it.
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            guest_id: "guest_legacy",
+            display_name: "Curious Panda",
+            avatar_icon: "🐼",
+            username: null,
+          },
+        ]),
+      });
+      progressInstance.find = sinon.stub().returns({
+        sort: sinon.stub().returnsThis(),
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([
+          {
+            device_id: "dev-legacy",
+            guest_id: "guest_legacy",
+            // learner_type intentionally omitted.
+            total_points: 40,
+            completed_lessons: 1,
+          },
+        ]),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.getLeaderboard(
+        makeReq({ query: { tenant: "airqo", event_id: "pretoria-2026" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.entries[0].display_name).to.equal("Curious Panda");
+      expect(result.data.entries[0].learner_type).to.equal("guest");
+    });
+
     it("should return an empty event-scoped leaderboard without querying progress when nobody joined that event", async () => {
       guestSessionInstance.find = sinon.stub().returns({
         select: sinon.stub().returnsThis(),
