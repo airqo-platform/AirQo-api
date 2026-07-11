@@ -2146,6 +2146,165 @@ const learn = {
       );
     }
   },
+
+  // ---------------------------------------------------------------------------
+  // Admin — Leaderboard management
+  // ---------------------------------------------------------------------------
+
+  // Removes a single guest's leaderboard footprint (their LearnProgress row
+  // and their LearnGuestSession identity). Used to undo one bad/test entry
+  // without touching anyone else's data.
+  deleteGuestProgress: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { guest_id } = request.params;
+      const LearnProgress = LearnProgressModel(tenant);
+      const LearnGuestSession = LearnGuestSessionModel(tenant);
+
+      const [progressResult, sessionResult] = await Promise.all([
+        LearnProgress.deleteMany({ guest_id }),
+        LearnGuestSession.deleteMany({ guest_id }),
+      ]);
+
+      if (progressResult.deletedCount === 0 && sessionResult.deletedCount === 0) {
+        return {
+          success: false,
+          message: "no guest progress or session found for this guest_id",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          guest_id,
+          deleted_progress: progressResult.deletedCount,
+          deleted_guest_sessions: sessionResult.deletedCount,
+        },
+        message: "guest leaderboard entry deleted successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
+
+  // Bulk-clears leaderboard data, scoped by event_id and/or learner_type.
+  // Defaults to a dry run (returns counts only) unless confirm=true is passed
+  // explicitly, since an unscoped call wipes every learner's progress for the
+  // tenant it targets -- this is deliberately hard to trigger by accident.
+  clearLeaderboard: async (request, next) => {
+    try {
+      const tenant = getTenant(request);
+      const { event_id, learner_type, confirm } = request.query;
+      const LearnProgress = LearnProgressModel(tenant);
+      const LearnGuestSession = LearnGuestSessionModel(tenant);
+
+      const progressFilter = {};
+      let sessionFilter = null;
+      const isDryRun = confirm !== "true";
+
+      if (event_id) {
+        const eventSessions = await LearnGuestSession.find({ event_id })
+          .select("guest_id linked_user_id")
+          .lean();
+        const eventGuestIds = eventSessions.map((s) => s.guest_id);
+        const eventUserIds = eventSessions
+          .filter((s) => s.linked_user_id)
+          .map((s) => s.linked_user_id);
+
+        if (eventGuestIds.length === 0 && eventUserIds.length === 0) {
+          return {
+            success: true,
+            data: isDryRun
+              ? {
+                  dry_run: true,
+                  scope: "event",
+                  event_id,
+                  would_delete_progress: 0,
+                  would_delete_guest_sessions: 0,
+                }
+              : { scope: "event", event_id, deleted_progress: 0, deleted_guest_sessions: 0 },
+            message: "no matching leaderboard data found for this event",
+            status: httpStatus.OK,
+          };
+        }
+        progressFilter.$or = [
+          { guest_id: { $in: eventGuestIds } },
+          { user_id: { $in: eventUserIds } },
+        ];
+        // Sessions are only swept alongside progress that's actually being
+        // deleted -- a learner_type=user clear must not wipe the event
+        // identity of guests whose progress row isn't touched.
+        if (learner_type === "user") {
+          sessionFilter = null;
+        } else if (learner_type === "guest") {
+          sessionFilter = { event_id, linked_user_id: null };
+        } else {
+          sessionFilter = { event_id };
+        }
+      } else if (!learner_type || learner_type === "guest") {
+        // Global (non-event-scoped) clears also sweep up never-linked guest
+        // sessions so stray test identities don't linger once their progress
+        // is gone. Sessions already linked to a real account are left alone.
+        sessionFilter = { linked_user_id: null };
+      }
+
+      if (learner_type) {
+        progressFilter.learner_type = learner_type;
+      }
+
+      if (isDryRun) {
+        const [matchedProgress, matchedSessions] = await Promise.all([
+          LearnProgress.countDocuments(progressFilter),
+          sessionFilter ? LearnGuestSession.countDocuments(sessionFilter) : 0,
+        ]);
+        return {
+          success: true,
+          data: {
+            dry_run: true,
+            scope: event_id ? "event" : "global",
+            ...(event_id ? { event_id } : {}),
+            ...(learner_type ? { learner_type } : {}),
+            would_delete_progress: matchedProgress,
+            would_delete_guest_sessions: matchedSessions,
+          },
+          message: "dry run only -- pass confirm=true to actually delete this data",
+          status: httpStatus.OK,
+        };
+      }
+
+      const [progressResult, sessionResult] = await Promise.all([
+        LearnProgress.deleteMany(progressFilter),
+        sessionFilter ? LearnGuestSession.deleteMany(sessionFilter) : Promise.resolve({ deletedCount: 0 }),
+      ]);
+
+      return {
+        success: true,
+        data: {
+          scope: event_id ? "event" : "global",
+          ...(event_id ? { event_id } : {}),
+          ...(learner_type ? { learner_type } : {}),
+          deleted_progress: progressResult.deletedCount,
+          deleted_guest_sessions: sessionResult.deletedCount,
+        },
+        message: "leaderboard data cleared successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        })
+      );
+    }
+  },
 };
 
 module.exports = learn;
