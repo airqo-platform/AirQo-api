@@ -686,6 +686,62 @@ const learnController = {
       next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
     }
   },
+
+  // ---------------------------------------------------------------------------
+  // Admin — Leaderboard management
+  // ---------------------------------------------------------------------------
+
+  deleteGuestProgress: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.deleteGuestProgress(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          ...result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
+  clearLeaderboard: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      }
+      const result = await learnUtil.clearLeaderboard(req, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          ...result.data,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: result.message },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
 };
 
 module.exports = learnController;
