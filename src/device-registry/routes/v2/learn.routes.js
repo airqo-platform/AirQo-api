@@ -59,4 +59,11 @@ router.post("/admin/lessons/:lesson_id/activities", learnValidations.addActivity
 router.patch("/admin/activities/:activity_id", learnValidations.updateActivity, learnController.updateActivity);
 router.delete("/admin/activities/:activity_id", learnValidations.deleteActivity, learnController.deleteActivity);
 
+// ---------------------------------------------------------------------------
+// Admin — Leaderboard management (admin JWT enforced at nginx gateway)
+// ---------------------------------------------------------------------------
+
+router.delete("/admin/leaderboard/guests/:guest_id", learnValidations.deleteGuestProgress, learnController.deleteGuestProgress);
+router.delete("/admin/leaderboard", learnValidations.clearLeaderboard, learnController.clearLeaderboard);
+
 module.exports = router;

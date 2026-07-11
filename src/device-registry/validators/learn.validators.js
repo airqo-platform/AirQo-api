@@ -607,6 +607,43 @@ const learnValidations = {
       .withMessage("published must be a boolean"),
     validate,
   ],
+
+  // -------------------------------------------------------------------------
+  // Admin — Leaderboard management
+  // -------------------------------------------------------------------------
+
+  deleteGuestProgress: [
+    commonTenant,
+    param("guest_id")
+      .exists()
+      .withMessage("guest_id is required")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("guest_id must not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("guest_id must not exceed 100 characters"),
+    validate,
+  ],
+
+  clearLeaderboard: [
+    commonTenant,
+    query("event_id")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage("event_id must be between 1 and 100 characters"),
+    query("learner_type")
+      .optional()
+      .isIn(["guest", "user"])
+      .withMessage("learner_type must be one of: guest, user"),
+    query("confirm")
+      .optional()
+      .isIn(["true", "false"])
+      .withMessage("confirm must be either true or false"),
+    validate,
+  ],
 };
 
 module.exports = learnValidations;

@@ -590,4 +590,56 @@ describe("learnValidations", () => {
       expect(validationResult(req).isEmpty()).to.be.false;
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // deleteGuestProgress
+  // ---------------------------------------------------------------------------
+
+  describe("deleteGuestProgress", () => {
+    it("should pass with a valid guest_id", async () => {
+      const req = mockRequest({}, {}, { guest_id: "guest_1a2b3c" });
+      await runMiddlewareChain(validations.deleteGuestProgress, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+
+    it("should fail when guest_id is missing", async () => {
+      const req = mockRequest({}, {}, {});
+      await runMiddlewareChain(validations.deleteGuestProgress, req);
+      expect(validationResult(req).isEmpty()).to.be.false;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // clearLeaderboard
+  // ---------------------------------------------------------------------------
+
+  describe("clearLeaderboard", () => {
+    it("should pass with no query params", async () => {
+      const req = mockRequest({});
+      await runMiddlewareChain(validations.clearLeaderboard, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+
+    it("should pass with event_id, learner_type and confirm set", async () => {
+      const req = mockRequest({
+        event_id: "pretoria-2026",
+        learner_type: "guest",
+        confirm: "true",
+      });
+      await runMiddlewareChain(validations.clearLeaderboard, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+
+    it("should fail when learner_type is not guest or user", async () => {
+      const req = mockRequest({ learner_type: "admin" });
+      await runMiddlewareChain(validations.clearLeaderboard, req);
+      expect(validationResult(req).isEmpty()).to.be.false;
+    });
+
+    it("should fail when confirm is not a boolean-like string", async () => {
+      const req = mockRequest({ confirm: "yes" });
+      await runMiddlewareChain(validations.clearLeaderboard, req);
+      expect(validationResult(req).isEmpty()).to.be.false;
+    });
+  });
 });

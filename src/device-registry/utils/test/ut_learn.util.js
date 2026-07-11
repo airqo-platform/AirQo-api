@@ -64,6 +64,9 @@ describe("learnUtil", () => {
       findOrCreate: sinon.stub(),
       findOne: sinon.stub(),
       findOneAndUpdate: sinon.stub(),
+      find: sinon.stub(),
+      countDocuments: sinon.stub(),
+      deleteMany: sinon.stub(),
     };
     progressInstance = {
       findProgress: sinon.stub(),
@@ -72,6 +75,7 @@ describe("learnUtil", () => {
       find: sinon.stub(),
       findOne: sinon.stub(),
       countDocuments: sinon.stub(),
+      deleteMany: sinon.stub(),
     };
     certInstance = {
       list: sinon.stub(),
@@ -1058,6 +1062,152 @@ describe("learnUtil", () => {
         sinon.match({ device_id: "dev-outsider", $or: sinon.match.array })
       );
       expect(result.data.current_user_rank).to.be.null;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteGuestProgress
+  // ---------------------------------------------------------------------------
+
+  describe("deleteGuestProgress", () => {
+    it("should delete the guest's progress and session and report counts", async () => {
+      progressInstance.deleteMany.resolves({ deletedCount: 1 });
+      guestSessionInstance.deleteMany.resolves({ deletedCount: 1 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.deleteGuestProgress(
+        makeReq({ params: { guest_id: "guest_1" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.deleted_progress).to.equal(1);
+      expect(result.data.deleted_guest_sessions).to.equal(1);
+      expect(progressInstance.deleteMany).to.have.been.calledWith({ guest_id: "guest_1" });
+      expect(guestSessionInstance.deleteMany).to.have.been.calledWith({ guest_id: "guest_1" });
+    });
+
+    it("should return 404 when nothing matches the given guest_id", async () => {
+      progressInstance.deleteMany.resolves({ deletedCount: 0 });
+      guestSessionInstance.deleteMany.resolves({ deletedCount: 0 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.deleteGuestProgress(
+        makeReq({ params: { guest_id: "guest_missing" } }),
+        next
+      );
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // clearLeaderboard
+  // ---------------------------------------------------------------------------
+
+  describe("clearLeaderboard", () => {
+    it("should return a dry run with counts and perform no deletion when confirm is not passed", async () => {
+      progressInstance.countDocuments.resolves(5);
+      guestSessionInstance.countDocuments.resolves(3);
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(makeReq(), next);
+
+      expect(result.success).to.be.true;
+      expect(result.data.dry_run).to.be.true;
+      expect(result.data.would_delete_progress).to.equal(5);
+      expect(result.data.would_delete_guest_sessions).to.equal(3);
+      expect(progressInstance.deleteMany.called).to.be.false;
+      expect(guestSessionInstance.deleteMany.called).to.be.false;
+    });
+
+    it("should delete global progress and never-linked guest sessions when confirm=true", async () => {
+      progressInstance.countDocuments.resolves(5);
+      guestSessionInstance.countDocuments.resolves(3);
+      progressInstance.deleteMany.resolves({ deletedCount: 5 });
+      guestSessionInstance.deleteMany.resolves({ deletedCount: 3 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({ query: { tenant: "airqo", confirm: "true" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.deleted_progress).to.equal(5);
+      expect(result.data.deleted_guest_sessions).to.equal(3);
+      expect(progressInstance.deleteMany).to.have.been.calledWith({});
+      expect(guestSessionInstance.deleteMany).to.have.been.calledWith({
+        linked_user_id: null,
+      });
+    });
+
+    it("should scope deletion to a single event_id, matching both its guests and any linked accounts", async () => {
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon
+          .stub()
+          .resolves([{ guest_id: "guest_1", linked_user_id: "user-9" }]),
+      });
+      progressInstance.countDocuments.resolves(2);
+      progressInstance.deleteMany.resolves({ deletedCount: 2 });
+      guestSessionInstance.deleteMany.resolves({ deletedCount: 1 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({ query: { tenant: "airqo", event_id: "pretoria-2026", confirm: "true" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.scope).to.equal("event");
+      expect(result.data.event_id).to.equal("pretoria-2026");
+      expect(progressInstance.deleteMany).to.have.been.calledWith(
+        sinon.match({
+          $or: [
+            { guest_id: { $in: ["guest_1"] } },
+            { user_id: { $in: ["user-9"] } },
+          ],
+        })
+      );
+      expect(guestSessionInstance.deleteMany).to.have.been.calledWith({
+        event_id: "pretoria-2026",
+      });
+    });
+
+    it("should short-circuit without touching progress when nobody joined the given event", async () => {
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([]),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({ query: { tenant: "airqo", event_id: "no-participants", confirm: "true" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.deleted_progress).to.equal(0);
+      expect(result.data.deleted_guest_sessions).to.equal(0);
+      expect(progressInstance.deleteMany.called).to.be.false;
+    });
+
+    it("should scope deletion by learner_type without touching guest sessions when type is user", async () => {
+      progressInstance.countDocuments.resolves(4);
+      progressInstance.deleteMany.resolves({ deletedCount: 4 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({ query: { tenant: "airqo", learner_type: "user", confirm: "true" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(progressInstance.deleteMany).to.have.been.calledWith({ learner_type: "user" });
+      expect(guestSessionInstance.deleteMany.called).to.be.false;
+      expect(result.data.deleted_guest_sessions).to.equal(0);
     });
   });
 

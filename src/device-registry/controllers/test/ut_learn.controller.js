@@ -57,6 +57,8 @@ describe("learnController", () => {
       updateActivity: sinon.stub(),
       deleteActivity: sinon.stub(),
       updateCourse: sinon.stub(),
+      deleteGuestProgress: sinon.stub(),
+      clearLeaderboard: sinon.stub(),
     };
 
     sharedStub = {
@@ -544,6 +546,80 @@ describe("learnController", () => {
       expect(res.status.calledWith(httpStatus.OK)).to.be.true;
       const jsonArgs = res.json.firstCall.args[0];
       expect(jsonArgs.course).to.have.property("title", "Updated Title");
+    });
+  });
+
+  describe("deleteGuestProgress", () => {
+    it("should return counts on success", async () => {
+      learnUtilStub.deleteGuestProgress.resolves({
+        success: true,
+        data: { guest_id: "guest_1", deleted_progress: 1, deleted_guest_sessions: 1 },
+        message: "guest leaderboard entry deleted successfully",
+        status: httpStatus.OK,
+      });
+      const req = makeReq({ params: { guest_id: "guest_1" } });
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.deleteGuestProgress(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      const jsonArgs = res.json.firstCall.args[0];
+      expect(jsonArgs.deleted_progress).to.equal(1);
+    });
+
+    it("should return 404 when nothing matched", async () => {
+      learnUtilStub.deleteGuestProgress.resolves({
+        success: false,
+        message: "no guest progress or session found for this guest_id",
+        status: httpStatus.NOT_FOUND,
+      });
+      const req = makeReq({ params: { guest_id: "guest_missing" } });
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.deleteGuestProgress(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.NOT_FOUND)).to.be.true;
+    });
+  });
+
+  describe("clearLeaderboard", () => {
+    it("should return dry-run counts when confirm is not set", async () => {
+      learnUtilStub.clearLeaderboard.resolves({
+        success: true,
+        data: { dry_run: true, would_delete_progress: 5, would_delete_guest_sessions: 3 },
+        message: "dry run only -- pass confirm=true to actually delete this data",
+        status: httpStatus.OK,
+      });
+      const req = makeReq();
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.clearLeaderboard(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      const jsonArgs = res.json.firstCall.args[0];
+      expect(jsonArgs.dry_run).to.be.true;
+      expect(jsonArgs.would_delete_progress).to.equal(5);
+    });
+
+    it("should return deleted counts when confirm=true", async () => {
+      learnUtilStub.clearLeaderboard.resolves({
+        success: true,
+        data: { deleted_progress: 5, deleted_guest_sessions: 3 },
+        message: "leaderboard data cleared successfully",
+        status: httpStatus.OK,
+      });
+      const req = makeReq({ query: { tenant: "airqo", confirm: "true" } });
+      const res = makeRes();
+      const next = sinon.spy();
+
+      await controller.clearLeaderboard(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      const jsonArgs = res.json.firstCall.args[0];
+      expect(jsonArgs.deleted_progress).to.equal(5);
     });
   });
 });
