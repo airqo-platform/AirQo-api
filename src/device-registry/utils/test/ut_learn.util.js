@@ -1122,9 +1122,7 @@ describe("learnUtil", () => {
       expect(guestSessionInstance.deleteMany.called).to.be.false;
     });
 
-    it("should delete global progress and never-linked guest sessions when confirm=true", async () => {
-      progressInstance.countDocuments.resolves(5);
-      guestSessionInstance.countDocuments.resolves(3);
+    it("should delete global progress and never-linked guest sessions when confirm=true, skipping the count queries entirely", async () => {
       progressInstance.deleteMany.resolves({ deletedCount: 5 });
       guestSessionInstance.deleteMany.resolves({ deletedCount: 3 });
 
@@ -1141,6 +1139,10 @@ describe("learnUtil", () => {
       expect(guestSessionInstance.deleteMany).to.have.been.calledWith({
         linked_user_id: null,
       });
+      // The confirmed-delete path relies on deleteMany's own deletedCount --
+      // running countDocuments first would be a wasted extra query.
+      expect(progressInstance.countDocuments.called).to.be.false;
+      expect(guestSessionInstance.countDocuments.called).to.be.false;
     });
 
     it("should scope deletion to a single event_id, matching both its guests and any linked accounts", async () => {
@@ -1174,6 +1176,83 @@ describe("learnUtil", () => {
       expect(guestSessionInstance.deleteMany).to.have.been.calledWith({
         event_id: "pretoria-2026",
       });
+    });
+
+    it("should not touch event guest sessions when learner_type=user, since their progress isn't deleted", async () => {
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon
+          .stub()
+          .resolves([{ guest_id: "guest_1", linked_user_id: "user-9" }]),
+      });
+      progressInstance.deleteMany.resolves({ deletedCount: 1 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({
+          query: {
+            tenant: "airqo",
+            event_id: "pretoria-2026",
+            learner_type: "user",
+            confirm: "true",
+          },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.deleted_guest_sessions).to.equal(0);
+      expect(guestSessionInstance.deleteMany.called).to.be.false;
+    });
+
+    it("should only clear never-linked guest sessions for the event when learner_type=guest", async () => {
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon
+          .stub()
+          .resolves([{ guest_id: "guest_1", linked_user_id: null }]),
+      });
+      progressInstance.deleteMany.resolves({ deletedCount: 1 });
+      guestSessionInstance.deleteMany.resolves({ deletedCount: 1 });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({
+          query: {
+            tenant: "airqo",
+            event_id: "pretoria-2026",
+            learner_type: "guest",
+            confirm: "true",
+          },
+        }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(guestSessionInstance.deleteMany).to.have.been.calledWith({
+        event_id: "pretoria-2026",
+        linked_user_id: null,
+      });
+    });
+
+    it("should return a would_delete dry-run shape (not deleted_*) when nobody joined the event and confirm is absent", async () => {
+      guestSessionInstance.find = sinon.stub().returns({
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves([]),
+      });
+
+      const next = sinon.spy();
+      const result = await learnUtil.clearLeaderboard(
+        makeReq({ query: { tenant: "airqo", event_id: "no-participants" } }),
+        next
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data.dry_run).to.be.true;
+      expect(result.data.would_delete_progress).to.equal(0);
+      expect(result.data.would_delete_guest_sessions).to.equal(0);
+      expect(result.data.deleted_progress).to.be.undefined;
+      expect(progressInstance.deleteMany.called).to.be.false;
     });
 
     it("should short-circuit without touching progress when nobody joined the given event", async () => {

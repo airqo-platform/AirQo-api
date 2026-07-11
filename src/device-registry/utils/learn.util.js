@@ -2207,6 +2207,7 @@ const learn = {
 
       const progressFilter = {};
       let sessionFilter = null;
+      const isDryRun = confirm !== "true";
 
       if (event_id) {
         const eventSessions = await LearnGuestSession.find({ event_id })
@@ -2220,12 +2221,15 @@ const learn = {
         if (eventGuestIds.length === 0 && eventUserIds.length === 0) {
           return {
             success: true,
-            data: {
-              scope: "event",
-              event_id,
-              deleted_progress: 0,
-              deleted_guest_sessions: 0,
-            },
+            data: isDryRun
+              ? {
+                  dry_run: true,
+                  scope: "event",
+                  event_id,
+                  would_delete_progress: 0,
+                  would_delete_guest_sessions: 0,
+                }
+              : { scope: "event", event_id, deleted_progress: 0, deleted_guest_sessions: 0 },
             message: "no matching leaderboard data found for this event",
             status: httpStatus.OK,
           };
@@ -2234,7 +2238,16 @@ const learn = {
           { guest_id: { $in: eventGuestIds } },
           { user_id: { $in: eventUserIds } },
         ];
-        sessionFilter = { event_id };
+        // Sessions are only swept alongside progress that's actually being
+        // deleted -- a learner_type=user clear must not wipe the event
+        // identity of guests whose progress row isn't touched.
+        if (learner_type === "user") {
+          sessionFilter = null;
+        } else if (learner_type === "guest") {
+          sessionFilter = { event_id, linked_user_id: null };
+        } else {
+          sessionFilter = { event_id };
+        }
       } else if (!learner_type || learner_type === "guest") {
         // Global (non-event-scoped) clears also sweep up never-linked guest
         // sessions so stray test identities don't linger once their progress
@@ -2246,12 +2259,11 @@ const learn = {
         progressFilter.learner_type = learner_type;
       }
 
-      const [matchedProgress, matchedSessions] = await Promise.all([
-        LearnProgress.countDocuments(progressFilter),
-        sessionFilter ? LearnGuestSession.countDocuments(sessionFilter) : 0,
-      ]);
-
-      if (confirm !== "true") {
+      if (isDryRun) {
+        const [matchedProgress, matchedSessions] = await Promise.all([
+          LearnProgress.countDocuments(progressFilter),
+          sessionFilter ? LearnGuestSession.countDocuments(sessionFilter) : 0,
+        ]);
         return {
           success: true,
           data: {
