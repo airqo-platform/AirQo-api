@@ -6,8 +6,8 @@ metadata:
 spec:
   host: staging-nexus.airqo.net
   upstreams:
-    - name: analytics
-      service: airqo-stage-next-platform-svc
+    - name: nexus
+      service: airqo-stage-nexus-svc
       port: 3000
     - name: auth-service
       service: airqo-stage-auth-api-svc
@@ -36,7 +36,7 @@ spec:
   routes:
     - path: /
       action:
-        pass: analytics
+        pass: nexus
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
