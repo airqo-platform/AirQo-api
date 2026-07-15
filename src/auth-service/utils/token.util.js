@@ -819,7 +819,7 @@ const isIPBlacklistedHelper = async (
       // meant to silence. Admin-managed CIDR/ASN and prefix blocks (checked
       // above) are unaffected.
       logger.info(
-        `IP-blacklist block bypassed via bypass_ip_blacklist -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`,
+        `IP-blacklist block bypassed via bypass_ip_blacklist -- TOKEN_SUFFIX: ...${(token || "").slice(-4)} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`,
       );
       Promise.resolve().then(() =>
         postProcessing({ ip, token, name, client_id, endpoint, day }),
@@ -934,8 +934,20 @@ const isIPBlacklistedHelper = async (
               // Atomic update filtered on auto_suspended: {$ne: true} ensures exactly
               // one suspension + email even under concurrent requests — the DB write
               // itself acts as the dedup gate with no Redis or separate TTL document.
+              // The bypass_compromise_detection clause re-checks the exemption inside
+              // the same atomic write — closing the gap between the early bypass
+              // check above and this write, during which an admin could have granted
+              // the exemption (the fire-and-forget threshold computation in between
+              // awaits the aggregation above).
               const prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
-                { token, "request_pattern.auto_suspended": { $ne: true } },
+                {
+                  token,
+                  "request_pattern.auto_suspended": { $ne: true },
+                  $or: [
+                    { bypass_compromise_detection: { $ne: true } },
+                    { bypass_compromise_detection_expires_at: { $lte: new Date() } },
+                  ],
+                },
                 {
                   $set: {
                     "request_pattern.auto_suspended": true,
@@ -1130,8 +1142,19 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
       // transition false→true. Non-suspension updates use the plain filter so they
       // are never blocked on already-suspended tokens (which in practice never reach
       // here due to the line-1465 early-exit, but keeps the intent explicit).
+      // The bypass_anomaly_detection clause re-checks the exemption inside this
+      // same atomic write, closing the gap between the early bypass check at
+      // the top of this function and this write (several awaits — Redis
+      // incr/mget — happen in between, during which the exemption could change).
       const suspensionFilter = updates["request_pattern.auto_suspended"]
-        ? { token: rawToken, "request_pattern.auto_suspended": { $ne: true } }
+        ? {
+            token: rawToken,
+            "request_pattern.auto_suspended": { $ne: true },
+            $or: [
+              { bypass_anomaly_detection: { $ne: true } },
+              { bypass_anomaly_detection_expires_at: { $lte: new Date() } },
+            ],
+          }
         : { token: rawToken };
       prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
         suspensionFilter,

@@ -496,12 +496,13 @@ AccessTokenSchema.methods = {
       last_user_agent: this.last_user_agent,
       request_pattern: this.request_pattern,
       allowed_origins: this.allowed_origins,
+      // bypass_anomaly_detection (pre-existing) is kept here; the newer
+      // bypass_compromise_detection/bypass_ip_blacklist flags and all
+      // *_expires_at companions are intentionally NOT exposed through this
+      // general-purpose serializer — they're admin-set/admin-facing detail,
+      // surfaced instead via the dedicated listActiveBypasses()/GET
+      // /tokens/bypasses admin report, not to every caller who can view a token.
       bypass_anomaly_detection: this.bypass_anomaly_detection,
-      bypass_anomaly_detection_expires_at: this.bypass_anomaly_detection_expires_at,
-      bypass_compromise_detection: this.bypass_compromise_detection,
-      bypass_compromise_detection_expires_at: this.bypass_compromise_detection_expires_at,
-      bypass_ip_blacklist: this.bypass_ip_blacklist,
-      bypass_ip_blacklist_expires_at: this.bypass_ip_blacklist_expires_at,
     };
   },
 };

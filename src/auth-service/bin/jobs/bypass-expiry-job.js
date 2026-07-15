@@ -50,10 +50,19 @@ const revokeExpiredBypasses = async (tenant = "airqo") => {
 
     for (const doc of expired) {
       try {
-        await AccessTokenModel(tenant).updateOne(
-          { _id: doc._id },
+        // Re-assert the original match predicate ([field]: true, expired) in the
+        // update filter itself, not just the earlier find(). This makes the write
+        // atomic: if another pod's concurrent run already revoked this bypass
+        // between our find() and now, modifiedCount comes back 0 and we skip —
+        // preventing two overlapping cron runs from both emailing the owner.
+        const updateResult = await AccessTokenModel(tenant).updateOne(
+          { _id: doc._id, [field]: true, [expiresField]: { $lte: now } },
           { $set: { [field]: false }, $unset: { [expiresField]: "" } },
         );
+        const modified = updateResult.modifiedCount ?? updateResult.nModified ?? 0;
+        if (modified !== 1) {
+          continue;
+        }
         logger.info(
           `Bypass expired and cleared — token=...${(doc.token || "").slice(-4)} field=${field}`,
         );
@@ -67,6 +76,7 @@ const revokeExpiredBypasses = async (tenant = "airqo") => {
             token: doc.token,
             tokenName: doc.name || "",
             bypassLabel: BYPASS_LABELS[field] || field,
+            cooldownKey: `${(doc.token || "").slice(-4)}:${field}`,
           });
           if (result && result.success === false) {
             logger.error(
@@ -103,6 +113,10 @@ const sendUpcomingExpiryReminders = async (tenant = "airqo") => {
       try {
         const owner = await _getOwner(tenant, doc.client_id);
         if (!owner || !owner.email) continue;
+        // Include the expiry date in the cooldown key (not just token+field) so
+        // a renewal to a new future date starts a fresh reminder cycle instead
+        // of being silently suppressed by the cooldown from the previous cycle.
+        const expiryDay = new Date(doc[expiresField]).toISOString().slice(0, 10);
         const result = await mailer.bypassExpiryReminder({
           email: owner.email,
           firstName: owner.firstName || "",
@@ -111,6 +125,7 @@ const sendUpcomingExpiryReminders = async (tenant = "airqo") => {
           tokenName: doc.name || "",
           bypassLabel: BYPASS_LABELS[field] || field,
           expiresAt: doc[expiresField],
+          cooldownKey: `${(doc.token || "").slice(-4)}:${field}:${expiryDay}`,
         });
         if (result && result.success === false) {
           logger.error(
