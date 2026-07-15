@@ -483,6 +483,105 @@ describe("email.msgs", () => {
     });
   });
 
+  describe("bypassExpiryReminder", () => {
+    const baseArgs = {
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "user@example.com",
+      token: "ABCDEFGH12345678WXYZ",
+      tokenName: "OpenAQ ingestion",
+      bypassLabel: "IP-blacklist request-blocking bypass",
+      expiresAt: new Date("2050-01-01T00:00:00Z"),
+    };
+
+    it("should return a string", () => {
+      expect(msgs.bypassExpiryReminder(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the masked token and bypass label", () => {
+      const result = msgs.bypassExpiryReminder(baseArgs);
+      expect(result).to.include("ABCDEFGH");
+      expect(result).to.include("IP-blacklist request-blocking bypass");
+    });
+
+    it("should HTML-escape a bypass label containing special characters", () => {
+      const result = msgs.bypassExpiryReminder({
+        ...baseArgs,
+        bypassLabel: '<img src=x onerror="alert(1)">',
+      });
+      expect(result).to.include("&lt;img src=x");
+      expect(result).to.include("&quot;alert(1)&quot;");
+    });
+  });
+
+  describe("bypassExpired", () => {
+    const baseArgs = {
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "user@example.com",
+      token: "ABCDEFGH12345678WXYZ",
+      tokenName: "OpenAQ ingestion",
+      bypassLabel: "High-compromise-activity auto-suspension bypass",
+    };
+
+    it("should return a string", () => {
+      expect(msgs.bypassExpired(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the masked token and bypass label", () => {
+      const result = msgs.bypassExpired(baseArgs);
+      expect(result).to.include("ABCDEFGH");
+      expect(result).to.include("High-compromise-activity auto-suspension bypass");
+    });
+  });
+
+  describe("bypassReportDigest", () => {
+    const baseArgs = {
+      recipients: ["admin@airqo.net"],
+      bypasses: [
+        {
+          token_suffix: "6NZN",
+          token_name: "OpenAQ ingestion",
+          owner_email: "owner@example.com",
+          bypasses: [
+            { type: "bypass_ip_blacklist", expires_at: "2050-01-01T00:00:00Z" },
+          ],
+        },
+      ],
+    };
+
+    it("should return a string", () => {
+      expect(msgs.bypassReportDigest(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the token suffix and owner email", () => {
+      const result = msgs.bypassReportDigest(baseArgs);
+      expect(result).to.include("6NZN");
+      expect(result).to.include("owner@example.com");
+    });
+
+    it("should handle an empty bypasses array without throwing", () => {
+      const result = msgs.bypassReportDigest({ recipients: ["admin@airqo.net"], bypasses: [] });
+      expect(result).to.be.a("string");
+      expect(result).to.include("0");
+    });
+
+    it("should HTML-escape an owner email containing special characters", () => {
+      const result = msgs.bypassReportDigest({
+        recipients: ["admin@airqo.net"],
+        bypasses: [
+          {
+            token_suffix: "abcd",
+            token_name: "",
+            owner_email: '<script>alert(1)</script>',
+            bypasses: [{ type: "bypass_anomaly_detection", expires_at: null }],
+          },
+        ],
+      });
+      expect(result).to.include("&lt;script&gt;");
+    });
+  });
+
   // ── New feedback workflow templates ──────────────────────────────────────────
 
   describe("feedbackStatusUpdate", () => {

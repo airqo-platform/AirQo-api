@@ -110,6 +110,7 @@ const jobs = [
   "@bin/jobs/profile-picture-update-job",
   "@bin/jobs/role-cleanup-job",
   "@bin/jobs/daily-compromise-summary-job",
+  "@bin/jobs/bypass-expiry-job",
   "@bin/jobs/unknown-ip-cleanup-job",
   "@bin/jobs/feedback-screenshot-cleanup-job",
   "@bin/jobs/feedback-reminder-job",

@@ -35,12 +35,23 @@ function applyToEnv(vars) {
   }
 }
 
+// Guards against repeat invocation: bin/index.js, config/check-environment.js,
+// and config/constants.js can all call loadEnvironment() (deliberately, so
+// population doesn't depend on which one happens to run first — see
+// constants.js). Without this flag, a missing .env.{NODE_ENV}.json in
+// staging/production — expected there, per the module doc above — would log
+// its warning once per caller instead of once per process.
+let loaded = false;
+
 /**
  * Load environment variables for the current NODE_ENV.
- * Must be called once, as early as possible in the process lifecycle,
- * before any config modules are required.
+ * Safe to call multiple times/from multiple entry points — only the first
+ * call in a process does any work.
  */
 function loadEnvironment() {
+  if (loaded) return;
+  loaded = true;
+
   const env = process.env.NODE_ENV || "development";
   const jsonPath = path.join(ROOT, `.env.${env}.json`);
 
