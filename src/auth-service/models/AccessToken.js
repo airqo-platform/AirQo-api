@@ -97,6 +97,28 @@ const AccessTokenSchema = new mongoose.Schema(
     // never auto-suspended by rate-spike or UA-change heuristics.
     // Honeypot traps, IP blocks, and manual suspension still apply.
     bypass_anomaly_detection: { type: Boolean, default: false },
+    // Optional expiry for bypass_anomaly_detection. When set and in the past,
+    // the bypass is treated as inactive at enforcement time even if the
+    // boolean itself is still true — bypass-expiry-job later clears the
+    // boolean and notifies the owner. Left unset, the bypass never expires.
+    bypass_anomaly_detection_expires_at: { type: Date },
+    // Admin-only flag. When true, the high-compromise-activity detector (many
+    // unique IPs hitting this token within 24h) never auto-suspends this token.
+    // For known multi-IP-by-design integrations (e.g. tokens fronted by a CDN,
+    // shared server pool, or third-party ingestion service) that legitimately
+    // get hit from many IPs. Honeypot traps, IP blocks, and manual suspension
+    // still apply.
+    bypass_compromise_detection: { type: Boolean, default: false },
+    bypass_compromise_detection_expires_at: { type: Date },
+    // Admin-only flag. When true, requests on this token are never rejected for
+    // originating from an IP already present in the BlacklistedIP collection
+    // (e.g. serverless/dynamic-egress integrations that legitimately rotate
+    // through IP ranges that get flagged). Distinct from bypass_compromise_detection,
+    // which only skips auto-suspension — this skips the per-request block itself.
+    // Admin-managed CIDR/ASN blocks, IP-prefix blocks, honeypot traps, and manual
+    // suspension are unaffected and still apply.
+    bypass_ip_blacklist: { type: Boolean, default: false },
+    bypass_ip_blacklist_expires_at: { type: Date },
   },
   { timestamps: true }
 );
@@ -475,6 +497,11 @@ AccessTokenSchema.methods = {
       request_pattern: this.request_pattern,
       allowed_origins: this.allowed_origins,
       bypass_anomaly_detection: this.bypass_anomaly_detection,
+      bypass_anomaly_detection_expires_at: this.bypass_anomaly_detection_expires_at,
+      bypass_compromise_detection: this.bypass_compromise_detection,
+      bypass_compromise_detection_expires_at: this.bypass_compromise_detection_expires_at,
+      bypass_ip_blacklist: this.bypass_ip_blacklist,
+      bypass_ip_blacklist_expires_at: this.bypass_ip_blacklist_expires_at,
     };
   },
 };

@@ -164,36 +164,71 @@ function _validateTokenUpdateItems(items) {
         return { msg: "bypass_anomaly_detection must be a boolean" };
       }
     }
+    if ("bypass_compromise_detection" in item) {
+      if (typeof item.bypass_compromise_detection !== "boolean") {
+        return { msg: "bypass_compromise_detection must be a boolean" };
+      }
+    }
+    if ("bypass_ip_blacklist" in item) {
+      if (typeof item.bypass_ip_blacklist !== "boolean") {
+        return { msg: "bypass_ip_blacklist must be a boolean" };
+      }
+    }
+    for (const field of BYPASS_EXPIRY_FIELDS) {
+      if (field in item) {
+        const v = item[field];
+        // null explicitly clears the expiry (bypass becomes open-ended again).
+        if (v !== null) {
+          if (!_isValidISO8601(v)) {
+            return { msg: `${field} must be a valid datetime, or null to clear it` };
+          }
+          if (!_isDateInFuture(v)) {
+            return { msg: `${field} must be in the future` };
+          }
+        }
+      }
+    }
   }
 }
+
+// The three admin-only bypass booleans plus their matching expiry fields.
+// Grouped so validateTokenUpdate can apply one identical admin-only guard to
+// all six instead of repeating the same check per field.
+const BYPASS_ADMIN_ONLY_FIELDS = [
+  "bypass_anomaly_detection",
+  "bypass_anomaly_detection_expires_at",
+  "bypass_compromise_detection",
+  "bypass_compromise_detection_expires_at",
+  "bypass_ip_blacklist",
+  "bypass_ip_blacklist_expires_at",
+];
+const BYPASS_EXPIRY_FIELDS = BYPASS_ADMIN_ONLY_FIELDS.filter((f) =>
+  f.endsWith("_expires_at")
+);
 
 const validateTokenUpdate = (itemsOrReq, res, next) => {
   if (Array.isArray(itemsOrReq)) {
     return _validateTokenUpdateItems(itemsOrReq);
   }
-  // middleware mode — check body fields + admin guard for bypass_anomaly_detection
+  // middleware mode — check body fields + admin guard for the bypass_* fields
   const req = itemsOrReq || {};
   const b = req.body || {};
   const items = Object.keys(b).map((k) => ({ [k]: b[k] }));
   const err = _validateTokenUpdateItems(items);
   if (err) return _mwError(next, err.msg);
 
-  // Admin check for bypass_anomaly_detection (middleware-only guard)
-  if ("bypass_anomaly_detection" in b) {
-    if (!req.user) {
-      return _mwError(
-        next,
-        "bypass_anomaly_detection can only be set by administrators"
+  const touchedBypassField = BYPASS_ADMIN_ONLY_FIELDS.find((f) => f in b);
+  if (touchedBypassField) {
+    const email = (req.user && req.user.email || "").toLowerCase();
+    const isAdmin =
+      !!req.user &&
+      (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || []).some(
+        (e) => e.toLowerCase() === email
       );
-    }
-    const email = (req.user.email || "").toLowerCase();
-    const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || []).some(
-      (e) => e.toLowerCase() === email
-    );
     if (!isAdmin) {
       return _mwError(
         next,
-        "bypass_anomaly_detection can only be set by administrators"
+        `${touchedBypassField} can only be set by administrators`
       );
     }
   }
