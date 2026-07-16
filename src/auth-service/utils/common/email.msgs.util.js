@@ -819,6 +819,110 @@ module.exports = {
     return constants.EMAIL_BODY({ email, content, name });
   },
 
+  bypassExpiryReminder: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    bypassLabel = "",
+    expiresAt = new Date(),
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const { maskedToken, tokenLabel } = buildTokenEmailSegment({ token, tokenName });
+    const expiryStr = expiresAt instanceof Date
+      ? expiresAt.toUTCString()
+      : new Date(expiresAt).toUTCString();
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A security exemption on one of your AirQo API tokens is expiring soon.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;">
+          <p style="margin:0;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</p>
+          <p style="margin:4px 0 0;"><strong>Exemption:</strong> ${escapeHtml(bypassLabel)}</p>
+          <p style="margin:4px 0 0;"><strong>Expires at:</strong> ${expiryStr}</p>
+        </div>
+        <p>Once this exemption expires, normal automated security detection resumes for this token. If your integration's traffic pattern (e.g. dynamic/serverless egress IPs) still needs this exemption, please contact <a href="mailto:support@airqo.net">support@airqo.net</a> before the expiry date to request a renewal.</p>
+        <p>If this exemption is no longer needed, no action is required — it will lapse automatically.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
+  bypassExpired: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    bypassLabel = "",
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const { maskedToken, tokenLabel } = buildTokenEmailSegment({ token, tokenName });
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A security exemption on one of your AirQo API tokens has expired and has been automatically removed.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#FFF3CD; border-left:4px solid #F59E0B; border-radius:4px;">
+          <p style="margin:0;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</p>
+          <p style="margin:4px 0 0;"><strong>Exemption removed:</strong> ${escapeHtml(bypassLabel)}</p>
+        </div>
+        <p>Normal automated security detection now applies to this token again. If your integration still relies on this exemption (for example, a serverless setup with rotating egress IPs) and you start seeing suspensions or blocked requests, please contact <a href="mailto:support@airqo.net">support@airqo.net</a> to discuss a renewal.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
+  bypassReportDigest: ({ recipients, bypasses = [] } = {}) => {
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const rows = bypasses
+      .map((entry) => {
+        const bypassList = entry.bypasses
+          .map((b) => {
+            const expiry = b.expires_at
+              ? new Date(b.expires_at).toDateString()
+              : "no expiry set";
+            return `${escapeHtml(b.type)} (expires: ${expiry})`;
+          })
+          .join("; ");
+        return `
+    <li style="margin-bottom: 8px;">
+      Token ending in <strong>...${escapeHtml(entry.token_suffix || "XXXX")}</strong>
+      ${entry.token_name ? `(${escapeHtml(entry.token_name)}) ` : ""}
+      owned by <strong>${escapeHtml(entry.owner_email || "unknown user")}</strong>
+      — ${bypassList}
+    </li>`;
+      })
+      .join("");
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <h3>Weekly Security-Bypass Report — ${today}</h3>
+        <p>
+          <strong>${bypasses.length}</strong> token(s) currently have at least one active
+          security-detection bypass (anomaly detection, high-compromise auto-suspension, or
+          IP-blacklist blocking). Review below and revoke any exemption that is no longer needed.
+        </p>
+        <ul>${rows}</ul>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL,
+      content,
+      name: "Admin",
+    });
+  },
+
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
     const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`;

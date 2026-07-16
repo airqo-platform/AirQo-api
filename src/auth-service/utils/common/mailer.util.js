@@ -812,6 +812,9 @@ const getEmailSubject = (functionName, params) => {
     expiredToken: "Action Required: Your AirQo API Token Has Expired",
     expiringToken: "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
     autoSuspendedToken: "Security Alert: Your AirQo API Token Has Been Suspended",
+    bypassExpiryReminder: "Action Required Soon: Your API Token's Security Exemption Is Expiring",
+    bypassExpired: "Security Alert: Your API Token's Security Exemption Has Expired",
+    bypassReportDigest: "Weekly Security-Bypass Report",
 
     // ===== SENSOR MANUFACTURER (NETWORK) REQUEST FUNCTIONS =====
     notifyAdminOfSensorManufacturerRequest: `New Sensor Manufacturer Request: ${sanitizeEmailString(
@@ -948,6 +951,9 @@ const EMAIL_CATEGORIES = {
     "sendCompromiseSummary",
     "expiredToken",
     "expiringToken",
+    "bypassExpiryReminder",
+    "bypassExpired",
+    "bypassReportDigest",
     "onboardingAccountSetup",
     "notifyGroupStatusChanged",
   ],
@@ -1018,7 +1024,14 @@ const createSecurityEmailFunction = (
     let otherParams = {};
     let tenant = "";
     try {
-      ({ email, tenant = "airqo", ...otherParams } = params);
+      let cooldownKey;
+      ({ email, tenant = "airqo", cooldownKey, ...otherParams } = params);
+      // Optional per-call cooldown scoping. Without it, the cooldown/dedup
+      // window is keyed only by (email, functionName) — fine for one-token
+      // alerts, but for per-token notifications (e.g. bypass expiry) that
+      // would let one token's email suppress another token's distinct alert
+      // to the same owner. Callers that don't pass cooldownKey are unaffected.
+      const emailType = cooldownKey ? `${functionName}:${cooldownKey}` : functionName;
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -1054,7 +1067,7 @@ const createSecurityEmailFunction = (
           const EmailLog = EmailLogModel(tenant);
           const cooldownCheck = await EmailLog.canSendEmail({
             email,
-            emailType: functionName,
+            emailType,
             cooldownDays,
           });
 
@@ -1248,7 +1261,7 @@ const createSecurityEmailFunction = (
           const EmailLog = EmailLogModel(tenant);
           await EmailLog.logEmailSent({
             email,
-            emailType: functionName,
+            emailType,
             metadata: {
               messageId: emailResult.data.messageId,
               ...otherParams,
@@ -2701,6 +2714,57 @@ const mailer = {
     {
       cooldownDays: 1, // Ensure only one summary per day
       enableCooldown: true,
+    },
+  ),
+  // Sent once per expiry cycle — the cooldown is set equal to the reminder
+  // lead window itself, so a daily job run only produces one email per
+  // token+bypass, not one per day the token sits inside the lead window.
+  bypassExpiryReminder: createSecurityEmailFunction(
+    "bypassExpiryReminder",
+    (params) =>
+      msgs.bypassExpiryReminder({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+        tokenName: params.tokenName,
+        bypassLabel: params.bypassLabel,
+        expiresAt: params.expiresAt,
+      }),
+    {
+      cooldownDays: constants.BYPASS_EXPIRY_REMINDER_LEAD_DAYS,
+      enableCooldown: true,
+    },
+  ),
+  // One-time notice sent by bypass-expiry-job right after it auto-clears an
+  // expired bypass flag — no repeat risk since the flag can only expire once
+  // per grant (renewing it resets bypass_*_expires_at to a new future date).
+  bypassExpired: createSecurityEmailFunction(
+    "bypassExpired",
+    (params) =>
+      msgs.bypassExpired({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+        tokenName: params.tokenName,
+        bypassLabel: params.bypassLabel,
+      }),
+    { cooldownDays: 1, enableCooldown: true },
+  ),
+  // Internal admin-only weekly digest of every token with an active bypass.
+  // Uses the admin-alert path (BCC, SUPPORT_EMAIL audit copy, daily rate cap)
+  // rather than createSecurityEmailFunction since this goes to a recipient
+  // list, not a single token owner.
+  bypassReportDigest: createAdminAlertFunction(
+    "bypassReportDigest",
+    (params) =>
+      msgs.bypassReportDigest({
+        recipients: params.recipients,
+        bypasses: params.bypasses,
+      }),
+    {
+      maxAlertsPerDay: 1,
     },
   ),
   clientActivationRequestAdmin: createMailerFunction(

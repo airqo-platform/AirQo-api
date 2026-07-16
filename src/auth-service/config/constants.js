@@ -1,3 +1,10 @@
+// Populate process.env from .env.{NODE_ENV}.json before anything below reads
+// it. Previously this only happened if a specific test bootstrap file
+// (bin/test/ut_index.js) happened to load first — order that a correct,
+// fully-recursive test glob no longer guarantees. Idempotent: only fills
+// keys not already set, safe to call from multiple entry points.
+require("./env-loader").loadEnvironment();
+
 const coreConfig = require("./core");
 const { EnvOnlyValidator } = require("../utils/validation-reporter");
 
@@ -65,6 +72,13 @@ function envConfig(env) {
     COMPROMISE_SUSPEND_THRESHOLD: (() => {
       const v = parseInt(process.env.COMPROMISE_SUSPEND_THRESHOLD, 10);
       return Number.isFinite(v) && v > 0 ? v : 50;
+    })(),
+    // How many days before a bypass_*_expires_at date bypass-expiry-job starts
+    // sending a reminder email. Also used as the reminder email's cooldown so
+    // a token only gets reminded once per expiry cycle, not once per job run.
+    BYPASS_EXPIRY_REMINDER_LEAD_DAYS: (() => {
+      const v = parseInt(process.env.BYPASS_EXPIRY_REMINDER_LEAD_DAYS, 10);
+      return Number.isFinite(v) && v > 0 ? v : 3;
     })(),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
