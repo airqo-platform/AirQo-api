@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-device-registry-api
-  tag: prod-3e4858fc-1784277887
+  tag: prod-5f9a431f-1784295230
 resources:
   limits:
     cpu: 400m
