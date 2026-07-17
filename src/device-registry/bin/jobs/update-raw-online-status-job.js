@@ -17,6 +17,7 @@ const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const RAW_INACTIVE_THRESHOLD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future feed timestamps
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
@@ -142,6 +143,20 @@ const isDeviceRawActive = (lastFeedTime) => {
   }
   const timeDiff = new Date().getTime() - new Date(lastFeedTime).getTime();
   return timeDiff < RAW_INACTIVE_THRESHOLD;
+};
+
+// Rejects unparseable timestamps and ones further in the future than clock
+// skew can explain, so a bad feed/device timestamp never gets persisted as
+// lastRawData/lastActive (surfaces downstream as transmissionStatus "Invalid Date").
+const isValidFeedTimestamp = (timestamp) => {
+  if (!timestamp) {
+    return false;
+  }
+  const parsed = new Date(timestamp).getTime();
+  if (isNaN(parsed)) {
+    return false;
+  }
+  return parsed - Date.now() <= MAX_CLOCK_SKEW_MS;
 };
 
 const isValidPM25 = (value) => {
@@ -445,9 +460,14 @@ const processIndividualDevice = async (
             data.ts ||
             null;
 
-          if (tsValue) {
+          if (tsValue && isValidFeedTimestamp(tsValue)) {
             lastFeedTime = tsValue;
             isRawOnline = isDeviceRawActive(tsValue);
+          } else if (tsValue) {
+            logger.warn(
+              `🙀🙀 Ignoring invalid/future feed timestamp (${tsValue}) for device ${device.name ||
+                device._id}`,
+            );
           } else {
             // No timestamp field — successful non-empty response means online
             isRawOnline = true;
@@ -679,7 +699,12 @@ const processIndividualDevice = async (
     let latestRawPm25 = null;
     let updateFields = {};
 
-    if (thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]) {
+    if (
+      thingspeakData &&
+      thingspeakData.feeds &&
+      thingspeakData.feeds[0] &&
+      isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
+    ) {
       const lastFeed = thingspeakData.feeds[0];
       lastFeedTime = lastFeed.created_at;
       isRawOnline = isDeviceRawActive(lastFeedTime);
@@ -697,6 +722,18 @@ const processIndividualDevice = async (
         };
       }
     } else {
+      if (
+        thingspeakData &&
+        thingspeakData.feeds &&
+        thingspeakData.feeds[0] &&
+        !isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
+      ) {
+        logger.warn(
+          `🙀🙀 Ignoring invalid/future ThingSpeak timestamp (${thingspeakData
+            .feeds[0].created_at}) for device ${device.name ||
+            device._id}, channel ${device.device_number}`,
+        );
+      }
       // ============================================================================
       // CRITICAL FIX: No new data from ThingSpeak
       // Use existing lastRawData to determine status

@@ -18,6 +18,7 @@ const NodeCache = require("node-cache");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future timestamps
 
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
@@ -39,11 +40,26 @@ async function updateEntityStatus(Model, filter, time, entityType) {
   try {
     const entity = await Model.findOne(filter);
     if (entity) {
+      const measurementTime = moment(time).tz(TIMEZONE);
+      if (!measurementTime.isValid()) {
+        logger.warn(
+          `🙀🙀 Skipping ${entityType} status update: invalid timestamp for filter: ${stringify(
+            filter
+          )}`
+        );
+        return;
+      }
+      if (measurementTime.valueOf() - Date.now() > MAX_CLOCK_SKEW_MS) {
+        logger.warn(
+          `🙀🙀 Skipping ${entityType} status update: future timestamp (${measurementTime.toISOString()}) for filter: ${stringify(
+            filter
+          )}`
+        );
+        return;
+      }
       const isActive = isEntityActive(time);
       const updateData = {
-        lastActive: moment(time)
-          .tz(TIMEZONE)
-          .toDate(),
+        lastActive: measurementTime.toDate(),
         isOnline: isActive,
       };
       await Model.updateOne(filter, { $set: updateData });
