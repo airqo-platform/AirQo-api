@@ -249,7 +249,7 @@ POST /api/v2/devices/activities/deploy/mobile?tenant=airqo&deviceName={deviceNam
 
 - `site_id` — must be absent; providing it will cause a validation error
 - `latitude` / `longitude` — the API derives position from the grid's center coordinates
-- `isPrimaryInLocation` — not applicable for mobile devices
+- `isPrimaryInLocation` — not applicable for mobile devices; omit the key entirely rather than sending it as an empty value
 
 **What happens server-side**
 
