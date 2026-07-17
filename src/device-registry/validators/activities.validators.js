@@ -384,7 +384,7 @@ const commonDeployValidations = {
     .custom(validateMountTypeConsistency),
 
   isPrimaryInLocation: body("isPrimaryInLocation")
-    .optional()
+    .optional({ checkFalsy: true })
     .isBoolean()
     .withMessage("isPrimaryInLocation must be a boolean")
     .toBoolean(),
