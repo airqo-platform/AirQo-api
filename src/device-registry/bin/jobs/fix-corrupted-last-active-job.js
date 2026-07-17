@@ -86,8 +86,21 @@ const fixCorruptedLastActive = async (tenant) => {
 
   try {
     const Device = DeviceModel(tenant);
+    // Catches both a future-dated lastActive (proper Date type, but beyond
+    // clock skew) and a lastActive stored as some other BSON type (string,
+    // etc.) from a write path that bypassed Mongoose casting — either one
+    // surfaces downstream as transmissionStatus "Invalid Date".
     const filter = {
-      lastActive: { $gt: new Date(Date.now() + MAX_CLOCK_SKEW_MS) },
+      lastActive: { $exists: true, $ne: null },
+      $or: [
+        {
+          lastActive: {
+            $type: "date",
+            $gt: new Date(Date.now() + MAX_CLOCK_SKEW_MS),
+          },
+        },
+        { lastActive: { $not: { $type: "date" } } },
+      ],
     };
 
     const total = await Device.countDocuments(filter);
@@ -126,11 +139,20 @@ const fixCorruptedLastActive = async (tenant) => {
         continue;
       }
 
-      await Device.collection.updateOne(
-        { _id: device._id },
+      // Conditional on the originally observed lastActive so a concurrent,
+      // legitimate write (e.g. from update-online-status-job) between the
+      // find() above and this update isn't clobbered by our stale snapshot.
+      const result = await Device.collection.updateOne(
+        { _id: device._id, lastActive: device.lastActive },
         { $set: { lastActive: new Date(fallback) } },
       );
-      fixed += 1;
+      if (result.modifiedCount > 0) {
+        fixed += 1;
+      } else {
+        logger.info(
+          `[${POD_ID}] ${JOB_NAME}: device ${device._id} lastActive changed concurrently, skipped.`,
+        );
+      }
     }
 
     logger.info(

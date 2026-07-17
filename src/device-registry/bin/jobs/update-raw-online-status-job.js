@@ -468,6 +468,9 @@ const processIndividualDevice = async (
               `🙀🙀 Ignoring invalid/future feed timestamp (${tsValue}) for device ${device.name ||
                 device._id}`,
             );
+            // Don't blindly mark offline on a bad timestamp — fall back to
+            // whether the device's existing lastRawData is still fresh.
+            isRawOnline = isDeviceRawActive(device.lastRawData);
           } else {
             // No timestamp field — successful non-empty response means online
             isRawOnline = true;
@@ -733,6 +736,11 @@ const processIndividualDevice = async (
             .feeds[0].created_at}) for device ${device.name ||
             device._id}, channel ${device.device_number}`,
         );
+        // Don't blindly mark offline on a bad timestamp — fall back to
+        // whether the device's existing lastRawData is still fresh. The
+        // shouldMarkOfflineFromStaleData check below can still override this
+        // to false if that fallback data is itself stale.
+        isRawOnline = isDeviceRawActive(device.lastRawData);
       }
       // ============================================================================
       // CRITICAL FIX: No new data from ThingSpeak
