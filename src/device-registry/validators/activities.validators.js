@@ -384,6 +384,9 @@ const commonDeployValidations = {
     .custom(validateMountTypeConsistency),
 
   isPrimaryInLocation: body("isPrimaryInLocation")
+    .customSanitizer((value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    )
     .optional()
     .isBoolean()
     .withMessage("isPrimaryInLocation must be a boolean")
