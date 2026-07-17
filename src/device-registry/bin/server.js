@@ -192,6 +192,16 @@ try {
   );
 }
 try {
+  const fixCorruptedLastActiveJob = require("@bin/jobs/fix-corrupted-last-active-job");
+  // Runs on every startup but self-skips immediately when no devices have a
+  // corrupted (future) lastActive value.
+  setTimeout(() => fixCorruptedLastActiveJob("airqo"), 10000);
+} catch (err) {
+  global.dedupLogger.error(
+    `fix-corrupted-last-active-job failed to start: ${err.message}`,
+  );
+}
+try {
   require("@bin/jobs/device-metadata-cleanup-job");
 } catch (err) {
   global.dedupLogger.error(
