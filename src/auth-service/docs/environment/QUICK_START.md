@@ -33,16 +33,16 @@ cp .env.production.template .env
 **The configuration has been updated:**
 
 - **Old:** `PLATFORM_{ENV}_BASE_URL` was used for platform URLs
-- **New:** `ANALYTICS_{ENV}_BASE_URL` is now used for all platform URLs
+- **New:** `NEXUS_{ENV}_BASE_URL` is now used for all platform URLs
 
-The code now uses `ANALYTICS_{ENV}_BASE_URL` to populate:
+The code now uses `NEXUS_{ENV}_BASE_URL` to populate:
 
 - `PLATFORM_BASE_URL`
 - `PWD_RESET`
 - `LOGIN_PAGE`
 - `FORGOT_PAGE`
 
-**Migration:** If you have an existing configuration with `PLATFORM_{ENV}_BASE_URL`, you can safely remove it. Use only `ANALYTICS_{ENV}_BASE_URL` going forward.
+**Migration:** If you have an existing configuration with `PLATFORM_{ENV}_BASE_URL`, you can safely remove it. Use only `NEXUS_{ENV}_BASE_URL` going forward.
 
 ### Step 3: Fill in Critical Variables
 
@@ -85,7 +85,7 @@ SCHEMA_REGISTRY_PROD=https://schema-registry.airqo.net:8081
 KAFKA_RAW_MEASUREMENTS_TOPICS_PROD=raw-measurements-prod
 ```
 
-**Note:** `PLATFORM_PRODUCTION_BASE_URL` was originally identified as missing but is now deprecated. The code uses `ANALYTICS_PRODUCTION_BASE_URL` for all platform URLs including `PLATFORM_BASE_URL`, `PWD_RESET`, `LOGIN_PAGE`, and `FORGOT_PAGE`. Only `MONGO_PROD` is required as an additional production-specific variable.
+**Note:** `PLATFORM_PRODUCTION_BASE_URL` was originally identified as missing but is now deprecated. The code uses `NEXUS_PRODUCTION_BASE_URL` for all platform URLs including `PLATFORM_BASE_URL`, `PWD_RESET`, `LOGIN_PAGE`, and `FORGOT_PAGE`. Only `MONGO_PROD` is required as an additional production-specific variable.
 
 ### Step 4: Test Your Configuration
 
@@ -129,7 +129,7 @@ Mark off as you configure each one:
 
 ### Platform URLs
 
-- [ ] `ANALYTICS_{ENV}_BASE_URL` (used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
+- [ ] `NEXUS_{ENV}_BASE_URL` (used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 
 ### Kafka (if using)
 
@@ -161,8 +161,8 @@ MONGO_DEV=auth_dev
 COMMAND_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 QUERY_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 
-# URLS (ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
-ANALYTICS_DEV_BASE_URL=http://localhost:5000
+# URLS (NEXUS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
+NEXUS_DEV_BASE_URL=http://localhost:5000
 ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA (Local)
@@ -208,8 +208,8 @@ MONGO_STAGE=auth_staging
 COMMAND_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 QUERY_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 
-# URLS (ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
-ANALYTICS_STAGING_BASE_URL=https://staging-analytics.airqo.net
+# URLS (NEXUS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
+NEXUS_STAGING_BASE_URL=https://staging-nexus.airqo.net
 ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA
@@ -227,7 +227,7 @@ SUPER_ADMIN_EMAIL_ALLOWLIST=admin@airqo.net
 RATE_LIMIT_WHITELIST=10.0.0.0/8
 
 # FIREBASE REDIRECT
-FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://staging-analytics.airqo.net/verify-success
+FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://staging-nexus.airqo.net/verify-success
 ```
 
 ### Production Environment (Template)
@@ -250,8 +250,8 @@ COMMAND_MONGO_PROD_URI=mongodb+srv://prod-cluster.mongodb.net/auth_prod
 QUERY_MONGO_PROD_URI=mongodb+srv://prod-cluster.mongodb.net/auth_prod
 DB_NAME_PROD=auth_prod
 
-# URLS (MUST BE HTTPS - ANALYTICS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
-ANALYTICS_PRODUCTION_BASE_URL=https://analytics.airqo.net
+# URLS (MUST BE HTTPS - NEXUS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
+NEXUS_PRODUCTION_BASE_URL=https://nexus.airqo.net
 ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA
@@ -269,7 +269,7 @@ SUPER_ADMIN_EMAIL_ALLOWLIST=admin@airqo.net,security@airqo.net
 RATE_LIMIT_WHITELIST=52.45.23.1
 
 # FIREBASE REDIRECT
-FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://analytics.airqo.net/verify-success
+FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://nexus.airqo.net/verify-success
 ```
 
 ---

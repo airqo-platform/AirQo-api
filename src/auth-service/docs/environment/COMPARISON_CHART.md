@@ -57,7 +57,7 @@
 | Variable | Development | Staging | Production |
 |----------|------------|---------|------------|
 | Platform Base | `PLATFORM_DEV_BASE_URL` | `PLATFORM_STAGING_BASE_URL` | `PLATFORM_PRODUCTION_BASE_URL` |
-| Analytics Base | `ANALYTICS_DEV_BASE_URL` | `ANALYTICS_STAGING_BASE_URL` | `ANALYTICS_PRODUCTION_BASE_URL` |
+| Nexus Base | `NEXUS_DEV_BASE_URL` | `NEXUS_STAGING_BASE_URL` | `NEXUS_PRODUCTION_BASE_URL` |
 | Selected Sites | `SELECTED_SITES_DEVELOPMENT` | `SELECTED_SITES_STAGING` | `SELECTED_SITES_PRODUCTION` |
 
 **Example Values:**

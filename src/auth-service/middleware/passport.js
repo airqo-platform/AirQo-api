@@ -1128,13 +1128,13 @@ function setLocalAuth(req, res, next) {
 
 /**
  * Builds the set of URL origins that are permitted as redirect_after targets.
- * Always includes ANALYTICS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
+ * Always includes NEXUS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
  * (comma-separated) can extend the list. Localhost is added in non-production.
  */
 function resolveAllowedRedirectOrigins() {
   const origins = new Set();
   const candidates = [
-    constants.ANALYTICS_BASE_URL,
+    constants.NEXUS_BASE_URL,
     constants.VERTEX_BASE_URL,
     constants.ALLOWED_REDIRECT_ORIGINS,
   ];
@@ -1172,8 +1172,8 @@ const ALLOWED_CUSTOM_SCHEME_PREFIXES = (
 // path: analytics uses /user/login, vertex and others use /login.
 const ANALYTICS_ORIGIN = (() => {
   try {
-    return constants.ANALYTICS_BASE_URL
-      ? new URL(constants.ANALYTICS_BASE_URL).origin
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
       : null;
   } catch {
     return null;

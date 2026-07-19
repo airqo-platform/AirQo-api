@@ -47,8 +47,8 @@ const handleError = (error, next) => {
 
 const ANALYTICS_ORIGIN = (() => {
   try {
-    return constants.ANALYTICS_BASE_URL
-      ? new URL(constants.ANALYTICS_BASE_URL).origin
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
       : null;
   } catch {
     return null;
@@ -78,7 +78,7 @@ function validateRedirectUrl(raw) {
     }
     const origin = parsed.origin;
     const candidates = [
-      constants.ANALYTICS_BASE_URL,
+      constants.NEXUS_BASE_URL,
       constants.VERTEX_BASE_URL,
       constants.ALLOWED_REDIRECT_ORIGINS,
     ].filter(Boolean);
