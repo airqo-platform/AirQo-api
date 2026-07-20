@@ -9,7 +9,7 @@ const {
   sanitizeHtml,
 } = require("@utils/shared");
 
-const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/profile?tab=api`;
+const API_SETTINGS_URL = `${constants.NEXUS_BASE_URL}/user/profile?tab=api`;
 
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
@@ -57,7 +57,7 @@ const buildTokenEmailSegment = ({
     }
   }
 
-  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this in <a href="${API_SETTINGS_URL}">your API settings</a> in AirQo Analytics.</p>`;
+  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this in <a href="${API_SETTINGS_URL}">your API settings</a> in AirQo Nexus.</p>`;
 
   return { maskedToken, tokenLabel, expiryLine, securityTip };
 };
@@ -72,7 +72,7 @@ module.exports = {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     let instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     if (version && parseInt(version) === 3 && !slug) {
-      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd/reset`;
+      PASSWORD_RESET_URL = `${constants.NEXUS_BASE_URL}/user/forgotPwd/reset`;
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     } else if (slug) {
       // Validate and sanitize slug to prevent URL manipulation
@@ -81,10 +81,10 @@ module.exports = {
         // Fallback to version-based logic if slug is invalid
         PASSWORD_RESET_URL =
           version && parseInt(version) === 3
-            ? `${constants.ANALYTICS_BASE_URL}/user/forgotPwd/reset`
+            ? `${constants.NEXUS_BASE_URL}/user/forgotPwd/reset`
             : constants.PWD_RESET;
       } else {
-        PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/org/${sanitizedSlug}/forgotPwd/reset`;
+        PASSWORD_RESET_URL = `${constants.NEXUS_BASE_URL}/org/${sanitizedSlug}/forgotPwd/reset`;
       }
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     }
@@ -360,7 +360,7 @@ module.exports = {
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Congratulations! Your API client ${clientLabel} has been successfully activated.</p>
         <p>If you have any questions or need assistance, please don't hesitate to reach out to our customer support team. We are here to help.</p>
-        <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p>
+        <p>Thank you for choosing AirQo Nexus, and we look forward to helping you achieve your goals.</p>
         <p>Sincerely,</p>
         <p>The AirQo Data Team</p>
     </td>
@@ -396,7 +396,7 @@ module.exports = {
                                     You can always change your password in your account settings after login. Follow this link to access the dashboard right
                                     now: ${constants.LOGIN_PAGE}
                                     <br />
-                                    A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics
+                                    A guide to using AirQo Nexus will be found under the Documentation section of AirQo Nexus
                                     <br /><br />
                                     PLEASE DO NOT REPLY TO THIS EMAIL. For KCCA related questions, please contact:
                                     <ul>
@@ -420,7 +420,7 @@ module.exports = {
     const content = `<tr>
                          <td
                              style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                             <p>Welcome to AirQo Analytics!! 🎉🎉</p>
+                             <p>Welcome to AirQo Nexus!! 🎉🎉</p>
                              <p>Your login details are:</p>
                              <ul>
                                  <li>USERNAME: ${email}</li>
@@ -473,7 +473,7 @@ module.exports = {
                                 <br />
                                 If this activity sounds suspicious to you, please reach out to your organization's administrator immediately.
                                 <br />
-                                If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                If you are using the AirQo web platform, follow this link to access AirQo Nexus: ${constants.LOGIN_PAGE}
                                 <br />
                                 <br />
                                 If you are using the AirQo mobile app, you can view your updated details directly within the app.
@@ -520,7 +520,7 @@ module.exports = {
                                 <br />
                                 If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                 <br />
-                                If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                If you are using the AirQo web platform, follow this link to access AirQo Nexus: ${constants.LOGIN_PAGE}
                                 <br />
                                 <br />
                                 If you are using the AirQo mobile app, you can view the activity details directly within the app.
@@ -608,7 +608,7 @@ module.exports = {
               <br />
               If you have any questions or concerns regarding this action, please contact your organization's administrator.
               <br />
-              If you are using the AirQo web platform, you can access AirQo Analytics here: ${constants.LOGIN_PAGE}
+              If you are using the AirQo web platform, you can access AirQo Nexus here: ${constants.LOGIN_PAGE}
               <br /><br />
               If you are using the AirQo mobile app, you can view the activity details directly within the app.
               <br /><br />
@@ -631,7 +631,7 @@ module.exports = {
         <p>Suspected unauthorized access detected with your AIRQO API token from <strong>IP address ${ip}</strong>.</p>
         <p>Consider changing your AirQo Account password. Additionally, whitelist your respective IP address by updating the CLIENT associated with your TOKEN.</p>
         <p>Report any further suspicious activities.</p>
-        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Analytics: ${constants.LOGIN_PAGE}</p>
+        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Nexus: ${constants.LOGIN_PAGE}</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
       </td>
     </tr>
@@ -655,7 +655,7 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} has expired.</p>
         ${expiryLine}
-        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client.</p>
+        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client.</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
         ${securityTip}
       </td>
@@ -714,7 +714,7 @@ module.exports = {
           <p>One of your AirQo API tokens is expiring soon. Please regenerate it before it expires to avoid any interruption to your API access.</p>
           ${tokenCallout}
           ${expiryLine}
-          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client — no need to create a new one.</p>
+          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client — no need to create a new one.</p>
           <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
           <p>If you have already regenerated this token, please ignore this message.</p>
           ${securityTip}
@@ -731,7 +731,7 @@ module.exports = {
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
           <p>We noticed that your first name and last name are not yet set in your profile. Updating these details will enhance your experience with our service.</p>
-          <p>If you are using the AirQo web platform, please visit AirQo Analytics to update your profile with your full name.</p>
+          <p>If you are using the AirQo web platform, please visit AirQo Nexus to update your profile with your full name.</p>
           <p>If you are using the AirQo mobile app, you can update your profile directly within the app.</p>
           <p>If you have already updated your name, please ignore this message.</p>
         </td>
@@ -769,7 +769,7 @@ module.exports = {
         <p>This may be a false positive — for example, if you access the API from both a browser and a server-side application, or if you recently updated your API client. If this activity was expected, please follow the steps below to reinstate your token.</p>
         <p><strong>What to do next:</strong></p>
         <ol style="padding-left:20px;">
-          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <a href="${API_SETTINGS_URL}"><strong>your API settings</strong></a>.</li>
+          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a> and go to <a href="${API_SETTINGS_URL}"><strong>your API settings</strong></a>.</li>
           <li>Locate the affected token (<code>${maskedToken}</code>${tokenLabel}) on your API client card.</li>
           <li>If it shows as suspended, use the <strong>Reinstate</strong> option to restore access.</li>
           <li>Alternatively, use <strong>Regenerate Token</strong> on your existing client to issue a fresh token — this does not require creating a new client.</li>
@@ -925,7 +925,7 @@ module.exports = {
 
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
-    const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`;
+    const FORGOT_PAGE = `${constants.NEXUS_BASE_URL}/user/forgotPwd`;
     const content = `
     <tr>
      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -972,7 +972,7 @@ module.exports = {
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -994,7 +994,7 @@ module.exports = {
                                 If you did not initiate this password update, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -1101,13 +1101,13 @@ module.exports = {
     expires_at,
   }) => {
     // For existing users - direct accept link
-    const existingUserAcceptLink = `${constants.ANALYTICS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
+    const existingUserAcceptLink = `${constants.NEXUS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
 
     // For new users - simple registration link, they'll see invitations after login
-    const newUserRegistrationLink = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register`;
+    const newUserRegistrationLink = `${constants.NEXUS_BASE_URL}/user/creation/individual/register`;
 
     // For logged-in users - link to view pending invitations
-    const pendingInvitationsLink = `${constants.ANALYTICS_BASE_URL}/user/profile`;
+    const pendingInvitationsLink = `${constants.NEXUS_BASE_URL}/user/profile`;
 
     const content = `
     <tr>
@@ -1119,7 +1119,7 @@ module.exports = {
           inviterEmail,
         )}) to join the organization "<strong>${escapeHtml(
           entity_title,
-        )}</strong>" on AirQo Analytics.</p>
+        )}</strong>" on AirQo Nexus.</p>
         ${
           group_description
             ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(
@@ -1173,7 +1173,7 @@ module.exports = {
           <li><strong>Contact Email:</strong> ${escapeHtml(contact_email)}</li>
         </ul>
         <p>Please review and process this request in the admin dashboard.</p>
-        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/system/org-requests</p>
+        <p>You can access the admin dashboard at: ${constants.NEXUS_BASE_URL}/system/org-requests</p>
       </td>
     </tr>
   `;
@@ -1417,7 +1417,7 @@ module.exports = {
   },
   accountDeletionConfirmation: ({ firstName, email, token, tenant }) => {
     const name = firstName;
-    const url = `${constants.ANALYTICS_BASE_URL}/user/delete/confirm/${token}?tenant=${tenant}`;
+    const url = `${constants.NEXUS_BASE_URL}/user/delete/confirm/${token}?tenant=${tenant}`;
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -1712,7 +1712,7 @@ module.exports = {
           </li>
           <li style="margin-bottom: 8px;">
             <strong>Check your browser network tab:</strong> Open DevTools → Network on
-            your own application and filter requests to <em>${escapeHtml((constants.ANALYTICS_BASE_URL || "https://analytics.airqo.net").replace(/^https?:\/\//, ""))}</em>.
+            your own application and filter requests to <em>${escapeHtml((constants.NEXUS_BASE_URL || "https://nexus.airqo.net").replace(/^https?:\/\//, ""))}</em>.
             If you can see your token in a request URL or header, it is also visible to
             scrapers — move those calls to your backend.
           </li>
@@ -1744,13 +1744,13 @@ module.exports = {
         <p><strong>Requested by:</strong> ${name} (${userEmail})</p>
         <p>Please review and take action on this request via the admin clients management page:</p>
         <div style="text-align: center; margin: 24px 0;">
-            <a href="${constants.ANALYTICS_BASE_URL}/system/clients"
+            <a href="${constants.NEXUS_BASE_URL}/system/clients"
                style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
                 Manage API Clients
             </a>
         </div>
         <p style="font-size: 14px; color: #6c757d;">
-            Direct link: <a href="${constants.ANALYTICS_BASE_URL}/system/clients">${constants.ANALYTICS_BASE_URL}/system/clients</a>
+            Direct link: <a href="${constants.NEXUS_BASE_URL}/system/clients">${constants.NEXUS_BASE_URL}/system/clients</a>
         </p>
     </td>
   </tr>`;
@@ -1979,7 +1979,7 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Hi ${escapedName},</p>
         <p>A feedback item has been assigned to you: <strong>${escapedSubject}</strong>.</p>
-        <p>Please review it in the AirQo Analytics admin panel and take appropriate action.</p>
+        <p>Please review it in the AirQo Nexus admin panel and take appropriate action.</p>
         <p>If you have any questions, contact your team lead or reply to this email.</p>
       </td>
     </tr>`;
@@ -2048,7 +2048,7 @@ module.exports = {
           </thead>
           <tbody>${rowsHtml}</tbody>
         </table>
-        <p>Please review and update the status of these items in the AirQo Analytics admin panel.</p>
+        <p>Please review and update the status of these items in the AirQo Nexus admin panel.</p>
       </td>
     </tr>`;
     // Use SUPPORT_EMAIL so the footer renders "This email was sent to <address>"

@@ -25,7 +25,6 @@ ignore:
   - "./routes/v2/test/ut_roles.routes.js"
   - "./routes/v2/test/ut_scopes.routes.js"
   - "./routes/v2/test/ut_tokens.routes.js"
-  - "./utils/common/test/ut_email.templates.util.js"
   - "./utils/common/test/ut_generate-filter.util.js"
   - "./utils/common/test/ut_mailer.util.js"
   - "./utils/test/ut_user.util.js"

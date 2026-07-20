@@ -658,7 +658,7 @@ describe("setGoogleAuth — redirect_after custom-scheme validation", () => {
 
   const constantsStub = {
     ...constants,
-    ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+    NEXUS_BASE_URL: "https://nexus.airqo.net",
     VERTEX_BASE_URL: "https://vertex.airqo.net",
     ALLOWED_REDIRECT_ORIGINS: "",
     ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://,dataflo://,analytics://",
@@ -757,10 +757,10 @@ describe("setGoogleAuth — redirect_after custom-scheme validation", () => {
 
   describe("http/https origin checks are unaffected (regression guard)", () => {
     it("sets the cookie for an allowed https origin", () => {
-      req.query.redirect_after = "https://analytics.airqo.net/dashboard";
+      req.query.redirect_after = "https://nexus.airqo.net/dashboard";
       setGoogleAuth(req, res, next);
       expect(
-        res.cookie.calledWith("_oauth_redirect_after", "https://analytics.airqo.net/dashboard")
+        res.cookie.calledWith("_oauth_redirect_after", "https://nexus.airqo.net/dashboard")
       ).to.be.true;
     });
 

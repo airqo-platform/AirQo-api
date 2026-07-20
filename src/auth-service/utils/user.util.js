@@ -4010,8 +4010,8 @@ const createUserModule = {
             data: {
               accountExists: true,
               verified: true,
-              loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
-              forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
+              loginUrl: `${constants.NEXUS_BASE_URL}/user/login`,
+              forgotPasswordUrl: `${constants.NEXUS_BASE_URL}/user/forgotPwd`,
             },
           };
         } else {
