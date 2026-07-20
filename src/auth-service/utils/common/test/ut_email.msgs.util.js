@@ -32,10 +32,10 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to join AirQo Analytics has been received, we shall get back to you as soon as possible.
+                                    Your request to join AirQo Nexus has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
-                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo Analytics
+                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo Nexus
                                     administration.
                                     <br />
                                     Once your application is approved, you will receive a confirmation email<br />
@@ -167,7 +167,7 @@ describe("email.msgs", () => {
                                     You can always change your password in your account settings after login. Follow this link to access the dashboard right
                                     now: ${constants.LOGIN_PAGE}
                                     <br />
-                                    A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics
+                                    A guide to using AirQo Nexus will be found under the Documentation section of AirQo Nexus
                                     <br /><br />
                                     PLEASE DO NOT REPLY TO THIS EMAIL. For KCCA related questions, please contact:
                                     <ul>
@@ -205,7 +205,7 @@ describe("email.msgs", () => {
       const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics. Your login credentials are as follows:
+                                    Welcome to AirQo Nexus. Your login credentials are as follows:
                                     <br />
                                     YOUR USERNAME: ${email}
                                     <br />
@@ -213,13 +213,13 @@ describe("email.msgs", () => {
                                     <br /><br />
                                     To access the dashboard, please follow this link: <a href="${constants.LOGIN_PAGE}">LOGIN PAGE</a>
                                     <br />
-                                    After login, you can change your password in your account settings. You can also use your AirQo Analytics credentials to
+                                    After login, you can change your password in your account settings. You can also use your AirQo Nexus credentials to
                                     access the AirQo API.
                                     <br />
                                     The AirQo API reference can be found here: <a href=" https://docs.airqo.net/airqo-rest-api-documentation/">API
                                         Documentation</a>
                                     <br /><br />
-                                    By actively utilising AirQo Analytics, you automatically agree to the <a
+                                    By actively utilising AirQo Nexus, you automatically agree to the <a
                                         href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo terms and conditions:</a>
                                     <br />
                                     For any technical challenges or suggestions, please contact us at <span
@@ -227,7 +227,7 @@ describe("email.msgs", () => {
                                     <br /><br />
                                     Please note that this is an automated message, so please do not reply to this email.
                                     <br />
-                                    To learn more about AirQo Analytics and its features, please refer to the <a
+                                    To learn more about AirQo Nexus and its features, please refer to the <a
                                         href="https://docs.airqo.net/airqo-platform/">user guide available here:</a>
                                     <br /><br />
                                     Best regards,
@@ -262,7 +262,7 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account details have been updated.
+                                Your AirQo Nexus account details have been updated.
                                     <br />
                                     The following fields have been updated:
                                     <ol>
@@ -271,7 +271,7 @@ describe("email.msgs", () => {
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
-                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    Follow this link to access AirQo Nexus right now: ${constants.LOGIN_PAGE}
                                     <br />
                                     <br />
                                 </td>
@@ -296,12 +296,12 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account password has been successfully reset.
+                                Your AirQo Nexus account password has been successfully reset.
                                 <br />
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -331,12 +331,12 @@ describe("email.msgs", () => {
       const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account password has been successfully updated.
+                                Your AirQo Nexus account password has been successfully updated.
                                 <br />
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />

@@ -37,9 +37,9 @@ The email includes:
 
 You have two options. Use whichever fits your workflow.
 
-### Option A — AirQo Analytics (recommended)
+### Option A — AirQo Nexus (recommended)
 
-1. Log in to [analytics.airqo.net](https://analytics.airqo.net)
+1. Log in to [nexus.airqo.net](https://nexus.airqo.net)
 2. Go to **Settings › API**
 3. Find the affected token on your API client card
 4. If it shows as suspended, click **Reinstate** to restore it

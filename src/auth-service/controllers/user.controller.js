@@ -45,10 +45,10 @@ const handleError = (error, next) => {
   );
 };
 
-const ANALYTICS_ORIGIN = (() => {
+const NEXUS_ORIGIN = (() => {
   try {
-    return constants.ANALYTICS_BASE_URL
-      ? new URL(constants.ANALYTICS_BASE_URL).origin
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
       : null;
   } catch {
     return null;
@@ -78,7 +78,7 @@ function validateRedirectUrl(raw) {
     }
     const origin = parsed.origin;
     const candidates = [
-      constants.ANALYTICS_BASE_URL,
+      constants.NEXUS_BASE_URL,
       constants.VERTEX_BASE_URL,
       constants.ALLOWED_REDIRECT_ORIGINS,
     ].filter(Boolean);
@@ -118,11 +118,11 @@ function resolveOAuthRedirectContext(req, res) {
         redirectOrigin = parsed.origin;
       }
       // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
-      // failure redirects fall through to the default analytics failure URL.
+      // failure redirects fall through to the default Nexus failure URL.
     } catch {}
   }
   let failureRedirectUrl;
-  if (redirectOrigin && redirectOrigin !== ANALYTICS_ORIGIN) {
+  if (redirectOrigin && redirectOrigin !== NEXUS_ORIGIN) {
     failureRedirectUrl = `${redirectOrigin}/login?error=oauth_failed`;
   } else {
     const base =

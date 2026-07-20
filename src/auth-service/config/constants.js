@@ -31,7 +31,7 @@ function envConfig(env) {
   // which reads .env.{NODE_ENV}.json (Azure Key Vault). Keys are canonical
   // (no environment prefix) — no alias mapping needed here.
 
-  const analyticsBaseUrl = process.env.ANALYTICS_BASE_URL;
+  const nexusBaseUrl = process.env.NEXUS_BASE_URL;
 
   const transformations = {
     // ── Boolean flags ─────────────────────────────────────────────────────────
@@ -96,13 +96,13 @@ function envConfig(env) {
     // AIRQO_GROUP_ID is an alias for DEFAULT_GROUP used by legacy callers.
     AIRQO_GROUP_ID: process.env.DEFAULT_GROUP,
 
-    // Platform URLs derived from the single canonical ANALYTICS_BASE_URL.
-    PWD_RESET: analyticsBaseUrl ? `${analyticsBaseUrl}/reset` : undefined,
-    LOGIN_PAGE: analyticsBaseUrl
-      ? `${analyticsBaseUrl}/user/login`
+    // Platform URLs derived from the single canonical NEXUS_BASE_URL.
+    PWD_RESET: nexusBaseUrl ? `${nexusBaseUrl}/reset` : undefined,
+    LOGIN_PAGE: nexusBaseUrl
+      ? `${nexusBaseUrl}/user/login`
       : undefined,
-    FORGOT_PAGE: analyticsBaseUrl ? `${analyticsBaseUrl}/forgot` : undefined,
-    PLATFORM_BASE_URL: analyticsBaseUrl,
+    FORGOT_PAGE: nexusBaseUrl ? `${nexusBaseUrl}/forgot` : undefined,
+    PLATFORM_BASE_URL: nexusBaseUrl,
 
     // ── Per-environment defaults ──────────────────────────────────────────────
     ENVIRONMENT:
@@ -118,8 +118,8 @@ function envConfig(env) {
     ONBOARDING_BASE_URL:
       process.env.ONBOARDING_BASE_URL ||
       (env === "staging"
-        ? "https://staging-analytics.airqo.net/onboarding"
-        : "https://analytics.airqo.net/onboarding"),
+        ? "https://staging-nexus.airqo.net/onboarding"
+        : "https://nexus.airqo.net/onboarding"),
   };
 
   // Priority (highest → lowest):

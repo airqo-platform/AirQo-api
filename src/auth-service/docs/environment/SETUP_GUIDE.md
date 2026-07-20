@@ -36,7 +36,7 @@ NODE_ENV=production
 ### Firebase Integration
 ```bash
 # URL to redirect users after successful email verification
-FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://analytics.airqo.net/verify-success
+FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://nexus.airqo.net/verify-success
 ```
 
 ---
@@ -129,7 +129,7 @@ JWT_REFRESH_WINDOW_SECONDS=3600
 JWT_GRACE_PERIOD_SECONDS=300
 SUPER_ADMIN_EMAIL_ALLOWLIST=staging-admin@airqo.net,admin@airqo.net
 RATE_LIMIT_WHITELIST=10.0.0.0/24
-FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://staging-analytics.airqo.net/verify-success
+FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://staging-nexus.airqo.net/verify-success
 
 # Staging
 KAFKA_TOPICS_STAGE=stage-events,stage-measurements,stage-notifications
@@ -146,7 +146,7 @@ JWT_REFRESH_WINDOW_SECONDS=3600
 JWT_GRACE_PERIOD_SECONDS=300
 SUPER_ADMIN_EMAIL_ALLOWLIST=admin@airqo.net,superadmin@airqo.net
 RATE_LIMIT_WHITELIST=52.45.23.1,54.23.45.67
-FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://analytics.airqo.net/verify-success
+FIREBASE_VERIFICATION_SUCCESS_REDIRECT=https://nexus.airqo.net/verify-success
 
 # Production
 MONGO_PROD=auth_prod

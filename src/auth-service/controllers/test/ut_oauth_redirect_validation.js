@@ -22,13 +22,13 @@ const HttpError = class extends Error {
 
 const constantsStub = {
   ...constants,
-  ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+  NEXUS_BASE_URL: "https://nexus.airqo.net",
   VERTEX_BASE_URL: "https://vertex.airqo.net",
   ALLOWED_REDIRECT_ORIGINS: "",
   ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://,airqo://",
   OAUTH_COOKIE_DOMAIN: "",
-  GMAIL_VERIFICATION_SUCCESS_REDIRECT: "https://analytics.airqo.net",
-  GMAIL_VERIFICATION_FAILURE_REDIRECT: "https://analytics.airqo.net/user/login",
+  GMAIL_VERIFICATION_SUCCESS_REDIRECT: "https://nexus.airqo.net",
+  GMAIL_VERIFICATION_FAILURE_REDIRECT: "https://nexus.airqo.net/user/login",
   DEFAULT_TENANT: "airqo",
   ENVIRONMENT: "test",
 };
@@ -128,13 +128,13 @@ describe("googleCallback — custom-scheme redirect_after validation", () => {
     it("falls back to analytics URL for an unrecognised scheme (evil://hack)", async () => {
       req.cookies._oauth_redirect_after = "evil://hack";
       await userController.googleCallback(req, res, next);
-      expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
+      expect(res.redirect.firstCall.args[0]).to.include("nexus.airqo.net");
       expect(res.redirect.firstCall.args[0]).not.to.match(/^evil:\/\//);
     });
 
     it("falls back to analytics URL when no redirect cookie is present", async () => {
       await userController.googleCallback(req, res, next);
-      expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
+      expect(res.redirect.firstCall.args[0]).to.include("nexus.airqo.net");
     });
   });
 
@@ -155,16 +155,16 @@ describe("googleCallback — custom-scheme redirect_after validation", () => {
 
   describe("http/https origin checks are unaffected (regression guard)", () => {
     it("redirects to the allowed https origin with token hash", async () => {
-      req.cookies._oauth_redirect_after = "https://analytics.airqo.net/dashboard";
+      req.cookies._oauth_redirect_after = "https://nexus.airqo.net/dashboard";
       await userController.googleCallback(req, res, next);
-      expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
+      expect(res.redirect.firstCall.args[0]).to.include("nexus.airqo.net");
       expect(res.redirect.firstCall.args[0]).to.include("#token=");
     });
 
     it("falls back to default when https URL is not in the allowed origins", async () => {
       req.cookies._oauth_redirect_after = "https://evil.com/phish";
       await userController.googleCallback(req, res, next);
-      expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
+      expect(res.redirect.firstCall.args[0]).to.include("nexus.airqo.net");
       expect(res.redirect.firstCall.args[0]).not.to.include("evil.com");
     });
   });
@@ -196,13 +196,13 @@ describe("googleCallback — custom-scheme allowlist default fallback", () => {
     // to its hardcoded default of "vertex://,airqo://".
     const constantsStubNoSchemes = {
       ...constants,
-      ANALYTICS_BASE_URL: "https://analytics.airqo.net",
+      NEXUS_BASE_URL: "https://nexus.airqo.net",
       VERTEX_BASE_URL: "https://vertex.airqo.net",
       ALLOWED_REDIRECT_ORIGINS: "",
       ALLOWED_CUSTOM_SCHEME_PREFIXES: undefined,
       OAUTH_COOKIE_DOMAIN: "",
-      GMAIL_VERIFICATION_SUCCESS_REDIRECT: "https://analytics.airqo.net",
-      GMAIL_VERIFICATION_FAILURE_REDIRECT: "https://analytics.airqo.net/user/login",
+      GMAIL_VERIFICATION_SUCCESS_REDIRECT: "https://nexus.airqo.net",
+      GMAIL_VERIFICATION_FAILURE_REDIRECT: "https://nexus.airqo.net/user/login",
       DEFAULT_TENANT: "airqo",
       ENVIRONMENT: "test",
     };
@@ -274,7 +274,7 @@ describe("googleCallback — custom-scheme allowlist default fallback", () => {
   it("still rejects evil:// when ALLOWED_CUSTOM_SCHEME_PREFIXES is unset", async () => {
     req.cookies._oauth_redirect_after = "evil://hack";
     await userControllerWithDefaultSchemes.googleCallback(req, res, next);
-    expect(res.redirect.firstCall.args[0]).to.include("analytics.airqo.net");
+    expect(res.redirect.firstCall.args[0]).to.include("nexus.airqo.net");
     expect(res.redirect.firstCall.args[0]).not.to.match(/^evil:\/\//);
   });
 });

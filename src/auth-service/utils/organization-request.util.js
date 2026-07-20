@@ -753,7 +753,7 @@ const organizationRequest = {
                 organization_name: orgRequest.organization_name,
                 contact_name: orgRequest.contact_name,
                 email: orgRequest.contact_email,
-                onboarding_url: `${constants.ANALYTICS_BASE_URL}/onboarding/setup-account?token=${onboardingToken}`,
+                onboarding_url: `${constants.NEXUS_BASE_URL}/onboarding/setup-account?token=${onboardingToken}`,
                 organization_slug: organizationSlug, // Use ensured slug
                 isExistingUser,
               });
@@ -763,7 +763,7 @@ const organizationRequest = {
                 organization_name: orgRequest.organization_name,
                 contact_name: orgRequest.contact_name,
                 contact_email: orgRequest.contact_email,
-                login_url: `${constants.ANALYTICS_BASE_URL}/org/${organizationSlug}/login`,
+                login_url: `${constants.NEXUS_BASE_URL}/org/${organizationSlug}/login`,
                 isExistingUser,
               });
             }
@@ -1122,7 +1122,7 @@ const organizationRequest = {
           organization_name: decoded.organization_name,
           contact_name: decoded.contact_name,
           email: decoded.contact_email,
-          login_url: `${constants.ANALYTICS_BASE_URL}/org/${decoded.organization_slug}/login`,
+          login_url: `${constants.NEXUS_BASE_URL}/org/${decoded.organization_slug}/login`,
         });
 
         return {

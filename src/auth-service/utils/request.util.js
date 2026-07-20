@@ -1010,9 +1010,9 @@ const createAccessRequest = {
         // Proceed with sending email notification
         let login_url;
         if (requestType === "group" && organization_slug) {
-          login_url = `${constants.ANALYTICS_BASE_URL}/org/${organization_slug}/login`;
+          login_url = `${constants.NEXUS_BASE_URL}/org/${organization_slug}/login`;
         } else {
-          login_url = `${constants.ANALYTICS_BASE_URL}/user/login`;
+          login_url = `${constants.NEXUS_BASE_URL}/user/login`;
         }
 
         const responseFromSendEmail = await mailer.afterAcceptingInvitation(

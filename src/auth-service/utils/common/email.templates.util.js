@@ -8,7 +8,7 @@ const processString = (inputString) => {
 };
 module.exports = {
   confirm: (id) => ({
-    subject: "AirQo Analytics JOIN request",
+    subject: "AirQo Nexus JOIN request",
     html: `
       <a href='${constants.CLIENT_ORIGIN}/confirm/${id}'>
         Click to know more about AirQo
@@ -24,7 +24,7 @@ module.exports = {
     <p>Whether you are here for your brand, for a cause, or just for fun, welcome!</p>
     <p>If there is anything you need, we will be here every step of the way.</p>
     <br> 
-    <a href=${constants.PLATFORM_BASE_URL}> Check out AirQo Analytics</a>
+    <a href=${constants.PLATFORM_BASE_URL}> Check out AirQo Nexus</a>
     <p>Weekly new updates and improvements to our products</p>
     <br> 
     <a href=${constants.PLATFORM_BASE_URL}> Support our expansion in Africa</a>
@@ -60,9 +60,9 @@ module.exports = {
     token,
     category,
   } = {}) => {
-    let url = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/interest/${user_id}/${token}`;
+    let url = `${constants.NEXUS_BASE_URL}/user/creation/individual/interest/${user_id}/${token}`;
     if (category && category === "organisation") {
-      url = `${constants.ANALYTICS_BASE_URL}/user/creation/organisation/verify/${user_id}/${token}`;
+      url = `${constants.NEXUS_BASE_URL}/user/creation/organisation/verify/${user_id}/${token}`;
     }
 
     const content = `<tr>
@@ -130,21 +130,21 @@ module.exports = {
                 <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                     <tr>
                         <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
-                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">AirQo Analytics</p>
+                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">AirQo Nexus</p>
                             <p style="margin: 0 0 12px 0; color: #667085;">Explore air quality trends and insights across Africa.</p>
-                            <a href="${constants.ANALYTICS_BASE_URL}/user/login" target="_blank"
+                            <a href="${constants.NEXUS_BASE_URL}/user/login" target="_blank"
                                 style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
-                                Open Analytics
+                                Open Nexus
                             </a>
                         </td>
                     </tr>
                     <tr>
                         <td style="padding: 16px 0; border-top: 1px solid #EBF1FF; vertical-align: top;">
-                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">Vertex</p>
+                            <p style="margin: 0 0 4px 0; font-weight: 600; color: #101828;">AirQo Vertex</p>
                             <p style="margin: 0 0 12px 0; color: #667085;">Deploy devices, share your data, and stream live air quality through AirQo's open data channels.</p>
                             <a href="${constants.VERTEX_BASE_URL}" target="_blank"
                                 style="display: inline-block; padding: 10px 24px; background: #135DFF; color: white; text-decoration: none; border-radius: 1px; font-size: 14px; font-family: Inter; font-weight: 400;">
-                                Open Vertex
+                                Open AirQo Vertex
                             </a>
                         </td>
                     </tr>
@@ -192,7 +192,7 @@ module.exports = {
     login_url,
   }) => {
     const safeLoginUrl =
-      login_url || `${constants.ANALYTICS_BASE_URL}/user/login`;
+      login_url || `${constants.NEXUS_BASE_URL}/user/login`;
 
     const name = firstName;
     const content = ` <tr>
