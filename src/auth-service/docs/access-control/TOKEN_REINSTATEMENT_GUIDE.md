@@ -37,7 +37,7 @@ The email includes:
 
 You have two options. Use whichever fits your workflow.
 
-### Option A — AirQo Analytics (recommended)
+### Option A — AirQo Nexus (recommended)
 
 1. Log in to [nexus.airqo.net](https://nexus.airqo.net)
 2. Go to **Settings › API**

@@ -134,9 +134,9 @@ Variables unique to that environment:
 - Development: `MONGO_DEV_URI`
 
 ### Platform URLs
-- Production: `PLATFORM_PRODUCTION_BASE_URL`, `NEXUS_PRODUCTION_BASE_URL`
-- Staging: `PLATFORM_STAGING_BASE_URL`, `NEXUS_STAGING_BASE_URL`
-- Development: `PLATFORM_DEV_BASE_URL`, `NEXUS_DEV_BASE_URL`
+- Production: `PLATFORM_BASE_URL`, `NEXUS_BASE_URL`
+- Staging: `PLATFORM_BASE_URL`, `NEXUS_BASE_URL`
+- Development: `PLATFORM_BASE_URL`, `NEXUS_BASE_URL`
 
 ## Security Best Practices
 

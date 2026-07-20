@@ -32,21 +32,21 @@ cp .env.production.template .env
 
 **The configuration has been updated:**
 
-- **Old:** `PLATFORM_{ENV}_BASE_URL` was used for platform URLs
-- **New:** `NEXUS_{ENV}_BASE_URL` is now used for all platform URLs
+- **Old:** `PLATFORM_BASE_URL` was used for platform URLs
+- **New:** `NEXUS_BASE_URL` is now used for all platform URLs
 
-The code now uses `NEXUS_{ENV}_BASE_URL` to populate:
+The code now uses `NEXUS_BASE_URL` to populate:
 
 - `PLATFORM_BASE_URL`
 - `PWD_RESET`
 - `LOGIN_PAGE`
 - `FORGOT_PAGE`
 
-**Migration:** If you have an existing configuration with `PLATFORM_{ENV}_BASE_URL`, you can safely remove it. Use only `NEXUS_{ENV}_BASE_URL` going forward.
+**Migration:** If you have an existing configuration with `PLATFORM_BASE_URL`, you can safely remove it. Use only `NEXUS_BASE_URL` going forward.
 
 ### Step 3: Fill in Critical Variables
 
-These **17 variables are REQUIRED** and were missing from your old template _(originally 18, but `PLATFORM_PRODUCTION_BASE_URL` is now deprecated)_:
+These **17 variables are REQUIRED** and were missing from your old template _(originally 18, but `PLATFORM_BASE_URL` is now deprecated)_:
 
 #### Global (All Environments)
 
@@ -85,7 +85,7 @@ SCHEMA_REGISTRY_PROD=https://schema-registry.airqo.net:8081
 KAFKA_RAW_MEASUREMENTS_TOPICS_PROD=raw-measurements-prod
 ```
 
-**Note:** `PLATFORM_PRODUCTION_BASE_URL` was originally identified as missing but is now deprecated. The code uses `NEXUS_PRODUCTION_BASE_URL` for all platform URLs including `PLATFORM_BASE_URL`, `PWD_RESET`, `LOGIN_PAGE`, and `FORGOT_PAGE`. Only `MONGO_PROD` is required as an additional production-specific variable.
+**Note:** `PLATFORM_BASE_URL` was originally identified as missing but is now deprecated. The code uses `NEXUS_BASE_URL` for all platform URLs including `PLATFORM_BASE_URL`, `PWD_RESET`, `LOGIN_PAGE`, and `FORGOT_PAGE`. Only `MONGO_PROD` is required as an additional production-specific variable.
 
 ### Step 4: Test Your Configuration
 
@@ -129,7 +129,7 @@ Mark off as you configure each one:
 
 ### Platform URLs
 
-- [ ] `NEXUS_{ENV}_BASE_URL` (used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
+- [ ] `NEXUS_BASE_URL` (used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
 
 ### Kafka (if using)
 
@@ -162,7 +162,7 @@ COMMAND_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 QUERY_MONGO_DEV_URI=mongodb://localhost:27017/auth_dev
 
 # URLS (NEXUS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
-NEXUS_DEV_BASE_URL=http://localhost:5000
+NEXUS_BASE_URL=http://localhost:5000
 ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA (Local)
@@ -209,7 +209,7 @@ COMMAND_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 QUERY_MONGO_STAGE_URI=mongodb://staging-db.internal:27017/auth_staging
 
 # URLS (NEXUS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
-NEXUS_STAGING_BASE_URL=https://staging-nexus.airqo.net
+NEXUS_BASE_URL=https://staging-nexus.airqo.net
 ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA
@@ -251,7 +251,7 @@ QUERY_MONGO_PROD_URI=mongodb+srv://prod-cluster.mongodb.net/auth_prod
 DB_NAME_PROD=auth_prod
 
 # URLS (MUST BE HTTPS - NEXUS_BASE_URL is used for PLATFORM_BASE_URL, PWD_RESET, LOGIN_PAGE, FORGOT_PAGE)
-NEXUS_PRODUCTION_BASE_URL=https://nexus.airqo.net
+NEXUS_BASE_URL=https://nexus.airqo.net
 ALLOWED_CUSTOM_SCHEME_PREFIXES=vertex://,beacon://,dataflo://,analytics://
 
 # KAFKA
