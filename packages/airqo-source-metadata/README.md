@@ -35,7 +35,7 @@ Pass a token directly or set `AIRQO_PLATFORM_TOKEN` or `AIRQO_API_TOKEN`.
 $env:AIRQO_API_TOKEN = "your-airqo-api-token"
 ```
 
-Tokens can be generated from the API section of your AirQo Nexus account at <https://nexus.airqo.net/>.
+Log in to your AirQo Nexus account at <https://nexus.airqo.net/user/login>, then generate a token from **Account Settings → API tab → Register a client**.
 
 ## Quick start
 
