@@ -390,7 +390,7 @@ We welcome contributions! Please see our [Contributing Guide](https://github.com
 
 ## 📄 License
 
-MIT © [AirQ0 Platform](https://analytics.airqo.net/account/login)
+MIT © [AirQo Nexus](https://nexus.airqo.net/user/login)
 
 ## 🔗 Links
 
@@ -398,4 +398,4 @@ MIT © [AirQ0 Platform](https://analytics.airqo.net/account/login)
 - [🌐 Icon Browser](https://aero-glyphs.vercel.app/)
 - [📱 React Package](https://www.npmjs.com/package/@airqo/icons-react)
 - [🐛 Report Issues](https://github.com/airqo-platform/airqo-libraries/issues)
-- [🌍 AirQo Platform](https://analytics.airqo.net/account/login)
+- [🌍 AirQo Nexus](https://nexus.airqo.net/user/login)
