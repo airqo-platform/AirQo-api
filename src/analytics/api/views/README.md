@@ -1,6 +1,6 @@
-# AirQo Analytics API Documentation
+# AirQo Nexus API Documentation
 
-This document provides comprehensive information about the AirQo Analytics API (versions 2 and 3), including endpoint descriptions, request formats, response structures, and usage examples.
+This document provides comprehensive information about the AirQo Nexus API (versions 2 and 3), including endpoint descriptions, request formats, response structures, and usage examples.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This document provides comprehensive information about the AirQo Analytics API (
 
 ## API Overview
 
-The AirQo Analytics API provides access to air quality data collected from AirQo's network of sensors. It allows users to:
+The AirQo Nexus API provides access to air quality data collected from AirQo's network of sensors. It allows users to:
 
 - Query raw measurements
 - Download processed data at different frequencies (hourly, daily, etc.)
