@@ -18,13 +18,11 @@ The pitches below are deliberately technology-agnostic. The goal is to lead with
 
 ---
 
-### 2.1 Platform — Analytics Dashboard *(name under review)*
-
-> **Naming note:** The product is currently referred to as "Analytics Platform" or "Analytics Dashboard." There is an open conversation about adopting a more distinctive name, since "analytics" alone is too generic to stand out in a crowded market. This is not urgent but engineers should avoid baking the current name into hard-to-change places (URLs, API namespaces, package names).
+### 2.1 AirQo Nexus — Data Visualisation & Insights Workspace
 
 **The 30-second pitch**
 
-> Organisations that deploy sensor networks end up with mountains of data and no clear way to share it with the people who need it most. Our analytics platform solves that: it is a configurable workspace where teams can explore location-based sensor data, build visualisations, download datasets, and share insights — without writing a single line of code. If your organisation collects any kind of environmental or IoT data, this product turns it into decisions.
+> Organisations that deploy sensor networks end up with mountains of data and no clear way to share it with the people who need it most. AirQo Nexus solves that: it is a configurable workspace where teams can explore location-based sensor data, build visualisations, download datasets, and share insights — without writing a single line of code. If your organisation collects any kind of environmental or IoT data, this product turns it into decisions.
 
 **Core capabilities (as currently built)**
 - Multi-organisation workspace with role-based access
@@ -113,7 +111,7 @@ The pitches below are deliberately technology-agnostic. The goal is to lead with
 
 ### 2.6 AirQo AI Platform (ai.airqo.net) — Environmental Intelligence Suite
 
-> **Naming note:** Like the Analytics Platform, the **AirQo AI Platform** name is currently under review with the goal of finding something more distinctive that communicates the full breadth of intelligence capabilities it provides, rather than being associated with any single feature. Engineers should avoid baking the current name into hard-to-change places (URLs, API namespaces, package names) until the review concludes.
+> **Naming note:** The **AirQo AI Platform** name is currently under review with the goal of finding something more distinctive that communicates the full breadth of intelligence capabilities it provides, rather than being associated with any single feature. Engineers should avoid baking the current name into hard-to-change places (URLs, API namespaces, package names) until the review concludes.
 
 **The 30-second pitch**
 
@@ -197,7 +195,7 @@ This vision has engineering implications for every roadmap. Concretely:
 
 2. **Publish a `vertex-template` (already exists — ship it).** The `vertex-template` directory in the frontend repo is a head start. Define what the "template contract" is: which files are the skeleton, which are domain-specific, and document how to swap them.
 
-3. **Expose data schemas as configuration.** The analytics platform and Beacon should let operators define what metrics they track through config files or a schema editor — not by forking and modifying source code.
+3. **Expose data schemas as configuration.** AirQo Nexus and Beacon should let operators define what metrics they track through config files or a schema editor — not by forking and modifying source code.
 
 4. **API-first everything.** Backend services (ai-platform, calibrate, beacon-api, analytics) should be fully functional with zero frontend dependency. This allows the backend to be reused by any frontend template, not just AirQo's.
 
@@ -211,7 +209,7 @@ This vision has engineering implications for every roadmap. Concretely:
 
 | Product | Immediate IoT expansion | Template readiness |
 |---|---|---|
-| Analytics Platform *(rename pending)* | Make sensor metric labels configurable | Extract to `create-airqo-platform`; document module boundaries |
+| AirQo Nexus | Make sensor metric labels configurable | Extract to `create-airqo-platform`; document module boundaries |
 | Vertex | Generalise device schema beyond air quality sensors | `vertex-template` already exists; define and publish the contract |
 | Beacon | Make alert thresholds and metric types configurable per deployment | Extract core fleet management UI as template |
 | Mobile App | Enable metric type and health guidance content to be injected via config | Publish Flutter template with swappable data domain |
@@ -226,7 +224,7 @@ This vision has engineering implications for every roadmap. Concretely:
 For any investor conversation, this is the frame:
 
 - We did not just build air quality products. We built the **operating system for environmental IoT networks** — and we did it the hard way, by running a real network with real devices in real African cities.
-- Our suite covers the full lifecycle: deploy sensors (Vertex), keep them healthy (Beacon), calibrate them (AirQalibrate), visualise the data (Analytics Platform), deliver intelligence on top of it (AirQo AI Platform), make it personal (Mobile App), and open it to builders everywhere (Air Quality API).
+- Our suite covers the full lifecycle: deploy sensors (Vertex), keep them healthy (Beacon), calibrate them (AirQalibrate), visualise the data (AirQo Nexus), deliver intelligence on top of it (AirQo AI Platform), make it personal (Mobile App), and open it to builders everywhere (Air Quality API).
 - The AirQo AI Platform alone gives any organisation five things that normally require separate vendors: forecasting, optimal sensor placement, site classification, automated reporting, and spatial analysis — in one product.
 - Every product in our suite solves a problem that any IoT operator faces, regardless of what they are measuring.
 - We are now making each product available as a **reusable foundation** so that any organisation — a water utility, a smart city, an agriculture company — can deploy a production-grade IoT stack in days, not years.
