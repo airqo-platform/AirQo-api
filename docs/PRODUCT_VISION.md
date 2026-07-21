@@ -167,7 +167,7 @@ The goal is to make every major AirQo digital product available as a **bootstrap
 
 ```bash
 # Example future developer experience
-npx create-airqo-platform my-iot-dashboard
+npx create-airqo-nexus my-iot-dashboard
 npx create-airqo-vertex my-device-console
 npx create-airqo-beacon my-fleet-manager
 npx create-airqo-ai my-intelligence-platform
@@ -180,7 +180,7 @@ A developer runs the command, answers a few configuration questions (sensor type
 
 | Template | What the developer inherits |
 |---|---|
-| `create-airqo-platform` | Multi-org analytics workspace, maps, charts, data export, auth |
+| `create-airqo-nexus` | Multi-org analytics workspace, maps, charts, data export, auth |
 | `create-airqo-vertex` | Device & site registry, grouping, admin console, API proxy layer |
 | `create-airqo-beacon` | Fleet health dashboard, OTA firmware, alerts, stock management |
 | `create-airqo-mobile` | Cross-platform mobile app with maps, forecasts, notifications, auth |
@@ -209,7 +209,7 @@ This vision has engineering implications for every roadmap. Concretely:
 
 | Product | Immediate IoT expansion | Template readiness |
 |---|---|---|
-| AirQo Nexus | Make sensor metric labels configurable | Extract to `create-airqo-platform`; document module boundaries |
+| AirQo Nexus | Make sensor metric labels configurable | Extract to `create-airqo-nexus`; document module boundaries |
 | Vertex | Generalise device schema beyond air quality sensors | `vertex-template` already exists; define and publish the contract |
 | Beacon | Make alert thresholds and metric types configurable per deployment | Extract core fleet management UI as template |
 | Mobile App | Enable metric type and health guidance content to be injected via config | Publish Flutter template with swappable data domain |
