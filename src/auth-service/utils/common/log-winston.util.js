@@ -1,5 +1,6 @@
 const winston = require("winston");
 const mongoose = require("mongoose");
+const constants = require("@config/constants");
 
 // Console transport is live from the start so startup and outage logs are never
 // silently dropped. The MongoDB transport is added lazily once the driver
@@ -19,9 +20,17 @@ const addMongoTransport = () => {
     const { LogModel, LogDB, logSchema } = require("@models/log");
     const MongoDB = require("winston-mongodb").MongoDB;
 
+    // Pass the native MongoClient (via Mongoose's getClient()), not the
+    // Mongoose Connection itself — winston-mongodb only recognizes a
+    // connection string, a Promise<MongoClient>, or an object exposing
+    // .db() as a function. Anything else falls through to its deprecated
+    // "preconnected object" branch and logs a warning on every startup.
+    // dbName must be passed explicitly since the client isn't pre-scoped
+    // to the tenant db the way the Mongoose Connection was.
     winstonLogger.add(
       new MongoDB({
-        db: LogDB("airqo"),
+        db: LogDB("airqo").getClient(),
+        dbName: `${constants.DB_NAME}_airqo`,
         options: { useUnifiedTopology: true },
         collection: "logs",
         format: winston.format.combine(

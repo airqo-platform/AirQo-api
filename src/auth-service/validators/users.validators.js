@@ -711,6 +711,22 @@ const updateUser = [
       }),
   ],
   [
+    body("firstName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
+    body("lastName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("networks")
       .optional()
       .custom((value) => {
@@ -744,6 +760,22 @@ const updateUserById = [
       }),
   ],
   [
+    body("firstName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
+    body("lastName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("networks")
       .optional()
       .custom((value) => {

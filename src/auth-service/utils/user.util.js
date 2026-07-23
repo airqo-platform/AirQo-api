@@ -1815,6 +1815,7 @@ const createUserModule = {
             {
               $set: updatedFields,
             },
+            { runValidators: true, context: "query" },
           );
           logObject("updatedUser", updatedUser);
           const responseFromDeleteCachedItem =
