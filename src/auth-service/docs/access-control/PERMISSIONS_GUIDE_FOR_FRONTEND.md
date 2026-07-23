@@ -184,7 +184,7 @@ The authoritative, up-to-date list is always available live via `GET /permission
 
 **The login response does not include permissions.** After login, call:
 
-```
+```http
 GET /profile/enhanced
 ```
 
@@ -194,8 +194,7 @@ Response (key fields under `data`):
 {
   "success": true,
   "data": {
-    "allPermissions": ["USER_CREATE", "GROUP_VIEW", "..."],
-    "systemPermissions": ["..."],
+    "systemPermissions": ["USER_CREATE", "..."],
     "groupPermissions": { "<groupId>": ["GROUP_VIEW", "..."] },
     "networkPermissions": { "<networkId>": ["..."] },
     "groupMemberships": ["..."],
@@ -211,18 +210,18 @@ Response (key fields under `data`):
 }
 ```
 
-Use `allPermissions` for a flat check, or `groupPermissions[groupId]` when the user is switching between organizations.
+There is no single flat array — build one client-side by unioning the per-context lists, e.g. `const all = [...new Set([...systemPermissions, ...Object.values(groupPermissions).flat(), ...Object.values(networkPermissions).flat()])]`. Use `groupPermissions[groupId]` directly when checking access for a specific organization.
 
 ## 5. Checking permissions for a specific group
 
-```
+```http
 GET /roles/me/groups/:group_id/permissions            // full detail + role info
 GET /roles/me/groups/:group_id/permissions/simplified  // lightweight version
 ```
 
 To check several groups/permissions at once:
 
-```
+```http
 POST /roles/me/permissions/bulk-check
 Body: { "group_ids": ["<id1>", "<id2>"], "permissions": ["GROUP_EDIT", "DEVICE_DEPLOY"] }
 ```
@@ -246,10 +245,10 @@ Response `data`:
 
 ## 6. Managing permissions & roles (for admin/settings screens)
 
-```
+```http
 GET    /permissions                       // list all permissions (paginated)
-POST   /permissions                       // create a custom permission: { permission, description, group_id? }
-PUT    /permissions/:permission_id        // update description only — name cannot be changed
+POST   /permissions                       // create a custom permission: { permission, description, group_id?, network_id? }
+PUT    /permissions/:permission_id        // update fields other than the permission code (e.g. description, network_id)
 DELETE /permissions/:permission_id
 
 GET    /roles                             // list roles with their permissions
@@ -265,4 +264,4 @@ POST   /roles/:role_id/users              // assign the role to user(s)
 - Permission names are globally unique and **cannot be renamed** after creation (only description changes).
 - `SYSTEM_ADMIN` / `SUPER_ADMIN` style permissions are platform-level only — they're never assigned on a group role.
 - Default/system roles cannot be deleted.
-- Always re-fetch `/profile/enhanced` when the user switches their active group, since permissions are per-group.
+- Re-fetch `/profile/enhanced` after a membership/role change (or on app refresh) — not on every group switch. It already returns `groupPermissions` for every group the user belongs to, so switching the active group just means reading `groupPermissions[groupId]` for the new group.
