@@ -78,4 +78,13 @@ const mongoTimeout = setTimeout(() => {
 }, 60000);
 mongoTimeout.unref();
 
+// Test-only hooks: production code never calls these directly — the poll
+// above drives addMongoTransport() once the driver connection is ready.
+// Tests use them to exercise the transport-wiring logic deterministically,
+// without waiting on real timers or a live DB connection.
+winstonLogger.__addMongoTransportForTesting = addMongoTransport;
+winstonLogger.__resetMongoTransportStateForTesting = () => {
+  mongoTransportAdded = false;
+};
+
 module.exports = winstonLogger;

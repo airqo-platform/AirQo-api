@@ -391,3 +391,27 @@ describe("UserSchema instance methods", () => {
     // Add more test cases to cover other scenarios
   });
 });
+
+describe("UserSchema hooks", () => {
+  describe("pre('validate') profilePicture truncation", () => {
+    it("should truncate an overlong profilePicture to 1024 characters before validation runs", async () => {
+      const overlongUrl = `https://example.com/${"a".repeat(2000)}`;
+      const user = new (UserModelFactory("airqo"))({
+        profilePicture: overlongUrl,
+      });
+
+      await expect(user.validate(["profilePicture"])).to.be.fulfilled;
+      expect(user.profilePicture.length).to.equal(1024);
+    });
+
+    it("should leave a profilePicture within the limit unchanged", async () => {
+      const shortUrl = "https://example.com/photo.jpg";
+      const user = new (UserModelFactory("airqo"))({
+        profilePicture: shortUrl,
+      });
+
+      await expect(user.validate(["profilePicture"])).to.be.fulfilled;
+      expect(user.profilePicture).to.equal(shortUrl);
+    });
+  });
+});

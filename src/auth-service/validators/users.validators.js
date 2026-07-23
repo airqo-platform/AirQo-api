@@ -713,6 +713,9 @@ const updateUser = [
   [
     body("firstName")
       .optional()
+      .isString()
+      .withMessage("firstName must be a string")
+      .bail()
       .trim()
       .notEmpty()
       .withMessage("firstName should not be empty IF provided")
@@ -721,6 +724,9 @@ const updateUser = [
       .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .optional()
+      .isString()
+      .withMessage("lastName must be a string")
+      .bail()
       .trim()
       .notEmpty()
       .withMessage("lastName should not be empty IF provided")
@@ -762,6 +768,9 @@ const updateUserById = [
   [
     body("firstName")
       .optional()
+      .isString()
+      .withMessage("firstName must be a string")
+      .bail()
       .trim()
       .notEmpty()
       .withMessage("firstName should not be empty IF provided")
@@ -770,6 +779,9 @@ const updateUserById = [
       .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .optional()
+      .isString()
+      .withMessage("lastName must be a string")
+      .bail()
       .trim()
       .notEmpty()
       .withMessage("lastName should not be empty IF provided")
