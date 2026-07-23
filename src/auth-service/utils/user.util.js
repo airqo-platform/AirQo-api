@@ -1804,18 +1804,27 @@ const createUserModule = {
 
         if (userExistsLocally) {
           const updatedFields = {};
-          if (firebaseUser.firstName !== null) {
-            updatedFields.firstName = firebaseUser.firstName;
+          if (
+            typeof firebaseUser.firstName === "string" &&
+            firebaseUser.firstName.trim()
+          ) {
+            updatedFields.firstName = firebaseUser.firstName.trim();
           }
-          if (firebaseUser.lastName !== null) {
-            updatedFields.lastName = firebaseUser.lastName;
+          if (
+            typeof firebaseUser.lastName === "string" &&
+            firebaseUser.lastName.trim()
+          ) {
+            updatedFields.lastName = firebaseUser.lastName.trim();
           }
-          const updatedUser = await UserModel(tenant).updateOne(
-            { _id: userExistsLocally._id },
-            {
-              $set: updatedFields,
-            },
-          );
+          const updatedUser = isEmpty(updatedFields)
+            ? null
+            : await UserModel(tenant).updateOne(
+                { _id: userExistsLocally._id },
+                {
+                  $set: updatedFields,
+                },
+                { runValidators: true, context: "query" },
+              );
           logObject("updatedUser", updatedUser);
           const responseFromDeleteCachedItem =
             await createUserModule.deleteCachedItem(cacheID, next);
