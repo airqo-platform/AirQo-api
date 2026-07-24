@@ -1022,6 +1022,19 @@ const transactions = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.code === "subscription_locked_pending_changes") {
+        logger.warn(
+          `Cancellation blocked by pending scheduled change: user=${user._id} subscription=${subscriptionId}`,
+        );
+        return {
+          success: false,
+          message:
+            "You have a scheduled plan change pending. It will take effect on your next billing date, after which you can cancel.",
+          errors: { message: error.message },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       logger.error("Subscription cancellation failed", error);
       return {
         success: false,
