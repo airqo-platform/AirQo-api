@@ -460,7 +460,10 @@ describe("routes/v2/index.js -- auth route aggregator", () => {
       // Re-derive from a fresh load with identical stubs, since
       // getRouteStatus is a plain property on the router object (not an
       // HTTP route) and this describe's `app` doesn't expose its router.
-      silenceRouteLoaderLogs();
+      // Console is already silenced for this whole describe block by the
+      // outer before() (and restored once by the outer after()) -- calling
+      // silenceRouteLoaderLogs() again here would try to sinon.stub() an
+      // already-stubbed console method and throw.
       const stubs = buildAllPassingStubs();
       stubs[failingEntry.route] = {};
       const freshRouter = loadIndexRouter(stubs);
