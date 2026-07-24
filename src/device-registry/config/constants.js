@@ -119,7 +119,7 @@ function envConfig(env) {
 
     // How many days of events to retain in MongoDB before purging.
     // Aligned with the ingestion guard (30-day max lookback in store-readings-job)
-    // and the API query limit (3-day default window, 7-day historical threshold).
+    // and the API query limit (1-day default window, 7-day historical threshold).
     // Override via EVENTS_RETENTION_DAYS env var.
     EVENTS_RETENTION_DAYS: (() => {
       const val = parseInt(process.env.EVENTS_RETENTION_DAYS, 10);
