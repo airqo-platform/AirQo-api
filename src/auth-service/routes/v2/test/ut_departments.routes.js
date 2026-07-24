@@ -4,7 +4,16 @@ const chaiHttp = require("chai-http");
 const { expect } = chai;
 chai.use(chaiHttp);
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
+// .noCallThru() is required, not optional: without it, proxyquire's default
+// "call thru" behavior always `Module._load()`s the REAL stubbed module (to
+// merge in any keys missing from our stub), regardless of whether our stub
+// is already complete. The real @controllers/user.controller and
+// @middleware/passport transitively require @config/constants, which this
+// test suite cannot survive (see the ut_index.js comment for the full
+// explanation). noCallThru skips that real load entirely -- doubly cheap
+// here since the stub is empty ({}) anyway (departments.routes.js registers
+// no routes that use it, per the finding below).
+const proxyquire = require("proxyquire").noCallThru();
 const supertest = require("supertest");
 const express = require("express");
 

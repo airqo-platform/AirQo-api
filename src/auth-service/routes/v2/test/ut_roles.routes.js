@@ -4,7 +4,14 @@ const chaiHttp = require("chai-http");
 const { expect } = chai;
 chai.use(chaiHttp);
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
+// .noCallThru() is required, not optional: without it, proxyquire's default
+// "call thru" behavior always `Module._load()`s the REAL stubbed module (to
+// merge in any keys missing from our stub), regardless of whether our stub
+// is actually complete. The real @controllers/role.controller and
+// @middleware/passport/adminAccess transitively require @config/constants,
+// which this test suite cannot survive (see the ut_index.js comment for the
+// full explanation). noCallThru skips that real load entirely.
+const proxyquire = require("proxyquire").noCallThru();
 const supertest = require("supertest");
 const express = require("express");
 const httpStatus = require("http-status");
@@ -27,6 +34,17 @@ let unAssignUserFromRoleImpl;
 let assignPermissionToRoleImpl;
 let unAssignPermissionFromRoleImpl;
 
+// With .noCallThru() enabled below, ANY roleController method referenced by
+// roles.routes.js that isn't a key on this stub object would be `undefined`
+// at route-registration time, and Express throws synchronously
+// ("Route.get() requires a callback function but got a undefined") the
+// moment the router is required. roles.routes.js calls ~38 controller
+// methods across its full route surface, but this file only exercises 9 of
+// them; the rest get a shared `notImplemented` handler purely so every real
+// route in the router can still register without crashing the whole file.
+const notImplemented = (req, res) =>
+  res.status(501).json({ error: "not implemented in this test stub" });
+
 const roleControllerStub = {
   list: (req, res, next) => listImpl(req, res, next),
   listSummary: (req, res, next) => listSummaryImpl(req, res, next),
@@ -40,6 +58,37 @@ const roleControllerStub = {
     assignPermissionToRoleImpl(req, res, next),
   unAssignPermissionFromRole: (req, res, next) =>
     unAssignPermissionFromRoleImpl(req, res, next),
+  // Untested routes -- present only so route registration doesn't crash.
+  assignManyUsersToRole: notImplemented,
+  auditDeprecatedFields: notImplemented,
+  bulkPermissionsCheck: notImplemented,
+  bulkRoleOperations: notImplemented,
+  checkUserPermissionsForActions: notImplemented,
+  cleanupUserNetworkRoles: notImplemented,
+  enhancedAssignUserToRole: notImplemented,
+  enhancedUnAssignUserFromRole: notImplemented,
+  getCurrentUserPermissionsForGroup: notImplemented,
+  getCurrentUserRolesAndPermissions: notImplemented,
+  getEnhancedUserDetails: notImplemented,
+  getSimplifiedPermissionsForGroup: notImplemented,
+  getSystemRoleHealth: notImplemented,
+  getUserGroupRoles: notImplemented,
+  getUserGroupsWithPermissionsSummary: notImplemented,
+  getUserPermissionsForGroup: notImplemented,
+  getUserRoleSummary: notImplemented,
+  getUserRolesAndPermissionsDetailed: notImplemented,
+  getUserRolesAndPermissionsViaRBAC: notImplemented,
+  getUserRolesByGroup: notImplemented,
+  getUserRolesSimplified: notImplemented,
+  listAvailablePermissionsForRole: notImplemented,
+  listAvailableUsersForRole: notImplemented,
+  listPermissionsForRole: notImplemented,
+  listUsersWithRole: notImplemented,
+  migrateNetworkRolesToGroup: notImplemented,
+  repairUserRoleAssignment: notImplemented,
+  unAssignManyPermissionsFromRole: notImplemented,
+  unAssignManyUsersFromRole: notImplemented,
+  updateRolePermissions: notImplemented,
 };
 
 const passportStub = {

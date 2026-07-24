@@ -4,7 +4,14 @@ const chaiHttp = require("chai-http");
 const { expect } = chai;
 chai.use(chaiHttp);
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
+// .noCallThru() is required, not optional: without it, proxyquire's default
+// "call thru" behavior always `Module._load()`s the REAL stubbed module (to
+// merge in any keys missing from our stub), regardless of whether our stub
+// is already complete. Every module stubbed below transitively requires
+// @config/constants, which this test suite cannot survive (see the
+// ut_index.js comment for the full explanation). noCallThru skips that real
+// load entirely.
+const proxyquire = require("proxyquire").noCallThru();
 const supertest = require("supertest");
 const express = require("express");
 const { HttpError } = require("@utils/shared");
@@ -106,9 +113,34 @@ const passportStub = {
   enhancedJWTAuth: (req, res, next) => next(),
 };
 
+// tokens.routes.js also requires these four middleware modules directly
+// (beyond the controller/passport already stubbed above). They were
+// previously left unstubbed entirely -- which meant proxyquire never
+// intercepted them at all (stub-or-not is per-path, independent of
+// noCallThru) and the REAL modules were always loaded, each transitively
+// requiring @config/constants. tokenVerifyIpRateLimiter/tokenVerifyRateLimiter
+// are named exports (an object); domainBlockingMiddleware and
+// honeypotHandler are each a bare exported function; requireSystemAdmin is a
+// factory called once at router-registration time to produce the actual
+// middleware (mirrored the same way as the adminAccess stub in
+// ut_roles.routes.js).
+const rateLimitMiddlewareStub = {
+  tokenVerifyIpRateLimiter: (req, res, next) => next(),
+  tokenVerifyRateLimiter: (req, res, next) => next(),
+};
+const domainBlockingMiddlewareStub = (req, res, next) => next();
+const honeypotMiddlewareStub = (req, res, next) => next();
+const adminAccessStub = {
+  requireSystemAdmin: () => (req, res, next) => next(),
+};
+
 const router = proxyquire("@routes/v2/tokens.routes", {
   "@controllers/token.controller": tokenControllerStub,
   "@middleware/passport": passportStub,
+  "@middleware/rate-limit.middleware": rateLimitMiddlewareStub,
+  "@middleware/domain-blocking.middleware": domainBlockingMiddlewareStub,
+  "@middleware/honeypot.middleware": honeypotMiddlewareStub,
+  "@middleware/adminAccess": adminAccessStub,
 });
 
 describe("Tokens Router API Tests", () => {

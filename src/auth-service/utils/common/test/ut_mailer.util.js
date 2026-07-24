@@ -1,7 +1,15 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
+// .noCallThru() so the three @models/* fakes below stay pure fakes: without
+// it, proxyquire's default "call thru" behavior would still `Module._load()`
+// the real Mongoose model modules to merge in any keys missing from our fake
+// factories, defeating the point of faking them out. Note this does NOT make
+// this file independent of @config/constants -- `@config/constants` and
+// `@config/mailer.config` are required for real just below, directly by this
+// test file itself (mailer.util.js's own logic is what's under test), so
+// that dependency is unavoidable here regardless of this flag.
+const proxyquire = require("proxyquire").noCallThru();
 const httpStatus = require("http-status");
 
 const msgs = require("@utils/common/email.msgs.util");
