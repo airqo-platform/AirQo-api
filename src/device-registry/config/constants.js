@@ -98,18 +98,17 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 25000;
     })(),
 
-    // Temporary diagnostic window for ReadingModel.recent().
-    // Revert to 3 once the root cause of the empty readings collection is confirmed.
+    // Lookback window for ReadingModel.recent(). Kept at 1 day so a device that has
+    // been offline for days doesn't still surface a stale reading as "recent" in the mobile app.
     DIAGNOSTIC_WINDOW_DAYS: (() => {
       const val = parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10);
-      return Number.isFinite(val) && val > 0 ? val : 3;
+      return Number.isFinite(val) && val > 0 ? val : 1;
     })(),
 
     // Default lookback window for event/measurement queries (generate-filter fetch).
-    // Temporarily raised to 7 for diagnosis — revert to 3 when data pipeline is healthy.
     DEFAULT_QUERY_RANGE_DAYS: (() => {
       const val = parseInt(process.env.DEFAULT_QUERY_RANGE_DAYS, 10);
-      return Number.isFinite(val) && val > 0 ? val : 3;
+      return Number.isFinite(val) && val > 0 ? val : 1;
     })(),
 
     // How many hours without a successful event insertion before firing a Slack alert.
