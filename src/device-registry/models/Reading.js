@@ -990,8 +990,8 @@ ReadingsSchema.statics.latestForMap = async function(
     };
   }
 };
-// Temporary diagnostic window — override via DIAGNOSTIC_WINDOW_DAYS env var.
-// Revert to 3 once the root cause of the empty readings collection is confirmed.
+// Lookback window for "recent" readings — override via DIAGNOSTIC_WINDOW_DAYS env var.
+// Kept at 1 day so an offline device doesn't surface a stale reading as "recent".
 const DIAGNOSTIC_WINDOW_DAYS = constants.DIAGNOSTIC_WINDOW_DAYS;
 
 ReadingsSchema.statics.recent = async function(
