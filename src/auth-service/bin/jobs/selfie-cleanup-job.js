@@ -107,7 +107,7 @@ global.cronJobs = global.cronJobs || {};
 const schedule = "30 2 * * *"; // every day at 2:30 AM, after the feedback screenshot cleanup job
 const jobName = "selfie-cleanup-job";
 global.cronJobs[jobName] = cron.schedule(schedule, cleanupOldSelfies, {
-  scheduled: true,
+  scheduled: false, // temporarily disabled — selfie feature is currently unused, no cost pressure to prune recent event photos
   timezone: "Africa/Nairobi",
 });
 
