@@ -789,6 +789,7 @@ describe("create-user-util", function () {
   });
   describe("submitFeedback()", () => {
     let feedbackRegisterStub;
+    let origFeedbackModel;
 
     beforeEach(() => {
       feedbackRegisterStub = sinon.stub().resolves({
@@ -797,12 +798,14 @@ describe("create-user-util", function () {
       });
       // Inject a fake FeedbackModel into the rewired module so FeedbackModel(tenant).register
       // is properly intercepted — sinon cannot stub a bare exported function directly.
+      origFeedbackModel = rewireCreateUser.__get__("FeedbackModel");
       rewireCreateUser.__set__("FeedbackModel", () => ({
         register: feedbackRegisterStub,
       }));
     });
 
     afterEach(() => {
+      rewireCreateUser.__set__("FeedbackModel", origFeedbackModel);
       sinon.restore();
     });
 
@@ -881,61 +884,94 @@ describe("create-user-util", function () {
   });
 
   describe("create()", function () {
-    it("should return the expected response for a valid input", async function () {
-      // Arrange
-      const request = {
-        tenant: "sample-tenant",
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        password: "secret123",
-        // Add other properties as needed for your specific test
-      };
+    // create() calls the module-level dbRateLimiter() before touching
+    // UserModel, and dbRateLimiter writes to EmailLogModel via mongoose.
+    // With no live DB connection in this test suite that write would hang
+    // (or take up to mongoose's buffering timeout) before failing open, so
+    // dbRateLimiter is stubbed directly via rewire in every test here.
+    let origUserModel;
+    let origDbRateLimiter;
+    let findOneStub;
+    let dbRateLimiterStub;
 
-      const next = sinon.stub();
-      await createUser.create(request, next);
+    beforeEach(function () {
+      findOneStub = sinon
+        .stub()
+        .returns({ lean: () => Promise.resolve(null) });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({ findOne: findOneStub }));
+
+      dbRateLimiterStub = sinon
+        .stub()
+        .resolves({ allowed: true, remainingMs: 0 });
+      origDbRateLimiter = rewireCreateUser.__get__("dbRateLimiter");
+      rewireCreateUser.__set__("dbRateLimiter", dbRateLimiterStub);
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      rewireCreateUser.__set__("dbRateLimiter", origDbRateLimiter);
       sinon.restore();
     });
 
-    it("should handle the case where UserModel.findOne returns a user", async function () {
-      // Arrange
-      const request = {
-        tenant: "sample-tenant",
-        firstName: "Jane",
-        lastName: "Smith",
-        email: "janesmith@example.com",
-        password: "password123",
-      };
-
+    it("should return a 400 error when email is missing", async function () {
+      const request = { body: {}, query: {} };
       const next = sinon.stub();
-      await createUser.create(request, next);
 
-      // Restore the stubs
-      sinon.restore();
+      const result = await rewireCreateUser.create(request, next);
+
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Email is required");
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      sinon.assert.notCalled(dbRateLimiterStub);
     });
 
-    it("should handle error cases gracefully", async function () {
-      // Arrange
+    it("should return a conflict response when a registration is already in progress", async function () {
+      dbRateLimiterStub.resolves({ allowed: false, remainingMs: 5000 });
       const request = {
-        tenant: "sample-tenant",
-        firstName: "Alice",
-        lastName: "Johnson",
-        email: "alicejohnson@example.com",
-        password: "password456",
+        body: { email: "jane@example.com", tenant: "sample-tenant" },
+        query: {},
       };
-
       const next = sinon.stub();
-      await createUser.create(request, next);
 
-      // Restore the stubs
-      sinon.restore();
+      const result = await rewireCreateUser.create(request, next);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.CONFLICT);
+      expect(result.message).to.equal(
+        "Registration already in progress for this email"
+      );
+      sinon.assert.notCalled(findOneStub);
+    });
+
+    it("should return a conflict response when a verified account already exists", async function () {
+      findOneStub.returns({
+        lean: () =>
+          Promise.resolve({ email: "jane@example.com", verified: true }),
+      });
+      const request = {
+        body: { email: "jane@example.com", tenant: "sample-tenant" },
+        query: {},
+      };
+      const next = sinon.stub();
+
+      const result = await rewireCreateUser.create(request, next);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.CONFLICT);
+      expect(result.data).to.include({
+        accountExists: true,
+        verified: true,
+      });
     });
   });
   describe("register", () => {
     let origUserModel;
+    let origDbRateLimiter;
     let findOneStub;
     let leanStub;
     let registerStub;
+    let dbRateLimiterStub;
 
     beforeEach(() => {
       leanStub = sinon.stub().resolves(null);
@@ -946,10 +982,21 @@ describe("create-user-util", function () {
         findOne: findOneStub,
         register: registerStub,
       }));
+
+      // register() awaits the module-level dbRateLimiter() before ever
+      // touching UserModel. Without a live DB, the real implementation's
+      // EmailLogModel write would hang/time out before failing open, so
+      // it's stubbed directly here (same rationale as in the create() block).
+      dbRateLimiterStub = sinon
+        .stub()
+        .resolves({ allowed: true, remainingMs: 0 });
+      origDbRateLimiter = rewireCreateUser.__get__("dbRateLimiter");
+      rewireCreateUser.__set__("dbRateLimiter", dbRateLimiterStub);
     });
 
     afterEach(() => {
       rewireCreateUser.__set__("UserModel", origUserModel);
+      rewireCreateUser.__set__("dbRateLimiter", origDbRateLimiter);
       sinon.restore();
     });
 
@@ -1018,6 +1065,7 @@ describe("create-user-util", function () {
     let origUserModel;
     let existsStub;
     let modifyStub;
+    let internalModule;
 
     beforeEach(() => {
       existsStub = sinon.stub();
@@ -1027,6 +1075,12 @@ describe("create-user-util", function () {
         exists: existsStub,
         modify: modifyStub,
       }));
+      // forgotPassword() calls createUserModule.generateResetToken()
+      // internally (a reference to the module-scope createUserModule
+      // object), not the copy of generateResetToken re-exported on
+      // module.exports — so it must be stubbed on that internal object,
+      // not on rewireCreateUser/createUser directly.
+      internalModule = rewireCreateUser.__get__("createUserModule");
     });
 
     afterEach(() => {
@@ -1052,8 +1106,10 @@ describe("create-user-util", function () {
       // Stub the UserModel's exists method to return true (user exists)
       existsStub.resolves(true);
 
-      // Stub the createUser.generateResetToken method to return a token
-      sinon.stub(rewireCreateUser, "generateResetToken").returns({
+      // Stub the internal createUserModule.generateResetToken method to
+      // return a token (see the note above on why rewireCreateUser itself
+      // cannot be stubbed for this call).
+      sinon.stub(internalModule, "generateResetToken").returns({
         success: true,
         data: "test_token",
       });

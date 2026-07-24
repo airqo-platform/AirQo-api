@@ -5,26 +5,3 @@
 # glob resolution (which does recurse) find all of them.
 spec: "./**/test/ut_*.js"
 exit: true
-
-# The following files throw at require-time (missing modules / wrong
-# module-alias paths — e.g. "@routes/tokens" instead of "@routes/v2/tokens.routes",
-# "@utils/email.msgs" instead of "@utils/common/email.msgs.util") and would
-# abort the entire mocha run before any test executes. They were never
-# reachable under the old non-recursive glob, so this is pre-existing rot,
-# not a regression from fixing the glob above. Ignored here so the rest of
-# the now-larger suite can actually run and report real pass/fail results;
-# not fixed, since that's a separate, larger cleanup.
-ignore:
-  - "./routes/v2/test/ut_clients.routes.js"
-  - "./routes/v2/test/ut_defaults.routes.js"
-  - "./routes/v2/test/ut_departments.routes.js"
-  - "./routes/v2/test/ut_index.js"
-  - "./routes/v2/test/ut_permissions.routes.js"
-  - "./routes/v2/test/ut_preferences.routes.js"
-  - "./routes/v2/test/ut_requests.routes.js"
-  - "./routes/v2/test/ut_roles.routes.js"
-  - "./routes/v2/test/ut_scopes.routes.js"
-  - "./routes/v2/test/ut_tokens.routes.js"
-  - "./utils/common/test/ut_generate-filter.util.js"
-  - "./utils/common/test/ut_mailer.util.js"
-  - "./utils/test/ut_user.util.js"

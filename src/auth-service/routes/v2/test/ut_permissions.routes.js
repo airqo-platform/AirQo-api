@@ -3,11 +3,45 @@ const chai = require("chai");
 const chaiHttp = require("chai-http");
 const { expect } = chai;
 chai.use(chaiHttp);
-const router = require("@routes/v2/permissions");
+const sinon = require("sinon");
+// .noCallThru() is required, not optional: without it, proxyquire's default
+// "call thru" behavior always `Module._load()`s the REAL stubbed module (to
+// merge in any keys missing from our stub), regardless of whether our stub
+// is already complete. The real @controllers/permission.controller and
+// @middleware/passport transitively require @config/constants, which this
+// test suite cannot survive (see the ut_index.js comment for the full
+// explanation). noCallThru skips that real load entirely.
+const proxyquire = require("proxyquire").noCallThru();
 const supertest = require("supertest");
 const express = require("express");
 const { validationResult } = require("express-validator");
-const createPermissionController = require("@controllers/permission.controller");
+
+// Express captures each route handler by reference at router-registration
+// time (which happens once, when this router is required), so reassigning
+// `createPermissionController.list` etc. from inside a test has no effect on
+// already-registered routes. Instead we register stable wrapper functions
+// that delegate to a per-test-mutable variable, and stub the auth middleware
+// (which otherwise requires a real JWT) to always call next().
+let listImpl;
+let createImpl;
+let updateImpl;
+let deleteImpl;
+
+const permissionControllerStub = {
+  list: (req, res) => listImpl(req, res),
+  create: (req, res) => createImpl(req, res),
+  update: (req, res) => updateImpl(req, res),
+  delete: (req, res) => deleteImpl(req, res),
+};
+
+const passportStub = {
+  enhancedJWTAuth: (req, res, next) => next(),
+};
+
+const router = proxyquire("@routes/v2/permissions.routes", {
+  "@controllers/permission.controller": permissionControllerStub,
+  "@middleware/passport": passportStub,
+});
 
 describe("Permission Router API Tests", () => {
   let app;
@@ -19,14 +53,18 @@ describe("Permission Router API Tests", () => {
     app.use("/", router);
     request = supertest(app);
   });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
   describe("GET /", () => {
     it("should return a list of permissions", async () => {
-      // Mocked data and behavior for createPermissionController.list
       const fakePermissions = [
         { name: "permission1" },
         { name: "permission2" },
       ];
-      createPermissionController.list = (req, res) => {
+      listImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -40,8 +78,7 @@ describe("Permission Router API Tests", () => {
     });
 
     it("should return a 400 error if invalid query parameters are provided", async () => {
-      // Mocked data and behavior for createPermissionController.list
-      createPermissionController.list = (req, res) => {
+      listImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -54,7 +91,11 @@ describe("Permission Router API Tests", () => {
         .query({ tenant: "invalid-tenant" })
         .expect(400);
 
-      expect(response.body.errors[0].msg).to.equal(
+      // The tenant check is wrapped in express-validator's oneOf(), which
+      // reports a generic "Invalid value(s)" as the top-level error message
+      // and puts the field-specific message(s) under nestedErrors.
+      expect(response.body.errors[0].msg).to.equal("Invalid value(s)");
+      expect(response.body.errors[0].nestedErrors[0].msg).to.equal(
         "the tenant value is not among the expected ones"
       );
     });
@@ -64,9 +105,8 @@ describe("Permission Router API Tests", () => {
 
   describe("POST /", () => {
     it("should create a new permission", async () => {
-      // Mocked data and behavior for createPermissionController.create
       const fakePermission = { _id: "fake-id", permission: "permission1" };
-      createPermissionController.create = (req, res) => {
+      createImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -78,7 +118,7 @@ describe("Permission Router API Tests", () => {
         .post("/")
         .send({
           permission: "new_permission",
-          network_id: "valid-mongo-id",
+          network_id: "60d21b4667d0d8992e610c85",
           description: "Description of the permission",
         })
         .expect(201);
@@ -87,8 +127,7 @@ describe("Permission Router API Tests", () => {
     });
 
     it("should return a 400 error if invalid body parameters are provided", async () => {
-      // Mocked data and behavior for createPermissionController.create
-      createPermissionController.create = (req, res) => {
+      createImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -121,12 +160,11 @@ describe("Permission Router API Tests", () => {
 
   describe("PUT /:permission_id", () => {
     it("should update a permission", async () => {
-      // Mocked data and behavior for createPermissionController.update
       const fakeUpdatedPermission = {
         _id: "fake-id",
         permission: "updated_permission",
       };
-      createPermissionController.update = (req, res) => {
+      updateImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -137,7 +175,7 @@ describe("Permission Router API Tests", () => {
       const response = await request
         .put("/fake-id")
         .send({
-          network_id: "valid-mongo-id",
+          network_id: "60d21b4667d0d8992e610c85",
           description: "Updated description",
         })
         .expect(200);
@@ -146,8 +184,7 @@ describe("Permission Router API Tests", () => {
     });
 
     it("should return a 400 error if invalid body parameters are provided", async () => {
-      // Mocked data and behavior for createPermissionController.update
-      createPermissionController.update = (req, res) => {
+      updateImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -155,16 +192,23 @@ describe("Permission Router API Tests", () => {
         return res.status(200).json({ permission: {} });
       };
 
+      // network_id uses an empty string rather than a non-empty invalid one:
+      // the update validator's network_id chain runs its customSanitizer
+      // (ObjectId(value)) without a preceding .bail() after isMongoId(), so a
+      // non-empty, non-ObjectId value throws inside the sanitizer instead of
+      // producing a clean validation error. An empty string fails the
+      // earlier notEmpty() check instead, which does bail, so it stays on
+      // the normal validation-error path this test is meant to exercise.
       const response = await request
         .put("/fake-id")
         .send({
-          network_id: "invalid-mongo-id",
+          network_id: "",
           description: "",
         })
         .expect(400);
 
       expect(response.body.errors[0].msg).to.equal(
-        "network_id must be an object ID"
+        "network_id should not be empty if provided"
       );
       expect(response.body.errors[1].msg).to.equal(
         "description should not be empty if provided"
@@ -176,8 +220,7 @@ describe("Permission Router API Tests", () => {
 
   describe("DELETE /:permission_id", () => {
     it("should delete a permission", async () => {
-      // Mocked data and behavior for createPermissionController.delete
-      createPermissionController.delete = (req, res) => {
+      deleteImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -189,8 +232,7 @@ describe("Permission Router API Tests", () => {
     });
 
     it("should return a 400 error if invalid query parameters are provided", async () => {
-      // Mocked data and behavior for createPermissionController.delete
-      createPermissionController.delete = (req, res) => {
+      deleteImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -202,7 +244,8 @@ describe("Permission Router API Tests", () => {
         .delete("/fake-id?tenant=invalid-tenant")
         .expect(400);
 
-      expect(response.body.errors[0].msg).to.equal(
+      expect(response.body.errors[0].msg).to.equal("Invalid value(s)");
+      expect(response.body.errors[0].nestedErrors[0].msg).to.equal(
         "the tenant value is not among the expected ones"
       );
     });
@@ -212,8 +255,7 @@ describe("Permission Router API Tests", () => {
 
   describe("GET /:permission_id", () => {
     it("should get permission details", async () => {
-      // Mocked data and behavior for createPermissionController.list
-      createPermissionController.list = (req, res) => {
+      listImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -225,8 +267,7 @@ describe("Permission Router API Tests", () => {
     });
 
     it("should return a 400 error if invalid query parameters are provided", async () => {
-      // Mocked data and behavior for createPermissionController.list
-      createPermissionController.list = (req, res) => {
+      listImpl = (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({ errors: errors.array() });
@@ -238,7 +279,8 @@ describe("Permission Router API Tests", () => {
         .get("/fake-id?tenant=invalid-tenant")
         .expect(400);
 
-      expect(response.body.errors[0].msg).to.equal(
+      expect(response.body.errors[0].msg).to.equal("Invalid value(s)");
+      expect(response.body.errors[0].nestedErrors[0].msg).to.equal(
         "the tenant value is not among the expected ones"
       );
     });
