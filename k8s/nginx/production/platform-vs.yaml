@@ -93,6 +93,34 @@ spec:
       action:
         pass: zabbix
 
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: kubecost
+  namespace: monitoring
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: kubecost
+      service: kubecost-cost-analyzer
+      port: 9090
+  subroutes:
+    - path: /kubecost
+      policies:
+        - name: kubecost-basic-auth-policy
+      action:
+        proxy:
+          upstream: kubecost
+          rewritePath: /
+    - path: /kubecost/(.*)
+      policies:
+        - name: kubecost-basic-auth-policy
+      action:
+        proxy:
+          upstream: kubecost
+          rewritePath: /$1
+
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -143,6 +171,8 @@ spec:
       route: production/zabbix
     - path: /zabbix
       route: production/zabbix
+    - path: /kubecost             
+      route: monitoring/kubecost
     - path: /
       action:
         redirect:
