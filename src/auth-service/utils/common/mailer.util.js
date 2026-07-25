@@ -810,7 +810,10 @@ const getEmailSubject = (functionName, params) => {
     newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token Has Expired",
-    expiringToken: "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
+    expiringToken:
+      Number.isFinite(params.daysRemaining) && params.daysRemaining >= 0
+        ? `Action Required: Your AirQo API Token Expires in ${params.daysRemaining} Day${params.daysRemaining === 1 ? "" : "s"} — Regenerate Now`
+        : "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
     autoSuspendedToken: "Security Alert: Your AirQo API Token Has Been Suspended",
     bypassExpiryReminder: "Action Required Soon: Your API Token's Security Exemption Is Expiring",
     bypassExpired: "Security Alert: Your API Token's Security Exemption Has Expired",
@@ -2497,6 +2500,7 @@ const mailer = {
         token: params.token,
         tokenName: params.tokenName,
         expires: params.expires,
+        daysRemaining: params.daysRemaining,
       }),
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
