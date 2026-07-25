@@ -993,6 +993,12 @@ ReadingsSchema.statics.latestForMap = async function(
 // Lookback window for "recent" readings — override via DIAGNOSTIC_WINDOW_DAYS env var.
 // Kept at 1 day so an offline device doesn't surface a stale reading as "recent".
 const DIAGNOSTIC_WINDOW_DAYS = constants.DIAGNOSTIC_WINDOW_DAYS;
+// Grace period for legitimate clock skew between a device and our servers.
+// Without an upper bound at all, a device with a broken clock reporting a
+// future-dated reading (e.g. year 2028) would win $first after sort({time:-1})
+// forever — no genuine future reading can ever be "more recent" than it — so
+// that bogus reading would display as "the current reading" indefinitely.
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 ReadingsSchema.statics.recent = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
@@ -1030,6 +1036,10 @@ ReadingsSchema.statics.recent = async function(
         ...safeFilter,
         time: {
           $gte: lookbackStart,
+          // Upper bound — see MAX_CLOCK_SKEW_MS comment above. Deliberately
+          // set after spreading safeFilter, same as $gte, so a caller-supplied
+          // time filter can never widen this past "now".
+          $lte: new Date(Date.now() + MAX_CLOCK_SKEW_MS),
         },
         "deviceDetails.isActive": { $ne: false },
       })

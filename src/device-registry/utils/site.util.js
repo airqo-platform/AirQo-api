@@ -2523,7 +2523,7 @@ const getMySites = async (request, next) => {
       SiteModel(tenant)
         .find(siteFilter)
         .select(
-          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt isOnline rawOnlineStatus lastActive",
+          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt isOnline rawOnlineStatus dateValidStatus lastActive",
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -2534,6 +2534,10 @@ const getMySites = async (request, next) => {
     const enrichedSites = (sites || []).map((site) => ({
       ...site,
       transmissionStatus: computeTransmissionStatus(site),
+      // .select()/.lean() returns no key at all for documents predating this
+      // field — normalize here since a Mongoose schema default can't apply
+      // to a plain lean() object.
+      dateValidStatus: site.dateValidStatus || "unknown",
     }));
 
     return {
