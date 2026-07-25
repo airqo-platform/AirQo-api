@@ -34,6 +34,7 @@ const buildTokenEmailSegment = ({
   tokenName = "",
   expires = null,
   expiredMode = false,
+  daysRemaining = null,
 } = {}) => {
   const maskedToken = escapeHtml(
     token && token.length > 12
@@ -45,6 +46,11 @@ const buildTokenEmailSegment = ({
     ? ` (<strong>${escapeHtml(tokenName)}</strong>)`
     : "";
 
+  const daysRemainingText =
+    Number.isFinite(daysRemaining) && daysRemaining >= 0
+      ? ` in <strong>${daysRemaining} day${daysRemaining === 1 ? "" : "s"}</strong>`
+      : "";
+
   let expiryLine = expiredMode
     ? ""
     : "<p>This token will expire in less than 1 month from today.</p>";
@@ -53,7 +59,7 @@ const buildTokenEmailSegment = ({
     if (!isNaN(expiryDate.getTime())) {
       expiryLine = expiredMode
         ? `<p>This token expired on <strong>${expiryDate.toDateString()}</strong>.</p>`
-        : `<p>This token will expire on <strong>${expiryDate.toDateString()}</strong>.</p>`;
+        : `<p>This token will expire${daysRemainingText} — on <strong>${expiryDate.toDateString()}</strong>.</p>`;
     }
   }
 
@@ -700,10 +706,17 @@ module.exports = {
     token = "",
     tokenName = "",
     expires = null,
+    daysRemaining = null,
   } = {}) => {
     const name = firstName + " " + lastName;
     const { maskedToken, tokenLabel, expiryLine, securityTip } =
-      buildTokenEmailSegment({ token, tokenName, expires, expiredMode: false });
+      buildTokenEmailSegment({
+        token,
+        tokenName,
+        expires,
+        expiredMode: false,
+        daysRemaining,
+      });
     const tokenCallout = `
       <div style="margin:16px 0; padding:12px 16px; background:#FFF8E7; border-left:4px solid #F5A623; border-radius:4px;">
         <span style="font-size:14px;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</span>

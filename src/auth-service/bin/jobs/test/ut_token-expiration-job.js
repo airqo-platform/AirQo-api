@@ -1,118 +1,98 @@
 require("module-alias/register");
+const rewire = require("rewire");
+const mongoose = require("mongoose");
+
+// Bootstrap in-memory model registration so AccessTokenModel("airqo") resolves
+// via mongoose.model("access_tokens") instead of requiring a live DB connection.
+try {
+  const _schema = rewire("@models/AccessToken").__get__("AccessTokenSchema");
+  if (!mongoose.modelNames().includes("access_tokens")) {
+    mongoose.model("access_tokens", _schema);
+  }
+} catch (_) {}
+
 const sinon = require("sinon");
 const chai = require("chai");
-const expect = chai.expect;
 const sinonChai = require("sinon-chai");
+chai.use(sinonChai);
+const expect = chai.expect;
 
-describe("sendAlertsForExpiringTokens", () => {
-  let AccessTokenModel;
+const AccessTokenModel = require("@models/AccessToken");
+const { mailer } = require("@utils/common");
+const {
+  sendAlertsForExpiringTokens,
+  REMINDER_DAY_THRESHOLDS,
+} = require("../token-expiration-job");
+
+describe("token-expiration-job: sendAlertsForExpiringTokens", () => {
+  let getExpiringTokensStub;
+  let expiringTokenStub;
+
+  const tokenFor = (days, suffix) => ({
+    token: `tok_${suffix}`,
+    name: `token-${suffix}`,
+    expires: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+    user: { email: `user-${suffix}@example.com`, firstName: "Jane", lastName: "Doe" },
+  });
 
   beforeEach(() => {
-    // Set up mocks
-    AccessTokenModel = sinon.mock(AccessTokenModel);
-    sinon.stub(AccessTokenModel.prototype, "getExpiringTokens").returns(
-      Promise.resolve({
-        success: true,
-        data: [
-          {
-            user: {
-              email: "test@example.com",
-              firstName: "John",
-              lastName: "Doe",
-            },
-          },
-          {
-            user: {
-              email: "test2@example.com",
-              firstName: "Jane",
-              lastName: "Smith",
-            },
-          },
-        ],
-      })
+    getExpiringTokensStub = sinon.stub(
+      AccessTokenModel("airqo"),
+      "getExpiringTokens"
     );
+    // First page has one token, second page (skip=100) is empty — exercises
+    // the pagination loop in fetchTokensExpiringWithinDays.
+    getExpiringTokensStub.callsFake(async ({ skip, days }) => {
+      if (skip > 0) return { success: true, data: [] };
+      return { success: true, data: [tokenFor(days, days)] };
+    });
 
-    sinon.stub(console, "info");
+    expiringTokenStub = sinon
+      .stub(mailer, "expiringToken")
+      .resolves({ success: true });
+
     sinon.stub(console, "error");
   });
 
   afterEach(() => {
-    // Restore mocks
-    AccessTokenModel.restore();
-    console.info.restore();
+    getExpiringTokensStub.restore();
+    expiringTokenStub.restore();
     console.error.restore();
   });
 
-  describe("successful execution", () => {
-    it("should fetch expiring tokens and send emails", async () => {
-      await sendAlertsForExpiringTokens();
+  it("queries and emails once per configured day threshold", async () => {
+    await sendAlertsForExpiringTokens();
 
-      expect(AccessTokenModel.prototype.getExpiringTokens).to.have.been
-        .calledOnce;
-      expect(
-        AccessTokenModel.prototype.getExpiringTokens
-      ).to.have.been.calledWith({
-        skip: 0,
-        limit: 100,
-      });
+    expect(getExpiringTokensStub.callCount).to.equal(
+      REMINDER_DAY_THRESHOLDS.length * 2 // one call per threshold, plus the empty follow-up page
+    );
+    expect(expiringTokenStub.callCount).to.equal(REMINDER_DAY_THRESHOLDS.length);
 
-      const emailPromises = [
-        {
-          user: {
-            email: "test@example.com",
-            firstName: "John",
-            lastName: "Doe",
-          },
-        },
-        {
-          user: {
-            email: "test2@example.com",
-            firstName: "Jane",
-            lastName: "Smith",
-          },
-        },
-      ];
-
-      expect(mailer.expandingToken).to.have.been.calledTwice;
-      expect(mailer.expandingToken).to.have.been.calledWithMatch({
-        email: "test@example.com",
-        firstName: "John",
-        lastName: "Doe",
+    for (const days of REMINDER_DAY_THRESHOLDS) {
+      expect(expiringTokenStub).to.have.been.calledWithMatch({
+        email: `user-${days}@example.com`,
+        daysRemaining: days,
       });
-      expect(mailer.expandingToken).to.have.been.calledWithMatch({
-        email: "test2@example.com",
-        firstName: "Jane",
-        lastName: "Smith",
-      });
-    });
+    }
   });
 
-  describe("no expiring tokens found", () => {
-    it("should log info message when no tokens are found", async () => {
-      AccessTokenModel.mock().getExpiringTokens.resolves({
-        success: true,
-        data: [],
-      });
+  it("gives each threshold's reminder a distinct cooldownKey so they don't suppress each other", async () => {
+    await sendAlertsForExpiringTokens();
 
-      await sendAlertsForExpiringTokens();
+    const cooldownKeys = expiringTokenStub
+      .getCalls()
+      .map((call) => call.args[0].cooldownKey);
 
-      expect(console.info).to.have.been.calledWith(
-        "No expiring tokens found for this month."
-      );
-    });
+    expect(new Set(cooldownKeys).size).to.equal(cooldownKeys.length);
   });
 
-  describe("error handling", () => {
-    it("should log error when fetching tokens fails", async () => {
-      AccessTokenModel.mock().getExpiringTokens.rejects(
-        new Error("Test error")
-      );
+  it("continues to the next threshold when one lookup fails", async () => {
+    getExpiringTokensStub.restore();
+    getExpiringTokensStub = sinon
+      .stub(AccessTokenModel("airqo"), "getExpiringTokens")
+      .rejects(new Error("db unavailable"));
 
-      await sendAlertsForExpiringTokens();
-
-      expect(console.error).to.have.been.calledWith(
-        `🐛🐛 Internal Server Error -- Test error`
-      );
-    });
+    await sendAlertsForExpiringTokens(); // resolves cleanly even though every threshold's lookup rejects
+    expect(expiringTokenStub).to.not.have.been.called;
   });
 });

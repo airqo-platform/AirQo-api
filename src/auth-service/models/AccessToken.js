@@ -351,7 +351,10 @@ AccessTokenSchema.statics = {
     }
   },
 
-  async getExpiringTokens({ skip = 0, limit = 100, filter = {} } = {}, next) {
+  async getExpiringTokens(
+    { skip = 0, limit = 100, filter = {}, days = 30 } = {},
+    next
+  ) {
     try {
       const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.TOKENS_EXCLUSION_PROJECTION(
@@ -364,11 +367,11 @@ AccessTokenSchema.statics = {
 
       // Preserve timezone-aware date calculations
       const currentDate = moment().tz(moment.tz.guess()).toDate();
-      const oneMonthFromNow = moment(currentDate).add(1, "month").toDate();
+      const cutoffDate = moment(currentDate).add(days, "days").toDate();
 
       const response = await this.aggregate()
         .match({
-          expires: { $gt: currentDate, $lt: oneMonthFromNow },
+          expires: { $gt: currentDate, $lte: cutoffDate },
           ...filter,
         })
         .lookup({
@@ -391,8 +394,8 @@ AccessTokenSchema.statics = {
         .allowDiskUse(true);
 
       return createSuccessResponse("list", response, "expiring access token", {
-        message: "Successfully retrieved tokens expiring within the next month",
-        emptyMessage: "No tokens found expiring within the next month",
+        message: `Successfully retrieved tokens expiring within the next ${days} day(s)`,
+        emptyMessage: `No tokens found expiring within the next ${days} day(s)`,
       });
     } catch (error) {
       return createErrorResponse(
