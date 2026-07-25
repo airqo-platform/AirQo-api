@@ -676,6 +676,74 @@ const readingsValidations = {
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, next);
   },
+
+  rankings: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      query("level")
+        .optional()
+        .trim()
+        .toLowerCase()
+        .isIn(["country", "city"])
+        .withMessage("level must be either 'country' or 'city'"),
+      query("sort")
+        .optional()
+        .trim()
+        .toLowerCase()
+        .isIn(["best", "worst"])
+        .withMessage("sort must be either 'best' or 'worst'"),
+      query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage("limit must be between 1 and 100")
+        .toInt(),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  rankingsHistory: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      query("level")
+        .optional()
+        .trim()
+        .toLowerCase()
+        .isIn(["country", "city"])
+        .withMessage("level must be either 'country' or 'city'"),
+      query("start_year")
+        .exists()
+        .withMessage("start_year is required")
+        .bail()
+        .isInt({ min: 2015, max: 2100 })
+        .withMessage("start_year must be a valid 4-digit year")
+        .toInt(),
+      query("end_year")
+        .exists()
+        .withMessage("end_year is required")
+        .bail()
+        .isInt({ min: 2015, max: 2100 })
+        .withMessage("end_year must be a valid 4-digit year")
+        .toInt()
+        .bail()
+        .custom((value, { req }) => {
+          const startYear = Number(req.query.start_year);
+          if (value < startYear) {
+            throw new Error("end_year must not be earlier than start_year");
+          }
+          if (value - startYear > 5) {
+            throw new Error(
+              "the range between start_year and end_year must not exceed 5 years",
+            );
+          }
+          return true;
+        }),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
 };
 
 const validateGetRepresentativeAQForGrid = [

@@ -7,6 +7,7 @@ const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
 const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
+const aqiUtil = require("@utils/aqi.util");
 const {
   logObject,
   logText,
@@ -1740,6 +1741,190 @@ const createEvent = {
       );
     }
   },
+
+  // African city/country AQI rankings — groups the latest reading per site
+  // (same "latest-per-site" shape as getRepresentativeAirQuality above) by
+  // the denormalized siteDetails.country/city field, since no grid hierarchy
+  // exists to roll city grids up into country grids.
+  getAirQualityRankings: async (request, next) => {
+    try {
+      const {
+        tenant = "airqo",
+        level = "country",
+        sort = "best",
+        limit = 20,
+      } = request.query;
+
+      const groupField = `$siteDetails.${level}`;
+      const africanCountries = Object.keys(constants.countryCodes);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const pipeline = [
+        {
+          $match: {
+            time: { $gte: threeDaysAgo },
+            "siteDetails.country": { $in: africanCountries },
+            "pm2_5.value": { $ne: null, $type: "number" },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+        {
+          $group: {
+            _id: groupField,
+            avg_pm2_5: { $avg: "$pm2_5.value" },
+            max_pm2_5: { $max: "$pm2_5.value" },
+            site_count: { $sum: 1 },
+          },
+        },
+        { $match: { _id: { $ne: null } } },
+        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1 } },
+        { $limit: Number(limit) },
+      ];
+
+      const rows = await ReadingModel(tenant)
+        .aggregate(pipeline)
+        .option({
+          allowDiskUse: true,
+          maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+        });
+
+      const data = rows.map((row, index) => ({
+        rank: index + 1,
+        name: row._id,
+        level,
+        country_code:
+          level === "country" ? constants.countryCodes[row._id] || null : null,
+        avg_pm2_5: Math.round(row.avg_pm2_5 * 100) / 100,
+        aqi_index: aqiUtil.calculatePm25Aqi(row.avg_pm2_5),
+        aqi_category: aqiUtil.categoryFromConcentration(row.avg_pm2_5),
+        site_count: row.site_count,
+        generated_at: new Date().toISOString(),
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankings -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  // Annual-only multi-region historical rollup. Missing years are returned
+  // as explicit nulls (never coerced to zero) per Nexus acceptance criteria.
+  getAirQualityRankingsHistory: async (request, next) => {
+    try {
+      const { tenant = "airqo", level = "country" } = request.query;
+      const startYear = Number(request.query.start_year);
+      const endYear = Number(request.query.end_year);
+
+      const groupField = `$siteDetails.${level}`;
+      const africanCountries = Object.keys(constants.countryCodes);
+      const rangeStart = new Date(Date.UTC(startYear, 0, 1));
+      const rangeEnd = new Date(Date.UTC(endYear + 1, 0, 1));
+
+      const pipeline = [
+        {
+          $match: {
+            time: { $gte: rangeStart, $lt: rangeEnd },
+            "siteDetails.country": { $in: africanCountries },
+            "pm2_5.value": { $ne: null, $type: "number" },
+          },
+        },
+        { $addFields: { year: { $year: "$time" } } },
+        {
+          $group: {
+            _id: { entity: groupField, year: "$year" },
+            avg_pm2_5: { $avg: "$pm2_5.value" },
+            siteIds: { $addToSet: "$site_id" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            entity: "$_id.entity",
+            year: "$_id.year",
+            avg_pm2_5: { $round: ["$avg_pm2_5", 2] },
+            site_count: { $size: "$siteIds" },
+          },
+        },
+        { $match: { entity: { $ne: null } } },
+        { $sort: { entity: 1, year: 1 } },
+      ];
+
+      const rows = await ReadingModel(tenant)
+        .aggregate(pipeline)
+        .option({
+          allowDiskUse: true,
+          maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+        });
+
+      const years = [];
+      for (let y = startYear; y <= endYear; y += 1) years.push(y);
+
+      const byEntity = new Map();
+      rows.forEach((row) => {
+        if (!byEntity.has(row.entity)) byEntity.set(row.entity, new Map());
+        byEntity.get(row.entity).set(row.year, row);
+      });
+
+      const data = Array.from(byEntity.entries()).map(([entity, byYear]) => ({
+        name: entity,
+        level,
+        country_code:
+          level === "country" ? constants.countryCodes[entity] || null : null,
+        values: years.map((year) => {
+          const row = byYear.get(year);
+          return {
+            year,
+            avg_pm2_5: row ? row.avg_pm2_5 : null,
+            aqi_category: row
+              ? aqiUtil.categoryFromConcentration(row.avg_pm2_5)
+              : null,
+            site_count: row ? row.site_count : 0,
+          };
+        }),
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankingsHistory -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   latestFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
@@ -4932,15 +5117,23 @@ const createEvent = {
       }
 
       // Step 3: Match readings with site distances and sort
+      const staleThresholdMs =
+        (constants.EVENTS_STALENESS_THRESHOLD_HOURS || 2) * 60 * 60 * 1000;
       const readingsWithDistance = readings.data
         .map((reading) => {
           const site = sitesWithDistance.find(
             (site) => site._id.toString() === reading.site_id.toString(),
           );
+          const ageMs = reading.time
+            ? Date.now() - new Date(reading.time).getTime()
+            : null;
 
           return {
             ...reading,
             distance: site ? site.distance : Infinity,
+            is_stale: ageMs === null ? null : ageMs > staleThresholdMs,
+            data_age_minutes:
+              ageMs === null ? null : Math.round(ageMs / 60000),
           };
         })
         .sort((a, b) => a.distance - b.distance)

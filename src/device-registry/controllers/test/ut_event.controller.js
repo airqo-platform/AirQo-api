@@ -47,6 +47,8 @@ const {
   listByCohort,
   listByCohortHistorical,
   listByLatLong,
+  getAirQualityRankings,
+  getAirQualityRankingsHistory,
 } = createEvent;
 
 // Functions not in the controller — define as no-ops to prevent ReferenceError
@@ -372,6 +374,104 @@ describe("Create Event Controller", () => {
       mockResult.errors = ["error"];
 
       await getBestAirQuality(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
+
+  describe("getAirQualityRankings", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = { query: { level: "country" }, params: {} };
+      res = {
+        status: sinon.stub().callsFake(function() { return res; }),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = {
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data: [{ rank: 1, name: "Kenya", avg_pm2_5: 23.32 }],
+      };
+      sinon.stub(createEventUtil, "getAirQualityRankings").resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return the rankings from the util layer", async () => {
+      await getAirQualityRankings(req, res, next);
+
+      expect(createEventUtil.getAirQualityRankings).to.have.been.calledWith(
+        req,
+        next
+      );
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("should surface util-layer errors", async () => {
+      mockResult.success = false;
+      mockResult.message = "Error message";
+      mockResult.errors = { message: "boom" };
+
+      await getAirQualityRankings(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
+
+  describe("getAirQualityRankingsHistory", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = {
+        query: { level: "country", start_year: "2023", end_year: "2024" },
+        params: {},
+      };
+      res = {
+        status: sinon.stub().callsFake(function() { return res; }),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = {
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data: [{ name: "Kenya", values: [] }],
+      };
+      sinon
+        .stub(createEventUtil, "getAirQualityRankingsHistory")
+        .resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return the historical rankings from the util layer", async () => {
+      await getAirQualityRankingsHistory(req, res, next);
+
+      expect(
+        createEventUtil.getAirQualityRankingsHistory
+      ).to.have.been.calledWith(req, next);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("should surface util-layer errors", async () => {
+      mockResult.success = false;
+      mockResult.message = "Error message";
+      mockResult.errors = { message: "boom" };
+
+      await getAirQualityRankingsHistory(req, res, next);
 
       expect(res.status).to.have.been.calledWith(
         httpStatus.INTERNAL_SERVER_ERROR
