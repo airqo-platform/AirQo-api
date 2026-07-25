@@ -287,6 +287,15 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    // Diagnostic-only field: does NOT affect rawOnlineStatus/isOnline. Records
+    // why the most recently checked raw feed timestamp was (or wasn't) trusted,
+    // so consumers can distinguish "device clock is wrong" from "device isn't
+    // transmitting" without rawOnlineStatus itself changing meaning.
+    dateValidStatus: {
+      type: String,
+      enum: ["valid", "future_timestamp", "invalid_format", "unknown"],
+      default: "unknown",
+    },
     /**
      * The latest PM2.5 readings for this device.
      * May be null or undefined if no readings have been recorded yet.
@@ -534,6 +543,10 @@ deviceSchema.index({ status: 1, grid_id: 1 });
 deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
 // Index for offline entity checks
 deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
+// Preselect index for fix-corrupted-raw-data-job — lets the hourly cleanup
+// pass find devices stuck with a future-dated raw reading in O(log n) instead
+// of a full collection scan.
+deviceSchema.index({ dateValidStatus: 1, lastRawData: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
@@ -895,6 +908,7 @@ deviceSchema.methods = {
       isOnline: this.isOnline,
       rawOnlineStatus: this.rawOnlineStatus,
       lastRawData: this.lastRawData,
+      dateValidStatus: this.dateValidStatus || "unknown",
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,

@@ -3566,7 +3566,7 @@ const deviceUtil = {
         DeviceModel(tenant)
           .find(filter)
           .select(
-            "name long_name status isActive isOnline rawOnlineStatus lastActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
+            "name long_name status isActive isOnline rawOnlineStatus dateValidStatus lastActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
           )
           .sort({ claimed_at: -1 })
           .skip(skip)
@@ -3594,6 +3594,10 @@ const deviceUtil = {
         ...dev,
         site: site_id ? siteMap.get(site_id.toString()) || null : null,
         transmissionStatus: computeTransmissionStatus(dev),
+        // .select()/.lean() returns no key at all for documents predating this
+        // field — normalize here since a Mongoose schema default can't apply
+        // to a plain lean() object.
+        dateValidStatus: dev.dateValidStatus || "unknown",
       }));
 
       return {

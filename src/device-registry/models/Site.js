@@ -327,6 +327,15 @@ const siteSchema = new Schema(
       type: Date,
       default: null,
     },
+    // Diagnostic-only field: does NOT affect rawOnlineStatus/isOnline. Mirrors
+    // the primary device's dateValidStatus (see models/Device.js) so consumers
+    // can distinguish "device clock is wrong" from "device isn't transmitting"
+    // at the site level without rawOnlineStatus itself changing meaning.
+    dateValidStatus: {
+      type: String,
+      enum: ["valid", "future_timestamp", "invalid_format", "unknown"],
+      default: "unknown",
+    },
     /**
      * The latest PM2.5 readings for this site.
      * May be null or undefined if no readings have been recorded yet.
@@ -608,6 +617,10 @@ siteSchema.index({ grids: 1 });
 // Placing _id before createdAt lets MongoDB satisfy the _id sort from the
 // index without an in-memory SORT stage.
 siteSchema.index({ isOnline: 1, _id: 1, createdAt: 1 });
+// Preselect index for fix-corrupted-raw-data-job — lets the hourly cleanup
+// pass find sites stuck with a future-dated raw reading in O(log n) instead
+// of a full collection scan.
+siteSchema.index({ dateValidStatus: 1, lastRawData: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
@@ -655,6 +668,7 @@ siteSchema.methods = {
       isOnline: this.isOnline,
       rawOnlineStatus: this.rawOnlineStatus,
       lastRawData: this.lastRawData,
+      dateValidStatus: this.dateValidStatus || "unknown",
       street: this.street,
       county: this.county,
       altitude: this.altitude,
