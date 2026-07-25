@@ -22,8 +22,17 @@ before(function(done) {
     const { queryDB } = connectToMongoDB();
     if (!queryDB || queryDB.readyState === 0 || queryDB.readyState === 1)
       return done();
-    queryDB.once("open", done);
-    queryDB.once("error", () => done());
+    // Share one completion callback across both listeners so a connection
+    // that errors and later reconnects (emitting "open" after "error") can't
+    // call done() a second time.
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      done();
+    };
+    queryDB.once("open", finish);
+    queryDB.once("error", finish);
   } catch (_) {
     done();
   }

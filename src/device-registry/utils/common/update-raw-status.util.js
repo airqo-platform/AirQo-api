@@ -221,9 +221,12 @@ const processDevice = async (device) => {
           // to whether the device's existing lastRawData is still fresh.
           isRawOnline = isDeviceRawActive(device.lastRawData);
         } else {
+          // No timestamp field present at all — nothing was actually
+          // evaluated, so dateValidStatus is left untouched (stays whatever
+          // it already was) rather than being claimed "valid" with no
+          // evidence.
           isRawOnline = true;
           lastFeedTime = new Date().toISOString();
-          dateValidStatus = "valid";
         }
         updateReason = isRawOnline ? "online_external_api" : "offline_external_api";
       } else {

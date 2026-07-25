@@ -668,7 +668,7 @@ siteSchema.methods = {
       isOnline: this.isOnline,
       rawOnlineStatus: this.rawOnlineStatus,
       lastRawData: this.lastRawData,
-      dateValidStatus: this.dateValidStatus,
+      dateValidStatus: this.dateValidStatus || "unknown",
       street: this.street,
       county: this.county,
       altitude: this.altitude,

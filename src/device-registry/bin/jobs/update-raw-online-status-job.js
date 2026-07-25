@@ -507,10 +507,12 @@ const processIndividualDevice = async (
             // whether the device's existing lastRawData is still fresh.
             isRawOnline = isDeviceRawActive(device.lastRawData);
           } else {
-            // No timestamp field — successful non-empty response means online
+            // No timestamp field present at all — nothing was actually
+            // evaluated, so dateValidStatus is left untouched (stays whatever
+            // it already was) rather than being claimed "valid" with no
+            // evidence. successful non-empty response still means online.
             isRawOnline = true;
             lastFeedTime = new Date().toISOString();
-            dateValidStatus = "valid";
           }
         }
 

@@ -11,11 +11,19 @@ future (e.g. a reading dated 2028 sent in 2026). Historically this caused
 "time since last seen" always satisfied our freshness check). That's now
 fixed: a future-dated reading is correctly treated as not-fresh.
 
-That fix intentionally keeps `rawOnlineStatus`/`isOnline` conservative
-(`false` when the timestamp can't be trusted) — every existing consumer
+That fix intentionally keeps `rawOnlineStatus`/`isOnline` conservative rather
+than reverting to a "pure connectivity" signal — every existing consumer
 (dashboards, list filters, alerts, calibration eligibility) already assumes
-`false` means "don't treat this device's data as current," and changing that
-meaning would require auditing every consumer of those two fields.
+these fields mean "is this device's data current," and changing that meaning
+would require auditing every consumer of those two fields. Concretely: when a
+newly-received timestamp is rejected, the backend does **not** unconditionally
+set `rawOnlineStatus` to `false` — it falls back to whether the device's
+*previously-stored* `lastRawData` is still fresh. A device with a healthy
+recent history that sends one bad-clock reading will still show
+`rawOnlineStatus: true`, because its last known-good data is still within the
+freshness window. It only goes `false` once the fallback data itself is
+stale or also future-dated — which is what happened in the case that prompted
+this fix, since `lastRawData` there was itself the corrupted value.
 
 The gap this leaves: a device with a **bad clock but working connectivity**
 now looks identical, in the API, to a device that's **genuinely
@@ -37,10 +45,10 @@ type DateValidStatus = "valid" | "future_timestamp" | "invalid_format" | "unknow
 
 | Value | Meaning |
 | --- | --- |
-| `"valid"` | The most recently checked raw feed timestamp was sane and within clock-skew tolerance (±5 min). |
-| `"future_timestamp"` | The most recently checked raw feed timestamp was too far in the future — likely a device clock/RTC issue. **This is the "hardware team" case**: the device may well be connected, its clock is just wrong. |
+| `"valid"` | The most recently checked raw feed timestamp was not more than 5 minutes in the future. Note this is a **one-sided** check — there's no lower bound here, so an old-but-legitimate timestamp is still `"valid"`; staleness is handled separately by `rawOnlineStatus`'s own 2-hour freshness threshold, not by this field. |
+| `"future_timestamp"` | The most recently checked raw feed timestamp was more than 5 minutes ahead of server time — likely a device clock/RTC issue. **This is the "hardware team" case**: the device may well be connected, its clock is just wrong. |
 | `"invalid_format"` | The most recently checked raw feed timestamp couldn't be parsed as a date at all. |
-| `"unknown"` (default) | No raw feed timestamp has been evaluated yet for this device (new device, no feed data, or a check that didn't reach the timestamp evaluation step, e.g. missing API key). Not an error — just "no verdict yet." |
+| `"unknown"` (default) | No raw feed timestamp has been evaluated yet for this device (new device, no feed data, a successful check whose response simply had no timestamp field, or a check that didn't reach the timestamp evaluation step, e.g. missing API key). Not an error — just "no verdict yet." |
 
 **Important:** this field is diagnostic-only. It never feeds into
 `rawOnlineStatus`, `isOnline`, `lastActive`, or `transmissionStatus`. Those

@@ -76,30 +76,42 @@ const releaseLock = async (tenant) => {
   }
 };
 
-// Clears lastRawData + latest_pm2_5.raw on every stuck document in `docs`.
+// Clears lastRawData + latest_pm2_5.raw on every stuck document in `docs`, and
+// resets dateValidStatus to "unknown" alongside them — once the corrupted
+// timestamp is gone there's no longer any fresh evidence backing a
+// "future_timestamp" verdict, so leaving it behind would orphan a diagnostic
+// claim with nothing to point to.
 // Conditional on the originally observed lastRawData so a concurrent,
 // legitimate write (e.g. the device finally sending a sane reading) between
 // the find() above and this update isn't clobbered by our stale snapshot.
+// A single bulkWrite keeps this to one round-trip regardless of batch size;
+// standard bulkWrite results only report an aggregate modifiedCount (no
+// per-operation detail), so concurrent-change skips are logged as a count
+// rather than per-document.
 const clearStuckRawData = async (Model, docs, label) => {
-  let cleared = 0;
-  for (const doc of docs) {
-    const result = await Model.collection.updateOne(
-      { _id: doc._id, lastRawData: doc.lastRawData },
-      {
+  if (!docs.length) return 0;
+
+  const ops = docs.map((doc) => ({
+    updateOne: {
+      filter: { _id: doc._id, lastRawData: doc.lastRawData },
+      update: {
         $set: {
           lastRawData: null,
+          dateValidStatus: "unknown",
           "latest_pm2_5.raw.value": null,
           "latest_pm2_5.raw.time": null,
         },
       },
+    },
+  }));
+
+  const result = await Model.collection.bulkWrite(ops, { ordered: false });
+  const cleared = result.modifiedCount || 0;
+  const skipped = docs.length - cleared;
+  if (skipped > 0) {
+    logger.info(
+      `[${POD_ID}] ${JOB_NAME}: ${skipped} ${label}(s) changed concurrently, skipped.`,
     );
-    if (result.modifiedCount > 0) {
-      cleared += 1;
-    } else {
-      logger.info(
-        `[${POD_ID}] ${JOB_NAME}: ${label} ${doc._id} lastRawData changed concurrently, skipped.`,
-      );
-    }
   }
   return cleared;
 };

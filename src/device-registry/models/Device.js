@@ -908,7 +908,7 @@ deviceSchema.methods = {
       isOnline: this.isOnline,
       rawOnlineStatus: this.rawOnlineStatus,
       lastRawData: this.lastRawData,
-      dateValidStatus: this.dateValidStatus,
+      dateValidStatus: this.dateValidStatus || "unknown",
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,

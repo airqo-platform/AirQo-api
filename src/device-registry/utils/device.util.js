@@ -3594,6 +3594,10 @@ const deviceUtil = {
         ...dev,
         site: site_id ? siteMap.get(site_id.toString()) || null : null,
         transmissionStatus: computeTransmissionStatus(dev),
+        // .select()/.lean() returns no key at all for documents predating this
+        // field — normalize here since a Mongoose schema default can't apply
+        // to a plain lean() object.
+        dateValidStatus: dev.dateValidStatus || "unknown",
       }));
 
       return {
