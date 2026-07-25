@@ -14,6 +14,18 @@ const REMINDER_DAY_THRESHOLDS = constants.TOKEN_EXPIRY_REMINDER_DAY_THRESHOLDS |
   5,
   2,
 ];
+// Sorted descending so each threshold's query can be bounded below by the
+// next-smaller threshold, carving out non-overlapping bands (e.g. "2 to 5
+// days out", then "0 to 2 days out") — otherwise a token could match more
+// than one threshold's query in the same run and get two reminders at once.
+const SORTED_DESC_THRESHOLDS = [...REMINDER_DAY_THRESHOLDS].sort(
+  (a, b) => b - a,
+);
+const minDaysFor = (days) => {
+  const index = SORTED_DESC_THRESHOLDS.indexOf(days);
+  const nextSmaller = SORTED_DESC_THRESHOLDS[index + 1];
+  return nextSmaller !== undefined ? nextSmaller : 0;
+};
 
 async function sendEmailsInBatches(tokens, days, batchSize = 100) {
   for (let i = 0; i < tokens.length; i += batchSize) {
@@ -21,19 +33,22 @@ async function sendEmailsInBatches(tokens, days, batchSize = 100) {
     const emailPromises = batch.map(async (token) => {
       logObject("the expiring token", token);
       const {
+        _id,
         user: { email, firstName, lastName },
         token: tokenValue,
         name: tokenName,
         expires,
       } = token;
 
-      // Scope the cooldown by token + expiry date + threshold so: (a) this
+      // Scope the cooldown by token id + expiry date + threshold so: (a) this
       // reminder doesn't collide with the other threshold's reminder for the
       // same token, (b) it doesn't collide with a different token's reminder
       // for the same owner, and (c) a renewed/re-expiring token starts a
       // fresh reminder cycle instead of being suppressed by a stale cooldown.
+      // Uses the token document's _id rather than any fragment of the secret
+      // token value, so no part of the secret ever ends up in a log/cache key.
       const expiryDay = new Date(expires).toISOString().slice(0, 10);
-      const cooldownKey = `${(tokenValue || "").slice(-4)}:${expiryDay}:${days}d`;
+      const cooldownKey = `${_id}:${expiryDay}:${days}d`;
 
       try {
         const response = await mailer.expiringToken({
@@ -68,12 +83,14 @@ async function fetchTokensExpiringWithinDays(days) {
   let skip = 0;
   const limit = 100;
   let hasMoreTokens = true;
+  const minDays = minDaysFor(days);
 
   while (hasMoreTokens) {
     const tokensResponse = await AccessTokenModel("airqo").getExpiringTokens({
       skip,
       limit,
       days,
+      minDays,
     });
 
     if (tokensResponse.success && tokensResponse.data.length > 0) {

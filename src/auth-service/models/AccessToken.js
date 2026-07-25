@@ -352,7 +352,7 @@ AccessTokenSchema.statics = {
   },
 
   async getExpiringTokens(
-    { skip = 0, limit = 100, filter = {}, days = 30 } = {},
+    { skip = 0, limit = 100, filter = {}, days = 30, minDays = 0 } = {},
     next
   ) {
     try {
@@ -368,10 +368,19 @@ AccessTokenSchema.statics = {
       // Preserve timezone-aware date calculations
       const currentDate = moment().tz(moment.tz.guess()).toDate();
       const cutoffDate = moment(currentDate).add(days, "days").toDate();
+      // minDays lets callers carve out a lower-bound band (e.g. "2 to 5 days
+      // out") so a single token isn't matched by more than one reminder
+      // threshold in the same job run. Defaults to 0, preserving the
+      // cumulative "expiring within the next N days" behavior for existing
+      // callers that don't pass it.
+      const floorDate =
+        minDays > 0
+          ? moment(currentDate).add(minDays, "days").toDate()
+          : currentDate;
 
       const response = await this.aggregate()
         .match({
-          expires: { $gt: currentDate, $lte: cutoffDate },
+          expires: { $gt: floorDate, $lte: cutoffDate },
           ...filter,
         })
         .lookup({
