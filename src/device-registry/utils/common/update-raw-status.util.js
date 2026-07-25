@@ -168,7 +168,7 @@ const processDevice = async (device) => {
         lastFeedTime = thingspeakData.feeds[0].created_at;
         isRawOnline = isDeviceRawActive(lastFeedTime);
         updateReason = isRawOnline ? "online_raw" : "offline_raw";
-      } else if (thingspeakData?.feeds?.[0]) {
+      } else if (thingspeakData?.feeds?.[0]?.created_at) {
         logger.warn(
           `🙀🙀 Ignoring invalid/future ThingSpeak timestamp (${thingspeakData.feeds[0].created_at}) for device ${device.name}`
         );

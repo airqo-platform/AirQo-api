@@ -775,6 +775,7 @@ const processIndividualDevice = async (
         thingspeakData &&
         thingspeakData.feeds &&
         thingspeakData.feeds[0] &&
+        thingspeakData.feeds[0].created_at &&
         !isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
       ) {
         logger.warn(
