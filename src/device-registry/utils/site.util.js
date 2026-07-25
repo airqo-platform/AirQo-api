@@ -2523,7 +2523,7 @@ const getMySites = async (request, next) => {
       SiteModel(tenant)
         .find(siteFilter)
         .select(
-          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt isOnline rawOnlineStatus lastActive",
+          "name search_name generated_name description formatted_name location_name network groups country district latitude longitude status data_provider createdAt isOnline rawOnlineStatus dateValidStatus lastActive",
         )
         .sort({ createdAt: -1 })
         .skip(skip)

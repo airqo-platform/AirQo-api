@@ -4,11 +4,30 @@ const { expect } = require("chai");
 const {
   updateRawOnlineStatus,
   STATUSES_FOR_PRIMARY_UPDATE,
-} = require("@jobs/update-raw-online-status-job");
+} = require("@bin/jobs/update-raw-online-status-job");
 const constants = require("@config/constants");
 const DeviceModel = require("@models/Device");
 const createDeviceUtil = require("@utils/device.util");
 const createFeedUtil = require("@utils/feed.util");
+
+// Global hook: establish the query DB connection so DeviceModel("airqo") can
+// resolve a model to stub. No real queries ever execute — every DB-touching
+// method used below (bulkWrite, find, estimatedDocumentCount) is stubbed in
+// beforeEach — but getQueryTenantDB() throws unless a live connection object
+// exists first. Same pattern as bin/test/ut_index.js.
+before(function(done) {
+  this.timeout(15000);
+  const { connectToMongoDB } = require("@config/database");
+  try {
+    const { queryDB } = connectToMongoDB();
+    if (!queryDB || queryDB.readyState === 0 || queryDB.readyState === 1)
+      return done();
+    queryDB.once("open", done);
+    queryDB.once("error", () => done());
+  } catch (_) {
+    done();
+  }
+});
 
 describe("updateRawOnlineStatusJob", () => {
   let deviceModelStub;
@@ -52,6 +71,11 @@ describe("updateRawOnlineStatusJob", () => {
       _id: "mock_id",
       name: "mock_device",
       device_number: 12345,
+      // processDeviceBatch's deviceNumbers lookup only includes devices with
+      // network === "airqo" (ThingSpeak channels are AirQo-only) — without
+      // this the mock device never matches deviceDetailsMap and falls through
+      // to the no-readkey fallback branch (always rawOnlineStatus: false).
+      network: "airqo",
       status,
       rawOnlineStatus: false,
       onlineStatusAccuracy: {},

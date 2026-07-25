@@ -53,6 +53,7 @@ class ProjectionFactory {
                 isOnline: "$$site.isOnline",
                 rawOnlineStatus: "$$site.rawOnlineStatus",
                 lastRawData: "$$site.lastRawData",
+                dateValidStatus: "$$site.dateValidStatus",
               },
             },
           },
@@ -209,6 +210,7 @@ class ProjectionFactory {
           isOnline: 1,
           rawOnlineStatus: 1,
           lastRawData: 1,
+          dateValidStatus: 1,
           activities: "$activities",
           latest_deployment_activity: {
             $cond: [
@@ -400,6 +402,7 @@ class ProjectionFactory {
           rawOnlineStatus: 1,
           device_categories: 1,
           lastRawData: 1,
+          dateValidStatus: 1,
           onlineStatusAccuracy: 1,
           previous_sites: 1,
           site: {
@@ -674,6 +677,7 @@ class ProjectionFactory {
                 isOnline: "$$device.isOnline",
                 rawOnlineStatus: "$$device.rawOnlineStatus",
                 lastRawData: "$$device.lastRawData",
+                dateValidStatus: "$$device.dateValidStatus",
                 lastActive: "$$device.lastActive",
                 status: "$$device.status",
                 network: "$$device.network",

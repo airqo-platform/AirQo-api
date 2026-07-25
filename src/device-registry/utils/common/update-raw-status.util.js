@@ -15,6 +15,7 @@ const isEmpty = require("is-empty");
 // no feed data are also throttled correctly.
 const RECENCY_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 const RAW_INACTIVE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours (matches job)
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future feed timestamps (matches job)
 const THINGSPEAK_TIMEOUT_MS = 30000;
 const EXTERNAL_API_TIMEOUT_MS = 20000;
 
@@ -26,7 +27,31 @@ const isDeviceRawActive = (lastFeedTime) => {
   if (!lastFeedTime) return false;
   const t = new Date(lastFeedTime).getTime();
   if (isNaN(t)) return false;
-  return Date.now() - t < RAW_INACTIVE_THRESHOLD_MS;
+  const diff = Date.now() - t;
+  // A negative diff beyond clock-skew tolerance means lastFeedTime is
+  // future-dated (bad device clock, possibly already persisted from before
+  // isValidFeedTimestamp existed) — treat it as not active rather than
+  // letting the negative diff satisfy "< threshold" forever.
+  if (diff < -MAX_CLOCK_SKEW_MS) return false;
+  return diff < RAW_INACTIVE_THRESHOLD_MS;
+};
+
+// Classifies a raw feed timestamp for the diagnostic-only dateValidStatus
+// field. Returns null when there's nothing to evaluate (caller should leave
+// dateValidStatus untouched in that case, rather than overwriting it with a
+// stale verdict). Matches update-raw-online-status-job.js's classifier.
+const classifyFeedTimestamp = (timestamp) => {
+  if (!timestamp) return null;
+  const parsed = new Date(timestamp).getTime();
+  if (isNaN(parsed)) return "invalid_format";
+  return parsed - Date.now() > MAX_CLOCK_SKEW_MS ? "future_timestamp" : "valid";
+};
+
+// Rejects unparseable timestamps and ones further in the future than clock
+// skew can explain, so a bad feed/device timestamp never gets persisted as
+// lastRawData/lastActive (matches the guard in update-raw-online-status-job.js).
+const isValidFeedTimestamp = (timestamp) => {
+  return classifyFeedTimestamp(timestamp) === "valid";
 };
 
 const isDeviceActuallyMobile = (device) => {
@@ -58,12 +83,16 @@ const processDevice = async (device) => {
   const existingDataAge = hasExistingRawData
     ? Date.now() - new Date(device.lastRawData).getTime()
     : Infinity;
+  // A future-dated lastRawData (bad device clock) must NOT be treated as
+  // fresh — a negative age would otherwise stay "not stale" indefinitely.
   const shouldMarkOfflineFromStaleData =
+    existingDataAge < -MAX_CLOCK_SKEW_MS ||
     existingDataAge >= RAW_INACTIVE_THRESHOLD_MS;
 
   let isRawOnline = false;
   let lastFeedTime = null;
   let updateReason = "no_device_number";
+  let dateValidStatus = null;
 
   // Resolve the network adapter before any routing decision so that networks
   // with online_check_via_feed (e.g. airgradient) that also carry a
@@ -131,10 +160,22 @@ const processDevice = async (device) => {
         "ThingSpeak fetch"
       );
 
-      if (thingspeakData?.feeds?.[0]) {
+      dateValidStatus = thingspeakData?.feeds?.[0]
+        ? classifyFeedTimestamp(thingspeakData.feeds[0].created_at)
+        : null;
+
+      if (thingspeakData?.feeds?.[0] && isValidFeedTimestamp(thingspeakData.feeds[0].created_at)) {
         lastFeedTime = thingspeakData.feeds[0].created_at;
         isRawOnline = isDeviceRawActive(lastFeedTime);
         updateReason = isRawOnline ? "online_raw" : "offline_raw";
+      } else if (thingspeakData?.feeds?.[0]) {
+        logger.warn(
+          `🙀🙀 Ignoring invalid/future ThingSpeak timestamp (${thingspeakData.feeds[0].created_at}) for device ${device.name}`
+        );
+        // Don't blindly mark online on a future-dated timestamp — fall back
+        // to whether the device's existing lastRawData is still fresh.
+        isRawOnline = isDeviceRawActive(device.lastRawData);
+        updateReason = dateValidStatus || "stale_lastRawData";
       } else {
         // No new feed data — fall back to existing lastRawData to avoid
         // incorrectly flipping a recently-active device offline
@@ -151,7 +192,7 @@ const processDevice = async (device) => {
         : "fetch_error";
     }
 
-    await writeDeviceUpdate(device, isRawOnline, lastFeedTime, updateReason);
+    await writeDeviceUpdate(device, isRawOnline, lastFeedTime, updateReason, dateValidStatus);
     return;
   }
 
@@ -168,12 +209,21 @@ const processDevice = async (device) => {
         const data = externalResult.data;
         const tsValue =
           data.timestamp || data.time || data.created_at || data.recordedAt || data.ts || null;
-        if (tsValue) {
+        dateValidStatus = classifyFeedTimestamp(tsValue);
+        if (tsValue && isValidFeedTimestamp(tsValue)) {
           lastFeedTime = tsValue;
           isRawOnline = isDeviceRawActive(tsValue);
+        } else if (tsValue) {
+          logger.warn(
+            `🙀🙀 Ignoring invalid/future feed timestamp (${tsValue}) for device ${device.name}`
+          );
+          // Don't blindly mark online on a future-dated timestamp — fall back
+          // to whether the device's existing lastRawData is still fresh.
+          isRawOnline = isDeviceRawActive(device.lastRawData);
         } else {
           isRawOnline = true;
           lastFeedTime = new Date().toISOString();
+          dateValidStatus = "valid";
         }
         updateReason = isRawOnline ? "online_external_api" : "offline_external_api";
       } else {
@@ -192,7 +242,7 @@ const processDevice = async (device) => {
         : "external_api_error";
     }
 
-    await writeDeviceUpdate(device, isRawOnline, lastFeedTime, updateReason);
+    await writeDeviceUpdate(device, isRawOnline, lastFeedTime, updateReason, dateValidStatus);
     return;
   }
 
@@ -208,7 +258,13 @@ const processDevice = async (device) => {
  * Uses a conditional filter on lastRawData so we never overwrite fresher data
  * that the batch job may have written between our fetch and this write.
  */
-const writeDeviceUpdate = async (device, isRawOnline, lastFeedTime, reason) => {
+const writeDeviceUpdate = async (
+  device,
+  isRawOnline,
+  lastFeedTime,
+  reason,
+  dateValidStatus = null
+) => {
   try {
     const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
       isCurrentlyOnline: device.rawOnlineStatus,
@@ -224,6 +280,12 @@ const writeDeviceUpdate = async (device, isRawOnline, lastFeedTime, reason) => {
       lastRawStatusCheckedAt: new Date(),
       ...setUpdate,
     };
+
+    // Diagnostic-only — never influences rawOnlineStatus/isOnline above. Only
+    // written when we actually evaluated a timestamp this run.
+    if (dateValidStatus) {
+      updateFields.dateValidStatus = dateValidStatus;
+    }
 
     if (lastFeedTime) {
       const parsedTime = new Date(lastFeedTime);

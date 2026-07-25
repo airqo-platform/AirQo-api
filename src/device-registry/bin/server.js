@@ -164,6 +164,13 @@ try {
     `update-online-status-job failed to start: ${err.message}`,
   );
 }
+try {
+  require("@bin/jobs/fix-corrupted-raw-data-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `fix-corrupted-raw-data-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
