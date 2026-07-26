@@ -3093,6 +3093,12 @@ describe("create Event utils", function() {
       aggregateStub = sinon.stub();
       proxiedEventUtil = proxyquire("../event.util", {
         "@models/Reading": () => ({ aggregate: aggregateStub }),
+        // resolveActiveAqiRanges queries this once per request — resolve null
+        // immediately (no override) so tests don't hit a real, unconnected
+        // Mongoose model and hang on the ~10s buffering timeout.
+        "@models/SystemConfig": () => ({
+          findOne: () => ({ lean: () => Promise.resolve(null) }),
+        }),
       });
       next = sinon.stub();
     });
@@ -3253,6 +3259,12 @@ describe("create Event utils", function() {
       findStub = sinon.stub();
       proxiedEventUtil = proxyquire("../event.util", {
         "@models/AirQualitySummary": () => ({ find: findStub }),
+        // resolveActiveAqiRanges queries this once per request — resolve null
+        // immediately (no override) so tests don't hit a real, unconnected
+        // Mongoose model and hang on the ~10s buffering timeout.
+        "@models/SystemConfig": () => ({
+          findOne: () => ({ lean: () => Promise.resolve(null) }),
+        }),
       });
       next = sinon.stub();
     });

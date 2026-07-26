@@ -1801,6 +1801,12 @@ const createEvent = {
           maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
         });
 
+      // Resolved once per request (not per row) so an admin-set custom AQI
+      // config (see utils/aqi.util.js's resolveActiveAqiRanges) is reflected
+      // here identically to what GET /aqi-ranges returns — the legend and
+      // these derived categories must never disagree.
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(tenant);
+
       const generatedAt = new Date().toISOString();
       const data = rows.map((row, index) => {
         // Round once and derive both AQI fields from the same rounded value
@@ -1816,7 +1822,7 @@ const createEvent = {
             level === "country" ? constants.countryCodes[row._id] || null : null,
           avg_pm2_5: avgPm25,
           aqi_index: aqiUtil.calculatePm25Aqi(avgPm25),
-          aqi_category: aqiUtil.categoryFromConcentration(avgPm25),
+          aqi_category: aqiUtil.categoryFromConcentration(avgPm25, resolvedAqiRanges),
           site_count: row.site_count,
           generated_at: generatedAt,
         };
@@ -1878,6 +1884,10 @@ const createEvent = {
           site_count: (doc.contributing_sites || []).length,
         }));
 
+      // Resolved once per request, same reasoning as getAirQualityRankings —
+      // must never disagree with GET /aqi-ranges or the current rankings.
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(tenant);
+
       const years = [];
       for (let y = startYear; y <= endYear; y += 1) years.push(y);
 
@@ -1903,7 +1913,7 @@ const createEvent = {
               year,
               avg_pm2_5: row ? row.avg_pm2_5 : null,
               aqi_category: row
-                ? aqiUtil.categoryFromConcentration(row.avg_pm2_5)
+                ? aqiUtil.categoryFromConcentration(row.avg_pm2_5, resolvedAqiRanges)
                 : null,
               site_count: row ? row.site_count : 0,
             };
