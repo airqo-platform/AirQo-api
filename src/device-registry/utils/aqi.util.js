@@ -330,10 +330,9 @@ function isValidAqiRangesShape(value) {
  * Build a resolved-config object (same shape categoryFromConcentration and
  * listRanges expect) from a validated stored `{ranges: [...]}` value. Always
  * constructs fresh objects — never mutates constants.AQI_RANGES, which is a
- * plain object shared by reference across the whole process, including
- * reading-ingestion classification (models/Event.js's generateAqiAddFields)
- * and health-tip validation that intentionally still use the hardcoded
- * defaults regardless of any admin override (see docs for why).
+ * plain object shared by reference across the whole process and is still the
+ * fallback every resolved-config consumer (ingestion, query filters,
+ * health-tip validation) uses whenever no admin override is active.
  */
 function buildResolvedFromCustom(value) {
   const AQI_RANGES = {};

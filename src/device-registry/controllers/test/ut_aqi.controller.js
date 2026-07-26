@@ -63,7 +63,13 @@ describe("AQI Controller", () => {
   });
 
   describe("updateRanges / deleteRanges", () => {
-    let req, res, next, upsertStub, deleteOneStub, proxiedController;
+    let req,
+      res,
+      next,
+      upsertStub,
+      deleteOneStub,
+      runBackfillStub,
+      proxiedController;
 
     const validRanges = () =>
       require("@config/constants").AQI_CATEGORY_KEYS.map((key, i, arr) => ({
@@ -82,11 +88,18 @@ describe("AQI Controller", () => {
 
       upsertStub = sinon.stub().resolves({});
       deleteOneStub = sinon.stub().resolves({});
+      // Fire-and-forget by design (see triggerAqiCategoryBackfill) — stubbed
+      // here so tests don't kick off a real backfill run against Mongoose
+      // models with no DB connection.
+      runBackfillStub = sinon.stub().resolves();
       proxiedController = proxyquire("../aqi.controller", {
         "@models/SystemConfig": () => ({
           upsert: upsertStub,
           deleteOne: deleteOneStub,
         }),
+        "@bin/jobs/aqi-category-backfill-job": {
+          runAqiCategoryBackfillJob: runBackfillStub,
+        },
       });
 
       sinon.stub(aqiUtil, "resolveActiveAqiRanges").resolves(null);
@@ -113,6 +126,31 @@ describe("AQI Controller", () => {
       // Cache must be invalidated only after the write succeeds.
       expect(aqiUtil.invalidateAqiRangesCache.calledAfter(upsertStub)).to.equal(true);
       expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("updateRanges triggers the backfill job (fire-and-forget) after invalidating the cache", async () => {
+      req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(runBackfillStub.calledOnce).to.equal(true);
+      expect(
+        runBackfillStub.calledAfter(aqiUtil.invalidateAqiRangesCache)
+      ).to.equal(true);
+      // A backfill failure must never surface as a request failure.
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("updateRanges triggers the backfill for the SAME tenant that was actually updated, not always the default", async () => {
+      req = {
+        query: { tenant: "kcca" },
+        params: {},
+        body: { ranges: validRanges(), admin_secret: "x" },
+      };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(runBackfillStub.calledOnceWith("kcca")).to.equal(true);
     });
 
     it("updateRanges derives min_value server-side rather than trusting the caller", async () => {
@@ -147,6 +185,25 @@ describe("AQI Controller", () => {
       expect(res.status).to.have.been.calledWith(httpStatus.OK);
     });
 
+    it("deleteRanges triggers the backfill job (fire-and-forget) after invalidating the cache", async () => {
+      req = { query: {}, params: {}, body: {} };
+
+      await proxiedController.deleteRanges(req, res, next);
+
+      expect(runBackfillStub.calledOnce).to.equal(true);
+      expect(
+        runBackfillStub.calledAfter(aqiUtil.invalidateAqiRangesCache)
+      ).to.equal(true);
+    });
+
+    it("deleteRanges triggers the backfill for the SAME tenant that was actually reverted, not always the default", async () => {
+      req = { query: { tenant: "kcca" }, params: {}, body: {} };
+
+      await proxiedController.deleteRanges(req, res, next);
+
+      expect(runBackfillStub.calledOnceWith("kcca")).to.equal(true);
+    });
+
     it("forwards a Mongo write failure to next() as an HttpError", async () => {
       upsertStub.rejects(new Error("Mongo write failed"));
       req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
@@ -158,6 +215,18 @@ describe("AQI Controller", () => {
       expect(err.message).to.equal("Internal Server Error");
       // A failed write must not invalidate the cache — nothing changed.
       expect(aqiUtil.invalidateAqiRangesCache.called).to.equal(false);
+      // ...and therefore must not trigger a backfill either.
+      expect(runBackfillStub.called).to.equal(false);
+    });
+
+    it("does not let a rejected backfill promise crash or delay the request", async () => {
+      runBackfillStub.rejects(new Error("backfill blew up"));
+      req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(next.called).to.equal(false);
     });
   });
 });

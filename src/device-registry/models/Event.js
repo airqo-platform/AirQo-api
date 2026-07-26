@@ -15,7 +15,10 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { getDeviceCategoriesAddFieldsStage } = require("@utils/device.util.js");
-const { getAqiIndexMongoExpression } = require("@utils/aqi.util");
+const {
+  getAqiIndexMongoExpression,
+  resolveActiveAqiRanges,
+} = require("@utils/aqi.util");
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`,
@@ -30,81 +33,51 @@ const TIMEZONE = moment.tz.guess();
 const AGGREGATE_TIMEOUT_MS = 90000;
 const SLOW_QUERY_THRESHOLD_MS = 15000;
 
+// Kept as the fallback default — generateAqiAddFields() below now builds its
+// branches from an optional `resolved` config (see utils/aqi.util.js's
+// resolveActiveAqiRanges) instead of these module-load-time constants, so an
+// admin-set custom AQI range is reflected here too, not just in the legend
+// and Nexus rankings the prior PR covered.
 const AQI_COLORS = constants.AQI_COLORS;
 const AQI_CATEGORIES = constants.AQI_CATEGORIES;
 const AQI_COLOR_NAMES = constants.AQI_COLOR_NAMES;
 const AQI_RANGES = constants.AQI_RANGES;
 
-// Shared AQI condition branches to avoid duplication
-const AQI_BRANCHES = [
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.good,
-    thenCategory: AQI_CATEGORIES.good,
-    thenColorName: AQI_COLOR_NAMES.good,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.moderate,
-    thenCategory: AQI_CATEGORIES.moderate,
-    thenColorName: AQI_COLOR_NAMES.moderate,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.u4sg,
-    thenCategory: AQI_CATEGORIES.u4sg,
-    thenColorName: AQI_COLOR_NAMES.u4sg,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.unhealthy,
-    thenCategory: AQI_CATEGORIES.unhealthy,
-    thenColorName: AQI_COLOR_NAMES.unhealthy,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.very_unhealthy,
-    thenCategory: AQI_CATEGORIES.very_unhealthy,
-    thenColorName: AQI_COLOR_NAMES.very_unhealthy,
-  },
-  {
-    case: { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
-    thenColor: AQI_COLORS.hazardous,
-    thenCategory: AQI_CATEGORIES.hazardous,
-    thenColorName: AQI_COLOR_NAMES.hazardous,
-  },
-];
+// Builds the shared AQI condition branches from a resolved config (custom
+// override or the hardcoded defaults) instead of a module-load-time
+// constant — same 6-category, ordered structure as before, just computed
+// per call so a runtime config change takes effect on the next pipeline
+// build rather than requiring a restart.
+const buildAqiBranches = ({ AQI_RANGES: ranges, AQI_COLORS: colors, AQI_CATEGORIES: categories, AQI_COLOR_NAMES: colorNames, AQI_CATEGORY_KEYS: keys }) =>
+  keys.map((key, index) => {
+    const range = ranges[key];
+    const isLast = index === keys.length - 1;
+    return {
+      case: isLast
+        ? { $gte: ["$pm2_5.value", `$aqi_ranges.${key}.min`] }
+        : {
+            $and: [
+              { $gte: ["$pm2_5.value", `$aqi_ranges.${key}.min`] },
+              { $lte: ["$pm2_5.value", `$aqi_ranges.${key}.max`] },
+            ],
+          },
+      thenColor: colors[key],
+      thenCategory: categories[key],
+      thenColorName: colorNames[key],
+    };
+  });
 
 // Helper function to build MongoDB $switch expressions
-// from the shared AQI branches using a specific "then" property
-const buildSwitchExpression = (thenProperty) => ({
+// from the shared AQI branches using a specific "then" property.
+// The "unknown"/default branch always uses the system default constants,
+// regardless of whether `resolved` is a custom config — a custom config
+// (built by buildResolvedFromCustom in utils/aqi.util.js) only ever defines
+// the 6 real categories, never an "unknown" fallback, since that's a
+// system-level "couldn't classify at all" case, not something an admin
+// tunes.
+const buildSwitchExpression = (branches, thenProperty) => ({
   $switch: {
-    branches: AQI_BRANCHES.map((branch) => ({
+    branches: branches.map((branch) => ({
       case: branch.case,
       then: branch[thenProperty],
     })),
@@ -116,33 +89,34 @@ const buildSwitchExpression = (thenProperty) => ({
   },
 });
 
-// MongoDB switch case expression for AQI color
-const getAqiColorExpression = () => buildSwitchExpression("thenColor");
-
-// MongoDB switch case expression for AQI category
-const getAqiCategoryExpression = () => buildSwitchExpression("thenCategory");
-
-// MongoDB switch case expression for AQI color name
-const getAqiColorNameExpression = () => buildSwitchExpression("thenColorName");
-
 // Function to generate the AQI addFields for MongoDB aggregation pipelines.
 //
-// NOTE: callers MUST push/apply a prior { $addFields: { aqi_ranges: AQI_RANGES } }
-// stage before this one, because the AQI_BRANCHES switch expressions reference
-// $aqi_ranges.good.min etc. via the document field.
+// NOTE: callers MUST push/apply a prior { $addFields: { aqi_ranges: <the
+// SAME resolved AQI_RANGES> } } stage before this one, because the branches
+// reference $aqi_ranges.good.min etc. via the document field — the range
+// comparison and the color/category/label values returned here must come
+// from the same resolved config or they'll disagree with each other.
 //
-// Existing behaviour of aqi_color / aqi_category / aqi_color_name is
-// intentionally preserved (raw pm2_5.value vs AQI_RANGES thresholds) to
-// maintain backward compatibility with deployed consumers.
-// aqi_index is a new additive field and does not affect any existing field.
-function generateAqiAddFields() {
+// @param {object|null} [resolved] - result of resolveActiveAqiRanges
+// (utils/aqi.util.js). Omit to use the hardcoded defaults, same as before
+// this parameter existed — fully backward compatible.
+function generateAqiAddFields(resolved = null) {
+  const active = resolved || {
+    AQI_RANGES,
+    AQI_COLORS,
+    AQI_CATEGORIES,
+    AQI_COLOR_NAMES,
+    AQI_CATEGORY_KEYS: constants.AQI_CATEGORY_KEYS,
+  };
+  const branches = buildAqiBranches(active);
+
   return {
     $addFields: {
       device: "$device",
-      aqi_color: getAqiColorExpression(),
-      aqi_category: getAqiCategoryExpression(),
-      aqi_color_name: getAqiColorNameExpression(),
-      aqi_ranges: AQI_RANGES,
+      aqi_color: buildSwitchExpression(branches, "thenColor"),
+      aqi_category: buildSwitchExpression(branches, "thenCategory"),
+      aqi_color_name: buildSwitchExpression(branches, "thenColorName"),
+      aqi_ranges: active.AQI_RANGES,
       // NEW — numeric AQI value (0–500) computed from PM2.5 using the EPA
       // piecewise linear formula (EPA-454/B-24-002, 2024 revision).
       // This is purely additive and does not change any existing field value.
@@ -1373,8 +1347,18 @@ async function fetchData(model, filter) {
       postGroupStages.push({ $project: projection });
 
       if (!isHistorical) {
-        postGroupStages.push({ $addFields: { aqi_ranges: AQI_RANGES } });
-        postGroupStages.push({ $addFields: generateAqiAddFields().$addFields });
+        // Resolved once here (cached ~60s, see resolveActiveAqiRanges) so an
+        // admin-set custom AQI range is reflected in both the ingestion job
+        // (which shares this same fetchData path via EventModel.fetch())
+        // and the public list/view/fetch read endpoints — not just the
+        // legend and Nexus rankings the prior PR covered.
+        const resolvedAqiRanges = await resolveActiveAqiRanges(tenant);
+        postGroupStages.push({
+          $addFields: { aqi_ranges: resolvedAqiRanges.AQI_RANGES },
+        });
+        postGroupStages.push({
+          $addFields: generateAqiAddFields(resolvedAqiRanges).$addFields,
+        });
       }
 
       // ── $facet: count + paginated data in ONE round-trip ──────────────
@@ -1728,6 +1712,8 @@ async function fetchData(model, filter) {
 
 async function signalData(model, filter) {
   let { skip, limit, page } = filter;
+  const tenant = filter.tenant || constants.DEFAULT_TENANT || "airqo";
+  const resolvedAqiRanges = await resolveActiveAqiRanges(tenant);
   const recent = "yes";
   const metadata = "site_id";
 
@@ -2023,9 +2009,9 @@ async function signalData(model, filter) {
     })
     .project(projection)
     .addFields({
-      aqi_ranges: AQI_RANGES,
+      aqi_ranges: resolvedAqiRanges.AQI_RANGES,
     })
-    .addFields(generateAqiAddFields().$addFields)
+    .addFields(generateAqiAddFields(resolvedAqiRanges).$addFields)
     .skip(skip)
     .limit(limit)
     .allowDiskUse(true);
