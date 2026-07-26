@@ -210,10 +210,12 @@ function categoryFromConcentration(concentration, resolved = null) {
  * Assemble the canonical AQI category ranges (bands, labels, colors) for
  * dynamic frontend rendering — replaces hard-coded AQI legends.
  *
- * @param {{AQI_RANGES, AQI_CATEGORIES, AQI_COLORS, AQI_COLOR_NAMES, AQI_CATEGORY_KEYS, source}|null} [resolved] -
+ * @param {{AQI_RANGES, AQI_CATEGORIES, AQI_COLORS, AQI_COLOR_NAMES, AQI_CATEGORY_KEYS, source, version, effective_from}|null} [resolved] -
  *   optional resolved config (see resolveActiveAqiRanges). Omit to use the
- *   hardcoded defaults, same as before this parameter existed.
- * @returns {{success: boolean, message: string, data: {standard: string, source: string, ranges: Array}}}
+ *   hardcoded defaults, same as before this parameter existed. `version`/
+ *   `effective_from` are only present when `source` is `"custom"` — see
+ *   buildResolvedFromCustom.
+ * @returns {{success: boolean, message: string, data: {standard: string, source: string, version: (number|null), effective_from: (Date|null), ranges: Array}}}
  */
 function listRanges(resolved = null) {
   const {
