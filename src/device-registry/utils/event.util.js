@@ -1790,7 +1790,11 @@ const createEvent = {
           },
         },
         { $match: { _id: { $ne: null } } },
-        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1 } },
+        // Secondary sort on _id (entity name) breaks ties deterministically —
+        // without it, two entities with the same avg_pm2_5 could swap order
+        // between identical requests, since Mongo doesn't guarantee sort
+        // stability on its own.
+        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1, _id: 1 } },
         { $limit: Number(limit) },
       ];
 
