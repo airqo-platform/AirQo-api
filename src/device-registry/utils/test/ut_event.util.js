@@ -3093,6 +3093,12 @@ describe("create Event utils", function() {
       aggregateStub = sinon.stub();
       proxiedEventUtil = proxyquire("../event.util", {
         "@models/Reading": () => ({ aggregate: aggregateStub }),
+        // resolveActiveAqiRanges queries this once per request — resolve null
+        // immediately (no override) so tests don't hit a real, unconnected
+        // Mongoose model and hang on the ~10s buffering timeout.
+        "@models/SystemConfig": () => ({
+          findOne: () => ({ lean: () => Promise.resolve(null) }),
+        }),
       });
       next = sinon.stub();
     });
@@ -3147,6 +3153,69 @@ describe("create Event utils", function() {
 
       expect(result.data[0].avg_pm2_5).to.equal(9.1);
       expect(result.data[0].aqi_category).to.equal("good");
+    });
+
+    it("omits aqi_index when the active config is a custom override — it's always EPA-scale and would disagree with a custom category", async () => {
+      // Stub resolveActiveAqiRanges directly rather than mocking
+      // @models/SystemConfig again here: proxyquire caches nested modules
+      // (aqi.util.js) across separate proxyquire() calls in the same file,
+      // so a second call with a different @models/SystemConfig stub doesn't
+      // reliably get a fresh aqi.util.js instance. Stubbing the function
+      // this test actually cares about, with call-through left on for
+      // everything else (categoryFromConcentration/calculatePm25Aqi stay
+      // real), avoids that ambiguity entirely.
+      const customResolved = {
+        source: "custom",
+        AQI_RANGES: {
+          good: { min: 0, max: 5 },
+          moderate: { min: 5, max: 20 },
+          u4sg: { min: 20, max: 40 },
+          unhealthy: { min: 40, max: 80 },
+          very_unhealthy: { min: 80, max: 150 },
+          hazardous: { min: 150, max: null },
+        },
+        AQI_CATEGORY_KEYS: [
+          "good",
+          "moderate",
+          "u4sg",
+          "unhealthy",
+          "very_unhealthy",
+          "hazardous",
+        ],
+      };
+      const customProxiedEventUtil = proxyquire("../event.util", {
+        "@models/Reading": () => ({ aggregate: aggregateStub }),
+        "@utils/aqi.util": {
+          resolveActiveAqiRanges: async () => customResolved,
+        },
+      });
+      aggregateStub.returns(
+        mockAggregateChain([{ _id: "Kenya", avg_pm2_5: 6, site_count: 1 }])
+      );
+
+      const result = await customProxiedEventUtil.getAirQualityRankings(
+        { query: {} },
+        next
+      );
+
+      expect(result.data[0].aqi_category).to.equal("moderate"); // custom good.max=5
+      expect(result.data[0].aqi_index).to.equal(null);
+    });
+
+    it("still returns aqi_index when the active config is the default (EPA-aligned)", async () => {
+      // Uses the standard proxiedEventUtil from beforeEach — its
+      // @models/SystemConfig mock resolves null, so resolveActiveAqiRanges
+      // correctly produces the real "default" source end-to-end.
+      aggregateStub.returns(
+        mockAggregateChain([{ _id: "Kenya", avg_pm2_5: 20, site_count: 1 }])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankings(
+        { query: {} },
+        next
+      );
+
+      expect(result.data[0].aqi_index).to.be.a("number");
     });
 
     it("groups by city and leaves country_code null when level=city", async () => {
@@ -3253,6 +3322,12 @@ describe("create Event utils", function() {
       findStub = sinon.stub();
       proxiedEventUtil = proxyquire("../event.util", {
         "@models/AirQualitySummary": () => ({ find: findStub }),
+        // resolveActiveAqiRanges queries this once per request — resolve null
+        // immediately (no override) so tests don't hit a real, unconnected
+        // Mongoose model and hang on the ~10s buffering timeout.
+        "@models/SystemConfig": () => ({
+          findOne: () => ({ lean: () => Promise.resolve(null) }),
+        }),
       });
       next = sinon.stub();
     });
