@@ -464,6 +464,23 @@ describe("categoryFromConcentration / listRanges with a resolved override", func
     const result = listRanges();
     expect(result.data.source).to.equal("default");
   });
+
+  it("listRanges surfaces version/effective_from from a custom override", function() {
+    const updatedAt = new Date("2026-01-15T00:00:00.000Z");
+    const result = listRanges({
+      ...customResolved,
+      version: 4,
+      effective_from: updatedAt,
+    });
+    expect(result.data.version).to.equal(4);
+    expect(result.data.effective_from).to.equal(updatedAt);
+  });
+
+  it("listRanges reports version/effective_from as null when there's no custom override", function() {
+    const result = listRanges();
+    expect(result.data.version).to.equal(null);
+    expect(result.data.effective_from).to.equal(null);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -581,6 +598,32 @@ describe("resolveActiveAqiRanges / invalidateAqiRangesCache", function() {
     expect(resolved.source).to.equal("custom");
     expect(resolved.AQI_CATEGORIES.good).to.equal("Custom good");
     expect(resolved.AQI_COLORS.good).to.equal("ABCDEF");
+  });
+
+  it("carries the stored doc's version/updatedAt through as version/effective_from", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+      })),
+    };
+    const updatedAt = new Date("2026-02-01T00:00:00.000Z");
+    findOneStub.returns(
+      mockFindOneChain({ value: storedValue, version: 7, updatedAt })
+    );
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.version).to.equal(7);
+    expect(resolved.effective_from).to.equal(updatedAt);
+  });
+
+  it("reports version/effective_from as null when using the defaults", async function() {
+    findOneStub.returns(mockFindOneChain(null));
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.version).to.equal(null);
+    expect(resolved.effective_from).to.equal(null);
   });
 
   it("derives min_value from the previous category's max_value rather than trusting a stored min_value", async function() {
