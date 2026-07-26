@@ -124,4 +124,22 @@ describe("tipsValidations.bulkUpdateTips — aqi_category range check", () => {
       true
     );
   });
+
+  it("defers to the dedicated min/max validators on non-numeric input instead of resolving a config and throwing a generic range error", async () => {
+    const resolveStub = sinon.stub().resolves(customResolved);
+    const { bulkUpdateTips } = proxyValidators(resolveStub);
+
+    const req = mockRequest({
+      updates: [updateWithCategory({ min: "not-a-number", max: 5 })],
+    });
+    const err = await runChain(bulkUpdateTips, req);
+
+    // Still rejected overall (aqi_category.min's own isNumeric check catches
+    // it), but the range-match custom validator must not be the one that
+    // fired — it should have skipped rather than resolving a config for
+    // input it can't meaningfully compare.
+    expect(err).to.exist;
+    expect(err.statusCode).to.equal(400);
+    expect(resolveStub.called).to.equal(false);
+  });
 });

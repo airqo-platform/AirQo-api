@@ -296,6 +296,16 @@ async function fetchAllRecentEvents(lastProcessedTime) {
     `🔍 Query window: ${startTime.toISOString()} to ${endTime.toISOString()}`
   );
 
+  // Resolved once before the loop, not per-iteration: this loop can span
+  // many batches, and re-resolving on every iteration risked using two
+  // different configs (if an admin changed ranges mid-run, or the 60s cache
+  // simply expired between iterations) within what should be a single,
+  // consistent run. index is never set on this job's own request, so this
+  // doesn't change what gets fetched here — kept for consistency. Actual
+  // classification comes from EventModel("airqo").fetch() below via
+  // Event.js's signalData.
+  const resolvedAqiRanges = await resolveActiveAqiRanges("airqo");
+
   while (hasMore && iteration < MAX_FETCH_ITERATIONS) {
     try {
       const request = {
@@ -319,11 +329,6 @@ async function fetchAllRecentEvents(lastProcessedTime) {
         request.query.startTime = startTime.toISOString();
       }
 
-      // See the identical note in store-readings-job.js — index is never
-      // set on this request, so this doesn't change what gets fetched;
-      // kept for consistency. Actual classification comes from
-      // EventModel("airqo").fetch() below via Event.js's signalData.
-      const resolvedAqiRanges = await resolveActiveAqiRanges("airqo");
       const filter = generateFilter.fetch(request, null, resolvedAqiRanges); // Use fetch, not signalsJob
       logger.debug(
         `📝 Filter for iteration ${iteration + 1}:`,

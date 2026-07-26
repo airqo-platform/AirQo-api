@@ -144,13 +144,27 @@ const healthTipValidations = {
       .withMessage("aqi_category must be an object")
       .bail()
       .custom(async (aqi_category, { req }) => {
+        // min/max's own required/type checks run later in this chain
+        // (aqi_category.min / aqi_category.max below) — skip the range-match
+        // check on a value either of those will already reject, so the
+        // response carries their specific message instead of a generic
+        // "Invalid AQI range: min=undefined, max=NaN" from here, and so a
+        // malformed value doesn't cost a config resolution for nothing.
+        const { min, max } = aqi_category || {};
+        if (
+          typeof min !== "number" ||
+          !Number.isFinite(min) ||
+          (max !== null && (typeof max !== "number" || !Number.isFinite(max)))
+        ) {
+          return true;
+        }
+
         // Validate against the active AQI ranges — an admin-set custom
         // config if one exists, the hardcoded defaults otherwise. express-
         // validator awaits an async custom validator natively.
         const tenant =
           req.query.tenant || constants.DEFAULT_TENANT || "airqo";
         const resolved = await resolveActiveAqiRanges(tenant);
-        const { min, max } = aqi_category;
         const isValidRange = Object.values(resolved.AQI_RANGES).some(
           (range) =>
             Math.abs(range.min - min) < 0.001 && // Using small epsilon for float comparison

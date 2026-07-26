@@ -97,14 +97,38 @@ const handlePredefinedValueMatch = (
   return stringValue;
 };
 
+// Shared by `events` and `fetch` below — both set an identical
+// "values.pm2_5.value" range filter from the `?index=<category>` query param.
+// `resolved` (optional) is the result of utils/aqi.util.js's
+// resolveActiveAqiRanges — pass it to have the filter use an admin-set custom
+// AQI range instead of the hardcoded defaults (constants.AQI_RANGES). Omit it
+// to keep the existing behavior unchanged.
+function applyAqiIndexFilter(filter, index, resolved) {
+  const activeAqiRanges = (resolved || constants).AQI_RANGES;
+  if (!index) {
+    delete filter["values.pm2_5.value"];
+  } else if (Object.keys(activeAqiRanges).includes(index)) {
+    const range = activeAqiRanges[index];
+    filter["values.pm2_5.value"] = {};
+    filter["values.pm2_5.value"]["$gte"] = range.min;
+    // Only set $lte if max is not null
+    if (range.max !== null) {
+      filter["values.pm2_5.value"]["$lte"] = range.max;
+    }
+    filter["index"] = index;
+  } else {
+    delete filter["values.pm2_5.value"];
+  }
+}
+
 //startTime=2022-12-20T10:34:15.880Z
 const generateFilter = {
   // `resolved` (optional, trailing) is the result of
   // utils/aqi.util.js's resolveActiveAqiRanges — pass it to have the
   // `index`/category filter (e.g. ?index=good) use an admin-set custom AQI
-  // range instead of the hardcoded constants.AQI_INDEX. Omit it to keep the
-  // existing behavior unchanged (kept synchronous and backward compatible —
-  // this function has many callers that don't await it).
+  // range instead of the hardcoded defaults (constants.AQI_RANGES). Omit it
+  // to keep the existing behavior unchanged (kept synchronous and backward
+  // compatible — this function has many callers that don't await it).
   events: (request, next, resolved = null) => {
     const { query, params } = request;
     const {
@@ -161,27 +185,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    const activeAqiRanges = (resolved || constants).AQI_RANGES;
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(activeAqiRanges).includes(index)) {
-      const range = activeAqiRanges[index];
-      // Pre-existing bug, unrelated to the dynamic-config change above:
-      // "values.pm2_5.value" is never seeded as an object in the initial
-      // filter (unlike generateFilter.fetch, which does this correctly) —
-      // every call with a valid ?index= value threw a TypeError here.
-      // Surfaced by adding test coverage for this branch; fixed since it
-      // blocks verifying the dynamic-ranges change for this function.
-      filter["values.pm2_5.value"] = {};
-      filter["values.pm2_5.value"]["$gte"] = range.min;
-      // Only set $lte if max is not null
-      if (range.max !== null) {
-        filter["values.pm2_5.value"]["$lte"] = range.max;
-      }
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAqiIndexFilter(filter, index, resolved);
 
     // Handle startTime and endTime filtering
     if (startTime) {
@@ -1279,21 +1283,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    const activeAqiRanges = (resolved || constants).AQI_RANGES;
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(activeAqiRanges).includes(index)) {
-      const range = activeAqiRanges[index];
-      filter["values.pm2_5.value"] = {};
-      filter["values.pm2_5.value"]["$gte"] = range.min;
-      // Only set $lte if max is not null
-      if (range.max !== null) {
-        filter["values.pm2_5.value"]["$lte"] = range.max;
-      }
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAqiIndexFilter(filter, index, resolved);
 
     // Handle startTime and endTime filtering
     if (startTime) {

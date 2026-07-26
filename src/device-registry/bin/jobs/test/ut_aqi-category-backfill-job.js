@@ -91,6 +91,11 @@ describe("aqi-category-backfill-job", () => {
     resolveActiveAqiRangesStub = sinon.stub().resolves(defaultResolved);
 
     return proxyquire("../aqi-category-backfill-job", {
+      // Without this, every proxyquire() call below re-executes the module's
+      // top-level cron.schedule(...) for real, registering a live daily
+      // interval that outlives the test — this file's own suite alone left
+      // one stray schedule per test case running in the process.
+      "node-cron": { schedule: sinon.stub() },
       "@models/Reading": mockModelFactory(readingDocs, findSpy, tenantSpy),
       "@models/Signal": mockModelFactory(signalDocs, findSpy, tenantSpy),
       "@models/JobLock": () => ({
