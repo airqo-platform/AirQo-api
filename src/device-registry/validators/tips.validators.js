@@ -11,8 +11,11 @@ const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
+const { resolveActiveAqiRanges } = require("@utils/aqi.util");
 
-// Centralized AQI Range Configuration
+// Centralized AQI Range Configuration — kept as the fallback default; the
+// bulk-update validator below now resolves the active (possibly admin-set
+// custom) config instead of always reading this directly.
 const AQI_RANGES = constants.AQI_RANGES;
 
 // Export AQI_RANGES so they can be used in other files if needed
@@ -140,10 +143,15 @@ const healthTipValidations = {
       .isObject()
       .withMessage("aqi_category must be an object")
       .bail()
-      .custom((aqi_category) => {
-        // Validate against predefined AQI ranges
+      .custom(async (aqi_category, { req }) => {
+        // Validate against the active AQI ranges — an admin-set custom
+        // config if one exists, the hardcoded defaults otherwise. express-
+        // validator awaits an async custom validator natively.
+        const tenant =
+          req.query.tenant || constants.DEFAULT_TENANT || "airqo";
+        const resolved = await resolveActiveAqiRanges(tenant);
         const { min, max } = aqi_category;
-        const isValidRange = Object.values(AQI_RANGES).some(
+        const isValidRange = Object.values(resolved.AQI_RANGES).some(
           (range) =>
             Math.abs(range.min - min) < 0.001 && // Using small epsilon for float comparison
             ((range.max === null && max === null) ||

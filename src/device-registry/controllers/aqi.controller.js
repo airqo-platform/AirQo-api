@@ -7,11 +7,28 @@ const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- aqi-controller`);
+const {
+  runAqiCategoryBackfillJob,
+} = require("@bin/jobs/aqi-category-backfill-job");
 
 const resolveTenant = (req) => {
   const tenant = req.query.tenant;
   return isEmpty(tenant) ? constants.DEFAULT_TENANT || "airqo" : tenant;
 };
+
+// Fire-and-forget — reconciles already-stored readings'/signals' aqi_category
+// etc. against the config that was just written, so they stop looking stale
+// promptly rather than waiting for the daily safety-net schedule. Never
+// awaited from the request handler: the backfill can take longer than an
+// HTTP request should, and a failure here must not fail the PUT/DELETE that
+// already succeeded.
+function triggerAqiCategoryBackfill() {
+  runAqiCategoryBackfillJob().catch((error) => {
+    logger.error(
+      `🐛🐛 aqi-category-backfill trigger failed: ${error.message}`
+    );
+  });
+}
 
 const aqiController = {
   listRanges: async (req, res, next) => {
@@ -68,6 +85,7 @@ const aqiController = {
       // read can't be caught between an invalidated cache and the new value
       // actually landing in Mongo.
       aqiUtil.invalidateAqiRangesCache(tenant);
+      triggerAqiCategoryBackfill();
 
       const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
       const result = aqiUtil.listRanges(resolved);
@@ -105,6 +123,7 @@ const aqiController = {
         key: aqiUtil.AQI_RANGES_CONFIG_KEY,
       });
       aqiUtil.invalidateAqiRangesCache(tenant);
+      triggerAqiCategoryBackfill();
 
       const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
       const result = aqiUtil.listRanges(resolved);

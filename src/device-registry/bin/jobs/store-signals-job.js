@@ -8,7 +8,7 @@ const EventModel = require("@models/Event");
 const SignalModel = require("@models/Signal");
 const JobStateModel = require("@models/JobState");
 const { logObject, logText } = require("@utils/shared");
-const { calculatePm25Aqi } = require("@utils/aqi.util");
+const { calculatePm25Aqi, resolveActiveAqiRanges } = require("@utils/aqi.util");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
@@ -319,7 +319,12 @@ async function fetchAllRecentEvents(lastProcessedTime) {
         request.query.startTime = startTime.toISOString();
       }
 
-      const filter = generateFilter.fetch(request); // Use fetch, not signalsJob
+      // See the identical note in store-readings-job.js — index is never
+      // set on this request, so this doesn't change what gets fetched;
+      // kept for consistency. Actual classification comes from
+      // EventModel("airqo").fetch() below via Event.js's signalData.
+      const resolvedAqiRanges = await resolveActiveAqiRanges("airqo");
+      const filter = generateFilter.fetch(request, null, resolvedAqiRanges); // Use fetch, not signalsJob
       logger.debug(
         `📝 Filter for iteration ${iteration + 1}:`,
         JSON.stringify(filter)

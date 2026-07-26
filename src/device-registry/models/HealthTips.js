@@ -7,6 +7,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const { resolveActiveAqiRanges } = require("@utils/aqi.util");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- health-tip-model`);
 
@@ -94,8 +95,16 @@ tipsSchema.methods = {
 };
 
 const _removeInvalidTips = async function(model) {
-  // Get valid AQI ranges from the configuration
-  const validAqiRanges = Object.values(constants.AQI_INDEX);
+  // No per-tenant identity is threaded into this helper today (its callers
+  // only receive `this`, the already tenant-bound Mongoose model, not a
+  // tenant string) — defaults to the single active tenant, consistent with
+  // how other admin/write-path code in this service already defaults
+  // ("airqo" is the only tenant actively in use).
+  const resolved = await resolveActiveAqiRanges(
+    constants.DEFAULT_TENANT || "airqo",
+  );
+  // Get valid AQI ranges from the active config (admin override or default)
+  const validAqiRanges = Object.values(resolved.AQI_RANGES);
 
   // Build a query to find all tips with invalid AQI ranges
   const validRangeFilters = validAqiRanges.map((range) => {
