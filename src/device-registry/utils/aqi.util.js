@@ -251,40 +251,79 @@ function listRanges(resolved = null) {
 }
 
 /**
- * Validate that a stored/candidate AQI ranges value has the exact shape
- * categoryFromConcentration/listRanges require: all AQI_CATEGORY_KEYS present
- * in order, max_value strictly increasing with the last one null, colors
- * valid 6-hex-digit codes. Used both to defensively re-check a doc that may
- * have been hand-edited outside the API, and to validate a PUT body.
+ * Validate an AQI ranges array against the shared contract: all
+ * AQI_CATEGORY_KEYS present in order, max_value strictly increasing with the
+ * last one null, colors valid 6-hex-digit codes (with or without a leading
+ * "#", per hexHasPrefix), labels non-empty strings, and color_name (when
+ * present) a non-empty string. Single source of truth for both the PUT body
+ * validator (validators/aqi.validators.js, hexHasPrefix: true — the wire
+ * format is #RRGGBB) and isValidAqiRangesShape below (hexHasPrefix: false —
+ * the stored/normalized form, already stripped of its leading "#" by
+ * buildRangesWithDerivedMin in aqi.controller.js) — kept as one function so
+ * the two can't silently drift apart the way isValidAqiRangesShape and the
+ * validator's own color_name check already had before this was consolidated.
+ *
+ * @returns {string|null} the first validation error message, or null if valid
+ */
+function validateAqiRangesArray(ranges, { hexHasPrefix = false } = {}) {
+  const { AQI_CATEGORY_KEYS } = constants;
+  if (!Array.isArray(ranges) || ranges.length !== AQI_CATEGORY_KEYS.length) {
+    return `ranges must contain exactly ${AQI_CATEGORY_KEYS.length} categories`;
+  }
+
+  const keys = ranges.map((range) => range && range.key);
+  if (keys.join(",") !== AQI_CATEGORY_KEYS.join(",")) {
+    return `ranges must contain exactly these keys in order: ${AQI_CATEGORY_KEYS.join(", ")}`;
+  }
+
+  const colorRegex = hexHasPrefix ? /^#[0-9A-Fa-f]{6}$/ : /^[0-9A-Fa-f]{6}$/;
+  let prevMax = -Infinity;
+  for (let i = 0; i < ranges.length; i += 1) {
+    const range = ranges[i];
+    const isLast = i === ranges.length - 1;
+
+    if (isLast) {
+      if (range.max_value !== null) {
+        return `${range.key}.max_value must be null (unbounded)`;
+      }
+    } else {
+      if (typeof range.max_value !== "number" || !(range.max_value > prevMax)) {
+        return `${range.key}.max_value must be a number strictly greater than the previous category's max_value`;
+      }
+      prevMax = range.max_value;
+    }
+
+    if (!colorRegex.test(range.color || "")) {
+      return `${range.key}.color must be a 6-hex-digit code${hexHasPrefix ? ", e.g. #34C759" : ""}`;
+    }
+    if (typeof range.label !== "string" || !range.label.trim()) {
+      return `${range.key}.label must be a non-empty string`;
+    }
+    if (
+      range.color_name !== undefined &&
+      range.color_name !== null &&
+      (typeof range.color_name !== "string" || !range.color_name.trim())
+    ) {
+      return `${range.key}.color_name must be a non-empty string when provided`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Validate that a stored/candidate AQI ranges value (the normalized form
+ * already persisted in SystemConfig — bare hex colors, no leading "#") has
+ * the exact shape categoryFromConcentration/listRanges require. Used to
+ * defensively re-check a doc that may have been hand-edited outside the API
+ * before trusting it — NOT used to validate a raw incoming PUT body, which
+ * uses #-prefixed colors and is validated separately in
+ * validators/aqi.validators.js via the same validateAqiRangesArray above.
  *
  * @returns {boolean}
  */
 function isValidAqiRangesShape(value) {
   if (!value || typeof value !== "object") return false;
-  const { AQI_CATEGORY_KEYS } = constants;
-  const ranges = value.ranges;
-  if (!Array.isArray(ranges) || ranges.length !== AQI_CATEGORY_KEYS.length) {
-    return false;
-  }
-
-  let prevMax = -Infinity;
-  for (let i = 0; i < AQI_CATEGORY_KEYS.length; i += 1) {
-    const range = ranges[i];
-    const isLast = i === AQI_CATEGORY_KEYS.length - 1;
-    if (!range || range.key !== AQI_CATEGORY_KEYS[i]) return false;
-    if (typeof range.label !== "string" || !range.label.trim()) return false;
-    if (!/^[0-9A-Fa-f]{6}$/.test(range.color || "")) return false;
-
-    if (isLast) {
-      if (range.max_value !== null) return false;
-    } else {
-      if (typeof range.max_value !== "number" || !(range.max_value > prevMax)) {
-        return false;
-      }
-      prevMax = range.max_value;
-    }
-  }
-  return true;
+  return validateAqiRangesArray(value.ranges, { hexHasPrefix: false }) === null;
 }
 
 /**
@@ -303,16 +342,30 @@ function buildResolvedFromCustom(value) {
   const AQI_COLOR_NAMES = {};
   const AQI_CATEGORY_KEYS = [];
 
-  value.ranges.forEach((range) => {
+  // min_value is derived here, not trusted from the stored doc — same
+  // reasoning as buildRangesWithDerivedMin in aqi.controller.js: a doc that
+  // was hand-edited outside the API (isValidAqiRangesShape only checks
+  // max_value/key order/color/label, not min_value) could otherwise leave
+  // AQI_RANGES[key].min undefined in the GET response.
+  let prevMax = 0;
+  value.ranges.forEach((range, index) => {
     AQI_CATEGORY_KEYS.push(range.key);
+    const min = index === 0 ? 0 : prevMax;
     AQI_RANGES[range.key] = {
-      min: range.min_value,
+      min,
       max: range.max_value,
     };
+    if (range.max_value !== null) {
+      prevMax = range.max_value;
+    }
     AQI_CATEGORIES[range.key] = range.label;
     AQI_COLORS[range.key] = range.color;
+    const customColorName =
+      typeof range.color_name === "string" && range.color_name.trim()
+        ? range.color_name.trim()
+        : null;
     AQI_COLOR_NAMES[range.key] =
-      range.color_name || constants.AQI_COLOR_NAMES[range.key] || null;
+      customColorName || constants.AQI_COLOR_NAMES[range.key] || null;
   });
 
   return {
@@ -342,7 +395,19 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
     return cached.value;
   }
 
-  let resolved = { ...constants, source: "default" };
+  // Built explicitly from only the fields the contract needs — matching
+  // buildResolvedFromCustom's shape exactly (not `{...constants, source}`,
+  // which would drag in every unrelated constant and leave a "default"
+  // result structurally different from a "custom" one for anything doing a
+  // deep comparison).
+  let resolved = {
+    AQI_RANGES: constants.AQI_RANGES,
+    AQI_CATEGORIES: constants.AQI_CATEGORIES,
+    AQI_COLORS: constants.AQI_COLORS,
+    AQI_COLOR_NAMES: constants.AQI_COLOR_NAMES,
+    AQI_CATEGORY_KEYS: constants.AQI_CATEGORY_KEYS,
+    source: "default",
+  };
   try {
     const doc = await SystemConfigModel(tenant)
       .findOne({ key: AQI_RANGES_CONFIG_KEY })
@@ -373,6 +438,14 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
  * Invalidate the cached resolved config for a tenant — call after a
  * successful PUT/DELETE write so the writing pod reflects the change
  * immediately rather than waiting out the TTL.
+ *
+ * Only clears THIS pod's cache. Other replicas keep serving whatever they
+ * last cached for up to AQI_RANGES_CACHE_TTL_MS — there's no cross-pod
+ * invalidation today (see the PR description for the accepted tradeoff). If
+ * atomic cross-replica updates ever become necessary, options include a
+ * pub/sub invalidation broadcast or moving the version check into
+ * SystemConfig itself (e.g. compare `version` on every read) rather than
+ * time-based expiry.
  */
 function invalidateAqiRangesCache(tenant = "airqo") {
   _aqiRangesCache.delete(tenant);
@@ -383,6 +456,7 @@ module.exports = {
   getAqiIndexMongoExpression,
   categoryFromConcentration,
   listRanges,
+  validateAqiRangesArray,
   isValidAqiRangesShape,
   resolveActiveAqiRanges,
   invalidateAqiRangesCache,

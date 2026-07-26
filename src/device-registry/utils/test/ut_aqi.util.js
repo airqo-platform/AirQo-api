@@ -535,8 +535,15 @@ describe("resolveActiveAqiRanges / invalidateAqiRangesCache", function() {
 
   beforeEach(function() {
     findOneStub = sinon.stub();
+    // @noCallThru: proxyquire otherwise falls back to the real module for
+    // anything this stub doesn't provide — irrelevant in practice since the
+    // stub is a full function replacement, not a partial object override,
+    // but explicit here so this test can never accidentally reach the real,
+    // unconnected SystemConfig model.
+    const systemConfigStub = () => ({ findOne: findOneStub });
+    systemConfigStub["@noCallThru"] = true;
     proxiedAqiUtil = proxyquire("../aqi.util", {
-      "@models/SystemConfig": () => ({ findOne: findOneStub }),
+      "@models/SystemConfig": systemConfigStub,
     });
   });
 
@@ -574,6 +581,83 @@ describe("resolveActiveAqiRanges / invalidateAqiRangesCache", function() {
     expect(resolved.source).to.equal("custom");
     expect(resolved.AQI_CATEGORIES.good).to.equal("Custom good");
     expect(resolved.AQI_COLORS.good).to.equal("ABCDEF");
+  });
+
+  it("derives min_value from the previous category's max_value rather than trusting a stored min_value", async function() {
+    // isValidAqiRangesShape doesn't check min_value at all, so a doc that was
+    // hand-edited outside the API (bypassing the controller's own derivation)
+    // could carry a bogus/missing min_value. The resolved config must never
+    // surface it as-is.
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 99999, // deliberately wrong on every entry
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const keys = constants.AQI_CATEGORY_KEYS;
+    expect(resolved.AQI_RANGES[keys[0]].min).to.equal(0);
+    expect(resolved.AQI_RANGES[keys[1]].min).to.equal(resolved.AQI_RANGES[keys[0]].max);
+    expect(resolved.AQI_RANGES[keys[2]].min).to.equal(resolved.AQI_RANGES[keys[1]].max);
+  });
+
+  it("falls back to the default color_name when the stored one is not a string", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 0,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+        color_name: { not: "a string" },
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const goodKey = constants.AQI_CATEGORY_KEYS[0];
+    expect(resolved.AQI_COLOR_NAMES[goodKey]).to.equal(constants.AQI_COLOR_NAMES[goodKey]);
+  });
+
+  it("falls back to the default color_name when the stored one is an empty/whitespace string", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 0,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+        color_name: "   ",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const goodKey = constants.AQI_CATEGORY_KEYS[0];
+    expect(resolved.AQI_COLOR_NAMES[goodKey]).to.equal(constants.AQI_COLOR_NAMES[goodKey]);
+  });
+
+  it("uses a valid stored color_name, trimmed", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 0,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+        color_name: "  Emerald  ",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const goodKey = constants.AQI_CATEGORY_KEYS[0];
+    expect(resolved.AQI_COLOR_NAMES[goodKey]).to.equal("Emerald");
   });
 
   it("falls back to defaults when the stored document is malformed", async function() {

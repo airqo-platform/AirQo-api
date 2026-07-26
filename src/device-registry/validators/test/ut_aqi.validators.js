@@ -73,16 +73,30 @@ describe("aqiValidations.updateRanges / deleteRanges", () => {
       expect(err).to.be.undefined;
     });
 
-    it("rejects a missing admin_secret with 400 (caught by field validation, before the secret check)", async () => {
+    it("rejects a missing admin_secret with 403 (auth runs before field validation, so no schema details leak to unauthenticated callers)", async () => {
       const req = mockRequest({ ranges: validRanges() });
       const err = await runChain(aqiValidations.updateRanges, req);
-      expect(err.statusCode).to.equal(400);
+      expect(err.statusCode).to.equal(403);
     });
 
     it("rejects a wrong admin_secret with 403", async () => {
       const req = mockRequest({ ranges: validRanges(), admin_secret: "wrong-secret" });
       const err = await runChain(aqiValidations.updateRanges, req);
       expect(err.statusCode).to.equal(403);
+    });
+
+    it("rejects a non-string admin_secret (e.g. a number) with 403 rather than crashing on Buffer.from", async () => {
+      const req = mockRequest({ ranges: validRanges(), admin_secret: 123456 });
+      const err = await runChain(aqiValidations.updateRanges, req);
+      expect(err.statusCode).to.equal(403);
+    });
+
+    it("still rejects a malformed ranges body with 400 once authenticated", async () => {
+      const ranges = validRanges();
+      ranges[0].label = "   "; // empty after trim
+      const req = mockRequest({ ranges, admin_secret: TEST_SECRET });
+      const err = await runChain(aqiValidations.updateRanges, req);
+      expect(err.statusCode).to.equal(400);
     });
 
     it("rejects the wrong number of categories", async () => {
@@ -150,6 +164,30 @@ describe("aqiValidations.updateRanges / deleteRanges", () => {
       expect(err).to.be.undefined;
     });
 
+    it("accepts a well-formed color_name when provided", async () => {
+      const ranges = validRanges();
+      ranges[0].color_name = "Emerald";
+      const req = mockRequest({ ranges, admin_secret: TEST_SECRET });
+      const err = await runChain(aqiValidations.updateRanges, req);
+      expect(err).to.be.undefined;
+    });
+
+    it("rejects a non-string color_name", async () => {
+      const ranges = validRanges();
+      ranges[0].color_name = { not: "a string" };
+      const req = mockRequest({ ranges, admin_secret: TEST_SECRET });
+      const err = await runChain(aqiValidations.updateRanges, req);
+      expect(err.statusCode).to.equal(400);
+    });
+
+    it("rejects an empty/whitespace color_name", async () => {
+      const ranges = validRanges();
+      ranges[0].color_name = "   ";
+      const req = mockRequest({ ranges, admin_secret: TEST_SECRET });
+      const err = await runChain(aqiValidations.updateRanges, req);
+      expect(err.statusCode).to.equal(400);
+    });
+
     it("deleteRanges accepts the correct admin_secret via query", async () => {
       const req = mockRequest({}, { admin_secret: TEST_SECRET });
       const err = await runChain(aqiValidations.deleteRanges, req);
@@ -160,6 +198,18 @@ describe("aqiValidations.updateRanges / deleteRanges", () => {
       const req = mockRequest({}, { admin_secret: "wrong" });
       const err = await runChain(aqiValidations.deleteRanges, req);
       expect(err.statusCode).to.equal(403);
+    });
+
+    it("deleteRanges rejects a non-string admin_secret (e.g. a number) with 403 rather than crashing on Buffer.from", async () => {
+      const req = mockRequest({}, { admin_secret: 123456 });
+      const err = await runChain(aqiValidations.deleteRanges, req);
+      expect(err.statusCode).to.equal(403);
+    });
+
+    it("deleteRanges accepts the correct admin_secret via body too", async () => {
+      const req = mockRequest({ admin_secret: TEST_SECRET });
+      const err = await runChain(aqiValidations.deleteRanges, req);
+      expect(err).to.be.undefined;
     });
   });
 });

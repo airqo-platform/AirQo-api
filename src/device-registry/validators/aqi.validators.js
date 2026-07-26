@@ -5,6 +5,7 @@ const { validate } = require("@validators/common");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const crypto = require("crypto");
+const aqiUtil = require("@utils/aqi.util");
 
 const listRanges = [
   query("tenant")
@@ -23,7 +24,10 @@ const listRanges = [
 // for this exact check (see validators/cohorts.validators.js,
 // utils/network.util.js, validators/network-creation-request.validators.js).
 // device-registry has no per-user auth; this shared-secret gate is the
-// established stand-in for admin-only write access.
+// established stand-in for admin-only write access. Kept consistent with
+// those other copies by still accepting the secret via body OR query — not
+// narrowed to body-only here, since that would diverge from every other use
+// of this exact pattern elsewhere in the codebase.
 const requireAdminSecret = (req, res, next) => {
   if (!constants.ADMIN_SETUP_SECRET) {
     return next(
@@ -32,9 +36,13 @@ const requireAdminSecret = (req, res, next) => {
       })
     );
   }
-  const provided = Buffer.from(
-    req.body.admin_secret || req.query.admin_secret || ""
-  );
+  // Coerced to a string before Buffer.from — a non-string admin_secret (a
+  // number, boolean, or plain object from a malformed JSON body) would
+  // otherwise make Buffer.from throw a TypeError that nothing here catches,
+  // turning a routine "wrong secret" case into an unhandled 500 instead of
+  // the intended 403.
+  const rawSecret = req.body.admin_secret || req.query.admin_secret || "";
+  const provided = Buffer.from(String(rawSecret));
   const expected = Buffer.from(constants.ADMIN_SETUP_SECRET);
   if (
     provided.length !== expected.length ||
@@ -78,50 +86,22 @@ const updateRanges = [
   // GET response and is derived server-side from the previous category's
   // max_value rather than doubling the validation surface for it.
   body("ranges").custom((ranges) => {
-    const { AQI_CATEGORY_KEYS } = constants;
-    if (!Array.isArray(ranges)) {
-      throw new Error("ranges must be an array");
+    const error = aqiUtil.validateAqiRangesArray(ranges, { hexHasPrefix: true });
+    if (error) {
+      throw new Error(error);
     }
-    const keys = ranges.map((range) => range && range.key);
-    if (keys.join(",") !== AQI_CATEGORY_KEYS.join(",")) {
-      throw new Error(
-        `ranges must contain exactly these keys in order: ${AQI_CATEGORY_KEYS.join(", ")}`
-      );
-    }
-
-    let prevMax = -Infinity;
-    ranges.forEach((range, index) => {
-      const isLast = index === ranges.length - 1;
-      if (isLast) {
-        if (range.max_value !== null) {
-          throw new Error(`${range.key}.max_value must be null (unbounded)`);
-        }
-      } else {
-        if (typeof range.max_value !== "number" || !(range.max_value > prevMax)) {
-          throw new Error(
-            `${range.key}.max_value must be a number strictly greater than the previous category's max_value`
-          );
-        }
-        prevMax = range.max_value;
-      }
-
-      if (!/^#[0-9A-Fa-f]{6}$/.test(range.color || "")) {
-        throw new Error(
-          `${range.key}.color must be a 6-hex-digit code, e.g. #34C759`
-        );
-      }
-      if (typeof range.label !== "string" || !range.label.trim()) {
-        throw new Error(`${range.key}.label must be a non-empty string`);
-      }
-    });
     return true;
   }),
   body("updated_by")
     .optional()
     .isString()
     .withMessage("updated_by must be a string"),
-  validate,
+  // Runs before field validation so an unauthenticated/wrong-secret caller
+  // gets a terse 403 rather than the detailed per-field error messages from
+  // the "ranges" validator above (which would otherwise leak the shape of
+  // the validation schema to someone who never proved they're an admin).
   requireAdminSecret,
+  validate,
 ];
 
 const deleteRanges = [
@@ -133,8 +113,16 @@ const deleteRanges = [
     .toLowerCase()
     .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
-  validate,
+  // Optional/type-only check — requireAdminSecret (which also accepts the
+  // secret via query, see its own comment) is the actual gate; this just
+  // rejects an obviously-wrong body shape early with a clear message when a
+  // body is provided at all.
+  body("admin_secret")
+    .optional()
+    .isString()
+    .withMessage("admin_secret must be a string"),
   requireAdminSecret,
+  validate,
 ];
 
 module.exports = {

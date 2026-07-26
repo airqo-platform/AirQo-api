@@ -51,11 +51,11 @@ systemConfigSchema.statics.upsert = async function(key, value, updated_by) {
 const SystemConfigModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    return mongoose.model("systemconfigs");
-  } catch (error) {
-    return getModelByTenant(dbTenant, "systemconfig", systemConfigSchema);
-  }
+  // getModelByTenant registers models on a tenant-specific connection (via
+  // connection.model(), not the global mongoose.model() registry), so a
+  // preceding `mongoose.model("systemconfigs")` lookup here would never
+  // succeed and always fall through — it's dead code, not a real cache.
+  return getModelByTenant(dbTenant, "systemconfig", systemConfigSchema);
 };
 
 module.exports = SystemConfigModel;

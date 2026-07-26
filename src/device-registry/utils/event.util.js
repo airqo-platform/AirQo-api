@@ -1821,7 +1821,16 @@ const createEvent = {
           country_code:
             level === "country" ? constants.countryCodes[row._id] || null : null,
           avg_pm2_5: avgPm25,
-          aqi_index: aqiUtil.calculatePm25Aqi(avgPm25),
+          // aqi_index always comes from the fixed EPA numeric breakpoints
+          // (calculatePm25Aqi is not admin-configurable) — pairing it with a
+          // category derived from a *custom* range would show a number and
+          // a label that don't actually agree with each other, since a
+          // custom config has no guaranteed relationship to the EPA scale.
+          // Only emit it alongside the default, EPA-aligned ranges.
+          aqi_index:
+            resolvedAqiRanges.source === "custom"
+              ? null
+              : aqiUtil.calculatePm25Aqi(avgPm25),
           aqi_category: aqiUtil.categoryFromConcentration(avgPm25, resolvedAqiRanges),
           site_count: row.site_count,
           generated_at: generatedAt,
