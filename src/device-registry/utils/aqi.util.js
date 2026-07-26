@@ -22,7 +22,8 @@
  */
 
 // Single source of truth for PM2.5 AQI breakpoints
-const { PM25_AQI_BREAKPOINTS } = require("@config/constants");
+const constants = require("@config/constants");
+const { PM25_AQI_BREAKPOINTS } = constants;
 
 // Fail fast at module load time if the breakpoint table is misconfigured.
 // This prevents Infinity/NaN slopes from silently propagating into the
@@ -158,7 +159,75 @@ function getAqiIndexMongoExpression(fieldPath = "$pm2_5.value") {
   };
 }
 
+/**
+ * Map a PM2.5 concentration (e.g. an averaged value across many sites) to its
+ * AQI category key using the canonical AQI_RANGES breakpoints. Distinct from
+ * the per-reading aqi_category persisted on Reading documents, which is only
+ * ever computed for a single reading's own pm2_5 value.
+ *
+ * @param {number|null|undefined} concentration - PM2.5 concentration in µg/m³
+ * @returns {string|null} one of AQI_CATEGORY_KEYS, or null if invalid
+ */
+function categoryFromConcentration(concentration) {
+  if (
+    concentration === null ||
+    concentration === undefined ||
+    typeof concentration !== "number" ||
+    isNaN(concentration) ||
+    concentration < 0
+  ) {
+    return null;
+  }
+
+  const { AQI_RANGES, AQI_CATEGORY_KEYS } = constants;
+
+  // AQI_RANGES boundaries leave thousandths-place gaps between adjacent
+  // categories (e.g. good max 9.1, moderate min 9.101) — fine for single
+  // readings, which are rarely that precise, but averaged values (as used
+  // here) can land in the gap. Classify by upper bound only, in ascending
+  // order, so every non-negative value matches exactly one category.
+  for (const categoryKey of AQI_CATEGORY_KEYS) {
+    const { max } = AQI_RANGES[categoryKey];
+    if (max === null || concentration <= max) {
+      return categoryKey;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Assemble the canonical AQI category ranges (bands, labels, colors) for
+ * dynamic frontend rendering — replaces hard-coded AQI legends.
+ *
+ * @returns {{success: boolean, message: string, data: {standard: string, ranges: Array}}}
+ */
+function listRanges() {
+  const { AQI_RANGES, AQI_CATEGORIES, AQI_COLORS, AQI_COLOR_NAMES, AQI_CATEGORY_KEYS } = constants;
+
+  const ranges = AQI_CATEGORY_KEYS.map((key, index) => ({
+    key,
+    label: AQI_CATEGORIES[key],
+    min_value: AQI_RANGES[key].min,
+    max_value: AQI_RANGES[key].max,
+    color: `#${AQI_COLORS[key]}`,
+    color_name: AQI_COLOR_NAMES[key],
+    display_order: index + 1,
+  }));
+
+  return {
+    success: true,
+    message: "Successfully retrieved AQI ranges",
+    data: {
+      standard: "US EPA PM2.5 AQI (2024 NAAQS revision)",
+      ranges,
+    },
+  };
+}
+
 module.exports = {
   calculatePm25Aqi,
   getAqiIndexMongoExpression,
+  categoryFromConcentration,
+  listRanges,
 };

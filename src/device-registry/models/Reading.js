@@ -673,6 +673,17 @@ ReadingsSchema.index(
   },
 );
 
+// Supports the Nexus rankings/historical-rankings aggregations, which $match
+// on siteDetails.country ahead of a time-range filter. Without this, that
+// $match falls back to a full collection scan.
+ReadingsSchema.index(
+  { "siteDetails.country": 1, time: -1 },
+  {
+    name: "country_time_idx",
+    background: true,
+  },
+);
+
 ReadingsSchema.methods = {
   toJSON() {
     const obj = {

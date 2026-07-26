@@ -47,6 +47,8 @@ const {
   listByCohort,
   listByCohortHistorical,
   listByLatLong,
+  getAirQualityRankings,
+  getAirQualityRankingsHistory,
 } = createEvent;
 
 // Functions not in the controller — define as no-ops to prevent ReferenceError
@@ -377,6 +379,130 @@ describe("Create Event Controller", () => {
         httpStatus.INTERNAL_SERVER_ERROR
       );
       expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
+
+  describe("getAirQualityRankings", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = { query: { level: "country" }, params: {} };
+      res = {
+        status: sinon.stub().callsFake(function() { return res; }),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = {
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data: [{ rank: 1, name: "Kenya", avg_pm2_5: 23.32 }],
+      };
+      sinon.stub(createEventUtil, "getAirQualityRankings").resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return the rankings from the util layer", async () => {
+      await getAirQualityRankings(req, res, next);
+
+      expect(createEventUtil.getAirQualityRankings).to.have.been.calledWith(
+        req,
+        next
+      );
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("does not double-send a response when the util already handled the error via next()", async () => {
+      // The real util resolves undefined (not a {success:false} object) after
+      // forwarding the error to next() itself — matches that behavior.
+      createEventUtil.getAirQualityRankings.resolves(undefined);
+
+      await getAirQualityRankings(req, res, next);
+
+      expect(res.status.called).to.equal(false);
+      expect(res.json.called).to.equal(false);
+    });
+
+    it("preserves an empty result as data: [] rather than null", async () => {
+      createEventUtil.getAirQualityRankings.resolves({
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data: [],
+      });
+
+      await getAirQualityRankings(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(
+        sinon.match({ success: true, data: [] })
+      );
+    });
+  });
+
+  describe("getAirQualityRankingsHistory", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = {
+        query: { level: "country", start_year: "2023", end_year: "2024" },
+        params: {},
+      };
+      res = {
+        status: sinon.stub().callsFake(function() { return res; }),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = {
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data: [{ name: "Kenya", values: [] }],
+      };
+      sinon
+        .stub(createEventUtil, "getAirQualityRankingsHistory")
+        .resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return the historical rankings from the util layer", async () => {
+      await getAirQualityRankingsHistory(req, res, next);
+
+      expect(
+        createEventUtil.getAirQualityRankingsHistory
+      ).to.have.been.calledWith(req, next);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("does not double-send a response when the util already handled the error via next()", async () => {
+      // The real util resolves undefined (not a {success:false} object) after
+      // forwarding the error to next() itself — matches that behavior.
+      createEventUtil.getAirQualityRankingsHistory.resolves(undefined);
+
+      await getAirQualityRankingsHistory(req, res, next);
+
+      expect(res.status.called).to.equal(false);
+      expect(res.json.called).to.equal(false);
+    });
+
+    it("preserves an empty result as data: [] rather than null", async () => {
+      createEventUtil.getAirQualityRankingsHistory.resolves({
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data: [],
+      });
+
+      await getAirQualityRankingsHistory(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(
+        sinon.match({ success: true, data: [] })
+      );
     });
   });
 

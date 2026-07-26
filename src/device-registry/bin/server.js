@@ -319,6 +319,20 @@ try {
   // Continue - server stays up
 }
 
+// Air quality rollup — daily. Folds each day's readings into permanent
+// country/city PM2.5 running totals before the source Reading documents are
+// purged by their 14-day TTL, so GET .../readings/rankings/history can serve
+// real multi-year data from a small precomputed collection instead of
+// aggregating raw readings (which don't exist past ~2 weeks) on every request.
+try {
+  require("@bin/jobs/air-quality-rollup-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ air-quality-rollup-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
 // Private cohort alert — 3×/day (06:00, 14:00, 22:00 UTC)
 // Flags cohorts that are private but contain >2 operational devices,
 // preventing them from silently missing public map and recent-measurements visibility.

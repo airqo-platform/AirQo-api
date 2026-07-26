@@ -2,8 +2,14 @@ require("module-alias/register");
 process.env.NODE_ENV = "development";
 
 const { expect } = require("chai");
-const { PM25_AQI_BREAKPOINTS } = require("@config/constants");
-const { calculatePm25Aqi, getAqiIndexMongoExpression } = require("@utils/aqi.util");
+const constants = require("@config/constants");
+const { PM25_AQI_BREAKPOINTS } = constants;
+const {
+  calculatePm25Aqi,
+  getAqiIndexMongoExpression,
+  categoryFromConcentration,
+  listRanges,
+} = require("@utils/aqi.util");
 
 // ---------------------------------------------------------------------------
 // calculatePm25Aqi — JavaScript implementation
@@ -249,5 +255,133 @@ describe("getAqiIndexMongoExpression", function() {
   it("the else branch returns null for invalid values", function() {
     const expr = getAqiIndexMongoExpression();
     expect(expr.$cond.else).to.equal(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// categoryFromConcentration — maps an averaged PM2.5 value to a category key
+// ---------------------------------------------------------------------------
+describe("categoryFromConcentration", function() {
+  describe("invalid inputs", function() {
+    it("returns null for null", function() {
+      expect(categoryFromConcentration(null)).to.equal(null);
+    });
+
+    it("returns null for undefined", function() {
+      expect(categoryFromConcentration(undefined)).to.equal(null);
+    });
+
+    it("returns null for NaN", function() {
+      expect(categoryFromConcentration(NaN)).to.equal(null);
+    });
+
+    it("returns null for a string", function() {
+      expect(categoryFromConcentration("20")).to.equal(null);
+    });
+
+    it("returns null for negative concentration", function() {
+      expect(categoryFromConcentration(-5)).to.equal(null);
+    });
+  });
+
+  describe("category boundaries (mirrors AQI_RANGES)", function() {
+    it("0 -> good", function() {
+      expect(categoryFromConcentration(0)).to.equal("good");
+    });
+
+    it("9.1 -> good (upper bound)", function() {
+      expect(categoryFromConcentration(9.1)).to.equal("good");
+    });
+
+    it("9.101 -> moderate (lower bound)", function() {
+      expect(categoryFromConcentration(9.101)).to.equal("moderate");
+    });
+
+    it("35.49 -> moderate (upper bound)", function() {
+      expect(categoryFromConcentration(35.49)).to.equal("moderate");
+    });
+
+    it("35.491 -> u4sg (lower bound)", function() {
+      expect(categoryFromConcentration(35.491)).to.equal("u4sg");
+    });
+
+    it("125.49 -> unhealthy (upper bound)", function() {
+      expect(categoryFromConcentration(125.49)).to.equal("unhealthy");
+    });
+
+    it("225.491 -> hazardous (lower bound, unbounded max)", function() {
+      expect(categoryFromConcentration(225.491)).to.equal("hazardous");
+    });
+
+    it("a very large value still resolves to hazardous", function() {
+      expect(categoryFromConcentration(10000)).to.equal("hazardous");
+    });
+  });
+
+  // AQI_RANGES has thousandths-place gaps between adjacent categories
+  // (e.g. good max 9.1, moderate min 9.101). Averaged values can land in
+  // these gaps — every one must still resolve to the next (higher) category,
+  // never null.
+  describe("boundary-gap regression (values between adjacent max/min)", function() {
+    it("9.1005 (between good's max and moderate's min) -> moderate", function() {
+      expect(categoryFromConcentration(9.1005)).to.equal("moderate");
+    });
+
+    it("35.4905 (between moderate's max and u4sg's min) -> u4sg", function() {
+      expect(categoryFromConcentration(35.4905)).to.equal("u4sg");
+    });
+
+    it("55.4905 (between u4sg's max and unhealthy's min) -> unhealthy", function() {
+      expect(categoryFromConcentration(55.4905)).to.equal("unhealthy");
+    });
+
+    it("125.4905 (between unhealthy's max and very_unhealthy's min) -> very_unhealthy", function() {
+      expect(categoryFromConcentration(125.4905)).to.equal("very_unhealthy");
+    });
+
+    it("225.4905 (between very_unhealthy's max and hazardous's min) -> hazardous", function() {
+      expect(categoryFromConcentration(225.4905)).to.equal("hazardous");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listRanges — assembles the dynamic AQI legend response
+// ---------------------------------------------------------------------------
+describe("listRanges", function() {
+  it("returns a success envelope with a standard identifier", function() {
+    const result = listRanges();
+    expect(result.success).to.equal(true);
+    expect(result.data.standard).to.be.a("string").and.not.be.empty;
+  });
+
+  it("returns one range entry per AQI_CATEGORY_KEYS, in order", function() {
+    const result = listRanges();
+    expect(result.data.ranges)
+      .to.be.an("array")
+      .with.lengthOf(constants.AQI_CATEGORY_KEYS.length);
+    result.data.ranges.forEach((range, index) => {
+      expect(range.key).to.equal(constants.AQI_CATEGORY_KEYS[index]);
+      expect(range.display_order).to.equal(index + 1);
+    });
+  });
+
+  it("each range has a label, numeric min_value, color, and color_name matching constants", function() {
+    const result = listRanges();
+    result.data.ranges.forEach((range) => {
+      const key = range.key;
+      expect(range.label).to.equal(constants.AQI_CATEGORIES[key]);
+      expect(range.min_value).to.equal(constants.AQI_RANGES[key].min);
+      expect(range.max_value).to.equal(constants.AQI_RANGES[key].max);
+      expect(range.color).to.equal(`#${constants.AQI_COLORS[key]}`);
+      expect(range.color_name).to.equal(constants.AQI_COLOR_NAMES[key]);
+    });
+  });
+
+  it("the last range (hazardous) has a null max_value (unbounded)", function() {
+    const result = listRanges();
+    const hazardous = result.data.ranges[result.data.ranges.length - 1];
+    expect(hazardous.key).to.equal("hazardous");
+    expect(hazardous.max_value).to.equal(null);
   });
 });
