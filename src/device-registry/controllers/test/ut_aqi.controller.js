@@ -5,6 +5,7 @@ const sinonChai = require("sinon-chai");
 const expect = chai.expect;
 chai.use(sinonChai);
 const httpStatus = require("http-status");
+const proxyquire = require("proxyquire");
 
 const aqiController = require("@controllers/aqi.controller");
 const aqiUtil = require("@utils/aqi.util");
@@ -25,9 +26,11 @@ describe("AQI Controller", () => {
         message: "Successfully retrieved AQI ranges",
         data: {
           standard: "US EPA PM2.5 AQI (2024 NAAQS revision)",
+          source: "default",
           ranges: [{ key: "good", label: "Good" }],
         },
       };
+      sinon.stub(aqiUtil, "resolveActiveAqiRanges").resolves(null);
       sinon.stub(aqiUtil, "listRanges").returns(mockResult);
     });
 
@@ -38,6 +41,7 @@ describe("AQI Controller", () => {
     it("returns 200 with the ranges from the util layer", async () => {
       await aqiController.listRanges(req, res, next);
 
+      expect(aqiUtil.resolveActiveAqiRanges).to.have.been.calledOnce;
       expect(aqiUtil.listRanges).to.have.been.calledOnce;
       expect(res.status).to.have.been.calledWith(httpStatus.OK);
       expect(res.json).to.have.been.calledWith({
@@ -55,6 +59,105 @@ describe("AQI Controller", () => {
       expect(next.calledOnce).to.equal(true);
       const err = next.getCall(0).args[0];
       expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+
+  describe("updateRanges / deleteRanges", () => {
+    let req, res, next, upsertStub, deleteOneStub, proxiedController;
+
+    const validRanges = () =>
+      require("@config/constants").AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "#ABCDEF",
+      }));
+
+    beforeEach(() => {
+      res = {
+        status: sinon.stub().callsFake(function() { return res; }),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+
+      upsertStub = sinon.stub().resolves({});
+      deleteOneStub = sinon.stub().resolves({});
+      proxiedController = proxyquire("../aqi.controller", {
+        "@models/SystemConfig": () => ({
+          upsert: upsertStub,
+          deleteOne: deleteOneStub,
+        }),
+      });
+
+      sinon.stub(aqiUtil, "resolveActiveAqiRanges").resolves(null);
+      sinon.stub(aqiUtil, "invalidateAqiRangesCache");
+      sinon.stub(aqiUtil, "listRanges").returns({
+        success: true,
+        message: "ok",
+        data: { standard: "...", source: "custom", ranges: [] },
+      });
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("updateRanges upserts, invalidates the cache, and returns the freshly-resolved config", async () => {
+      req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(upsertStub.calledOnce).to.equal(true);
+      expect(upsertStub.getCall(0).args[0]).to.equal(aqiUtil.AQI_RANGES_CONFIG_KEY);
+      expect(aqiUtil.invalidateAqiRangesCache.calledOnce).to.equal(true);
+      // Cache must be invalidated only after the write succeeds.
+      expect(aqiUtil.invalidateAqiRangesCache.calledAfter(upsertStub)).to.equal(true);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("updateRanges derives min_value server-side rather than trusting the caller", async () => {
+      req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      const storedValue = upsertStub.getCall(0).args[1];
+      expect(storedValue.ranges[0].min_value).to.equal(0);
+      expect(storedValue.ranges[1].min_value).to.equal(storedValue.ranges[0].max_value);
+    });
+
+    it("updateRanges strips the leading # before persisting the color", async () => {
+      req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      const storedValue = upsertStub.getCall(0).args[1];
+      expect(storedValue.ranges[0].color).to.equal("ABCDEF");
+    });
+
+    it("deleteRanges removes the override, invalidates the cache, and returns the default config", async () => {
+      req = { query: {}, params: {}, body: {} };
+
+      await proxiedController.deleteRanges(req, res, next);
+
+      expect(deleteOneStub.calledOnce).to.equal(true);
+      expect(deleteOneStub.getCall(0).args[0]).to.deep.equal({
+        key: aqiUtil.AQI_RANGES_CONFIG_KEY,
+      });
+      expect(aqiUtil.invalidateAqiRangesCache.calledOnce).to.equal(true);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("forwards a Mongo write failure to next() as an HttpError", async () => {
+      upsertStub.rejects(new Error("Mongo write failed"));
+      req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(next.calledOnce).to.equal(true);
+      const err = next.getCall(0).args[0];
+      expect(err.message).to.equal("Internal Server Error");
+      // A failed write must not invalidate the cache — nothing changed.
+      expect(aqiUtil.invalidateAqiRangesCache.called).to.equal(false);
     });
   });
 });

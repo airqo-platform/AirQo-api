@@ -8,5 +8,7 @@ const { headers } = require("@validators/common");
 router.use(headers);
 
 router.get("/", aqiValidations.listRanges, aqiController.listRanges);
+router.put("/", aqiValidations.updateRanges, aqiController.updateRanges);
+router.delete("/", aqiValidations.deleteRanges, aqiController.deleteRanges);
 
 module.exports = router;
