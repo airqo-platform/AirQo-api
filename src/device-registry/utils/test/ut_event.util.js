@@ -3267,6 +3267,18 @@ describe("create Event utils", function() {
       expect(sortStage.$sort.avg_pm2_5).to.equal(1);
     });
 
+    it("breaks ties deterministically with a secondary sort on entity name", async () => {
+      aggregateStub.returns(mockAggregateChain([]));
+
+      await proxiedEventUtil.getAirQualityRankings({ query: {} }, next);
+
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const sortStage = pipeline.find(
+        (stage) => stage.$sort && "avg_pm2_5" in stage.$sort
+      );
+      expect(sortStage.$sort._id).to.equal(1);
+    });
+
     it("returns an empty array (not an error) when nothing qualifies", async () => {
       aggregateStub.returns(mockAggregateChain([]));
 

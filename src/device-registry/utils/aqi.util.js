@@ -210,10 +210,12 @@ function categoryFromConcentration(concentration, resolved = null) {
  * Assemble the canonical AQI category ranges (bands, labels, colors) for
  * dynamic frontend rendering — replaces hard-coded AQI legends.
  *
- * @param {{AQI_RANGES, AQI_CATEGORIES, AQI_COLORS, AQI_COLOR_NAMES, AQI_CATEGORY_KEYS, source}|null} [resolved] -
+ * @param {{AQI_RANGES, AQI_CATEGORIES, AQI_COLORS, AQI_COLOR_NAMES, AQI_CATEGORY_KEYS, source, version, effective_from}|null} [resolved] -
  *   optional resolved config (see resolveActiveAqiRanges). Omit to use the
- *   hardcoded defaults, same as before this parameter existed.
- * @returns {{success: boolean, message: string, data: {standard: string, source: string, ranges: Array}}}
+ *   hardcoded defaults, same as before this parameter existed. `version`/
+ *   `effective_from` are only present when `source` is `"custom"` — see
+ *   buildResolvedFromCustom.
+ * @returns {{success: boolean, message: string, data: {standard: string, source: string, version: (number|null), effective_from: (Date|null), ranges: Array}}}
  */
 function listRanges(resolved = null) {
   const {
@@ -224,6 +226,13 @@ function listRanges(resolved = null) {
     AQI_CATEGORY_KEYS,
   } = resolved || constants;
   const source = resolved ? resolved.source : "default";
+  // null for the untouched defaults — there's no admin "activation" event to
+  // report a version/timestamp for. Populated once a custom config exists
+  // (see buildResolvedFromCustom), so a caller polling this endpoint (e.g.
+  // analytics, keeping its own copy in sync) can detect a change without
+  // deep-comparing the ranges array.
+  const version = resolved ? resolved.version ?? null : null;
+  const effective_from = resolved ? resolved.effective_from ?? null : null;
 
   const ranges = AQI_CATEGORY_KEYS.map((key, index) => ({
     key,
@@ -245,6 +254,8 @@ function listRanges(resolved = null) {
     data: {
       standard: "US EPA PM2.5 AQI (2024 NAAQS revision)",
       source,
+      version,
+      effective_from,
       ranges,
     },
   };
@@ -333,8 +344,14 @@ function isValidAqiRangesShape(value) {
  * plain object shared by reference across the whole process and is still the
  * fallback every resolved-config consumer (ingestion, query filters,
  * health-tip validation) uses whenever no admin override is active.
+ *
+ * @param {object} value - the stored SystemConfig doc's `value` field.
+ * @param {object} [meta] - { version, effective_from } from the same
+ * SystemConfig doc, surfaced in GET /aqi-ranges so a caller (e.g. a frontend
+ * or another service polling this config) can detect a change without
+ * deep-comparing the ranges array.
  */
-function buildResolvedFromCustom(value) {
+function buildResolvedFromCustom(value, meta = {}) {
   const AQI_RANGES = {};
   const AQI_CATEGORIES = {};
   const AQI_COLORS = {};
@@ -374,6 +391,8 @@ function buildResolvedFromCustom(value) {
     AQI_COLOR_NAMES,
     AQI_CATEGORY_KEYS,
     source: "custom",
+    version: meta.version ?? null,
+    effective_from: meta.effective_from ?? null,
   };
 }
 
@@ -406,6 +425,8 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
     AQI_COLOR_NAMES: constants.AQI_COLOR_NAMES,
     AQI_CATEGORY_KEYS: constants.AQI_CATEGORY_KEYS,
     source: "default",
+    version: null,
+    effective_from: null,
   };
   try {
     const doc = await SystemConfigModel(tenant)
@@ -413,7 +434,10 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
       .lean();
     if (doc) {
       if (isValidAqiRangesShape(doc.value)) {
-        resolved = buildResolvedFromCustom(doc.value);
+        resolved = buildResolvedFromCustom(doc.value, {
+          version: doc.version,
+          effective_from: doc.updatedAt,
+        });
       } else {
         logger.error(
           `🐛🐛 malformed ${AQI_RANGES_CONFIG_KEY} SystemConfig doc for tenant ${tenant} — falling back to defaults`
