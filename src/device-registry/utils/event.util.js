@@ -5,8 +5,10 @@ const DeviceModel = require("@models/Device");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const AirQualitySummaryModel = require("@models/AirQualitySummary");
 const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
+const aqiUtil = require("@utils/aqi.util");
 const {
   logObject,
   logText,
@@ -50,6 +52,11 @@ const asyncRetry = require("async-retry");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
+// Established maximum result size for the Nexus rankings endpoints — mirrors
+// the validated max on GET .../readings/rankings' limit param, reused here to
+// cap the number of entities the (unbounded, un-paginated) history endpoint
+// can fan out to, since level=city has no fixed upper bound like countries do.
+const MAX_RANKING_RESULTS = 100;
 let lastRedisWarning = 0;
 const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
 
@@ -1740,6 +1747,189 @@ const createEvent = {
       );
     }
   },
+
+  // African city/country AQI rankings — groups the latest reading per site
+  // (same "latest-per-site" shape as getRepresentativeAirQuality above) by
+  // the denormalized siteDetails.country/city field, since no grid hierarchy
+  // exists to roll city grids up into country grids.
+  getAirQualityRankings: async (request, next) => {
+    try {
+      const {
+        tenant = "airqo",
+        level = "country",
+        sort = "best",
+        limit = 20,
+      } = request.query;
+
+      const groupField = `$siteDetails.${level}`;
+      const africanCountries = Object.keys(constants.countryCodes);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const pipeline = [
+        {
+          $match: {
+            time: { $gte: threeDaysAgo },
+            "siteDetails.country": { $in: africanCountries },
+            "pm2_5.value": { $ne: null, $type: "number" },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+        {
+          $group: {
+            _id: groupField,
+            avg_pm2_5: { $avg: "$pm2_5.value" },
+            site_count: { $sum: 1 },
+          },
+        },
+        { $match: { _id: { $ne: null } } },
+        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1 } },
+        { $limit: Number(limit) },
+      ];
+
+      const rows = await ReadingModel(tenant)
+        .aggregate(pipeline)
+        .option({
+          allowDiskUse: true,
+          maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+        });
+
+      const generatedAt = new Date().toISOString();
+      const data = rows.map((row, index) => {
+        // Round once and derive both AQI fields from the same rounded value
+        // that's displayed — deriving them from the raw average instead could
+        // show a category that doesn't match the displayed figure whenever
+        // rounding lands exactly on a category boundary.
+        const avgPm25 = Math.round(row.avg_pm2_5 * 100) / 100;
+        return {
+          rank: index + 1,
+          name: row._id,
+          level,
+          country_code:
+            level === "country" ? constants.countryCodes[row._id] || null : null,
+          avg_pm2_5: avgPm25,
+          aqi_index: aqiUtil.calculatePm25Aqi(avgPm25),
+          aqi_category: aqiUtil.categoryFromConcentration(avgPm25),
+          site_count: row.site_count,
+          generated_at: generatedAt,
+        };
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankings -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  // Annual-only multi-region historical rollup. Missing years are returned
+  // as explicit nulls (never coerced to zero) per Nexus acceptance criteria.
+  //
+  // Reads from the AirQualitySummary collection (populated by
+  // air-quality-rollup-job.js) rather than aggregating raw readings — raw
+  // Reading documents are purged ~14 days after ingestion, so a live
+  // aggregation over a multi-year window could never see most of the range
+  // it claims to support. The precomputed rows are the only place real
+  // multi-year history survives; a year with no row here has no data (never
+  // coerced to a live re-aggregation, and never coerced to zero).
+  getAirQualityRankingsHistory: async (request, next) => {
+    try {
+      const { tenant = "airqo", level = "country" } = request.query;
+      const startYear = Number(request.query.start_year);
+      const endYear = Number(request.query.end_year);
+
+      // No need to re-filter by African country here — the rollup job only
+      // ever writes rows for siteDetails.country in constants.countryCodes.
+      const summaryDocs = await AirQualitySummaryModel(tenant)
+        .find({
+          tenant,
+          level,
+          year: { $gte: startYear, $lte: endYear },
+        })
+        .sort({ entity: 1 })
+        .lean();
+
+      const rows = summaryDocs
+        .filter((doc) => doc.reading_count > 0)
+        .map((doc) => ({
+          entity: doc.entity,
+          year: doc.year,
+          avg_pm2_5: Math.round((doc.sum_pm2_5 / doc.reading_count) * 100) / 100,
+          site_count: (doc.contributing_sites || []).length,
+        }));
+
+      const years = [];
+      for (let y = startYear; y <= endYear; y += 1) years.push(y);
+
+      const byEntity = new Map();
+      rows.forEach((row) => {
+        if (!byEntity.has(row.entity)) byEntity.set(row.entity, new Map());
+        byEntity.get(row.entity).set(row.year, row);
+      });
+
+      const data = Array.from(byEntity.entries())
+        // Countries are inherently bounded (~54, per constants.countryCodes),
+        // but level=city has no fixed upper bound — cap the response so it
+        // can't fan out across every distinct city ever seen.
+        .slice(0, MAX_RANKING_RESULTS)
+        .map(([entity, byYear]) => ({
+          name: entity,
+          level,
+          country_code:
+            level === "country" ? constants.countryCodes[entity] || null : null,
+          values: years.map((year) => {
+            const row = byYear.get(year);
+            return {
+              year,
+              avg_pm2_5: row ? row.avg_pm2_5 : null,
+              aqi_category: row
+                ? aqiUtil.categoryFromConcentration(row.avg_pm2_5)
+                : null,
+              site_count: row ? row.site_count : 0,
+            };
+          }),
+        }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankingsHistory -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   latestFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
@@ -4932,15 +5122,23 @@ const createEvent = {
       }
 
       // Step 3: Match readings with site distances and sort
+      const staleThresholdMs =
+        (constants.EVENTS_STALENESS_THRESHOLD_HOURS || 2) * 60 * 60 * 1000;
       const readingsWithDistance = readings.data
         .map((reading) => {
           const site = sitesWithDistance.find(
             (site) => site._id.toString() === reading.site_id.toString(),
           );
+          const ageMs = reading.time
+            ? Date.now() - new Date(reading.time).getTime()
+            : null;
 
           return {
             ...reading,
             distance: site ? site.distance : Infinity,
+            is_stale: ageMs === null ? null : ageMs > staleThresholdMs,
+            data_age_minutes:
+              ageMs === null ? null : Math.round(ageMs / 60000),
           };
         })
         .sort((a, b) => a.distance - b.distance)
