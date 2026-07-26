@@ -317,6 +317,32 @@ describe("categoryFromConcentration", function() {
       expect(categoryFromConcentration(10000)).to.equal("hazardous");
     });
   });
+
+  // AQI_RANGES has thousandths-place gaps between adjacent categories
+  // (e.g. good max 9.1, moderate min 9.101). Averaged values can land in
+  // these gaps — every one must still resolve to the next (higher) category,
+  // never null.
+  describe("boundary-gap regression (values between adjacent max/min)", function() {
+    it("9.1005 (between good's max and moderate's min) -> moderate", function() {
+      expect(categoryFromConcentration(9.1005)).to.equal("moderate");
+    });
+
+    it("35.4905 (between moderate's max and u4sg's min) -> u4sg", function() {
+      expect(categoryFromConcentration(35.4905)).to.equal("u4sg");
+    });
+
+    it("55.4905 (between u4sg's max and unhealthy's min) -> unhealthy", function() {
+      expect(categoryFromConcentration(55.4905)).to.equal("unhealthy");
+    });
+
+    it("125.4905 (between unhealthy's max and very_unhealthy's min) -> very_unhealthy", function() {
+      expect(categoryFromConcentration(125.4905)).to.equal("very_unhealthy");
+    });
+
+    it("225.4905 (between very_unhealthy's max and hazardous's min) -> hazardous", function() {
+      expect(categoryFromConcentration(225.4905)).to.equal("hazardous");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

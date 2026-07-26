@@ -3217,17 +3217,21 @@ describe("create Event utils", function() {
   describe("getAirQualityRankingsHistory", () => {
     const proxyquire = require("proxyquire");
     let proxiedEventUtil;
-    let aggregateStub;
+    let findStub;
     let next;
 
-    const mockAggregateChain = (rows) => ({
-      option: () => Promise.resolve(rows),
+    // Mirrors AirQualitySummaryModel(tenant).find(filter).lean() — the rollup
+    // collection populated by air-quality-rollup-job.js. Docs store running
+    // totals (sum_pm2_5, reading_count, contributing_sites), not a
+    // precomputed average — the util derives avg_pm2_5 at read time.
+    const mockFindChain = (docs) => ({
+      lean: () => Promise.resolve(docs),
     });
 
     beforeEach(() => {
-      aggregateStub = sinon.stub();
+      findStub = sinon.stub();
       proxiedEventUtil = proxyquire("../event.util", {
-        "@models/Reading": () => ({ aggregate: aggregateStub }),
+        "@models/AirQualitySummary": () => ({ find: findStub }),
       });
       next = sinon.stub();
     });
@@ -3237,10 +3241,17 @@ describe("create Event utils", function() {
     });
 
     it("fills years with no data as explicit null, never zero", async () => {
-      aggregateStub.returns(
-        mockAggregateChain([
-          { entity: "Kenya", year: 2023, avg_pm2_5: 23.32, site_count: 4 },
-          // 2024 intentionally absent from the mocked aggregation result
+      findStub.returns(
+        mockFindChain([
+          // sum_pm2_5 / reading_count = 2332 / 100 = 23.32
+          {
+            entity: "Kenya",
+            year: 2023,
+            sum_pm2_5: 2332,
+            reading_count: 100,
+            contributing_sites: ["s1", "s2", "s3", "s4"],
+          },
+          // 2024 intentionally absent from the mocked rollup rows
         ])
       );
 
@@ -3259,9 +3270,15 @@ describe("create Event utils", function() {
     });
 
     it("supports level=city and leaves country_code null", async () => {
-      aggregateStub.returns(
-        mockAggregateChain([
-          { entity: "Kampala", year: 2023, avg_pm2_5: 30, site_count: 2 },
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Kampala",
+            year: 2023,
+            sum_pm2_5: 60,
+            reading_count: 2,
+            contributing_sites: ["s1", "s2"],
+          },
         ])
       );
 
@@ -3274,8 +3291,25 @@ describe("create Event utils", function() {
       expect(result.data[0].country_code).to.equal(null);
     });
 
+    it("excludes a row whose reading_count is 0 (avoids a divide-by-zero average)", async () => {
+      findStub.returns(
+        mockFindChain([
+          { entity: "Kenya", year: 2023, sum_pm2_5: 0, reading_count: 0, contributing_sites: [] },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "country", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      // No qualifying rows -> the entity never appears at all (same "absent,
+      // not zero" contract as any other year with no data).
+      expect(result.data).to.deep.equal([]);
+    });
+
     it("returns an empty list when nothing qualifies", async () => {
-      aggregateStub.returns(mockAggregateChain([]));
+      findStub.returns(mockFindChain([]));
 
       const result = await proxiedEventUtil.getAirQualityRankingsHistory(
         { query: { level: "country", start_year: "2023", end_year: "2024" } },
@@ -3286,9 +3320,9 @@ describe("create Event utils", function() {
       expect(result.data).to.deep.equal([]);
     });
 
-    it("reports an internal error via next() when the aggregation fails", async () => {
-      aggregateStub.returns({
-        option: () => Promise.reject(new Error("Mongo error")),
+    it("reports an internal error via next() when the query fails", async () => {
+      findStub.returns({
+        lean: () => Promise.reject(new Error("Mongo error")),
       });
 
       const result = await proxiedEventUtil.getAirQualityRankingsHistory(
@@ -3308,11 +3342,19 @@ describe("create Event utils", function() {
   // so it always falls inside the search radius.
   describe("getNearestReadings — freshness fields", () => {
     const proxyquire = require("proxyquire");
+    const FIXED_STALE_THRESHOLD_HOURS = 2;
     let proxiedEventUtil;
     let recentStub;
     let next;
+    let originalStaleThreshold;
 
     beforeEach(() => {
+      // Pin the threshold to a known value independent of the implementation's
+      // own `|| 2` fallback, so this test asserts a real contract rather than
+      // mirroring whatever default the code happens to fall back to.
+      originalStaleThreshold = constants.EVENTS_STALENESS_THRESHOLD_HOURS;
+      constants.EVENTS_STALENESS_THRESHOLD_HOURS = FIXED_STALE_THRESHOLD_HOURS;
+
       recentStub = sinon.stub();
       const mockSiteFactory = () => ({
         find: () => ({
@@ -3332,13 +3374,13 @@ describe("create Event utils", function() {
     });
 
     afterEach(() => {
+      constants.EVENTS_STALENESS_THRESHOLD_HOURS = originalStaleThreshold;
       sinon.restore();
     });
 
     it("flags a reading older than the staleness threshold as is_stale", async () => {
-      const staleThresholdHours = constants.EVENTS_STALENESS_THRESHOLD_HOURS || 2;
       const oldTime = new Date(
-        Date.now() - (staleThresholdHours + 1) * 60 * 60 * 1000
+        Date.now() - (FIXED_STALE_THRESHOLD_HOURS + 1) * 60 * 60 * 1000
       );
       recentStub.resolves({
         success: true,

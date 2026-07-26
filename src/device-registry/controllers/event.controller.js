@@ -523,7 +523,24 @@ const createEvent = {
         return;
       }
       const result = await createEventUtil.getAirQualityRankings(req, next);
-      handleResponse({ res, result, key: "data" });
+      // result is undefined when the util already forwarded an error via
+      // next() — don't also send a response here, or Express double-sends.
+      if (!result) {
+        return;
+      }
+      if (result.success) {
+        res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else {
+        res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "" },
+        });
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -548,7 +565,24 @@ const createEvent = {
         req,
         next,
       );
-      handleResponse({ res, result, key: "data" });
+      // result is undefined when the util already forwarded an error via
+      // next() — don't also send a response here, or Express double-sends.
+      if (!result) {
+        return;
+      }
+      if (result.success) {
+        res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else {
+        res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "" },
+        });
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

@@ -732,7 +732,7 @@ const readingsValidations = {
           if (value < startYear) {
             throw new Error("end_year must not be earlier than start_year");
           }
-          if (value - startYear > 5) {
+          if (value - startYear >= 5) {
             throw new Error(
               "the range between start_year and end_year must not exceed 5 years",
             );

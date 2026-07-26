@@ -5,6 +5,7 @@ const DeviceModel = require("@models/Device");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const AirQualitySummaryModel = require("@models/AirQualitySummary");
 const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
 const aqiUtil = require("@utils/aqi.util");
@@ -51,6 +52,11 @@ const asyncRetry = require("async-retry");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
+// Established maximum result size for the Nexus rankings endpoints — mirrors
+// the validated max on GET .../readings/rankings' limit param, reused here to
+// cap the number of entities the (unbounded, un-paginated) history endpoint
+// can fan out to, since level=city has no fixed upper bound like countries do.
+const MAX_RANKING_RESULTS = 100;
 let lastRedisWarning = 0;
 const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
 
@@ -1796,6 +1802,7 @@ const createEvent = {
           maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
         });
 
+      const generatedAt = new Date().toISOString();
       const data = rows.map((row, index) => ({
         rank: index + 1,
         name: row._id,
@@ -1806,7 +1813,7 @@ const createEvent = {
         aqi_index: aqiUtil.calculatePm25Aqi(row.avg_pm2_5),
         aqi_category: aqiUtil.categoryFromConcentration(row.avg_pm2_5),
         site_count: row.site_count,
-        generated_at: new Date().toISOString(),
+        generated_at: generatedAt,
       }));
 
       return {
@@ -1831,52 +1838,38 @@ const createEvent = {
 
   // Annual-only multi-region historical rollup. Missing years are returned
   // as explicit nulls (never coerced to zero) per Nexus acceptance criteria.
+  //
+  // Reads from the AirQualitySummary collection (populated by
+  // air-quality-rollup-job.js) rather than aggregating raw readings — raw
+  // Reading documents are purged ~14 days after ingestion, so a live
+  // aggregation over a multi-year window could never see most of the range
+  // it claims to support. The precomputed rows are the only place real
+  // multi-year history survives; a year with no row here has no data (never
+  // coerced to a live re-aggregation, and never coerced to zero).
   getAirQualityRankingsHistory: async (request, next) => {
     try {
       const { tenant = "airqo", level = "country" } = request.query;
       const startYear = Number(request.query.start_year);
       const endYear = Number(request.query.end_year);
 
-      const groupField = `$siteDetails.${level}`;
-      const africanCountries = Object.keys(constants.countryCodes);
-      const rangeStart = new Date(Date.UTC(startYear, 0, 1));
-      const rangeEnd = new Date(Date.UTC(endYear + 1, 0, 1));
+      // No need to re-filter by African country here — the rollup job only
+      // ever writes rows for siteDetails.country in constants.countryCodes.
+      const summaryDocs = await AirQualitySummaryModel(tenant)
+        .find({
+          tenant,
+          level,
+          year: { $gte: startYear, $lte: endYear },
+        })
+        .lean();
 
-      const pipeline = [
-        {
-          $match: {
-            time: { $gte: rangeStart, $lt: rangeEnd },
-            "siteDetails.country": { $in: africanCountries },
-            "pm2_5.value": { $ne: null, $type: "number" },
-          },
-        },
-        { $addFields: { year: { $year: "$time" } } },
-        {
-          $group: {
-            _id: { entity: groupField, year: "$year" },
-            avg_pm2_5: { $avg: "$pm2_5.value" },
-            siteIds: { $addToSet: "$site_id" },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            entity: "$_id.entity",
-            year: "$_id.year",
-            avg_pm2_5: { $round: ["$avg_pm2_5", 2] },
-            site_count: { $size: "$siteIds" },
-          },
-        },
-        { $match: { entity: { $ne: null } } },
-        { $sort: { entity: 1, year: 1 } },
-      ];
-
-      const rows = await ReadingModel(tenant)
-        .aggregate(pipeline)
-        .option({
-          allowDiskUse: true,
-          maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
-        });
+      const rows = summaryDocs
+        .filter((doc) => doc.reading_count > 0)
+        .map((doc) => ({
+          entity: doc.entity,
+          year: doc.year,
+          avg_pm2_5: Math.round((doc.sum_pm2_5 / doc.reading_count) * 100) / 100,
+          site_count: (doc.contributing_sites || []).length,
+        }));
 
       const years = [];
       for (let y = startYear; y <= endYear; y += 1) years.push(y);
@@ -1887,23 +1880,28 @@ const createEvent = {
         byEntity.get(row.entity).set(row.year, row);
       });
 
-      const data = Array.from(byEntity.entries()).map(([entity, byYear]) => ({
-        name: entity,
-        level,
-        country_code:
-          level === "country" ? constants.countryCodes[entity] || null : null,
-        values: years.map((year) => {
-          const row = byYear.get(year);
-          return {
-            year,
-            avg_pm2_5: row ? row.avg_pm2_5 : null,
-            aqi_category: row
-              ? aqiUtil.categoryFromConcentration(row.avg_pm2_5)
-              : null,
-            site_count: row ? row.site_count : 0,
-          };
-        }),
-      }));
+      const data = Array.from(byEntity.entries())
+        // Countries are inherently bounded (~54, per constants.countryCodes),
+        // but level=city has no fixed upper bound — cap the response so it
+        // can't fan out across every distinct city ever seen.
+        .slice(0, MAX_RANKING_RESULTS)
+        .map(([entity, byYear]) => ({
+          name: entity,
+          level,
+          country_code:
+            level === "country" ? constants.countryCodes[entity] || null : null,
+          values: years.map((year) => {
+            const row = byYear.get(year);
+            return {
+              year,
+              avg_pm2_5: row ? row.avg_pm2_5 : null,
+              aqi_category: row
+                ? aqiUtil.categoryFromConcentration(row.avg_pm2_5)
+                : null,
+              site_count: row ? row.site_count : 0,
+            };
+          }),
+        }));
 
       return {
         success: true,

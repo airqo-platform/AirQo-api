@@ -181,9 +181,14 @@ function categoryFromConcentration(concentration) {
 
   const { AQI_RANGES, AQI_CATEGORY_KEYS } = constants;
 
+  // AQI_RANGES boundaries leave thousandths-place gaps between adjacent
+  // categories (e.g. good max 9.1, moderate min 9.101) — fine for single
+  // readings, which are rarely that precise, but averaged values (as used
+  // here) can land in the gap. Classify by upper bound only, in ascending
+  // order, so every non-negative value matches exactly one category.
   for (const categoryKey of AQI_CATEGORY_KEYS) {
-    const { min, max } = AQI_RANGES[categoryKey];
-    if (concentration >= min && (max === null || concentration <= max)) {
+    const { max } = AQI_RANGES[categoryKey];
+    if (max === null || concentration <= max) {
       return categoryKey;
     }
   }

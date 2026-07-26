@@ -415,17 +415,30 @@ describe("Create Event Controller", () => {
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
 
-    it("should surface util-layer errors", async () => {
-      mockResult.success = false;
-      mockResult.message = "Error message";
-      mockResult.errors = { message: "boom" };
+    it("does not double-send a response when the util already handled the error via next()", async () => {
+      // The real util resolves undefined (not a {success:false} object) after
+      // forwarding the error to next() itself — matches that behavior.
+      createEventUtil.getAirQualityRankings.resolves(undefined);
 
       await getAirQualityRankings(req, res, next);
 
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
+      expect(res.status.called).to.equal(false);
+      expect(res.json.called).to.equal(false);
+    });
+
+    it("preserves an empty result as data: [] rather than null", async () => {
+      createEventUtil.getAirQualityRankings.resolves({
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data: [],
+      });
+
+      await getAirQualityRankings(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(
+        sinon.match({ success: true, data: [] })
       );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
   });
 
@@ -466,17 +479,30 @@ describe("Create Event Controller", () => {
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
 
-    it("should surface util-layer errors", async () => {
-      mockResult.success = false;
-      mockResult.message = "Error message";
-      mockResult.errors = { message: "boom" };
+    it("does not double-send a response when the util already handled the error via next()", async () => {
+      // The real util resolves undefined (not a {success:false} object) after
+      // forwarding the error to next() itself — matches that behavior.
+      createEventUtil.getAirQualityRankingsHistory.resolves(undefined);
 
       await getAirQualityRankingsHistory(req, res, next);
 
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
+      expect(res.status.called).to.equal(false);
+      expect(res.json.called).to.equal(false);
+    });
+
+    it("preserves an empty result as data: [] rather than null", async () => {
+      createEventUtil.getAirQualityRankingsHistory.resolves({
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data: [],
+      });
+
+      await getAirQualityRankingsHistory(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(
+        sinon.match({ success: true, data: [] })
       );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
   });
 
