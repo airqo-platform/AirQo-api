@@ -97,9 +97,39 @@ const handlePredefinedValueMatch = (
   return stringValue;
 };
 
+// Shared by `events` and `fetch` below — both set an identical
+// "values.pm2_5.value" range filter from the `?index=<category>` query param.
+// `resolved` (optional) is the result of utils/aqi.util.js's
+// resolveActiveAqiRanges — pass it to have the filter use an admin-set custom
+// AQI range instead of the hardcoded defaults (constants.AQI_RANGES). Omit it
+// to keep the existing behavior unchanged.
+function applyAqiIndexFilter(filter, index, resolved) {
+  const activeAqiRanges = (resolved || constants).AQI_RANGES;
+  if (!index) {
+    delete filter["values.pm2_5.value"];
+  } else if (Object.keys(activeAqiRanges).includes(index)) {
+    const range = activeAqiRanges[index];
+    filter["values.pm2_5.value"] = {};
+    filter["values.pm2_5.value"]["$gte"] = range.min;
+    // Only set $lte if max is not null
+    if (range.max !== null) {
+      filter["values.pm2_5.value"]["$lte"] = range.max;
+    }
+    filter["index"] = index;
+  } else {
+    delete filter["values.pm2_5.value"];
+  }
+}
+
 //startTime=2022-12-20T10:34:15.880Z
 const generateFilter = {
-  events: (request, next) => {
+  // `resolved` (optional, trailing) is the result of
+  // utils/aqi.util.js's resolveActiveAqiRanges — pass it to have the
+  // `index`/category filter (e.g. ?index=good) use an admin-set custom AQI
+  // range instead of the hardcoded defaults (constants.AQI_RANGES). Omit it
+  // to keep the existing behavior unchanged (kept synchronous and backward
+  // compatible — this function has many callers that don't await it).
+  events: (request, next, resolved = null) => {
     const { query, params } = request;
     const {
       device,
@@ -155,19 +185,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      const range = constants.AQI_INDEX[index];
-      filter["values.pm2_5.value"]["$gte"] = range.min;
-      // Only set $lte if max is not null
-      if (range.max !== null) {
-        filter["values.pm2_5.value"]["$lte"] = range.max;
-      }
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAqiIndexFilter(filter, index, resolved);
 
     // Handle startTime and endTime filtering
     if (startTime) {
@@ -1200,7 +1218,9 @@ const generateFilter = {
       return;
     }
   },
-  fetch: (request, next) => {
+  // `resolved` (optional, trailing) — see the identical note on `events`
+  // above; same reasoning applies here.
+  fetch: (request, next, resolved = null) => {
     const { query, params } = request;
     const {
       device,
@@ -1263,20 +1283,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      const range = constants.AQI_INDEX[index];
-      filter["values.pm2_5.value"] = {};
-      filter["values.pm2_5.value"]["$gte"] = range.min;
-      // Only set $lte if max is not null
-      if (range.max !== null) {
-        filter["values.pm2_5.value"]["$lte"] = range.max;
-      }
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAqiIndexFilter(filter, index, resolved);
 
     // Handle startTime and endTime filtering
     if (startTime) {

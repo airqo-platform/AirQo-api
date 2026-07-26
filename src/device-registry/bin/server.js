@@ -333,6 +333,20 @@ try {
   // Continue - server stays up
 }
 
+// AQI category backfill — daily safety net (05:00). Primary trigger is
+// event-driven: aqi.controller.js fires this immediately after a successful
+// PUT/DELETE on /aqi-ranges so already-stored readings/signals stop looking
+// stale promptly. This registration is what makes that require() elsewhere
+// return the same, already-scheduled module instead of scheduling twice.
+try {
+  require("@bin/jobs/aqi-category-backfill-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ aqi-category-backfill-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
 // Private cohort alert — 3×/day (06:00, 14:00, 22:00 UTC)
 // Flags cohorts that are private but contain >2 operational devices,
 // preventing them from silently missing public map and recent-measurements visibility.

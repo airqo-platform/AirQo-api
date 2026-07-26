@@ -2200,7 +2200,8 @@ const createEvent = {
           : "Using standard data query",
       );
 
-      const filter = generateFilter.events(request, next);
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(tenant);
+      const filter = generateFilter.events(request, next, resolvedAqiRanges);
       filter.isHistorical = isHistorical;
 
       try {
@@ -2803,7 +2804,8 @@ const createEvent = {
   },
   fetchAndStoreData: async (request, next) => {
     try {
-      const filter = generateFilter.fetch(request);
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges("airqo");
+      const filter = generateFilter.fetch(request, next, resolvedAqiRanges);
       // Fetch the data
       const viewEventsResponse = await EventModel("airqo").fetch(filter);
       logText("we are running running the data insertion script");
@@ -3108,7 +3110,14 @@ const createEvent = {
                 brief: "yes",
               },
             };
-            const fallbackFilter = generateFilter.fetch(fallbackRequest);
+            const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(
+              tenant,
+            );
+            const fallbackFilter = generateFilter.fetch(
+              fallbackRequest,
+              next,
+              resolvedAqiRanges,
+            );
             const eventsResponse = await EventModel(tenant).fetch(
               fallbackFilter,
             );

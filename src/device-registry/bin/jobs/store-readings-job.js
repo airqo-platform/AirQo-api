@@ -7,7 +7,7 @@ const logger = log4js.getLogger(
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const { logObject, logText } = require("@utils/shared");
-const { calculatePm25Aqi } = require("@utils/aqi.util");
+const { calculatePm25Aqi, resolveActiveAqiRanges } = require("@utils/aqi.util");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
@@ -295,7 +295,14 @@ async function fetchAndStoreReadings() {
         brief: "yes",
       },
     };
-    const filter = generateFilter.fetch(request);
+    // index is never set on this job's own request (it fetches everything,
+    // not a category slice), so this doesn't change what gets fetched here —
+    // kept for consistency with the other generateFilter.fetch call sites.
+    // The AQI classification actually stamped onto stored readings comes
+    // from EventModel("airqo").fetch() below, which resolves its own
+    // up-to-date config internally (see models/Event.js's fetchData).
+    const resolvedAqiRanges = await resolveActiveAqiRanges("airqo");
+    const filter = generateFilter.fetch(request, null, resolvedAqiRanges);
 
     const jobStartMs = Date.now();
     logger.info(
