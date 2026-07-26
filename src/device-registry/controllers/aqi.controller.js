@@ -22,8 +22,8 @@ const resolveTenant = (req) => {
 // awaited from the request handler: the backfill can take longer than an
 // HTTP request should, and a failure here must not fail the PUT/DELETE that
 // already succeeded.
-function triggerAqiCategoryBackfill() {
-  runAqiCategoryBackfillJob().catch((error) => {
+function triggerAqiCategoryBackfill(tenant) {
+  runAqiCategoryBackfillJob(tenant).catch((error) => {
     logger.error(
       `🐛🐛 aqi-category-backfill trigger failed: ${error.message}`
     );
@@ -85,7 +85,7 @@ const aqiController = {
       // read can't be caught between an invalidated cache and the new value
       // actually landing in Mongo.
       aqiUtil.invalidateAqiRangesCache(tenant);
-      triggerAqiCategoryBackfill();
+      triggerAqiCategoryBackfill(tenant);
 
       const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
       const result = aqiUtil.listRanges(resolved);
@@ -123,7 +123,7 @@ const aqiController = {
         key: aqiUtil.AQI_RANGES_CONFIG_KEY,
       });
       aqiUtil.invalidateAqiRangesCache(tenant);
-      triggerAqiCategoryBackfill();
+      triggerAqiCategoryBackfill(tenant);
 
       const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
       const result = aqiUtil.listRanges(resolved);

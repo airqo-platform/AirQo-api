@@ -18,20 +18,26 @@ describe("aqi-category-backfill-job", () => {
   let proxiedJob;
 
   // Mirrors ReadingModel(tenant).find(filter).select(...).batchSize(...).lean().cursor()
-  const mockModelFactory = (docs) => () => ({
-    find: () => ({
-      select: () => ({
-        batchSize: () => ({
-          lean: () => ({
-            cursor: () => (async function*() {
-              for (const doc of docs) yield doc;
-            })(),
+  const mockModelFactory = (docs, findSpy, tenantSpy) => (tenant) => {
+    if (tenantSpy) tenantSpy(tenant);
+    return {
+      find: (filter) => {
+        if (findSpy) findSpy(filter);
+        return {
+          select: () => ({
+            batchSize: () => ({
+              lean: () => ({
+                cursor: () => (async function*() {
+                  for (const doc of docs) yield doc;
+                })(),
+              }),
+            }),
           }),
-        }),
-      }),
-    }),
-    bulkWrite: bulkWriteStub,
-  });
+        };
+      },
+      bulkWrite: bulkWriteStub,
+    };
+  };
 
   const defaultResolved = {
     source: "default",
@@ -77,7 +83,7 @@ describe("aqi-category-backfill-job", () => {
     ],
   };
 
-  const proxyJob = (readingDocs, signalDocs = []) => {
+  const proxyJob = (readingDocs, signalDocs = [], findSpy, tenantSpy) => {
     lockFindOneAndUpdateStub = sinon
       .stub()
       .resolves({ acquiredBy: POD_ID });
@@ -85,8 +91,8 @@ describe("aqi-category-backfill-job", () => {
     resolveActiveAqiRangesStub = sinon.stub().resolves(defaultResolved);
 
     return proxyquire("../aqi-category-backfill-job", {
-      "@models/Reading": mockModelFactory(readingDocs),
-      "@models/Signal": mockModelFactory(signalDocs),
+      "@models/Reading": mockModelFactory(readingDocs, findSpy, tenantSpy),
+      "@models/Signal": mockModelFactory(signalDocs, findSpy, tenantSpy),
       "@models/JobLock": () => ({
         findOneAndUpdate: lockFindOneAndUpdateStub,
         findOneAndDelete: lockFindOneAndDeleteStub,
@@ -200,5 +206,52 @@ describe("aqi-category-backfill-job", () => {
     await proxiedJob.runAqiCategoryBackfillJob();
 
     expect(lockFindOneAndDeleteStub.calledOnce).to.equal(true);
+  });
+
+  it("queries with a filter shape that can use the existing time+pm2_5 partial index, not a full collection scan", async () => {
+    const findSpy = sinon.stub();
+    proxiedJob = proxyJob([], [], findSpy);
+
+    await proxiedJob.runAqiCategoryBackfillJob();
+
+    // Regression guard: {$ne: null, $type: "number"} with no time bound
+    // cannot use the { time: -1, "pm2_5.value": 1 } partial index on either
+    // Reading or Signal and forces a COLLSCAN on every admin PUT/DELETE —
+    // confirmed via .explain() against a real collection. {$gt: 0} satisfies
+    // both collections' partial filter expression, and the time lower bound
+    // lets the planner use the index's leading field.
+    expect(findSpy.called).to.equal(true);
+    findSpy.getCalls().forEach((call) => {
+      const filter = call.args[0];
+      expect(filter["pm2_5.value"]).to.deep.equal({ $gt: 0 });
+      expect(filter.time).to.have.property("$gte");
+      expect(filter.time.$gte).to.be.instanceOf(Date);
+    });
+  });
+
+  it("reconciles the tenant it's given, not always the hardcoded default — a PUT/DELETE for a non-default tenant must not silently reconcile the wrong one", async () => {
+    const tenantSpy = sinon.stub();
+    proxiedJob = proxyJob([], [], undefined, tenantSpy);
+
+    await proxiedJob.runAqiCategoryBackfillJob("kcca");
+
+    expect(lockFindOneAndUpdateStub.calledOnce).to.equal(true);
+    expect(resolveActiveAqiRangesStub.calledOnceWith("kcca")).to.equal(true);
+    // Called once for ReadingModel(tenant), once for SignalModel(tenant) —
+    // every call must use the tenant that was actually passed in, never the
+    // hardcoded default.
+    expect(tenantSpy.callCount).to.equal(2);
+    tenantSpy.getCalls().forEach((call) => {
+      expect(call.args[0]).to.equal("kcca");
+    });
+  });
+
+  it("defaults to the standard tenant when called with no argument (cron safety-net path)", async () => {
+    const tenantSpy = sinon.stub();
+    proxiedJob = proxyJob([], [], undefined, tenantSpy);
+
+    await proxiedJob.runAqiCategoryBackfillJob();
+
+    expect(tenantSpy.calledWith("airqo")).to.equal(true);
   });
 });

@@ -57,6 +57,11 @@ const BATCH_SIZE = 200;
 const LOCK_TTL_SECONDS = 30 * 60;
 const POD_ID = process.env.HOSTNAME || os.hostname();
 
+// Process-wide, not per-tenant — only "airqo" is an active tenant today (see
+// JobLockModel for the real per-tenant cross-pod lock). If a second tenant is
+// ever activated, a run for one tenant will make a concurrent trigger for
+// another tenant skip rather than queue; the daily safety-net schedule (see
+// JOB_SCHEDULE) still catches it on the next pass, so this degrades safely.
 let isJobRunning = false;
 
 async function acquireLock(tenant) {
@@ -129,6 +134,23 @@ function computeExpectedAqiFields(pm25Value, resolved) {
   };
 }
 
+// Both Reading and Signal already carry a partial index on
+// { time: -1, "pm2_5.value": 1 } (see models/Reading.js / models/Signal.js —
+// "Partial index for active readings/signals only"). The query below is
+// shaped to match it: `pm2_5.value > 0` satisfies both collections' partial
+// filter expressions, and the `time` lower bound lets the planner use the
+// index's leading field instead of falling back to a full collection scan.
+// A value of 0 or less (or non-numeric/absent) is deliberately excluded —
+// computeExpectedAqiFields/categoryFromConcentration treat any concentration
+// <= 0 as the config-invariant "unknown" fallback (or, for exactly 0, as
+// "good", whose min is always pinned to 0 regardless of any admin range
+// change) — so those documents' expected fields can never actually go stale
+// and are safe to skip entirely.
+// The 15-day window is a deliberate 1-day buffer over the 14-day TTL, not an
+// exact match — being slightly inclusive is safe (a few extra documents
+// read), being too tight risks missing documents near the boundary.
+const LOOKBACK_MS = 15 * 24 * 60 * 60 * 1000;
+
 /**
  * Streams one collection, comparing each document's stored AQI fields
  * against what they should be under `resolved`, and bulk-corrects the ones
@@ -140,7 +162,10 @@ async function reconcileModel(Model, resolved) {
   let skippedNoPm25 = 0;
   let batchOps = [];
 
-  const cursor = Model.find({ "pm2_5.value": { $ne: null, $type: "number" } })
+  const cursor = Model.find({
+    "pm2_5.value": { $gt: 0 },
+    time: { $gte: new Date(Date.now() - LOOKBACK_MS) },
+  })
     .select("_id pm2_5 aqi_color aqi_category aqi_color_name aqi_index")
     .batchSize(BATCH_SIZE)
     .lean()
@@ -191,14 +216,14 @@ async function reconcileModel(Model, resolved) {
   return { scanned, updated, skippedNoPm25 };
 }
 
-async function runAqiCategoryBackfillJob() {
+async function runAqiCategoryBackfillJob(tenant = TENANT) {
   if (isJobRunning) {
     logText(`${JOB_NAME} -- already running, skipping this execution`);
     return;
   }
   isJobRunning = true;
 
-  const lockAcquired = await acquireLock(TENANT);
+  const lockAcquired = await acquireLock(tenant);
   if (!lockAcquired) {
     logText(`${JOB_NAME} -- skipping run: another instance holds the lock`);
     isJobRunning = false;
@@ -207,13 +232,13 @@ async function runAqiCategoryBackfillJob() {
 
   const runStart = Date.now();
   try {
-    const resolved = await aqiUtil.resolveActiveAqiRanges(TENANT);
+    const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
     logText(
-      `${JOB_NAME} -- reconciling against source=${resolved.source} config`
+      `${JOB_NAME} -- reconciling tenant=${tenant} against source=${resolved.source} config`
     );
 
-    const readingsSummary = await reconcileModel(ReadingModel(TENANT), resolved);
-    const signalsSummary = await reconcileModel(SignalModel(TENANT), resolved);
+    const readingsSummary = await reconcileModel(ReadingModel(tenant), resolved);
+    const signalsSummary = await reconcileModel(SignalModel(tenant), resolved);
 
     const elapsed = ((Date.now() - runStart) / 1000).toFixed(1);
     jobLogger.info(
@@ -224,7 +249,7 @@ async function runAqiCategoryBackfillJob() {
   } catch (error) {
     logger.error(`🐛🐛 ${JOB_NAME} -- run failed: ${error.message}`);
   } finally {
-    await releaseLock(TENANT);
+    await releaseLock(tenant);
     isJobRunning = false;
   }
 }

@@ -141,6 +141,18 @@ describe("AQI Controller", () => {
       expect(res.status).to.have.been.calledWith(httpStatus.OK);
     });
 
+    it("updateRanges triggers the backfill for the SAME tenant that was actually updated, not always the default", async () => {
+      req = {
+        query: { tenant: "kcca" },
+        params: {},
+        body: { ranges: validRanges(), admin_secret: "x" },
+      };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(runBackfillStub.calledOnceWith("kcca")).to.equal(true);
+    });
+
     it("updateRanges derives min_value server-side rather than trusting the caller", async () => {
       req = { query: {}, params: {}, body: { ranges: validRanges(), admin_secret: "x" } };
 
@@ -182,6 +194,14 @@ describe("AQI Controller", () => {
       expect(
         runBackfillStub.calledAfter(aqiUtil.invalidateAqiRangesCache)
       ).to.equal(true);
+    });
+
+    it("deleteRanges triggers the backfill for the SAME tenant that was actually reverted, not always the default", async () => {
+      req = { query: { tenant: "kcca" }, params: {}, body: {} };
+
+      await proxiedController.deleteRanges(req, res, next);
+
+      expect(runBackfillStub.calledOnceWith("kcca")).to.equal(true);
     });
 
     it("forwards a Mongo write failure to next() as an HttpError", async () => {
