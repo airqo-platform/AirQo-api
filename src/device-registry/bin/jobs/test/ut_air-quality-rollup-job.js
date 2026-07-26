@@ -165,4 +165,31 @@ describe("air-quality-rollup-job", () => {
     // Lock must still be released even though the run failed.
     expect(lockFindOneAndDeleteStub.calledOnce).to.equal(true);
   });
+
+  it("does not upsert either level if the second level's aggregation fails — no partial writes before a retry", async () => {
+    jobStateGetStub.resolves(new Date(Date.now() - 2 * 60 * 60 * 1000));
+    // Country succeeds, city fails — both aggregations must have been
+    // attempted before any upsert happens, so country's already-successful
+    // result must NOT have been written yet when city blows up.
+    aggregateStub
+      .onCall(0) // country pass
+      .returns(
+        mockAggregateChain([
+          {
+            _id: { entity: "Kenya", year: 2024 },
+            sum_pm2_5: 100,
+            reading_count: 10,
+            siteIds: ["s1"],
+          },
+        ])
+      )
+      .onCall(1) // city pass
+      .returns({ option: () => Promise.reject(new Error("Mongo error")) });
+
+    await proxiedJob.runAirQualityRollupJob();
+
+    expect(aggregateStub.calledTwice).to.equal(true);
+    expect(bulkWriteStub.called).to.equal(false);
+    expect(jobStateSetStub.called).to.equal(false);
+  });
 });

@@ -3104,8 +3104,8 @@ describe("create Event utils", function() {
     it("returns a ranked, country-level list by default with codes and AQI category", async () => {
       aggregateStub.returns(
         mockAggregateChain([
-          { _id: "Kenya", avg_pm2_5: 23.32, max_pm2_5: 40, site_count: 4 },
-          { _id: "Uganda", avg_pm2_5: 55.1, max_pm2_5: 80, site_count: 2 },
+          { _id: "Kenya", avg_pm2_5: 23.32, site_count: 4 },
+          { _id: "Uganda", avg_pm2_5: 55.1, site_count: 2 },
         ])
       );
 
@@ -3132,10 +3132,27 @@ describe("create Event utils", function() {
       });
     });
 
+    it("derives aqi_index/aqi_category from the rounded avg_pm2_5, not the raw value", async () => {
+      // Raw 9.1005 categorizes as "moderate" (just above the good/moderate
+      // boundary at 9.1), but rounds to a displayed 9.1 — which is exactly
+      // the "good" boundary. The category must match what's displayed.
+      aggregateStub.returns(
+        mockAggregateChain([{ _id: "Kenya", avg_pm2_5: 9.1005, site_count: 1 }])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankings(
+        { query: {} },
+        next
+      );
+
+      expect(result.data[0].avg_pm2_5).to.equal(9.1);
+      expect(result.data[0].aqi_category).to.equal("good");
+    });
+
     it("groups by city and leaves country_code null when level=city", async () => {
       aggregateStub.returns(
         mockAggregateChain([
-          { _id: "Kampala", avg_pm2_5: 30, max_pm2_5: 50, site_count: 3 },
+          { _id: "Kampala", avg_pm2_5: 30, site_count: 3 },
         ])
       );
 
@@ -3220,13 +3237,17 @@ describe("create Event utils", function() {
     let findStub;
     let next;
 
-    // Mirrors AirQualitySummaryModel(tenant).find(filter).lean() — the rollup
-    // collection populated by air-quality-rollup-job.js. Docs store running
-    // totals (sum_pm2_5, reading_count, contributing_sites), not a
-    // precomputed average — the util derives avg_pm2_5 at read time.
-    const mockFindChain = (docs) => ({
-      lean: () => Promise.resolve(docs),
-    });
+    // Mirrors AirQualitySummaryModel(tenant).find(filter).sort(...).lean() —
+    // the rollup collection populated by air-quality-rollup-job.js. Docs
+    // store running totals (sum_pm2_5, reading_count, contributing_sites),
+    // not a precomputed average — the util derives avg_pm2_5 at read time.
+    const mockFindChain = (docs) => {
+      const chain = {
+        sort: () => chain,
+        lean: () => Promise.resolve(docs),
+      };
+      return chain;
+    };
 
     beforeEach(() => {
       findStub = sinon.stub();
@@ -3321,9 +3342,11 @@ describe("create Event utils", function() {
     });
 
     it("reports an internal error via next() when the query fails", async () => {
-      findStub.returns({
+      const failingChain = {
+        sort: () => failingChain,
         lean: () => Promise.reject(new Error("Mongo error")),
-      });
+      };
+      findStub.returns(failingChain);
 
       const result = await proxiedEventUtil.getAirQualityRankingsHistory(
         { query: { level: "country", start_year: "2023", end_year: "2024" } },

@@ -1786,7 +1786,6 @@ const createEvent = {
           $group: {
             _id: groupField,
             avg_pm2_5: { $avg: "$pm2_5.value" },
-            max_pm2_5: { $max: "$pm2_5.value" },
             site_count: { $sum: 1 },
           },
         },
@@ -1803,18 +1802,25 @@ const createEvent = {
         });
 
       const generatedAt = new Date().toISOString();
-      const data = rows.map((row, index) => ({
-        rank: index + 1,
-        name: row._id,
-        level,
-        country_code:
-          level === "country" ? constants.countryCodes[row._id] || null : null,
-        avg_pm2_5: Math.round(row.avg_pm2_5 * 100) / 100,
-        aqi_index: aqiUtil.calculatePm25Aqi(row.avg_pm2_5),
-        aqi_category: aqiUtil.categoryFromConcentration(row.avg_pm2_5),
-        site_count: row.site_count,
-        generated_at: generatedAt,
-      }));
+      const data = rows.map((row, index) => {
+        // Round once and derive both AQI fields from the same rounded value
+        // that's displayed — deriving them from the raw average instead could
+        // show a category that doesn't match the displayed figure whenever
+        // rounding lands exactly on a category boundary.
+        const avgPm25 = Math.round(row.avg_pm2_5 * 100) / 100;
+        return {
+          rank: index + 1,
+          name: row._id,
+          level,
+          country_code:
+            level === "country" ? constants.countryCodes[row._id] || null : null,
+          avg_pm2_5: avgPm25,
+          aqi_index: aqiUtil.calculatePm25Aqi(avgPm25),
+          aqi_category: aqiUtil.categoryFromConcentration(avgPm25),
+          site_count: row.site_count,
+          generated_at: generatedAt,
+        };
+      });
 
       return {
         success: true,
@@ -1860,6 +1866,7 @@ const createEvent = {
           level,
           year: { $gte: startYear, $lte: endYear },
         })
+        .sort({ entity: 1 })
         .lean();
 
       const rows = summaryDocs

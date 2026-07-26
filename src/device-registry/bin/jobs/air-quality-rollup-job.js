@@ -218,10 +218,30 @@ async function runAirQualityRollupJob() {
       `${JOB_NAME} -- processing window [${watermark.toISOString()}, ${runStart.toISOString()})`
     );
 
+    // Aggregate both levels before writing anything. If either aggregation
+    // throws, we must not have already upserted the other level — the
+    // watermark only advances after this whole block succeeds, so a partial
+    // write here would get double-$inc'd when the retry reprocesses the same
+    // window.
+    const levels = ["country", "city"];
+    const groupsByLevel = {};
+    for (const level of levels) {
+      groupsByLevel[level] = await aggregateDeltaWindow(
+        TENANT,
+        level,
+        watermark,
+        runStart
+      );
+    }
+
     let totalGroups = 0;
-    for (const level of ["country", "city"]) {
-      const groups = await aggregateDeltaWindow(TENANT, level, watermark, runStart);
-      const upserted = await upsertDelta(TENANT, level, groups, runStart);
+    for (const level of levels) {
+      const upserted = await upsertDelta(
+        TENANT,
+        level,
+        groupsByLevel[level],
+        runStart
+      );
       totalGroups += upserted;
       logText(`${JOB_NAME} -- ${level}: ${upserted} entity/year group(s) updated`);
     }

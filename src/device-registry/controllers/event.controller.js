@@ -93,6 +93,30 @@ function handleResponse({
   return res.status(status).json(response);
 }
 
+// Shared by getAirQualityRankings / getAirQualityRankingsHistory — both
+// utils either resolve a {success, message, data|errors, status} result or
+// resolve undefined after already forwarding an error via next() themselves.
+function sendRankingResponse(res, result) {
+  // result is undefined when the util already forwarded an error via
+  // next() — don't also send a response here, or Express double-sends.
+  if (!result) {
+    return;
+  }
+  if (result.success) {
+    res.status(result.status || httpStatus.OK).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } else {
+    res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: result.message,
+      errors: result.errors || { message: "" },
+    });
+  }
+}
+
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -523,24 +547,7 @@ const createEvent = {
         return;
       }
       const result = await createEventUtil.getAirQualityRankings(req, next);
-      // result is undefined when the util already forwarded an error via
-      // next() — don't also send a response here, or Express double-sends.
-      if (!result) {
-        return;
-      }
-      if (result.success) {
-        res.status(result.status || httpStatus.OK).json({
-          success: true,
-          message: result.message,
-          data: result.data,
-        });
-      } else {
-        res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
+      sendRankingResponse(res, result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -565,24 +572,7 @@ const createEvent = {
         req,
         next,
       );
-      // result is undefined when the util already forwarded an error via
-      // next() — don't also send a response here, or Express double-sends.
-      if (!result) {
-        return;
-      }
-      if (result.success) {
-        res.status(result.status || httpStatus.OK).json({
-          success: true,
-          message: result.message,
-          data: result.data,
-        });
-      } else {
-        res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
+      sendRankingResponse(res, result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
