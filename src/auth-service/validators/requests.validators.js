@@ -113,7 +113,7 @@ const acceptInvitation = [
       .optional()
       .isLength({ min: 6 })
       .withMessage("password must be at least 6 characters")
-      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+      .matches(constants.PASSWORD_REGEX)
       .withMessage(
         "password must contain at least one letter and one number, and only allowed special characters: @#?!$%^&*.",
       ),

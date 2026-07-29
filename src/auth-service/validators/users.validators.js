@@ -633,7 +633,7 @@ const createUser = [
       .isLength({ min: 6, max: 30 })
       .withMessage("Password must be between 6 and 30 characters long")
       .bail()
-      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+      .matches(constants.PASSWORD_REGEX)
       .withMessage("Password must contain at least one letter and one number"),
     ...createInterestValidation(),
   ],
@@ -1129,7 +1129,7 @@ const setPassword = [
     .isLength({ min: 6, max: 30 })
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
-    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .matches(constants.PASSWORD_REGEX)
     .withMessage("Password must contain at least one letter and one number"),
   body("confirmPassword")
     .exists()
@@ -1160,6 +1160,11 @@ const resetPassword = [
     .bail()
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters long")
+    .bail()
+    .matches(constants.PASSWORD_REGEX)
+    .withMessage(
+      "Password must contain at least one letter and one number, and only include allowed special characters: @#?!$%^&*.,",
+    )
     .trim(),
   body("confirmPassword")
     .exists()
@@ -1237,7 +1242,7 @@ const registerViaOrgSlug = [
     .isLength({ min: 6, max: 30 })
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
-    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .matches(constants.PASSWORD_REGEX)
     .withMessage("Password must contain at least one letter and one number"),
   body("captchaToken")
     .optional()
