@@ -1158,25 +1158,25 @@ const resetPassword = [
     .exists()
     .withMessage("Password is required")
     .bail()
+    .trim()
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters long")
     .bail()
     .matches(constants.PASSWORD_REGEX)
     .withMessage(
-      "Password must contain at least one letter and one number, and only include allowed special characters: @#?!$%^&*.,",
-    )
-    .trim(),
+      "Password must be at least 6 characters long and contain at least one letter and one number. Special characters (@#?!$%^&*,.) are allowed.",
+    ),
   body("confirmPassword")
     .exists()
     .withMessage("Confirm Password is required")
     .bail()
+    .trim()
     .custom((value, { req }) => {
       if (value !== req.body.password) {
         throw new Error("Passwords do not match");
       }
       return true;
-    })
-    .trim(),
+    }),
 ];
 
 const getOrganizationBySlug = [
