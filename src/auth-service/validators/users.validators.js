@@ -633,7 +633,7 @@ const createUser = [
       .isLength({ min: 6, max: 30 })
       .withMessage("Password must be between 6 and 30 characters long")
       .bail()
-      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+      .matches(constants.PASSWORD_REGEX)
       .withMessage("Password must contain at least one letter and one number"),
     ...createInterestValidation(),
   ],
@@ -1129,7 +1129,7 @@ const setPassword = [
     .isLength({ min: 6, max: 30 })
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
-    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .matches(constants.PASSWORD_REGEX)
     .withMessage("Password must contain at least one letter and one number"),
   body("confirmPassword")
     .exists()
@@ -1158,20 +1158,25 @@ const resetPassword = [
     .exists()
     .withMessage("Password is required")
     .bail()
+    .trim()
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters long")
-    .trim(),
+    .bail()
+    .matches(constants.PASSWORD_REGEX)
+    .withMessage(
+      "Password must be at least 6 characters long and contain at least one letter and one number. Special characters (@#?!$%^&*,.) are allowed.",
+    ),
   body("confirmPassword")
     .exists()
     .withMessage("Confirm Password is required")
     .bail()
+    .trim()
     .custom((value, { req }) => {
       if (value !== req.body.password) {
         throw new Error("Passwords do not match");
       }
       return true;
-    })
-    .trim(),
+    }),
 ];
 
 const getOrganizationBySlug = [
@@ -1237,7 +1242,7 @@ const registerViaOrgSlug = [
     .isLength({ min: 6, max: 30 })
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
-    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .matches(constants.PASSWORD_REGEX)
     .withMessage("Password must contain at least one letter and one number"),
   body("captchaToken")
     .optional()
