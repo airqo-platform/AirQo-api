@@ -14,6 +14,7 @@
    - [Static Deployment](#static-deployment)
    - [Mobile Deployment](#mobile-deployment)
    - [Batch Deployment](#batch-deployment)
+   - [Deploy Owned Device](#deploy-owned-device)
    - [Deployment Statistics](#deployment-statistics)
 5. [Recall](#recall)
 6. [Maintenance](#maintenance)
@@ -58,7 +59,7 @@ POST/GET /api/v2/devices/activities/...
 | Header | Value |
 |--------|-------|
 | `Content-Type` | `application/json` |
-| `Authorization` | Bearer token (standard AirQo auth) |
+| `Authorization` | `JWT <token>` (standard AirQo auth — **not** `Bearer`) |
 
 ---
 
@@ -181,7 +182,7 @@ POST /api/v2/devices/activities/deploy/static?tenant=airqo&deviceName={deviceNam
 ```json
 {
   "success": true,
-  "message": "successfully deployed the device on AirQo platform",
+  "message": "successfully deployed the device",
   "updatedDevice": { "...device fields..." },
   "createdActivity": { "...activity fields..." }
 }
@@ -265,7 +266,7 @@ POST /api/v2/devices/activities/deploy/mobile?tenant=airqo&deviceName={deviceNam
 ```json
 {
   "success": true,
-  "message": "successfully deployed the device on AirQo platform",
+  "message": "successfully deployed the device",
   "updatedDevice": { "...device fields..." },
   "createdActivity": { "...activity fields..." }
 }
@@ -313,6 +314,7 @@ An array where each item includes the `deviceName` and all fields for that devic
     "height": 3.5,
     "mountType": "pole",
     "powerType": "solar",
+    "isPrimaryInLocation": true,
     "network": "airqo"
   },
   {
@@ -322,6 +324,7 @@ An array where each item includes the `deviceName` and all fields for that devic
     "height": 1.5,
     "mountType": "vehicle",
     "powerType": "alternator",
+    "isPrimaryInLocation": false,
     "mobility_metadata": {
       "route_id": "route_kampala_05",
       "coverage_area": "central_kampala"
@@ -342,6 +345,7 @@ An array where each item includes the `deviceName` and all fields for that devic
 | `height` | Number | >0 and <100 (exclusive) |
 | `mountType` | String | Not `"vehicle"` |
 | `powerType` | String | `"solar"` or `"mains"` |
+| `isPrimaryInLocation` | Boolean | Required per item (see note below) |
 
 **Required fields per item — mobile batch**
 
@@ -353,6 +357,9 @@ An array where each item includes the `deviceName` and all fields for that devic
 | `height` | Number | >0 and <100 (exclusive) |
 | `mountType` | String | Must be `"vehicle"` |
 | `powerType` | String | Must be `"alternator"` |
+| `isPrimaryInLocation` | Boolean | Required per item (see note below) |
+
+> **Quirk:** Unlike the single-device [Mobile Deployment](#mobile-deployment) endpoint (where `isPrimaryInLocation` must be omitted), the batch validator requires `isPrimaryInLocation` on **every** item regardless of type — a mobile item missing it will fail with `isPrimaryInLocation is required`. Send `false` for mobile items until this is reconciled.
 
 **Batch processing behaviour**
 
@@ -374,6 +381,48 @@ The server processes batches in multiple phases:
     "successful": [ { "deviceName": "aq_g5_19", "...": "..." } ],
     "failed": []
   }
+}
+```
+
+---
+
+### Deploy Owned Device
+
+Deploy a device that a specific user owns/has claimed. Uses the same static/mobile field rules as the generic `/deploy` endpoint, plus an ownership check.
+
+**Endpoint**
+
+```http
+POST /api/v2/devices/activities/deploy-owned?tenant=airqo&deviceName={deviceName}
+```
+
+**Request Body**
+
+Same shape as [Static Deployment](#static-deployment) or [Mobile Deployment](#mobile-deployment), plus:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `user_id` | ObjectId | **Yes** | Must match the device's `owner_id` |
+
+**What happens server-side**
+
+1. `400` if the device does not exist
+2. `403` if the device is unclaimed (`claim_status: "unclaimed"`)
+3. `403` if `user_id` does not match the device's `owner_id`
+4. `409` if the device is already deployed (`isActive: true`)
+5. Runs the same site/grid existence and field validation as the generic deploy flow
+6. On success, additionally sets the device's `claim_status` to `"deployed"`
+
+**Successful Response (`200`)**
+
+```json
+{
+  "success": true,
+  "message": "successfully deployed the device",
+  "updatedDevice": { "...device fields..." },
+  "createdActivity": { "...activity fields..." },
+  "deployment_type": "static",
+  "deployment_method": "owned_device"
 }
 ```
 
@@ -532,14 +581,14 @@ POST /api/v2/devices/activities/maintain?tenant=airqo&deviceName={deviceName}
 | Field | Type | Notes |
 |-------|------|-------|
 | `maintenanceType` | String | Must be a valid maintenance type (see [Enums](#enums--allowed-values)) |
+| `description` | String | Free-text description of work done — the request is rejected with `400` if this is missing |
+| `tags` | String[] | Categorisation tags (e.g., `["battery", "sensor"]`); must be present and be an array, though it can be empty (`[]`) |
 
 **Optional fields**
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `date` | ISO 8601 string | When the maintenance occurred; defaults to current date/time if omitted |
-| `description` | String | Free-text description of work done |
-| `tags` | String[] | Categorisation tags (e.g., `["battery", "sensor"]`) |
 | `user_id` | ObjectId | Who performed the maintenance |
 | `firstName`, `lastName`, `userName`, `email` | String | Identity of person |
 | `host_id` | ObjectId | Host/owner entity |
@@ -625,6 +674,36 @@ Body:
 }
 ```
 
+**Backfill device IDs**
+
+```http
+POST /api/v2/devices/activities/backfill-device-ids?tenant=airqo
+```
+
+Admin/maintenance operation. Older Activity records can be missing a `device_id` reference even though they have a `device` name — this walks through those records in batches and populates `device_id` by looking up the device by name.
+
+Body (optional):
+```json
+{
+  "dry_run": true,
+  "batch_size": 100
+}
+```
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `dry_run` | Boolean | `false` | If `true`, returns a count and a sample of affected activities without writing anything |
+| `batch_size` | Number | 100 | Activities processed per batch (10–1000) |
+
+**Bulk update / bulk add activities**
+
+```http
+PUT /api/v2/devices/activities/bulk/?tenant=airqo
+POST /api/v2/devices/activities/bulk/?tenant=airqo
+```
+
+> **Not yet implemented.** Both routes currently return `501 Not Implemented` for every request — do not build against these yet.
+
 ---
 
 ## Field Reference
@@ -644,7 +723,7 @@ These identity and network fields are accepted by every endpoint.
 | `host_id` | ObjectId | No | Host/owner entity |
 | `network` | String | No | Defaults to device's network |
 
-> **`description` and `tags`:** These fields are only accepted by the **maintenance** endpoint. For deploy and recall, the server sets `description` to a fixed internal string (`"device deployed"` / `"device recalled"`) — any client-provided value is ignored. `tags` and `activity_codes` are similarly not read from the request body for deploy or recall.
+> **`description` and `tags`:** These fields are **required on the maintenance endpoint** (a request missing either is rejected with `400`) and are not accepted anywhere else. For deploy and recall, the server sets `description` to a fixed internal string (`"device deployed"` / `"device recalled"`) — any client-provided value is ignored. `tags` and `activity_codes` are similarly not read from the request body for deploy or recall.
 
 ### Deployment-Only Fields
 
@@ -655,7 +734,7 @@ These identity and network fields are accepted by every endpoint.
 | `height` | Number | Yes | Metres above ground (>0 and <100, exclusive) |
 | `mountType` | String | Yes | How device is mounted |
 | `powerType` | String | Yes | Device's power source |
-| `isPrimaryInLocation` | Boolean | No | Static only — is this the main device at the site? |
+| `isPrimaryInLocation` | Boolean | No (single-device) / **Yes on `/deploy/batch`** | Static-only concept — is this the main device at the site? On single-device endpoints, omit it for mobile. On `POST /deploy/batch`, the validator requires it on every item regardless of type (see [Batch Deployment](#batch-deployment)) |
 | `deployment_type` | String | No (inferred) | `"static"` or `"mobile"` |
 
 ### Mobile-Only Fields
@@ -679,6 +758,8 @@ These identity and network fields are accepted by every endpoint.
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `maintenanceType` | String | Yes | Type of maintenance performed |
+| `description` | String | Yes | Free-text description of work done |
+| `tags` | String[] | Yes | Must be an array (can be empty) |
 | `site_id` | ObjectId | No | Override for site reference |
 
 ---
@@ -812,4 +893,4 @@ Configured per environment. Common values include: `"battery_replacement"`, `"se
 
 ---
 
-*This document was generated from the device-registry source at `src/device-registry/utils/activity.util.js`, `src/device-registry/validators/activities.validators.js`, `src/device-registry/models/Activity.js`, `src/device-registry/models/Device.js`, and `src/device-registry/routes/v2/activities.routes.js`.*
+*This document was generated from the device-registry source at `src/device-registry/utils/activity.util.js`, `src/device-registry/validators/activities.validators.js`, `src/device-registry/controllers/activity.controller.js`, `src/device-registry/models/Activity.js`, `src/device-registry/models/Device.js`, and `src/device-registry/routes/v2/activities.routes.js`.*
