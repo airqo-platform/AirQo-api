@@ -182,7 +182,7 @@ POST /api/v2/devices/activities/deploy/static?tenant=airqo&deviceName={deviceNam
 ```json
 {
   "success": true,
-  "message": "successfully deployed the device on AirQo platform",
+  "message": "successfully deployed the device",
   "updatedDevice": { "...device fields..." },
   "createdActivity": { "...activity fields..." }
 }
@@ -266,7 +266,7 @@ POST /api/v2/devices/activities/deploy/mobile?tenant=airqo&deviceName={deviceNam
 ```json
 {
   "success": true,
-  "message": "successfully deployed the device on AirQo platform",
+  "message": "successfully deployed the device",
   "updatedDevice": { "...device fields..." },
   "createdActivity": { "...activity fields..." }
 }
@@ -418,7 +418,7 @@ Same shape as [Static Deployment](#static-deployment) or [Mobile Deployment](#mo
 ```json
 {
   "success": true,
-  "message": "successfully deployed the device on AirQo platform",
+  "message": "successfully deployed the device",
   "updatedDevice": { "...device fields..." },
   "createdActivity": { "...activity fields..." },
   "deployment_type": "static",
@@ -734,7 +734,7 @@ These identity and network fields are accepted by every endpoint.
 | `height` | Number | Yes | Metres above ground (>0 and <100, exclusive) |
 | `mountType` | String | Yes | How device is mounted |
 | `powerType` | String | Yes | Device's power source |
-| `isPrimaryInLocation` | Boolean | No | Static only — is this the main device at the site? |
+| `isPrimaryInLocation` | Boolean | No (single-device) / **Yes on `/deploy/batch`** | Static-only concept — is this the main device at the site? On single-device endpoints, omit it for mobile. On `POST /deploy/batch`, the validator requires it on every item regardless of type (see [Batch Deployment](#batch-deployment)) |
 | `deployment_type` | String | No (inferred) | `"static"` or `"mobile"` |
 
 ### Mobile-Only Fields
