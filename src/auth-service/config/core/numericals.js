@@ -16,7 +16,7 @@ const TOKEN_STRATEGIES = Object.freeze({
 
 const numericals = {
   TOKEN_STRATEGIES,
-  PASSWORD_REGEX: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/,
+  PASSWORD_REGEX: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.()+_-]{6,}$/,
   JWT_EXPIRES_IN_SECONDS: Number.isFinite(
     Number(process.env.JWT_EXPIRES_IN_SECONDS),
   )

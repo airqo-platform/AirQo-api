@@ -634,7 +634,9 @@ const createUser = [
       .withMessage("Password must be between 6 and 30 characters long")
       .bail()
       .matches(constants.PASSWORD_REGEX)
-      .withMessage("Password must contain at least one letter and one number"),
+      .withMessage(
+        "Password must contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+      ),
     ...createInterestValidation(),
   ],
 ];
@@ -1130,7 +1132,9 @@ const setPassword = [
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
     .matches(constants.PASSWORD_REGEX)
-    .withMessage("Password must contain at least one letter and one number"),
+    .withMessage(
+      "Password must contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+    ),
   body("confirmPassword")
     .exists()
     .withMessage("confirmPassword is required")
@@ -1164,7 +1168,7 @@ const resetPassword = [
     .bail()
     .matches(constants.PASSWORD_REGEX)
     .withMessage(
-      "Password must be at least 6 characters long and contain at least one letter and one number. Special characters (@#?!$%^&*,.) are allowed.",
+      "Password must be at least 6 characters long and contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
     ),
   body("confirmPassword")
     .exists()
@@ -1243,7 +1247,9 @@ const registerViaOrgSlug = [
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
     .matches(constants.PASSWORD_REGEX)
-    .withMessage("Password must contain at least one letter and one number"),
+    .withMessage(
+      "Password must contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+    ),
   body("captchaToken")
     .optional()
     .notEmpty()
