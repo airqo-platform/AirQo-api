@@ -5,10 +5,10 @@ const constants = require("@config/constants");
 describe("PASSWORD_REGEX", () => {
   describe("accepts passwords using the full allowed special-character set", () => {
     const validPasswords = [
-      "Allahisgreat99##",
-      "Pluto@!#$%^&*()+_-1",
-      "Password1",
-      "abc123!@#?.,",
+      "Zx9Qw7##",
+      "Xz9!#$%^&*()+_-Q",
+      "Qw12Er34",
+      "ab12!@#?.,",
     ];
 
     validPasswords.forEach((password) => {
@@ -20,11 +20,11 @@ describe("PASSWORD_REGEX", () => {
 
   describe("rejects passwords that fail the requirements", () => {
     const invalidPasswords = {
-      "no digit": "NoDigitsHere!!",
-      "no letter": "123456!!",
+      "no digit": "NoDigitsXY!!",
+      "no letter": "000000!!",
       "too short": "Ab1!",
-      "disallowed character (space)": "Password 1",
-      "disallowed character (backslash)": "Password1\\",
+      "disallowed character (space)": "Testval 1",
+      "disallowed character (backslash)": "Testval1\\",
     };
 
     Object.entries(invalidPasswords).forEach(([reason, password]) => {
