@@ -1,7 +1,9 @@
 import os
 import hashlib
 import logging
+import multiprocessing
 import threading
+from datetime import datetime, timezone
 import numpy as np
 from io import BytesIO
 from PIL import Image
@@ -11,11 +13,23 @@ from matplotlib.colors import to_rgba
 from shapely import intersects_xy
 from shapely.geometry.base import BaseGeometry
 import base64
-from flask import current_app, jsonify
+from flask import jsonify
 import redis
 import json
 from typing import Optional, Dict, Any, List, Tuple
 from models.heatmapModel import AirQualityData, AirQualityGrids, AirQualityPredictor
+
+
+def _run_heatmap_refresh_process():
+    """Run refresh work in a process that the parent can terminate on timeout."""
+    from app_factory import create_app
+
+    app = create_app()
+    AQIImageGenerator._redis_client = None
+    redis_client = AQIImageGenerator.get_redis_client()
+    if redis_client is None:
+        raise RuntimeError("Redis is unavailable to the heatmap refresh process")
+    AQIImageGenerator._refresh_if_source_changed(app, redis_client)
 
 
 # Ensure matplotlib is not using a GUI backend for image generation
@@ -26,15 +40,18 @@ import matplotlib.pyplot as plt
 
 class AQIImageGenerator:
     _redis_client = None
-    ALL_CITIES_CACHE_KEY = "aqi_images_all_cities_v2"
-    CITY_CACHE_PREFIX = "aqi_image_v2_"
-    SOURCE_VERSION_KEY = "aqi_heatmap_source_version_v2"
-    REFRESH_GATE_KEY = "aqi_heatmap_refresh_gate_v2"
+    ALL_CITIES_CACHE_KEY = "aqi_images_all_cities_v3"
+    CITY_CACHE_PREFIX = "aqi_image_v3_"
+    SOURCE_VERSION_KEY = "aqi_heatmap_source_version_v3"
+    REFRESH_GATE_KEY = "aqi_heatmap_refresh_gate_v3"
     REFRESH_INTERVAL_SECONDS = int(
         os.getenv("HEATMAP_REFRESH_INTERVAL_SECONDS", "3600")
     )
     REFRESH_RETRY_SECONDS = int(
         os.getenv("HEATMAP_REFRESH_RETRY_SECONDS", "300")
+    )
+    REFRESH_TIMEOUT_SECONDS = int(
+        os.getenv("HEATMAP_REFRESH_TIMEOUT_SECONDS", "600")
     )
     logger = logging.getLogger(__name__)
 
@@ -82,6 +99,24 @@ class AQIImageGenerator:
         serialized = json.dumps(sorted(version_rows), separators=(",", ":"))
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _result_time():
+        """Return the heatmap generation time as an ISO-8601 UTC value."""
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    @classmethod
+    def _city_result(
+        cls, city_id, city_name, image_data, bounds, message, result_time=None
+    ):
+        return {
+            "id": city_id,
+            "city": city_name,
+            "image": image_data,
+            "bounds": bounds,
+            "message": message,
+            "time": result_time or cls._result_time(),
+        }
+
     @classmethod
     def _defer_next_refresh(cls, redis_client, seconds=None):
         try:
@@ -110,16 +145,43 @@ class AQIImageGenerator:
         if not acquired:
             return
 
+        process = None
         try:
-            app = current_app._get_current_object()
-            threading.Thread(
-                target=cls._refresh_if_source_changed,
-                args=(app, redis_client),
+            process = multiprocessing.Process(
+                target=_run_heatmap_refresh_process,
                 name="heatmap-cache-refresh",
+                daemon=True,
+            )
+            process.start()
+            threading.Thread(
+                target=cls._monitor_refresh_process,
+                args=(process, redis_client),
+                name="heatmap-cache-refresh-monitor",
                 daemon=True,
             ).start()
         except Exception:
             cls.logger.exception("Failed to start the heatmap refresh worker")
+            if process is not None and process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+            cls._defer_next_refresh(redis_client, cls.REFRESH_RETRY_SECONDS)
+
+    @classmethod
+    def _monitor_refresh_process(cls, process, redis_client):
+        """Terminate a refresh that exceeds its hard execution deadline."""
+        process.join(timeout=cls.REFRESH_TIMEOUT_SECONDS)
+        if process.is_alive():
+            cls.logger.error(
+                "Heatmap refresh exceeded %ss and will be terminated",
+                cls.REFRESH_TIMEOUT_SECONDS,
+            )
+            process.terminate()
+            process.join(timeout=5)
+            cls._defer_next_refresh(redis_client, cls.REFRESH_RETRY_SECONDS)
+        elif process.exitcode not in (0, None):
+            cls.logger.error(
+                "Heatmap refresh process exited with code %s", process.exitcode
+            )
             cls._defer_next_refresh(redis_client, cls.REFRESH_RETRY_SECONDS)
 
     @classmethod
@@ -325,6 +387,7 @@ class AQIImageGenerator:
                 return jsonify({"error": "No grid data available"}), 500
 
             results = []
+            result_time = AQIImageGenerator._result_time()
             cache_key_prefix = AQIImageGenerator.CITY_CACHE_PREFIX
             for _, city_row in grid_gdf.iterrows():
                 city_id = city_row["id"]
@@ -341,13 +404,14 @@ class AQIImageGenerator:
                     city_data, city_name, city_row["geometry"]
                 )
 
-                city_result = {
-                    "id": city_id,
-                    "city": city_name,
-                    "image": image_data,
-                    "bounds": bounds,
-                    "message": message
-                }
+                city_result = AQIImageGenerator._city_result(
+                    city_id,
+                    city_name,
+                    image_data,
+                    bounds,
+                    message,
+                    result_time,
+                )
                 results.append(city_result)
 
                 # Store in individual city cache
@@ -433,13 +497,9 @@ class AQIImageGenerator:
             if not image_data:
                 return jsonify({"error": message}), 400
 
-            result = {
-                "id": city_id,
-                "city": city_name,
-                "image": image_data,
-                "bounds": bounds,
-                "message": message
-            }
+            result = AQIImageGenerator._city_result(
+                city_id, city_name, image_data, bounds, message
+            )
 
             # Store in cache
             if redis_client:

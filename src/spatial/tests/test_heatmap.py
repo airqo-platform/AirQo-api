@@ -158,7 +158,14 @@ def test_heatmap_pixels_outside_boundary_are_transparent():
 
 def test_cached_response_keeps_original_json_and_skips_map_fetch():
     app = Flask(__name__)
-    cached_payload = [{"id": "grid-123", "city": "Kampala", "image": "image"}]
+    cached_payload = [
+        {
+            "id": "grid-123",
+            "city": "Kampala",
+            "image": "image",
+            "time": "2026-07-30T12:00:00Z",
+        }
+    ]
     redis_client = FakeRedis(
         {
             AQIImageGenerator.ALL_CITIES_CACHE_KEY: json.dumps(cached_payload),
@@ -178,10 +185,42 @@ def test_cached_response_keeps_original_json_and_skips_map_fetch():
     air_quality_data.assert_not_called()
 
 
+def test_city_result_contains_generation_time():
+    result = AQIImageGenerator._city_result(
+        "grid-123",
+        "Kampala",
+        "image",
+        [[0.0, 0.0], [1.0, 1.0]],
+        "generated",
+        "2026-07-30T12:00:00Z",
+    )
+
+    assert result == {
+        "id": "grid-123",
+        "city": "Kampala",
+        "image": "image",
+        "bounds": [[0.0, 0.0], [1.0, 1.0]],
+        "message": "generated",
+        "time": "2026-07-30T12:00:00Z",
+    }
+
+
 def test_only_one_of_one_thousand_requests_starts_refresh():
     app = Flask(__name__)
     redis_client = FakeRedis()
+    started_processes = []
     started_threads = []
+
+    class FakeProcess:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.exitcode = None
+
+        def start(self):
+            started_processes.append(self.kwargs)
+
+        def is_alive(self):
+            return False
 
     class FakeThread:
         def __init__(self, **kwargs):
@@ -190,12 +229,47 @@ def test_only_one_of_one_thousand_requests_starts_refresh():
         def start(self):
             started_threads.append(self.kwargs)
 
-    with app.app_context(), patch('views.heatmapViews.threading.Thread', FakeThread):
+    with (
+        app.app_context(),
+        patch('views.heatmapViews.multiprocessing.Process', FakeProcess),
+        patch('views.heatmapViews.threading.Thread', FakeThread),
+    ):
         for _ in range(1000):
             AQIImageGenerator._schedule_refresh_if_due(redis_client)
 
+    assert len(started_processes) == 1
     assert len(started_threads) == 1
     assert redis_client.expirations[AQIImageGenerator.REFRESH_GATE_KEY] == 3600
+
+
+def test_hung_refresh_process_is_terminated_at_timeout():
+    redis_client = FakeRedis({AQIImageGenerator.REFRESH_GATE_KEY: '1'})
+
+    class HungProcess:
+        exitcode = None
+
+        def __init__(self):
+            self.join_timeouts = []
+            self.terminated = False
+
+        def join(self, timeout=None):
+            self.join_timeouts.append(timeout)
+
+        def is_alive(self):
+            return not self.terminated
+
+        def terminate(self):
+            self.terminated = True
+
+    process = HungProcess()
+    AQIImageGenerator._monitor_refresh_process(process, redis_client)
+
+    assert process.terminated
+    assert process.join_timeouts == [
+        AQIImageGenerator.REFRESH_TIMEOUT_SECONDS,
+        5,
+    ]
+    assert redis_client.expirations[AQIImageGenerator.REFRESH_GATE_KEY] == 300
 
 
 def test_background_worker_does_not_regenerate_for_unchanged_map_data():
