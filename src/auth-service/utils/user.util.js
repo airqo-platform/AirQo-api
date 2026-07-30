@@ -522,7 +522,7 @@ const createUserModule = {
         isValid: false,
         error: new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
           message:
-            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one digit. Special characters (@#?!$%^&*,.) are allowed.",
+            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one digit. Special characters (@#?!$%^&*,.()+_-) are allowed.",
         }),
       };
     }
