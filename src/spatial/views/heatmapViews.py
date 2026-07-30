@@ -3,7 +3,10 @@ import numpy as np
 from io import BytesIO
 from PIL import Image
 from scipy.interpolate import griddata
+from scipy.spatial import QhullError
 from matplotlib.colors import to_rgba
+from shapely import contains_xy
+from shapely.geometry.base import BaseGeometry
 import base64
 from flask import jsonify
 import redis
@@ -88,13 +91,19 @@ class AQIImageGenerator:
             return to_rgba("maroon", alpha)
 
     @staticmethod
-    def generate_image_for_city(data: List[Tuple[float, float, float]], city_name: str, resolution: int = 150):
+    def generate_image_for_city(
+        data: List[Tuple[float, float, float]],
+        city_name: str,
+        boundary: BaseGeometry,
+        resolution: int = 150,
+    ):
         """
         Generates a heatmap image for a city based on provided data.
 
         Args:
             data: List of tuples containing (latitude, longitude, pm25).
             city_name: Name of the city.
+            boundary: Exact grid polygon used to mask the image.
             resolution: Image resolution (pixels per dimension).
 
         Returns:
@@ -106,14 +115,34 @@ class AQIImageGenerator:
         coords = np.array([[lat, lon] for lat, lon, _ in data])
         values = np.array([pm for _, _, pm in data])
 
-        lat_min, lon_min = coords.min(axis=0)
-        lat_max, lon_max = coords.max(axis=0)
+        if boundary is None or boundary.is_empty:
+            return None, None, f"No boundary available for {city_name}"
+
+        lon_min, lat_min, lon_max, lat_max = boundary.bounds
         bounds = [[lat_min, lon_min], [lat_max, lon_max]]
 
         grid_lat, grid_lon = np.mgrid[lat_min:lat_max:complex(resolution), lon_min:lon_max:complex(resolution)]
         grid_points = np.vstack([grid_lat.ravel(), grid_lon.ravel()]).T
-        interpolated_pm25 = griddata(coords, values, grid_points, method='cubic', fill_value=np.nan)
+        try:
+            interpolated_pm25 = griddata(
+                coords, values, grid_points, method='cubic', fill_value=np.nan
+            )
+        except (QhullError, ValueError):
+            interpolated_pm25 = griddata(coords, values, grid_points, method='nearest')
+
+        # Cubic interpolation only covers the samples' convex hull. Fill the
+        # remaining pixels inside the polygon so there is no transparent fringe.
+        if np.isnan(interpolated_pm25).any():
+            nearest_pm25 = griddata(coords, values, grid_points, method='nearest')
+            interpolated_pm25 = np.where(
+                np.isnan(interpolated_pm25), nearest_pm25, interpolated_pm25
+            )
         interpolated_pm25 = np.clip(interpolated_pm25, 0, 500)
+
+        # A map image overlay is rectangular. Make all pixels outside the actual
+        # polygon transparent so the visible heatmap follows the grid boundary.
+        boundary_mask = contains_xy(boundary, grid_lon.ravel(), grid_lat.ravel())
+        interpolated_pm25[~boundary_mask] = np.nan
 
         aqi_flat = np.array([AQIImageGenerator.pm25_to_aqi(pm) for pm in interpolated_pm25])
         colors_flat = np.array([AQIImageGenerator.aqi_to_color(aqi) for aqi in aqi_flat])
@@ -143,7 +172,7 @@ class AQIImageGenerator:
         """
         redis_client = AQIImageGenerator.get_redis_client()
         cache_ttl_seconds = 3600  # Cache for 60 minutes
-        all_cities_cache_key = "aqi_images_all_cities"
+        all_cities_cache_key = "aqi_images_all_cities_v2"
         
         # --- NEW: Check for the entire 'all cities' response in cache first ---
         if redis_client:
@@ -159,6 +188,7 @@ class AQIImageGenerator:
 
             if not predictor.fetch_and_process_data():
                 return jsonify({"error": "Failed to fetch or process input data"}), 500
+
             if not predictor.train_and_predict():
                 return jsonify({"error": "Model training and prediction failed"}), 500
 
@@ -171,7 +201,7 @@ class AQIImageGenerator:
                 return jsonify({"error": "No grid data available"}), 500
 
             results = []
-            cache_key_prefix = "aqi_image_"
+            cache_key_prefix = "aqi_image_v2_"
             for _, city_row in grid_gdf.iterrows():
                 city_id = city_row["id"]
                 city_name = city_row["name"]
@@ -191,7 +221,9 @@ class AQIImageGenerator:
                     continue
 
                 city_data = list(zip(city_df["latitude"], city_df["longitude"], city_df["predicted_pm25"]))
-                image_data, bounds, message = AQIImageGenerator.generate_image_for_city(city_data, city_name)
+                image_data, bounds, message = AQIImageGenerator.generate_image_for_city(
+                    city_data, city_name, city_row["geometry"]
+                )
 
                 city_result = {
                     "id": city_id,
@@ -233,7 +265,7 @@ class AQIImageGenerator:
             Flask response with JSON containing the city's heatmap or an error message.
         """
         redis_client = AQIImageGenerator.get_redis_client()
-        cache_key = f"aqi_image_{city_id}"
+        cache_key = f"aqi_image_v2_{city_id}"
         cache_ttl_seconds = 3600  # Cache for 60 minutes
 
         # Try to get from cache
@@ -250,12 +282,6 @@ class AQIImageGenerator:
 
             if not predictor.fetch_and_process_data():
                 return jsonify({"error": "Failed to fetch or process input data"}), 500
-            if not predictor.train_and_predict():
-                return jsonify({"error": "Model training and prediction failed"}), 500
-
-            _, predictions_df = predictor.get_results()
-            if predictions_df.empty:
-                return jsonify({"error": "No predictions available"}), 500
 
             grid_gdf = predictor.grids.gdf
             if grid_gdf is None or grid_gdf.empty:
@@ -265,13 +291,24 @@ class AQIImageGenerator:
             if city_row.empty:
                 return jsonify({"error": f"No city found with ID {city_id}"}), 404
 
+            # A city request should only load or create the requested grid model.
+            predictor.gdf_polygons = city_row
+            if not predictor.train_and_predict():
+                return jsonify({"error": "Model training and prediction failed"}), 500
+
+            _, predictions_df = predictor.get_results()
+            if predictions_df.empty:
+                return jsonify({"error": "No predictions available"}), 500
+
             city_name = city_row.iloc[0]["name"]
             city_df = predictions_df[predictions_df["city"] == city_name]
             if city_df.empty:
                 return jsonify({"error": f"No prediction data for city ID {city_id} ({city_name})"}), 404
 
             city_data = list(zip(city_df["latitude"], city_df["longitude"], city_df["predicted_pm25"]))
-            image_data, bounds, message = AQIImageGenerator.generate_image_for_city(city_data, city_name)
+            image_data, bounds, message = AQIImageGenerator.generate_image_for_city(
+                city_data, city_name, city_row.iloc[0]["geometry"]
+            )
 
             if not image_data:
                 return jsonify({"error": message}), 400

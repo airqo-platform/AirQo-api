@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import re
+import tempfile
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports 
@@ -544,15 +546,25 @@ class AirQualityPredictor:
         self.results: List[Dict[str, Any]] = []
         self.predictions: List[pd.DataFrame] = []
         self.logger = self.aq_data.logger
-        self.models: Dict[str, RandomForestRegressor] = {}  # Cache loaded models
+        self.models: Dict[str, RandomForestRegressor] = {}  # Cache loaded models by grid ID
         # GCS-related configurations from configure.py
         # The MODEL_DIR and SPATIAL_PROJECT_BUCKET are now used to define GCS paths
         self.SPATIAL_PROJECT_BUCKET = config.SPATIAL_PROJECT_BUCKET
         self.city_list: Any = config.CITY_LIST_FILE
         self.MODEL_DIR = config.MODEL_DIR 
 
-        if not self.SPATIAL_PROJECT_BUCKET:  # Only ensure local dir if no bucket
-            os.makedirs(self.MODEL_DIR, exist_ok=True)
+        # Keep downloaded models on disk so new predictor instances do not fetch
+        # the same GCS object on every heatmap request.
+        os.makedirs(self.MODEL_DIR, exist_ok=True)
+
+    @staticmethod
+    def _safe_model_key(value: str) -> str:
+        '''Return a filesystem/GCS-safe model key.'''
+        return re.sub(r'[^A-Za-z0-9_.-]+', '_', str(value)).strip('._')
+
+    def _model_filename(self, grid_id: str) -> str:
+        '''Use the stable grid ID instead of a mutable grid name.'''
+        return f'{self._safe_model_key(grid_id)}_rf_model.joblib'
 
     def _get_processed_cities(self) -> set:
         """
@@ -658,95 +670,151 @@ class AirQualityPredictor:
         except Exception as e:
             self.logger.error(f"Failed to save processed cities to {self.city_list}")
 
-    def _load_model(self, city_name: str) -> Optional[RandomForestRegressor]:
+    def _load_model(
+        self, grid_id: str, city_name: str
+    ) -> Optional[RandomForestRegressor]:
         """
-        Loads a pre-trained model for a specific city.
-        It first tries to load the model from the GCS bucket.
-        If the GCS bucket is not configured or the model is not found there, it falls back to the local directory.
+        Loads a pre-trained model for a grid.
+        It checks memory and local disk before downloading from GCS.
         Args:
-            city_name: The name of the city.
+            grid_id: Stable ID of the grid.
+            city_name: Grid name used to find legacy model artifacts.
         Returns:
             The loaded model, or None if no model is found.
         """
-        model_filename = f"{city_name}_rf_model.joblib" 
-        # Try to load from GCS first
-        if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = model_filename
-            import tempfile
-            fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
-            os.close(fd)
+        if grid_id in self.models:
+            return self.models[grid_id]
+
+        model_filename = self._model_filename(grid_id)
+        legacy_filename = f"{city_name}_rf_model.joblib"
+        if os.path.basename(legacy_filename) != legacy_filename:
+            legacy_filename = f"{self._safe_model_key(city_name)}_rf_model.joblib"
+        candidates = list(dict.fromkeys([model_filename, legacy_filename]))
+
+        # Local disk is the persistent cache and must be checked before GCS.
+        for candidate in candidates:
+            local_filepath = os.path.join(self.MODEL_DIR, candidate)
+            if not os.path.isfile(local_filepath):
+                continue
             try:
-                self.logger.info( 
-                    f"Attempting to download model from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{gcs_path}")
-                download_file_from_gcs(
-                    self.SPATIAL_PROJECT_BUCKET, gcs_path, temp_local_path
+                model = joblib.load(local_filepath)
+                if candidate != model_filename:
+                    # Migrate a legacy name-keyed artifact to the stable grid ID.
+                    joblib.dump(model, os.path.join(self.MODEL_DIR, model_filename))
+                self.models[grid_id] = model
+                self.logger.info(
+                    "Loaded cached model for grid '%s' from %s",
+                    grid_id,
+                    local_filepath,
                 )
-                model = joblib.load(temp_local_path)
-                self.logger.info(f"Loaded model from GCS: for {model_filename}")
-                
-                try:
-                    os.remove(temp_local_path)
-                except OSError:
-                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
                 return model
             except Exception as e:
                 self.logger.warning(
-                    f"Failed to load model from GCS for {city_name}. Reason: {e}. Falling back to local directory."
+                    "Ignoring invalid cached model %s: %s", local_filepath, e
                 )
-        # Fallback to local directory
-        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
-        if os.path.exists(local_filepath):
-            try:
-                self.logger.info(f"Loading model from local directory: {local_filepath}")
-                return joblib.load(local_filepath)
-            except Exception as e:
-                self.logger.error(f"Failed to load model from local file. Reason: {e}")
-        else:
-            self.logger.info(f"No model found for {city_name} in local directory.")
+
+        if self.SPATIAL_PROJECT_BUCKET:
+            for candidate in candidates:
+                local_filepath = os.path.join(self.MODEL_DIR, model_filename)
+                temp_path = None
+                try:
+                    fd, temp_path = tempfile.mkstemp(
+                        suffix=".joblib", dir=self.MODEL_DIR
+                    )
+                    os.close(fd)
+                    self.logger.info(
+                        "Downloading missing model gs://%s/%s",
+                        self.SPATIAL_PROJECT_BUCKET,
+                        candidate,
+                    )
+                    download_file_from_gcs(
+                        self.SPATIAL_PROJECT_BUCKET, candidate, temp_path
+                    )
+                    model = joblib.load(temp_path)
+                    os.replace(temp_path, local_filepath)
+                    temp_path = None
+                    self.models[grid_id] = model
+                    self.logger.info(
+                        "Cached model for grid '%s' at %s",
+                        grid_id,
+                        local_filepath,
+                    )
+                    return model
+                except Exception as e:
+                    self.logger.info(
+                        "Model gs://%s/%s is unavailable: %s",
+                        self.SPATIAL_PROJECT_BUCKET,
+                        candidate,
+                        e,
+                    )
+                finally:
+                    if temp_path and os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                        except OSError:
+                            pass
 
         return None
 
 
-    def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
+    def _save_model(
+        self, grid_id: str, city_name: str, model: RandomForestRegressor
+    ) -> None:
         """
-        Saves a trained model for a specific city.
-        Prioritizes saving to the GCS bucket if configured.
-        Falls back to saving to the local directory if GCS is not used or fails.
+        Saves a trained model locally and uploads it to GCS when configured.
         Args:
-            city_name: The name of the city.
+            grid_id: Stable ID of the grid.
+            city_name: Name used for logging.
             model: The trained RandomForestRegressor model.
         """
-        model_filename = f"{city_name}_rf_model.joblib"
+        model_filename = self._model_filename(grid_id)
         local_filepath = os.path.join(self.MODEL_DIR, model_filename)
-        # Prioritize saving to GCS
-        if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = model_filename
-            import tempfile
-            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
-            os.close(temp_fd)
-            try:
-                # Save locally first, then upload
-                joblib.dump(model, temp_local_path)
-                upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, gcs_path)
-                self.logger.info(
-                    f"Model for {city_name} saved successfully to GCS bucket at {gcs_path}."
-                )
-                # Clean up the temporary local file
-                os.remove(temp_local_path)
-                return
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to save model to GCS for {city_name}. Reason: {e}. Falling back to local save."
-                ) 
-        # Fallback to local directory save
+
+        # Always retain the trained artifact locally, including when GCS is used.
+        temp_path = None
         try:
-            os.makedirs(self.MODEL_DIR, exist_ok=True) # Ensure dir exists before saving
-            joblib.dump(model, local_filepath)
+            os.makedirs(self.MODEL_DIR, exist_ok=True)
+            fd, temp_path = tempfile.mkstemp(suffix=".joblib", dir=self.MODEL_DIR)
+            os.close(fd)
+            joblib.dump(model, temp_path)
+            os.replace(temp_path, local_filepath)
+            temp_path = None
+            self.models[grid_id] = model
             self.logger.info(
-                f"Model for {city_name} saved successfully to local directory."
+                "Model for grid '%s' (%s) saved to %s",
+                grid_id,
+                city_name,
+                local_filepath,
             )
         except Exception as e:
-            self.logger.error(f"Failed to save model locally for {city_name}. Reason: {e}")
+            self.logger.error(
+                "Failed to save model locally for grid '%s': %s", grid_id, e
+            )
+            return
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+        if self.SPATIAL_PROJECT_BUCKET:
+            try:
+                upload_to_gcs(
+                    self.SPATIAL_PROJECT_BUCKET, local_filepath, model_filename
+                )
+                self.logger.info(
+                    "Model for grid '%s' uploaded to gs://%s/%s",
+                    grid_id,
+                    self.SPATIAL_PROJECT_BUCKET,
+                    model_filename,
+                )
+            except Exception as e:
+                self.logger.warning(
+                    "Model for grid '%s' was saved locally but GCS upload failed: %s",
+                    grid_id,
+                    e,
+                )
 
     def fetch_and_process_data(self) -> bool:
         """
@@ -804,35 +872,35 @@ class AirQualityPredictor:
         self.predictions.clear()
         self.models.clear()
 
-        # Get current and previously processed cities
-        current_cities = set(self.gdf_polygons["name"])
-        processed_cities = self._get_processed_cities()
-        new_cities = current_cities - processed_cities
-        self.logger.info(f"Found {len(new_cities)} new cities: {new_cities}")
-
         try:
             for _, city in self.gdf_polygons.iterrows():
+                grid_id = str(city["id"])
                 city_name = city["name"]
-                city_poly = city["geometry"].buffer(buffer_distance)
-                city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
+                city_poly = city["geometry"]
+                sensor_search_area = city_poly.buffer(buffer_distance)
+                city_data = self.gdf[
+                    self.gdf.geometry.intersects(sensor_search_area)
+                ]
 
                 known = city_data[city_data["pm25"].notna()].copy()
-                if len(known) < 2:
-                    self.logger.warning(
-                        f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
-                    )
-                    continue
-
-                # Decide whether to train a new model
-                train_model = force_retrain or (city_name in new_cities)
-                model = None
-                if not train_model:
-                    model = self._load_model(city_name)
-                    if model is None:
-                        self.logger.info(
-                            f"No model found for '{city_name}'; will train a new one."
+                # Artifact existence is the source of truth. The old processed
+                # cities list could say a grid was processed while its model was
+                # missing, or force needless retraining when a model did exist.
+                model = None if force_retrain else self._load_model(grid_id, city_name)
+                train_model = model is None
+                if train_model:
+                    if len(known) < 2:
+                        self.logger.warning(
+                            "Skipping '%s': no saved model and only %d valid PM2.5 points.",
+                            city_name,
+                            len(known),
                         )
-                        train_model = True
+                        continue
+                    self.logger.info(
+                        "No saved model found for grid '%s' (%s); creating one.",
+                        grid_id,
+                        city_name,
+                    )
 
                 if train_model:
                     self.logger.info(
@@ -852,10 +920,10 @@ class AirQualityPredictor:
                     model.fit(X_train, y_train)
 
                     # Save the model
-                    self._save_model(city_name, model)
+                    self._save_model(grid_id, city_name, model)
 
-                    # Evaluate the model if the test set is non-empty
-                    if not y_test.empty:
+                    # R-squared requires at least two test samples.
+                    if len(y_test) >= 2:
                         y_pred = model.predict(X_test)
                         self.results.append(
                             {
@@ -868,7 +936,7 @@ class AirQualityPredictor:
                             }
                         )
 
-                self.models[city_name] = model
+                self.models[grid_id] = model
                 self.logger.info(
                     f"Using model for '{city_name}' (trained={train_model})."
                 )
@@ -881,7 +949,9 @@ class AirQualityPredictor:
                 grid_points_all = [Point(x, y) for x, y in zip(xx.ravel(), yy.ravel())]
 
                 grid_gdf = gpd.GeoDataFrame(geometry=grid_points_all, crs="EPSG:4326")
-                grid_gdf = grid_gdf[grid_gdf.geometry.within(city_poly)]
+                # Predict within the real polygon, not the sensor search buffer.
+                # covers() retains points that fall exactly on the boundary.
+                grid_gdf = grid_gdf[grid_gdf.geometry.apply(city_poly.covers)]
 
                 # Predict PM2.5 for the grid points
                 if not grid_gdf.empty:
@@ -913,14 +983,13 @@ class AirQualityPredictor:
                     original_data_df["source"] = "original"
                     original_data_df["city"] = city_name
 
-                    combined = pd.concat(
-                        [original_data_df, grid_results_df], ignore_index=True
-                    )
+                    if original_data_df.empty:
+                        combined = grid_results_df
+                    else:
+                        combined = pd.concat(
+                            [original_data_df, grid_results_df], ignore_index=True
+                        )
                     self.predictions.append(combined)
-
-            # Update the processed cities list
-            processed_cities.update(current_cities)
-            self._save_processed_cities(processed_cities)
 
             self.logger.info("Training and prediction completed successfully.")
             return True
