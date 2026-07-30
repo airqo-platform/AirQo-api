@@ -554,7 +554,7 @@ class AirQualityPredictor:
         self.MODEL_DIR = config.MODEL_DIR 
 
         # Keep downloaded models on disk so new predictor instances do not fetch
-        # the same GCS object on every heatmap request.
+        # the same GCS object on every heatmap request. 
         os.makedirs(self.MODEL_DIR, exist_ok=True)
 
     @staticmethod
