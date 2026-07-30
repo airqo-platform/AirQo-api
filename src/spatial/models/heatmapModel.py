@@ -950,8 +950,8 @@ class AirQualityPredictor:
 
                 grid_gdf = gpd.GeoDataFrame(geometry=grid_points_all, crs="EPSG:4326")
                 # Predict within the real polygon, not the sensor search buffer.
-                # covers() retains points that fall exactly on the boundary.
-                grid_gdf = grid_gdf[grid_gdf.geometry.apply(city_poly.covers)]
+                # intersects() retains points that fall exactly on the boundary.
+                grid_gdf = grid_gdf[grid_gdf.geometry.intersects(city_poly)]
 
                 # Predict PM2.5 for the grid points
                 if not grid_gdf.empty:

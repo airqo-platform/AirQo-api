@@ -36,6 +36,8 @@ REDIS_DB=0
 REDIS_URL=redis://localhost:6379/0
 REDIS_PASSWORD=
 REDIS_CACHE_TTL=3600
+HEATMAP_REFRESH_INTERVAL_SECONDS=3600
+HEATMAP_REFRESH_RETRY_SECONDS=300
 MODEL_DIR_FILE=./models
 OSMNX_CACHE_MAX_FILES=100
 OSMNX_CACHE_MAX_AGE_HOURS=168
@@ -571,4 +573,5 @@ current request:
 - `must_have_locations` must fall inside the supplied polygon for site selection.
 - BigQuery and Storage operations require credentials for their configured datasets and buckets.
 - Redis is optional; if unavailable the heatmap and active-fire endpoints still work but skip caching.
+- Heatmap JSON is cached without expiry. The first cached request after `HEATMAP_REFRESH_INTERVAL_SECONDS` starts one background `/map` version check; unchanged data keeps the existing cache, while changed data atomically replaces it. Failed refreshes retry after `HEATMAP_REFRESH_RETRY_SECONDS`.
 - OSMnx request cache files are stored in `src/spatial/cache`. Old cache files are pruned automatically based on `OSMNX_CACHE_MAX_FILES` and `OSMNX_CACHE_MAX_AGE_HOURS`.

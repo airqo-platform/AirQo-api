@@ -1,13 +1,15 @@
 import base64
 from io import BytesIO
+import json
 import logging
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import geopandas as gpd
 import joblib
 import numpy as np
+from flask import Flask
 from PIL import Image
 from shapely.geometry import Point, Polygon
 from sklearn.ensemble import RandomForestRegressor
@@ -19,6 +21,29 @@ if str(SPATIAL_ROOT) not in sys.path:
 
 from models.heatmapModel import AirQualityPredictor
 from views.heatmapViews import AQIImageGenerator
+
+
+class FakeRedis:
+    def __init__(self, initial=None):
+        self.values = dict(initial or {})
+        self.expirations = {}
+
+    def get(self, key):
+        return self.values.get(key)
+
+    def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.values:
+            return False
+        self.values[key] = value
+        if ex is not None:
+            self.expirations[key] = ex
+        return True
+
+    def expire(self, key, seconds):
+        if key not in self.values:
+            return False
+        self.expirations[key] = seconds
+        return True
 
 
 def _predictor(model_dir, bucket=None):
@@ -129,3 +154,102 @@ def test_heatmap_pixels_outside_boundary_are_transparent():
     assert bounds == [[0.0, 0.0], [1.0, 1.0]]
     assert rgba[5, 45, 3] == 0
     assert rgba[45, 5, 3] > 0
+
+
+def test_cached_response_keeps_original_json_and_skips_map_fetch():
+    app = Flask(__name__)
+    cached_payload = [{"id": "grid-123", "city": "Kampala", "image": "image"}]
+    redis_client = FakeRedis(
+        {
+            AQIImageGenerator.ALL_CITIES_CACHE_KEY: json.dumps(cached_payload),
+            AQIImageGenerator.REFRESH_GATE_KEY: "1",
+        }
+    )
+
+    with (
+        app.app_context(),
+        patch.object(AQIImageGenerator, 'get_redis_client', return_value=redis_client),
+        patch('views.heatmapViews.AirQualityData') as air_quality_data,
+    ):
+        response, status = AQIImageGenerator.generate_aqi_image()
+
+    assert status == 200
+    assert response.get_json() == cached_payload
+    air_quality_data.assert_not_called()
+
+
+def test_only_one_of_one_thousand_requests_starts_refresh():
+    app = Flask(__name__)
+    redis_client = FakeRedis()
+    started_threads = []
+
+    class FakeThread:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def start(self):
+            started_threads.append(self.kwargs)
+
+    with app.app_context(), patch('views.heatmapViews.threading.Thread', FakeThread):
+        for _ in range(1000):
+            AQIImageGenerator._schedule_refresh_if_due(redis_client)
+
+    assert len(started_threads) == 1
+    assert redis_client.expirations[AQIImageGenerator.REFRESH_GATE_KEY] == 3600
+
+
+def test_background_worker_does_not_regenerate_for_unchanged_map_data():
+    app = Flask(__name__)
+    payload = {
+        "measurements": [
+            {
+                "time": "2026-07-30T10:00:00Z",
+                "siteDetails": {"_id": "site-1"},
+                "pm2_5": {"value": 12.4},
+            }
+        ]
+    }
+    source_version = AQIImageGenerator._source_data_version(payload)
+    redis_client = FakeRedis(
+        {AQIImageGenerator.SOURCE_VERSION_KEY: source_version}
+    )
+    aq_data = Mock(data=payload)
+    aq_data.fetch_data.return_value = True
+
+    with (
+        patch('views.heatmapViews.AirQualityData', return_value=aq_data),
+        patch.object(AQIImageGenerator, 'generate_aqi_image') as regenerate,
+    ):
+        AQIImageGenerator._refresh_if_source_changed(app, redis_client)
+
+    regenerate.assert_not_called()
+
+
+def test_background_worker_regenerates_when_map_data_changes():
+    app = Flask(__name__)
+    payload = {
+        "measurements": [
+            {
+                "time": "2026-07-30T11:00:00Z",
+                "siteDetails": {"_id": "site-1"},
+                "pm2_5": {"value": 15.0},
+            }
+        ]
+    }
+    redis_client = FakeRedis(
+        {AQIImageGenerator.SOURCE_VERSION_KEY: "older-version"}
+    )
+    aq_data = Mock(data=payload)
+    aq_data.fetch_data.return_value = True
+
+    with (
+        patch('views.heatmapViews.AirQualityData', return_value=aq_data),
+        patch.object(
+            AQIImageGenerator,
+            'generate_aqi_image',
+            return_value=(None, 200),
+        ) as regenerate,
+    ):
+        AQIImageGenerator._refresh_if_source_changed(app, redis_client)
+
+    regenerate.assert_called_once_with(force_refresh=True, aq_data=aq_data)
