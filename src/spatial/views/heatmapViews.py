@@ -80,23 +80,18 @@ class AQIImageGenerator:
 
     @staticmethod
     def _source_data_version(payload):
-        """Build a stable version from the measurements that affect a heatmap."""
-        def normalized(value):
-            return "" if value is None else str(value)
-
+        """Build an order-independent hash of the complete /map measurements."""
         measurements = (payload or {}).get("measurements") or []
-        version_rows = []
-        for measurement in measurements:
-            site = measurement.get("siteDetails") or {}
-            version_rows.append(
-                (
-                    normalized(measurement.get("time")),
-                    normalized(site.get("_id")),
-                    normalized((measurement.get("pm2_5") or {}).get("value")),
-                    normalized((measurement.get("pm10") or {}).get("value")),
-                )
+        canonical_measurements = sorted(
+            json.dumps(
+                measurement,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
             )
-        serialized = json.dumps(sorted(version_rows), separators=(",", ":"))
+            for measurement in measurements
+        )
+        serialized = "[" + ",".join(canonical_measurements) + "]"
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     @staticmethod
@@ -190,7 +185,7 @@ class AQIImageGenerator:
         try:
             with app.app_context():
                 aq_data = AirQualityData()
-                if not aq_data.fetch_data():
+                if not aq_data.fetch_data(force_refresh=True):
                     raise RuntimeError("Could not fetch /map data for refresh")
 
                 source_version = cls._source_data_version(aq_data.data)

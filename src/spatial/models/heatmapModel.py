@@ -191,6 +191,7 @@ class BaseAirQoAPI:
         validator: Optional[Callable[[Dict[str, Any]], bool]] = None,
         cache_key: Optional[str] = None,
         use_cache_on_error: bool = True,
+        bypass_cache: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
         Performs a GET request and returns the JSON payload, prioritizing the cache.
@@ -207,11 +208,13 @@ class BaseAirQoAPI:
             validator: An optional function to validate the received payload.
             cache_key: The Redis key for caching. If None, caching is skipped.
             use_cache_on_error: If True, returns cached data on API or validation failure.
+            bypass_cache: If True, fetches the API first but still permits the
+                cache as an error fallback.
 
         Returns:
             A dictionary with the JSON payload or None if the request fails and no valid cache is available.
         """
-        if cache_key:
+        if cache_key and not bypass_cache:
             # Step 1: Attempt to get from cache first
             cached_data = self._cache_get(cache_key)
             if cached_data and (validator is None or validator(cached_data)):
@@ -288,10 +291,10 @@ class AirQualityData(BaseAirQoAPI):
         measurements = payload.get("measurements")
         return isinstance(measurements, list) and len(measurements) > 0
 
-    def fetch_data(self) -> bool:
+    def fetch_data(self, force_refresh: bool = False) -> bool:
         """
         Fetches the latest air quality measurements from the API.
-        The Redis cache is checked first.
+        The Redis cache is checked first unless force_refresh is True.
 
         Returns:
             True if data was fetched successfully (from API or cache), False otherwise.
@@ -302,6 +305,7 @@ class AirQualityData(BaseAirQoAPI):
             validator=self._is_valid_payload,
             cache_key=self.REDIS_KEY,
             use_cache_on_error=True,
+            bypass_cache=force_refresh,
         )
         if payload is None:
             self.logger.error("Data fetch failed and no usable cache was available.")

@@ -297,6 +297,7 @@ def test_background_worker_does_not_regenerate_for_unchanged_map_data():
         AQIImageGenerator._refresh_if_source_changed(app, redis_client)
 
     regenerate.assert_not_called()
+    aq_data.fetch_data.assert_called_once_with(force_refresh=True)
 
 
 def test_background_worker_regenerates_when_map_data_changes():
@@ -327,3 +328,36 @@ def test_background_worker_regenerates_when_map_data_changes():
         AQIImageGenerator._refresh_if_source_changed(app, redis_client)
 
     regenerate.assert_called_once_with(force_refresh=True, aq_data=aq_data)
+    aq_data.fetch_data.assert_called_once_with(force_refresh=True)
+
+
+def test_one_changed_map_value_changes_the_source_version():
+    original = {
+        "measurements": [
+            {
+                "time": "2026-07-30T11:00:00Z",
+                "siteDetails": {
+                    "_id": "site-1",
+                    "approximate_latitude": 0.31,
+                    "approximate_longitude": 32.58,
+                },
+                "pm2_5": {"value": 15.0},
+            },
+            {
+                "time": "2026-07-30T11:00:00Z",
+                "siteDetails": {"_id": "site-2"},
+                "pm2_5": {"value": 20.0},
+            },
+        ]
+    }
+    changed = json.loads(json.dumps(original))
+    changed["measurements"][1]["pm2_5"]["value"] = 20.1
+
+    assert AQIImageGenerator._source_data_version(
+        original
+    ) != AQIImageGenerator._source_data_version(changed)
+
+    reordered = {"measurements": list(reversed(original["measurements"]))}
+    assert AQIImageGenerator._source_data_version(
+        original
+    ) == AQIImageGenerator._source_data_version(reordered)
