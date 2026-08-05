@@ -30,6 +30,8 @@ coverage/
 *.cache/
 .npmrc
 .tmp/
+tmp/
+.tmp-registry-cache/
 
 # Flutter
 .packages
