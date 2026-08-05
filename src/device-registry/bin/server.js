@@ -164,6 +164,13 @@ try {
     `update-online-status-job failed to start: ${err.message}`,
   );
 }
+try {
+  require("@bin/jobs/fix-corrupted-raw-data-job");
+} catch (err) {
+  global.dedupLogger.error(
+    `fix-corrupted-raw-data-job failed to start: ${err.message}`,
+  );
+}
 require("@bin/jobs/check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
@@ -189,6 +196,16 @@ try {
 } catch (err) {
   global.dedupLogger.error(
     `clear-deployment-type-job failed to start: ${err.message}`,
+  );
+}
+try {
+  const fixCorruptedLastActiveJob = require("@bin/jobs/fix-corrupted-last-active-job");
+  // Runs on every startup but self-skips immediately when no devices have a
+  // corrupted (future) lastActive value.
+  setTimeout(() => fixCorruptedLastActiveJob("airqo"), 10000);
+} catch (err) {
+  global.dedupLogger.error(
+    `fix-corrupted-last-active-job failed to start: ${err.message}`,
   );
 }
 try {
@@ -302,6 +319,34 @@ try {
   // Continue - server stays up
 }
 
+// Air quality rollup — daily. Folds each day's readings into permanent
+// country/city PM2.5 running totals before the source Reading documents are
+// purged by their 14-day TTL, so GET .../readings/rankings/history can serve
+// real multi-year data from a small precomputed collection instead of
+// aggregating raw readings (which don't exist past ~2 weeks) on every request.
+try {
+  require("@bin/jobs/air-quality-rollup-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ air-quality-rollup-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
+// AQI category backfill — daily safety net (05:00). Primary trigger is
+// event-driven: aqi.controller.js fires this immediately after a successful
+// PUT/DELETE on /aqi-ranges so already-stored readings/signals stop looking
+// stale promptly. This registration is what makes that require() elsewhere
+// return the same, already-scheduled module instead of scheduling twice.
+try {
+  require("@bin/jobs/aqi-category-backfill-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ aqi-category-backfill-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
 // Private cohort alert — 3×/day (06:00, 14:00, 22:00 UTC)
 // Flags cohorts that are private but contain >2 operational devices,
 // preventing them from silently missing public map and recent-measurements visibility.
@@ -313,6 +358,18 @@ try {
   );
   // Continue - server stays up
 }
+
+// Global CORS — must run before all routes so error responses also include these headers
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
 
 // Express Middlewares
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser

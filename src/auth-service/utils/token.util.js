@@ -42,6 +42,7 @@ const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-util`);
+const securityAuditLogger = log4js.getLogger("token-security-audit");
 
 const async = require("async");
 const { Kafka } = require("kafkajs");
@@ -654,7 +655,7 @@ const isIPBlacklistedHelper = async (
       WhitelistedIPModel("airqo").findOne({ ip }),
       AccessTokenModel("airqo")
         .findOne(accessTokenFilter)
-        .select("name token client_id expiredEmailSent"),
+        .select("name token client_id expiredEmailSent bypass_ip_blacklist bypass_ip_blacklist_expires_at"),
       // Redis-first cache for the prefix list — avoids a full-collection scan
       // on every authenticated request. Falls through to MongoDB on cache miss
       // or Redis unavailability; both failure paths are non-fatal.
@@ -704,6 +705,8 @@ const isIPBlacklistedHelper = async (
       token = "",
       name = "",
       client_id = "",
+      bypass_ip_blacklist = false,
+      bypass_ip_blacklist_expires_at = null,
     } = (accessToken && accessToken._doc) || {};
 
     // Load CIDR-based ASN block list (Redis-cached, 10 min TTL, tenant-scoped).
@@ -807,6 +810,21 @@ const isIPBlacklistedHelper = async (
       return true;
     } else if (blacklistedIpPrefixes.includes(ipPrefix)) {
       return true;
+    } else if (blacklistedIP && _isBypassActive(bypass_ip_blacklist, bypass_ip_blacklist_expires_at)) {
+      // Token is admin-exempted from the IP-blacklist block itself (not just
+      // suspension) — e.g. serverless/dynamic-egress integrations that
+      // legitimately rotate through IP ranges that have been flagged.
+      // Skip blocking and skip logging this hit as a compromise event, since
+      // that log feeds the daily compromise-summary email this exemption is
+      // meant to silence. Admin-managed CIDR/ASN and prefix blocks (checked
+      // above) are unaffected.
+      logger.info(
+        `IP-blacklist block bypassed via bypass_ip_blacklist -- TOKEN_SUFFIX: ...${(token || "").slice(-4)} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`,
+      );
+      Promise.resolve().then(() =>
+        postProcessing({ ip, token, name, client_id, endpoint, day }),
+      );
+      return false;
     } else if (blacklistedIP) {
       logger.info(
         `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `,
@@ -839,6 +857,134 @@ const isIPBlacklistedHelper = async (
           logger.info(
             `Logged compromised token for daily summary. User: ${email}, IP: ${ip}`,
           );
+
+          // Auto-suspend if this token has exceeded the high-compromise threshold.
+          // Uses MongoDB countDocuments — no Redis dependency. Fire-and-forget; never
+          // blocks the IP verdict returned to the current request.
+          //
+          // Repeat offenders (tokens reinstated after a prior auto-suspension) get a
+          // progressively lower threshold so chronic abuse triggers re-suspension even
+          // at lower unique-IP volumes. The floor is 20 unique IPs per 24 hours.
+          Promise.resolve().then(async () => {
+            try {
+              // Fetch the exemption flag + tracking fields directly — the
+              // curated list() projection above (TOKENS_INCLUSION_PROJECTION)
+              // does not include request_pattern or bypass_compromise_detection.
+              const tokenFlags = await AccessTokenModel("airqo")
+                .findOne({ token })
+                .select("bypass_compromise_detection bypass_compromise_detection_expires_at request_pattern")
+                .lean();
+
+              if (
+                tokenFlags &&
+                _isBypassActive(
+                  tokenFlags.bypass_compromise_detection,
+                  tokenFlags.bypass_compromise_detection_expires_at
+                )
+              ) {
+                logger.info(
+                  `Compromise auto-suspension skipped — token exempted via bypass_compromise_detection (suffix=...${token.slice(-4)})`
+                );
+                return;
+              }
+
+              const baseThreshold = constants.COMPROMISE_SUSPEND_THRESHOLD;
+              const requestPattern = (tokenFlags && tokenFlags.request_pattern) || {};
+
+              // suspension_count is incremented on high-compromise auto-suspension. For tokens
+              // suspended before this field was added, fall back to checking whether
+              // suspended_at is set (meaning the token has been suspended at least once).
+              const trackedCount = requestPattern.suspension_count ?? 0;
+              const priorSuspensions =
+                trackedCount > 0
+                  ? trackedCount
+                  : requestPattern.suspended_at
+                  ? 1
+                  : 0;
+
+              // Halve the threshold for each prior suspension, floored at
+              // min(20, baseThreshold) so a configured baseThreshold below 20
+              // is never accidentally raised by the floor.
+              // e.g. base=50: priorSuspensions=0→50, =1→25, =2→20, =3+→20
+              //      base=10: priorSuspensions=0→10, =1→10, =2+→10
+              const floor = Math.min(20, baseThreshold);
+              const effectiveThreshold = Math.max(
+                floor,
+                Math.floor(baseThreshold / Math.pow(2, priorSuspensions))
+              );
+
+              const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+              // Aggregation stops at effectiveThreshold unique IPs — avoids
+              // materialising the full distinct-IP set for high-volume tokens.
+              const [countResult] = await CompromisedTokenLogModel("airqo").aggregate([
+                { $match: { tokenHash, timestamp: { $gte: since } } },
+                { $group: { _id: "$ip" } },
+                { $limit: effectiveThreshold },
+                { $count: "n" },
+              ]);
+              const recentCount = countResult?.n ?? 0;
+              if (recentCount < effectiveThreshold) return;
+
+              const suspensionReason =
+                priorSuspensions > 0
+                  ? `Repeat compromise activity: ${recentCount} unique IP events in 24 hours (reduced threshold of ${effectiveThreshold} applies — token has ${priorSuspensions} prior suspension(s))`
+                  : `High compromise activity: ${recentCount} unique IP events in 24 hours — token likely exposed in a public-facing application`;
+              const suspendedAt = new Date();
+
+              // Atomic update filtered on auto_suspended: {$ne: true} ensures exactly
+              // one suspension + email even under concurrent requests — the DB write
+              // itself acts as the dedup gate with no Redis or separate TTL document.
+              // The bypass_compromise_detection clause re-checks the exemption inside
+              // the same atomic write — closing the gap between the early bypass
+              // check above and this write, during which an admin could have granted
+              // the exemption (the fire-and-forget threshold computation in between
+              // awaits the aggregation above).
+              const prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
+                {
+                  token,
+                  "request_pattern.auto_suspended": { $ne: true },
+                  $or: [
+                    { bypass_compromise_detection: { $ne: true } },
+                    { bypass_compromise_detection_expires_at: { $lte: new Date() } },
+                  ],
+                },
+                {
+                  $set: {
+                    "request_pattern.auto_suspended": true,
+                    "request_pattern.suspension_reason": suspensionReason,
+                    "request_pattern.suspended_at": suspendedAt,
+                  },
+                  $inc: { "request_pattern.suspension_count": 1 },
+                },
+                { lean: true }
+              );
+              if (!prevDoc) return; // already suspended — no duplicate email
+
+              await mailer
+                .autoSuspendedToken({
+                  email,
+                  firstName: firstName || "",
+                  lastName: lastName || "",
+                  token,
+                  tokenName: listTokenResponse.data[0].name || "",
+                  suspensionReason,
+                  suspendedAt,
+                })
+                .catch((e) =>
+                  logger.error(
+                    `Non-critical: high-compromise suspension email failed: ${e.message}`
+                  )
+                );
+
+              logger.warn(
+                `🚨 Token auto-suspended (high compromise activity) — suffix=...${token.slice(-4)} events=${recentCount} threshold=${effectiveThreshold} priorSuspensions=${priorSuspensions}`
+              );
+            } catch (e) {
+              logger.error(
+                `Non-critical: high-compromise suspension check failed: ${e.message}`
+              );
+            }
+          });
         }
       } catch (error) {
         logger.error(
@@ -909,7 +1055,7 @@ const isIPBlacklisted = (...args) =>
 const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, userAgent }) => {
   // Service-account tokens opt out of behavioural scoring entirely.
   // Honeypot traps, IP blocks, and manual suspension still apply.
-  if (accessToken.bypass_anomaly_detection) {
+  if (_isBypassActive(accessToken.bypass_anomaly_detection, accessToken.bypass_anomaly_detection_expires_at)) {
     return;
   }
   const ANOMALY_SUSPEND_THRESHOLD = constants.ANOMALY_SUSPEND_THRESHOLD || 10;
@@ -983,70 +1129,111 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
         logger.warn(
           `🚫 Token auto-suspended by anomaly detector — client=${accessToken.client_id} score=${newScore} reason="${suspensionReason}"`
         );
-
-        // Send one email per token per 24 hours.
-        // Two-layer dedup:
-        //   1. Redis key `autosusp:mail:{tokenHash}` (24-hr TTL) — per-token gate,
-        //      prevents spam when the same token triggers multiple suspensions.
-        //   2. mailer.autoSuspendedToken cooldownDays:1 — per-user-email gate,
-        //      prevents flooding a user who has many tokens suspend simultaneously.
-        // Fire-and-forget — never blocks the DB write below.
-        Promise.resolve().then(async () => {
-          try {
-            const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-            const mailGateKey = `autosusp:mail:${tokenHash}`;
-            const alreadySent = await redisGetAsync(mailGateKey).catch(() => null);
-            if (alreadySent) return; // email already sent for this token today
-
-            // Fetch user details needed for the email.
-            const client = await ClientModel("airqo")
-              .findById(accessToken.client_id)
-              .select("user_id")
-              .lean();
-            if (!client || !client.user_id) return;
-
-            const user = await UserModel("airqo")
-              .findById(client.user_id)
-              .select("email firstName lastName")
-              .lean();
-            if (!user || !user.email) return;
-
-            const emailResponse = await mailer.autoSuspendedToken({
-              email:             user.email,
-              firstName:         user.firstName || "",
-              lastName:          user.lastName  || "",
-              token:             rawToken,
-              tokenName:         accessToken.name || "",
-              suspensionReason:  suspensionReason || "",
-              suspendedAt,
-            });
-
-            if (emailResponse && emailResponse.success !== false) {
-              // Set 24-hour Redis gate so this token does not trigger another
-              // email until the user has had time to act.
-              await redisSetAsync(mailGateKey, "1", 86400).catch(() => {});
-              logger.info(
-                `Auto-suspension email sent — user=${user.email} client=${accessToken.client_id}`
-              );
-            }
-          } catch (mailErr) {
-            logger.error(
-              `Non-critical: auto-suspension email failed for client=${accessToken.client_id}: ${mailErr.message}`
-            );
-          }
-        });
       }
     }
 
+    // Perform the DB write first so the pre-update document (prevDoc) can act as the
+    // dedup gate: if prevDoc shows auto_suspended was already true, someone else already
+    // handled this suspension and we skip the email. No Redis key needed.
+    let prevDoc = null;
     if (Object.keys(updates).length > 0) {
-      await AccessTokenModel("airqo").findOneAndUpdate(
-        { token: rawToken },
-        { $set: updates }
+      // Gate suspension writes on auto_suspended: {$ne: true} so concurrent requests
+      // cannot overwrite the original suspended_at / suspension_reason after the first
+      // transition false→true. Non-suspension updates use the plain filter so they
+      // are never blocked on already-suspended tokens (which in practice never reach
+      // here due to the line-1465 early-exit, but keeps the intent explicit).
+      // The bypass_anomaly_detection clause re-checks the exemption inside this
+      // same atomic write, closing the gap between the early bypass check at
+      // the top of this function and this write (several awaits — Redis
+      // incr/mget — happen in between, during which the exemption could change).
+      const suspensionFilter = updates["request_pattern.auto_suspended"]
+        ? {
+            token: rawToken,
+            "request_pattern.auto_suspended": { $ne: true },
+            $or: [
+              { bypass_anomaly_detection: { $ne: true } },
+              { bypass_anomaly_detection_expires_at: { $lte: new Date() } },
+            ],
+          }
+        : { token: rawToken };
+      prevDoc = await AccessTokenModel("airqo").findOneAndUpdate(
+        suspensionFilter,
+        { $set: updates },
+        { new: false, lean: true }
       );
+    }
+
+    // Send the suspension email only if this call was the one to flip auto_suspended.
+    if (
+      updates["request_pattern.auto_suspended"] &&
+      prevDoc &&
+      !prevDoc.request_pattern?.auto_suspended
+    ) {
+      const suspensionReasonForEmail = updates["request_pattern.suspension_reason"];
+      const suspendedAtForEmail      = updates["request_pattern.suspended_at"];
+      // Fire-and-forget — never blocks the verify path.
+      Promise.resolve().then(async () => {
+        try {
+          const client = await ClientModel("airqo")
+            .findById(accessToken.client_id)
+            .select("user_id")
+            .lean();
+          if (!client || !client.user_id) return;
+
+          const user = await UserModel("airqo")
+            .findById(client.user_id)
+            .select("email firstName lastName")
+            .lean();
+          if (!user || !user.email) return;
+
+          const emailResponse = await mailer.autoSuspendedToken({
+            email:             user.email,
+            firstName:         user.firstName || "",
+            lastName:          user.lastName  || "",
+            token:             rawToken,
+            tokenName:         accessToken.name || "",
+            suspensionReason:  suspensionReasonForEmail || "",
+            suspendedAt:       suspendedAtForEmail,
+          });
+
+          if (emailResponse && emailResponse.success !== false) {
+            logger.info(
+              `Auto-suspension email sent — user=${user.email} client=${accessToken.client_id}`
+            );
+          }
+        } catch (mailErr) {
+          logger.error(
+            `Non-critical: auto-suspension email failed for client=${accessToken.client_id}: ${mailErr.message}`
+          );
+        }
+      });
     }
   } catch (err) {
     logger.error(`Non-critical: _trackBehaviouralAnomaly error: ${err.message}`);
   }
+};
+
+// The three admin-only security-bypass booleans and their matching optional
+// expiry fields. Shared by updateAccessToken (strip/audit) and the enforcement
+// helper below so the list only needs to be maintained in one place.
+const BYPASS_BOOLEAN_FIELDS = [
+  "bypass_anomaly_detection",
+  "bypass_compromise_detection",
+  "bypass_ip_blacklist",
+];
+const BYPASS_ADMIN_ONLY_FIELDS = BYPASS_BOOLEAN_FIELDS.reduce(
+  (acc, f) => acc.concat([f, `${f}_expires_at`]),
+  []
+);
+
+// A bypass flag is only "active" if it is true AND (no expiry is set OR the
+// expiry is still in the future). This is checked live at every enforcement
+// site rather than relying solely on the daily cleanup job, so there is never
+// a window where an expired bypass is still honoured.
+const _isBypassActive = (flag, expiresAt) => {
+  if (!flag) return false;
+  if (!expiresAt) return true;
+  return new Date(expiresAt).getTime() > Date.now();
 };
 
 const token = {
@@ -1201,7 +1388,42 @@ const token = {
           }),
         );
       } else {
-        const tokenId = tokenDetails[0]._id;
+        const tokenRecord = tokenDetails[0];
+        const tokenId = tokenRecord._id;
+
+        // Ownership check — the requesting user must own the client that issued
+        // this token, OR be a super-admin.  Prevents any authenticated user from
+        // reinstating (or otherwise patching) a token they do not own.
+        const callerEmail = ((request.user && request.user.email) || "").toLowerCase();
+        const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
+          .some(e => e.toLowerCase() === callerEmail);
+
+        if (!isAdmin) {
+          const linkedClient = await ClientModel(tenant)
+            .findById(tokenRecord.client_id)
+            .select("user_id")
+            .lean();
+
+          const ownerId = linkedClient && linkedClient.user_id
+            ? linkedClient.user_id.toString()
+            : null;
+          const callerId = request.user && (request.user._id || request.user.id)
+            ? (request.user._id || request.user.id).toString()
+            : null;
+
+          if (!ownerId || !callerId || ownerId !== callerId) {
+            securityAuditLogger.warn(
+              `🚫 Ownership check failed on token update — caller=${callerEmail} ` +
+              `tokenId=${tokenId} clientId=${tokenRecord.client_id}`
+            );
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message: "You do not have permission to update this token",
+              }),
+            );
+          }
+        }
+
         let update = Object.assign({}, body);
         if (update.token) {
           delete update.token;
@@ -1212,14 +1434,25 @@ const token = {
         if (update._id) {
           delete update._id;
         }
-        // bypass_anomaly_detection is admin-only — non-super-admins cannot set it
-        // via the public PATCH endpoint even if the validator accepts the field.
-        if (update.bypass_anomaly_detection !== undefined) {
-          const userEmail = ((request.user && request.user.email) || "").toLowerCase();
-          const isAdmin = (constants.SUPER_ADMIN_EMAIL_ALLOWLIST || [])
-            .some(e => e.toLowerCase() === userEmail);
-          if (!isAdmin) {
-            delete update.bypass_anomaly_detection;
+        // The bypass_* booleans and their _expires_at companions are admin-only
+        // — non-super-admins cannot set any of them via the public PATCH
+        // endpoint even if the validator accepts the fields.
+        if (!isAdmin) {
+          for (const field of BYPASS_ADMIN_ONLY_FIELDS) {
+            if (update[field] !== undefined) {
+              delete update[field];
+            }
+          }
+        }
+        // Expand request_pattern into dotted-path keys before passing to
+        // findByIdAndUpdate. Without this, Mongoose's implicit $set would
+        // replace the entire request_pattern subdocument, silently wiping
+        // suspension_count, suspended_at, and other tracking fields.
+        if (update.request_pattern && typeof update.request_pattern === "object") {
+          const rp = update.request_pattern;
+          delete update.request_pattern;
+          for (const [k, v] of Object.entries(rp)) {
+            update[`request_pattern.${k}`] = v;
           }
         }
         const updatedToken = await AccessTokenModel(tenant)
@@ -1227,6 +1460,27 @@ const token = {
           .lean();
 
         if (!isEmpty(updatedToken)) {
+          // Audit trail — log every sensitive field change with caller identity.
+          // Read from updatedToken (what Mongo persisted) not from update (the
+          // request payload), so the log reflects actual stored values after any
+          // Mongoose coercion or subdocument replacement.
+          const auditFields = [];
+          if (update.request_pattern !== undefined) {
+            auditFields.push(`request_pattern=${JSON.stringify(updatedToken.request_pattern)}`);
+          }
+          for (const field of BYPASS_ADMIN_ONLY_FIELDS) {
+            if (update[field] !== undefined) {
+              auditFields.push(`${field}=${updatedToken[field]}`);
+            }
+          }
+          if (auditFields.length > 0) {
+            securityAuditLogger.info(
+              `Token metadata updated — caller=${callerEmail} ` +
+              `tokenId=${tokenId} clientId=${tokenRecord.client_id} ` +
+              `changes=[${auditFields.join(", ")}]`
+            );
+          }
+
           return {
             success: true,
             message: "Successfully updated the token's metadata",
@@ -1328,7 +1582,7 @@ const token = {
         .select(
           "client_id token name tier scopes allowed_grids allowed_cohorts " +
           "access_schedule last_user_agent request_pattern allowed_origins " +
-          "bypass_anomaly_detection"
+          "bypass_anomaly_detection bypass_anomaly_detection_expires_at"
         );
 
       if (isEmpty(accessToken)) {
@@ -1805,11 +2059,10 @@ const token = {
       const tokenModel = AccessTokenModel(tenant.toLowerCase());
       const expires = tokenCreationBody.expires || Date.now() + API_TOKEN_TTL_MS;
 
-      let replacedDoc;
-      try {
-        replacedDoc = await tokenModel.findOneAndReplace(
+      const _attemptReplace = async (body) =>
+        tokenModel.findOneAndReplace(
           { client_id: ObjectId(client_id) },
-          { ...tokenCreationBody, expires },
+          { ...body, expires },
           {
             upsert: true,
             new: true,
@@ -1817,16 +2070,57 @@ const token = {
             setDefaultsOnInsert: true,
           },
         );
+
+      // Resolve which field caused a 11000 from keyPattern (most reliable),
+      // falling back to keyValue if keyPattern is absent.
+      const _collisionField = (err) =>
+        err.keyPattern
+          ? Object.keys(err.keyPattern)[0]
+          : err.keyValue
+          ? Object.keys(err.keyValue)[0]
+          : null;
+
+      let replacedDoc;
+      try {
+        replacedDoc = await _attemptReplace(tokenCreationBody);
       } catch (replaceErr) {
-        if (replaceErr.code === 11000) {
+        if (replaceErr.code !== 11000) throw replaceErr;
+        const conflictField = _collisionField(replaceErr);
+        if (conflictField !== null && conflictField !== "token") {
+          // Definitively not a token collision — retrying won't help.
           return {
             success: false,
             message: "A token already exists for one of the provided unique fields",
             status: httpStatus.CONFLICT,
-            errors: { token: "the token must be unique" },
+            errors: {
+              [conflictField]: `the ${conflictField} must be unique`,
+            },
           };
         }
-        throw replaceErr;
+        // Astronomically unlikely token collision — regenerate and retry once.
+        logger.warn(
+          `Non-critical: token collision on insert for client ${client_id} — regenerating and retrying`
+        );
+        const retryToken = accessCodeGenerator
+          .generate(constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH))
+          .toUpperCase();
+        tokenCreationBody.token = retryToken;
+        try {
+          replacedDoc = await _attemptReplace(tokenCreationBody);
+        } catch (retryErr) {
+          if (retryErr.code === 11000) {
+            const retryConflictField = _collisionField(retryErr);
+            return {
+              success: false,
+              message: "A token already exists for one of the provided unique fields",
+              status: httpStatus.CONFLICT,
+              errors: {
+                [retryConflictField || "token"]: `the ${retryConflictField || "token"} must be unique`,
+              },
+            };
+          }
+          throw retryErr;
+        }
       }
 
       if (!replacedDoc) {
@@ -3520,6 +3814,96 @@ token.resolveFlaggedToken = async (request, next) => {
     const { note } = request.body;
     const filter = { _id: ObjectId(id) };
     return await FlaggedTokenModel(dbTenant).resolve({ filter, note: note || "" }, next);
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+// Exposed so bin/jobs/bypass-expiry-job.js can iterate the same set of
+// bypass fields without duplicating the list.
+token.BYPASS_BOOLEAN_FIELDS = BYPASS_BOOLEAN_FIELDS;
+
+/**
+ * Admin-only report of tokens that currently have at least one security-bypass
+ * flag active (bypass_anomaly_detection / bypass_compromise_detection /
+ * bypass_ip_blacklist). Backs both the GET /tokens/bypasses endpoint and the
+ * weekly bypass-report digest email sent by bin/jobs/bypass-expiry-job.js.
+ * Only reports flags currently in force per _isBypassActive — a boolean left
+ * true past its own expires_at is not reported here (it will be cleared and
+ * reported as "expired" by the job on its next run instead).
+ */
+token.listActiveBypasses = async (tenant = "airqo") => {
+  const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+  const candidates = await AccessTokenModel(dbTenant)
+    .find({
+      $or: BYPASS_BOOLEAN_FIELDS.map((f) => ({ [f]: true })),
+    })
+    .select(
+      `name token client_id ${BYPASS_ADMIN_ONLY_FIELDS.join(" ")}`
+    )
+    .lean();
+
+  const active = candidates
+    .map((doc) => {
+      const bypasses = BYPASS_BOOLEAN_FIELDS.filter((f) =>
+        _isBypassActive(doc[f], doc[`${f}_expires_at`])
+      ).map((f) => ({
+        type: f,
+        expires_at: doc[`${f}_expires_at`] || null,
+      }));
+      return { doc, bypasses };
+    })
+    .filter((entry) => entry.bypasses.length > 0);
+
+  if (active.length === 0) return [];
+
+  const clientIds = [...new Set(active.map((e) => e.doc.client_id.toString()))];
+  const clients = await ClientModel(dbTenant)
+    .find({ _id: { $in: clientIds } })
+    .select("user_id")
+    .lean();
+  const clientOwnerMap = new Map(
+    clients.map((c) => [c._id.toString(), c.user_id])
+  );
+
+  const userIds = [...new Set([...clientOwnerMap.values()].filter(Boolean).map((id) => id.toString()))];
+  const users = await UserModel(dbTenant)
+    .find({ _id: { $in: userIds } })
+    .select("email firstName lastName")
+    .lean();
+  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+  return active.map(({ doc, bypasses }) => {
+    const ownerId = clientOwnerMap.get(doc.client_id.toString());
+    const owner = ownerId ? userMap.get(ownerId.toString()) : null;
+    return {
+      token_suffix: doc.token ? doc.token.slice(-4) : "",
+      token_name: doc.name || "",
+      client_id: doc.client_id,
+      owner_email: (owner && owner.email) || null,
+      owner_name: owner ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim() : null,
+      bypasses,
+    };
+  });
+};
+
+token.listBypassedTokens = async (request, next) => {
+  try {
+    const { tenant } = { ...request.query };
+    const data = await token.listActiveBypasses(tenant);
+    return {
+      success: true,
+      message: isEmpty(data)
+        ? "No tokens currently have an active security bypass."
+        : "Successfully retrieved tokens with active security bypasses.",
+      data,
+      status: httpStatus.OK,
+    };
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(

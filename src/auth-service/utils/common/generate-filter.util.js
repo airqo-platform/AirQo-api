@@ -127,6 +127,35 @@ const filter = {
       );
     }
   },
+  selfies: (req, next) => {
+    try {
+      let { id, eventId } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = { hidden: false };
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (eventId) {
+        filter["eventId"] = eventId;
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   tenantSettings: (req, next) => {
     try {
       const { query, params } = req;

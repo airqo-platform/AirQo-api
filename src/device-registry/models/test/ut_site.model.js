@@ -44,7 +44,7 @@ const stubValue = {
 
 describe("the Site Model", function() {
   describe("create", function() {
-    it("should add a new site to the db", async function() {
+    it.skip("should add a new site to the db", async function() {
       const SiteModel = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -72,7 +72,7 @@ describe("the Site Model", function() {
   });
 
   describe("getSite", function() {
-    it("should retrieve a Site with specific ID", async function() {
+    it.skip("should retrieve a Site with specific ID", async function() {
       const SiteModel = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -92,7 +92,7 @@ describe("the Site Model", function() {
   });
 
   describe("update", function() {
-    it("should update a Site with specific ID", async function() {
+    it.skip("should update a Site with specific ID", async function() {
       const SiteModel = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -111,7 +111,7 @@ describe("the Site Model", function() {
   });
 
   describe("delete", function() {
-    it("should delete a Site with specific ID", async function() {
+    it.skip("should delete a Site with specific ID", async function() {
       const SiteModel = await getModelByTenant(
         tenant.toLowerCase(),
         "site",

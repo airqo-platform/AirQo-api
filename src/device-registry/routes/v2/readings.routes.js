@@ -174,6 +174,18 @@ const routes = [
   },
   {
     method: "get",
+    path: "/rankings/history",
+    middlewares: [checkValidation("rankingsHistory")],
+    controller: "getAirQualityRankingsHistory",
+  },
+  {
+    method: "get",
+    path: "/rankings",
+    middlewares: [checkValidation("rankings")],
+    controller: "getAirQualityRankings",
+  },
+  {
+    method: "get",
     path: "/grids/:grid_id/representative",
     middlewares: [checkValidation("validateGetRepresentativeAQForGrid")],
     controller: "getRepresentativeAirQualityForGrid",

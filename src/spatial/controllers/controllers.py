@@ -6,6 +6,7 @@ from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
 from views.heatmapViews import AQIImageGenerator
 from views.source_metadata_view import SourceMetadataView
 from views.satellite_predictions import SatellitePredictionView
+from views.active_fire_view import ActiveFireView
 
 
 
@@ -48,3 +49,8 @@ def get_source_metadata_batch():
 @controller_bp.route("/satellite_prediction", methods=["POST"])
 def get_satellite_prediction():
     return SatellitePredictionView.make_predictions()
+
+
+@controller_bp.route("/active_fires/africa", methods=["GET"])
+def get_africa_active_fires():
+    return ActiveFireView.get_africa_active_fires()

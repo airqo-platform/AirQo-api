@@ -58,8 +58,16 @@ const getOne = [validateTenant, validateIdParam];
 const create = [
   validateTenant,
   oneOf([
-    body("firstName").optional().trim(),
-    body("lastName").optional().trim(),
+    body("firstName")
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
+    body("lastName")
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
   ]),
 ];
 const update = [validateTenant, validateIdParam];
@@ -80,8 +88,16 @@ const convertGuest = [
       .exists()
       .withMessage("the password is missing in your request")
       .trim(),
-    body("firstName").optional().trim(),
-    body("lastName").optional().trim(),
+    body("firstName")
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
+    body("lastName")
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("userName").optional().trim(),
   ],
 ];

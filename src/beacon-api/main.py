@@ -1,7 +1,7 @@
 import uvicorn
 import logging
 import asyncio
-from fastapi import FastAPI
+from fastapi_offline import FastAPIOffline
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.api import api_router
 from app.core.config import settings
@@ -10,8 +10,11 @@ from app.db.session import SessionLocal
 from app.models import sync  # Import models to register them with Base
 from app.models.sync import SyncGroup
 from app.models import device_data  # noqa: F401 — register ThingSpeak data tables
+from app.models import webrtc  # noqa: F401 - register WebRTC tables
 from app.services import group_sync_service
 from app.services.scheduler_service import start_scheduler, stop_scheduler
+from app.websockets import routing
+from app.services.redis_service import redis_service
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import traceback
@@ -31,6 +34,16 @@ logging.basicConfig(
     force=True
 )
 
+from app.utils.slack_handler import SlackWebhookHandler
+
+if settings.BEACON_API_SLACK_WEBHOOK_URL and (settings.SLACK_DEV_NOTIFS or settings.ENVIRONMENT != "development"):
+    slack_handler = SlackWebhookHandler(
+        webhook_url=settings.BEACON_API_SLACK_WEBHOOK_URL,
+        environment=settings.ENVIRONMENT,
+    )
+    slack_handler.setLevel(logging.ERROR)
+    logging.getLogger().addHandler(slack_handler)
+
 root_logger = logging.getLogger()
 
 # Specific logger configurations
@@ -49,7 +62,7 @@ logger.info("Main module imported - Logging system initialized")
 # Create database tables
 # Base.metadata.create_all(bind=engine)
 
-app = FastAPI(
+app = FastAPIOffline(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
     version="1.0.0",
@@ -107,8 +120,9 @@ async def on_startup():
 
 
 @app.on_event("shutdown")
-def on_shutdown():
+async def on_shutdown():
     stop_scheduler()
+    await redis_service.close()
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -164,6 +178,8 @@ def readiness_check():
     # In a real app, you'd check DB and Redis here
     return {"status": "ready"}
 
+app.include_router(routing.router)
+app.include_router(routing.router, prefix="/api/v1")
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(api_router, prefix="")
 

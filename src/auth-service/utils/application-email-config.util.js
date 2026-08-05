@@ -49,9 +49,6 @@ const applicationEmailConfig = {
       if (params.id) {
         filter._id = mongoose.Types.ObjectId(params.id);
       }
-      if (query.tenant) {
-        filter.tenant = tenant;
-      }
 
       const response = await ApplicationEmailConfigurationModel(tenant).list(
         { skip, limit, filter },

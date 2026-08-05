@@ -1980,7 +1980,7 @@ createGrid._clearPrivateSiteIdsCache = () => {
   _inflight.clear();
 };
 createGrid._clearCountriesCache = () => {
-  _countriesCache.clear();
+  _countriesCache.reset();
 };
 
 module.exports = createGrid;

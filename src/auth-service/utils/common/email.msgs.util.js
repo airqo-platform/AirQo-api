@@ -6,7 +6,10 @@ const {
   HttpError,
   extractErrorsFromRequest,
   escapeHtml,
+  sanitizeHtml,
 } = require("@utils/shared");
+
+const API_SETTINGS_URL = `${constants.NEXUS_BASE_URL}/user/profile?tab=api`;
 
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
@@ -31,6 +34,7 @@ const buildTokenEmailSegment = ({
   tokenName = "",
   expires = null,
   expiredMode = false,
+  daysRemaining = null,
 } = {}) => {
   const maskedToken = escapeHtml(
     token && token.length > 12
@@ -42,6 +46,11 @@ const buildTokenEmailSegment = ({
     ? ` (<strong>${escapeHtml(tokenName)}</strong>)`
     : "";
 
+  const daysRemainingText =
+    Number.isFinite(daysRemaining) && daysRemaining >= 0
+      ? ` in <strong>${daysRemaining} day${daysRemaining === 1 ? "" : "s"}</strong>`
+      : "";
+
   let expiryLine = expiredMode
     ? ""
     : "<p>This token will expire in less than 1 month from today.</p>";
@@ -50,11 +59,11 @@ const buildTokenEmailSegment = ({
     if (!isNaN(expiryDate.getTime())) {
       expiryLine = expiredMode
         ? `<p>This token expired on <strong>${expiryDate.toDateString()}</strong>.</p>`
-        : `<p>This token will expire on <strong>${expiryDate.toDateString()}</strong>.</p>`;
+        : `<p>This token will expire${daysRemainingText} — on <strong>${expiryDate.toDateString()}</strong>.</p>`;
     }
   }
 
-  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this under <strong>Settings &rsaquo; API</strong> in <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>.</p>`;
+  const securityTip = `<p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> You can now require your client secret on every API request for an extra layer of protection. Once enabled, requests using your token must also include your client secret via the <code>X-Client-Secret</code> header. Enable this in <a href="${API_SETTINGS_URL}">your API settings</a> in AirQo Nexus.</p>`;
 
   return { maskedToken, tokenLabel, expiryLine, securityTip };
 };
@@ -69,7 +78,7 @@ module.exports = {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     let instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     if (version && parseInt(version) === 3 && !slug) {
-      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd/reset`;
+      PASSWORD_RESET_URL = `${constants.NEXUS_BASE_URL}/user/forgotPwd/reset`;
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     } else if (slug) {
       // Validate and sanitize slug to prevent URL manipulation
@@ -78,10 +87,10 @@ module.exports = {
         // Fallback to version-based logic if slug is invalid
         PASSWORD_RESET_URL =
           version && parseInt(version) === 3
-            ? `${constants.ANALYTICS_BASE_URL}/user/forgotPwd/reset`
+            ? `${constants.NEXUS_BASE_URL}/user/forgotPwd/reset`
             : constants.PWD_RESET;
       } else {
-        PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/org/${sanitizedSlug}/forgotPwd/reset`;
+        PASSWORD_RESET_URL = `${constants.NEXUS_BASE_URL}/org/${sanitizedSlug}/forgotPwd/reset`;
       }
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     }
@@ -357,7 +366,7 @@ module.exports = {
     <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Congratulations! Your API client ${clientLabel} has been successfully activated.</p>
         <p>If you have any questions or need assistance, please don't hesitate to reach out to our customer support team. We are here to help.</p>
-        <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p>
+        <p>Thank you for choosing AirQo Nexus, and we look forward to helping you achieve your goals.</p>
         <p>Sincerely,</p>
         <p>The AirQo Data Team</p>
     </td>
@@ -393,7 +402,7 @@ module.exports = {
                                     You can always change your password in your account settings after login. Follow this link to access the dashboard right
                                     now: ${constants.LOGIN_PAGE}
                                     <br />
-                                    A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics
+                                    A guide to using AirQo Nexus will be found under the Documentation section of AirQo Nexus
                                     <br /><br />
                                     PLEASE DO NOT REPLY TO THIS EMAIL. For KCCA related questions, please contact:
                                     <ul>
@@ -417,7 +426,7 @@ module.exports = {
     const content = `<tr>
                          <td
                              style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                             <p>Welcome to AirQo Analytics!! 🎉🎉</p>
+                             <p>Welcome to AirQo Nexus!! 🎉🎉</p>
                              <p>Your login details are:</p>
                              <ul>
                                  <li>USERNAME: ${email}</li>
@@ -470,7 +479,7 @@ module.exports = {
                                 <br />
                                 If this activity sounds suspicious to you, please reach out to your organization's administrator immediately.
                                 <br />
-                                If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                If you are using the AirQo web platform, follow this link to access AirQo Nexus: ${constants.LOGIN_PAGE}
                                 <br />
                                 <br />
                                 If you are using the AirQo mobile app, you can view your updated details directly within the app.
@@ -517,7 +526,7 @@ module.exports = {
                                 <br />
                                 If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                 <br />
-                                If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                If you are using the AirQo web platform, follow this link to access AirQo Nexus: ${constants.LOGIN_PAGE}
                                 <br />
                                 <br />
                                 If you are using the AirQo mobile app, you can view the activity details directly within the app.
@@ -605,7 +614,7 @@ module.exports = {
               <br />
               If you have any questions or concerns regarding this action, please contact your organization's administrator.
               <br />
-              If you are using the AirQo web platform, you can access AirQo Analytics here: ${constants.LOGIN_PAGE}
+              If you are using the AirQo web platform, you can access AirQo Nexus here: ${constants.LOGIN_PAGE}
               <br /><br />
               If you are using the AirQo mobile app, you can view the activity details directly within the app.
               <br /><br />
@@ -628,7 +637,7 @@ module.exports = {
         <p>Suspected unauthorized access detected with your AIRQO API token from <strong>IP address ${ip}</strong>.</p>
         <p>Consider changing your AirQo Account password. Additionally, whitelist your respective IP address by updating the CLIENT associated with your TOKEN.</p>
         <p>Report any further suspicious activities.</p>
-        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Analytics: ${constants.LOGIN_PAGE}</p>
+        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Nexus: ${constants.LOGIN_PAGE}</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
       </td>
     </tr>
@@ -652,7 +661,7 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Your AirQo API token <strong>${maskedToken}</strong>${tokenLabel} has expired.</p>
         ${expiryLine}
-        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client.</p>
+        <p>To continue accessing our services, you can refresh your token directly — no need to create a new API client. Simply log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client.</p>
         <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
         ${securityTip}
       </td>
@@ -697,10 +706,17 @@ module.exports = {
     token = "",
     tokenName = "",
     expires = null,
+    daysRemaining = null,
   } = {}) => {
     const name = firstName + " " + lastName;
     const { maskedToken, tokenLabel, expiryLine, securityTip } =
-      buildTokenEmailSegment({ token, tokenName, expires, expiredMode: false });
+      buildTokenEmailSegment({
+        token,
+        tokenName,
+        expires,
+        expiredMode: false,
+        daysRemaining,
+      });
     const tokenCallout = `
       <div style="margin:16px 0; padding:12px 16px; background:#FFF8E7; border-left:4px solid #F5A623; border-radius:4px;">
         <span style="font-size:14px;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</span>
@@ -711,7 +727,7 @@ module.exports = {
           <p>One of your AirQo API tokens is expiring soon. Please regenerate it before it expires to avoid any interruption to your API access.</p>
           ${tokenCallout}
           ${expiryLine}
-          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a>, go to <strong>Settings &rsaquo; API</strong>, and regenerate your token from your existing client — no need to create a new one.</p>
+          <p>To regenerate, log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a>, go to <a href="${API_SETTINGS_URL}">your API settings</a>, and regenerate your token from your existing client — no need to create a new one.</p>
           <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
           <p>If you have already regenerated this token, please ignore this message.</p>
           ${securityTip}
@@ -728,7 +744,7 @@ module.exports = {
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
           <p>We noticed that your first name and last name are not yet set in your profile. Updating these details will enhance your experience with our service.</p>
-          <p>If you are using the AirQo web platform, please visit AirQo Analytics to update your profile with your full name.</p>
+          <p>If you are using the AirQo web platform, please visit AirQo Nexus to update your profile with your full name.</p>
           <p>If you are using the AirQo mobile app, you can update your profile directly within the app.</p>
           <p>If you have already updated your name, please ignore this message.</p>
         </td>
@@ -754,7 +770,6 @@ module.exports = {
     const reasonLine = suspensionReason
       ? `<p><strong>Reason detected:</strong> ${escapeHtml(suspensionReason)}</p>`
       : "";
-    const API_SETTINGS_URL = `${constants.ANALYTICS_BASE_URL}/user/settings`;
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -767,7 +782,7 @@ module.exports = {
         <p>This may be a false positive — for example, if you access the API from both a browser and a server-side application, or if you recently updated your API client. If this activity was expected, please follow the steps below to reinstate your token.</p>
         <p><strong>What to do next:</strong></p>
         <ol style="padding-left:20px;">
-          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Analytics</a> and go to <a href="${API_SETTINGS_URL}"><strong>Settings &rsaquo; API</strong></a>.</li>
+          <li>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a> and go to <a href="${API_SETTINGS_URL}"><strong>your API settings</strong></a>.</li>
           <li>Locate the affected token (<code>${maskedToken}</code>${tokenLabel}) on your API client card.</li>
           <li>If it shows as suspended, use the <strong>Reinstate</strong> option to restore access.</li>
           <li>Alternatively, use <strong>Regenerate Token</strong> on your existing client to issue a fresh token — this does not require creating a new client.</li>
@@ -778,16 +793,152 @@ module.exports = {
           <li>Review any applications or integrations that use this token and update them with the new value.</li>
           <li>Contact us at <a href="mailto:support@airqo.net">support@airqo.net</a> if you need further assistance.</li>
         </ul>
-        <p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> To reduce the chance of this happening again, consider enabling the client secret requirement for your API client under <strong>Settings &rsaquo; API</strong>. When enabled, every request must include your client secret via the <code>X-Client-Secret</code> header, providing an extra layer of protection even if your token is exposed.</p>
+        <p style="margin-top:16px; padding:12px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;"><strong>Security tip:</strong> To reduce the chance of this happening again, consider enabling the client secret requirement for your API client in <a href="${API_SETTINGS_URL}"><strong>your API settings</strong></a>. When enabled, every request must include your client secret via the <code>X-Client-Secret</code> header, providing an extra layer of protection even if your token is exposed.</p>
+        ${/compromise.activity|exposed|public.facing/i.test(suspensionReason) ? `
+        <h4 style="margin-top:24px; color:#D92D20;">Review your deployment approach</h4>
+        <p>
+          Suspensions triggered by high-volume compromise activity are almost always caused
+          by an API token embedded directly in browser-side code or a public-facing
+          application where web scrapers can harvest it. Please review the following before
+          reinstating or regenerating your token:
+        </p>
+        <ul style="padding-left:20px;">
+          <li style="margin-bottom:8px;">
+            <strong>Never embed your token in frontend code:</strong> Tokens placed in
+            JavaScript files, HTML source, or environment variables bundled into a web app
+            are visible to anyone who opens browser DevTools or inspects network traffic.
+            Always keep your token server-side.
+          </li>
+          <li style="margin-bottom:8px;">
+            <strong>Use a backend proxy:</strong> If your website or mobile app needs AirQo
+            data, route requests through your own backend server. Your server holds the token
+            and proxies the response — the token never reaches the browser.
+          </li>
+          <li style="margin-bottom:8px;">
+            <strong>Audit your public repositories:</strong> Search your GitHub, GitLab, or
+            Bitbucket repositories for your token string. If it was ever committed, treat it
+            as compromised and rotate it immediately, even if the commit has since been deleted.
+          </li>
+          <li style="margin-bottom:8px;">
+            <strong>Check your browser network tab:</strong> Open DevTools &rsaquo; Network
+            on your own application and filter requests to the AirQo API. If you can see
+            your token in a request URL or header, it is also visible to scrapers — move
+            those calls to your backend before generating a new token.
+          </li>
+        </ul>` : ""}
       </td>
     </tr>
     `;
     return constants.EMAIL_BODY({ email, content, name });
   },
 
+  bypassExpiryReminder: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    bypassLabel = "",
+    expiresAt = new Date(),
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const { maskedToken, tokenLabel } = buildTokenEmailSegment({ token, tokenName });
+    const expiryStr = expiresAt instanceof Date
+      ? expiresAt.toUTCString()
+      : new Date(expiresAt).toUTCString();
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A security exemption on one of your AirQo API tokens is expiring soon.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#F0F4FF; border-left:4px solid #4A6CF7; border-radius:4px;">
+          <p style="margin:0;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</p>
+          <p style="margin:4px 0 0;"><strong>Exemption:</strong> ${escapeHtml(bypassLabel)}</p>
+          <p style="margin:4px 0 0;"><strong>Expires at:</strong> ${expiryStr}</p>
+        </div>
+        <p>Once this exemption expires, normal automated security detection resumes for this token. If your integration's traffic pattern (e.g. dynamic/serverless egress IPs) still needs this exemption, please contact <a href="mailto:support@airqo.net">support@airqo.net</a> before the expiry date to request a renewal.</p>
+        <p>If this exemption is no longer needed, no action is required — it will lapse automatically.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
+  bypassExpired: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+    tokenName = "",
+    bypassLabel = "",
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const { maskedToken, tokenLabel } = buildTokenEmailSegment({ token, tokenName });
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A security exemption on one of your AirQo API tokens has expired and has been automatically removed.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#FFF3CD; border-left:4px solid #F59E0B; border-radius:4px;">
+          <p style="margin:0;"><strong>Token:</strong> <code>${maskedToken}</code>${tokenLabel}</p>
+          <p style="margin:4px 0 0;"><strong>Exemption removed:</strong> ${escapeHtml(bypassLabel)}</p>
+        </div>
+        <p>Normal automated security detection now applies to this token again. If your integration still relies on this exemption (for example, a serverless setup with rotating egress IPs) and you start seeing suspensions or blocked requests, please contact <a href="mailto:support@airqo.net">support@airqo.net</a> to discuss a renewal.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
+  bypassReportDigest: ({ recipients, bypasses = [] } = {}) => {
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const rows = bypasses
+      .map((entry) => {
+        const bypassList = entry.bypasses
+          .map((b) => {
+            const expiry = b.expires_at
+              ? new Date(b.expires_at).toDateString()
+              : "no expiry set";
+            return `${escapeHtml(b.type)} (expires: ${expiry})`;
+          })
+          .join("; ");
+        return `
+    <li style="margin-bottom: 8px;">
+      Token ending in <strong>...${escapeHtml(entry.token_suffix || "XXXX")}</strong>
+      ${entry.token_name ? `(${escapeHtml(entry.token_name)}) ` : ""}
+      owned by <strong>${escapeHtml(entry.owner_email || "unknown user")}</strong>
+      — ${bypassList}
+    </li>`;
+      })
+      .join("");
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <h3>Weekly Security-Bypass Report — ${today}</h3>
+        <p>
+          <strong>${bypasses.length}</strong> token(s) currently have at least one active
+          security-detection bypass (anomaly detection, high-compromise auto-suspension, or
+          IP-blacklist blocking). Review below and revoke any exemption that is no longer needed.
+        </p>
+        <ul>${rows}</ul>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({
+      email: constants.SUPPORT_EMAIL,
+      content,
+      name: "Admin",
+    });
+  },
+
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
-    const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`;
+    const FORGOT_PAGE = `${constants.NEXUS_BASE_URL}/user/forgotPwd`;
     const content = `
     <tr>
      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -834,7 +985,7 @@ module.exports = {
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -856,7 +1007,7 @@ module.exports = {
                                 If you did not initiate this password update, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -963,13 +1114,13 @@ module.exports = {
     expires_at,
   }) => {
     // For existing users - direct accept link
-    const existingUserAcceptLink = `${constants.ANALYTICS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
+    const existingUserAcceptLink = `${constants.NEXUS_BASE_URL}/org-invite?token=${token}&target_id=${targetId}`;
 
     // For new users - simple registration link, they'll see invitations after login
-    const newUserRegistrationLink = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register`;
+    const newUserRegistrationLink = `${constants.NEXUS_BASE_URL}/user/creation/individual/register`;
 
     // For logged-in users - link to view pending invitations
-    const pendingInvitationsLink = `${constants.ANALYTICS_BASE_URL}/user/profile`;
+    const pendingInvitationsLink = `${constants.NEXUS_BASE_URL}/user/profile`;
 
     const content = `
     <tr>
@@ -981,7 +1132,7 @@ module.exports = {
           inviterEmail,
         )}) to join the organization "<strong>${escapeHtml(
           entity_title,
-        )}</strong>" on AirQo Analytics.</p>
+        )}</strong>" on AirQo Nexus.</p>
         ${
           group_description
             ? `<div style="padding: 10px; border-left: 3px solid #ccc; margin: 10px 0;"><em>${escapeHtml(
@@ -1035,7 +1186,7 @@ module.exports = {
           <li><strong>Contact Email:</strong> ${escapeHtml(contact_email)}</li>
         </ul>
         <p>Please review and process this request in the admin dashboard.</p>
-        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/system/org-requests</p>
+        <p>You can access the admin dashboard at: ${constants.NEXUS_BASE_URL}/system/org-requests</p>
       </td>
     </tr>
   `;
@@ -1279,7 +1430,7 @@ module.exports = {
   },
   accountDeletionConfirmation: ({ firstName, email, token, tenant }) => {
     const name = firstName;
-    const url = `${constants.ANALYTICS_BASE_URL}/user/delete/confirm/${token}?tenant=${tenant}`;
+    const url = `${constants.NEXUS_BASE_URL}/user/delete/confirm/${token}?tenant=${tenant}`;
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -1574,7 +1725,7 @@ module.exports = {
           </li>
           <li style="margin-bottom: 8px;">
             <strong>Check your browser network tab:</strong> Open DevTools → Network on
-            your own application and filter requests to <em>${escapeHtml((constants.ANALYTICS_BASE_URL || "https://analytics.airqo.net").replace(/^https?:\/\//, ""))}</em>.
+            your own application and filter requests to <em>${escapeHtml((constants.NEXUS_BASE_URL || "https://nexus.airqo.net").replace(/^https?:\/\//, ""))}</em>.
             If you can see your token in a request URL or header, it is also visible to
             scrapers — move those calls to your backend.
           </li>
@@ -1606,13 +1757,13 @@ module.exports = {
         <p><strong>Requested by:</strong> ${name} (${userEmail})</p>
         <p>Please review and take action on this request via the admin clients management page:</p>
         <div style="text-align: center; margin: 24px 0;">
-            <a href="${constants.ANALYTICS_BASE_URL}/system/clients"
+            <a href="${constants.NEXUS_BASE_URL}/system/clients"
                style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
                 Manage API Clients
             </a>
         </div>
         <p style="font-size: 14px; color: #6c757d;">
-            Direct link: <a href="${constants.ANALYTICS_BASE_URL}/system/clients">${constants.ANALYTICS_BASE_URL}/system/clients</a>
+            Direct link: <a href="${constants.NEXUS_BASE_URL}/system/clients">${constants.NEXUS_BASE_URL}/system/clients</a>
         </p>
     </td>
   </tr>`;
@@ -1784,5 +1935,137 @@ module.exports = {
                                 </td>
                             </tr>`;
     return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackStatusUpdate: ({ email, subject, oldStatus, newStatus }) => {
+    const escapedSubject = escapeHtml(subject || "your feedback");
+    const statusLabel = {
+      reviewed: "Under Review",
+      resolved: "Resolved",
+      archived: "Archived",
+    }[newStatus] || escapeHtml(newStatus);
+
+    const statusMessages = {
+      reviewed: "Our team has picked up your feedback and it is now under review. We will follow up if further information is needed.",
+      resolved: "We are pleased to let you know that your feedback has been resolved. Thank you for helping us improve AirQo.",
+      archived: "Your feedback has been archived. While we may not implement every suggestion, we genuinely appreciate you taking the time to share it.",
+    };
+    const bodyText = statusMessages[newStatus] || `The status of your feedback has been updated to <strong>${statusLabel}</strong>.`;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We have an update on your feedback: <strong>${escapedSubject}</strong>.</p>
+        <p>${bodyText}</p>
+        <p>If you have any questions, feel free to reply to this email or contact us at support@airqo.net.</p>
+        <p>Thank you for being part of the AirQo community.</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackAdminReply: ({ email, subject, replyMessage }) => {
+    const escapedSubject = escapeHtml(subject || "your feedback");
+    // replyMessage comes from the admin's rich text editor and may contain
+    // HTML formatting tags — sanitize to strip dangerous content while
+    // preserving intended formatting (bold, italics, lists, etc.).
+    const safeReply = sanitizeHtml(replyMessage || "");
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Our team has responded to your feedback: <strong>${escapedSubject}</strong>.</p>
+        <div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:16px 0;border-radius:4px;">
+          ${safeReply}
+        </div>
+        <p>If you have any follow-up questions, please do not hesitate to reach out at support@airqo.net.</p>
+        <p>Thank you for helping us improve AirQo.</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackAssigned: ({ email, name, subject, feedbackId }) => {
+    const escapedSubject = escapeHtml(subject || "a feedback item");
+    const escapedName = escapeHtml(name || "Team member");
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Hi ${escapedName},</p>
+        <p>A feedback item has been assigned to you: <strong>${escapedSubject}</strong>.</p>
+        <p>Please review it in the AirQo Nexus admin panel and take appropriate action.</p>
+        <p>If you have any questions, contact your team lead or reply to this email.</p>
+      </td>
+    </tr>`;
+    // Pass name: "" — EMAIL_BODY adds its own greeting from the name param,
+    // and the content already includes "Hi ${escapedName}". Passing the name
+    // a second time would produce a duplicate greeting in the rendered email.
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackWatcherNotification: ({ email, name, subject, event, detail }) => {
+    const escapedSubject = escapeHtml(subject || "a feedback item");
+    const escapedName = escapeHtml(name || "");
+    const eventMessages = {
+      status_changed: `<p>The status of the feedback item has been updated. ${escapeHtml(detail || "")}</p>`,
+      // reply_added body contains a block-level element — do NOT wrap in <p>
+      // as that produces invalid HTML (<p><div>…</div></p>) which email clients
+      // may mangle. The div is placed as a sibling block instead.
+      // detail is HTML from a rich text editor — sanitize, not escape.
+      reply_added: `<p>A new reply has been posted on the feedback item.</p><div style="background:#f9f9f9;border-left:4px solid #145DFF;padding:12px 16px;margin:12px 0;border-radius:4px;">${sanitizeHtml(detail || "")}</div>`,
+    };
+    const body = eventMessages[event] || `<p>${escapeHtml(detail || "An update is available on the feedback item.")}</p>`;
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        ${escapedName ? `<p>Hi ${escapedName},</p>` : ""}
+        <p>There is an update on a feedback item you are watching: <strong>${escapedSubject}</strong>.</p>
+        ${body}
+        <p>You are receiving this because you are a watcher on this feedback item. To stop receiving notifications, ask an admin to remove you.</p>
+      </td>
+    </tr>`;
+    // Pass name: "" — same duplicate-greeting reason as feedbackAssigned above.
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  feedbackWeeklyDigest: ({ count, items }) => {
+    const rowsHtml = items
+      .map((item) => {
+        const age = Math.floor(
+          (Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        const categoryLabel = escapeHtml(item.category || "general");
+        const subject = escapeHtml(item.subject || "(no subject)");
+        const email = escapeHtml(item.email || "");
+        const reminders = item.reminderCount || 0;
+        return `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${subject}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${email}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-transform:capitalize;">${categoryLabel}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${age}d ago${reminders > 0 ? ` (reminded ${reminders}×)` : ""}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>This is your weekly summary of <strong>${count}</strong> actionable feedback item${count !== 1 ? "s" : ""} that have not yet been attended to.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+          <thead>
+            <tr style="background:#f5f5f5;">
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Subject</th>
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Submitter</th>
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Category</th>
+              <th style="padding:8px 12px;text-align:left;font-size:13px;color:#667085;">Age</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <p>Please review and update the status of these items in the AirQo Nexus admin panel.</p>
+      </td>
+    </tr>`;
+    // Use SUPPORT_EMAIL so the footer renders "This email was sent to <address>"
+    // correctly rather than leaving the address blank.
+    return constants.EMAIL_BODY({ email: constants.SUPPORT_EMAIL || "", content, name: "AirQo Support Team" });
   },
 };

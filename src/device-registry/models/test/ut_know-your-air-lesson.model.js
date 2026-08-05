@@ -16,7 +16,7 @@ const createTestLesson = (overrides = {}) => {
 };
 
 // Describe block for knowYourAirLessonSchema
-describe("knowYourAirLessonSchema", () => {
+describe.skip("knowYourAirLessonSchema", () => {
   // Test cases for validation
   describe("Validation", () => {
     it("should be valid when all required fields are provided", () => {

@@ -13,7 +13,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
-const { getAuth } = require("firebase-admin/auth");
+const firebaseAuth = require("firebase-admin/auth");
 const httpStatus = require("http-status");
 const analyticsService = require("@services/analytics.service");
 const constants = require("@config/constants");
@@ -522,7 +522,7 @@ const createUserModule = {
         isValid: false,
         error: new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
           message:
-            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one digit. Special characters (@#?!$%^&*,.) are allowed.",
+            "The password does not meet the security requirements. It must be at least 6 characters long and contain at least one letter and one digit. Special characters (@#?!$%^&*,.()+_-) are allowed.",
         }),
       };
     }
@@ -1220,7 +1220,7 @@ const createUserModule = {
         userIdentificationArray.push({ email });
       }
 
-      const getUsersResult = await getAuth().getUsers(userIdentificationArray);
+      const getUsersResult = await firebaseAuth.getAuth().getUsers(userIdentificationArray);
       logObject("getUsersResult", getUsersResult);
 
       const successResponses = getUsersResult.users.map((userRecord) => ({
@@ -1241,23 +1241,23 @@ const createUserModule = {
       return [...successResponses, ...errorResponses];
     } catch (error) {
       logObject("Internal Server Error", error);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
-        ),
-      );
-      // return [
-      //   {
-      //     success: false,
-      //     message: "Internal Server Error",
-      //     status: httpStatus.INTERNAL_SERVER_ERROR,
-      //     errors: { message: error.message },
-      //   },
-      // ];
+      if (typeof next === "function") {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message },
+          ),
+        );
+      }
+      return [
+        {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        },
+      ];
     }
   },
   createFirebaseUser: async (request, next) => {
@@ -1268,7 +1268,7 @@ const createUserModule = {
 
       // Check if either email or phoneNumber is provided
       if (isEmpty(email) && isEmpty(phoneNumber)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Please provide either email or phoneNumber",
           }),
@@ -1283,7 +1283,7 @@ const createUserModule = {
       }
 
       if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "password must be provided when using email",
           }),
@@ -1313,13 +1313,13 @@ const createUserModule = {
       }
 
       // Create the user using the createUser method from Firebase Auth
-      const userRecord = await getAuth().createUser(userObject);
+      const userRecord = await firebaseAuth.getAuth().createUser(userObject);
 
       // Extract the user ID from the created user record
       const { uid } = userRecord;
 
       // You can add more data to the userRecord using the update method if needed
-      // For example, to set custom claims, use: await updateCustomClaims(getAuth(), uid, { isAdmin: true });
+      // For example, to set custom claims, use: await updateCustomClaims(firebaseAuth.getAuth(), uid, { isAdmin: true });
 
       // Return the success response with the user ID
       return [
@@ -1334,23 +1334,14 @@ const createUserModule = {
       logObject("Internal Server Error:", error);
       logObject("error.code", error.code);
       if (error.code && error.code === "auth/email-already-exists") {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: error.message,
           }),
         );
-
-        // return [
-        //   {
-        //     success: false,
-        //     message: "Bad Request Error",
-        //     errors: { message: error.message },
-        //     status: httpStatus.BAD_REQUEST,
-        //   },
-        // ];
       }
 
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1630,13 +1621,12 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
   loginWithFirebase: async (request, next) => {
@@ -1814,18 +1804,27 @@ const createUserModule = {
 
         if (userExistsLocally) {
           const updatedFields = {};
-          if (firebaseUser.firstName !== null) {
-            updatedFields.firstName = firebaseUser.firstName;
+          if (
+            typeof firebaseUser.firstName === "string" &&
+            firebaseUser.firstName.trim()
+          ) {
+            updatedFields.firstName = firebaseUser.firstName.trim();
           }
-          if (firebaseUser.lastName !== null) {
-            updatedFields.lastName = firebaseUser.lastName;
+          if (
+            typeof firebaseUser.lastName === "string" &&
+            firebaseUser.lastName.trim()
+          ) {
+            updatedFields.lastName = firebaseUser.lastName.trim();
           }
-          const updatedUser = await UserModel(tenant).updateOne(
-            { _id: userExistsLocally._id },
-            {
-              $set: updatedFields,
-            },
-          );
+          const updatedUser = isEmpty(updatedFields)
+            ? null
+            : await UserModel(tenant).updateOne(
+                { _id: userExistsLocally._id },
+                {
+                  $set: updatedFields,
+                },
+                { runValidators: true, context: "query" },
+              );
           logObject("updatedUser", updatedUser);
           const responseFromDeleteCachedItem =
             await createUserModule.deleteCachedItem(cacheID, next);
@@ -1924,7 +1923,7 @@ const createUserModule = {
       const { email } = body;
       const { purpose } = query;
 
-      const link = await getAuth().generateSignInWithEmailLink(
+      const link = await firebaseAuth.getAuth().generateSignInWithEmailLink(
         email,
         constants.ACTION_CODE_SETTINGS,
       );
@@ -4020,8 +4019,8 @@ const createUserModule = {
             data: {
               accountExists: true,
               verified: true,
-              loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
-              forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
+              loginUrl: `${constants.NEXUS_BASE_URL}/user/login`,
+              forgotPasswordUrl: `${constants.NEXUS_BASE_URL}/user/forgotPwd`,
             },
           };
         } else {
@@ -4694,7 +4693,7 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -4796,7 +4795,7 @@ const createUserModule = {
       logger.error(
         `🐛🐛 Internal Server Error in updateKnownPassword: ${error.message}`,
       );
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -5178,7 +5177,7 @@ const createUserModule = {
           isEmpty(responseFromListUser.data) ||
           responseFromListUser.data.length > 1
         ) {
-          next(
+          return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "password reset link is invalid or has expired",
             }),
@@ -5196,7 +5195,7 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -5225,10 +5224,16 @@ const createUserModule = {
       const mergeFields = {
         ...(firstName && { FNAME: firstName }),
         ...(lastName && { LNAME: lastName }),
-        ...(address && { ADDRESS: address }),
         ...(city && { CITY: city }),
         ...(state && { STATE: state }),
         ...(zipCode && { ZIP: zipCode }),
+        // ADDRESS requires a complete structured object; omit it when city/state/zip are missing
+        ...(address &&
+          city &&
+          state &&
+          zipCode && {
+            ADDRESS: { addr1: address, city, state, zip: zipCode },
+          }),
       };
 
       const responseFromMailChimp = await mailchimp.lists.setListMember(
@@ -5281,15 +5286,15 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logObject("error.response.body", error.response.body);
-      logger.error(
-        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`,
-      );
-      next(
-        new HttpError("Internal Server Error", error.response.body.status, {
-          message: error.message,
-          ...error.response.body,
-        }),
+      const errBody = error.response?.body || {};
+      logObject("error.response.body", errBody);
+      logger.error(`🐛🐛 Internal Server Error ${stringify(errBody)}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          errBody.status || httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message, ...errBody },
+        ),
       );
     }
   },
@@ -5435,7 +5440,7 @@ const createUserModule = {
         .digest("hex");
 
       if (token !== verificationToken) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Invalid token",
           }),
@@ -5443,7 +5448,7 @@ const createUserModule = {
       }
 
       try {
-        await getAuth().deleteUser(userId);
+        await firebaseAuth.getAuth().deleteUser(userId);
         const collectionList = [
           constants.FIREBASE_COLLECTION_KYA,
           constants.FIREBASE_COLLECTION_ANALYTICS,
@@ -7583,6 +7588,9 @@ const createUserModule = {
 // Separated from createUserModule to keep concerns clear; exported individually.
 // ─────────────────────────────────────────────────────────────────────────────
 const FeedbackModel = require("@models/Feedback");
+const { FeedbackWebhookModel } = require("@models/FeedbackWebhook");
+const { dispatchWebhooks } = require("@utils/feedback-webhook.util");
+const { dispatchIntegrations } = require("@utils/feedback-integrations.util");
 const cloudinary = require("@config/cloudinary");
 
 // N1: single helper so all four methods share identical tenant resolution logic.
@@ -7591,6 +7599,19 @@ const resolveFeedbackTenant = (query) =>
     ? String(query.tenant).toLowerCase()
     : constants.DEFAULT_TENANT || "airqo";
 
+// Classifies whether a feedback item needs team action.
+// Bugs, feature requests, and performance issues are always actionable.
+// Pure ratings (page_satisfaction with a short message) are not.
+const classifyFeedback = ({ category, message }) => {
+  const ALWAYS_ACTIONABLE = ["bug", "feature_request", "performance"];
+  if (ALWAYS_ACTIONABLE.includes(category)) return true;
+  if (category === "page_satisfaction") {
+    const len = (message || "").trim().length;
+    if (len < 50) return false;
+  }
+  return true;
+};
+
 // U3: allowed status transitions — enforced before every modify call.
 const FEEDBACK_TRANSITIONS = {
   pending: ["reviewed", "archived"],
@@ -7598,6 +7619,10 @@ const FEEDBACK_TRANSITIONS = {
   resolved: [],
   archived: [],
 };
+
+// Single source of truth for "user has at least one permission" — used both in
+// assignFeedback (runtime check) and listFeedbackStaff (DB query).
+const STAFF_PERMISSION_FILTER = { "permissions.0": { $exists: true } };
 
 const feedbackUtil = {
   submitFeedback: async (request, next) => {
@@ -7633,6 +7658,8 @@ const feedbackUtil = {
       }
       const normalizedEmail = email.toLowerCase().trim();
 
+      const actionable = classifyFeedback({ category, message });
+
       // Persist to database
       const createResult = await FeedbackModel(tenant).register({
         email: normalizedEmail,
@@ -7645,6 +7672,7 @@ const feedbackUtil = {
         screenshot_url,
         metadata,
         tenant,
+        actionable,
         userId: request.user ? request.user._id : undefined,
       });
 
@@ -7680,6 +7708,28 @@ const feedbackUtil = {
           `Feedback saved to DB but confirmation email failed: ${confirmationError.message}`,
         );
       }
+
+      // Fire webhooks — whitelist public fields only; never forward adminNotes,
+      // replies, watchers, or internal tracking fields to external receivers.
+      const submittedPayload = createResult.data
+        ? {
+            feedbackId: createResult.data._id,
+            email: createResult.data.email,
+            subject: createResult.data.subject,
+            category: createResult.data.category,
+            platform: createResult.data.platform,
+            app: createResult.data.app,
+            rating: createResult.data.rating,
+            actionable: createResult.data.actionable,
+            createdAt: createResult.data.createdAt,
+          }
+        : {};
+      dispatchWebhooks(tenant, "feedback.submitted", submittedPayload).catch(() => {});
+
+      // Fire built-in Slack / JIRA / Trello integrations (best-effort).
+      // Each only runs if its env vars are configured — all three are no-ops
+      // when unconfigured, so this is safe to call unconditionally.
+      dispatchIntegrations(createResult.data || {}).catch(() => {});
 
       return {
         success: true,
@@ -7787,7 +7837,57 @@ const feedbackUtil = {
       }
 
       const filter = { _id: params.feedback_id, tenant };
-      return await FeedbackModel(tenant).modify({ filter, update: { status: requestedStatus } });
+      const modifyResult = await FeedbackModel(tenant).modify({
+        filter,
+        update: { status: requestedStatus },
+      });
+
+      if (modifyResult && modifyResult.success) {
+        const fb = existing.data;
+        const statusDetail = `Status changed from "${currentStatus}" to "${requestedStatus}".`;
+
+        // Notify submitter (best-effort)
+        try {
+          await mailer.feedbackStatusUpdate({
+            email: fb.email,
+            subject: fb.subject,
+            oldStatus: currentStatus,
+            newStatus: requestedStatus,
+          });
+        } catch (emailError) {
+          logger.warn(`Status updated but submitter email failed: ${emailError.message}`);
+        }
+
+        // Notify watchers (best-effort)
+        if (fb.watchers && fb.watchers.length > 0) {
+          for (const watcher of fb.watchers) {
+            mailer.feedbackWatcherNotification({
+              email: watcher.email,
+              name: watcher.name,
+              subject: fb.subject,
+              event: "status_changed",
+              detail: statusDetail,
+            }).catch(() => {});
+          }
+        }
+
+        // Fire webhook — whitelist public fields only; spreading fb would leak
+        // adminNotes and watcher emails to external webhook receivers.
+        dispatchWebhooks(tenant, "feedback.status_changed", {
+          feedbackId: fb._id,
+          email: fb.email,
+          subject: fb.subject,
+          category: fb.category,
+          platform: fb.platform,
+          app: fb.app,
+          rating: fb.rating,
+          previousStatus: currentStatus,
+          newStatus: requestedStatus,
+          createdAt: fb.createdAt,
+        }).catch(() => {});
+      }
+
+      return modifyResult;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       return next(
@@ -7796,6 +7896,379 @@ const feedbackUtil = {
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message },
         ),
+      );
+    }
+  },
+
+  bulkUpdateFeedbackStatus: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { feedback_ids, status: requestedStatus } = body;
+
+      const { succeeded, failed } = await FeedbackModel(tenant).bulkModifyStatus(
+        feedback_ids,
+        requestedStatus,
+        FEEDBACK_TRANSITIONS,
+      );
+
+      // Notify submitters and watchers for each succeeded item (best-effort)
+      for (const item of succeeded) {
+        mailer.feedbackStatusUpdate({
+          email: item.email,
+          subject: item.subject,
+          oldStatus: item.previousStatus,
+          newStatus: requestedStatus,
+        }).catch(() => {});
+
+        if (item.watchers && item.watchers.length > 0) {
+          const statusDetail = `Status changed from "${item.previousStatus}" to "${requestedStatus}".`;
+          for (const watcher of item.watchers) {
+            mailer.feedbackWatcherNotification({
+              email: watcher.email,
+              name: watcher.name,
+              subject: item.subject,
+              event: "status_changed",
+              detail: statusDetail,
+            }).catch(() => {});
+          }
+        }
+      }
+
+      dispatchWebhooks(tenant, "feedback.bulk_status_changed", {
+        requestedStatus,
+        succeeded: succeeded.map((i) => i.id),
+        failed: failed.map((i) => i.id),
+      }).catch(() => {});
+
+      return {
+        success: true,
+        message: `Bulk status update complete: ${succeeded.length} succeeded, ${failed.length} failed`,
+        status: httpStatus.OK,
+        data: { succeeded, failed },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  assignFeedback: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { userId } = body;
+
+      const existing = await FeedbackModel(tenant).findSingle({
+        _id: params.feedback_id,
+        tenant,
+      });
+      if (!existing || !existing.success) return existing;
+
+      const assigner = request.user || {};
+
+      // Verify the assignee exists and has admin permissions before persisting.
+      // Extend the role check here using your RBAC utilities if the permissions
+      // array is populated with ObjectIds rather than permission-name strings.
+      let assignee = null;
+      if (userId) {
+        assignee = await UserModel(tenant).findById(userId).lean();
+        if (!assignee) {
+          return {
+            success: false,
+            message: "Target user not found",
+            status: httpStatus.NOT_FOUND,
+            errors: { message: `No user found with ID: ${userId}` },
+          };
+        }
+        const hasAdminPermissions =
+          Array.isArray(assignee.permissions) && assignee.permissions.length > 0;
+        if (!hasAdminPermissions) {
+          return {
+            success: false,
+            message: "Feedback can only be assigned to admin users",
+            status: httpStatus.FORBIDDEN,
+            errors: { message: "Target user does not have admin permissions" },
+          };
+        }
+      }
+
+      const update = {
+        assignedTo: userId || null,
+        assignedAt: userId ? new Date() : null,
+        assignedBy: userId ? (assigner._id || null) : null,
+      };
+
+      const modifyResult = await FeedbackModel(tenant).modify({
+        filter: { _id: params.feedback_id, tenant },
+        update,
+      });
+
+      if (modifyResult && modifyResult.success && userId && assignee) {
+        // Send notification using the already-fetched assignee document
+        try {
+          if (assignee.email) {
+            await mailer.feedbackAssigned({
+              email: assignee.email,
+              name: assignee.firstName || assignee.username || assignee.email,
+              subject: existing.data.subject,
+              feedbackId: params.feedback_id,
+            });
+          }
+        } catch (emailError) {
+          logger.warn(`Assigned but notification email failed: ${emailError.message}`);
+        }
+
+        dispatchWebhooks(tenant, "feedback.assigned", {
+          feedbackId: params.feedback_id,
+          subject: existing.data.subject,
+          assignedTo: userId,
+          assignedBy: assigner._id,
+        }).catch(() => {});
+      }
+
+      return modifyResult;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  addFeedbackWatcher: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { email, name } = body;
+
+      const existing = await FeedbackModel(tenant).findSingle({
+        _id: params.feedback_id,
+        tenant,
+      });
+      if (!existing || !existing.success) return existing;
+
+      const watcher = {
+        email: email.toLowerCase().trim(),
+        name: name || undefined,
+        addedAt: new Date(),
+      };
+
+      const result = await FeedbackModel(tenant).addWatcher(
+        { _id: params.feedback_id, tenant },
+        watcher,
+      );
+
+      if (result && result.success) {
+        dispatchWebhooks(tenant, "feedback.watcher_added", {
+          feedbackId: params.feedback_id,
+          watcherEmail: watcher.email,
+        }).catch(() => {});
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  removeFeedbackWatcher: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { watcher_email } = params;
+
+      return await FeedbackModel(tenant).removeWatcher(
+        { _id: params.feedback_id, tenant },
+        watcher_email,
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  replyToFeedback: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { message: replyMessage } = body;
+
+      const existing = await FeedbackModel(tenant).findSingle({
+        _id: params.feedback_id,
+        tenant,
+      });
+      if (!existing || !existing.success) return existing;
+
+      const admin = request.user || {};
+      const reply = {
+        message: replyMessage,
+        adminEmail: admin.email || undefined,
+        adminId: admin._id || undefined,
+        sentAt: new Date(),
+      };
+
+      const addResult = await FeedbackModel(tenant).addReply(
+        { _id: params.feedback_id, tenant },
+        reply,
+      );
+
+      if (addResult && addResult.success) {
+        const fb = existing.data;
+
+        // Email the submitter (best-effort)
+        try {
+          await mailer.feedbackAdminReply({
+            email: fb.email,
+            subject: fb.subject,
+            replyMessage,
+          });
+        } catch (emailError) {
+          logger.warn(`Reply saved but submitter email failed: ${emailError.message}`);
+        }
+
+        // Notify watchers (best-effort)
+        if (fb.watchers && fb.watchers.length > 0) {
+          for (const watcher of fb.watchers) {
+            mailer.feedbackWatcherNotification({
+              email: watcher.email,
+              name: watcher.name,
+              subject: fb.subject,
+              event: "reply_added",
+              detail: replyMessage,
+            }).catch(() => {});
+          }
+        }
+
+        // Fire webhook (best-effort)
+        dispatchWebhooks(tenant, "feedback.reply_added", {
+          feedbackId: params.feedback_id,
+          subject: fb.subject,
+          replyMessage,
+          adminEmail: (request.user || {}).email,
+        }).catch(() => {});
+      }
+
+      return addResult;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  updateFeedbackNotes: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { adminNotes } = body;
+
+      const filter = { _id: params.feedback_id, tenant };
+      return await FeedbackModel(tenant).modify({ filter, update: { adminNotes } });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  registerWebhook: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const { name, url, events, secret } = body;
+      return await FeedbackWebhookModel(tenant).register({
+        name,
+        url,
+        events,
+        secret,
+        tenant,
+        createdBy: request.user ? request.user._id : undefined,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  listWebhooks: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const rawSkip = parseInt(query.skip, 10);
+      const rawLimit = parseInt(query.limit, 10);
+      const skip = Number.isFinite(rawSkip) ? Math.max(0, rawSkip) : 0;
+      const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 20;
+      const filter = { tenant };
+      if (query.active !== undefined) filter.active = query.active === "true";
+      return await FeedbackWebhookModel(tenant).list({ skip, limit, filter });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  updateWebhook: async (request, next) => {
+    try {
+      const { body, query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const filter = { _id: params.webhook_id, tenant };
+      return await FeedbackWebhookModel(tenant).modify({ filter, update: body });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  },
+
+  deleteWebhook: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const filter = { _id: params.webhook_id, tenant };
+      return await FeedbackWebhookModel(tenant).remove(filter);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
       );
     }
   },
@@ -7906,6 +8379,34 @@ const feedbackUtil = {
         success: true,
         message: "Onboarding state updated successfully",
         data: computeUserOnboardingChecklist(updatedUser),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  listFeedbackStaff: async (request, next) => {
+    try {
+      const tenant = resolveFeedbackTenant(request.query);
+      // Uses STAFF_PERMISSION_FILTER — shared with the assignFeedback eligibility check.
+      const staff = await UserModel(tenant)
+        .find(
+          STAFF_PERMISSION_FILTER,
+          { _id: 1, firstName: 1, lastName: 1, email: 1, userName: 1 },
+        )
+        .lean();
+      return {
+        success: true,
+        message: "Staff members retrieved successfully",
+        data: staff,
         status: httpStatus.OK,
       };
     } catch (error) {

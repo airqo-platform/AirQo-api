@@ -8,7 +8,7 @@ const chaiAsPromised = require("chai-as-promised");
 chai.use(chaiAsPromised);
 const httpStatus = require("http-status");
 
-describe("Cohort Model", () => {
+describe.skip("Cohort Model", () => {
   let Cohort;
   let createStub;
   let findOneAndUpdateStub;

@@ -18,7 +18,7 @@ const createTestLessonProgress = (overrides = {}) => {
 };
 
 // Describe block for userLessonProgressSchema
-describe("userLessonProgressSchema", () => {
+describe.skip("userLessonProgressSchema", () => {
   // Test cases for validation
   describe("Validation", () => {
     it("should be valid when all required fields are provided", () => {

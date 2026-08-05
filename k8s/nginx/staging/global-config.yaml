@@ -166,6 +166,15 @@ data:
       if ($request_uri ~ '/api/(v1|v2)/devices/network-coverage(/export|/monitors|/countries)($|/|[?])') { return 200; }
       if ($request ~ '^(POST|DELETE) /api/(v1|v2)/devices/network-coverage/registry($|/|[?])') { return 200; }
       if ($request ~ '^POST /api/(v1|v2)/devices/network-creation-requests($|[?]| )') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/catalog$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/lessons/[^/]+$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/sessions/anonymous$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/progress$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/progress/lessons/[^/]+$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/progress/sync$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/progress/courses$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/leaderboard$') { return 200; }
+      if ($uri ~ '^/api/(v1|v2)/devices/learn/certificates/verify/[^/]+$') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }
       if ($request_uri ~ '/grafana/api') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 

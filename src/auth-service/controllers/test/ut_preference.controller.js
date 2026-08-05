@@ -1,381 +1,452 @@
 require("module-alias/register");
 const sinon = require("sinon");
-const chai = require("chai");
-const expect = chai.expect;
-const sinonChai = require("sinon-chai");
+const { expect } = require("chai");
+const httpStatus = require("http-status");
+const rewire = require("rewire");
+const preferenceUtil = require("@utils/preference.util");
 
-describe("preferences", () => {
-  let createPreferenceUtil;
+const preferences = rewire("@controllers/preference.controller");
+const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
+const mockBadRequest = () => [{ param: "key", message: "required" }];
+
+describe("preferences controller", () => {
+  let req, res, next;
 
   beforeEach(() => {
-    // Set up mocks
-    createPreferenceUtil = sinon.mock();
-
-    sinon
-      .stub(createPreferenceUtil, "update")
-      .resolves({
-        success: true,
-        status: 200,
-        message: "Update successful",
-        data: {},
-      });
-    sinon
-      .stub(createPreferenceUtil, "create")
-      .resolves({
-        success: true,
-        status: 201,
-        message: "Create successful",
-        data: {},
-      });
-    sinon
-      .stub(createPreferenceUtil, "upsert")
-      .resolves({
-        success: true,
-        status: 200,
-        message: "Upsert successful",
-        data: {},
-      });
-    sinon
-      .stub(createPreferenceUtil, "replace")
-      .resolves({
-        success: true,
-        status: 200,
-        message: "Replace successful",
-        data: {},
-      });
-    sinon
-      .stub(createPreferenceUtil, "list")
-      .resolves({
-        success: true,
-        status: 200,
-        message: "List successful",
-        data: [],
-      });
-    sinon
-      .stub(createPreferenceUtil, "delete")
-      .resolves({ success: true, status: 204, message: "Delete successful" });
-    sinon
-      .stub(createPreferenceUtil, "addSelectedSites")
-      .resolves({
-        success: true,
-        status: 200,
-        message: "Add selected sites successful",
-        data: {},
-      });
-    sinon
-      .stub(createPreferenceUtil, "updateSelectedSite")
-      .resolves({
-        success: true,
-        status: 200,
-        message: "Update selected site successful",
-        data: {},
-      });
-    sinon
-      .stub(createPreferenceUtil, "deleteSelectedSite")
-      .resolves({
-        success: true,
-        status: 204,
-        message: "Delete selected site successful",
-      });
-
-    sinon.stub(extractErrorsFromRequest).returns(null);
-    sinon.stub(HttpError, "default").throws(new Error("HttpError"));
+    req = { query: { tenant: "airqo" }, body: {}, params: {} };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+      headersSent: false,
+    };
+    next = sinon.stub();
   });
 
   afterEach(() => {
-    // Restore mocks
-    createPreferenceUtil.restore();
-    extractErrorsFromRequest.restore();
-    HttpError.restore();
+    sinon.restore();
+    preferences.__set__("extractErrorsFromRequest", realExtractErrors);
   });
 
-  describe("update", () => {
+  describe("update()", () => {
     it("should update preference successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.update(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "update").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Update successful",
-        preference: {},
+        data: { theme: "dark" },
       });
+
+      await preferences.update(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, preference: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon.stub(createPreferenceUtil.update).rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.update(req, res, next);
 
-      await preferences.update(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle update failure", async () => {
+      sinon.stub(preferenceUtil, "update").resolves({
         success: false,
-        message: "Internal Server Error",
-        preference: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Update failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.update(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "update").rejects(new Error("Unexpected error"));
+
+      await preferences.update(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("create", () => {
+  describe("create()", () => {
     it("should create preference successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.create(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "create").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Create successful",
-        preference: {},
+        data: { theme: "light" },
       });
+
+      await preferences.create(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, preference: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon.stub(createPreferenceUtil.create).rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.create(req, res, next);
 
-      await preferences.create(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle creation failure", async () => {
+      sinon.stub(preferenceUtil, "create").resolves({
         success: false,
-        message: "Internal Server Error",
-        preference: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Creation failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.create(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "create").rejects(new Error("Unexpected error"));
+
+      await preferences.create(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("upsert", () => {
+  describe("upsert()", () => {
     it("should upsert preference successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.upsert(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "upsert").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Upsert successful",
-        preference: {},
+        data: { theme: "dark" },
       });
+
+      await preferences.upsert(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, preference: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon.stub(createPreferenceUtil.upsert).rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.upsert(req, res, next);
 
-      await preferences.upsert(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle upsert failure", async () => {
+      sinon.stub(preferenceUtil, "upsert").resolves({
         success: false,
-        message: "Internal Server Error",
-        preference: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Upsert failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.upsert(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "upsert").rejects(new Error("Unexpected error"));
+
+      await preferences.upsert(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("replace", () => {
+  describe("replace()", () => {
     it("should replace preference successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.replace(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "replace").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Replace successful",
-        preference: {},
+        data: { theme: "auto" },
       });
+
+      await preferences.replace(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, preference: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon.stub(createPreferenceUtil.replace).rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.replace(req, res, next);
 
-      await preferences.replace(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle replace failure", async () => {
+      sinon.stub(preferenceUtil, "replace").resolves({
         success: false,
-        message: "Internal Server Error",
-        preference: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Replace failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.replace(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "replace").rejects(new Error("Unexpected error"));
+
+      await preferences.replace(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("list", () => {
+  describe("list()", () => {
     it("should list preferences successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.list(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "list").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "List successful",
-        preferences: [],
+        data: [{ theme: "dark" }],
       });
+
+      await preferences.list(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, preferences: sinon.match.array })).to.be.true;
+    });
+
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
+
+      await preferences.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should handle listing failure", async () => {
+      sinon.stub(preferenceUtil, "list").resolves({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Listing failed",
+        errors: { message: "Error" },
+      });
+
+      await preferences.list(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "list").rejects(new Error("Unexpected error"));
+
+      await preferences.list(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("delete", () => {
+  describe("delete()", () => {
     it("should delete preference successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.delete(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "delete").resolves({
         success: true,
+        status: httpStatus.OK,
         message: "Delete successful",
+        data: { theme: "dark" },
       });
+
+      await preferences.delete(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, preference: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon.stub(createPreferenceUtil.delete).rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.delete(req, res, next);
 
-      await preferences.delete(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle deletion failure", async () => {
+      sinon.stub(preferenceUtil, "delete").resolves({
         success: false,
-        message: "Internal Server Error",
-        preference: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Delete failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.delete(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "delete").rejects(new Error("Unexpected error"));
+
+      await preferences.delete(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("addSelectedSites", () => {
+  describe("addSelectedSites()", () => {
     it("should add selected sites successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.addSelectedSites(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "addSelectedSites").resolves({
         success: true,
-        message: "Add selected sites successful",
-        seletected_sites: {},
+        status: httpStatus.OK,
+        message: "Sites added successfully",
+        data: [{ siteId: "site1" }],
       });
+
+      await preferences.addSelectedSites(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, selected_sites: sinon.match.array })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon
-        .stub(createPreferenceUtil.addSelectedSites)
-        .rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.addSelectedSites(req, res, next);
 
-      await preferences.addSelectedSites(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle failure", async () => {
+      sinon.stub(preferenceUtil, "addSelectedSites").resolves({
         success: false,
-        message: "Internal Server Error",
-        seletected_sites: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.addSelectedSites(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "addSelectedSites").rejects(new Error("Unexpected error"));
+
+      await preferences.addSelectedSites(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("updateSelectedSite", () => {
+  describe("updateSelectedSite()", () => {
     it("should update selected site successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.updateSelectedSite(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "updateSelectedSite").resolves({
         success: true,
-        message: "Update selected site successful",
-        selected_site: {},
+        status: httpStatus.OK,
+        message: "Site updated successfully",
+        data: { siteId: "site1" },
       });
+
+      await preferences.updateSelectedSite(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, selected_site: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon
-        .stub(createPreferenceUtil.updateSelectedSite)
-        .rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.updateSelectedSite(req, res, next);
 
-      await preferences.updateSelectedSite(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle failure", async () => {
+      sinon.stub(preferenceUtil, "updateSelectedSite").resolves({
         success: false,
-        message: "Internal Server Error",
-        selected_site: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.updateSelectedSite(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "updateSelectedSite").rejects(new Error("Unexpected error"));
+
+      await preferences.updateSelectedSite(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 
-  describe("deleteSelectedSite", () => {
+  describe("deleteSelectedSite()", () => {
     it("should delete selected site successfully", async () => {
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
-
-      await preferences.deleteSelectedSite(req, res);
-
-      expect(res.json).to.have.been.calledWith({
+      sinon.stub(preferenceUtil, "deleteSelectedSite").resolves({
         success: true,
-        message: "Delete selected site successful",
+        status: httpStatus.OK,
+        message: "Site deleted successfully",
+        data: { siteId: "site1" },
       });
+
+      await preferences.deleteSelectedSite(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, selected_site: sinon.match.object })).to.be.true;
     });
 
-    it("should handle errors from createPreferenceUtil", async () => {
-      sinon
-        .stub(createPreferenceUtil.deleteSelectedSite)
-        .rejects(new Error("Test error"));
+    it("should handle bad request errors", async () => {
+      preferences.__set__("extractErrorsFromRequest", mockBadRequest);
 
-      const req = { query: {}, body: {} };
-      const res = { json: sinon.spy() };
+      await preferences.deleteSelectedSite(req, res, next);
 
-      await preferences.deleteSelectedSite(req, res);
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
+    });
 
-      expect(res.status).to.have.been.calledWith(500);
-      expect(res.json).to.have.been.calledWith({
+    it("should handle failure", async () => {
+      sinon.stub(preferenceUtil, "deleteSelectedSite").resolves({
         success: false,
-        message: "Internal Server Error",
-        selected_site: {},
-        errors: { message: "Test error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed",
+        errors: { message: "Error" },
       });
+
+      await preferences.deleteSelectedSite(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    });
+
+    it("should handle unexpected errors", async () => {
+      sinon.stub(preferenceUtil, "deleteSelectedSite").rejects(new Error("Unexpected error"));
+
+      await preferences.deleteSelectedSite(req, res, next);
+
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
 });
-
-// Helper functions
-function extractErrorsFromRequest(req) {
-  // Mock implementation
-  return null;
-}
-
-class HttpError extends Error {
-  constructor(message, status, details) {
-    super(message);
-    this.name = "HttpError";
-    this.status = status;
-    this.details = details || {};
-  }
-}

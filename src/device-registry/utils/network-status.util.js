@@ -87,7 +87,7 @@ const networkStatusUtil = {
         next
       );
 
-      if (response.success) {
+      if (response && response.success) {
         try {
           const producer = await initializeKafkaProducer();
           await producer.send({
@@ -129,6 +129,8 @@ const networkStatusUtil = {
         end_date,
         status,
         threshold_exceeded,
+        network,
+        cohort_id,
       } = query;
 
       const filter = {};
@@ -141,6 +143,18 @@ const networkStatusUtil = {
 
       if (status) {
         filter.status = status;
+      }
+
+      if (network) {
+        filter.network_breakdown = {
+          $elemMatch: { network: network.toLowerCase() },
+        };
+      }
+
+      if (cohort_id) {
+        filter.cohort_breakdown = {
+          $elemMatch: { cohort_id },
+        };
       }
 
       if (threshold_exceeded !== undefined) {
@@ -172,7 +186,7 @@ const networkStatusUtil = {
   getStatistics: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, start_date, end_date } = query;
+      const { tenant, start_date, end_date, network, cohort_id } = query;
 
       const filter = {};
 
@@ -180,6 +194,20 @@ const networkStatusUtil = {
         filter.checked_at = {};
         if (start_date) filter.checked_at.$gte = new Date(start_date);
         if (end_date) filter.checked_at.$lte = new Date(end_date);
+      }
+
+      if (network) {
+        const response = await NetworkStatusAlertModel(
+          tenant
+        ).getStatisticsByNetwork({ filter, network }, next);
+        return response;
+      }
+
+      if (cohort_id) {
+        const response = await NetworkStatusAlertModel(
+          tenant
+        ).getStatisticsByCohort({ filter, cohort_id }, next);
+        return response;
       }
 
       const response = await NetworkStatusAlertModel(tenant).getStatistics(
@@ -203,7 +231,7 @@ const networkStatusUtil = {
   getHourlyTrends: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, start_date, end_date } = query;
+      const { tenant, start_date, end_date, network, cohort_id } = query;
 
       const filter = {};
 
@@ -211,6 +239,20 @@ const networkStatusUtil = {
         filter.checked_at = {};
         if (start_date) filter.checked_at.$gte = new Date(start_date);
         if (end_date) filter.checked_at.$lte = new Date(end_date);
+      }
+
+      if (network) {
+        const response = await NetworkStatusAlertModel(
+          tenant
+        ).getHourlyTrendsByNetwork({ filter, network }, next);
+        return response;
+      }
+
+      if (cohort_id) {
+        const response = await NetworkStatusAlertModel(
+          tenant
+        ).getHourlyTrendsByCohort({ filter, cohort_id }, next);
+        return response;
       }
 
       const response = await NetworkStatusAlertModel(tenant).getHourlyTrends(
@@ -234,14 +276,29 @@ const networkStatusUtil = {
   getRecentAlerts: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, hours = 24 } = query;
+      const { tenant, hours = 24, network, cohort_id } = query;
 
-      const filter = {
-        checked_at: {
-          $gte: new Date(Date.now() - hours * 60 * 60 * 1000),
-        },
-        threshold_exceeded: true,
-      };
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+      const filter = { checked_at: { $gte: cutoff } };
+
+      if (network) {
+        filter.network_breakdown = {
+          $elemMatch: {
+            network: network.toLowerCase(),
+            not_transmitting_percentage: { $gte: 35 },
+          },
+        };
+      } else if (cohort_id) {
+        filter.cohort_breakdown = {
+          $elemMatch: {
+            cohort_id,
+            not_transmitting_percentage: { $gte: 35 },
+          },
+        };
+      } else {
+        filter.threshold_exceeded = true;
+      }
 
       const response = await NetworkStatusAlertModel(tenant).list(
         {
@@ -268,24 +325,35 @@ const networkStatusUtil = {
   getUptimeSummary: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, days = 7 } = query;
+      const { tenant, days = 7, network, cohort_id } = query;
 
       const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const filter = { checked_at: { $gte: startDate } };
+
+      if (network) {
+        const response = await NetworkStatusAlertModel(
+          tenant
+        ).getUptimeSummaryByNetwork({ filter, network }, next);
+        return response;
+      }
+
+      if (cohort_id) {
+        const response = await NetworkStatusAlertModel(
+          tenant
+        ).getUptimeSummaryByCohort({ filter, cohort_id }, next);
+        return response;
+      }
 
       const pipeline = [
-        {
-          $match: {
-            checked_at: { $gte: startDate },
-          },
-        },
+        { $match: filter },
         {
           $group: {
             _id: {
               $dateToString: { format: "%Y-%m-%d", date: "$checked_at" },
             },
-            avgOfflinePercentage: { $avg: "$offline_percentage" },
-            maxOfflinePercentage: { $max: "$offline_percentage" },
-            minOfflinePercentage: { $min: "$offline_percentage" },
+            avgOfflinePercentage: { $avg: "$not_transmitting_percentage" },
+            maxOfflinePercentage: { $max: "$not_transmitting_percentage" },
+            minOfflinePercentage: { $min: "$not_transmitting_percentage" },
             totalChecks: { $sum: 1 },
             alertsTriggered: {
               $sum: { $cond: ["$threshold_exceeded", 1, 0] },
@@ -299,6 +367,66 @@ const networkStatusUtil = {
         { pipeline },
         next
       );
+
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getNetworkBreakdown: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant, start_date, end_date } = query;
+
+      const filter = {};
+
+      if (start_date || end_date) {
+        filter.checked_at = {};
+        if (start_date) filter.checked_at.$gte = new Date(start_date);
+        if (end_date) filter.checked_at.$lte = new Date(end_date);
+      }
+
+      const response = await NetworkStatusAlertModel(
+        tenant
+      ).getStatisticsByNetwork({ filter }, next);
+
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getCohortBreakdown: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant, start_date, end_date } = query;
+
+      const filter = {};
+
+      if (start_date || end_date) {
+        filter.checked_at = {};
+        if (start_date) filter.checked_at.$gte = new Date(start_date);
+        if (end_date) filter.checked_at.$lte = new Date(end_date);
+      }
+
+      const response = await NetworkStatusAlertModel(
+        tenant
+      ).getStatisticsByCohort({ filter }, next);
 
       return response;
     } catch (error) {

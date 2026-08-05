@@ -14,6 +14,7 @@ const {
   generateFilter,
   claimTokenUtil,
   ActivityLogger,
+  computeTransmissionStatus,
 } = require("@utils/common");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
@@ -596,6 +597,192 @@ const deviceUtil = {
           { message: error.message },
         ),
       );
+    }
+  },
+  getDeviceCountSummaryByNetwork: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $group: {
+            _id: { $ifNull: [{ $toLower: "$network" }, "unknown"] },
+            total: { $sum: 1 },
+            operational: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            data_available: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            not_transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
+
+      return {
+        success: true,
+        message: "Successfully retrieved per-network health summary.",
+        data: results.map((r) => ({
+          network: r._id,
+          total_monitors: r.total,
+          operational_count: r.operational,
+          transmitting_count: r.transmitting,
+          data_available_count: r.data_available,
+          not_transmitting_count: r.not_transmitting,
+          not_transmitting_percentage:
+            r.total > 0
+              ? parseFloat(((r.not_transmitting / r.total) * 100).toFixed(2))
+              : 0,
+        })),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
+    }
+  },
+  getDeviceCountSummaryByCohort: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
+
+      const pipeline = [
+        { $match: filter },
+        { $unwind: { path: "$cohorts", preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: "$cohorts",
+            total: { $sum: 1 },
+            operational: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            data_available: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            not_transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
+
+      const cohortIds = results.map((r) => r._id);
+      const cohorts = await CohortModel(tenant)
+        .find({ _id: { $in: cohortIds } })
+        .select("_id name")
+        .lean();
+      const cohortNameById = {};
+      cohorts.forEach((c) => {
+        cohortNameById[c._id.toString()] = c.name;
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved per-cohort health summary.",
+        data: results.map((r) => ({
+          cohort_id: r._id.toString(),
+          cohort_name: cohortNameById[r._id.toString()] || "unknown",
+          total_monitors: r.total,
+          operational_count: r.operational,
+          transmitting_count: r.transmitting,
+          data_available_count: r.data_available,
+          not_transmitting_count: r.not_transmitting,
+          not_transmitting_percentage:
+            r.total > 0
+              ? parseFloat(((r.not_transmitting / r.total) * 100).toFixed(2))
+              : 0,
+        })),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
     }
   },
   getDeviceById: async (req, next) => {
@@ -1473,19 +1660,9 @@ const deviceUtil = {
             {
               $lookup: {
                 from: activitiesColl,
-                let: { deviceName: "$name", deviceId: "$_id" },
+                let: { deviceId: "$_id" },
                 pipeline: [
-                  {
-                    // Prioritize indexed device_id lookup, fall back to legacy device name for backwards compatibility
-                    $match: {
-                      $expr: {
-                        $or: [
-                          { $eq: ["$device_id", "$$deviceId"] },
-                          { $eq: ["$device", "$$deviceName"] },
-                        ],
-                      },
-                    },
-                  },
+                  { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
                   { $sort: { createdAt: -1 } },
                   {
                     $project: {
@@ -1505,7 +1682,52 @@ const deviceUtil = {
                   },
                   { $limit: maxActivities },
                 ],
-                as: "activities",
+                as: "_act_by_id",
+              },
+            },
+            {
+              $lookup: {
+                from: activitiesColl,
+                let: { deviceName: "$name" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$device", "$$deviceName"] } } },
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $project: {
+                      _id: 1,
+                      site_id: 1,
+                      device_id: 1,
+                      device: 1,
+                      activityType: 1,
+                      maintenanceType: 1,
+                      recallType: 1,
+                      date: 1,
+                      description: 1,
+                      nextMaintenance: 1,
+                      createdAt: 1,
+                      tags: 1,
+                    },
+                  },
+                  { $limit: maxActivities },
+                ],
+                as: "_act_by_name",
+              },
+            },
+            {
+              $addFields: {
+                activities: {
+                  $slice: [
+                    {
+                      $sortArray: {
+                        input: { $setUnion: ["$_act_by_id", "$_act_by_name"] },
+                        sortBy: { createdAt: -1 },
+                      },
+                    },
+                    maxActivities,
+                  ],
+                },
+                _act_by_id: "$$REMOVE",
+                _act_by_name: "$$REMOVE",
               },
             },
             getDeviceCategoriesAddFieldsStage(),
@@ -1750,10 +1972,18 @@ const deviceUtil = {
         }
       }
 
+      const enrichedResults =
+        detailLevel === "minimal"
+          ? paginatedResults
+          : paginatedResults.map((device) => ({
+              ...device,
+              transmissionStatus: computeTransmissionStatus(device),
+            }));
+
       return {
         success: true,
         message: "successfully retrieved the device details",
-        data: paginatedResults,
+        data: enrichedResults,
         status: httpStatus.OK,
         meta,
       };
@@ -3246,7 +3476,7 @@ const deviceUtil = {
 
   getMyDevices: async (request, next) => {
     try {
-      const { user_id, cohort_ids, group_ids } = request.query;
+      const { user_id, cohort_ids, group_ids, status } = request.query;
       const { tenant } = request.query;
       const skip = request.query.skip || 0;
       const limit = request.query.limit || 30;
@@ -3319,12 +3549,24 @@ const deviceUtil = {
         filter.$or.push({ cohorts: { $in: allCohortIds } });
       }
 
+      // 4. Apply optional status filter (isOnline + rawOnlineStatus combination)
+      const STATUS_FILTER_MAP = {
+        operational: { isOnline: true, rawOnlineStatus: true },
+        transmitting: { isOnline: false, rawOnlineStatus: true },
+        not_transmitting: { isOnline: false, rawOnlineStatus: false },
+        data_available: { isOnline: true, rawOnlineStatus: false },
+      };
+
+      if (status && STATUS_FILTER_MAP[status]) {
+        Object.assign(filter, STATUS_FILTER_MAP[status]);
+      }
+
       const [total, rawDevices] = await Promise.all([
         DeviceModel(tenant).countDocuments(filter),
         DeviceModel(tenant)
           .find(filter)
           .select(
-            "name long_name status isActive isOnline rawOnlineStatus deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
+            "name long_name status isActive isOnline rawOnlineStatus dateValidStatus lastActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
           )
           .sort({ claimed_at: -1 })
           .skip(skip)
@@ -3351,6 +3593,11 @@ const deviceUtil = {
       const devices = (rawDevices || []).map(({ site_id, ...dev }) => ({
         ...dev,
         site: site_id ? siteMap.get(site_id.toString()) || null : null,
+        transmissionStatus: computeTransmissionStatus(dev),
+        // .select()/.lean() returns no key at all for documents predating this
+        // field — normalize here since a Mongoose schema default can't apply
+        // to a plain lean() object.
+        dateValidStatus: dev.dateValidStatus || "unknown",
       }));
 
       return {

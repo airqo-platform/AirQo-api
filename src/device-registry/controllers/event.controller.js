@@ -93,6 +93,30 @@ function handleResponse({
   return res.status(status).json(response);
 }
 
+// Shared by getAirQualityRankings / getAirQualityRankingsHistory — both
+// utils either resolve a {success, message, data|errors, status} result or
+// resolve undefined after already forwarding an error via next() themselves.
+function sendRankingResponse(res, result) {
+  // result is undefined when the util already forwarded an error via
+  // next() — don't also send a response here, or Express double-sends.
+  if (!result) {
+    return;
+  }
+  if (result.success) {
+    res.status(result.status || httpStatus.OK).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } else {
+    res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: result.message,
+      errors: result.errors || { message: "" },
+    });
+  }
+}
+
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -102,7 +126,22 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
 
     const filter = generateFilter.grids(request);
-    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+    // Pass a no-op so GridModel's catch block can call next() without throwing
+    // TypeError: next is not a function. getSitesFromGrid has its own catch that
+    // handles the resulting undefined return gracefully.
+    const reseponseFromListGrid = await GridModel(tenant).list(
+      { filter },
+      () => {},
+    );
+
+    if (!reseponseFromListGrid) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve grid data from database" },
+      };
+    }
 
     const gridDetails = reseponseFromListGrid.data[0];
 
@@ -486,6 +525,54 @@ const createEvent = {
         next,
       );
       handleResponse({ res, result, key: "data" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getAirQualityRankings: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankings(req, next);
+      sendRankingResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  getAirQualityRankingsHistory: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankingsHistory(
+        req,
+        next,
+      );
+      sendRankingResponse(res, result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -2646,12 +2733,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status
@@ -2729,12 +2817,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status

@@ -32,10 +32,10 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to join AirQo Analytics has been received, we shall get back to you as soon as possible.
+                                    Your request to join AirQo Nexus has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
-                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo Analytics
+                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo Nexus
                                     administration.
                                     <br />
                                     Once your application is approved, you will receive a confirmation email<br />
@@ -167,7 +167,7 @@ describe("email.msgs", () => {
                                     You can always change your password in your account settings after login. Follow this link to access the dashboard right
                                     now: ${constants.LOGIN_PAGE}
                                     <br />
-                                    A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics
+                                    A guide to using AirQo Nexus will be found under the Documentation section of AirQo Nexus
                                     <br /><br />
                                     PLEASE DO NOT REPLY TO THIS EMAIL. For KCCA related questions, please contact:
                                     <ul>
@@ -205,7 +205,7 @@ describe("email.msgs", () => {
       const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics. Your login credentials are as follows:
+                                    Welcome to AirQo Nexus. Your login credentials are as follows:
                                     <br />
                                     YOUR USERNAME: ${email}
                                     <br />
@@ -213,13 +213,13 @@ describe("email.msgs", () => {
                                     <br /><br />
                                     To access the dashboard, please follow this link: <a href="${constants.LOGIN_PAGE}">LOGIN PAGE</a>
                                     <br />
-                                    After login, you can change your password in your account settings. You can also use your AirQo Analytics credentials to
+                                    After login, you can change your password in your account settings. You can also use your AirQo Nexus credentials to
                                     access the AirQo API.
                                     <br />
                                     The AirQo API reference can be found here: <a href=" https://docs.airqo.net/airqo-rest-api-documentation/">API
                                         Documentation</a>
                                     <br /><br />
-                                    By actively utilising AirQo Analytics, you automatically agree to the <a
+                                    By actively utilising AirQo Nexus, you automatically agree to the <a
                                         href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo terms and conditions:</a>
                                     <br />
                                     For any technical challenges or suggestions, please contact us at <span
@@ -227,7 +227,7 @@ describe("email.msgs", () => {
                                     <br /><br />
                                     Please note that this is an automated message, so please do not reply to this email.
                                     <br />
-                                    To learn more about AirQo Analytics and its features, please refer to the <a
+                                    To learn more about AirQo Nexus and its features, please refer to the <a
                                         href="https://docs.airqo.net/airqo-platform/">user guide available here:</a>
                                     <br /><br />
                                     Best regards,
@@ -262,7 +262,7 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account details have been updated.
+                                Your AirQo Nexus account details have been updated.
                                     <br />
                                     The following fields have been updated:
                                     <ol>
@@ -271,7 +271,7 @@ describe("email.msgs", () => {
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
-                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    Follow this link to access AirQo Nexus right now: ${constants.LOGIN_PAGE}
                                     <br />
                                     <br />
                                 </td>
@@ -296,12 +296,12 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account password has been successfully reset.
+                                Your AirQo Nexus account password has been successfully reset.
                                 <br />
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -331,12 +331,12 @@ describe("email.msgs", () => {
       const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account password has been successfully updated.
+                                Your AirQo Nexus account password has been successfully updated.
                                 <br />
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
@@ -479,6 +479,437 @@ describe("email.msgs", () => {
 
     it("should handle empty compromiseDetails without throwing", () => {
       const result = msgs.compromiseSummary({ email: "user@example.com", count: 0, compromiseDetails: [] });
+      expect(result).to.be.a("string");
+    });
+  });
+
+  describe("bypassExpiryReminder", () => {
+    const baseArgs = {
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "user@example.com",
+      token: "ABCDEFGH12345678WXYZ",
+      tokenName: "OpenAQ ingestion",
+      bypassLabel: "IP-blacklist request-blocking bypass",
+      expiresAt: new Date("2050-01-01T00:00:00Z"),
+    };
+
+    it("should return a string", () => {
+      expect(msgs.bypassExpiryReminder(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the masked token and bypass label", () => {
+      const result = msgs.bypassExpiryReminder(baseArgs);
+      expect(result).to.include("ABCDEFGH");
+      expect(result).to.include("IP-blacklist request-blocking bypass");
+    });
+
+    it("should HTML-escape a bypass label containing special characters", () => {
+      const result = msgs.bypassExpiryReminder({
+        ...baseArgs,
+        bypassLabel: '<img src=x onerror="alert(1)">',
+      });
+      expect(result).to.include("&lt;img src=x");
+      expect(result).to.include("&quot;alert(1)&quot;");
+    });
+  });
+
+  describe("bypassExpired", () => {
+    const baseArgs = {
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "user@example.com",
+      token: "ABCDEFGH12345678WXYZ",
+      tokenName: "OpenAQ ingestion",
+      bypassLabel: "High-compromise-activity auto-suspension bypass",
+    };
+
+    it("should return a string", () => {
+      expect(msgs.bypassExpired(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the masked token and bypass label", () => {
+      const result = msgs.bypassExpired(baseArgs);
+      expect(result).to.include("ABCDEFGH");
+      expect(result).to.include("High-compromise-activity auto-suspension bypass");
+    });
+  });
+
+  describe("bypassReportDigest", () => {
+    const baseArgs = {
+      recipients: ["admin@airqo.net"],
+      bypasses: [
+        {
+          token_suffix: "6NZN",
+          token_name: "OpenAQ ingestion",
+          owner_email: "owner@example.com",
+          bypasses: [
+            { type: "bypass_ip_blacklist", expires_at: "2050-01-01T00:00:00Z" },
+          ],
+        },
+      ],
+    };
+
+    it("should return a string", () => {
+      expect(msgs.bypassReportDigest(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the token suffix and owner email", () => {
+      const result = msgs.bypassReportDigest(baseArgs);
+      expect(result).to.include("6NZN");
+      expect(result).to.include("owner@example.com");
+    });
+
+    it("should handle an empty bypasses array without throwing", () => {
+      const result = msgs.bypassReportDigest({ recipients: ["admin@airqo.net"], bypasses: [] });
+      expect(result).to.be.a("string");
+      expect(result).to.include("0");
+    });
+
+    it("should HTML-escape an owner email containing special characters", () => {
+      const result = msgs.bypassReportDigest({
+        recipients: ["admin@airqo.net"],
+        bypasses: [
+          {
+            token_suffix: "abcd",
+            token_name: "",
+            owner_email: '<script>alert(1)</script>',
+            bypasses: [{ type: "bypass_anomaly_detection", expires_at: null }],
+          },
+        ],
+      });
+      expect(result).to.include("&lt;script&gt;");
+    });
+  });
+
+  // ── New feedback workflow templates ──────────────────────────────────────────
+
+  describe("feedbackStatusUpdate", () => {
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Map not loading",
+        oldStatus: "pending",
+        newStatus: "resolved",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should HTML-escape the subject", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "<script>alert(1)</script>",
+        oldStatus: "pending",
+        newStatus: "reviewed",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should render correct body copy for reviewed status", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "reviewed",
+      });
+      expect(result).to.include("under review");
+    });
+
+    it("should render correct body copy for resolved status", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "resolved",
+      });
+      expect(result).to.include("has been resolved");
+    });
+
+    it("should render correct body copy for archived status", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "archived",
+      });
+      expect(result).to.include("been archived");
+    });
+
+    it("should fall back gracefully when newStatus is not in the label map", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "custom_status",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+      expect(result).to.include("custom_status");
+    });
+
+    it("should not produce a duplicate greeting line", () => {
+      const result = msgs.feedbackStatusUpdate({
+        email: "user@example.com",
+        subject: "Test",
+        oldStatus: "pending",
+        newStatus: "resolved",
+      });
+      // EMAIL_BODY adds "Dear <name>," when name is non-empty, or "Hello!" when
+      // name is empty but greetings is non-suppressed. This template passes
+      // name:"" so EMAIL_BODY suppresses all wrapper greetings entirely.
+      expect(result).to.not.match(/Dear .+,|Hello!/);
+    });
+  });
+
+  describe("feedbackAdminReply", () => {
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Crash on login",
+        replyMessage: "We have fixed the issue.",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should strip script tags from replyMessage (sanitize, not escape)", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Test",
+        replyMessage: "<script>alert(1)</script>",
+      });
+      expect(result).to.not.include("<script>");
+      // sanitizeHtml removes the block entirely — no escaped remnant expected.
+      expect(result).to.not.include("alert(1)");
+    });
+
+    it("should preserve safe HTML formatting tags in replyMessage", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Test",
+        replyMessage: "<p>Hello <strong>world</strong></p>",
+      });
+      expect(result).to.include("<strong>world</strong>");
+    });
+
+    it("should not produce a duplicate greeting line", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Test",
+        replyMessage: "Hello from admin",
+      });
+      // Same as feedbackStatusUpdate: name:"" suppresses EMAIL_BODY's wrapper
+      // greeting entirely. If this regresses, "Dear <name>," would appear.
+      expect(result).to.not.match(/Dear .+,|Hello!/);
+    });
+
+    it("should include the subject in the output", () => {
+      const result = msgs.feedbackAdminReply({
+        email: "user@example.com",
+        subject: "Unique subject text",
+        replyMessage: "Reply body",
+      });
+      expect(result).to.include("Unique subject text");
+    });
+  });
+
+  describe("feedbackAssigned", () => {
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        name: "Jane",
+        subject: "Bug report",
+        feedbackId: "abc123",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should HTML-escape subject and name", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        name: "<b>Jane</b>",
+        subject: "<script>alert(1)</script>",
+        feedbackId: "abc",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+      expect(result).to.not.include("<b>Jane</b>");
+    });
+
+    it("should not produce a duplicate greeting — regression guard", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        name: "Jane",
+        subject: "Bug",
+        feedbackId: "abc",
+      });
+      // Content includes "Hi Jane,"; EMAIL_BODY gets name:"" so must NOT add
+      // its own "Dear Jane," wrapper. Both assertions are needed: the first
+      // confirms the inline greeting is present, the second guards against the
+      // duplicate-greeting regression where EMAIL_BODY also adds one.
+      const greetingCount = (result.match(/Hi Jane/g) || []).length;
+      expect(greetingCount).to.equal(1);
+      expect(result).to.not.include("Dear Jane,");
+    });
+
+    it("should fall back to 'Team member' when name is omitted", () => {
+      const result = msgs.feedbackAssigned({
+        email: "admin@example.com",
+        subject: "Bug",
+        feedbackId: "abc",
+      });
+      expect(result).to.include("Team member");
+    });
+  });
+
+  describe("feedbackWatcherNotification", () => {
+    it("should return a non-empty HTML string for status_changed event", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "status_changed",
+        detail: "Status changed to resolved",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should return a non-empty HTML string for reply_added event", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "reply_added",
+        detail: "Admin has replied",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("reply_added output should not contain <p><div> — regression guard for invalid HTML nesting", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "reply_added",
+        detail: "Some reply text",
+      });
+      expect(result).to.not.include("<p><div");
+    });
+
+    it("should HTML-escape the detail field", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "status_changed",
+        detail: "<script>alert(1)</script>",
+      });
+      expect(result).to.not.include("<script>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should render fallback copy when event is unknown", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "unknown_event",
+        detail: "Some update",
+      });
+      expect(result).to.be.a("string").and.not.be.empty;
+      expect(result).to.include("Some update");
+    });
+
+    it("should not produce a duplicate greeting when name is provided — regression guard", () => {
+      const result = msgs.feedbackWatcherNotification({
+        email: "watcher@example.com",
+        name: "Alex",
+        subject: "Map issue",
+        event: "status_changed",
+        detail: "Status updated",
+      });
+      // Content includes "Hi Alex,"; EMAIL_BODY gets name:"" so must NOT add
+      // its own "Dear Alex," wrapper — same dual-assertion pattern as feedbackAssigned.
+      const greetingCount = (result.match(/Hi Alex/g) || []).length;
+      expect(greetingCount).to.equal(1);
+      expect(result).to.not.include("Dear Alex,");
+    });
+  });
+
+  describe("feedbackWeeklyDigest", () => {
+    const sampleItems = [
+      {
+        subject: "Map tiles broken",
+        email: "user1@example.com",
+        category: "bug",
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+        reminderCount: 1,
+      },
+      {
+        subject: "Add dark mode",
+        email: "user2@example.com",
+        category: "feature_request",
+        createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+        reminderCount: 0,
+      },
+    ];
+
+    it("should return a non-empty HTML string", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 2, items: sampleItems });
+      expect(result).to.be.a("string").and.not.be.empty;
+    });
+
+    it("should render one table row per item", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 2, items: sampleItems });
+      expect(result).to.include("Map tiles broken");
+      expect(result).to.include("Add dark mode");
+    });
+
+    it("should HTML-escape subject and email values in each row", () => {
+      const maliciousItems = [
+        {
+          subject: "<script>alert(1)</script>",
+          email: "<img src=x>@example.com",
+          category: "bug",
+          createdAt: new Date().toISOString(),
+          reminderCount: 0,
+        },
+      ];
+      const result = msgs.feedbackWeeklyDigest({ count: 1, items: maliciousItems });
+      expect(result).to.not.include("<script>");
+      expect(result).to.not.include("<img src=x>");
+      expect(result).to.include("&lt;script&gt;");
+    });
+
+    it("should use singular copy for count of 1", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] });
+      // "1 actionable feedback item" — no trailing 's'
+      expect(result).to.match(/\b1\b.*actionable feedback item[^s]/);
+    });
+
+    it("should use plural copy for count greater than 1", () => {
+      const result = msgs.feedbackWeeklyDigest({ count: 3, items: sampleItems });
+      expect(result).to.include("actionable feedback items");
+    });
+
+    it("footer email should be populated — regression guard for blank email bug", () => {
+      // Stub SUPPORT_EMAIL to a known value so the assertion always runs
+      // regardless of environment configuration. The test module and the util
+      // share the same cached constants object, so direct assignment propagates.
+      const saved = constants.SUPPORT_EMAIL;
+      constants.SUPPORT_EMAIL = "support@example.com";
+      try {
+        const result = msgs.feedbackWeeklyDigest({ count: 1, items: [sampleItems[0]] });
+        expect(result).to.include("support@example.com");
+      } finally {
+        constants.SUPPORT_EMAIL = saved;
+      }
+    });
+
+    it("should handle an empty items array without throwing", () => {
+      expect(() =>
+        msgs.feedbackWeeklyDigest({ count: 0, items: [] })
+      ).to.not.throw();
+      const result = msgs.feedbackWeeklyDigest({ count: 0, items: [] });
       expect(result).to.be.a("string");
     });
   });

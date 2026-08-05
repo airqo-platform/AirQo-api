@@ -250,10 +250,10 @@ function findAndKillAllCronJobs() {
       );
 
       if (killMode === "targeted") {
-        console.log("node emergency-job-killer.js --force");
+        console.log("node scripts/emergency-job-killer.js --force");
         console.log("  (Kills only cron jobs and related processes)");
       } else {
-        console.log("node emergency-job-killer.js --nuclear --force");
+        console.log("node scripts/emergency-job-killer.js --nuclear --force");
         console.log(
           "  (⚠️  DANGER: Kills ALL non-protected Node.js processes)"
         );
@@ -261,10 +261,10 @@ function findAndKillAllCronJobs() {
 
       console.log("\nAlternatives:");
       console.log(
-        "node emergency-job-killer.js --force           # Target cron jobs only"
+        "node scripts/emergency-job-killer.js --force           # Target cron jobs only"
       );
       console.log(
-        "node emergency-job-killer.js --nuclear --force # Kill all Node.js processes"
+        "node scripts/emergency-job-killer.js --nuclear --force # Kill all Node.js processes"
       );
 
       return;
@@ -374,10 +374,10 @@ function findAndKillAllCronJobs() {
 
       if (isWindows) {
         console.log("- Run Command Prompt as Administrator");
-        console.log("- Then retry: node emergency-job-killer.js --force");
+        console.log("- Then retry: node scripts/emergency-job-killer.js --force");
       } else {
         console.log(
-          "- Try with sudo: sudo node emergency-job-killer.js --force"
+          "- Try with sudo: sudo node scripts/emergency-job-killer.js --force"
         );
         console.log("- Or: sudo pkill -f node  (kills all Node.js processes)");
       }
@@ -394,9 +394,9 @@ This script can find and terminate ANY running cron jobs, background tasks,
 and Node.js processes related to your applications.
 
 USAGE:
-  node emergency-job-killer.js                    # Preview mode (SAFE)
-  node emergency-job-killer.js --force            # Kill cron jobs only
-  node emergency-job-killer.js --nuclear --force  # Kill ALL Node.js processes
+  node scripts/emergency-job-killer.js                    # Preview mode (SAFE)
+  node scripts/emergency-job-killer.js --force            # Kill cron jobs only
+  node scripts/emergency-job-killer.js --nuclear --force  # Kill ALL Node.js processes
 
 MODES:
   🎯 TARGETED MODE (default):
@@ -427,16 +427,16 @@ WHAT IT TARGETS:
 
 EXAMPLES:
   # Safe preview - see what would be killed
-  node emergency-job-killer.js
+  node scripts/emergency-job-killer.js
 
   # Kill only cron jobs and related processes
-  node emergency-job-killer.js --force
+  node scripts/emergency-job-killer.js --force
 
   # Nuclear option - kill everything Node.js related
-  node emergency-job-killer.js --nuclear --force
+  node scripts/emergency-job-killer.js --nuclear --force
 
   # Get this help
-  node emergency-job-killer.js --help
+  node scripts/emergency-job-killer.js --help
 
 SAFETY FEATURES:
   - Always shows what will be killed before doing it

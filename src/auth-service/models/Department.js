@@ -89,6 +89,7 @@ const sanitizeName = (name) => {
     return trimmedName.toLowerCase();
   } catch (error) {
     logElement("the sanitise name error", error.message);
+    return "";
   }
 };
 

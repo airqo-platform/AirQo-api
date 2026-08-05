@@ -2,10 +2,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
 
-import gcsfs
-import joblib
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -38,10 +35,30 @@ class Config:
     )
     SATELLITE_PREDICTION_MODEL_FILE = os.getenv(
         "SATELLITE_PREDICTION_MODEL_FILE",
-        "satellite_prediction_model.pkl",
+        "satellite_prediction_model_v2.pkl",
+    )
+    SATELLITE_MODEL_CACHE_DIR = os.getenv(
+        "SATELLITE_MODEL_CACHE_DIR",
+        "/tmp/airqo_spatial_models",
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
+    FIRMS_API_BASE_URL = os.getenv(
+        "FIRMS_API_BASE_URL",
+        "https://firms.modaps.eosdis.nasa.gov",
+    )
+   
+    _firms_timeout_seconds = os.getenv("FIRMS_REQUEST_TIMEOUT_SECONDS", "30")
+    try:
+        FIRMS_REQUEST_TIMEOUT_SECONDS = int(_firms_timeout_seconds)
+    except (ValueError, TypeError):
+        FIRMS_REQUEST_TIMEOUT_SECONDS = 30
+    ACTIVE_FIRE_CACHE_TTL_SECONDS = os.getenv(
+        "ACTIVE_FIRE_CACHE_TTL_SECONDS",
+        "43200",
+    )
+
     OVERPASS_API_URLS = os.getenv(
         "OVERPASS_API_URLS",
         ",".join(
@@ -123,41 +140,3 @@ def _resolve_credentials_path(credentials_path):
         if candidate.is_file():
             return str(candidate.resolve())
     return None
-
-
-def get_trained_model_from_gcs(
-    project_name,
-    bucket_name,
-    source_blob_name,
-) -> Tuple[Optional[object], Optional[str]]:
-    if not bucket_name:
-        return None, "Prediction model bucket is not configured."
-    if not source_blob_name:
-        return None, "Prediction model object name is not configured."
-
-    object_path = f"{bucket_name.strip('/')}/{source_blob_name.lstrip('/')}"
-    credentials_path = _resolve_credentials_path(Config.CREDENTIALS)
-    try:
-        token = (
-            credentials_path
-            if credentials_path
-            else "google_default"
-        )
-        fs = gcsfs.GCSFileSystem(
-            project=project_name or None,
-            token=token,
-        )
-        if not fs.exists(object_path):
-            return None, f"Model object gs://{object_path} was not found."
-        with fs.open(object_path, "rb") as handle:
-            return joblib.load(handle), None
-    except Exception as error:
-        logger.exception("Failed to load trained model from gs://%s", object_path)
-        if Config.CREDENTIALS and not credentials_path:
-            return (
-                None,
-                "The configured GOOGLE_APPLICATION_CREDENTIALS file does not "
-                "exist at the configured path or the supported spatial mount "
-                f"locations: {Config.CREDENTIALS}",
-            )
-        return None, "Failed to load prediction model from cloud storage."

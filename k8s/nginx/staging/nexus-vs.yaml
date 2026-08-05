@@ -1,0 +1,104 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: staging-nexus-virtual-server
+  namespace: staging
+spec:
+  host: staging-nexus.airqo.net
+  upstreams:
+    - name: nexus
+      service: airqo-stage-nexus-svc
+      port: 3000
+    - name: auth-service
+      service: airqo-stage-auth-api-svc
+      port: 3000
+    - name: device-registry
+      service: airqo-stage-device-registry-api-svc
+      port: 3000
+    - name: analytics-api
+      service: airqo-stage-analytics-api-svc
+      port: 5000
+    - name: predict
+      service: airqo-stage-prediction-api-svc
+      port: 5000
+    - name: calibrate
+      service: airqo-stage-calibrate-api-svc
+      port: 4001
+    - name: view
+      service: airqo-stage-view-api-svc
+      port: 8080
+    - name: spatial
+      service: airqo-stage-spatial-api-svc
+      port: 5000
+    - name: beacon
+      service: airqo-stage-beacon-api-svc
+      port: 8000
+  routes:
+    - path: /
+      action:
+        pass: nexus
+    - path: ~ /api\/v[1-2]\/users
+      action:
+        proxy:
+          upstream: auth-service
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/devices
+      action:
+        proxy:
+          upstream: device-registry
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/analytics
+      action:
+        proxy:
+          upstream: analytics-api
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/predict
+      action:
+        proxy:
+          upstream: predict
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/calibrate
+      action:
+        proxy:
+          upstream: calibrate
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/view
+      action:
+        proxy:
+          upstream: view
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/spatial
+      action:
+        proxy:
+          upstream: spatial
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
+      action:
+        proxy:
+          upstream: beacon
+          rewritePath: /$1
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json

@@ -40,5 +40,10 @@ protobuf>=5.28.2
 requests==2.32.3
 pystac-client>=0.8.5,<0.10
 rasterio>=1.4.0
+pyproj>=3.7.0
+planetary-computer>=1.0.0
+xarray>=2024.9.0
+zarr>=2.18.0
+adlfs>=2024.7.0
 redis>=5.0.0 
 

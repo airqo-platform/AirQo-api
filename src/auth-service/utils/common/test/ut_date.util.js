@@ -17,7 +17,10 @@ const {
   formatDate,
   addHours,
   monthsFromNow,
-} = require("@date/common");
+} = require("@utils/common/date.util");
+
+// Legacy alias used in tests below; addMonthsToProvideDateTime is the exported name.
+const addMonthsToProvidedDate = addMonthsToProvideDateTime;
 
 describe("monthsFromNow", () => {
   it("should return the current date for invalid input", () => {

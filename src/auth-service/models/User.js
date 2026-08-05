@@ -52,6 +52,13 @@ function validateProfilePicture(profilePicture) {
   }
   return true;
 }
+function truncateProfilePicture(url) {
+  if (typeof url === "string" && url.length > maxLengthOfProfilePictures) {
+    return url.substring(0, maxLengthOfProfilePictures);
+  }
+  return url;
+}
+
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
 const networkRoleSchema = new Schema({
   network: {
@@ -234,11 +241,13 @@ const UserSchema = new Schema(
       type: String,
       required: [true, "FirstName is required!"],
       trim: true,
+      maxlength: [100, "FirstName cannot exceed 100 characters"],
     },
     lastName: {
       type: String,
       required: [true, "LastName is required"],
       trim: true,
+      maxlength: [100, "LastName cannot exceed 100 characters"],
     },
     userName: {
       type: String,
@@ -497,6 +506,16 @@ const UserSchema = new Schema(
   { timestamps: true },
 );
 
+// Mongoose runs schema validation (including maxLength) before "save"
+// middleware, so any truncation must happen in a "validate" hook to take
+// effect before the check runs — doing it in pre("save") is too late.
+UserSchema.pre("validate", function (next) {
+  if (this.profilePicture) {
+    this.profilePicture = truncateProfilePicture(this.profilePicture);
+  }
+  next();
+});
+
 UserSchema.pre("save", async function (next) {
   try {
     if (this.isNew) {
@@ -521,24 +540,7 @@ UserSchema.pre("save", async function (next) {
         return next(new Error("userName is required!"));
       }
 
-      // 3. Profile picture validation
-      if (this.profilePicture && !validateProfilePicture(this.profilePicture)) {
-        if (this.profilePicture.length > maxLengthOfProfilePictures) {
-          this.profilePicture = this.profilePicture.substring(
-            0,
-            maxLengthOfProfilePictures,
-          );
-        }
-        if (!validateProfilePicture(this.profilePicture)) {
-          return next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: "Invalid profile picture URL",
-            }),
-          );
-        }
-      }
-
-      // 4. Set default roles for new users ONLY
+      // 3. Set default roles for new users ONLY
       const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
       const tenantSettings = await TenantSettingsModel(tenant)
         .findOne({ tenant })
@@ -870,7 +872,7 @@ UserSchema.statics = {
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "Successfully retrieved the user statistics",
+          message: "successfully retrieved the user statistics",
           data: response[0],
           status: httpStatus.OK,
         };
@@ -1534,7 +1536,7 @@ UserSchema.methods = {
     const hashedToken = bcrypt.hashSync(token, saltRounds);
     return {
       accessToken: hashedToken,
-      plainTextToken: `${token.id}|${plainTextToken}`,
+      plainTextToken: token,
     };
   },
   async toAuthJSON() {

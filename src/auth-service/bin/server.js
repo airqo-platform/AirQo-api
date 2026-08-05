@@ -110,9 +110,12 @@ const jobs = [
   "@bin/jobs/profile-picture-update-job",
   "@bin/jobs/role-cleanup-job",
   "@bin/jobs/daily-compromise-summary-job",
+  "@bin/jobs/bypass-expiry-job",
   "@bin/jobs/unknown-ip-cleanup-job",
   "@bin/jobs/feedback-screenshot-cleanup-job",
+  "@bin/jobs/feedback-reminder-job",
   "@bin/jobs/transaction-amount-fix-job",
+  "@bin/jobs/selfie-cleanup-job",
 ];
 
 // Initialize log4js with SAFE configuration
@@ -724,8 +727,9 @@ const createServer = () => {
   });
 
   // Memory usage monitoring (optional - for debugging)
-  if (isDev) {
-    process.on("exit", (code) => {
+  if (isDev && !createServer._exitMonitorRegistered) {
+    createServer._exitMonitorRegistered = true;
+    process.once("exit", (code) => {
       const memUsage = process.memoryUsage();
       console.log(`📊 Process exiting with code ${code}. Memory usage:`, {
         rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,

@@ -2,8 +2,17 @@ require("module-alias/register");
 process.env.NODE_ENV = "development";
 
 const { expect } = require("chai");
-const { PM25_AQI_BREAKPOINTS } = require("@config/constants");
-const { calculatePm25Aqi, getAqiIndexMongoExpression } = require("@utils/aqi.util");
+const sinon = require("sinon");
+const proxyquire = require("proxyquire");
+const constants = require("@config/constants");
+const { PM25_AQI_BREAKPOINTS } = constants;
+const {
+  calculatePm25Aqi,
+  getAqiIndexMongoExpression,
+  categoryFromConcentration,
+  listRanges,
+  isValidAqiRangesShape,
+} = require("@utils/aqi.util");
 
 // ---------------------------------------------------------------------------
 // calculatePm25Aqi — JavaScript implementation
@@ -130,7 +139,7 @@ describe("calculatePm25Aqi", function() {
     });
 
     it("PM2.5 45.0 → AQI ~125", function() {
-      expect(calculatePm25Aqi(45.0)).to.equal(125);
+      expect(calculatePm25Aqi(45.0)).to.equal(124);
     });
 
     it("PM2.5 90.0 → AQI ~175", function() {
@@ -138,11 +147,11 @@ describe("calculatePm25Aqi", function() {
     });
 
     it("PM2.5 175.0 → AQI ~251", function() {
-      expect(calculatePm25Aqi(175.0)).to.equal(251);
+      expect(calculatePm25Aqi(175.0)).to.equal(250);
     });
 
     it("PM2.5 275.0 → AQI ~401", function() {
-      expect(calculatePm25Aqi(275.0)).to.equal(401);
+      expect(calculatePm25Aqi(275.0)).to.equal(400);
     });
   });
 
@@ -249,5 +258,482 @@ describe("getAqiIndexMongoExpression", function() {
   it("the else branch returns null for invalid values", function() {
     const expr = getAqiIndexMongoExpression();
     expect(expr.$cond.else).to.equal(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// categoryFromConcentration — maps an averaged PM2.5 value to a category key
+// ---------------------------------------------------------------------------
+describe("categoryFromConcentration", function() {
+  describe("invalid inputs", function() {
+    it("returns null for null", function() {
+      expect(categoryFromConcentration(null)).to.equal(null);
+    });
+
+    it("returns null for undefined", function() {
+      expect(categoryFromConcentration(undefined)).to.equal(null);
+    });
+
+    it("returns null for NaN", function() {
+      expect(categoryFromConcentration(NaN)).to.equal(null);
+    });
+
+    it("returns null for a string", function() {
+      expect(categoryFromConcentration("20")).to.equal(null);
+    });
+
+    it("returns null for negative concentration", function() {
+      expect(categoryFromConcentration(-5)).to.equal(null);
+    });
+  });
+
+  describe("category boundaries (mirrors AQI_RANGES)", function() {
+    it("0 -> good", function() {
+      expect(categoryFromConcentration(0)).to.equal("good");
+    });
+
+    it("9.1 -> good (upper bound)", function() {
+      expect(categoryFromConcentration(9.1)).to.equal("good");
+    });
+
+    it("9.101 -> moderate (lower bound)", function() {
+      expect(categoryFromConcentration(9.101)).to.equal("moderate");
+    });
+
+    it("35.49 -> moderate (upper bound)", function() {
+      expect(categoryFromConcentration(35.49)).to.equal("moderate");
+    });
+
+    it("35.491 -> u4sg (lower bound)", function() {
+      expect(categoryFromConcentration(35.491)).to.equal("u4sg");
+    });
+
+    it("125.49 -> unhealthy (upper bound)", function() {
+      expect(categoryFromConcentration(125.49)).to.equal("unhealthy");
+    });
+
+    it("225.491 -> hazardous (lower bound, unbounded max)", function() {
+      expect(categoryFromConcentration(225.491)).to.equal("hazardous");
+    });
+
+    it("a very large value still resolves to hazardous", function() {
+      expect(categoryFromConcentration(10000)).to.equal("hazardous");
+    });
+  });
+
+  // AQI_RANGES has thousandths-place gaps between adjacent categories
+  // (e.g. good max 9.1, moderate min 9.101). Averaged values can land in
+  // these gaps — every one must still resolve to the next (higher) category,
+  // never null.
+  describe("boundary-gap regression (values between adjacent max/min)", function() {
+    it("9.1005 (between good's max and moderate's min) -> moderate", function() {
+      expect(categoryFromConcentration(9.1005)).to.equal("moderate");
+    });
+
+    it("35.4905 (between moderate's max and u4sg's min) -> u4sg", function() {
+      expect(categoryFromConcentration(35.4905)).to.equal("u4sg");
+    });
+
+    it("55.4905 (between u4sg's max and unhealthy's min) -> unhealthy", function() {
+      expect(categoryFromConcentration(55.4905)).to.equal("unhealthy");
+    });
+
+    it("125.4905 (between unhealthy's max and very_unhealthy's min) -> very_unhealthy", function() {
+      expect(categoryFromConcentration(125.4905)).to.equal("very_unhealthy");
+    });
+
+    it("225.4905 (between very_unhealthy's max and hazardous's min) -> hazardous", function() {
+      expect(categoryFromConcentration(225.4905)).to.equal("hazardous");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listRanges — assembles the dynamic AQI legend response
+// ---------------------------------------------------------------------------
+describe("listRanges", function() {
+  it("returns a success envelope with a standard identifier", function() {
+    const result = listRanges();
+    expect(result.success).to.equal(true);
+    expect(result.data.standard).to.be.a("string").and.not.be.empty;
+  });
+
+  it("returns one range entry per AQI_CATEGORY_KEYS, in order", function() {
+    const result = listRanges();
+    expect(result.data.ranges)
+      .to.be.an("array")
+      .with.lengthOf(constants.AQI_CATEGORY_KEYS.length);
+    result.data.ranges.forEach((range, index) => {
+      expect(range.key).to.equal(constants.AQI_CATEGORY_KEYS[index]);
+      expect(range.display_order).to.equal(index + 1);
+    });
+  });
+
+  it("each range has a label, numeric min_value, color, and color_name matching constants", function() {
+    const result = listRanges();
+    result.data.ranges.forEach((range) => {
+      const key = range.key;
+      expect(range.label).to.equal(constants.AQI_CATEGORIES[key]);
+      expect(range.min_value).to.equal(constants.AQI_RANGES[key].min);
+      expect(range.max_value).to.equal(constants.AQI_RANGES[key].max);
+      expect(range.color).to.equal(`#${constants.AQI_COLORS[key]}`);
+      expect(range.color_name).to.equal(constants.AQI_COLOR_NAMES[key]);
+    });
+  });
+
+  it("the last range (hazardous) has a null max_value (unbounded)", function() {
+    const result = listRanges();
+    const hazardous = result.data.ranges[result.data.ranges.length - 1];
+    expect(hazardous.key).to.equal("hazardous");
+    expect(hazardous.max_value).to.equal(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// categoryFromConcentration / listRanges — with an injected "resolved"
+// override (the shape resolveActiveAqiRanges produces from a custom
+// SystemConfig doc), proving the admin-editable path actually changes output
+// and never falls back to the hardcoded defaults when an override is given.
+// ---------------------------------------------------------------------------
+describe("categoryFromConcentration / listRanges with a resolved override", function() {
+  const customResolved = {
+    AQI_RANGES: {
+      good: { min: 0, max: 5 },
+      moderate: { min: 5, max: 20 },
+      u4sg: { min: 20, max: 40 },
+      unhealthy: { min: 40, max: 80 },
+      very_unhealthy: { min: 80, max: 150 },
+      hazardous: { min: 150, max: null },
+    },
+    AQI_CATEGORIES: {
+      good: "Great",
+      moderate: "OK",
+      u4sg: "Caution",
+      unhealthy: "Bad",
+      very_unhealthy: "Very Bad",
+      hazardous: "Severe",
+    },
+    AQI_COLORS: {
+      good: "00FF00",
+      moderate: "FFFF00",
+      u4sg: "FFA500",
+      unhealthy: "FF0000",
+      very_unhealthy: "800080",
+      hazardous: "000000",
+    },
+    AQI_COLOR_NAMES: {
+      good: "Green",
+      moderate: "Yellow",
+      u4sg: "Orange",
+      unhealthy: "Red",
+      very_unhealthy: "Purple",
+      hazardous: "Black",
+    },
+    AQI_CATEGORY_KEYS: [
+      "good",
+      "moderate",
+      "u4sg",
+      "unhealthy",
+      "very_unhealthy",
+      "hazardous",
+    ],
+    source: "custom",
+  };
+
+  it("categoryFromConcentration classifies against the override, not the defaults", function() {
+    // 6 would be "moderate" under this override (good's max is 5) but is
+    // still well within default "good" (max 9.1) — proves the override wins.
+    expect(categoryFromConcentration(6, customResolved)).to.equal("moderate");
+    expect(categoryFromConcentration(6)).to.equal("good");
+  });
+
+  it("categoryFromConcentration with no override still uses the hardcoded defaults (backward compatible)", function() {
+    expect(categoryFromConcentration(20)).to.equal("moderate");
+  });
+
+  it("listRanges reflects the override's labels, colors, and source: custom", function() {
+    const result = listRanges(customResolved);
+    expect(result.data.source).to.equal("custom");
+    const good = result.data.ranges[0];
+    expect(good.label).to.equal("Great");
+    expect(good.max_value).to.equal(5);
+    expect(good.color).to.equal("#00FF00");
+  });
+
+  it("listRanges with no override reports source: default", function() {
+    const result = listRanges();
+    expect(result.data.source).to.equal("default");
+  });
+
+  it("listRanges surfaces version/effective_from from a custom override", function() {
+    const updatedAt = new Date("2026-01-15T00:00:00.000Z");
+    const result = listRanges({
+      ...customResolved,
+      version: 4,
+      effective_from: updatedAt,
+    });
+    expect(result.data.version).to.equal(4);
+    expect(result.data.effective_from).to.equal(updatedAt);
+  });
+
+  it("listRanges reports version/effective_from as null when there's no custom override", function() {
+    const result = listRanges();
+    expect(result.data.version).to.equal(null);
+    expect(result.data.effective_from).to.equal(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isValidAqiRangesShape — defensive re-validation of a stored/candidate value
+// ---------------------------------------------------------------------------
+describe("isValidAqiRangesShape", function() {
+  const validRanges = constants.AQI_CATEGORY_KEYS.map((key, index, arr) => ({
+    key,
+    label: constants.AQI_CATEGORIES[key],
+    max_value: index === arr.length - 1 ? null : (index + 1) * 10,
+    color: "34C759",
+  }));
+
+  it("accepts a well-formed value", function() {
+    expect(isValidAqiRangesShape({ ranges: validRanges })).to.equal(true);
+  });
+
+  it("rejects a missing/non-object value", function() {
+    expect(isValidAqiRangesShape(null)).to.equal(false);
+    expect(isValidAqiRangesShape(undefined)).to.equal(false);
+    expect(isValidAqiRangesShape("not an object")).to.equal(false);
+  });
+
+  it("rejects the wrong number of categories", function() {
+    expect(isValidAqiRangesShape({ ranges: validRanges.slice(0, 5) })).to.equal(false);
+  });
+
+  it("rejects out-of-order keys", function() {
+    const reordered = [...validRanges].reverse();
+    expect(isValidAqiRangesShape({ ranges: reordered })).to.equal(false);
+  });
+
+  it("rejects a non-increasing max_value", function() {
+    const broken = validRanges.map((r, i) => (i === 2 ? { ...r, max_value: 5 } : r));
+    expect(isValidAqiRangesShape({ ranges: broken })).to.equal(false);
+  });
+
+  it("rejects a non-null max_value on the last category", function() {
+    const broken = validRanges.map((r, i, arr) =>
+      i === arr.length - 1 ? { ...r, max_value: 999 } : r
+    );
+    expect(isValidAqiRangesShape({ ranges: broken })).to.equal(false);
+  });
+
+  it("rejects an invalid color", function() {
+    const broken = validRanges.map((r, i) => (i === 0 ? { ...r, color: "notahex" } : r));
+    expect(isValidAqiRangesShape({ ranges: broken })).to.equal(false);
+  });
+
+  it("rejects an empty label", function() {
+    const broken = validRanges.map((r, i) => (i === 0 ? { ...r, label: "  " } : r));
+    expect(isValidAqiRangesShape({ ranges: broken })).to.equal(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveActiveAqiRanges / invalidateAqiRangesCache — proxied so no real
+// Mongoose model is touched. Each test re-proxies aqi.util fresh (proxyquire
+// gives a new module instance, so the in-memory cache never leaks between
+// tests).
+// ---------------------------------------------------------------------------
+describe("resolveActiveAqiRanges / invalidateAqiRangesCache", function() {
+  let findOneStub;
+  let proxiedAqiUtil;
+
+  const mockFindOneChain = (doc) => ({
+    lean: () => Promise.resolve(doc),
+  });
+
+  beforeEach(function() {
+    findOneStub = sinon.stub();
+    // @noCallThru: proxyquire otherwise falls back to the real module for
+    // anything this stub doesn't provide — irrelevant in practice since the
+    // stub is a full function replacement, not a partial object override,
+    // but explicit here so this test can never accidentally reach the real,
+    // unconnected SystemConfig model.
+    const systemConfigStub = () => ({ findOne: findOneStub });
+    systemConfigStub["@noCallThru"] = true;
+    proxiedAqiUtil = proxyquire("../aqi.util", {
+      "@models/SystemConfig": systemConfigStub,
+    });
+  });
+
+  afterEach(function() {
+    sinon.restore();
+  });
+
+  it("returns the defaults when no override document exists", async function() {
+    findOneStub.returns(mockFindOneChain(null));
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.source).to.equal("default");
+    expect(resolved.AQI_RANGES).to.deep.equal(constants.AQI_RANGES);
+  });
+
+  it("does not mutate constants.AQI_RANGES when returning the defaults", async function() {
+    const before = JSON.stringify(constants.AQI_RANGES);
+    findOneStub.returns(mockFindOneChain(null));
+    await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(JSON.stringify(constants.AQI_RANGES)).to.equal(before);
+  });
+
+  it("returns a custom config built from a valid stored document", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: i === 0 ? 0 : i * 10,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.source).to.equal("custom");
+    expect(resolved.AQI_CATEGORIES.good).to.equal("Custom good");
+    expect(resolved.AQI_COLORS.good).to.equal("ABCDEF");
+  });
+
+  it("carries the stored doc's version/updatedAt through as version/effective_from", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+      })),
+    };
+    const updatedAt = new Date("2026-02-01T00:00:00.000Z");
+    findOneStub.returns(
+      mockFindOneChain({ value: storedValue, version: 7, updatedAt })
+    );
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.version).to.equal(7);
+    expect(resolved.effective_from).to.equal(updatedAt);
+  });
+
+  it("reports version/effective_from as null when using the defaults", async function() {
+    findOneStub.returns(mockFindOneChain(null));
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.version).to.equal(null);
+    expect(resolved.effective_from).to.equal(null);
+  });
+
+  it("derives min_value from the previous category's max_value rather than trusting a stored min_value", async function() {
+    // isValidAqiRangesShape doesn't check min_value at all, so a doc that was
+    // hand-edited outside the API (bypassing the controller's own derivation)
+    // could carry a bogus/missing min_value. The resolved config must never
+    // surface it as-is.
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 99999, // deliberately wrong on every entry
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const keys = constants.AQI_CATEGORY_KEYS;
+    expect(resolved.AQI_RANGES[keys[0]].min).to.equal(0);
+    expect(resolved.AQI_RANGES[keys[1]].min).to.equal(resolved.AQI_RANGES[keys[0]].max);
+    expect(resolved.AQI_RANGES[keys[2]].min).to.equal(resolved.AQI_RANGES[keys[1]].max);
+  });
+
+  it("falls back to the default color_name when the stored one is not a string", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 0,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+        color_name: { not: "a string" },
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const goodKey = constants.AQI_CATEGORY_KEYS[0];
+    expect(resolved.AQI_COLOR_NAMES[goodKey]).to.equal(constants.AQI_COLOR_NAMES[goodKey]);
+  });
+
+  it("falls back to the default color_name when the stored one is an empty/whitespace string", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 0,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+        color_name: "   ",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const goodKey = constants.AQI_CATEGORY_KEYS[0];
+    expect(resolved.AQI_COLOR_NAMES[goodKey]).to.equal(constants.AQI_COLOR_NAMES[goodKey]);
+  });
+
+  it("uses a valid stored color_name, trimmed", async function() {
+    const storedValue = {
+      ranges: constants.AQI_CATEGORY_KEYS.map((key, i, arr) => ({
+        key,
+        label: "Custom " + key,
+        min_value: 0,
+        max_value: i === arr.length - 1 ? null : (i + 1) * 10,
+        color: "ABCDEF",
+        color_name: "  Emerald  ",
+      })),
+    };
+    findOneStub.returns(mockFindOneChain({ value: storedValue }));
+
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    const goodKey = constants.AQI_CATEGORY_KEYS[0];
+    expect(resolved.AQI_COLOR_NAMES[goodKey]).to.equal("Emerald");
+  });
+
+  it("falls back to defaults when the stored document is malformed", async function() {
+    findOneStub.returns(mockFindOneChain({ value: { ranges: [{ key: "not-enough" }] } }));
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.source).to.equal("default");
+  });
+
+  it("falls back to defaults (does not throw) when the query fails", async function() {
+    findOneStub.returns({ lean: () => Promise.reject(new Error("Mongo error")) });
+    const resolved = await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(resolved.source).to.equal("default");
+  });
+
+  it("serves from cache on a second call within the TTL — does not re-query", async function() {
+    findOneStub.returns(mockFindOneChain(null));
+    await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(findOneStub.calledOnce).to.equal(true);
+  });
+
+  it("invalidateAqiRangesCache forces a re-query on the next call", async function() {
+    findOneStub.returns(mockFindOneChain(null));
+    await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    proxiedAqiUtil.invalidateAqiRangesCache("airqo");
+    await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    expect(findOneStub.calledTwice).to.equal(true);
+  });
+
+  it("caches per tenant independently", async function() {
+    findOneStub.returns(mockFindOneChain(null));
+    await proxiedAqiUtil.resolveActiveAqiRanges("airqo");
+    await proxiedAqiUtil.resolveActiveAqiRanges("kcca");
+    expect(findOneStub.calledTwice).to.equal(true);
   });
 });

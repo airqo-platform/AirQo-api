@@ -487,6 +487,12 @@ const validateCreateDevice = [
 ];
 
 const validateUpdateDevice = [
+  body("network")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update network. The network field is set at device creation and cannot be changed.",
+    ),
   body("mobility")
     .not()
     .exists()
@@ -1265,6 +1271,14 @@ const validateGetMyDevices = [
     .withMessage("organization_id must be a valid MongoDB ObjectId")
     .bail()
     .customSanitizer((value) => ObjectId(value)),
+
+  query("status")
+    .optional()
+    .trim()
+    .isIn(["operational", "transmitting", "not_transmitting", "data_available"])
+    .withMessage(
+      "status must be one of: operational, transmitting, not_transmitting, data_available"
+    ),
 ];
 
 const validateDeviceAvailability = [

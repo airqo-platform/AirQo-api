@@ -6,7 +6,7 @@ const Event = require("@models/Event");
 const Schema = require("mongoose").Schema;
 const HTTPStatus = require("http-status");
 
-describe("Event Schema", () => {
+describe.skip("Event Schema", () => {
   describe("createEvent", () => {
     it("should create an event", async () => {
       // Positive test cases

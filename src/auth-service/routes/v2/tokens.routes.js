@@ -381,6 +381,20 @@ router.put(
   createTokenController.resolveFlaggedToken,
 );
 
+/******************** Security-bypass reporting *****************************
+ * Admin-only report of tokens that currently have an active security-bypass
+ * flag (bypass_anomaly_detection / bypass_compromise_detection /
+ * bypass_ip_blacklist). Same data backs the weekly digest email sent by
+ * bin/jobs/bypass-expiry-job.js.
+ *************************************************************************/
+router.get(
+  "/bypasses",
+  validateAirqoTenantOnly,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.listBypassedTokens,
+);
+
 /******************** Cross-service honeypot flag endpoint **************
  * Called by downstream services (e.g. device-registry) to report a
  * honeypot hit for a token they cannot suspend themselves (token DB lives

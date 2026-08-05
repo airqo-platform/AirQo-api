@@ -55,7 +55,7 @@ describe("Grid Util", () => {
       const registerStub = sandbox
         .stub()
         .resolves({ success: true, data: createdGrid });
-      sandbox.stub(GridModel, "default").returns({ register: registerStub });
+      sandbox.stub(mongoose, "model").withArgs("grids").returns({ register: registerStub });
 
       const result = await gridUtil.create(request);
 
@@ -100,7 +100,7 @@ describe("Grid Util", () => {
         success: true,
         data: [{ latitude: 0, longitude: 0 }],
       });
-      sandbox.stub(GridModel, "default").returns({
+      sandbox.stub(mongoose, "model").withArgs("grids").returns({
         register: sandbox
           .stub()
           .resolves({ success: false, message: "DB error" }),
@@ -115,6 +115,7 @@ describe("Grid Util", () => {
 
   describe("list", () => {
     let aggregateStub;
+    let listModelStub;
 
     beforeEach(() => {
       aggregateStub = sandbox.stub().returns({
@@ -127,7 +128,15 @@ describe("Grid Util", () => {
           },
         ]),
       });
-      sandbox.stub(GridModel, "default").returns({ aggregate: aggregateStub });
+      listModelStub = sandbox.stub(mongoose, "model");
+      listModelStub.withArgs("grids").returns({ aggregate: aggregateStub });
+      // getPrivateSiteIds (called internally by list) needs ComputedCacheModel
+      listModelStub.withArgs("computedcaches").returns({
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        findOneAndUpdate: sandbox.stub().resolves(),
+        create: sandbox.stub().resolves(),
+        deleteOne: sandbox.stub().resolves(),
+      });
       sandbox.stub(generateFilter, "grids").returns({});
     });
 
@@ -137,11 +146,9 @@ describe("Grid Util", () => {
       const cohortAggregateStub = sandbox
         .stub()
         .resolves([{ site_ids: privateSiteIds }]);
-      sandbox
-        .stub(CohortModel, "default")
-        .returns({ aggregate: cohortAggregateStub });
+      listModelStub.withArgs("cohorts").returns({ aggregate: cohortAggregateStub });
 
-      await gridUtil.list(request);
+      await gridUtil.list(request, sandbox.stub());
 
       const addFieldsStage = aggregateStub
         .getCall(0)
@@ -159,15 +166,13 @@ describe("Grid Util", () => {
       const request = { query: { tenant: "airqo", cohort_id: cohortId } };
       const cohortSiteIds = [new mongoose.Types.ObjectId()];
 
-      sandbox
-        .stub(CohortModel, "default")
-        .returns({ aggregate: sandbox.stub().resolves([]) });
+      listModelStub.withArgs("cohorts").returns({ aggregate: sandbox.stub().resolves([]) });
       const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves(cohortSiteIds),
       });
-      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
+      listModelStub.withArgs("devices").returns({ find: deviceFindStub });
 
-      await gridUtil.list(request);
+      await gridUtil.list(request, sandbox.stub());
 
       const cohortFilterStage = aggregateStub
         .getCall(0)
@@ -191,9 +196,9 @@ describe("Grid Util", () => {
       const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves([]),
       });
-      sandbox.stub(DeviceModel, "default").returns({ find: deviceFindStub });
+      listModelStub.withArgs("devices").returns({ find: deviceFindStub });
 
-      const result = await gridUtil.list(request);
+      const result = await gridUtil.list(request, sandbox.stub());
 
       expect(result.success).to.be.true;
       expect(result.data).to.be.an("array").that.is.empty;
@@ -215,9 +220,8 @@ describe("Grid Util", () => {
       const cohortAggregateStub = sandbox
         .stub()
         .resolves([{ site_ids: privateSiteIds }]);
-      sandbox
-        .stub(CohortModel, "default")
-        .returns({ aggregate: cohortAggregateStub });
+      const listCountriesModelStub = sandbox.stub(mongoose, "model");
+      listCountriesModelStub.withArgs("cohorts").returns({ aggregate: cohortAggregateStub });
 
       // Return a chainable aggregate mock so .option().allowDiskUse() don't
       // throw — Mongoose Aggregate is not a plain Promise.
@@ -229,11 +233,17 @@ describe("Grid Util", () => {
         catch: (fn) => Promise.resolve(countryData).catch(fn),
       };
       const gridAggregateStub = sandbox.stub().returns(aggregateChain);
-      sandbox
-        .stub(GridModel, "default")
-        .returns({ aggregate: gridAggregateStub });
+      listCountriesModelStub.withArgs("grids").returns({ aggregate: gridAggregateStub });
 
-      const result = await gridUtil.listCountries(request);
+      // listCountries needs ComputedCacheModel for getPrivateSiteIds
+      listCountriesModelStub.withArgs("computedcaches").returns({
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        findOneAndUpdate: sandbox.stub().resolves(),
+        create: sandbox.stub().resolves(),
+        deleteOne: sandbox.stub().resolves(),
+      });
+
+      const result = await gridUtil.listCountries(request, sandbox.stub());
 
       expect(result.success).to.be.true;
       expect(result.data[0].country).to.equal("uganda");
@@ -274,15 +284,16 @@ describe("Grid Util", () => {
       };
 
       sandbox.stub(generateFilter, "grids").returns({ _id: gridId });
-      sandbox.stub(GridModel, "default").returns({
+      const findSitesModelStub = sandbox.stub(mongoose, "model");
+      findSitesModelStub.withArgs("grids").returns({
         findOne: sandbox.stub().returns({
           lean: sandbox.stub().resolves({ _id: gridId, shape: gridShape }),
         }),
       });
-      sandbox.stub(DeviceModel, "default").returns({
+      findSitesModelStub.withArgs("devices").returns({
         distinct: sandbox.stub().resolves([siteIn._id, siteOut._id]),
       });
-      sandbox.stub(SiteModel, "default").returns({
+      findSitesModelStub.withArgs("sites").returns({
         find: sandbox
           .stub()
           .returns({ lean: sandbox.stub().resolves([siteIn, siteOut]) }),
@@ -314,16 +325,15 @@ describe("Grid Util", () => {
         new mongoose.Types.ObjectId(),
       ];
 
-      sandbox
-        .stub(GridModel, "default")
-        .returns({ findById: sandbox.stub().resolves(grid) });
+      const refreshModelStub = sandbox.stub(mongoose, "model");
+      refreshModelStub.withArgs("grids").returns({ findById: sandbox.stub().resolves(grid) });
       sandbox
         .stub(gridUtil, "findSites")
         .resolves({ success: true, data: siteIds.map((_id) => ({ _id })) });
       const bulkWriteStub = sandbox.stub().resolves({ ok: 1, nModified: 2 });
       const updateManyStub = sandbox.stub().resolves({ ok: 1 });
-      sandbox
-        .stub(SiteModel, "default")
+      refreshModelStub
+        .withArgs("sites")
         .returns({ bulkWrite: bulkWriteStub, updateMany: updateManyStub });
 
       const result = await gridUtil.refresh(request);
@@ -357,7 +367,7 @@ describe("Grid Util", () => {
       const updatedGrid = { ...existingGrid, ...request.body };
 
       sandbox.stub(generateFilter, "grids").returns({ _id: gridId });
-      sandbox.stub(GridModel, "default").returns({
+      sandbox.stub(mongoose, "model").withArgs("grids").returns({
         findOne: sandbox
           .stub()
           .returns({ lean: sandbox.stub().resolves(existingGrid) }),
@@ -392,15 +402,16 @@ describe("Grid Util", () => {
       };
       const privateGridId = new mongoose.Types.ObjectId();
 
-      sandbox.stub(GridModel, "default").returns({
+      const filterPrivateModelStub = sandbox.stub(mongoose, "model");
+      filterPrivateModelStub.withArgs("grids").returns({
         find: sandbox.stub().returns({
           select: sandbox.stub().returns({
             lean: sandbox.stub().resolves([{ _id: privateGridId }]),
           }),
         }),
       });
-      sandbox
-        .stub(SiteModel, "default")
+      filterPrivateModelStub
+        .withArgs("sites")
         .returns({ find: sandbox.stub().resolves([{ _id: privateSiteId }]) });
 
       const result = await gridUtil.filterOutPrivateSites(request);
@@ -428,7 +439,7 @@ describe("Grid Util", () => {
         centers: [{ latitude: -0.0236, longitude: 37.9062 }],
       };
 
-      sandbox.stub(GridModel, "default").returns({
+      sandbox.stub(mongoose, "model").withArgs("grids").returns({
         find: sandbox.stub().returns({
           lean: sandbox.stub().resolves([ugandaGrid, kenyaGrid]),
         }),
@@ -480,7 +491,7 @@ describe("Grid Util", () => {
         findOne: sandbox.stub().returns(findOneStub),
         register: registerStub,
       };
-      sandbox.stub(AdminLevelModel, "call").returns(adminLevelModelStub);
+      sandbox.stub(mongoose, "model").withArgs("adminlevels").returns(adminLevelModelStub);
       nextSpy = sandbox.spy();
     });
 
@@ -496,7 +507,7 @@ describe("Grid Util", () => {
 
       expect(nextSpy.calledOnce).to.be.true;
       const err = nextSpy.firstCall.args[0];
-      expect(err.status).to.equal(httpStatus.CONFLICT);
+      expect(err.statusCode).to.equal(httpStatus.CONFLICT);
       expect(registerStub.called).to.be.false;
     });
 
@@ -532,6 +543,7 @@ describe("Grid Util", () => {
     let cohortAggregateStub;
     let computedCacheFindOneStub;
     let computedCacheFindOneAndUpdateStub;
+    let gridPrivateModelStub;
 
     beforeEach(() => {
       // Reset the module-level L1 cache and any in-flight promises before
@@ -540,9 +552,6 @@ describe("Grid Util", () => {
 
       // Stub CohortModel aggregate (the full recompute path)
       cohortAggregateStub = sandbox.stub().resolves([{ site_ids: SITE_IDS }]);
-      sandbox.stub(CohortModel, "default").returns({
-        aggregate: cohortAggregateStub,
-      });
 
       // Stub ComputedCacheModel — all methods used by the two-level cache:
       //   findOne            : L2 read
@@ -551,7 +560,12 @@ describe("Grid Util", () => {
       //   deleteOne          : releaseComputeLease (delete lock document)
       computedCacheFindOneStub = sandbox.stub();
       computedCacheFindOneAndUpdateStub = sandbox.stub().resolves();
-      sandbox.stub(ComputedCacheModel, "default").returns({
+
+      gridPrivateModelStub = sandbox.stub(mongoose, "model");
+      gridPrivateModelStub.withArgs("cohorts").returns({
+        aggregate: cohortAggregateStub,
+      });
+      gridPrivateModelStub.withArgs("computedcaches").returns({
         findOne: computedCacheFindOneStub,
         findOneAndUpdate: computedCacheFindOneAndUpdateStub,
         create: sandbox.stub().resolves(), // lease acquired by default

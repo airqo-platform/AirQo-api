@@ -49,11 +49,11 @@ class MonitoringIcons extends StatelessWidget {
 
 Every icon accepts the same API:
 
-| Parameter | Type | Default | Purpose |
-| --- | --- | --- | --- |
-| `size` | `double` | `24.0` | Sets width and height. |
-| `color` | `Color?` | `null` | Applies a color filter; `null` preserves the SVG artwork. |
-| `semanticsLabel` | `String?` | `null` | Provides an accessibility label to `flutter_svg`. |
+| Parameter        | Type      | Default | Purpose                                                   |
+| ---------------- | --------- | ------- | --------------------------------------------------------- |
+| `size`           | `double`  | `24.0`  | Sets width and height.                                    |
+| `color`          | `Color?`  | `null`  | Applies a color filter; `null` preserves the SVG artwork. |
+| `semanticsLabel` | `String?` | `null`  | Provides an accessibility label to `flutter_svg`.         |
 
 ## Import organization
 

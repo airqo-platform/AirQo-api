@@ -1854,6 +1854,44 @@ const createAccessToken = {
     }
   },
 
+  /**
+   * GET /tokens/bypasses — admin-only report of tokens with an active
+   * security-bypass flag (bypass_anomaly_detection / bypass_compromise_detection
+   * / bypass_ip_blacklist). Same data backs the weekly digest email.
+   */
+  listBypassedTokens: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+        return;
+      }
+      const request = req;
+      // This route is gated by validateAirqoTenantOnly, which only rejects an
+      // explicitly-passed non-"airqo" tenant — it does not enforce a value when
+      // the query param is omitted. Hardcode "airqo" here (not
+      // constants.DEFAULT_TENANT, which is env-controlled and not guaranteed to
+      // be "airqo") so this admin-only, airqo-only report can't silently read a
+      // different tenant's data if DEFAULT_TENANT is ever misconfigured.
+      request.query.tenant = isEmpty(req.query.tenant) ? "airqo" : req.query.tenant;
+      const result = await tokenUtil.listBypassedTokens(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json({
+          message: result.message || "",
+          bypassed_tokens: result.data || [],
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: result.message || "",
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, { message: error.message }));
+    }
+  },
+
   resolveFlaggedToken: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

@@ -218,26 +218,56 @@ RoleSchema.statics = {
       const results = await this.aggregate()
         .match(filter)
         .lookup({
-          from: "networks",
-          localField: "network_id",
-          foreignField: "_id",
-          as: "network",
-        })
-        .lookup({
           from: "groups",
           localField: "group_id",
           foreignField: "_id",
           as: "group",
         })
-        .unwind({
-          path: "$network",
-          preserveNullAndEmptyArrays: true,
+        // For roles that still carry network_id (backward compat), look up the
+        // group whose grp_title matches the network name so the response always
+        // surfaces a group, never a network.
+        .lookup({
+          from: "networks",
+          localField: "network_id",
+          foreignField: "_id",
+          as: "_legacy_network",
+        })
+        .lookup({
+          from: "groups",
+          let: { netName: { $arrayElemAt: ["$_legacy_network.net_name", 0] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $ne: [{ $type: "$$netName" }, "missing"] },
+                    {
+                      $eq: [
+                        { $toLower: "$grp_title" },
+                        { $toLower: "$$netName" },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "_network_group",
         })
         .unwind({
           path: "$group",
           preserveNullAndEmptyArrays: true,
         })
-        // Trim group to only the fields the frontend needs
+        .unwind({
+          path: "$_legacy_network",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$_network_group",
+          preserveNullAndEmptyArrays: true,
+        })
+        // Resolve group: prefer group_id lookup, fall back to network-matched group.
+        // Never surface the network field itself.
         .addFields({
           group: {
             $cond: {
@@ -247,9 +277,21 @@ RoleSchema.statics = {
                 grp_title: "$group.grp_title",
                 grp_description: "$group.grp_description",
               },
-              else: "$$REMOVE",
+              else: {
+                $cond: {
+                  if: { $ifNull: ["$_network_group", false] },
+                  then: {
+                    _id: "$_network_group._id",
+                    grp_title: "$_network_group.grp_title",
+                    grp_description: "$_network_group.grp_description",
+                  },
+                  else: "$$REMOVE",
+                },
+              },
             },
           },
+          _legacy_network: "$$REMOVE",
+          _network_group: "$$REMOVE",
         })
         .lookup({
           from: "permissions",

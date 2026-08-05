@@ -357,26 +357,28 @@ const firebaseSignup = oneOf([
     .withMessage("the phoneNumber must be valid"),
 ]);
 
-const syncAnalyticsAndMobile = oneOf([
-  body("firebase_uid")
-    .exists()
-    .withMessage(
-      "the firebase_uid is missing in body, consider using firebase_uid",
-    )
-    .bail()
-    .notEmpty()
-    .withMessage("the firebase_uid must not be empty")
-    .bail()
-    .trim(),
-  body("email")
-    .exists()
-    .withMessage("the email is missing in body, consider using email")
-    .bail()
-    .notEmpty()
-    .withMessage("the email is missing in body, consider using email")
-    .bail()
-    .isEmail()
-    .withMessage("this is not a valid email address"),
+const syncAnalyticsAndMobile = [
+  oneOf([
+    body("firebase_uid")
+      .exists()
+      .withMessage(
+        "the firebase_uid is missing in body, consider using firebase_uid",
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the firebase_uid must not be empty")
+      .bail()
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .notEmpty()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+  ]),
   body("phoneNumber")
     .optional()
     .notEmpty()
@@ -384,9 +386,17 @@ const syncAnalyticsAndMobile = oneOf([
     .bail()
     .isMobilePhone()
     .withMessage("the phoneNumber must be valid"),
-  body("firstName").optional().trim(),
-  body("lastName").optional().trim(),
-]);
+  body("firstName")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("firstName cannot exceed 100 characters"),
+  body("lastName")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("lastName cannot exceed 100 characters"),
+];
 
 const emailReport = oneOf([
   body("senderEmail")
@@ -508,12 +518,22 @@ const registerUser = [
       .exists()
       .withMessage("firstName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("lastName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("email")
       .exists()
       .withMessage("email is missing in your request")
@@ -550,12 +570,22 @@ const createUser = [
       .exists()
       .withMessage("firstName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("lastName is missing in your request")
       .bail()
-      .trim(),
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("category")
       .exists()
       .withMessage("category is missing in your request")
@@ -603,8 +633,10 @@ const createUser = [
       .isLength({ min: 6, max: 30 })
       .withMessage("Password must be between 6 and 30 characters long")
       .bail()
-      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
-      .withMessage("Password must contain at least one letter and one number"),
+      .matches(constants.PASSWORD_REGEX)
+      .withMessage(
+        "Password must contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+      ),
     ...createInterestValidation(),
   ],
 ];
@@ -681,6 +713,28 @@ const updateUser = [
       }),
   ],
   [
+    body("firstName")
+      .optional()
+      .isString()
+      .withMessage("firstName must be a string")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
+    body("lastName")
+      .optional()
+      .isString()
+      .withMessage("lastName must be a string")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("networks")
       .optional()
       .custom((value) => {
@@ -714,6 +768,28 @@ const updateUserById = [
       }),
   ],
   [
+    body("firstName")
+      .optional()
+      .isString()
+      .withMessage("firstName must be a string")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("firstName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
+    body("lastName")
+      .optional()
+      .isString()
+      .withMessage("lastName must be a string")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("lastName should not be empty IF provided")
+      .bail()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("networks")
       .optional()
       .custom((value) => {
@@ -789,13 +865,17 @@ const newsletterSubscribe = [
       .notEmpty()
       .withMessage("the provided firstName should not be empty IF provided")
       .bail()
-      .trim(),
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("firstName cannot exceed 100 characters"),
     body("lastName")
       .optional()
       .notEmpty()
       .withMessage("the provided lastName should not be empty IF provided")
       .bail()
-      .trim(),
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("lastName cannot exceed 100 characters"),
     body("address")
       .optional()
       .notEmpty()
@@ -1051,8 +1131,10 @@ const setPassword = [
     .isLength({ min: 6, max: 30 })
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
-    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
-    .withMessage("Password must contain at least one letter and one number"),
+    .matches(constants.PASSWORD_REGEX)
+    .withMessage(
+      "Password must contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+    ),
   body("confirmPassword")
     .exists()
     .withMessage("confirmPassword is required")
@@ -1080,20 +1162,25 @@ const resetPassword = [
     .exists()
     .withMessage("Password is required")
     .bail()
+    .trim()
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters long")
-    .trim(),
+    .bail()
+    .matches(constants.PASSWORD_REGEX)
+    .withMessage(
+      "Password must be at least 6 characters long and contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+    ),
   body("confirmPassword")
     .exists()
     .withMessage("Confirm Password is required")
     .bail()
+    .trim()
     .custom((value, { req }) => {
       if (value !== req.body.password) {
         throw new Error("Passwords do not match");
       }
       return true;
-    })
-    .trim(),
+    }),
 ];
 
 const getOrganizationBySlug = [
@@ -1128,12 +1215,22 @@ const registerViaOrgSlug = [
     .exists()
     .withMessage("firstName is missing in your request")
     .bail()
-    .trim(),
+    .trim()
+    .notEmpty()
+    .withMessage("firstName should not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("firstName cannot exceed 100 characters"),
   body("lastName")
     .exists()
     .withMessage("lastName is missing in your request")
     .bail()
-    .trim(),
+    .trim()
+    .notEmpty()
+    .withMessage("lastName should not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("lastName cannot exceed 100 characters"),
   body("email")
     .exists()
     .withMessage("email is missing in your request")
@@ -1149,8 +1246,10 @@ const registerViaOrgSlug = [
     .isLength({ min: 6, max: 30 })
     .withMessage("Password must be between 6 and 30 characters long")
     .bail()
-    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
-    .withMessage("Password must contain at least one letter and one number"),
+    .matches(constants.PASSWORD_REGEX)
+    .withMessage(
+      "Password must contain at least one letter and one number. Special characters (@#?!$%^&*,.()+_-) are allowed.",
+    ),
   body("captchaToken")
     .optional()
     .notEmpty()
@@ -1594,6 +1693,265 @@ const updateFeedbackStatus = [
     .withMessage(`status must be one of: ${FEEDBACK_STATUSES.join(", ")}`),
 ];
 
+const { WEBHOOK_EVENTS } = require("@models/FeedbackWebhook");
+
+const bulkUpdateFeedbackStatus = [
+  validateTenant,
+  body("feedback_ids")
+    .exists()
+    .withMessage("feedback_ids is required")
+    .bail()
+    .isArray({ min: 1, max: 100 })
+    .withMessage("feedback_ids must be a non-empty array of up to 100 IDs")
+    .bail()
+    .custom((ids) => {
+      for (const id of ids) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+          throw new Error(`Invalid MongoDB ObjectId: ${id}`);
+        }
+      }
+      return true;
+    }),
+  body("status")
+    .exists()
+    .withMessage("status is required")
+    .bail()
+    .notEmpty()
+    .withMessage("status must not be empty")
+    .bail()
+    .isIn(FEEDBACK_STATUSES)
+    .withMessage(`status must be one of: ${FEEDBACK_STATUSES.join(", ")}`),
+];
+
+const assignFeedback = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("userId")
+    .optional({ nullable: true })
+    .custom((v) => {
+      if (v !== null && v !== undefined && !mongoose.Types.ObjectId.isValid(v)) {
+        throw new Error("userId must be a valid MongoDB ObjectId or null");
+      }
+      return true;
+    }),
+];
+
+const addFeedbackWatcher = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("email")
+    .exists()
+    .withMessage("email is required")
+    .bail()
+    .notEmpty()
+    .withMessage("email must not be empty")
+    .bail()
+    .isEmail()
+    .withMessage("email must be a valid email address")
+    .bail()
+    .customSanitizer((v) => v.toLowerCase().trim()),
+  body("name")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("name cannot exceed 100 characters"),
+];
+
+const removeFeedbackWatcher = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  param("watcher_email")
+    .exists()
+    .withMessage("watcher_email param is missing")
+    .bail()
+    .trim()
+    .isEmail()
+    .withMessage("watcher_email must be a valid email address"),
+];
+
+const registerWebhook = [
+  validateTenant,
+  body("name")
+    .exists()
+    .withMessage("name is required")
+    .bail()
+    .notEmpty()
+    .withMessage("name must not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("name cannot exceed 100 characters")
+    .trim(),
+  body("url")
+    .exists()
+    .withMessage("url is required")
+    .bail()
+    .notEmpty()
+    .withMessage("url must not be empty")
+    .bail()
+    .isURL({ protocols: ["https"], require_protocol: true })
+    .withMessage("url must be a valid HTTPS URL")
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage("url cannot exceed 2000 characters")
+    .trim(),
+  body("events")
+    .exists()
+    .withMessage("events is required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("events must be a non-empty array")
+    .bail()
+    .custom((arr) => {
+      const invalid = arr.filter((e) => !WEBHOOK_EVENTS.includes(e));
+      if (invalid.length > 0) {
+        throw new Error(
+          `Invalid events: ${invalid.join(", ")}. Allowed: ${WEBHOOK_EVENTS.join(", ")}`,
+        );
+      }
+      return true;
+    }),
+  body("secret")
+    .exists()
+    .withMessage("secret is required")
+    .bail()
+    .notEmpty()
+    .withMessage("secret must not be empty")
+    .bail()
+    .isLength({ min: 16 })
+    .withMessage("secret must be at least 16 characters")
+    .trim(),
+];
+
+const updateWebhook = [
+  validateTenant,
+  param("webhook_id")
+    .exists()
+    .withMessage("webhook_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("webhook_id must be a valid MongoDB ObjectId"),
+  body("name")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("name must not be empty if provided")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("name cannot exceed 100 characters"),
+  body("url")
+    .optional()
+    .trim()
+    .isURL({ protocols: ["https"], require_protocol: true })
+    .withMessage("url must be a valid HTTPS URL if provided")
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage("url cannot exceed 2000 characters"),
+  body("events")
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage("events must be a non-empty array if provided")
+    .bail()
+    .custom((arr) => {
+      const invalid = arr.filter((e) => !WEBHOOK_EVENTS.includes(e));
+      if (invalid.length > 0) {
+        throw new Error(`Invalid events: ${invalid.join(", ")}`);
+      }
+      return true;
+    }),
+  body("active")
+    .optional()
+    .isBoolean()
+    .withMessage("active must be a boolean if provided"),
+];
+
+const deleteWebhook = [
+  validateTenant,
+  param("webhook_id")
+    .exists()
+    .withMessage("webhook_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("webhook_id must be a valid MongoDB ObjectId"),
+];
+
+const listWebhooks = [
+  validateTenant,
+  query("active")
+    .optional()
+    .isBoolean()
+    .withMessage("active filter must be a boolean string (true or false)"),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("limit must be an integer between 1 and 100"),
+];
+
+const replyToFeedback = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("message")
+    .exists()
+    .withMessage("message is required")
+    .bail()
+    .notEmpty()
+    .withMessage("message must not be empty")
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage("message cannot exceed 5000 characters")
+    .trim(),
+];
+
+const updateFeedbackNotes = [
+  validateTenant,
+  param("feedback_id")
+    .exists()
+    .withMessage("feedback_id param is missing")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("feedback_id must be a valid MongoDB ObjectId"),
+  body("adminNotes")
+    .exists()
+    .withMessage("adminNotes is required")
+    .bail()
+    .isString()
+    .withMessage("adminNotes must be a string")
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage("adminNotes cannot exceed 2000 characters")
+    .trim(),
+];
+
 const updateOnboarding = [
   validateTenant,
   body("action")
@@ -1680,5 +2038,15 @@ module.exports = {
   listFeedbackSubmissions,
   getFeedbackById,
   updateFeedbackStatus,
+  bulkUpdateFeedbackStatus,
+  assignFeedback,
+  addFeedbackWatcher,
+  removeFeedbackWatcher,
+  replyToFeedback,
+  updateFeedbackNotes,
+  registerWebhook,
+  updateWebhook,
+  deleteWebhook,
+  listWebhooks,
   updateOnboarding,
 };

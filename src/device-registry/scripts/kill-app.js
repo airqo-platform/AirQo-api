@@ -220,7 +220,7 @@ function main() {
     if (process.argv.indexOf("--force") === -1) {
       console.log("⚠️  To kill these processes, run with --force flag");
       console.log(`   Example: npm run kill -- --force`);
-      console.log(`   Example: node kill-app.js ${PORT} --force`);
+      console.log(`   Example: node scripts/kill-app.js ${PORT} --force`);
       process.exit(0);
     }
 
@@ -299,7 +299,7 @@ if (process.argv.includes("--help") || process.argv.includes("-h")) {
 🔧 Kill App - Port Process Terminator
 
 Usage:
-  node kill-app.js [PORT] [--force] [--help]
+  node scripts/kill-app.js [PORT] [--force] [--help]
   npm run kill [-- [PORT] [--force]]
 
 Arguments:
@@ -311,12 +311,12 @@ Environment Variables:
   PORT          Set default port number
 
 Examples:
-  node kill-app.js                    # Find processes on port 3000 (preview mode)
-  node kill-app.js --force            # Kill processes on port 3000
-  node kill-app.js 8080 --force       # Kill processes on port 8080
-  PORT=9000 node kill-app.js --force  # Kill processes on port 9000
-  npm run kill -- --force             # Kill processes using npm script
-  npm run kill -- 8080 --force        # Kill processes on port 8080 using npm script
+  node scripts/kill-app.js                    # Find processes on port 3000 (preview mode)
+  node scripts/kill-app.js --force            # Kill processes on port 3000
+  node scripts/kill-app.js 8080 --force       # Kill processes on port 8080
+  PORT=9000 node scripts/kill-app.js --force  # Kill processes on port 9000
+  npm run kill -- --force                     # Kill processes using npm script
+  npm run kill -- 8080 --force                # Kill processes on port 8080 using npm script
 `);
   process.exit(0);
 }

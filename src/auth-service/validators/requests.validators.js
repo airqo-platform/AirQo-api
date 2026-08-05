@@ -102,20 +102,22 @@ const acceptInvitation = [
     body("firstName")
       .optional()
       .trim()
-      .isLength({ min: 1, max: 50 })
-      .withMessage("firstName must be between 1 and 50 characters"),
+      .isLength({ min: 1, max: 100 })
+      .withMessage("firstName must be between 1 and 100 characters"),
     body("lastName")
       .optional()
       .trim()
-      .isLength({ min: 1, max: 50 })
-      .withMessage("lastName must be between 1 and 50 characters"),
+      .isLength({ min: 1, max: 100 })
+      .withMessage("lastName must be between 1 and 100 characters"),
     body("password")
       .optional()
+      .trim()
       .isLength({ min: 6 })
       .withMessage("password must be at least 6 characters")
-      .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+      .bail()
+      .matches(constants.PASSWORD_REGEX)
       .withMessage(
-        "password must contain at least one letter and one number, and only allowed special characters: @#?!$%^&*.",
+        "password must contain at least one letter and one number, and only allowed special characters: @#?!$%^&*,.()+_-",
       ),
   ],
 ];

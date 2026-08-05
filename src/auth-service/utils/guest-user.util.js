@@ -41,9 +41,11 @@ const guestUser = {
           })
         );
       }
-      // check if guest user exists
+      // Atomically claim (find + remove in one op) the guest record up
+      // front, so two concurrent convert requests for the same guest_id
+      // can't both pass an existence check before either one deletes it.
       const guestUser = await GuestUserModel(tenant)
-        .findOne({ guest_id })
+        .findOneAndDelete({ guest_id })
         .lean();
 
       if (isEmpty(guestUser)) {
@@ -53,33 +55,38 @@ const guestUser = {
           })
         );
       }
+      // Layer the guest's stored identity fields under whatever the
+      // client explicitly supplied — client-provided values always win,
+      // guest data only fills in what's missing.
+      const registrationBody = { ...body };
+      if (!registrationBody.firstName && guestUser.firstName) {
+        registrationBody.firstName = guestUser.firstName;
+      }
+      if (!registrationBody.lastName && guestUser.lastName) {
+        registrationBody.lastName = guestUser.lastName;
+      }
+      if (!registrationBody.userName && guestUser.displayName) {
+        registrationBody.userName = guestUser.displayName;
+      }
+
       // create new user
-      const newUser = await UserModel(tenant).register(body, next);
-      const newUserId = newUser.data._id;
+      const newUser = await UserModel(tenant).register(registrationBody, next);
 
-      // Migrate the data
-      const updatedFields = {
-        $set: {
-          //  migrate data from guest to new user
-          // ... your guest user fields here
-          // add the new id
-          user: newUserId,
-        },
-      };
+      if (!newUser || newUser.success === false) {
+        // Registration failed after the guest record was already claimed
+        // (deleted) above -- restore it so the guest isn't lost and the
+        // client can retry the conversion.
+        try {
+          await GuestUserModel(tenant).create(guestUser);
+        } catch (restoreError) {
+          logger.error(
+            `🐛🐛 Failed to restore guest ${guest_id} after failed conversion -- ${restoreError.message}`
+          );
+        }
+        return newUser;
+      }
 
-      const responseFromUpdateUser = await UserModel(tenant).modify(
-        { _id: newUserId },
-        updatedFields,
-        next
-      );
-
-      //delete guest
-      const responseFromDeleteGuest = await GuestUserModel(tenant).remove(
-        { guest_id },
-        next
-      );
-
-      return responseFromUpdateUser;
+      return newUser;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

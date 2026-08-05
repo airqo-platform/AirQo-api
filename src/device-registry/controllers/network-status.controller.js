@@ -166,6 +166,26 @@ const networkStatusController = {
       "summary"
     );
   },
+
+  getNetworkBreakdown: async (req, res, next) => {
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.getNetworkBreakdown,
+      "data"
+    );
+  },
+
+  getCohortBreakdown: async (req, res, next) => {
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.getCohortBreakdown,
+      "data"
+    );
+  },
 };
 
 module.exports = networkStatusController;

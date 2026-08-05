@@ -45,10 +45,10 @@ const handleError = (error, next) => {
   );
 };
 
-const ANALYTICS_ORIGIN = (() => {
+const NEXUS_ORIGIN = (() => {
   try {
-    return constants.ANALYTICS_BASE_URL
-      ? new URL(constants.ANALYTICS_BASE_URL).origin
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
       : null;
   } catch {
     return null;
@@ -58,9 +58,27 @@ const ANALYTICS_ORIGIN = (() => {
 function validateRedirectUrl(raw) {
   if (!raw || typeof raw !== "string") return null;
   try {
-    const origin = new URL(raw).origin;
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // Custom-scheme deep links (e.g. vertex://, airqo://) are allowed against an
+      // explicit prefix list instead of origin comparison.
+      const allowedPrefixes = (
+        constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://,airqo://"
+      )
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const rawLower = raw.toLowerCase();
+      return allowedPrefixes.some((prefix) =>
+        rawLower.startsWith(prefix.toLowerCase())
+      )
+        ? raw
+        : null;
+    }
+    const origin = parsed.origin;
     const candidates = [
-      constants.ANALYTICS_BASE_URL,
+      constants.NEXUS_BASE_URL,
       constants.VERTEX_BASE_URL,
       constants.ALLOWED_REDIRECT_ORIGINS,
     ].filter(Boolean);
@@ -93,9 +111,18 @@ function resolveOAuthRedirectContext(req, res) {
   }
   if (req.session) delete req.session.oauthRedirectAfter;
   let redirectOrigin = null;
-  if (validatedUrl) { try { redirectOrigin = new URL(validatedUrl).origin; } catch {} }
+  if (validatedUrl) {
+    try {
+      const parsed = new URL(validatedUrl);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        redirectOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default Nexus failure URL.
+    } catch {}
+  }
   let failureRedirectUrl;
-  if (redirectOrigin && redirectOrigin !== ANALYTICS_ORIGIN) {
+  if (redirectOrigin && redirectOrigin !== NEXUS_ORIGIN) {
     failureRedirectUrl = `${redirectOrigin}/login?error=oauth_failed`;
   } else {
     const base =
@@ -548,6 +575,7 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
       const result = await userUtil.createFirebaseUser(request, next);
+      if (!result) return;
       sendResponse(res, result[0], "user");
     } catch (error) {
       handleError(error, next);
@@ -1883,6 +1911,140 @@ const userController = {
       if (!request) return;
       const result = await userUtil.updateFeedbackStatus(request, next);
       sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  replyToFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.replyToFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateFeedbackNotes: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateFeedbackNotes(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  bulkUpdateFeedbackStatus: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.bulkUpdateFeedbackStatus(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  assignFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.assignFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listFeedbackStaff: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listFeedbackStaff(request, next);
+      sendResponse(res, result, "staff");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  addFeedbackWatcher: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.addFeedbackWatcher(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  removeFeedbackWatcher: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.removeFeedbackWatcher(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  registerWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.registerWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listWebhooks: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listWebhooks(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          webhooks: result.data,
+          meta: result.meta,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  deleteWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.deleteWebhook(request, next);
+      sendResponse(res, result, "webhook");
     } catch (error) {
       handleError(error, next);
     }

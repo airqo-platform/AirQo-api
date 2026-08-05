@@ -17,6 +17,7 @@ const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const RAW_INACTIVE_THRESHOLD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future feed timestamps
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
@@ -141,7 +142,36 @@ const isDeviceRawActive = (lastFeedTime) => {
     return false;
   }
   const timeDiff = new Date().getTime() - new Date(lastFeedTime).getTime();
+  // A negative diff beyond clock-skew tolerance means lastFeedTime is
+  // future-dated (bad device clock, possibly already persisted from before
+  // isValidFeedTimestamp existed) — treat it as not active rather than
+  // letting the negative diff satisfy "< threshold" forever.
+  if (timeDiff < -MAX_CLOCK_SKEW_MS) {
+    return false;
+  }
   return timeDiff < RAW_INACTIVE_THRESHOLD;
+};
+
+// Classifies a raw feed timestamp for the diagnostic-only dateValidStatus
+// field. Returns null when there's nothing to evaluate (caller should leave
+// dateValidStatus untouched in that case, rather than overwriting it with a
+// stale verdict).
+const classifyFeedTimestamp = (timestamp) => {
+  if (!timestamp) {
+    return null;
+  }
+  const parsed = new Date(timestamp).getTime();
+  if (isNaN(parsed)) {
+    return "invalid_format";
+  }
+  return parsed - Date.now() > MAX_CLOCK_SKEW_MS ? "future_timestamp" : "valid";
+};
+
+// Rejects unparseable timestamps and ones further in the future than clock
+// skew can explain, so a bad feed/device timestamp never gets persisted as
+// lastRawData/lastActive (surfaces downstream as transmissionStatus "Invalid Date").
+const isValidFeedTimestamp = (timestamp) => {
+  return classifyFeedTimestamp(timestamp) === "valid";
 };
 
 const isValidPM25 = (value) => {
@@ -327,7 +357,13 @@ const processDeviceBatch = async (devices, processor) => {
 // When siteDataMap lacks the site entry, buildSiteStatusUpdate still emits a
 // site write op for rawOnlineStatus/lastRawData but skips accuracy tracking
 // (onlineStatusAccuracy counters) since the current site state is unavailable.
-const buildSiteStatusUpdate = (device, siteDataMap, isRawOnline, lastFeedTime) => {
+const buildSiteStatusUpdate = (
+  device,
+  siteDataMap,
+  isRawOnline,
+  lastFeedTime,
+  dateValidStatus = null,
+) => {
   if (!device.site_id || !device.isPrimaryInLocation) return null;
 
   const currentSite = siteDataMap
@@ -344,6 +380,11 @@ const buildSiteStatusUpdate = (device, siteDataMap, isRawOnline, lastFeedTime) =
   const siteUpdateFields = { rawOnlineStatus: isRawOnline };
   if (lastFeedTime) {
     siteUpdateFields.lastRawData = new Date(lastFeedTime);
+  }
+  // Diagnostic-only, mirrors the device's dateValidStatus — never influences
+  // rawOnlineStatus above.
+  if (dateValidStatus) {
+    siteUpdateFields.dateValidStatus = dateValidStatus;
   }
 
   let siteSetUpdate = {};
@@ -387,14 +428,20 @@ const processIndividualDevice = async (
   if (hasExistingRawData) {
     const existingDataAge =
       new Date().getTime() - new Date(device.lastRawData).getTime();
-    shouldMarkOfflineFromStaleData = existingDataAge >= RAW_INACTIVE_THRESHOLD;
+    // A future-dated lastRawData (bad device clock) must NOT be treated as
+    // fresh — a negative age would otherwise stay "not stale" indefinitely.
+    const isFutureDated = existingDataAge < -MAX_CLOCK_SKEW_MS;
+    shouldMarkOfflineFromStaleData =
+      isFutureDated || existingDataAge >= RAW_INACTIVE_THRESHOLD;
 
     // If data is stale, log it for visibility
     if (shouldMarkOfflineFromStaleData) {
       logger.debug(
-        `Device ${device.name} has stale lastRawData (${Math.round(
-          existingDataAge / (60 * 60 * 1000),
-        )}h old)`,
+        isFutureDated
+          ? `Device ${device.name} has future-dated lastRawData (${device.lastRawData}); treating as stale`
+          : `Device ${device.name} has stale lastRawData (${Math.round(
+              existingDataAge / (60 * 60 * 1000),
+            )}h old)`,
       );
     }
   }
@@ -432,6 +479,7 @@ const processIndividualDevice = async (
 
         let isRawOnline = false;
         let lastFeedTime = null;
+        let dateValidStatus = null;
 
         if (externalResult.success && !isEmpty(externalResult.data)) {
           const data = externalResult.data;
@@ -445,11 +493,24 @@ const processIndividualDevice = async (
             data.ts ||
             null;
 
-          if (tsValue) {
+          dateValidStatus = classifyFeedTimestamp(tsValue);
+
+          if (tsValue && isValidFeedTimestamp(tsValue)) {
             lastFeedTime = tsValue;
             isRawOnline = isDeviceRawActive(tsValue);
+          } else if (tsValue) {
+            logger.warn(
+              `🙀🙀 Ignoring invalid/future feed timestamp (${tsValue}) for device ${device.name ||
+                device._id}`,
+            );
+            // Don't blindly mark offline on a bad timestamp — fall back to
+            // whether the device's existing lastRawData is still fresh.
+            isRawOnline = isDeviceRawActive(device.lastRawData);
           } else {
-            // No timestamp field — successful non-empty response means online
+            // No timestamp field present at all — nothing was actually
+            // evaluated, so dateValidStatus is left untouched (stays whatever
+            // it already was) rather than being claimed "valid" with no
+            // evidence. successful non-empty response still means online.
             isRawOnline = true;
             lastFeedTime = new Date().toISOString();
           }
@@ -458,6 +519,11 @@ const processIndividualDevice = async (
         const updateFields = { rawOnlineStatus: isRawOnline };
         if (lastFeedTime) {
           updateFields.lastRawData = new Date(lastFeedTime);
+        }
+        // dateValidStatus is diagnostic-only — never influences rawOnlineStatus/
+        // isOnline above. Only written when we actually evaluated a timestamp.
+        if (dateValidStatus) {
+          updateFields.dateValidStatus = dateValidStatus;
         }
         if (
           STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
@@ -490,6 +556,7 @@ const processIndividualDevice = async (
           siteDataMap,
           isRawOnline,
           lastFeedTime,
+          dateValidStatus,
         );
         if (siteStatusOp) siteUpdates.push(siteStatusOp);
 
@@ -678,8 +745,17 @@ const processIndividualDevice = async (
     let lastFeedTime = null;
     let latestRawPm25 = null;
     let updateFields = {};
+    const dateValidStatus =
+      thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]
+        ? classifyFeedTimestamp(thingspeakData.feeds[0].created_at)
+        : null;
 
-    if (thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]) {
+    if (
+      thingspeakData &&
+      thingspeakData.feeds &&
+      thingspeakData.feeds[0] &&
+      isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
+    ) {
       const lastFeed = thingspeakData.feeds[0];
       lastFeedTime = lastFeed.created_at;
       isRawOnline = isDeviceRawActive(lastFeedTime);
@@ -697,6 +773,24 @@ const processIndividualDevice = async (
         };
       }
     } else {
+      if (
+        thingspeakData &&
+        thingspeakData.feeds &&
+        thingspeakData.feeds[0] &&
+        thingspeakData.feeds[0].created_at &&
+        !isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
+      ) {
+        logger.warn(
+          `🙀🙀 Ignoring invalid/future ThingSpeak timestamp (${thingspeakData
+            .feeds[0].created_at}) for device ${device.name ||
+            device._id}, channel ${device.device_number}`,
+        );
+        // Don't blindly mark offline on a bad timestamp — fall back to
+        // whether the device's existing lastRawData is still fresh. The
+        // shouldMarkOfflineFromStaleData check below can still override this
+        // to false if that fallback data is itself stale.
+        isRawOnline = isDeviceRawActive(device.lastRawData);
+      }
       // ============================================================================
       // CRITICAL FIX: No new data from ThingSpeak
       // Use existing lastRawData to determine status
@@ -714,6 +808,10 @@ const processIndividualDevice = async (
     if (lastFeedTime) {
       // Continue updating lastRawData for backward compatibility
       updateFields.lastRawData = new Date(lastFeedTime);
+    }
+    // Diagnostic-only — never influences rawOnlineStatus/isOnline above.
+    if (dateValidStatus) {
+      updateFields.dateValidStatus = dateValidStatus;
     }
 
     // ALSO update primary online status for UNDEPLOYED or MOBILE devices
@@ -789,6 +887,7 @@ const processIndividualDevice = async (
       siteDataMap,
       isRawOnline,
       lastFeedTime,
+      dateValidStatus,
     );
     if (siteStatusOp) {
       siteUpdates.push(siteStatusOp);

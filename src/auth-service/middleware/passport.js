@@ -1128,13 +1128,13 @@ function setLocalAuth(req, res, next) {
 
 /**
  * Builds the set of URL origins that are permitted as redirect_after targets.
- * Always includes ANALYTICS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
+ * Always includes NEXUS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
  * (comma-separated) can extend the list. Localhost is added in non-production.
  */
 function resolveAllowedRedirectOrigins() {
   const origins = new Set();
   const candidates = [
-    constants.ANALYTICS_BASE_URL,
+    constants.NEXUS_BASE_URL,
     constants.VERTEX_BASE_URL,
     constants.ALLOWED_REDIRECT_ORIGINS,
   ];
@@ -1158,12 +1158,22 @@ function resolveAllowedRedirectOrigins() {
 // Computed once at module load — inputs are fixed env vars.
 const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
 
-// Origin of the analytics frontend. Used to select the correct failure-redirect
-// path: analytics uses /user/login, vertex and others use /login.
-const ANALYTICS_ORIGIN = (() => {
+// Deep-link scheme prefixes allowed as redirect_after targets.
+// Custom schemes (e.g. vertex://, airqo://) cannot be exploited for web phishing since
+// the OS routes them to the registered app, not a website.
+const ALLOWED_CUSTOM_SCHEME_PREFIXES = (
+  constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://,airqo://"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// Origin of the Nexus frontend. Used to select the correct failure-redirect
+// path: nexus uses /user/login, vertex and others use /login.
+const NEXUS_ORIGIN = (() => {
   try {
-    return constants.ANALYTICS_BASE_URL
-      ? new URL(constants.ANALYTICS_BASE_URL).origin
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
       : null;
   } catch {
     return null;
@@ -1173,7 +1183,17 @@ const ANALYTICS_ORIGIN = (() => {
 function isAllowedRedirect(url, allowedOrigins) {
   if (!url || typeof url !== "string") return false;
   try {
-    return allowedOrigins.has(new URL(url).origin);
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // Custom schemes (e.g. vertex://) are checked against an explicit prefix
+      // allowlist rather than by origin, since custom protocols have no web origin.
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const urlLower = url.toLowerCase();
+      return ALLOWED_CUSTOM_SCHEME_PREFIXES.some((prefix) =>
+        urlLower.startsWith(prefix.toLowerCase())
+      );
+    }
+    return allowedOrigins.has(parsed.origin);
   } catch (_) {
     return false;
   }
@@ -1438,9 +1458,16 @@ const authGoogleCallback = (req, res, next) => {
   const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
   let validatedOrigin = null;
   if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
-    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+    try {
+      const parsed = new URL(rawRedirect);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        validatedOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default Nexus failure URL.
+    } catch {}
   }
-  const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
+  const failureBase = validatedOrigin && validatedOrigin !== NEXUS_ORIGIN
     ? `${validatedOrigin}/login`
     : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
       || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
@@ -1511,9 +1538,16 @@ const authOAuthCallback = (req, res, next) => {
   const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
   let validatedOrigin = null;
   if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
-    try { validatedOrigin = new URL(rawRedirect).origin; } catch {}
+    try {
+      const parsed = new URL(rawRedirect);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        validatedOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default Nexus failure URL.
+    } catch {}
   }
-  const failureBase = validatedOrigin && validatedOrigin !== ANALYTICS_ORIGIN
+  const failureBase = validatedOrigin && validatedOrigin !== NEXUS_ORIGIN
     ? `${validatedOrigin}/login`
     : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
       || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");

@@ -3,6 +3,7 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
+const { validateNetwork } = require("@validators/common");
 
 const commonValidations = {
   tenant: [
@@ -15,6 +16,56 @@ const commonValidations = {
       .toLowerCase()
       .isIn(constants.TENANTS)
       .withMessage("the tenant value is not among the expected ones"),
+  ],
+  network: [
+    query("network")
+      .optional()
+      .notEmpty()
+      .withMessage("network cannot be empty if provided")
+      .bail()
+      .trim()
+      .isString()
+      .withMessage("network must be a string")
+      .bail()
+      .toLowerCase()
+      .custom(validateNetwork),
+  ],
+  cohort_id: [
+    query("cohort_id")
+      .optional()
+      .notEmpty()
+      .withMessage("cohort_id cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isMongoId()
+      .withMessage("cohort_id must be a valid MongoDB ObjectId")
+      .bail()
+      .custom((value, { req }) => {
+        if (req.query.network) {
+          throw new Error("Provide either network or cohort_id, not both");
+        }
+        return true;
+      }),
+  ],
+  dateRange: [
+    query("start_date")
+      .optional()
+      .isISO8601()
+      .withMessage("start_date must be a valid ISO 8601 date"),
+    query("end_date")
+      .optional()
+      .isISO8601()
+      .withMessage("end_date must be a valid ISO 8601 date")
+      .custom((value, { req }) => {
+        if (
+          req.query.start_date &&
+          new Date(value) <= new Date(req.query.start_date)
+        ) {
+          throw new Error("end_date must be after start_date");
+        }
+        return true;
+      }),
   ],
 };
 
@@ -33,26 +84,26 @@ const networkStatusValidations = {
       .bail()
       .isInt({ min: 0 })
       .withMessage("total_deployed_devices must be a non-negative integer"),
-    body("offline_devices_count")
+    body("not_transmitting_devices_count")
       .exists()
-      .withMessage("offline_devices_count is required")
+      .withMessage("not_transmitting_devices_count is required")
       .bail()
       .isInt({ min: 0 })
-      .withMessage("offline_devices_count must be a non-negative integer")
+      .withMessage("not_transmitting_devices_count must be a non-negative integer")
       .custom((value, { req }) => {
         if (value > req.body.total_deployed_devices) {
           throw new Error(
-            "offline_devices_count cannot exceed total_deployed_devices",
+            "not_transmitting_devices_count cannot exceed total_deployed_devices",
           );
         }
         return true;
       }),
-    body("offline_percentage")
+    body("not_transmitting_percentage")
       .exists()
-      .withMessage("offline_percentage is required")
+      .withMessage("not_transmitting_percentage is required")
       .bail()
       .isFloat({ min: 0, max: 100 })
-      .withMessage("offline_percentage must be between 0 and 100"),
+      .withMessage("not_transmitting_percentage must be between 0 and 100"),
     body("status")
       .exists()
       .withMessage("status is required")
@@ -89,23 +140,9 @@ const networkStatusValidations = {
 
   list: [
     ...commonValidations.tenant,
-    query("start_date")
-      .optional()
-      .isISO8601()
-      .withMessage("start_date must be a valid ISO 8601 date"),
-    query("end_date")
-      .optional()
-      .isISO8601()
-      .withMessage("end_date must be a valid ISO 8601 date")
-      .custom((value, { req }) => {
-        if (
-          req.query.start_date &&
-          new Date(value) <= new Date(req.query.start_date)
-        ) {
-          throw new Error("end_date must be after start_date");
-        }
-        return true;
-      }),
+    ...commonValidations.network,
+    ...commonValidations.cohort_id,
+    ...commonValidations.dateRange,
     query("status")
       .optional()
       .isIn(["OK", "WARNING", "CRITICAL"])
@@ -118,62 +155,48 @@ const networkStatusValidations = {
 
   getStatistics: [
     ...commonValidations.tenant,
-    query("start_date")
-      .optional()
-      .isISO8601()
-      .withMessage("start_date must be a valid ISO 8601 date"),
-    query("end_date")
-      .optional()
-      .isISO8601()
-      .withMessage("end_date must be a valid ISO 8601 date")
-      .custom((value, { req }) => {
-        if (
-          req.query.start_date &&
-          new Date(value) <= new Date(req.query.start_date)
-        ) {
-          throw new Error("end_date must be after start_date");
-        }
-        return true;
-      }),
+    ...commonValidations.network,
+    ...commonValidations.cohort_id,
+    ...commonValidations.dateRange,
   ],
 
   getHourlyTrends: [
     ...commonValidations.tenant,
-    query("start_date")
-      .optional()
-      .isISO8601()
-      .withMessage("start_date must be a valid ISO 8601 date"),
-    query("end_date")
-      .optional()
-      .isISO8601()
-      .withMessage("end_date must be a valid ISO 8601 date")
-      .custom((value, { req }) => {
-        if (
-          req.query.start_date &&
-          new Date(value) <= new Date(req.query.start_date)
-        ) {
-          throw new Error("end_date must be after start_date");
-        }
-        return true;
-      }),
+    ...commonValidations.network,
+    ...commonValidations.cohort_id,
+    ...commonValidations.dateRange,
   ],
 
   getRecentAlerts: [
     ...commonValidations.tenant,
+    ...commonValidations.network,
+    ...commonValidations.cohort_id,
     query("hours")
       .optional()
-      .isInt({ min: 1, max: 168 }) // Max 1 week
+      .isInt({ min: 1, max: 168 })
       .withMessage("hours must be between 1 and 168")
       .toInt(),
   ],
 
   getUptimeSummary: [
     ...commonValidations.tenant,
+    ...commonValidations.network,
+    ...commonValidations.cohort_id,
     query("days")
       .optional()
-      .isInt({ min: 1, max: 90 }) // Max 3 months
+      .isInt({ min: 1, max: 90 })
       .withMessage("days must be between 1 and 90")
       .toInt(),
+  ],
+
+  getNetworkBreakdown: [
+    ...commonValidations.tenant,
+    ...commonValidations.dateRange,
+  ],
+
+  getCohortBreakdown: [
+    ...commonValidations.tenant,
+    ...commonValidations.dateRange,
   ],
 };
 
