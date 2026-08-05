@@ -18,7 +18,6 @@ packages/*/node_modules/
 Thumbs.db
 
 # pnpm
- 
 shrinkwrap.yaml
 
 # Test/coverage
@@ -30,22 +29,27 @@ coverage/
 *.local
 *.cache/
 .npmrc
+.tmp/
 
 # Flutter
 .packages
+.dart_tool/
+**/.dart_tool/
 .pub-cache/
 .flutter-plugins
 .flutter-plugins-dependencies
 .flutter-*
 build/
+**/build/
+packages/flutter/pubspec.lock
 
 # Changesets
 .changeset/*.tmp
 .changeset/output.json
 
-# Ignore generated icon components (rebuildable)
+# Generated icon components are part of the published Flutter package and must
+# be committed so pub.dev receives the package's public library.
 packages/react/src/components/
-packages/flutter/lib/
 packages/vue/src/components/
 
 

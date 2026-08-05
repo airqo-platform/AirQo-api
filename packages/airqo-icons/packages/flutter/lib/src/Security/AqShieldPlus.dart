@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqShieldPlus icon widget (shield-plus.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqShieldPlus extends StatelessWidget {
+  /// Creates a AqShieldPlus icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqShieldPlus({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 14.5004V8.50036M9 11.5004H15M20 12.0004C20 16.9088 14.646 20.4788 12.698 21.6152C12.4766 21.7444 12.3659 21.809 12.2097 21.8425C12.0884 21.8685 11.9116 21.8685 11.7903 21.8425C11.6341 21.809 11.5234 21.7444 11.302 21.6152C9.35396 20.4788 4 16.9088 4 12.0004V7.21796C4 6.41845 4 6.01869 4.13076 5.67506C4.24627 5.3715 4.43398 5.10064 4.67766 4.88589C4.9535 4.6428 5.3278 4.50243 6.0764 4.22171L11.4382 2.21103C11.6461 2.13307 11.75 2.09409 11.857 2.07864C11.9518 2.06493 12.0482 2.06493 12.143 2.07864C12.25 2.09409 12.3539 2.13307 12.5618 2.21103L17.9236 4.22171C18.6722 4.50243 19.0465 4.6428 19.3223 4.88589C19.566 5.10064 19.7537 5.3715 19.8692 5.67506C20 6.01869 20 6.41845 20 7.21796V12.0004Z" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

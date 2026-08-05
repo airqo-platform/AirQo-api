@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqAward05 icon widget (award-05.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqAward05 extends StatelessWidget {
+  /// Creates a AqAward05 icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqAward05({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M7.13502 11.189L3.33028 4.38052C2.89279 3.59765 2.67405 3.20621 2.71091 2.88573C2.74307 2.60611 2.89158 2.353 3.11998 2.18852C3.38176 2 3.83017 2 4.72698 2H6.96181C7.2951 2 7.46175 2 7.61123 2.04813C7.7435 2.09073 7.86544 2.16042 7.96927 2.25276C8.08661 2.35712 8.1712 2.5007 8.34037 2.78788L12 9L15.6596 2.78788C15.8288 2.5007 15.9134 2.35712 16.0307 2.25276C16.1345 2.16042 16.2565 2.09073 16.3887 2.04813C16.5382 2 16.7049 2 17.0382 2H19.273C20.1698 2 20.6182 2 20.88 2.18852C21.1084 2.353 21.2569 2.60611 21.2891 2.88573C21.3259 3.20621 21.1072 3.59765 20.6697 4.38052L16.8649 11.189M10.5 14L12 13V18M10.75 18H13.25M16.5962 10.9038C19.1346 13.4422 19.1346 17.5578 16.5962 20.0962C14.0578 22.6346 9.9422 22.6346 7.40378 20.0962C4.86538 17.5578 4.86538 13.4422 7.40378 10.9038C9.94219 8.3654 14.0578 8.3654 16.5962 10.9038Z" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

@@ -1,0 +1,57 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqSaintKittsAndNevis icon widget (Saint-Kitts-and-Nevis.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqSaintKittsAndNevis extends StatelessWidget {
+  /// Creates a AqSaintKittsAndNevis icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqSaintKittsAndNevis({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1692_54171)">
+<path d="M2.04688 19.6341V6.33447H21.9964L2.04688 19.6341Z" fill="#009739"/>
+<path d="M21.9964 6.33447V19.6341H2.04688L21.9964 6.33447Z" fill="#C8102E"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M21.9964 9.69116V6.33447L16.9536 6.33965L2.0491 16.276L2.04688 19.6341H7.0819L21.9964 9.69116Z" fill="#FFCD00"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M21.9964 8.73211V6.33447L18.3944 6.33816L2.04689 17.2365L2.04688 19.6341H5.64333L21.9964 8.73211Z" fill="black"/>
+<path d="M7.25589 14.1397L10.035 16.3352L6.49622 16.1927L9.44289 14.228L8.21374 17.5495L7.25589 14.1397ZM14.9287 9.02441L17.7078 11.2199L14.1691 11.0774L17.1157 9.11272L15.8866 12.4342L14.9287 9.02441Z" fill="white"/>
+</g>
+<defs>
+<clipPath id="clip0_1692_54171">
+<rect x="2.04688" y="6.33447" width="19.9495" height="13.2997" rx="1" fill="white"/>
+</clipPath>
+</defs>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

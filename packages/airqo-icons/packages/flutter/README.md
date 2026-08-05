@@ -62,7 +62,7 @@ Widget AqIconWidget({
   Key? key,                    // Widget key
   double size = 24.0,         // Icon size (default: 24.0)
   Color? color,               // Icon color (uses SVG default if null)
-  String? semanticLabel,      // Accessibility label
+  String? semanticsLabel,     // Accessibility label
 })
 ```
 
@@ -82,7 +82,7 @@ AqHome01(color: Colors.blue)
 AqHome01(
   size: 24.0,
   color: Colors.blue,
-  semanticLabel: 'Home icon',
+  semanticsLabel: 'Home icon',
 )
 
 // In buttons and interactive widgets
@@ -174,7 +174,7 @@ class ThemedIcon extends StatelessWidget {
 
 ```dart
 class CustomIcon extends StatelessWidget {
-  final Widget Function({double? size, Color? color, String? semanticLabel}) iconBuilder;
+  final Widget Function({double? size, Color? color, String? semanticsLabel}) iconBuilder;
   final String label;
   final VoidCallback? onTap;
 
@@ -195,7 +195,7 @@ class CustomIcon extends StatelessWidget {
           iconBuilder(
             size: 32.0,
             color: Theme.of(context).primaryColor,
-            semanticLabel: label,
+            semanticsLabel: label,
           ),
           SizedBox(height: 4),
           Text(
@@ -210,10 +210,10 @@ class CustomIcon extends StatelessWidget {
 
 // Usage
 CustomIcon(
-  iconBuilder: ({size, color, semanticLabel}) => GeneralHome01(
+  iconBuilder: ({size, color, semanticsLabel}) => GeneralHome01(
     size: size ?? 24.0,
     color: color,
-    semanticLabel: semanticLabel,
+    semanticsLabel: semanticsLabel,
   ),
   label: 'Home',
   onTap: () => Navigator.pushNamed(context, '/home'),
@@ -354,7 +354,7 @@ The package includes built-in accessibility support:
 ```dart
 // Provide semantic labels for screen readers
 GeneralHome01(
-  semanticLabel: 'Navigate to home screen',
+      semanticsLabel: 'Navigate to home screen',
 )
 
 // Use in semantic widgets.

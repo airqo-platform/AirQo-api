@@ -157,7 +157,7 @@ Widget AirqoIcons.iconName({
   Key? key,
   double? size,           // Icon size (default: 24.0)
   Color? color,           // Icon color
-  String? semanticLabel,  // Accessibility label
+  String? semanticsLabel,  // Accessibility label
 })
 ```
 

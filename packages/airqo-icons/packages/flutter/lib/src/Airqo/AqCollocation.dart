@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqCollocation icon widget (Collocation.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqCollocation extends StatelessWidget {
+  /// Creates a AqCollocation icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqCollocation({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M8.79621 18.028L7.20988 18.3539C5.51961 18.7012 3.86787 17.6125 3.5206 15.9222L1.84384 7.7609C1.49657 6.07064 2.58528 4.41889 4.27555 4.07163L10.3965 2.81406C12.0868 2.46679 13.7385 3.5555 14.0858 5.24576L14.3361 6.46386M11.9308 20.9999H18.1797C19.9052 20.9999 21.3041 19.601 21.3041 17.8754V9.54366C21.3041 7.81809 19.9052 6.41924 18.1796 6.41924H11.9308C10.2053 6.41924 8.8064 7.8181 8.8064 9.54366V17.8754C8.8064 19.601 10.2053 20.9999 11.9308 20.9999ZM13.1861 13.2589L14.2252 11.8734C14.6408 11.3192 15.4721 11.3192 15.8878 11.8734L16.9269 13.2589C17.4406 13.9439 16.9519 14.9215 16.0956 14.9215H14.0174C13.1611 14.9215 12.6723 13.9439 13.1861 13.2589Z" stroke="#1C1D20" stroke-width="1.5"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}
