@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import '../lib/src/airqo_icons.dart';
+import 'package:airqo_icons_flutter/airqo_icons_flutter.dart';
 
 void main() {
   group('AirQO Icons Flutter Tests', () {

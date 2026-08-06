@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqShield02 icon widget (shield-02.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqShield02 extends StatelessWidget {
+  /// Creates a AqShield02 icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqShield02({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M11.302 21.6145C11.5234 21.7436 11.6341 21.8082 11.7903 21.8417C11.9116 21.8677 12.0884 21.8677 12.2097 21.8417C12.3659 21.8082 12.4766 21.7436 12.698 21.6145C14.646 20.478 20 16.908 20 11.9996V8.19958C20 7.12568 20 6.58874 19.8345 6.20758C19.6662 5.82018 19.4986 5.61409 19.1536 5.37049C18.8141 5.13081 18.1486 4.9924 16.8177 4.7156C15.3508 4.41052 14.2243 3.85962 13.1944 3.0629C12.7005 2.68085 12.4536 2.48982 12.2603 2.43772C12.0564 2.38274 11.9436 2.38274 11.7397 2.43772C11.5464 2.48982 11.2995 2.68085 10.8056 3.0629C9.77572 3.85962 8.6492 4.41052 7.1823 4.7156C5.85137 4.9924 5.18591 5.13081 4.84645 5.37049C4.50142 5.61409 4.33379 5.82018 4.16554 6.20758C4 6.58874 4 7.12568 4 8.19958V11.9996C4 16.908 9.35396 20.478 11.302 21.6145Z" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

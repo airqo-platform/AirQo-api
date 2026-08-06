@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqShare06 icon widget (share-06.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqShare06 extends StatelessWidget {
+  /// Creates a AqShare06 icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqShare06({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M20.7914 12.6082C21.0355 12.3989 21.1575 12.2943 21.2023 12.1698C21.2415 12.0605 21.2415 11.941 21.2023 11.8317C21.1575 11.7072 21.0355 11.6026 20.7914 11.3934L12.3206 4.13275C11.9004 3.77256 11.6903 3.59246 11.5124 3.58804C11.3578 3.58421 11.2101 3.65213 11.1124 3.77201C11 3.90995 11 4.18668 11 4.74016V9.03541C8.86532 9.40887 6.91159 10.4905 5.45971 12.1146C3.87682 13.8853 3.00123 16.1767 3 18.5517V19.1637C4.04934 17.8996 5.35951 16.8773 6.84076 16.1667C8.1467 15.5402 9.55842 15.1691 11 15.0713V19.2614C11 19.8149 11 20.0916 11.1124 20.2296C11.2101 20.3494 11.3578 20.4174 11.5124 20.4135C11.6903 20.4091 11.9004 20.229 12.3206 19.8688L20.7914 12.6082Z" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

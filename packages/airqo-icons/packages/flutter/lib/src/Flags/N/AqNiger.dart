@@ -1,0 +1,56 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqNiger icon widget (Niger.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqNiger extends StatelessWidget {
+  /// Creates a AqNiger icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqNiger({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1692_54045)">
+<path d="M21.9983 5.46338H2.04883V18.7631H21.9983V5.46338Z" fill="#0DB02B"/>
+<path d="M21.9983 5.46338H2.04883V14.3298H21.9983V5.46338Z" fill="white"/>
+<path d="M21.9983 5.46338H2.04883V9.8966H21.9983V5.46338Z" fill="#E05206"/>
+<path d="M12.0309 13.9973C13.0716 13.9973 13.9153 13.1536 13.9153 12.1129C13.9153 11.0722 13.0716 10.2285 12.0309 10.2285C10.9902 10.2285 10.1465 11.0722 10.1465 12.1129C10.1465 13.1536 10.9902 13.9973 12.0309 13.9973Z" fill="#E05206"/>
+</g>
+<defs>
+<clipPath id="clip0_1692_54045">
+<rect x="2.04688" y="5.46338" width="19.9551" height="13.2998" rx="1" fill="white"/>
+</clipPath>
+</defs>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

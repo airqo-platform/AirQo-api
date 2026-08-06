@@ -449,7 +449,7 @@ async function generateFlutterIcons() {
 /// 
 /// Import the library:
 /// \`\`\`dart
-/// import 'package:airqo_icons/airqo_icons.dart';
+/// import 'package:airqo_icons_flutter/airqo_icons_flutter.dart';
 /// \`\`\`
 /// 
 /// Use an icon widget:
@@ -480,6 +480,24 @@ export 'version.dart';
 
   // Generate version file
   generateVersionFile(outRoot, totalIcons, processedGroups);
+
+  // Keep a stable public entrypoint that matches the package name and README.
+  // The generated implementation remains under src so category barrels can
+  // stay organized without exposing an internal path to package consumers.
+  const publicEntryPoint = [
+    '/// Public entrypoint for the AirQO Flutter icon library.',
+    '///',
+    '/// Import this file from applications using:',
+    '/// ```dart',
+    "/// import 'package:airqo_icons_flutter/airqo_icons_flutter.dart';",
+    '/// ```',
+    '',
+    'library airqo_icons_flutter;',
+    '',
+    "export 'src/airqo_icons.dart';",
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(path.dirname(outRoot), 'airqo_icons_flutter.dart'), publicEntryPoint);
 
   console.log(`✅ Flutter icons generated successfully!`);
   console.log(`📊 Total: ${totalIcons} icons across ${processedGroups.length} groups`);
