@@ -845,7 +845,8 @@ const preferences = {
   },
   createChart: async (request, next) => {
     try {
-      const { tenant, deviceId, chartConfig } = request.body;
+      const { tenant } = request.query;
+      const { deviceId, chartConfig } = request.body;
       const userId = request.user._id; // Assuming JWT authentication
 
       // Basic validation
@@ -857,36 +858,31 @@ const preferences = {
         };
       }
 
-      // Find preference record - look for a device in device_ids array
-      const preference = await PreferenceModel(tenant).findOne({
-        user_id: userId,
-        device_ids: { $in: [deviceId] },
-      });
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
 
-      if (!preference) {
-        // If preference doesn't exist, create a new one
-        const newPreference = {
-          user_id: userId,
-          device_ids: [deviceId],
-          chartConfigurations: [chartConfig],
-          period: {
-            value: "Last 7 days",
-            label: "Last 7 days",
-            unitValue: 7,
-            unit: "day",
+      // Atomically add this device/chart to the user's preference doc for
+      // this group, creating the doc if it doesn't exist yet. Filtering by
+      // (user_id, group_id) -- rather than by device_ids -- prevents
+      // inserting a second doc with the same unique (user_id, group_id) pair
+      // when the device just isn't in the existing doc's device_ids yet.
+      const preference = await PreferenceModel(tenant).findOneAndUpdate(
+        { user_id: userId, group_id: groupId },
+        {
+          $addToSet: { device_ids: deviceId },
+          $push: { chartConfigurations: chartConfig },
+          $setOnInsert: {
+            user_id: userId,
+            group_id: groupId,
+            period: {
+              value: "Last 7 days",
+              label: "Last 7 days",
+              unitValue: 7,
+              unit: "day",
+            },
           },
-        };
-
-        const result = await PreferenceModel(tenant).register(
-          newPreference,
-          next
-        );
-        return result;
-      }
-
-      // Add the new chart to existing preference
-      preference.chartConfigurations.push(chartConfig);
-      await preference.save();
+        },
+        { upsert: true, new: true, runValidators: true }
+      );
 
       return {
         success: true,
@@ -909,14 +905,17 @@ const preferences = {
   updateChart: async (request, next) => {
     try {
       const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const { chartId } = request.params;
       const updates = request.body;
       const userId = request.user._id;
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
 
-      // Find preference record
+      // Find preference record scoped to the requested group, and require
+      // the chart to actually exist within it.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        group_id: groupId,
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
@@ -968,13 +967,16 @@ const preferences = {
   deleteChart: async (request, next) => {
     try {
       const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const { chartId } = request.params;
       const userId = request.user._id;
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
 
-      // Find preference record
+      // Find preference record scoped to the requested group, and require
+      // the chart to actually exist within it.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        group_id: groupId,
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {

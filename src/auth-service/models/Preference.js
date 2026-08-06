@@ -31,8 +31,19 @@ const chartConfigSchema = new Schema({
   backgroundColor: { type: String, default: "#ffffff" },
   chartType: {
     type: String,
-    enum: ["Column", "Line", "Bar", "Spline", "Step"],
-    default: "line",
+    enum: [
+      "Column",
+      "Line",
+      "Bar",
+      "Spline",
+      "Step",
+      "Area",
+      "Scatter",
+      "Bubble",
+      "Heatmap",
+      "Pie",
+    ],
+    default: "Line",
   },
   days: { type: Number, default: 1 },
   results: { type: Number, default: 20 },
@@ -538,8 +549,11 @@ PreferenceSchema.statics = {
       }
     } catch (err) {
       logObject("error in the object", err);
-      logger.error(`Data conflicts detected -- ${err.message}`);
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      if (err.code === 11000 || err.code === 11001) {
+        logger.error(`Data conflicts detected -- ${err.message}`);
+      } else {
+        logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      }
       return createErrorResponse(err, "create", logger, "preference");
     }
   },
