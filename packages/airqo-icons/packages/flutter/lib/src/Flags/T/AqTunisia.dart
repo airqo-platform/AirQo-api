@@ -1,0 +1,56 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqTunisia icon widget (Tunisia.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqTunisia extends StatelessWidget {
+  /// Creates a AqTunisia icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqTunisia({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1692_54011)">
+<path d="M2.04688 5.55225H21.9964V18.8519H2.04688V5.55225Z" fill="#E70013"/>
+<path d="M12.0207 15.5277C13.8573 15.5277 15.3461 14.0389 15.3461 12.2023C15.3461 10.3658 13.8573 8.87695 12.0207 8.87695C10.1841 8.87695 8.69531 10.3658 8.69531 12.2023C8.69531 14.0389 10.1841 15.5277 12.0207 15.5277Z" fill="white"/>
+<path d="M14.04 13.6703C13.5865 14.2924 12.8521 14.6966 12.0233 14.6966C10.6459 14.6966 9.5293 13.58 9.5293 12.2025C9.5293 10.8251 10.6459 9.7085 12.0233 9.7085C12.8521 9.7085 13.5865 10.1127 14.04 10.7348C13.6845 10.4073 13.2098 10.2073 12.6884 10.2073C11.5865 10.2073 10.6932 11.1006 10.6932 12.2025C10.6932 13.3045 11.5865 14.1978 12.6884 14.1978C13.2098 14.1978 13.6845 13.9978 14.04 13.6703Z" fill="#E70013"/>
+<path d="M11.192 12.2025L13.899 11.323L12.2262 13.6258V10.7793L13.8989 13.0821L11.192 12.2025Z" fill="#E70013"/>
+</g>
+<defs>
+<clipPath id="clip0_1692_54011">
+<rect x="2.04688" y="5.55225" width="19.9495" height="13.2997" rx="1" fill="white"/>
+</clipPath>
+</defs>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

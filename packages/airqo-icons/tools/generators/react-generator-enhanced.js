@@ -233,16 +233,21 @@ function transformSvgToJsx(svgContent) {
     '<svg$1width={size}$2height={size}$3>',
   );
 
-  // Check if this is a monochrome icon
-  const hasSpecificColors = /fill="(?!none|currentColor|black|#000000?)[#a-fA-F0-9]+"/.test(
-    transformed,
-  );
+  // Treat an SVG as monochrome when it contains at most one solid paint.
+  // The previous implementation only recognized black/currentColor, which
+  // made icons using design-system gray values (for example #1C1D20) ignore
+  // the component's `color` prop.
+  const solidPaints = [...transformed.matchAll(/\b(?:fill|stroke)="([^"]+)"/g)]
+    .map((match) => match[1].trim().toLowerCase())
+    .filter((paint) => !['none', 'currentcolor', 'inherit'].includes(paint) && !paint.startsWith('url('));
+  const isMonochrome = new Set(solidPaints).size <= 1;
 
-  if (!hasSpecificColors) {
-    // Monochrome icon - replace fills and strokes with dynamic color
+  if (isMonochrome) {
+    // Monochrome icon - replace fixed fills/strokes and currentColor with the
+    // component color. Transparent fills and URL paints remain untouched.
     transformed = transformed
-      .replace(/fill="#?[0-9A-Fa-f]{3,6}"|fill="black"/g, 'fill={color}')
-      .replace(/stroke="#?[0-9A-Fa-f]{3,6}"|stroke="black"/g, 'stroke={color}');
+      .replace(/fill="(?:currentColor|#[0-9A-Fa-f]{3,8}|(?:black|white))"/g, 'fill={color}')
+      .replace(/stroke="(?:currentColor|#[0-9A-Fa-f]{3,8}|(?:black|white))"/g, 'stroke={color}');
   }
 
   // Add ref and spread props to the root SVG element

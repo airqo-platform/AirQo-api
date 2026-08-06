@@ -5,6 +5,13 @@ All notable changes to the AirQO Icons Flutter package will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-08-05
+
+### Fixed
+
+- Included the generated `lib/` source in the published package.
+- Added the documented `airqo_icons_flutter.dart` public library entrypoint.
+
 ## [1.0.4] - 2026-03-23
 
 ### Changed
