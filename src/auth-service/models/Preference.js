@@ -43,7 +43,7 @@ const chartConfigSchema = new Schema({
       "Heatmap",
       "Pie",
     ],
-    default: "line",
+    default: "Line",
   },
   days: { type: Number, default: 1 },
   results: { type: Number, default: 20 },

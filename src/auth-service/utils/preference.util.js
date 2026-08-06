@@ -845,7 +845,8 @@ const preferences = {
   },
   createChart: async (request, next) => {
     try {
-      const { tenant, deviceId, chartConfig } = request.body;
+      const { tenant } = request.query;
+      const { deviceId, chartConfig } = request.body;
       const userId = request.user._id; // Assuming JWT authentication
 
       // Basic validation
@@ -904,14 +905,17 @@ const preferences = {
   updateChart: async (request, next) => {
     try {
       const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const { chartId } = request.params;
       const updates = request.body;
       const userId = request.user._id;
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
 
-      // Find preference record
+      // Find preference record scoped to the requested group, and require
+      // the chart to actually exist within it.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        group_id: groupId,
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
@@ -963,13 +967,16 @@ const preferences = {
   deleteChart: async (request, next) => {
     try {
       const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const { chartId } = request.params;
       const userId = request.user._id;
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
 
-      // Find preference record
+      // Find preference record scoped to the requested group, and require
+      // the chart to actually exist within it.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        group_id: groupId,
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
