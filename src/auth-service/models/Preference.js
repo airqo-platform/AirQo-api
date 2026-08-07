@@ -551,6 +551,20 @@ PreferenceSchema.statics = {
       logObject("error in the object", err);
       if (err.code === 11000 || err.code === 11001) {
         logger.error(`Data conflicts detected -- ${err.message}`);
+        // Every user already has (or will very quickly get) a preference
+        // doc for a given (user_id, group_id) pair — that's the norm here,
+        // not an edge case, so a plain create() on this endpoint fails for
+        // almost every caller after the first. POST /upsert is the endpoint
+        // meant to be called repeatedly; surface that directly instead of
+        // leaving the caller to guess why "create" doesn't work the second
+        // time.
+        const response = createErrorResponse(err, "create", logger, "preference");
+        response.errors = {
+          ...response.errors,
+          hint:
+            "A preference for this user_id/group_id combination already exists. Use POST /upsert instead of POST / for anything other than a first-time create.",
+        };
+        return response;
       } else {
         logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       }
@@ -798,5 +812,10 @@ const PreferenceModel = (tenant) => {
     return preferences;
   }
 };
+
+// Attached to the export (not a named export — PreferenceModel itself is a
+// function) so GroupChartConfig.js can reuse the exact same chart field
+// definitions/validation instead of duplicating ~90 lines of schema.
+PreferenceModel.chartConfigSchema = chartConfigSchema;
 
 module.exports = PreferenceModel;

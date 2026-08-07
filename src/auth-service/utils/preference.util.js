@@ -2050,4 +2050,9 @@ const preferences = {
   },
 };
 
+// Exposed for reuse by group-chart-config.util.js — the group-scoped
+// default chart config accepts/updates the same whitelist of chart fields
+// as the personal one, so this avoids a second list drifting out of sync.
+preferences.allowedChartProperties = allowedChartProperties;
+
 module.exports = preferences;

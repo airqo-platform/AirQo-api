@@ -1566,4 +1566,11 @@ const preferenceValidations = {
   ],
 };
 
+// Exposed for reuse by group-chart-config.validators.js — the group-scoped
+// default chart config uses the exact same chart-field validation rules as
+// the personal one, so this avoids duplicating them.
+preferenceValidations.chartConfigValidation = chartConfigValidation;
+preferenceValidations.createNestedValidations = createNestedValidations;
+preferenceValidations.commonValidations = commonValidations;
+
 module.exports = preferenceValidations;
