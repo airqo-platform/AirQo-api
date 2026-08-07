@@ -1021,7 +1021,7 @@ const preferences = {
   },
   getChartConfigurations: async (request, next) => {
     try {
-      const { tenant } = request.query || {};
+      const { tenant, limit, skip } = request.query || {};
       const { deviceId } = request.params;
       const userId = request.user._id;
 
@@ -1040,10 +1040,18 @@ const preferences = {
         };
       }
 
+      // chartConfigurations is an array embedded in a single document, not
+      // its own collection — pagination (set by the route's pagination()
+      // middleware) is applied in memory rather than via a Mongo
+      // .skip()/.limit() query.
+      const allCharts = preference.chartConfigurations || [];
+      const skipNum = Number(skip) || 0;
+      const limitNum = Number(limit) || allCharts.length || 1;
+
       return {
         success: true,
         message: "Chart configurations retrieved successfully",
-        data: preference.chartConfigurations || [],
+        data: allCharts.slice(skipNum, skipNum + limitNum),
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -2049,5 +2057,10 @@ const preferences = {
     }
   },
 };
+
+// Exposed for reuse by group-chart-config.util.js — the group-scoped
+// default chart config accepts/updates the same whitelist of chart fields
+// as the personal one, so this avoids a second list drifting out of sync.
+preferences.allowedChartProperties = allowedChartProperties;
 
 module.exports = preferences;

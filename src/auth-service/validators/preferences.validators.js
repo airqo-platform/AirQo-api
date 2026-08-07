@@ -1566,4 +1566,17 @@ const preferenceValidations = {
   ],
 };
 
+// Exposed for reuse by group-chart-config.validators.js — the group-scoped
+// default chart config uses the exact same chart-field validation rules as
+// the personal one, so this avoids duplicating them. Namespaced under
+// `sharedHelpers` rather than added at the top level, since the rest of
+// this object is a route-name -> middleware-array contract (used directly
+// as e.g. `router.post("/", preferenceValidations.create, ...)`) and these
+// three aren't mountable route middleware on their own.
+preferenceValidations.sharedHelpers = {
+  chartConfigValidation,
+  createNestedValidations,
+  commonValidations,
+};
+
 module.exports = preferenceValidations;
