@@ -2,16 +2,6 @@ const mongoose = require("mongoose");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
-const httpStatus = require("http-status");
-const {
-  createSuccessResponse,
-  createErrorResponse,
-  createNotFoundResponse,
-} = require("@utils/shared");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- group-chart-config-model`
-);
 
 // Reuses the exact same chart field definitions the personal, per-user chart
 // configs use (models/Preference.js) — same shape, same validation, so the
@@ -62,40 +52,6 @@ groupChartConfigSchema.methods = {
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
-  },
-};
-
-groupChartConfigSchema.statics = {
-  async list({ filter = {}, skip = 0, limit = 1000 } = {}, next) {
-    try {
-      const response = await this.find(filter)
-        .skip(skip)
-        .limit(limit)
-        .lean();
-      return createSuccessResponse("list", response, "groupChartConfig", {
-        message: "Successfully retrieved the group chart configuration(s)",
-      });
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      return createErrorResponse(error, "list", logger, "groupChartConfig");
-    }
-  },
-
-  async remove({ filter = {} } = {}, next) {
-    try {
-      const removed = await this.findOneAndRemove(filter).exec();
-      if (isEmpty(removed)) {
-        return createNotFoundResponse(
-          "groupChartConfig",
-          "delete",
-          "the group chart configuration you are trying to DELETE does not exist, please crosscheck"
-        );
-      }
-      return createSuccessResponse("delete", removed._doc, "groupChartConfig");
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      return createErrorResponse(error, "delete", logger, "groupChartConfig");
-    }
   },
 };
 

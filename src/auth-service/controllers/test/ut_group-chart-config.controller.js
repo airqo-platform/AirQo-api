@@ -4,6 +4,7 @@ const { expect } = require("chai");
 const httpStatus = require("http-status");
 const rewire = require("rewire");
 const groupChartConfigUtil = require("@utils/group-chart-config.util");
+const constants = require("@config/constants");
 
 const controller = rewire("@controllers/group-chart-config.controller");
 const realExtractErrors = require("@utils/shared").extractErrorsFromRequest;
@@ -31,7 +32,7 @@ describe("group-chart-config controller", () => {
   });
 
   describe("create()", () => {
-    it("forwards grp_id/deviceId from params into the util call's body", async () => {
+    it("forwards grp_id as groupId via params, same convention as update/delete/list/getById", async () => {
       const createStub = sinon.stub(groupChartConfigUtil, "create").resolves({
         success: true,
         status: httpStatus.OK,
@@ -43,9 +44,29 @@ describe("group-chart-config controller", () => {
 
       expect(createStub.calledOnce).to.equal(true);
       const forwardedRequest = createStub.getCall(0).args[0];
-      expect(forwardedRequest.body.groupId).to.equal("grp1");
-      expect(forwardedRequest.body.deviceId).to.equal("device1");
+      expect(forwardedRequest.params.groupId).to.equal("grp1");
+      expect(forwardedRequest.params.deviceId).to.equal("device1");
       expect(res.status.calledWith(httpStatus.OK)).to.equal(true);
+    });
+
+    it("falls back to constants.DEFAULT_TENANT when req.query.tenant is omitted", async () => {
+      const createStub = sinon.stub(groupChartConfigUtil, "create").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "created",
+        data: {},
+      });
+      req.query = {};
+
+      await controller.create(req, res, next);
+
+      const forwardedRequest = createStub.getCall(0).args[0];
+      expect(forwardedRequest.query.tenant).to.equal(
+        constants.DEFAULT_TENANT || "airqo"
+      );
+      // The controller must build a fresh query object rather than mutate
+      // req.query in place — the original request should be untouched.
+      expect(req.query.tenant).to.equal(undefined);
     });
 
     it("forwards bad request errors to next()", async () => {

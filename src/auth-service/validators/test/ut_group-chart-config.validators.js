@@ -133,7 +133,7 @@ describe("group-chart-config validators", () => {
   describe("delete", () => {
     const app = buildApp(deleteValidations);
 
-    it("rejects a missing chartId route param cleanly via 422, not a crash", async () => {
+    it("rejects an invalid chartId value ('not-an-id') with 422", async () => {
       const res = await request(app).delete(
         `/test/groups/${validId()}/${validId()}/charts/not-an-id`
       );
@@ -163,6 +163,16 @@ describe("group-chart-config validators", () => {
         `/test/groups/not-an-id/${validId()}/charts`
       );
       expect(res.status).to.equal(422);
+    });
+
+    it("rejects tenant=not-a-tenant — confirms commonValidations.tenant is actually wired in", async () => {
+      const res = await request(app).get(
+        `/test/groups/${validId()}/${validId()}/charts?tenant=not-a-tenant`
+      );
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "the tenant value is not among the expected ones"
+      );
     });
   });
 

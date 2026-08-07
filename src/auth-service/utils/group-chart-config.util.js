@@ -17,7 +17,8 @@ const groupChartConfig = {
   create: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const { groupId, deviceId, chartConfig } = request.body;
+      const { groupId, deviceId } = request.params;
+      const { chartConfig } = request.body;
       const userId = request.user._id;
 
       if (!chartConfig || !chartConfig.fieldId) {
@@ -130,35 +131,28 @@ const groupChartConfig = {
     try {
       const { tenant } = request.query;
       const { groupId, deviceId, chartId } = request.params;
+      const userId = request.user._id;
 
-      const groupChart = await GroupChartConfigModel(tenant).findOne({
-        group_id: groupId,
-        device_id: deviceId,
-        "chartConfigurations._id": chartId,
-      });
+      // A single atomic $pull rather than findOne -> splice -> save: the
+      // read-modify-write shape raced against a concurrent delete/update on
+      // the same group+device doc (whole-document save() can silently drop
+      // the other request's change). $pull removes the matching array
+      // element directly, so there's no window for that to happen.
+      const updateResult = await GroupChartConfigModel(tenant).updateOne(
+        { group_id: groupId, device_id: deviceId, "chartConfigurations._id": chartId },
+        {
+          $pull: { chartConfigurations: { _id: chartId } },
+          $set: { updated_by: userId },
+        }
+      );
 
-      if (!groupChart) {
+      if (updateResult.matchedCount === 0) {
         return {
           success: false,
           message: "Group chart configuration not found for this device",
           status: httpStatus.NOT_FOUND,
         };
       }
-
-      const chartIndex = groupChart.chartConfigurations.findIndex(
-        (chart) => chart._id.toString() === chartId
-      );
-
-      if (chartIndex === -1) {
-        return {
-          success: false,
-          message: "Chart configuration not found",
-          status: httpStatus.NOT_FOUND,
-        };
-      }
-
-      groupChart.chartConfigurations.splice(chartIndex, 1);
-      await groupChart.save();
 
       return {
         success: true,
@@ -178,7 +172,7 @@ const groupChartConfig = {
 
   list: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, limit, skip } = request.query;
       const { groupId, deviceId } = request.params;
 
       const groupChart = await GroupChartConfigModel(tenant).findOne({
@@ -186,12 +180,21 @@ const groupChartConfig = {
         device_id: deviceId,
       });
 
+      // chartConfigurations is an array embedded in a single document, not
+      // its own collection — pagination (set by the route's pagination()
+      // middleware) is applied in memory rather than via a Mongo
+      // .skip()/.limit() query.
+      const allCharts = groupChart ? groupChart.chartConfigurations : [];
+      const skipNum = Number(skip) || 0;
+      const limitNum = Number(limit) || allCharts.length || 1;
+      const data = allCharts.slice(skipNum, skipNum + limitNum);
+
       return {
         success: true,
         message: groupChart
           ? "Group chart configurations retrieved successfully"
           : "No group chart configurations found for this device",
-        data: groupChart ? groupChart.chartConfigurations : [],
+        data,
         status: httpStatus.OK,
       };
     } catch (error) {

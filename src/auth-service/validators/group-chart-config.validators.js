@@ -8,7 +8,7 @@ const {
   chartConfigValidation,
   createNestedValidations,
   commonValidations,
-} = preferenceValidations;
+} = preferenceValidations.sharedHelpers;
 
 const groupIdParam = param("grp_id")
   .exists()
