@@ -31,8 +31,19 @@ const chartConfigSchema = new Schema({
   backgroundColor: { type: String, default: "#ffffff" },
   chartType: {
     type: String,
-    enum: ["Column", "Line", "Bar", "Spline", "Step"],
-    default: "line",
+    enum: [
+      "Column",
+      "Line",
+      "Bar",
+      "Spline",
+      "Step",
+      "Area",
+      "Scatter",
+      "Bubble",
+      "Heatmap",
+      "Pie",
+    ],
+    default: "Line",
   },
   days: { type: Number, default: 1 },
   results: { type: Number, default: 20 },
@@ -538,8 +549,30 @@ PreferenceSchema.statics = {
       }
     } catch (err) {
       logObject("error in the object", err);
-      logger.error(`Data conflicts detected -- ${err.message}`);
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      if (err.code === 11000 || err.code === 11001) {
+        logger.error(`Data conflicts detected -- ${err.message}`);
+        const response = createErrorResponse(err, "create", logger, "preference");
+        // Every user already has (or will very quickly get) a preference
+        // doc for a given (user_id, group_id) pair — that's the norm here,
+        // not an edge case, so a plain create() on this endpoint fails for
+        // almost every caller after the first. POST /upsert is the endpoint
+        // meant to be called repeatedly; surface that directly instead of
+        // leaving the caller to guess why "create" doesn't work the second
+        // time. Gated on the actual conflicting index (via MongoDB's own
+        // keyPattern) rather than assumed for every duplicate-key error —
+        // this schema only has the one unique index today, but checking
+        // keeps the hint from becoming misleading if that ever changes.
+        if (err.keyPattern && err.keyPattern.user_id && err.keyPattern.group_id) {
+          response.errors = {
+            ...response.errors,
+            hint:
+              "A preference for this user_id/group_id combination already exists. Use POST /upsert instead of POST / for anything other than a first-time create.",
+          };
+        }
+        return response;
+      } else {
+        logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      }
       return createErrorResponse(err, "create", logger, "preference");
     }
   },
@@ -784,5 +817,10 @@ const PreferenceModel = (tenant) => {
     return preferences;
   }
 };
+
+// Attached to the export (not a named export — PreferenceModel itself is a
+// function) so GroupChartConfig.js can reuse the exact same chart field
+// definitions/validation instead of duplicating ~90 lines of schema.
+PreferenceModel.chartConfigSchema = chartConfigSchema;
 
 module.exports = PreferenceModel;

@@ -3,7 +3,11 @@ const express = require("express");
 const router = express.Router();
 const preferenceController = require("@controllers/preference.controller");
 const preferenceValidations = require("@validators/preferences.validators");
+const groupChartConfigController = require("@controllers/group-chart-config.controller");
+const groupChartConfigValidations = require("@validators/group-chart-config.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { requireGroupManagerAccess } = require("@middleware/groupNetworkAuth");
+const { requireGroupMembership } = require("@middleware/permissionAuth");
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers); // Keep headers global
@@ -133,6 +137,54 @@ router.get(
   enhancedJWTAuth,
   preferenceValidations.getChartConfigurationById,
   preferenceController.getChartConfigurationById
+);
+
+// Group-wide DEFAULT chart configuration routes
+// ===========================================
+// Distinct from the personal /:deviceId/charts routes above: these set the
+// shared default chart for a device within a group/organization context —
+// what everyone viewing that device's data in the group sees by default,
+// not one user's own saved view. Writes require group-manager access;
+// reads only require verified group membership.
+router.post(
+  "/groups/:grp_id/:deviceId/charts",
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  groupChartConfigValidations.create,
+  groupChartConfigController.create
+);
+
+router.put(
+  "/groups/:grp_id/:deviceId/charts/:chartId",
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  groupChartConfigValidations.update,
+  groupChartConfigController.update
+);
+
+router.delete(
+  "/groups/:grp_id/:deviceId/charts/:chartId",
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  groupChartConfigValidations.delete,
+  groupChartConfigController.delete
+);
+
+router.get(
+  "/groups/:grp_id/:deviceId/charts",
+  enhancedJWTAuth,
+  requireGroupMembership(),
+  pagination(),
+  groupChartConfigValidations.list,
+  groupChartConfigController.list
+);
+
+router.get(
+  "/groups/:grp_id/:deviceId/charts/:chartId",
+  enhancedJWTAuth,
+  requireGroupMembership(),
+  groupChartConfigValidations.getById,
+  groupChartConfigController.getById
 );
 
 // Theme routes
