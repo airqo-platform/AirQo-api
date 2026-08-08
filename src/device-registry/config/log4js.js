@@ -83,7 +83,10 @@ if (isDevelopment()) {
   // slackWarn is added later only for production.
   // Only the network status job gets WARN→Slack routing in production.
   // All other jobs rely on the default category (ERROR only → Slack).
-  const OPS_ALERTS_JOB_NAMES = ["network-status-check-job"];
+  const OPS_ALERTS_JOB_NAMES = [
+    "network-status-check-job",
+    "rate-limit-digest-job",
+  ];
   const env = constants.ENVIRONMENT;
   OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
     config.categories[`${env} -- ${jobName} -- ops-alerts`] = {
