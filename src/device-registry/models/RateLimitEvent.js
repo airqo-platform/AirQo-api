@@ -45,7 +45,6 @@ const RateLimitEventSchema = new Schema(
       type: Date,
       required: true,
       default: Date.now,
-      index: true,
     },
   },
   {

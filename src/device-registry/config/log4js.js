@@ -81,8 +81,9 @@ if (isDevelopment()) {
   // full category name explicitly. Always include the "app" appender so
   // INFO/WARN messages reach the log file regardless of environment;
   // slackWarn is added later only for production.
-  // Only the network status job gets WARN→Slack routing in production.
-  // All other jobs rely on the default category (ERROR only → Slack).
+  // WARN and above → Slack routing in production is enabled for the job names in
+  // OPS_ALERTS_JOB_NAMES below; all other categories rely on the default category
+  // (ERROR only → Slack).
   const OPS_ALERTS_JOB_NAMES = [
     "network-status-check-job",
     "rate-limit-digest-job",
