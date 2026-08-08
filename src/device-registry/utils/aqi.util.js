@@ -23,13 +23,28 @@
 
 // Single source of truth for PM2.5 AQI breakpoints
 const constants = require("@config/constants");
-const { PM25_AQI_BREAKPOINTS } = constants;
+const { PM25_AQI_BREAKPOINTS, SUPPORTED_POLLUTANTS } = constants;
 const SystemConfigModel = require("@models/SystemConfig");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- aqi-util`);
 
+const DEFAULT_POLLUTANT = "pm2_5";
+// Kept as the literal historical key (not templated as `aqi_ranges_pm2_5`) so
+// any already-stored PM2.5 admin override keeps resolving after this file
+// gained multi-pollutant support — see getAqiRangesConfigKey below.
 const AQI_RANGES_CONFIG_KEY = "aqi_ranges";
 const AQI_RANGES_CACHE_TTL_MS = 60 * 1000; // rare writes, but staleness is user-visible in a public legend
+
+/**
+ * SystemConfig key an AQI ranges override is stored/looked up under, per
+ * pollutant. PM2.5 keeps the original unprefixed key for backward
+ * compatibility; every other pollutant gets its own namespaced key.
+ */
+function getAqiRangesConfigKey(pollutant = DEFAULT_POLLUTANT) {
+  return pollutant === DEFAULT_POLLUTANT
+    ? AQI_RANGES_CONFIG_KEY
+    : `${AQI_RANGES_CONFIG_KEY}_${pollutant}`;
+}
 
 // Fail fast at module load time if the breakpoint table is misconfigured.
 // This prevents Infinity/NaN slopes from silently propagating into the
@@ -215,9 +230,12 @@ function categoryFromConcentration(concentration, resolved = null) {
  *   hardcoded defaults, same as before this parameter existed. `version`/
  *   `effective_from` are only present when `source` is `"custom"` — see
  *   buildResolvedFromCustom.
- * @returns {{success: boolean, message: string, data: {standard: string, source: string, version: (number|null), effective_from: (Date|null), ranges: Array}}}
+ * @param {string} [pollutant="pm2_5"] - which SUPPORTED_POLLUTANTS entry's
+ *   `standard` label to report. Only affects the `standard` string; the
+ *   actual range values always come from `resolved` (or the defaults).
+ * @returns {{success: boolean, message: string, data: {standard: string, pollutant: string, source: string, version: (number|null), effective_from: (Date|null), ranges: Array}}}
  */
-function listRanges(resolved = null) {
+function listRanges(resolved = null, pollutant = DEFAULT_POLLUTANT) {
   const {
     AQI_RANGES,
     AQI_CATEGORIES,
@@ -252,7 +270,8 @@ function listRanges(resolved = null) {
     success: true,
     message: "Successfully retrieved AQI ranges",
     data: {
-      standard: "US EPA PM2.5 AQI (2024 NAAQS revision)",
+      standard: SUPPORTED_POLLUTANTS[pollutant].standard,
+      pollutant,
       source,
       version,
       effective_from,
@@ -399,16 +418,21 @@ function buildResolvedFromCustom(value, meta = {}) {
 // Pod-local in-memory cache — see docs/NEXUS_AIR_QUALITY_API_GUIDE.md and the
 // PR description for the accepted staleness tradeoff (up to
 // AQI_RANGES_CACHE_TTL_MS across other replicas after a write).
-const _aqiRangesCache = new Map(); // tenant -> { value, expiresAt }
+const _aqiRangesCache = new Map(); // "tenant:pollutant" -> { value, expiresAt }
 
 /**
- * Resolve the currently-active AQI ranges config for a tenant: a cached or
- * freshly-queried admin-set override if one exists and is valid, otherwise
- * the hardcoded defaults. Call once per request/job-run and pass the result
- * into categoryFromConcentration/listRanges — those stay synchronous.
+ * Resolve the currently-active AQI ranges config for a tenant/pollutant: a
+ * cached or freshly-queried admin-set override if one exists and is valid,
+ * otherwise that pollutant's hardcoded defaults (see SUPPORTED_POLLUTANTS).
+ * Call once per request/job-run and pass the result into
+ * categoryFromConcentration/listRanges — those stay synchronous.
  */
-async function resolveActiveAqiRanges(tenant = "airqo") {
-  const cached = _aqiRangesCache.get(tenant);
+async function resolveActiveAqiRanges(
+  tenant = "airqo",
+  pollutant = DEFAULT_POLLUTANT
+) {
+  const cacheKey = `${tenant}:${pollutant}`;
+  const cached = _aqiRangesCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
   }
@@ -417,9 +441,11 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
   // buildResolvedFromCustom's shape exactly (not `{...constants, source}`,
   // which would drag in every unrelated constant and leave a "default"
   // result structurally different from a "custom" one for anything doing a
-  // deep comparison).
+  // deep comparison). AQI_CATEGORIES/COLORS/COLOR_NAMES/CATEGORY_KEYS are
+  // shared across pollutants (see SUPPORTED_POLLUTANTS); only AQI_RANGES is
+  // pollutant-specific.
   let resolved = {
-    AQI_RANGES: constants.AQI_RANGES,
+    AQI_RANGES: SUPPORTED_POLLUTANTS[pollutant].ranges,
     AQI_CATEGORIES: constants.AQI_CATEGORIES,
     AQI_COLORS: constants.AQI_COLORS,
     AQI_COLOR_NAMES: constants.AQI_COLOR_NAMES,
@@ -428,9 +454,10 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
     version: null,
     effective_from: null,
   };
+  const configKey = getAqiRangesConfigKey(pollutant);
   try {
     const doc = await SystemConfigModel(tenant)
-      .findOne({ key: AQI_RANGES_CONFIG_KEY })
+      .findOne({ key: configKey })
       .lean();
     if (doc) {
       if (isValidAqiRangesShape(doc.value)) {
@@ -440,7 +467,7 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
         });
       } else {
         logger.error(
-          `🐛🐛 malformed ${AQI_RANGES_CONFIG_KEY} SystemConfig doc for tenant ${tenant} — falling back to defaults`
+          `🐛🐛 malformed ${configKey} SystemConfig doc for tenant ${tenant} — falling back to defaults`
         );
       }
     }
@@ -450,7 +477,7 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
     );
   }
 
-  _aqiRangesCache.set(tenant, {
+  _aqiRangesCache.set(cacheKey, {
     value: resolved,
     expiresAt: Date.now() + AQI_RANGES_CACHE_TTL_MS,
   });
@@ -458,8 +485,8 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
 }
 
 /**
- * Invalidate the cached resolved config for a tenant — call after a
- * successful PUT/DELETE write so the writing pod reflects the change
+ * Invalidate the cached resolved config for a tenant/pollutant — call after
+ * a successful PUT/DELETE write so the writing pod reflects the change
  * immediately rather than waiting out the TTL.
  *
  * Only clears THIS pod's cache. Other replicas keep serving whatever they
@@ -470,8 +497,8 @@ async function resolveActiveAqiRanges(tenant = "airqo") {
  * SystemConfig itself (e.g. compare `version` on every read) rather than
  * time-based expiry.
  */
-function invalidateAqiRangesCache(tenant = "airqo") {
-  _aqiRangesCache.delete(tenant);
+function invalidateAqiRangesCache(tenant = "airqo", pollutant = DEFAULT_POLLUTANT) {
+  _aqiRangesCache.delete(`${tenant}:${pollutant}`);
 }
 
 module.exports = {
@@ -483,5 +510,7 @@ module.exports = {
   isValidAqiRangesShape,
   resolveActiveAqiRanges,
   invalidateAqiRangesCache,
+  getAqiRangesConfigKey,
   AQI_RANGES_CONFIG_KEY,
+  DEFAULT_POLLUTANT,
 };

@@ -123,6 +123,85 @@ const PM25_AQI_BREAKPOINTS = [
   { cLow: 225.5, cHigh: 325.4, aqiLow: 301, aqiHigh: 500 }, // Hazardous
 ];
 
+/**
+ * PM2.5 concentration breakpoints (µg/m³) per AQI category, keyed the same
+ * way as AQI_RANGES above. Kept as a separate name (rather than reusing
+ * AQI_RANGES directly) so SUPPORTED_POLLUTANTS below can list PM2.5 and PM10
+ * side by side without implying AQI_RANGES itself is pollutant-specific to
+ * callers that still import it directly (ingestion pipeline, aqi.util.js
+ * defaults) for backward compatibility.
+ * @type {Object.<string, {min: number, max: number|null}>}
+ */
+const PM25_AQI_RANGES = AQI_RANGES;
+
+/**
+ * PM10 AQI concentration breakpoints (µg/m³), EPA 24-hour standard.
+ * Unlike PM2.5, these breakpoints were not revised in the 2024 NAAQS update.
+ * Reference: EPA-454/B-24-002 (2024), Table 2.
+ * @type {Object.<string, {min: number, max: number|null}>}
+ */
+const PM10_AQI_RANGES = {
+  good: { min: 0, max: 54 },
+  moderate: { min: 54.1, max: 154 },
+  u4sg: { min: 154.1, max: 254 },
+  unhealthy: { min: 254.1, max: 354 },
+  very_unhealthy: { min: 354.1, max: 424 },
+  hazardous: { min: 424.1, max: null },
+};
+
+/**
+ * PM10 AQI numeric breakpoints (EPA 24-hour standard), same shape and use as
+ * PM25_AQI_BREAKPOINTS — piecewise linear interpolation table mapping PM10
+ * concentration ranges (µg/m³) to AQI value ranges (0–500).
+ * Reference: EPA-454/B-24-002 (2024), Table 2.
+ */
+const PM10_AQI_BREAKPOINTS = [
+  { cLow: 0, cHigh: 54, aqiLow: 0, aqiHigh: 50 }, // Good
+  { cLow: 55, cHigh: 154, aqiLow: 51, aqiHigh: 100 }, // Moderate
+  { cLow: 155, cHigh: 254, aqiLow: 101, aqiHigh: 150 }, // Unhealthy for Sensitive Groups
+  { cLow: 255, cHigh: 354, aqiLow: 151, aqiHigh: 200 }, // Unhealthy
+  { cLow: 355, cHigh: 424, aqiLow: 201, aqiHigh: 300 }, // Very Unhealthy
+  { cLow: 425, cHigh: 604, aqiLow: 301, aqiHigh: 500 }, // Hazardous
+];
+
+/**
+ * Registry of pollutants supported by the dynamic AQI ranges endpoint
+ * (GET/PUT/DELETE /api/v2/devices/aqi-ranges?pollutant=<key>). AQI category
+ * labels/colors/keys (AQI_CATEGORIES, AQI_COLORS, AQI_COLOR_NAMES,
+ * AQI_CATEGORY_KEYS) are shared across every pollutant here — Good/Moderate/
+ * etc. and their colors are a property of the AQI band itself, not of which
+ * pollutant produced the underlying concentration. Only the concentration
+ * breakpoints (`ranges`) and the numeric-AQI interpolation table
+ * (`breakpoints`) are pollutant-specific.
+ *
+ * To add a new pollutant: define its `*_AQI_RANGES` / `*_AQI_BREAKPOINTS`
+ * pair above (following an authoritative standard — see the CO2 note below)
+ * and add an entry here. No other file needs a hardcoded pollutant list;
+ * aqi.util.js and the validators all derive supported keys from this object.
+ *
+ * CO2 is deliberately not listed here: EPA/WHO AQI (the 0–500,
+ * Good..Hazardous banding used by every entry below) is only defined for
+ * criteria pollutants (PM2.5, PM10, O3, NO2, SO2, CO). CO2 air-quality
+ * guidance (e.g. ASHRAE ventilation ppm thresholds) uses a different scale
+ * and would need its own non-AQI representation, not a `ranges` entry here.
+ */
+const SUPPORTED_POLLUTANTS = {
+  pm2_5: {
+    label: "PM2.5",
+    standard: "US EPA PM2.5 AQI (2024 NAAQS revision)",
+    ranges: PM25_AQI_RANGES,
+    breakpoints: PM25_AQI_BREAKPOINTS,
+  },
+  pm10: {
+    label: "PM10",
+    standard: "US EPA PM10 AQI (24-hour standard)",
+    ranges: PM10_AQI_RANGES,
+    breakpoints: PM10_AQI_BREAKPOINTS,
+  },
+};
+
+const SUPPORTED_POLLUTANT_KEYS = Object.keys(SUPPORTED_POLLUTANTS);
+
 // Export individual constants for backward compatibility
 module.exports = {
   // Individual exports (existing code compatibility)
@@ -139,4 +218,11 @@ module.exports = {
 
   // Alternative name for the keys array (matches existing usage in static-lists.js)
   AQI_CATEGORIES_KEYS: AQI_CATEGORY_KEYS,
+
+  // Multi-pollutant support (GET/PUT/DELETE /aqi-ranges?pollutant=<key>)
+  PM25_AQI_RANGES,
+  PM10_AQI_RANGES,
+  PM10_AQI_BREAKPOINTS,
+  SUPPORTED_POLLUTANTS,
+  SUPPORTED_POLLUTANT_KEYS,
 };
