@@ -7,6 +7,20 @@ const httpStatus = require("http-status");
 const crypto = require("crypto");
 const aqiUtil = require("@utils/aqi.util");
 
+// Shared across GET/PUT/DELETE — which pollutant's ranges the request
+// targets. Defaults to pm2_5 (see aqiUtil.DEFAULT_POLLUTANT) when omitted.
+const pollutantQueryValidator = query("pollutant")
+  .optional()
+  .trim()
+  .notEmpty()
+  .withMessage("the pollutant cannot be empty, if provided")
+  .bail()
+  .toLowerCase()
+  .isIn(constants.SUPPORTED_POLLUTANT_KEYS)
+  .withMessage(
+    `the pollutant value is not among the expected ones: ${constants.SUPPORTED_POLLUTANT_KEYS.join(", ")}`
+  );
+
 const listRanges = [
   query("tenant")
     .optional()
@@ -17,6 +31,7 @@ const listRanges = [
     .toLowerCase()
     .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
+  pollutantQueryValidator,
   validate,
 ];
 
@@ -66,6 +81,7 @@ const updateRanges = [
     .toLowerCase()
     .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
+  pollutantQueryValidator,
   body("admin_secret")
     .exists()
     .withMessage("admin_secret is required")
@@ -113,6 +129,7 @@ const deleteRanges = [
     .toLowerCase()
     .isIn(constants.TENANTS)
     .withMessage("the tenant value is not among the expected ones"),
+  pollutantQueryValidator,
   // Optional/type-only check — requireAdminSecret (which also accepts the
   // secret via query, see its own comment) is the actual gate; this just
   // rejects an obviously-wrong body shape early with a clear message when a

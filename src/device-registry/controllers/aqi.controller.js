@@ -16,12 +16,23 @@ const resolveTenant = (req) => {
   return isEmpty(tenant) ? constants.DEFAULT_TENANT || "airqo" : tenant;
 };
 
+const resolvePollutant = (req) => {
+  const pollutant = req.query.pollutant;
+  return isEmpty(pollutant) ? aqiUtil.DEFAULT_POLLUTANT : pollutant;
+};
+
 // Fire-and-forget — reconciles already-stored readings'/signals' aqi_category
 // etc. against the config that was just written, so they stop looking stale
 // promptly rather than waiting for the daily safety-net schedule. Never
 // awaited from the request handler: the backfill can take longer than an
 // HTTP request should, and a failure here must not fail the PUT/DELETE that
 // already succeeded.
+//
+// PM2.5-only: aqi_category/aqi_index/aqi_color on Reading/Signal documents
+// are computed exclusively from pm2_5 at ingestion (see models/Event.js,
+// bin/jobs/store-readings-job.js) — there is no per-reading PM10 (or other
+// pollutant) category to backfill, so this is skipped for any other
+// pollutant's range override.
 function triggerAqiCategoryBackfill(tenant) {
   runAqiCategoryBackfillJob(tenant).catch((error) => {
     logger.error(
@@ -42,8 +53,9 @@ const aqiController = {
       }
 
       const tenant = resolveTenant(req);
-      const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
-      const result = aqiUtil.listRanges(resolved);
+      const pollutant = resolvePollutant(req);
+      const resolved = await aqiUtil.resolveActiveAqiRanges(tenant, pollutant);
+      const result = aqiUtil.listRanges(resolved, pollutant);
 
       res.status(httpStatus.OK).json({
         success: true,
@@ -74,21 +86,24 @@ const aqiController = {
       }
 
       const tenant = resolveTenant(req);
+      const pollutant = resolvePollutant(req);
       const value = { ranges: buildRangesWithDerivedMin(req.body.ranges) };
 
       await SystemConfigModel(tenant).upsert(
-        aqiUtil.AQI_RANGES_CONFIG_KEY,
+        aqiUtil.getAqiRangesConfigKey(pollutant),
         value,
         req.body.updated_by || null
       );
       // Invalidate after the write succeeds, not before, so a concurrent
       // read can't be caught between an invalidated cache and the new value
       // actually landing in Mongo.
-      aqiUtil.invalidateAqiRangesCache(tenant);
-      triggerAqiCategoryBackfill(tenant);
+      aqiUtil.invalidateAqiRangesCache(tenant, pollutant);
+      if (pollutant === aqiUtil.DEFAULT_POLLUTANT) {
+        triggerAqiCategoryBackfill(tenant);
+      }
 
-      const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
-      const result = aqiUtil.listRanges(resolved);
+      const resolved = await aqiUtil.resolveActiveAqiRanges(tenant, pollutant);
+      const result = aqiUtil.listRanges(resolved, pollutant);
 
       res.status(httpStatus.OK).json({
         success: true,
@@ -119,14 +134,17 @@ const aqiController = {
       }
 
       const tenant = resolveTenant(req);
+      const pollutant = resolvePollutant(req);
       await SystemConfigModel(tenant).deleteOne({
-        key: aqiUtil.AQI_RANGES_CONFIG_KEY,
+        key: aqiUtil.getAqiRangesConfigKey(pollutant),
       });
-      aqiUtil.invalidateAqiRangesCache(tenant);
-      triggerAqiCategoryBackfill(tenant);
+      aqiUtil.invalidateAqiRangesCache(tenant, pollutant);
+      if (pollutant === aqiUtil.DEFAULT_POLLUTANT) {
+        triggerAqiCategoryBackfill(tenant);
+      }
 
-      const resolved = await aqiUtil.resolveActiveAqiRanges(tenant);
-      const result = aqiUtil.listRanges(resolved);
+      const resolved = await aqiUtil.resolveActiveAqiRanges(tenant, pollutant);
+      const result = aqiUtil.listRanges(resolved, pollutant);
 
       res.status(httpStatus.OK).json({
         success: true,
