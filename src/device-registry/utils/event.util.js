@@ -2128,8 +2128,19 @@ const createEvent = {
             tenant,
           );
 
+          // Persist every blocked request for an accurate digest count;
+          // shouldLog only throttles the noisy warn line, not the count.
+          throttleUtil.logRateLimitEvent(
+            "BLOCKED",
+            clientId,
+            { remainingSeconds },
+            tenant,
+          );
+
           if (shouldLog) {
-            logger.error(
+            // Individual events are batched into the daily digest
+            // (rate-limit-digest-job) instead of alerting Slack in real time.
+            logger.warn(
               `🚫 RATE LIMITED | client=${clientId} | ${remainingSeconds}s remaining`,
             );
           }
@@ -2162,8 +2173,16 @@ const createEvent = {
 
           const blockedForSeconds = Math.round(BLOCK_DURATION / 1000);
           const blockedForMinutes = Math.round(BLOCK_DURATION / 60000);
-          logger.error(
+          // Individual events are batched into the daily digest
+          // (rate-limit-digest-job) instead of alerting Slack in real time.
+          logger.warn(
             `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=${blockedForMinutes}m`,
+          );
+          throttleUtil.logRateLimitEvent(
+            "TRIGGERED",
+            clientId,
+            { qpm: tracker.count, blockedForMinutes },
+            tenant,
           );
 
           return {
