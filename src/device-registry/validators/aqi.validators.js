@@ -11,10 +11,10 @@ const aqiUtil = require("@utils/aqi.util");
 // targets. Defaults to pm2_5 (see aqiUtil.DEFAULT_POLLUTANT) when omitted.
 const pollutantQueryValidator = query("pollutant")
   .optional()
+  .trim()
   .notEmpty()
   .withMessage("the pollutant cannot be empty, if provided")
   .bail()
-  .trim()
   .toLowerCase()
   .isIn(constants.SUPPORTED_POLLUTANT_KEYS)
   .withMessage(

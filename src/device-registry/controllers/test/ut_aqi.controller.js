@@ -60,6 +60,28 @@ describe("AQI Controller", () => {
       const err = next.getCall(0).args[0];
       expect(err.message).to.equal("Internal Server Error");
     });
+
+    it("defaults to pm2_5 when pollutant is omitted from the query", async () => {
+      await aqiController.listRanges(req, res, next);
+
+      expect(aqiUtil.resolveActiveAqiRanges).to.have.been.calledWith(
+        "airqo",
+        "pm2_5"
+      );
+      expect(aqiUtil.listRanges).to.have.been.calledWith(null, "pm2_5");
+    });
+
+    it("resolves PM10 ranges independently of PM2.5 when ?pollutant=pm10", async () => {
+      req.query.pollutant = "pm10";
+
+      await aqiController.listRanges(req, res, next);
+
+      expect(aqiUtil.resolveActiveAqiRanges).to.have.been.calledWith(
+        "airqo",
+        "pm10"
+      );
+      expect(aqiUtil.listRanges).to.have.been.calledWith(null, "pm10");
+    });
   });
 
   describe("updateRanges / deleteRanges", () => {
@@ -227,6 +249,67 @@ describe("AQI Controller", () => {
 
       expect(res.status).to.have.been.calledWith(httpStatus.OK);
       expect(next.called).to.equal(false);
+    });
+
+    it("updateRanges stores PM10 under its own config key, not the PM2.5 one", async () => {
+      req = {
+        query: { pollutant: "pm10" },
+        params: {},
+        body: { ranges: validRanges(), admin_secret: "x" },
+      };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      const usedKey = upsertStub.getCall(0).args[0];
+      expect(usedKey).to.equal(aqiUtil.getAqiRangesConfigKey("pm10"));
+      expect(usedKey).to.not.equal(aqiUtil.AQI_RANGES_CONFIG_KEY);
+    });
+
+    it("updateRanges invalidates the cache for the specific pollutant written", async () => {
+      req = {
+        query: { pollutant: "pm10" },
+        params: {},
+        body: { ranges: validRanges(), admin_secret: "x" },
+      };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(
+        aqiUtil.invalidateAqiRangesCache.calledOnceWith("airqo", "pm10")
+      ).to.equal(true);
+    });
+
+    it("updateRanges does NOT trigger the PM2.5 category backfill for a PM10 override", async () => {
+      req = {
+        query: { pollutant: "pm10" },
+        params: {},
+        body: { ranges: validRanges(), admin_secret: "x" },
+      };
+
+      await proxiedController.updateRanges(req, res, next);
+
+      expect(runBackfillStub.called).to.equal(false);
+    });
+
+    it("deleteRanges removes the PM10-specific override, not the PM2.5 one", async () => {
+      req = { query: { pollutant: "pm10" }, params: {}, body: {} };
+
+      await proxiedController.deleteRanges(req, res, next);
+
+      expect(deleteOneStub.getCall(0).args[0]).to.deep.equal({
+        key: aqiUtil.getAqiRangesConfigKey("pm10"),
+      });
+      expect(
+        aqiUtil.invalidateAqiRangesCache.calledOnceWith("airqo", "pm10")
+      ).to.equal(true);
+    });
+
+    it("deleteRanges does NOT trigger the PM2.5 category backfill for a PM10 revert", async () => {
+      req = { query: { pollutant: "pm10" }, params: {}, body: {} };
+
+      await proxiedController.deleteRanges(req, res, next);
+
+      expect(runBackfillStub.called).to.equal(false);
     });
   });
 });

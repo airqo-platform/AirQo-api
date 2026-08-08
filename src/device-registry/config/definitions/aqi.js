@@ -138,15 +138,24 @@ const PM25_AQI_RANGES = AQI_RANGES;
  * PM10 AQI concentration breakpoints (µg/m³), EPA 24-hour standard.
  * Unlike PM2.5, these breakpoints were not revised in the 2024 NAAQS update.
  * Reference: EPA-454/B-24-002 (2024), Table 2.
+ *
+ * PM10 concentrations are reported by EPA as whole µg/m³ (no decimal
+ * truncation step, unlike PM2.5's 1-decimal convention), so min_value must
+ * match PM10_AQI_BREAKPOINTS' integer cLow exactly (55/155/255/355/425) —
+ * not the PM2.5-style thousandths offset (54.1/154.1/...) used above. Any
+ * caller classifying a raw (non-integer) PM10 reading against these ranges
+ * must truncate it to a whole number first (Math.trunc), matching EPA
+ * methodology — max_value here is the true breakpoint cHigh, not inflated to
+ * absorb fractional inputs the way AQI_RANGES.good.max (9.1) does for PM2.5.
  * @type {Object.<string, {min: number, max: number|null}>}
  */
 const PM10_AQI_RANGES = {
   good: { min: 0, max: 54 },
-  moderate: { min: 54.1, max: 154 },
-  u4sg: { min: 154.1, max: 254 },
-  unhealthy: { min: 254.1, max: 354 },
-  very_unhealthy: { min: 354.1, max: 424 },
-  hazardous: { min: 424.1, max: null },
+  moderate: { min: 55, max: 154 },
+  u4sg: { min: 155, max: 254 },
+  unhealthy: { min: 255, max: 354 },
+  very_unhealthy: { min: 355, max: 424 },
+  hazardous: { min: 425, max: null },
 };
 
 /**
