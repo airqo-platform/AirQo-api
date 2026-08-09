@@ -2979,6 +2979,7 @@ const createUserModule = {
       const tokenCreationBody = {
         token,
         name: user.firstName,
+        user_id,
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
 
@@ -4174,6 +4175,7 @@ const createUserModule = {
       const tokenCreationBody = {
         token,
         name: createdUser._doc.firstName,
+        user_id,
       };
 
       const responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
@@ -5819,6 +5821,7 @@ const createUserModule = {
         const tokenCreationBody = {
           token,
           name: createdUser._doc.firstName,
+          user_id,
         };
 
         const responseFromCreateToken = await VerifyTokenModel(

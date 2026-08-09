@@ -133,38 +133,23 @@ describe("token util", () => {
       expect(result).to.equal(undefined);
     });
 
-    it("short-circuits with success and a fresh token when already verified", async () => {
+    it("short-circuits with success and mints no token when already verified", async () => {
       rewireToken.__set__("UserModel", () => ({
         find: sinon
           .stub()
           .returns({ lean: sinon.stub().resolves([{ ...baseUser, verified: true }]) }),
       }));
-      rewireToken.__set__(
-        "AbstractTokenFactory",
-        stubTokenFactory(sinon.stub().resolves("signed.jwt.token"))
-      );
+      const createTokenSpy = sinon.stub().resolves("signed.jwt.token");
+      rewireToken.__set__("AbstractTokenFactory", stubTokenFactory(createTokenSpy));
 
       const result = await rewireToken.verifyEmail(req, next);
 
+      // Security: this branch is reached on user_id alone, before the token
+      // param is checked against anything, so it must never mint a session --
+      // otherwise anyone who knows/guesses a verified user's id could log in
+      // as them without ever presenting a valid verify token.
+      expect(createTokenSpy.called).to.equal(false);
       expect(next.called).to.equal(false);
-      expect(result.success).to.equal(true);
-      expect(result.message).to.equal("email already verified");
-      expect(result.data.token).to.equal("JWT signed.jwt.token");
-    });
-
-    it("still reports 'already verified' success when token minting fails", async () => {
-      rewireToken.__set__("UserModel", () => ({
-        find: sinon
-          .stub()
-          .returns({ lean: sinon.stub().resolves([{ ...baseUser, verified: true }]) }),
-      }));
-      rewireToken.__set__(
-        "AbstractTokenFactory",
-        stubTokenFactory(sinon.stub().rejects(new Error("JWT_SECRET missing")))
-      );
-
-      const result = await rewireToken.verifyEmail(req, next);
-
       expect(result).to.deep.equal({
         success: true,
         message: "email already verified",
@@ -187,6 +172,41 @@ describe("token util", () => {
       expect(next.calledOnce).to.equal(true);
       expect(next.getCall(0).args[0].message).to.equal("Invalid link");
       expect(result).to.equal(undefined);
+    });
+
+    it("scopes the verify-token lookup to this user_id, accepting legacy tokens with no user_id stored", async () => {
+      const listStub = sinon
+        .stub()
+        .resolves({ success: true, status: httpStatus.OK });
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([baseUser]) }),
+        modify: sinon.stub().resolves({ success: true, status: httpStatus.OK }),
+      }));
+      rewireToken.__set__("VerifyTokenModel", () => ({
+        list: listStub,
+        remove: sinon.stub().resolves({ success: true }),
+      }));
+      rewireToken.__set__("mailer", {
+        afterEmailVerification: sinon.stub().resolves({ success: true }),
+      });
+      rewireToken.__set__(
+        "AbstractTokenFactory",
+        stubTokenFactory(sinon.stub().resolves("signed.jwt.token"))
+      );
+
+      await rewireToken.verifyEmail(req, next);
+
+      const passedFilter = listStub.getCall(0).args[0].filter;
+      expect(passedFilter.token).to.equal("some-verify-token");
+      expect(passedFilter.$or).to.deep.include({
+        user_id: { $exists: false },
+      });
+      expect(
+        passedFilter.$or.some(
+          (clause) =>
+            clause.user_id && clause.user_id.toString() === validUserId
+        )
+      ).to.equal(true);
     });
 
     it("verifies the user, deletes the token, and returns success with an auto-login token", async () => {
@@ -215,7 +235,7 @@ describe("token util", () => {
       expect(modifyStub.calledOnce).to.equal(true);
       expect(removeStub.calledOnce).to.equal(true);
       expect(result.success).to.equal(true);
-      expect(result.message).to.equal("email verified sucessfully");
+      expect(result.message).to.equal("email verified successfully");
       expect(result.data.token).to.equal("JWT signed.jwt.token");
     });
 
@@ -240,7 +260,7 @@ describe("token util", () => {
 
       expect(result).to.deep.equal({
         success: true,
-        message: "email verified sucessfully",
+        message: "email verified successfully",
         status: httpStatus.OK,
       });
     });

@@ -1286,18 +1286,27 @@ const token = {
       // The verify-token document is deleted on first use (see below), so
       // without this short-circuit a second click on the same link 400s with
       // "Invalid link" even though the account is already verified.
+      //
+      // No token is minted here: this branch is reached on `user_id` alone,
+      // before the `token` param has been checked against anything, so
+      // minting a session here would let anyone who knows/guesses a verified
+      // user's id log in as them. Only the branch below -- which requires a
+      // real, unexpired, user-bound verify token -- may issue a session.
       if (userDetails[0].verified === true) {
-        const data = await _mintAutoLoginToken(tenant, userDetails[0]);
         return {
           success: true,
           message: "email already verified",
           status: httpStatus.OK,
-          ...(data ? { data } : {}),
         };
       }
 
+      // Scoped to this user_id so a token issued for one account can't be
+      // replayed against a different account's user_id to hijack it. Legacy
+      // tokens created before this field existed (no user_id stored) are
+      // still honoured until they expire on their own.
       let filter = {
         token,
+        $or: [{ user_id: ObjectId(user_id) }, { user_id: { $exists: false } }],
         expires: {
           $gt: moment().tz(timeZone).toDate(),
         },
@@ -1368,7 +1377,7 @@ const token = {
                 });
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "email verified successfully",
                   status: httpStatus.OK,
                   ...(data ? { data } : {}),
                 };
