@@ -132,8 +132,11 @@ function envConfig(env) {
     // client's patience and keep holding a pooled connection for no benefit.
     // Same reasoning as READINGS_AGGREGATE_TIMEOUT_MS, same default.
     DEVICE_LIST_AGGREGATE_TIMEOUT_MS: (() => {
-      const val = parseInt(process.env.DEVICE_LIST_AGGREGATE_TIMEOUT_MS, 10);
-      return Number.isFinite(val) && val > 0 ? val : 25000;
+      // Number() (unlike parseInt) rejects partial parses ("25000ms") and
+      // requires the whole string to be numeric; isSafeInteger rejects
+      // fractional ("25000.5") and out-of-range values.
+      const val = Number(process.env.DEVICE_LIST_AGGREGATE_TIMEOUT_MS);
+      return Number.isSafeInteger(val) && val > 0 ? val : 25000;
     })(),
 
     // Default lookback window for event/measurement queries (generate-filter fetch).
