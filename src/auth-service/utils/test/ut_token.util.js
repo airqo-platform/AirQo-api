@@ -92,6 +92,180 @@ describe("token util", () => {
     });
   });
 
+  describe("verifyEmail()", () => {
+    let origVerifyTokenModel, origMailer, origAbstractTokenFactory;
+    const validUserId = "507f1f77bcf86cd799439011";
+    const baseUser = {
+      _id: validUserId,
+      firstName: "Jane",
+      userName: "jane",
+      email: "jane@example.com",
+      verified: false,
+    };
+
+    const stubTokenFactory = (behavior) =>
+      function () {
+        return { createToken: behavior };
+      };
+
+    beforeEach(() => {
+      origVerifyTokenModel = rewireToken.__get__("VerifyTokenModel");
+      origMailer = rewireToken.__get__("mailer");
+      origAbstractTokenFactory = rewireToken.__get__("AbstractTokenFactory");
+      req.params = { user_id: validUserId, token: "some-verify-token" };
+    });
+
+    afterEach(() => {
+      rewireToken.__set__("VerifyTokenModel", origVerifyTokenModel);
+      rewireToken.__set__("mailer", origMailer);
+      rewireToken.__set__("AbstractTokenFactory", origAbstractTokenFactory);
+    });
+
+    it("calls next with a 400 error when the user does not exist", async () => {
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([]) }),
+      }));
+
+      const result = await rewireToken.verifyEmail(req, next);
+
+      expect(next.calledOnce).to.equal(true);
+      expect(next.getCall(0).args[0].message).to.equal("Bad Reqest Error");
+      expect(result).to.equal(undefined);
+    });
+
+    it("short-circuits with success and mints no token when already verified", async () => {
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon
+          .stub()
+          .returns({ lean: sinon.stub().resolves([{ ...baseUser, verified: true }]) }),
+      }));
+      const createTokenSpy = sinon.stub().resolves("signed.jwt.token");
+      rewireToken.__set__("AbstractTokenFactory", stubTokenFactory(createTokenSpy));
+
+      const result = await rewireToken.verifyEmail(req, next);
+
+      // Security: this branch is reached on user_id alone, before the token
+      // param is checked against anything, so it must never mint a session --
+      // otherwise anyone who knows/guesses a verified user's id could log in
+      // as them without ever presenting a valid verify token.
+      expect(createTokenSpy.called).to.equal(false);
+      expect(next.called).to.equal(false);
+      expect(result).to.deep.equal({
+        success: true,
+        message: "email already verified",
+        status: httpStatus.OK,
+      });
+    });
+
+    it("calls next with 'Invalid link' when the token is missing or expired", async () => {
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([baseUser]) }),
+      }));
+      rewireToken.__set__("VerifyTokenModel", () => ({
+        list: sinon
+          .stub()
+          .resolves({ success: true, status: httpStatus.NOT_FOUND }),
+      }));
+
+      const result = await rewireToken.verifyEmail(req, next);
+
+      expect(next.calledOnce).to.equal(true);
+      expect(next.getCall(0).args[0].message).to.equal("Invalid link");
+      expect(result).to.equal(undefined);
+    });
+
+    it("scopes the verify-token lookup to this user_id, accepting legacy tokens with no user_id stored", async () => {
+      const listStub = sinon
+        .stub()
+        .resolves({ success: true, status: httpStatus.OK });
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([baseUser]) }),
+        modify: sinon.stub().resolves({ success: true, status: httpStatus.OK }),
+      }));
+      rewireToken.__set__("VerifyTokenModel", () => ({
+        list: listStub,
+        remove: sinon.stub().resolves({ success: true }),
+      }));
+      rewireToken.__set__("mailer", {
+        afterEmailVerification: sinon.stub().resolves({ success: true }),
+      });
+      rewireToken.__set__(
+        "AbstractTokenFactory",
+        stubTokenFactory(sinon.stub().resolves("signed.jwt.token"))
+      );
+
+      await rewireToken.verifyEmail(req, next);
+
+      const passedFilter = listStub.getCall(0).args[0].filter;
+      expect(passedFilter.token).to.equal("some-verify-token");
+      expect(passedFilter.$or).to.deep.include({
+        user_id: { $exists: false },
+      });
+      expect(
+        passedFilter.$or.some(
+          (clause) =>
+            clause.user_id && clause.user_id.toString() === validUserId
+        )
+      ).to.equal(true);
+    });
+
+    it("verifies the user, deletes the token, and returns success with an auto-login token", async () => {
+      const modifyStub = sinon
+        .stub()
+        .resolves({ success: true, status: httpStatus.OK });
+      const removeStub = sinon.stub().resolves({ success: true });
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([baseUser]) }),
+        modify: modifyStub,
+      }));
+      rewireToken.__set__("VerifyTokenModel", () => ({
+        list: sinon.stub().resolves({ success: true, status: httpStatus.OK }),
+        remove: removeStub,
+      }));
+      rewireToken.__set__("mailer", {
+        afterEmailVerification: sinon.stub().resolves({ success: true }),
+      });
+      rewireToken.__set__(
+        "AbstractTokenFactory",
+        stubTokenFactory(sinon.stub().resolves("signed.jwt.token"))
+      );
+
+      const result = await rewireToken.verifyEmail(req, next);
+
+      expect(modifyStub.calledOnce).to.equal(true);
+      expect(removeStub.calledOnce).to.equal(true);
+      expect(result.success).to.equal(true);
+      expect(result.message).to.equal("email verified successfully");
+      expect(result.data.token).to.equal("JWT signed.jwt.token");
+    });
+
+    it("falls back to the legacy {success, message, status} shape when token minting fails post-verification", async () => {
+      rewireToken.__set__("UserModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([baseUser]) }),
+        modify: sinon.stub().resolves({ success: true, status: httpStatus.OK }),
+      }));
+      rewireToken.__set__("VerifyTokenModel", () => ({
+        list: sinon.stub().resolves({ success: true, status: httpStatus.OK }),
+        remove: sinon.stub().resolves({ success: true }),
+      }));
+      rewireToken.__set__("mailer", {
+        afterEmailVerification: sinon.stub().resolves({ success: true }),
+      });
+      rewireToken.__set__(
+        "AbstractTokenFactory",
+        stubTokenFactory(sinon.stub().rejects(new Error("boom")))
+      );
+
+      const result = await rewireToken.verifyEmail(req, next);
+
+      expect(result).to.deep.equal({
+        success: true,
+        message: "email verified successfully",
+        status: httpStatus.OK,
+      });
+    });
+  });
+
   describe("blackListIp()", () => {
     it("should blacklist an IP and return success", async () => {
       req.body = { ip: "192.168.1.100" };

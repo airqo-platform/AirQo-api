@@ -277,6 +277,13 @@ const apiLimiter = createDynamicLimiter({
   message: "API rate limit exceeded. Please slow down your requests.",
 });
 
+const emailVerificationLimiter = createDynamicLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 verification attempts per hour (allows for legitimate re-clicks)
+  prefix: "email_verification",
+  message: "Too many verification attempts. Please try again in 1 hour.",
+});
+
 // Enhanced monitoring and debugging utilities
 const getRateLimiterStats = async () => {
   const redisAvailable = isRedisAvailable();
@@ -389,6 +396,7 @@ module.exports = {
   registration: conditionalRateLimiter(registrationLimiter),
   passwordReset: conditionalRateLimiter(passwordResetLimiter),
   apiGeneral: conditionalRateLimiter(apiLimiter),
+  emailVerification: conditionalRateLimiter(emailVerificationLimiter),
 
   // Utility functions
   getRateLimiterStats,
