@@ -547,6 +547,9 @@ deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 // pass find devices stuck with a future-dated raw reading in O(log n) instead
 // of a full collection scan.
 deviceSchema.index({ dateValidStatus: 1, lastRawData: 1 });
+// backfill-search-name-job: distinct("site_id", {isActive: true, ...}) needs
+// to stay an index scan (not a full collection scan) as the fleet grows.
+deviceSchema.index({ isActive: 1, site_id: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(

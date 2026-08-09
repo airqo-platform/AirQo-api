@@ -64,6 +64,11 @@ function envConfig(env) {
       env === "production", // default on in production only
     ),
 
+    BACKFILL_SEARCH_NAME_SCHEDULER_ENABLED: parseBool(
+      process.env.BACKFILL_SEARCH_NAME_SCHEDULER_ENABLED,
+      env === "production", // default on in production only
+    ),
+
     FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED: parseBool(
       process.env.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED,
       env !== "staging", // default off in staging only
