@@ -124,6 +124,18 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 6;
     })(),
 
+    // MongoDB maxTimeMS for the device-listing aggregations in device.util.js
+    // (list(), getDeviceCountSummary()) that back Vertex's /devices/summary,
+    // /devices/status/*, and /devices/summary/count. These were previously
+    // hard-coded to 45000ms, longer than Vertex's own 30s proxy timeout for
+    // the "devices" endpoint group — meaning a slow query would outlive the
+    // client's patience and keep holding a pooled connection for no benefit.
+    // Same reasoning as READINGS_AGGREGATE_TIMEOUT_MS, same default.
+    DEVICE_LIST_AGGREGATE_TIMEOUT_MS: (() => {
+      const val = parseInt(process.env.DEVICE_LIST_AGGREGATE_TIMEOUT_MS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 25000;
+    })(),
+
     // Default lookback window for event/measurement queries (generate-filter fetch).
     DEFAULT_QUERY_RANGE_DAYS: (() => {
       const val = parseInt(process.env.DEFAULT_QUERY_RANGE_DAYS, 10);
