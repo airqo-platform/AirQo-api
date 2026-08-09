@@ -75,9 +75,15 @@ const createSafePollutantLookup = (
 const clampMapTimeWindow = (callerTime) => {
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  // Default when the caller supplies no explicit time filter — deliberately
+  // narrower than the 48h/14d tiers below, which only govern how far back an
+  // *explicit* caller-supplied window is honoured before being clamped.
+  const defaultLookbackAgo = new Date(
+    Date.now() - constants.MAP_DEFAULT_LOOKBACK_HOURS * 60 * 60 * 1000,
+  );
 
   // Normalise: a plain Date is treated as a lower bound; an object may carry
-  // $gte; anything else (null/undefined) resolves to undefined → default 48 h.
+  // $gte; anything else (null/undefined) resolves to undefined → default lookback.
   const callerGte =
     callerTime instanceof Date
       ? callerTime
@@ -87,7 +93,7 @@ const clampMapTimeWindow = (callerTime) => {
 
   let effectiveGte;
   if (!callerGte) {
-    effectiveGte = fortyEightHoursAgo;
+    effectiveGte = defaultLookbackAgo;
   } else if (callerGte >= fortyEightHoursAgo) {
     effectiveGte = callerGte;
   } else if (callerGte >= fourteenDaysAgo) {
@@ -664,6 +670,20 @@ ReadingsSchema.index(
   },
 );
 
+// listForMap()'s $match always combines all three of time + pm2_5.value>0 +
+// deviceDetails.isActive!=false in a single query — time_pm25_map_idx and
+// time_device_active_idx above each cover only two of the three, so Mongo can
+// use at most one and must filter the remaining condition in memory. This
+// index covers all three together for that specific, always-present shape.
+ReadingsSchema.index(
+  { time: -1, "pm2_5.value": 1, "deviceDetails.isActive": 1 },
+  {
+    name: "map_time_pm25_active_idx",
+    partialFilterExpression: { "pm2_5.value": { $gt: 0 } },
+    background: true,
+  },
+);
+
 // Sparse index for non-null coordinates (mobile devices)
 ReadingsSchema.index(
   { "location.latitude.value": 1, "location.longitude.value": 1, time: -1 },
@@ -1011,13 +1031,27 @@ const DIAGNOSTIC_WINDOW_DAYS = constants.DIAGNOSTIC_WINDOW_DAYS;
 // that bogus reading would display as "the current reading" indefinitely.
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
+// lookbackDays lets a specific caller (e.g. the Nexus-facing /recent endpoint)
+// request a narrower window than the shared DIAGNOSTIC_WINDOW_DAYS default
+// that other callers (mobile app, signals) still rely on. Exported standalone
+// so its precedence/fallback logic is unit-testable without a DB connection.
+const resolveRecentLookbackDays = (lookbackDays, fallbackDays) =>
+  typeof lookbackDays === "number" && lookbackDays > 0
+    ? lookbackDays
+    : fallbackDays;
+
 ReadingsSchema.statics.recent = async function(
-  { filter = {}, limit = 1000, skip = 0 } = {},
+  { filter = {}, limit = 1000, skip = 0, lookbackDays } = {},
   next,
 ) {
   try {
-    let lookbackStart = new Date();
-    lookbackStart.setDate(lookbackStart.getDate() - DIAGNOSTIC_WINDOW_DAYS);
+    const effectiveLookbackDays = resolveRecentLookbackDays(
+      lookbackDays,
+      DIAGNOSTIC_WINDOW_DAYS,
+    );
+    const lookbackStart = new Date(
+      Date.now() - effectiveLookbackDays * 24 * 60 * 60 * 1000,
+    );
 
     // Guard against non-object filter values. The createEventUtil.read()
     // caller passes next (a function) as the filter argument when invoked
@@ -2089,7 +2123,13 @@ ReadingsSchema.statics.listForMap = async function(
       },
     ];
 
-    const results = await this.aggregate(pipeline).allowDiskUse(true);
+    // Bounded the same way as ReadingModel.recent() — without this, a slow
+    // match under load can hang past the point the Nexus proxy has already
+    // given up, holding a queryDB pool connection for nothing.
+    const results = await this.aggregate(pipeline).option({
+      allowDiskUse: true,
+      maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+    });
 
     const { paginatedResults = [], totalCount = [] } = results[0] || {};
     const total = totalCount[0]?.count || 0;
@@ -2204,5 +2244,12 @@ const ReadingModel = (tenant) => {
     return readings;
   }
 };
+
+// Exposed for direct unit testing without a DB connection — ReadingModel(tenant)
+// itself requires one (see above). `schema` lets tests introspect index
+// definitions via schema.indexes() without constructing a live model.
+ReadingModel.clampMapTimeWindow = clampMapTimeWindow;
+ReadingModel.resolveRecentLookbackDays = resolveRecentLookbackDays;
+ReadingModel.schema = ReadingsSchema;
 
 module.exports = ReadingModel;
