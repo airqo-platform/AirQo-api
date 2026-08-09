@@ -571,7 +571,7 @@ const deviceUtil = {
 
       const results = await DeviceModel(tenant)
         .aggregate(pipeline)
-        .option({ maxTimeMS: 45000 })
+        .option({ maxTimeMS: constants.DEVICE_LIST_AGGREGATE_TIMEOUT_MS })
         .allowDiskUse(true);
 
       const summary = results[0] || {
@@ -1858,7 +1858,7 @@ const deviceUtil = {
 
       const results = await DeviceModel(tenant)
         .aggregate(facetPipeline)
-        .option({ maxTimeMS: 45000 })
+        .option({ maxTimeMS: constants.DEVICE_LIST_AGGREGATE_TIMEOUT_MS })
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;
