@@ -185,6 +185,7 @@ try {
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/backfill-site-metadata-job");
+require("@bin/jobs/backfill-search-name-job");
 const runPendingBulkUpdateJobs = require("@bin/jobs/device-bulk-update-job");
 // Run after a short delay to ensure DB connection is stable.
 setTimeout(() => runPendingBulkUpdateJobs("airqo"), 5000);

@@ -621,6 +621,11 @@ siteSchema.index({ isOnline: 1, _id: 1, createdAt: 1 });
 // pass find sites stuck with a future-dated raw reading in O(log n) instead
 // of a full collection scan.
 siteSchema.index({ dateValidStatus: 1, lastRawData: 1 });
+// backfill-search-name-job: equality on search_name (missing/null/""), cursor
+// on _id. As the backlog of missing-search_name sites shrinks toward zero,
+// this keeps each run's lookup proportional to the remaining backlog instead
+// of scanning the full, ever-growing sites collection.
+siteSchema.index({ search_name: 1, _id: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
