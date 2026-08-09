@@ -105,6 +105,25 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 1;
     })(),
 
+    // Lookback window specifically for the Nexus-facing /recent endpoint
+    // (createEventUtil.readRecentWithFilter). Narrower than the shared
+    // DIAGNOSTIC_WINDOW_DAYS default (used by mobile/other callers of
+    // ReadingModel.recent()) to keep the sort-then-group scan small under load.
+    RECENT_ENDPOINT_LOOKBACK_HOURS: (() => {
+      const val = parseInt(process.env.RECENT_ENDPOINT_LOOKBACK_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 6;
+    })(),
+
+    // Default lookback window for ReadingModel.listForMap() when the caller
+    // supplies no explicit time filter. Previously hard-coded to 48h, which
+    // meant every unfiltered /map load sorted+grouped up to 48h of readings
+    // across every device just to surface one latest-per-site row. 6h keeps
+    // typical map usage covered while cutting the scan size dramatically.
+    MAP_DEFAULT_LOOKBACK_HOURS: (() => {
+      const val = parseInt(process.env.MAP_DEFAULT_LOOKBACK_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 6;
+    })(),
+
     // Default lookback window for event/measurement queries (generate-filter fetch).
     DEFAULT_QUERY_RANGE_DAYS: (() => {
       const val = parseInt(process.env.DEFAULT_QUERY_RANGE_DAYS, 10);
