@@ -60,7 +60,9 @@ const createSafePollutantLookup = (
 // normalises it internally so both callers behave identically regardless
 // of how filter.time was passed.
 //
-//   • No callerTime / no resolvable $gte → 48 h default (partial index hit)
+//   • No callerTime / no resolvable $gte → MAP_DEFAULT_LOOKBACK_HOURS default
+//                                           (env-configurable, clamped to the
+//                                           14 d TTL floor; see below)
 //   • resolved $gte within 48 h          → honour as-is
 //   • resolved $gte within 14 d          → honour as-is
 //   • resolved $gte older than 14 d      → clamp to fourteenDaysAgo (TTL),
@@ -78,8 +80,14 @@ const clampMapTimeWindow = (callerTime) => {
   // Default when the caller supplies no explicit time filter — deliberately
   // narrower than the 48h/14d tiers below, which only govern how far back an
   // *explicit* caller-supplied window is honoured before being clamped.
+  // Clamped to the same 14 d TTL floor so a misconfigured (too-large)
+  // MAP_DEFAULT_LOOKBACK_HOURS can never trigger a full-collection scan —
+  // there's no data older than the TTL to scan anyway.
   const defaultLookbackAgo = new Date(
-    Date.now() - constants.MAP_DEFAULT_LOOKBACK_HOURS * 60 * 60 * 1000,
+    Math.max(
+      Date.now() - constants.MAP_DEFAULT_LOOKBACK_HOURS * 60 * 60 * 1000,
+      fourteenDaysAgo.getTime(),
+    ),
   );
 
   // Normalise: a plain Date is treated as a lower bound; an object may carry
@@ -1036,7 +1044,7 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 // that other callers (mobile app, signals) still rely on. Exported standalone
 // so its precedence/fallback logic is unit-testable without a DB connection.
 const resolveRecentLookbackDays = (lookbackDays, fallbackDays) =>
-  typeof lookbackDays === "number" && lookbackDays > 0
+  Number.isFinite(lookbackDays) && lookbackDays > 0
     ? lookbackDays
     : fallbackDays;
 

@@ -3128,6 +3128,16 @@ const createEvent = {
           // Fallback: query the events collection directly so callers always
           // get data while the readings pipeline issue is being investigated.
           try {
+            // generateFilter.fetch() defaults to a 3-day window (and would
+            // otherwise inherit a wider startTime/endTime from request.query,
+            // e.g. a job lookback) when no startTime is given — set explicitly
+            // here, after the spread so it takes precedence, to keep this
+            // fallback as narrow as the primary ReadingModel.recent() query
+            // above instead of reintroducing a wide scan on cache-miss.
+            const fallbackStartTime = new Date(
+              Date.now() -
+                constants.RECENT_ENDPOINT_LOOKBACK_HOURS * 60 * 60 * 1000,
+            ).toISOString();
             const fallbackRequest = {
               query: {
                 ...request.query,
@@ -3135,6 +3145,7 @@ const createEvent = {
                 metadata: "site_id",
                 active: "yes",
                 brief: "yes",
+                startTime: fallbackStartTime,
               },
             };
             const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(

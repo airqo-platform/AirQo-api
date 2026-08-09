@@ -1,5 +1,6 @@
 require("module-alias/register");
 const { expect } = require("chai");
+const proxyquire = require("proxyquire");
 const constants = require("@config/constants");
 const ReadingModel = require("@models/Reading");
 
@@ -59,6 +60,20 @@ describe("ReadingModel time-window helpers", () => {
       });
       expect(effectiveGte.getTime()).to.equal(fourteenDaysAgo.getTime());
     });
+
+    it("clamps a misconfigured (oversized) MAP_DEFAULT_LOOKBACK_HOURS to the 14d TTL floor", () => {
+      // Simulates MAP_DEFAULT_LOOKBACK_HOURS being set far too large (e.g. a
+      // typo'd env var) — proxyquire falls through to the real @config/constants
+      // for every field except the one overridden here.
+      const ReadingModelWithHugeDefault = proxyquire("@models/Reading", {
+        "@config/constants": { MAP_DEFAULT_LOOKBACK_HOURS: 24 * 365 },
+      });
+
+      const { effectiveGte, fourteenDaysAgo } =
+        ReadingModelWithHugeDefault.clampMapTimeWindow(undefined);
+
+      expect(effectiveGte.getTime()).to.equal(fourteenDaysAgo.getTime());
+    });
   });
 
   describe("resolveRecentLookbackDays", () => {
@@ -74,6 +89,15 @@ describe("ReadingModel time-window helpers", () => {
     it("falls back to the shared default for a zero or negative override", () => {
       expect(resolveRecentLookbackDays(0, 1)).to.equal(1);
       expect(resolveRecentLookbackDays(-2, 1)).to.equal(1);
+    });
+
+    it("falls back to the shared default for Infinity, -Infinity, and NaN", () => {
+      // Infinity previously slipped through the old `typeof x === "number"`
+      // check (Infinity > 0 is true), producing new Date(-Infinity) —
+      // an Invalid Date fed straight into the Mongo $gte query.
+      expect(resolveRecentLookbackDays(Infinity, 1)).to.equal(1);
+      expect(resolveRecentLookbackDays(-Infinity, 1)).to.equal(1);
+      expect(resolveRecentLookbackDays(NaN, 1)).to.equal(1);
     });
 
     it("falls back to the shared default for a non-numeric override", () => {
