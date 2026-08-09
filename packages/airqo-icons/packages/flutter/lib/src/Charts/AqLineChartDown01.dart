@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqLineChartDown01 icon widget (line-chart-down-01.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqLineChartDown01 extends StatelessWidget {
+  /// Creates a AqLineChartDown01 icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqLineChartDown01({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M21 21H4.6C4.03995 21 3.75992 21 3.54601 20.891C3.35785 20.7951 3.20487 20.6422 3.10899 20.454C3 20.2401 3 19.9601 3 19.4V3M20 15L16.0811 10.8173C15.9326 10.6588 15.8584 10.5796 15.7688 10.5386C15.6897 10.5024 15.6026 10.4875 15.516 10.4953C15.4179 10.5042 15.3215 10.5542 15.1287 10.6543L11.8713 12.3457C11.6785 12.4458 11.5821 12.4958 11.484 12.5047C11.3974 12.5125 11.3103 12.4976 11.2312 12.4614C11.1416 12.4204 11.0674 12.3412 10.9189 12.1827L7 8" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

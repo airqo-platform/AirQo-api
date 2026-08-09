@@ -1,0 +1,57 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqNorway icon widget (Norway.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqNorway extends StatelessWidget {
+  /// Creates a AqNorway icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqNorway({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1692_53992)">
+<path d="M21.9983 5.46338H2.04883V18.7631H21.9983V5.46338Z" fill="#BA0C2F"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7.03621 5.46338H10.3611V10.4508H7.03621V5.46338ZM7.03621 13.7757V10.4508H2.04883V13.7757H7.03621ZM10.3611 13.7757V18.7631H7.03621V13.7757H10.3611ZM10.3611 13.7757H21.9983V10.4508H10.3611V13.7757Z" fill="white"/>
+<path d="M10.3611 10.4508H7.03621V13.7757H10.3611V10.4508Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7.86744 5.46338H9.5299V11.282H7.86744V5.46338ZM7.86744 12.9444V11.282H2.04883V12.9444H7.86744ZM9.5299 12.9444V18.7631H7.86744V12.9444H9.5299ZM9.5299 12.9444H21.9983V11.282H9.5299V12.9444Z" fill="#00205B"/>
+<path d="M9.5299 11.282H7.86744V12.9444H9.5299V11.282Z" fill="#00205B"/>
+</g>
+<defs>
+<clipPath id="clip0_1692_53992">
+<rect x="2.04883" y="5.46338" width="19.9495" height="13.2997" rx="1" fill="white"/>
+</clipPath>
+</defs>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

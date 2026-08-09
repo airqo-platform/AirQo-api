@@ -1,5 +1,12 @@
 # @airqo/icons-vue
 
+## 0.2.6
+
+### Patch Changes
+
+- Fixed `color` handling for monochrome SVG paths, including `AqAirQlouds` and `AqSites`.
+- Added regression coverage for path-level color rendering.
+
 ## 0.2.5
 
 ### Patch Changes

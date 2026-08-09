@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { AqUganda, AqHome01, AqBarChart01 } from '../index';
+import { AqUganda, AqHome01, AqBarChart01, AqAirQlouds, AqSites } from '../index';
 
 // Type assertion helper for SVG props
 const createAqUgandaWithSVGProps = (props: any) => <AqUganda {...props} />;
@@ -30,6 +30,17 @@ describe('AirQO Icons React', () => {
     // Check the path element has the stroke color
     const path = icon.querySelector('path');
     expect(path).toHaveAttribute('stroke', '#ff0000');
+  });
+
+  test.each([
+    ['AqAirQlouds', AqAirQlouds],
+    ['AqSites', AqSites],
+  ])('%s honors the custom color for monochrome SVG artwork', (_, IconComponent) => {
+    render(<IconComponent color="#ff0000" data-testid="monochrome-icon" />);
+    const icon = screen.getByTestId('monochrome-icon');
+    const path = icon.querySelector('path');
+
+    expect(path).toHaveAttribute('fill', '#ff0000');
   });
 
   test('applies custom className', () => {

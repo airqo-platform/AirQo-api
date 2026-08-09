@@ -29,6 +29,7 @@
     "clean:svg-names": "node scripts/rename-spaced-svg.js",
     "validate": "pnpm run lint && pnpm run test && pnpm run build:all",
     "validate:all": "pnpm run lint && pnpm run test && pnpm run build:all && pnpm run validate:flutter",
+    "validate:flutter:package": "node tools/release/verify-flutter-package.js",
     "validate:flutter": "(where flutter > nul 2>&1 && echo Flutter available - running validation && cd packages/flutter && flutter analyze && flutter test) || echo Flutter not available - skipping Flutter validation"
   },
   "devDependencies": {
