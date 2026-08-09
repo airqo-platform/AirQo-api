@@ -30,6 +30,13 @@ const VerifyTokenSchema = new mongoose.Schema(
       unique: true,
       required: [true, "token is required!"],
     },
+    // Optional (not required) so tokens already in flight at deploy time --
+    // issued before this field existed -- keep working until they expire.
+    // See token.util.js verifyEmail(), which falls back to unscoped lookup
+    // only for such legacy tokens.
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
     last_used_at: { type: Date },
     last_ip_address: { type: Date },
     expires_in: { type: Number },

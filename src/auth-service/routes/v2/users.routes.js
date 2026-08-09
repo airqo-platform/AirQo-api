@@ -561,6 +561,7 @@ router.get(
 
 router.get(
   "/verify/:user_id/:token",
+  rateLimiter.emailVerification,
   userValidations.verifyEmail,
   userController.verifyEmail,
 );

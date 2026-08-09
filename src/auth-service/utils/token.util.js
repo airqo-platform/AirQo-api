@@ -15,6 +15,7 @@ const EmailLogModel = require("@models/EmailLog");
 const BlockedDomainModel = require("@models/BlockedDomain");
 const BlockedASNModel = require("@models/BlockedASN");
 const FlaggedTokenModel = require("@models/FlaggedToken");
+const { AbstractTokenFactory } = require("@services/atf.service");
 const {
   redisGetAsync,
   redisSetAsync,
@@ -1236,6 +1237,27 @@ const _isBypassActive = (flag, expiresAt) => {
   return new Date(expiresAt).getTime() > Date.now();
 };
 
+// Issues a session JWT (same mechanism as login/OAuth) so the frontend can
+// auto-log the user in right after email verification, instead of forcing a
+// separate manual login. Failure to mint a token must never fail the
+// verification response itself (the account is already verified and the
+// confirmation email already sent by this point) -- callers fall back to the
+// pre-existing {success, message} shape, which every existing frontend
+// caller already understands.
+const _mintAutoLoginToken = async (tenant, user) => {
+  try {
+    const authToken = await new AbstractTokenFactory(tenant).createToken(
+      user,
+    );
+    return { token: `JWT ${authToken}` };
+  } catch (error) {
+    logger.error(
+      `Unable to issue auto-login token after email verification: ${error.message}`,
+    );
+    return null;
+  }
+};
+
 const token = {
   verifyEmail: async (request, next) => {
     try {
@@ -1244,12 +1266,6 @@ const token = {
         ...request.params,
       };
       const timeZone = moment.tz.guess();
-      let filter = {
-        token,
-        expires: {
-          $gt: moment().tz(timeZone).toDate(),
-        },
-      };
 
       const userDetails = await UserModel(tenant)
         .find({
@@ -1263,7 +1279,38 @@ const token = {
             message: "User does not exist",
           }),
         );
+        return;
       }
+
+      // Re-clicking an already-consumed verification link should not error out.
+      // The verify-token document is deleted on first use (see below), so
+      // without this short-circuit a second click on the same link 400s with
+      // "Invalid link" even though the account is already verified.
+      //
+      // No token is minted here: this branch is reached on `user_id` alone,
+      // before the `token` param has been checked against anything, so
+      // minting a session here would let anyone who knows/guesses a verified
+      // user's id log in as them. Only the branch below -- which requires a
+      // real, unexpired, user-bound verify token -- may issue a session.
+      if (userDetails[0].verified === true) {
+        return {
+          success: true,
+          message: "email already verified",
+          status: httpStatus.OK,
+        };
+      }
+
+      // Scoped to this user_id so a token issued for one account can't be
+      // replayed against a different account's user_id to hijack it. Legacy
+      // tokens created before this field existed (no user_id stored) are
+      // still honoured until they expire on their own.
+      let filter = {
+        token,
+        $or: [{ user_id: ObjectId(user_id) }, { user_id: { $exists: false } }],
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -1324,10 +1371,15 @@ const token = {
               );
 
               if (responseFromSendEmail.success === true) {
+                const data = await _mintAutoLoginToken(tenant, {
+                  ...userDetails[0],
+                  verified: true,
+                });
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "email verified successfully",
                   status: httpStatus.OK,
+                  ...(data ? { data } : {}),
                 };
               } else if (responseFromSendEmail.success === false) {
                 return responseFromSendEmail;
