@@ -2903,8 +2903,9 @@ const deviceUtil = {
           );
         }
 
+        let createdActivity;
         try {
-          await ActivityModel(tenant).create({
+          createdActivity = await ActivityModel(tenant).create({
             activityType: "recallment",
             device: device.name,
             device_id: device._id,
@@ -2923,32 +2924,43 @@ const deviceUtil = {
           .findById(device._id)
           .lean();
 
-        // Publish recall message to Kafka
-        try {
-          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: recallTopic,
-            messages: [
-              {
-                action: "create",
-                value: JSON.stringify({
-                  updatedDevice: recalledDevice,
-                  user_id: user_id,
-                }),
-              },
-            ],
-          });
-          await kafkaProducer.disconnect();
-          logText(
-            `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
-          );
-        } catch (error) {
+        // Publish recall message to Kafka. Include createdActivity (same
+        // shape as activity.util.js's processRecall) so the consumer's
+        // required-fields check doesn't reject this message.
+        if (createdActivity) {
+          try {
+            const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
+            await kafkaProducer.connect();
+            await kafkaProducer.send({
+              topic: recallTopic,
+              messages: [
+                {
+                  action: "create",
+                  value: JSON.stringify({
+                    createdActivity: createdActivity.toObject
+                      ? createdActivity.toObject()
+                      : createdActivity,
+                    updatedDevice: recalledDevice,
+                    user_id: user_id,
+                  }),
+                },
+              ],
+            });
+            await kafkaProducer.disconnect();
+            logText(
+              `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
+            );
+          } catch (error) {
+            logger.error(
+              `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+            );
+          }
+        } else {
           logger.error(
-            `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+            `Skipped Kafka recall notification for ${device.name}: activity creation failed, so createdActivity is unavailable.`,
           );
         }
 
@@ -3156,8 +3168,9 @@ const deviceUtil = {
               throw new Error("Device status changed during recall operation");
             }
 
+            let createdActivity;
             try {
-              await ActivityModel(tenant).create({
+              createdActivity = await ActivityModel(tenant).create({
                 activityType: "recallment",
                 device: device.name,
                 device_id: device._id,
@@ -3176,32 +3189,43 @@ const deviceUtil = {
               .findById(device._id)
               .lean();
 
-            // Publish recall message to Kafka
-            try {
-              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-              const kafkaProducer = kafka.producer({
-                groupId: constants.UNIQUE_PRODUCER_GROUP,
-              });
-              await kafkaProducer.connect();
-              await kafkaProducer.send({
-                topic: recallTopic,
-                messages: [
-                  {
-                    action: "create",
-                    value: JSON.stringify({
-                      updatedDevice: recalledDevice,
-                      user_id: user_id,
-                    }),
-                  },
-                ],
-              });
-              await kafkaProducer.disconnect();
-              logText(
-                `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
-              );
-            } catch (error) {
+            // Publish recall message to Kafka. Include createdActivity (same
+            // shape as activity.util.js's processRecall) so the consumer's
+            // required-fields check doesn't reject this message.
+            if (createdActivity) {
+              try {
+                const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+                const kafkaProducer = kafka.producer({
+                  groupId: constants.UNIQUE_PRODUCER_GROUP,
+                });
+                await kafkaProducer.connect();
+                await kafkaProducer.send({
+                  topic: recallTopic,
+                  messages: [
+                    {
+                      action: "create",
+                      value: JSON.stringify({
+                        createdActivity: createdActivity.toObject
+                          ? createdActivity.toObject()
+                          : createdActivity,
+                        updatedDevice: recalledDevice,
+                        user_id: user_id,
+                      }),
+                    },
+                  ],
+                });
+                await kafkaProducer.disconnect();
+                logText(
+                  `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
+                );
+              } catch (error) {
+                logger.error(
+                  `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+                );
+              }
+            } else {
               logger.error(
-                `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+                `Skipped Kafka recall notification for ${device.name}: activity creation failed, so createdActivity is unavailable.`,
               );
             }
 
