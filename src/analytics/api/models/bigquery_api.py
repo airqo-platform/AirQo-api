@@ -1,5 +1,8 @@
+import hashlib
+import base64
 from typing import List, Dict, Any, Optional, Union, Tuple, Set
 from constants import (
+    QueryType,
     DeviceNetwork,
     ColumnDataType,
     Frequency,
@@ -9,10 +12,14 @@ from constants import (
 from api.utils.utils import Utils
 import pandas as pd
 from google.cloud import bigquery
-from config import BaseConfig as Config
+from api.utils.bigquery_jobs import (
+    log_cost_rejections,
+    query_job_config,
+    shared_bigquery_client,
+)
+from config import settings as Config
 from api.utils.pollutants.pm_25 import COMMON_POLLUTANT_MAPPING_v2
 
-from main import cache
 from api.utils.cursor_utils import CursorUtils
 
 import logging
@@ -22,15 +29,14 @@ logger = logging.getLogger(__name__)
 
 class BigQueryApi:
     def __init__(self):
-        self.client = bigquery.Client()
+        self.client = shared_bigquery_client()
         self.schema_mapping = Config.SCHEMA_FILE_MAPPING
-        self.sites_table = Utils.table_name(Config.BIGQUERY_SITES_SITES)
-        self.airqlouds_sites_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS_SITES)
-        self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
+        self.sites_table = Utils.table_name(Config.bigquery_sites_sites)
+        self.devices_table = Utils.table_name(Config.bigquery_devices_devices)
+        self.grids_sites_table = Utils.table_name(Config.bigquery_grids_sites)
         self.satellite_forecast_table = Utils.table_name(
-            Config.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE
+            Config.bigquery_satellite_data_table
         )
-        self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
         self.all_time_grouping = Config.all_time_grouping
         self.extra_time_grouping = Config.extra_time_grouping
         self.field_mappings = Config.FILTER_FIELD_MAPPING
@@ -53,19 +59,14 @@ class BigQueryApi:
         )
 
     @property
-    def device_info_query_airqloud(self):
-        """Generates a device information query specifically for airqlouds, excluding the site_id."""
+    def device_info_query_network(self):
+        """Generates a device information query specifically for network, excluding the site_id."""
         return f"{self.devices_table}.network AS network "
 
     @property
     def site_info_query(self):
         """Generates a site information query to retrieve site name and approximate location details."""
         return f"{self.sites_table}.name AS site_name "
-
-    @property
-    def airqloud_info_query(self):
-        """Generates an Airqloud information query to retrieve the airqloud name."""
-        return f"{self.airqlouds_table}.name AS airqloud_name"
 
     def add_device_join(self, data_query, filter_clause=""):
         """
@@ -85,24 +86,6 @@ class BigQueryApi:
             f"{filter_clause}"
         )
 
-    def add_device_join_to_airqlouds(self, data_query, filter_clause=""):
-        """
-        Joins device information with airqloud data based on site_id.
-
-        Args:
-            data_query(str): The data query to join with airqloud device information.
-            filter_clause(str): Optional SQL filter clause.
-
-        Returns:
-            str: Modified query with device-airqloud join.
-        """
-        return (
-            f"SELECT {self.device_info_query_airqloud}, data.* "
-            f"FROM {self.devices_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.devices_table}.site_id "
-            f"{filter_clause}"
-        )
-
     def add_site_join(self, data_query):
         """
         Joins site information with the given data query based on site_id.
@@ -117,22 +100,6 @@ class BigQueryApi:
             f"SELECT {self.site_info_query}, data.* "
             f"FROM {self.sites_table} "
             f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.sites_table}.id "
-        )
-
-    def add_airqloud_join(self, data_query):
-        """
-        Joins Airqloud information with the provided data query based on airqloud_id.
-
-        Args:
-            data_query(str): The data query to join with Airqloud information.
-
-        Returns:
-            str: Modified query with Airqloud join.
-        """
-        return (
-            f"SELECT {self.airqloud_info_query}, data.* "
-            f"FROM {self.airqlouds_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.airqloud_id = {self.airqlouds_table}.id "
         )
 
     def get_time_grouping(self, frequency: str):
@@ -162,29 +129,56 @@ class BigQueryApi:
         start_date: str,
         end_date: str,
         frequency: Frequency,
+        filter_type: str = "device_ids",
     ):
         """
-        Constructs a SQL query to retrieve pollutant data for specific devices, including standard and BAM measurements when applicable.
+        Constructs a SQL query to extract device measurements, including standard and BAM measurements when applicable.
+
+        Handles two filter shapes against the same measurement-extraction
+        query, since both ultimately just narrow down which devices'
+        measurements to return:
+        - "devices"/"device_ids"/"device_names" (default): filter_value is a
+          literal list of device IDs -> WHERE device_id IN UNNEST(@filter_value).
+        - "grid_ids": filter_value is a list of grid IDs -> WHERE device_id's site
+          is in one of those grids, resolved via a grids_sites subquery.
+          devices_table.site_id is reused directly here (no need to re-join
+          devices_devices/sites_sites — it's already the same site ID space
+          add_site_join joins against below).
 
         Args:
             table (str): Name of the table containing the primary device measurements.
-            filter_value (str): List of device IDs to filter the query (used in UNNEST).
+            filter_value (list): List of device IDs, or (when filter_type="grid_ids") grid IDs.
             pollutants_query (str): SQL fragment for selecting standard pollutants.
             time_grouping (str): SQL expression for time-based grouping (e.g., by hour, day).
             start_date (str): Start timestamp (inclusive) for filtering data.
             end_date (str): End timestamp (inclusive) for filtering data.
             frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
+            filter_type (str): "device_ids" (default) or "grid_ids" — selects which
+                WHERE condition below to apply.
 
         Returns:
             str: The fully constructed SQL query
         """
         table_name = Utils.table_name(table)
+
+        if filter_type == "grid_ids":
+            filter_condition = (
+                f"{self.devices_table}.site_id IN ("
+                f"SELECT site_id FROM {self.grids_sites_table} "
+                f"WHERE grid_id IN UNNEST(@filter_value)"
+                f") "
+            )
+        else:
+            filter_condition = (
+                f"{self.devices_table}.device_id IN UNNEST(@filter_value) "
+            )
+
         query = (
             f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.device_id "
             f"FROM {table_name} "
             f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {table_name}.device_id "
             f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-            f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
+            f"AND {filter_condition}"
         )
 
         if frequency.value in self.extra_time_grouping:
@@ -195,7 +189,8 @@ class BigQueryApi:
     def get_location_query(
         self,
         table: str,
-        filter_value: List,
+        filter_type: str,
+        filter_value: Union[str, List],
         pollutants_query: str,
         time_grouping: str,
         start_date: str,
@@ -203,26 +198,30 @@ class BigQueryApi:
         frequency: Frequency,
     ):
         """
-        Constructs a SQL query to retrieve pollutant data for specific locations.
+        Constructs a SQL query to retrieve satellite/forecast data filtered by location.
 
         Args:
-            table (str): Name of the table containing the primary device measurements.
-            filter_value (str): List of location identifiers to filter the query (used in UNNEST).
-            pollutants_query (str): SQL fragment for selecting standard pollutants.
-            time_grouping (str): SQL expression for time-based grouping (e.g., by hour, day).
-            start_date (str): Start timestamp (inclusive) for filtering data.
-            end_date (str): End timestamp (inclusive) for filtering data.
-            frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
+            table(str): Name of the table containing the measurements.
+            filter_type(str): Location column to filter on — "country" or "city" only.
+            filter_value(str | list): Location value(s), bound via @filter_value parameter.
+            pollutants_query(str): SQL fragment for selecting pollutants.
+            time_grouping(str): SQL expression for time-based grouping.
+            start_date(str): Start timestamp (inclusive).
+            end_date(str): End timestamp (inclusive).
+            frequency(Frequency): Frequency of aggregation.
 
         Returns:
-            str: The fully constructed SQL query
+            str: The fully constructed SQL query.
         """
+        if filter_type not in {"country", "city"}:
+            raise ValueError(f"Invalid location filter: {filter_type}")
+
         table_name = Utils.table_name(table)
         query = (
             f"{pollutants_query}, {time_grouping}, {self.location_info_query} "
             f"FROM {table_name} "
             f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-            f"AND {table_name}.country = @filter_value "
+            f"AND {table_name}.{filter_type} = @filter_value "
         )
 
         if frequency.value in self.extra_time_grouping:
@@ -266,56 +265,6 @@ class BigQueryApi:
         if frequency.value in self.extra_time_grouping:
             query += " GROUP BY ALL"
         return self.add_device_join(query)
-
-    def get_airqloud_query(
-        self,
-        table: str,
-        filter_value: List,
-        pollutants_query: str,
-        time_grouping: str,
-        start_date: str,
-        end_date: str,
-        frequency: Frequency,
-    ):
-        """
-        Constructs a SQL query to retrieve data for specific AirQlouds.
-
-        Args:
-            table (str): The name of the data table containing measurements.
-            filter_value(list): The list of AirQloud IDs to filter by.
-            pollutants_query(str): The SQL query for pollutants.
-            time_grouping(str): The time grouping clause based on frequency.
-            start_date(str): The start date for the query range.
-            end_date(str): The end date for the query range.
-            frequency(Frequency): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
-
-        Returns:
-            str: The SQL query string to retrieve AirQloud-specific data.
-        """
-        table = Utils.table_name(table)
-        meta_data_query = (
-            f"SELECT {self.airqlouds_sites_table}.airqloud_id, "
-            f"{self.airqlouds_sites_table}.site_id AS site_id "
-            f"FROM {self.airqlouds_sites_table} "
-            f"WHERE {self.airqlouds_sites_table}.airqloud_id IN UNNEST(@filter_value) "
-        )
-        meta_data_query = self.add_airqloud_join(meta_data_query)
-        meta_data_query = self.add_site_join(meta_data_query)
-        meta_data_query = self.add_device_join_to_airqlouds(meta_data_query)
-
-        query = (
-            f"{pollutants_query}, {time_grouping}, {table}.device_id AS device_id, meta_data.* "
-            f"FROM {table} "
-            f"RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {table}.site_id "
-            f"WHERE {table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-        )
-        order_by_clause = (
-            f"ORDER BY {table}.timestamp"
-            if frequency.value not in self.extra_time_grouping
-            else "GROUP BY ALL"
-        )
-
-        return query + order_by_clause
 
     def compose_query(
         self,
@@ -364,7 +313,6 @@ class BigQueryApi:
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
-
         query = self.build_filter_query(
             table,
             filter_type,
@@ -411,6 +359,37 @@ class BigQueryApi:
 
         return clauses
 
+    @staticmethod
+    def _build_filter_parameter(
+        filter_value: Union[str, int, List],
+    ) -> Union[bigquery.ArrayQueryParameter, bigquery.ScalarQueryParameter]:
+        """
+        Bind ``filter_value`` as the correct BigQuery query parameter type.
+
+        The parameter type must match how ``@filter_value`` is used in the SQL:
+
+        - List filters (sites, devices) use ``IN UNNEST(@filter_value)`` and
+          require an ``ArrayQueryParameter``.
+        - Scalar filters (country, city) use ``= @filter_value`` and require a
+          ``ScalarQueryParameter``.
+
+        Passing a scalar string to an ``ArrayQueryParameter`` would iterate the
+        string into individual characters and break the comparison, so the two
+        cases must be distinguished by the runtime type of ``filter_value``.
+
+        Args:
+            filter_value: The filter value(s) to bind — a list for
+                site/device filters, a scalar for location filters.
+
+        Returns:
+            The matching BigQuery query parameter for ``@filter_value``.
+        """
+        if isinstance(filter_value, (list, tuple)):
+            return bigquery.ArrayQueryParameter(
+                "filter_value", "STRING", list(filter_value)
+            )
+        return bigquery.ScalarQueryParameter("filter_value", "STRING", filter_value)
+
     def query_data(
         self,
         table: str,
@@ -438,7 +417,7 @@ class BigQueryApi:
             frequency (Frequency, optional): The frequency of the data (raw, hourly, daily, etc.).
             data_type (DataType, optional): Type of data (raw, calibrated, etc.).
             columns (List[str], optional): A list of column names (pollutants) to include in the query.
-            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"airqlouds": ["airqloud1"]}.
+            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"grid_ids": ["grid1"]}.
             dynamic_query (bool, optional): Whether to use dynamic query generation. Defaults to False.
             use_cache (bool, optional): Whether to use cached query results. Defaults to True.
             cursor_token (str, optional): Token for cursor-based pagination from a previous query. Defaults to None.
@@ -452,13 +431,12 @@ class BigQueryApi:
                 "next": str or None  # Cursor token for the next page of results, or None if no more data
             }
         """
-        job_config = bigquery.QueryJobConfig()
-        limits = int(Config.DATA_EXPORT_LIMIT)
-        query_parameters = []
+        job_config = query_job_config()
+        limits = int(Config.data_export_limit)
         filter_type, filter_value = next(iter(where_fields.items()))
         meta_data: Dict[str, Any] = {"total_count": 0, "has_more": False, "next": None}
         cursor_field = Config.cursor_field.get(frequency.value, "timestamp")
-
+        query_parameters: List = []
         # Determine which query generation approach to use
         if not dynamic_query:
             # Raw data
@@ -494,15 +472,20 @@ class BigQueryApi:
                 bigquery.ScalarQueryParameter("filter_value", "STRING", filter_value),
             ]
 
-        job_config.query_parameters = query_parameters
         job_config.use_query_cache = use_cache
 
         if cursor_token:
-            _, _, _, paginate = self.estimate_query_rows(query, table)
-            if paginate:
-                query = self._apply_pagination_cursor(
-                    query, cursor_field, cursor_token, filter_type
-                )
+            # Applied unconditionally. This used to be gated on an
+            # estimate_query_rows() dry-run, which cost two extra BigQuery
+            # round trips and — when the estimate said "no pagination needed" —
+            # silently ignored the caller's cursor and re-served page 1, so a
+            # client following metadata.next looped forever.
+            query, cursor_parameters = self._apply_pagination_cursor(
+                query, cursor_field, cursor_token, filter_type
+            )
+            query_parameters.extend(cursor_parameters)
+
+        job_config.query_parameters = query_parameters
 
         order_by_clause = self._get_pagination_order_clause(
             cursor_field, filter_type, table
@@ -512,8 +495,7 @@ class BigQueryApi:
         adjusted_limit = limits + 1
 
         # Execute the query with ordering and adjusted limit
-
-        try:
+        with log_cost_rejections(f"query_data table={table}"):
             measurements = (
                 self.client.query(
                     query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",
@@ -522,11 +504,6 @@ class BigQueryApi:
                 .result()
                 .to_dataframe()
             )
-        except Exception as e:
-            logger.exception("BigQuery query execution failed")
-            raise RuntimeError(
-                "Failed to retrieve data from the data warehouse"
-            ) from None
 
         # Handle pagination logic
         if not measurements.empty:
@@ -554,46 +531,71 @@ class BigQueryApi:
 
     def _apply_pagination_cursor(
         self, query: str, cursor_field: str, cursor_token: str, filter_type: str
-    ) -> str:
+    ) -> Tuple[str, List[bigquery.ScalarQueryParameter]]:
         """
         Applies pagination cursor logic to a query string, ensuring results continue precisely
         from where the previous request left off, using appropriate operators for string fields.
 
+        The decoded cursor parts are **bound as query parameters**, never
+        interpolated: they originate from a client-supplied token, so
+        interpolating them was a SQL injection into the WHERE clause. Only
+        `cursor_field` and `filter_type` are interpolated — both are column
+        names resolved from `Config.cursor_field` / `self.field_mappings`,
+        never from request data. Token authenticity is enforced separately by
+        the HMAC check in `CursorUtils.retrieve_cursor`.
+
         Args:
             query (str): The SQL query to modify.
             cursor_field (str): The field used for pagination (typically timestamp).
-            cursor_token (str): The cursor token from Redis.
+            cursor_token (str): The signed cursor token from a previous response.
             filter_type (str): The type of filter being applied (e.g., 'site_id').
 
         Returns:
-            str: The modified query with cursor conditions added.
+            Tuple[str, List[bigquery.ScalarQueryParameter]]: The modified query
+            and the parameters its cursor placeholders bind to.
         """
         filter_type = self.field_mappings.get(filter_type, None)
 
-        # Retrieve the cursor data from Redis
+        # Decode the raw "timestamp|filter_value[|device_id]" cursor payload.
+        # CursorUtils is StatelessCursorUtils (self-contained base64 tokens,
+        # not Redis-backed) — retrieve_cursor is its raw-string accessor;
+        # parse_cursor would return an already-split dict, not this string.
         try:
-            cursor_value = CursorUtils.parse_cursor(cursor_token)
+            cursor_value = CursorUtils.retrieve_cursor(cursor_token)
         except ValueError as e:
             raise ValueError(f"Invalid pagination cursor: {str(e)}")
 
-        if len(cursor_value) < 2:
+        cursor_parts = cursor_value.split("|")
+
+        if len(cursor_parts) < 2:
             raise ValueError("Invalid cursor format")
 
-        timestamp_part = cursor_value.get("timestamp")
-        filter_value_part = cursor_value.get("filter_value")
+        timestamp_part = cursor_parts[0]
+        filter_value_part = cursor_parts[1]
 
-        if filter_type == "site_id" and "device_id" in cursor_value:
+        cursor_parameters = [
+            bigquery.ScalarQueryParameter("cursor_timestamp", "STRING", timestamp_part),
+            bigquery.ScalarQueryParameter(
+                "cursor_filter_value", "STRING", filter_value_part
+            ),
+        ]
+
+        if filter_type == "site_id" and len(cursor_parts) >= 3:
             # Site ID case with device ID for multi-device sites
-            device_id_part = cursor_value.get("device_id")
+            cursor_parameters.append(
+                bigquery.ScalarQueryParameter(
+                    "cursor_device_id", "STRING", cursor_parts[2]
+                )
+            )
             query += f"""
                 AND (
                     /* Records with later timestamps */
-                    {cursor_field} > '{timestamp_part}'
+                    {cursor_field} > @cursor_timestamp
 
                     /* OR same timestamp, same site and same device_id */
-                    OR ({cursor_field} = '{timestamp_part}'
-                        AND {filter_type} = '{filter_value_part}'
-                        AND device_id = '{device_id_part}')
+                    OR ({cursor_field} = @cursor_timestamp
+                        AND {filter_type} = @cursor_filter_value
+                        AND device_id = @cursor_device_id)
                 )
             """
         else:
@@ -601,16 +603,16 @@ class BigQueryApi:
             query += f"""
                 AND (
                     /* Records with later timestamps */
-                    {cursor_field} > '{timestamp_part}'
+                    {cursor_field} > @cursor_timestamp
 
                     /* OR same timestamp and same filter value(device_id)*/
-                    OR ({cursor_field} = '{timestamp_part}'
+                    OR ({cursor_field} = @cursor_timestamp
                         AND {filter_type} IS NOT NULL
-                        AND {filter_type} = '{filter_value_part}')
+                        AND {filter_type} = @cursor_filter_value)
                 )
             """
 
-        return query
+        return query, cursor_parameters
 
     def _generate_next_cursor(
         self, dataframe: pd.DataFrame, cursor_field: str, filter_type: str
@@ -662,9 +664,8 @@ class BigQueryApi:
             str: SQL ORDER BY clause for consistent pagination.
         """
         filter_type = self.field_mappings.get(filter_type, None)
-        order_by_clause = (
-            f"{cursor_field}" if not filter_type else f"{cursor_field}, {filter_type}"
-        )
+        order_by_clause = f"{cursor_field}, {filter_type}"
+
         # Add device_id to ordering if we're filtering by site_id for consistent results
         if filter_type == "site_id" and "device_id" in self.get_columns(table):
             order_by_clause += ", device_id"
@@ -724,7 +725,7 @@ class BigQueryApi:
 
         Args:
             data_table(str): The table name containing the main data records.
-            filter_type(str): Type of filter (e.g., devices, sites, airqlouds).
+            filter_type(str): Type of filter (e.g., devices, sites, grid_ids).
             filter_value(list): Filter values corresponding to the filter type.
             pollutants_query(str): Query for pollutant data.
             start_date(str): Start date for data retrieval.
@@ -745,7 +746,7 @@ class BigQueryApi:
                 "",
             )
 
-        if filter_type in {"devices", "device_ids", "device_names"}:
+        if filter_type in {"devices", "device_ids", "device_names", "grid_ids"}:
             return self.get_device_query(
                 table,
                 filter_value,
@@ -754,6 +755,7 @@ class BigQueryApi:
                 start_date,
                 end_date,
                 frequency,
+                filter_type=filter_type,
             )
         elif filter_type in {"sites", "site_names", "site_ids"}:
             return self.get_site_query(
@@ -765,19 +767,10 @@ class BigQueryApi:
                 end_date,
                 frequency,
             )
-        elif filter_type == "airqlouds":
-            return self.get_airqloud_query(
-                table,
-                filter_value,
-                pollutants_query,
-                time_grouping,
-                start_date,
-                end_date,
-                frequency,
-            )
         elif filter_type in {"country", "city"}:
             return self.get_location_query(
                 table,
+                filter_type,
                 filter_value,
                 pollutants_query,
                 time_grouping,
@@ -822,7 +815,6 @@ class BigQueryApi:
             f"ROUND({table_name}.{col}, {decimal_places}) AS {col}" for col in mapping
         ]
 
-    @cache.memoize()
     def compose_dynamic_query(
         self,
         table: str,
@@ -838,7 +830,7 @@ class BigQueryApi:
         Retrieves data from BigQuery with specified filters, frequency, pollutants, and weather fields.
 
         Args:
-            filter_type (str): Type of filter to apply (e.g., 'devices', 'sites', 'airqlouds').
+            filter_type (str): Type of filter to apply (e.g., 'devices', 'sites', 'grid_ids').
             filter_value (list): Filter values (IDs or names) for the selected filter type.
             start_date (str): Start date for the data query.
             end_date (str): End date for the data query.
@@ -850,7 +842,7 @@ class BigQueryApi:
         Returns:
             pd.DataFrame: Retrieved data in DataFrame format, with duplicates removed and sorted by timestamp.
         """
-        decimal_places = Config.DATA_EXPORT_DECIMAL_PLACES
+        decimal_places = Config.data_export_decimal_places
         table_name = Utils.table_name(table)
 
         pollutant_columns = self._query_columns_builder(
@@ -910,7 +902,6 @@ class BigQueryApi:
                 May include dummy columns for compatibility in downstream SQL logic.
         """
         pollutant_columns_ = []
-
         for pollutant in pollutants:
             key = (
                 "averaged"
@@ -975,7 +966,11 @@ class BigQueryApi:
         return pollutant_columns
 
     def estimate_query_rows(
-        self, query: str, table: str, row_threshold: int = Config.DATA_EXPORT_LIMIT
+        self,
+        query: str,
+        table: str,
+        query_parameters: Optional[List] = None,
+        row_threshold: int = Config.data_export_limit,
     ) -> Tuple[int, int, float, bool]:
         """
         Estimate number of rows a query could return, using dry run + table metadata.
@@ -983,12 +978,20 @@ class BigQueryApi:
         Args:
             query(str): SQL query string.
             table(str): Fully qualified table id i.e `project.dataset.table`.
+            query_parameters(List, optional): Bind parameters referenced by the
+                query (e.g. ``@filter_value``). These MUST be supplied for the
+                dry run, otherwise BigQuery rejects the parameterized query with
+                "Query parameter not found".
             row_threshold(int): Row count threshold to decide if pagination is needed.
 
         Returns:
             Tuple[estimated_rows(int), bytes_scanned(int), avg_row_size(float), paginate(bool)]
         """
-        job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+        job_config = query_job_config(
+            dry_run=True,
+            use_query_cache=False,
+            query_parameters=query_parameters or [],
+        )
         query_job = self.client.query(query, job_config=job_config)
         bytes_scanned = query_job.total_bytes_processed
 

@@ -8,11 +8,16 @@ import pymongo
 from bson import ObjectId
 from bson.errors import InvalidId
 from google.cloud import bigquery, storage
+from api.utils.bigquery_jobs import (
+    query_job_config,
+    shared_bigquery_client,
+    shared_storage_client,
+)
 
-from api.models.base.base_model import BasePyMongoModel
+from api.models.base.mongo_base import FastAPIPyMongoModel
 from api.utils.dates import date_to_str
 from api.utils.exceptions import ExportRequestNotFound
-from config import BaseConfig as Config
+from config import settings
 from constants import DataExportStatus, DataExportFormat, Frequency
 
 
@@ -72,23 +77,41 @@ class DataExportRequest:
         return f"{self.user_id}_{date_to_str(self.request_date)}"
 
 
-class DataExportModel(BasePyMongoModel):
+class DataExportModel(FastAPIPyMongoModel):
     def __init__(self):
-        super().__init__(collection_name=Config.DATA_EXPORT_COLLECTION, tenant="airqo")
-        self.bigquery_client = bigquery.Client()
-        self.cloud_storage_client = storage.Client()
-        self.dataset = Config.DATA_EXPORT_DATASET
-        self.project = Config.DATA_EXPORT_GCP_PROJECT
-        self.bucket = self.cloud_storage_client.get_bucket(Config.DATA_EXPORT_BUCKET)
+        super().__init__(
+            collection_name=settings.data_export_collection, network="airqo"
+        )
+        self.bigquery_client = shared_bigquery_client()
+        self.cloud_storage_client = shared_storage_client()
+        self.dataset = settings.data_export_dataset
+        self.project = settings.data_export_gcp_project
+        self.bucket = self.cloud_storage_client.get_bucket(settings.data_export_bucket)
 
     @staticmethod
     def doc_to_data_export_request(doc) -> DataExportRequest:
+        # New documents store filter_type/filter_value (written by the
+        # FastAPI /data-export service).  Legacy documents stored separate
+        # devices/sites/airqlouds lists — derive the pair from whichever is
+        # populated so pre-migration requests still process.  (The old code
+        # constructed the dataclass with devices=/sites= kwargs that don't
+        # exist, so every request raised and was silently skipped.)
+        if "filter_type" in doc:
+            filter_type = doc["filter_type"]
+            filter_value = doc.get("filter_value") or []
+        else:
+            filter_type, filter_value = "devices", []
+            for legacy_key in ("devices", "sites", "airqlouds"):
+                if doc.get(legacy_key):
+                    filter_type, filter_value = legacy_key, doc[legacy_key]
+                    break
+
         return DataExportRequest(
             request_id=str(doc["_id"]),
-            devices=doc["devices"],
+            filter_type=filter_type,
+            filter_value=filter_value,
             start_date=doc["start_date"],
             end_date=doc["end_date"],
-            sites=doc["sites"],
             data_links=doc["data_links"],
             request_date=doc["request_date"],
             user_id=doc["user_id"],
@@ -122,7 +145,8 @@ class DataExportModel(BasePyMongoModel):
                 {
                     "$and": [
                         {"status": {"$eq": DataExportStatus.FAILED.value}},
-                        {"retires": {"$gt": 0}},
+                        # was "retires" — the typo meant failed requests never retried
+                        {"retries": {"$gt": 0}},
                     ]
                 },
             ]
@@ -196,7 +220,7 @@ class DataExportModel(BasePyMongoModel):
             f"{self.dataset}.{export_request.bigquery_table()}",
             destination_uri,
             job_config=extract_job_config,
-            location="EU",
+            location=settings.data_export_location,
         )
 
         extract_job.result()
@@ -221,10 +245,10 @@ class DataExportModel(BasePyMongoModel):
         Returns:
             bool: True if the query returns at least one row, False otherwise.
         """
-        job_config = bigquery.QueryJobConfig()
+        job_config = query_job_config()
         job_config.use_query_cache = True
         total_rows = (
-            bigquery.Client()
+            shared_bigquery_client()
             .query(f"select * from ({query}) limit 1", job_config)
             .result()
             .total_rows
@@ -232,7 +256,7 @@ class DataExportModel(BasePyMongoModel):
         return total_rows > 0
 
     def export_query_results_to_table(self, query, export_request: DataExportRequest):
-        job_config = bigquery.QueryJobConfig(
+        job_config = query_job_config(
             destination=f"{self.project}.{self.dataset}.{export_request.bigquery_table()}"
         )
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
@@ -266,7 +290,7 @@ class DataExportModel(BasePyMongoModel):
     def export_query_results_to_gcs(self, query, export_request: DataExportRequest):
         destination_uri = f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.destination_file()}.gz"
 
-        job_config = bigquery.QueryJobConfig()
+        job_config = query_job_config()
         extract_job_config = bigquery.job.ExtractJobConfig()
         extract_job_config.destination_format = bigquery.DestinationFormat.CSV
         extract_job_config.compression = bigquery.Compression.GZIP
@@ -281,7 +305,7 @@ class DataExportModel(BasePyMongoModel):
             destination_table,
             destination_uri,
             job_config=extract_job_config,
-            location="US",
+            location=settings.data_export_location,
         )
 
         extract_job.result()
