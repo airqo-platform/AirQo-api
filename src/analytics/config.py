@@ -1,178 +1,328 @@
+"""
+FastAPI Configuration using Pydantic Settings
+Replaces the Flask-specific configuration with Pydantic-based settings.
+"""
+
 import os
-import logging
-from datetime import datetime
-from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from dotenv import load_dotenv
-from decouple import config as env_var
-from flasgger import LazyString
+from typing import ClassVar, Dict, List, Optional, Any, Set
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator, SecretStr
 from constants import DataType, DeviceCategory, Frequency
 
 
-env_path = Path(".") / ".env"
-load_dotenv(dotenv_path=env_path, verbose=True)
-TWO_HOURS = 7200  # seconds
+class BaseConfig(BaseSettings):
+    """
+    Base configuration shared across all environments using Pydantic settings.
 
-API_V2_BASE_URL = "/api/v2/analytics"
-API_V2_BASE_INTERNAL_URL = "/api/v2/internal/analytics"
-API_V3_BASE_URL = "/api/v3/public/analytics"
+    This replaces the Flask-specific configuration with modern Pydantic settings
+    that provide automatic validation, type hints, and environment variable support.
+    """
 
-APP_ENV = env_var("FLASK_ENV", "production")
-
-
-class BaseConfig:
-    """Base configuration shared across all environments."""
-
-    TESTING = False
-    CSRF_ENABLED = True
-    FLASK_APP = env_var("FLASK_APP")
-    SECRET_KEY = env_var("SECRET_KEY")
-    GOOGLE_APPLICATION_CREDENTIALS = env_var("GOOGLE_APPLICATION_CREDENTIALS")
-
-    # Cache
-    CACHE_TYPE = "RedisCache"
-    CACHE_DEFAULT_TIMEOUT = TWO_HOURS
-    CACHE_KEY_PREFIX = f"Analytics-{APP_ENV}"
-    CACHE_REDIS_HOST = env_var("REDIS_SERVER")
-    CACHE_REDIS_PORT = env_var("REDIS_PORT")
-    CACHE_REDIS_URL = f"redis://{CACHE_REDIS_HOST}:{CACHE_REDIS_PORT}"
-
-    # External APIs
-    AIRQO_API_BASE_URL = env_var("AIRQO_API_BASE_URL")
-    AIRQO_API_TOKEN = env_var("AIRQO_API_TOKEN")
-    GRID_URL = env_var("GRID_URL_ID")
-
-    # Export
-    DATA_EXPORT_DECIMAL_PLACES = env_var("DATA_EXPORT_DECIMAL_PLACES", 2)
-    DATA_EXPORT_LIMIT = env_var("DATA_EXPORT_LIMIT", 10000)
-    DATA_SUMMARY_DAYS_INTERVAL = env_var("DATA_SUMMARY_DAYS_INTERVAL", 2)
-    DATA_EXPORT_BUCKET = env_var("DATA_EXPORT_BUCKET")
-    DATA_EXPORT_DATASET = env_var("DATA_EXPORT_DATASET")
-    DATA_EXPORT_GCP_PROJECT = env_var("DATA_EXPORT_GCP_PROJECT")
-    DATA_EXPORT_COLLECTION = env_var("DATA_EXPORT_COLLECTION", "data_export")
-
-    # Data tables
-    BIGQUERY_RAW_DATA = env_var("BIGQUERY_RAW_DATA")
-    BIGQUERY_MOBILE_RAW_DATA = env_var("BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE")
-    BIGQUERY_MOBILE_HOURLY_TABLE = env_var(
-        "BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE"
-    )
-    BIGQUERY_HOURLY_DATA = env_var("BIGQUERY_HOURLY_DATA")
-    BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
-    BIGQUERY_RAW_BAM_DATA_TABLE = env_var("BIGQUERY_RAW_BAM_DATA_TABLE")
-    BIGQUERY_BAM_HOURLY_DATA = env_var("BIGQUERY_BAM_HOURLY_DATA")
-    BIGQUERY_HOURLY_CONSOLIDATED = env_var("BIGQUERY_HOURLY_CONSOLIDATED")
-    BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE = env_var(
-        "BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE"
+    # -------------------------------------------------------------------------
+    # Pydantic v2 settings — unknown env vars are silently ignored so the
+    # shared .env file can contain variables for other services (Flask ports,
+    # DNS helpers, etc.) without causing validation errors.
+    # -------------------------------------------------------------------------
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",  # silently discard unknown env vars
+        populate_by_name=True,  # allow both alias and field name
     )
 
-    # Meta-Data
-    BIGQUERY_DEVICES_DEVICES = env_var("BIGQUERY_DEVICES_DEVICES")
-    BIGQUERY_SITES_SITES = env_var("BIGQUERY_SITES_SITES")
-    BIGQUERY_AIRQLOUDS_SITES = env_var("BIGQUERY_AIRQLOUDS_SITES")
-    BIGQUERY_AIRQLOUDS = env_var("BIGQUERY_AIRQLOUDS")
-    BIGQUERY_GRIDS_SITES = env_var("BIGQUERY_GRIDS_SITES")
-    BIGQUERY_GRIDS = env_var("BIGQUERY_GRIDS")
-    BIGQUERY_COHORTS_DEVICES = env_var("BIGQUERY_COHORTS_DEVICES")
-    BIGQUERY_COHORTS = env_var("BIGQUERY_COHORTS")
-    DEVICES_SUMMARY_TABLE = env_var("DEVICES_SUMMARY_TABLE")
+    # Application settings
+    # validation_alias maps the env var name to the field when they differ.
+    # APP_ENV is the current name; FLASK_ENV is accepted as a deprecated
+    # fallback so existing configmaps keep working through the rename. The
+    # value is load-bearing beyond logging — it selects the Mongo URI and
+    # gates the API docs — so a silent default here picks the wrong database.
+    app_env: str = Field(
+        default="production",
+        validation_alias=AliasChoices("APP_ENV", "FLASK_ENV"),
+    )
+    # Signs pagination cursor tokens (api/utils/cursor_utils.py). A predictable
+    # key means forgeable cursors, and cursor contents reach a BigQuery WHERE
+    # clause — so deployed environments must set a real one. The default exists
+    # only so local dev and the test suite work out of the box.
+    DEFAULT_SECRET_KEY: ClassVar[str] = "default-secret-key"
+    secret_key: SecretStr = Field(
+        default=DEFAULT_SECRET_KEY, validation_alias="SECRET_KEY"
+    )
 
-    extra_time_grouping = {"daily", "weekly", "monthly", "yearly"}
-    all_time_grouping = {"hourly", "daily", "weekly", "monthly", "yearly"}
-    cursor_field = {
-        "hourly": "timestamp",
-        "daily": "timestamp",
-        "weekly": "week",
-        "monthly": "month",
-        "yearly": "year",
-    }
-    download_export_time_fields = {
-        "weekly": "week",
-        "monthly": "month",
-        "yearly": "year",
-    }
-    # Data sources
+    @field_validator("secret_key")
     @classmethod
-    def data_sources(cls):
-        return {
-            DataType.RAW: {
-                DeviceCategory.LOWCOST: {
-                    Frequency.RAW: cls.BIGQUERY_RAW_DATA,
-                    Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,  # For the use case of hourly raw data
-                    Frequency.DAILY: cls.BIGQUERY_DAILY_DATA,
-                },
-                DeviceCategory.BAM: {
-                    Frequency.RAW: cls.BIGQUERY_RAW_BAM_DATA_TABLE,
-                    Frequency.HOURLY: cls.BIGQUERY_BAM_HOURLY_DATA,
-                    Frequency.DAILY: cls.BIGQUERY_BAM_HOURLY_DATA,
-                },
-                DeviceCategory.MOBILE: {
-                    Frequency.RAW: cls.BIGQUERY_MOBILE_RAW_DATA,
-                },
-                DeviceCategory.SATELLITE: {
-                    Frequency.HOURLY: cls.BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE,
-                },
-            },
-            # Added as a repetition - Accomodates the frontend request parameters as is. Can be cleanup better.
-            DataType.CALIBRATED: {
-                DeviceCategory.LOWCOST: {
-                    Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,
-                    Frequency.DAILY: cls.BIGQUERY_DAILY_DATA,
-                },
-                DeviceCategory.BAM: {
-                    Frequency.HOURLY: cls.BIGQUERY_BAM_HOURLY_DATA,
-                    Frequency.DAILY: cls.BIGQUERY_BAM_HOURLY_DATA,
-                },
-            },
-            DataType.AVERAGED: {
-                DeviceCategory.GENERAL: {
-                    Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,
-                    Frequency.DAILY: cls.BIGQUERY_DAILY_DATA,
-                },
-                DeviceCategory.BAM: {
-                    Frequency.HOURLY: cls.BIGQUERY_BAM_HOURLY_DATA,
-                    Frequency.DAILY: cls.BIGQUERY_BAM_HOURLY_DATA,
-                },
-            },
-            DataType.CONSOLIDATED: {
-                DeviceCategory.GENERAL: {
-                    Frequency.HOURLY: cls.BIGQUERY_HOURLY_CONSOLIDATED,
-                },
-            },
-        }
+    def reject_default_secret_outside_dev(cls, v: SecretStr, info: Any) -> SecretStr:
+        """Fail fast rather than ship a guessable cursor-signing key."""
+        app_env = (info.data.get("app_env") or "").lower()
+        if app_env not in ("development", "dev", "test", "testing"):
+            secret = v.get_secret_value() if hasattr(v, "get_secret_value") else str(v)
+            if secret == cls.DEFAULT_SECRET_KEY:
+                raise ValueError(
+                    "SECRET_KEY must be set to a non-default value when "
+                    f"APP_ENV={app_env!r}. It signs pagination cursors; the "
+                    "default key would let callers forge them."
+                )
+        return v
 
+    # Google Cloud settings
+    google_application_credentials: Optional[str] = Field(
+        default=None, validation_alias="GOOGLE_APPLICATION_CREDENTIALS"
+    )
+
+    # Cache settings
+    cache_type: str = Field(default="RedisCache", validation_alias="CACHE_TYPE")
+    cache_default_timeout: int = Field(
+        default=7200, validation_alias="CACHE_DEFAULT_TIMEOUT"
+    )
+    cache_key_prefix: str = Field(
+        default="Analytics-production", validation_alias="CACHE_KEY_PREFIX"
+    )
+    cache_redis_host: str = Field(default="localhost", validation_alias="REDIS_SERVER")
+    cache_redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
+    # Built from host+port by the validator below; can be overridden directly.
+    cache_redis_url: Optional[str] = Field(default=None)
+
+    @field_validator("cache_redis_url", mode="before")
     @classmethod
-    def init_logging(cls, log_dir="logs", level=logging.INFO):
-        """Initializes file logging for the application."""
-        os.makedirs(log_dir, exist_ok=True)
-        log_filename = f"analytics-api-{datetime.now().strftime('%Y-%m-%d')}.log"
-        log_file_path = os.path.join(log_dir, log_filename)
+    def build_redis_url(cls, v: Optional[str], info: Any) -> Optional[str]:
+        """Auto-build Redis URL from host+port when not explicitly set."""
+        if v is None:
+            data = info.data
+            host = data.get("cache_redis_host", "localhost")
+            port = data.get("cache_redis_port", 6379)
+            return f"redis://{host}:{port}"
+        return v
 
-        file_handler = TimedRotatingFileHandler(
-            filename=log_file_path,
-            when="midnight",
-            interval=1,
-            backupCount=7,  # keeps logs for the last 7 days
-            encoding="utf-8",
-            utc=True,
-        )
-        file_handler.suffix = "%Y-%m-%d"
-        file_handler.setFormatter(
-            logging.Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s")
-        )
+    # HTTP surface settings — comma-separated to keep .env parsing simple.
+    # Defaults are permissive for local dev; production must set both.
+    cors_allowed_origins: str = Field(
+        default="*", validation_alias="CORS_ALLOWED_ORIGINS"
+    )
+    allowed_hosts: str = Field(default="*", validation_alias="ALLOWED_HOSTS")
 
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(
-            logging.Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s")
-        )
+    # /docs, /redoc and /openapi.json. Defaults on outside production so local
+    # dev and staging keep the interactive docs; set EXPOSE_API_DOCS=true to
+    # publish them in production deliberately.
+    expose_api_docs_override: Optional[bool] = Field(
+        default=None, validation_alias="EXPOSE_API_DOCS"
+    )
 
-        logging.basicConfig(level=level, handlers=[file_handler, stream_handler])
+    @property
+    def expose_api_docs(self) -> bool:
+        if self.expose_api_docs_override is not None:
+            return self.expose_api_docs_override
+        return self.app_env.lower() != "production"
 
-        logger = logging.getLogger(__name__)
-        return logger
+    # Identity asserted by the upstream API gateway (see api/dependencies.py).
+    # Until the gateway is confirmed to send this header, endpoints fall back
+    # to the client-supplied ?userId= parameter. Set REQUIRE_GATEWAY_IDENTITY
+    # once it does, to close that fallback off.
+    identity_header: str = Field(
+        default="X-User-Id", validation_alias="IDENTITY_HEADER"
+    )
+    require_gateway_identity: bool = Field(
+        default=False, validation_alias="REQUIRE_GATEWAY_IDENTITY"
+    )
 
-    # Fields for data cleaning
-    OPTIONAL_FIELDS = {
+    # Rate limiting. X-Forwarded-For is client-settable, so trusting it from
+    # any peer made the limit bypassable by rotating the header. It is only
+    # honoured when the immediate peer is one of these networks.
+    #
+    # Deployment reality (k8s/nginx/*/analytics-vs.yaml + global-config.yaml):
+    # the NGINX ingress proxies to airqo-analytics-api-svc:5000 and sets
+    # X-Forwarded-For to $proxy_add_x_forwarded_for, appending the real client
+    # IP — which it resolves from PROXY protocol (`real-ip-header:
+    # proxy_protocol`), not from the header itself. So the right-most entry is
+    # trustworthy and everything left of it is caller-supplied.
+    #
+    # The peer analytics sees is therefore always an in-cluster nginx pod, i.e.
+    # RFC1918. Defaulting to the private ranges keeps per-client rate limiting
+    # working out of the box; an empty value would key every request on the
+    # single ingress pod IP and throttle all users as one client. Narrow this
+    # to the actual ingress pod CIDR if you want to be stricter.
+    trusted_proxies: str = Field(
+        default="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8",
+        validation_alias="TRUSTED_PROXIES",
+    )
+
+    # Per-request timeout for outbound AirQo API calls. urllib3 waits forever
+    # by default, which parks a shared-executor thread on a hung socket.
+    airqo_api_timeout: float = Field(default=10.0, validation_alias="AIRQO_API_TIMEOUT")
+
+    # BigQuery cost/time ceilings, enforced server-side by BigQuery itself.
+    # Starting deliberately tight at 1 GiB per job: rejections are logged
+    # (see api/utils/bigquery_jobs.py) so the real distribution of query
+    # sizes becomes visible before the cap is tuned upward.
+    bigquery_max_bytes_billed: int = Field(
+        default=1 * 1024**3, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
+    )
+    bigquery_job_timeout_ms: int = Field(
+        default=600_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
+    )
+
+    max_query_days: int = Field(default=365, validation_alias="MAX_QUERY_DAYS")
+    max_filter_values: int = Field(default=1000, validation_alias="MAX_FILTER_VALUES")
+    # Rate limiting fails closed when Redis is unreachable; flip this if
+    # availability matters more than bounding BigQuery spend.
+    rate_limit_fail_open: bool = Field(
+        default=False, validation_alias="RATE_LIMIT_FAIL_OPEN"
+    )
+
+    def cors_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+    def allowed_hosts_list(self) -> List[str]:
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
+
+    # External API settings
+    airqo_api_base_url: str = Field(
+        default="https://api.airqo.africa", validation_alias="AIRQO_API_BASE_URL"
+    )
+    airqo_api_token: SecretStr = Field(
+        default="test-token", validation_alias="AIRQO_API_TOKEN"
+    )
+    # Retry budget for AirQoRequests (privacy checks run on the request
+    # path — keep the worst case to a few seconds, not the old ~75s).
+    airqo_api_retries: int = Field(default=2, validation_alias="AIRQO_API_RETRIES")
+    airqo_api_backoff_factor: float = Field(
+        default=1.0, validation_alias="AIRQO_API_BACKOFF_FACTOR"
+    )
+    grid_url: str = Field(
+        default="https://grid.airqo.africa", validation_alias="GRID_URL_ID"
+    )
+
+    # MongoDB settings — legacy config selected the URI by environment:
+    # development uses MONGO_LOCAL_URI, staging/production use MONGO_GCE_URI.
+    # Per-network databases are named f"{mongo_db_name}_{network}".
+    mongo_gce_uri: Optional[str] = Field(default=None, validation_alias="MONGO_GCE_URI")
+    mongo_local_uri: Optional[str] = Field(
+        default=None, validation_alias="MONGO_LOCAL_URI"
+    )
+    mongo_db_name: str = Field(
+        default="airqo_analytics", validation_alias="MONGO_DB_NAME"
+    )
+
+    @property
+    def mongo_uri(self) -> str:
+        if self.app_env in ("development", "dev"):
+            return self.mongo_local_uri or "mongodb://localhost:27017"
+        return self.mongo_gce_uri or "mongodb://localhost:27017"
+
+    # Data export settings
+    data_export_decimal_places: int = Field(
+        default=2, validation_alias="DATA_EXPORT_DECIMAL_PLACES"
+    )
+    data_export_limit: int = Field(default=10000, validation_alias="DATA_EXPORT_LIMIT")
+    data_summary_days_interval: int = Field(
+        default=2, validation_alias="DATA_SUMMARY_DAYS_INTERVAL"
+    )
+    data_export_bucket: str = Field(
+        default="test-bucket", validation_alias="DATA_EXPORT_BUCKET"
+    )
+    data_export_dataset: str = Field(
+        default="test_dataset", validation_alias="DATA_EXPORT_DATASET"
+    )
+    data_export_gcp_project: str = Field(
+        default="test-project", validation_alias="DATA_EXPORT_GCP_PROJECT"
+    )
+    data_export_collection: str = Field(
+        default="data_export", validation_alias="DATA_EXPORT_COLLECTION"
+    )
+    # BigQuery location of the export dataset — the old code hardcoded "EU"
+    # in one extract path and "US" in the other; ops must confirm the real one.
+    data_export_location: str = Field(
+        default="EU", validation_alias="DATA_EXPORT_LOCATION"
+    )
+
+    # -------------------------------------------------------------------------
+    # BigQuery table names — stored as fully-qualified strings in the form
+    # "project.dataset.table" (dots are fine in plain str fields).
+    # The env var names match what the rest of the platform already uses.
+    # -------------------------------------------------------------------------
+    bigquery_raw_data: str = Field(
+        default="raw_data", validation_alias="BIGQUERY_RAW_DATA"
+    )
+    bigquery_hourly_data: str = Field(
+        default="hourly_data", validation_alias="BIGQUERY_HOURLY_DATA"
+    )
+    bigquery_daily_data: str = Field(
+        default="daily_data", validation_alias="BIGQUERY_DAILY_DATA"
+    )
+    bigquery_hourly_consolidated: str = Field(
+        default="hourly_consolidated", validation_alias="BIGQUERY_HOURLY_CONSOLIDATED"
+    )
+    bigquery_raw_bam_data_table: str = Field(
+        default="raw_bam_data", validation_alias="BIGQUERY_RAW_BAM_DATA_TABLE"
+    )
+    bigquery_bam_hourly_data: str = Field(
+        default="bam_hourly_data", validation_alias="BIGQUERY_BAM_HOURLY_DATA"
+    )
+    bigquery_mobile_raw_data: str = Field(
+        default="mobile_raw_data",
+        validation_alias="BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE",
+    )
+    bigquery_mobile_hourly_table: str = Field(
+        default="mobile_hourly",
+        validation_alias="BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE",
+    )
+    # Additional data tables present in the shared .env
+    bigquery_latest_events: str = Field(
+        default="latest_events", validation_alias="BIGQUERY_LATEST_EVENTS"
+    )
+    bigquery_satellite_data_table: str = Field(
+        default="satellite_data",
+        validation_alias="BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE",
+    )
+
+    # Metadata / dimension tables
+    bigquery_devices_devices: str = Field(
+        default="devices", validation_alias="BIGQUERY_DEVICES_DEVICES"
+    )
+    bigquery_sites_sites: str = Field(
+        default="sites", validation_alias="BIGQUERY_SITES_SITES"
+    )
+    bigquery_airqlouds_sites: str = Field(
+        default="airqlouds_sites", validation_alias="BIGQUERY_AIRQLOUDS_SITES"
+    )
+    bigquery_airqlouds: str = Field(
+        default="airqlouds", validation_alias="BIGQUERY_AIRQLOUDS"
+    )
+    bigquery_grids_sites: str = Field(
+        default="grids_sites", validation_alias="BIGQUERY_GRIDS_SITES"
+    )
+    bigquery_grids: str = Field(default="grids", validation_alias="BIGQUERY_GRIDS")
+    bigquery_cohorts_devices: str = Field(
+        default="cohorts_devices", validation_alias="BIGQUERY_COHORTS_DEVICES"
+    )
+    bigquery_cohorts: str = Field(
+        default="cohorts", validation_alias="BIGQUERY_COHORTS"
+    )
+    devices_summary_table: str = Field(
+        default="devices_summary", validation_alias="DEVICES_SUMMARY_TABLE"
+    )
+
+    # Filter field name mapping (API filter key → BigQuery column name)
+    FILTER_FIELD_MAPPING: Dict[str, str] = {
+        "devices": "device_id",
+        "device_ids": "device_id",
+        "device_names": "device_id",
+        "sites": "site_id",
+        "site_names": "site_id",
+        "site_ids": "site_id",
+        "country": "country",
+        "city": "city",
+        "grid_ids": "device_id",
+    }
+
+    @property
+    def field_mappings(self) -> Dict[str, str]:
+        """Alias used by BigQueryApi internals."""
+        return self.FILTER_FIELD_MAPPING
+
+    # Optional extra columns available per device category
+    OPTIONAL_FIELDS: Dict = {
         DeviceCategory.LOWCOST: {
             "longitude",
             "latitude",
@@ -194,6 +344,8 @@ class BaseConfig:
             "humidity",
             "battery",
         },
+        DeviceCategory.GAS: {"longitude", "latitude", "site_id"},
+        DeviceCategory.GENERAL: {"longitude", "latitude", "site_id"},
         DeviceCategory.SATELLITE: {
             "longitude",
             "latitude",
@@ -202,89 +354,134 @@ class BaseConfig:
         },
     }
 
-    FILTER_FIELD_MAPPING = {
-        "devices": "device_id",
-        "device_ids": "device_id",
-        "device_names": "device_id",
-        "sites": "site_id",
-        "site_names": "site_id",
-        "site_ids": "site_id",
+    # Schema file mapping — resolved dynamically using table name fields above
+    @property
+    def SCHEMA_FILE_MAPPING(self) -> Dict[str, str]:
+        """Map fully-qualified BigQuery table names to their local JSON schema files."""
+        return {
+            self.bigquery_hourly_data: "measurements.json",
+            self.bigquery_daily_data: "measurements.json",
+            self.bigquery_raw_data: "raw_measurements.json",
+            self.bigquery_hourly_consolidated: "data_warehouse.json",
+            self.bigquery_bam_hourly_data: "bam_measurements.json",
+            self.bigquery_raw_bam_data_table: "bam_raw_measurements.json",
+            self.bigquery_mobile_raw_data: "airqo_mobile_measurements.json",
+            self.bigquery_mobile_hourly_table: "airqo_mobile_measurements.json",
+            "all": None,
+        }
+
+    # Time grouping configurations (sets — query builders use set operations)
+    extra_time_grouping: Set[str] = {"daily", "weekly", "monthly", "yearly"}
+    all_time_grouping: Set[str] = {"hourly", "daily", "weekly", "monthly", "yearly"}
+    cursor_field: Dict[str, str] = {
+        "hourly": "timestamp",
+        "daily": "timestamp",
+        "weekly": "week",
+        "monthly": "month",
+        "yearly": "year",
+    }
+    download_export_time_fields: Dict[str, str] = {
+        "weekly": "week",
+        "monthly": "month",
+        "yearly": "year",
     }
 
-    # Schema files mapping
-    SCHEMA_FILE_MAPPING = {
-        BIGQUERY_HOURLY_DATA: "measurements.json",
-        BIGQUERY_DAILY_DATA: "measurements.json",
-        BIGQUERY_RAW_DATA: "raw_measurements.json",
-        BIGQUERY_HOURLY_CONSOLIDATED: "data_warehouse.json",
-        BIGQUERY_BAM_HOURLY_DATA: "bam_measurements.json",
-        BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
-        BIGQUERY_MOBILE_RAW_DATA: "airqo_mobile_measurements.json",
-        BIGQUERY_MOBILE_HOURLY_TABLE: "airqo_mobile_measurements.json",
-        BIGQUERY_SATELLITE_DATA_CLEANED_MERGED_TABLE: "satellite_airquality_cleaned_merged.json",
-        "all": None,
-    }
+    def data_sources(self) -> Dict[str, Dict[str, Dict[str, str]]]:
+        """
+        Generate data source mapping for different data types, device categories, and frequencies.
 
-    SWAGGER = {
-        "swagger": "2.0",
-        "info": {
-            "title": "Analytics API",
-            "description": "API docs for analytics AIRQO microservice",
-            "version": "0.0.1",
-        },
-        "schemes": ["http", "https"],
-        "footer_text": LazyString(lambda: f"&copy; AIRQO. {datetime.now().year}"),
-        "head_text": "<style>.top_text{color: red;}</style>",
-        "doc_expansion": "list",
-        "ui_params": {
-            "apisSorter": "alpha",
-            "operationsSorter": "alpha",
-        },
-        "ui_params_text": """{
-            "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
-        }""",
-        "url_prefix": f"{API_V2_BASE_URL}",
-    }
+        Returns:
+            Dict containing nested mappings for data sources.
+        """
+        return {
+            DataType.RAW: {
+                DeviceCategory.LOWCOST: {
+                    Frequency.RAW: self.bigquery_raw_data,
+                    Frequency.HOURLY: self.bigquery_hourly_data,  # For hourly raw data use case
+                    Frequency.DAILY: self.bigquery_daily_data,
+                },
+                DeviceCategory.BAM: {
+                    Frequency.RAW: self.bigquery_raw_bam_data_table,
+                    Frequency.HOURLY: self.bigquery_bam_hourly_data,
+                    Frequency.DAILY: self.bigquery_daily_data,
+                },
+                DeviceCategory.SATELLITE: {
+                    Frequency.RAW: self.bigquery_satellite_data_table,
+                    Frequency.HOURLY: self.bigquery_satellite_data_table,
+                },
+            },
+            DataType.AVERAGED: {
+                DeviceCategory.LOWCOST: {
+                    Frequency.HOURLY: self.bigquery_hourly_data,
+                    Frequency.DAILY: self.bigquery_daily_data,
+                },
+                DeviceCategory.BAM: {
+                    Frequency.HOURLY: self.bigquery_bam_hourly_data,
+                    Frequency.DAILY: self.bigquery_daily_data,
+                },
+            },
+        }
 
+    @classmethod
+    def init_logging(cls) -> None:
+        """
+        Initialize logging configuration.
+        """
+        import logging
+        from logging.handlers import TimedRotatingFileHandler
 
-class ProductionConfig(BaseConfig):
-    """Production environment settings."""
+        # Create logs directory if it doesn't exist
+        log_dir = Path("logs")
+        log_dir.mkdir(exist_ok=True)
 
-    MONGO_URI = env_var("MONGO_GCE_URI")
-    DB_NAME = env_var("MONGO_DB_NAME")
-    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS")
-    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS")
-
-
-class DevelopmentConfig(BaseConfig):
-    """Development environment settings."""
-
-    FLASK_DEBUG = env_var("FLASK_DEBUG")
-    DEVELOPMENT = True
-    MONGO_URI = env_var("MONGO_LOCAL_URI")
-    DB_NAME = env_var("MONGO_DB_NAME")
-    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS")
-    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS")
-
-
-class TestingConfig(BaseConfig):
-    """Testing / Staging environment settings."""
-
-    TESTING = True
-    FLASK_DEBUG = env_var("FLASK_DEBUG")
-    MONGO_URI = env_var("MONGO_GCE_URI")
-    DB_NAME = env_var("MONGO_DB_NAME")
-    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS")
-    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS")
+        # Configure root logger
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            handlers=[
+                TimedRotatingFileHandler(
+                    filename=log_dir / "analytics-api.log",
+                    when="midnight",
+                    interval=1,
+                    backupCount=30,
+                ),
+                logging.StreamHandler(),
+            ],
+        )
 
 
-config = {
-    "development": DevelopmentConfig,
-    "testing": TestingConfig,
-    "staging": TestingConfig,
-    "production": ProductionConfig,
-}
+# Create global config instance
+settings = BaseConfig()
 
-print(f"App running in {APP_ENV.upper()} mode")
 
-CONFIGURATIONS = config[APP_ENV]
+def export_google_credentials(config: BaseConfig) -> None:
+    """Make the credentials path visible to the Google SDK.
+
+    google.auth.default() reads GOOGLE_APPLICATION_CREDENTIALS from
+    os.environ ONLY.  The Flask app got this for free because its config
+    ran load_dotenv() (which exports the .env file into os.environ);
+    pydantic-settings reads the env file into the settings object without
+    exporting.  setdefault so a value already present in the real process
+    environment always wins — the same precedence pydantic itself applies.
+
+    Relative paths (the .env convention) are resolved against this file's
+    directory, and a path that doesn't exist is NOT exported — exporting a
+    bad path would make google.auth raise instead of falling back to ADC /
+    workload identity.
+    """
+    if not config.google_application_credentials:
+        return
+    path = Path(config.google_application_credentials)
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parent / path
+    if path.is_file():
+        os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", str(path))
+
+
+export_google_credentials(settings)
+
+# Backward compatibility - expose commonly used attributes
+CONFIGURATIONS = settings  # For backward compatibility during migration
+API_V2_BASE_URL = "/api/v2/analytics"
+API_V2_BASE_INTERNAL_URL = "/api/v2/internal/analytics"
+API_V3_BASE_URL = "/api/v3/public/analytics"

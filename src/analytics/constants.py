@@ -11,12 +11,12 @@ class Entity(Enum):
 
 class DeviceCategory(Enum):
     """
-    LOW_COST -> Reference monitors
-    BAM -> Low cost sensors
+    LOWCOST -> Low cost sensors
+    BAM -> Reference monitors
     GAS -> Gaseous sensors
-    WEATHER -> Weather sensors
     GENERAL -> All the sensors
-    SATELLITE -> Satellite data
+    MOBILE -> Mobile sensors
+    SATELLITE -> Satellite-derived data (forecast)
     """
 
     LOWCOST = "lowcost"
