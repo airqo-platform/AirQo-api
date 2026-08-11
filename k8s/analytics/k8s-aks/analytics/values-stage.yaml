@@ -35,7 +35,7 @@ api:
 jobs:
   reports:
     name: stage-analytics-report
-    secret: sta-env-analytics-report-job
+    secret: sta-env-analytics
   resources:
     requests:
       cpu: 500m
