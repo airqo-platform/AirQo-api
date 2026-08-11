@@ -1,13 +1,17 @@
-import json
-from datetime import datetime
 import requests
 import pandas as pd
 from google.cloud import bigquery
-from google.oauth2 import service_account
-from config import BaseConfig as Config
+from api.utils.bigquery_jobs import query_job_config, shared_bigquery_client
 import numpy as np
 from timezonefinder import TimezoneFinder
 import pytz
+
+from api.utils.utils import Utils
+from config import settings
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def convert_utc_to_local(timestamps, site_latitude, site_longitude):
@@ -26,61 +30,74 @@ def convert_utc_to_local(timestamps, site_latitude, site_longitude):
 
 
 def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
-    # Convert start_time and end_time to ISO format
-    start_time_iso = start_time.isoformat() + "Z"
-    end_time_iso = end_time.isoformat() + "Z"
+    """
+    Resolves a grid ID to its site IDs via the external Grid API.
 
+    Args:
+        grid_id(str): The grid identifier.
+        start_time(datetime): Start of the reporting window.
+        end_time(datetime): End of the reporting window.
+
+    Returns:
+        list: Site IDs within the grid for the window; empty on API failure.
+    """
     grid_params = {
-        "token": Config.AIRQO_API_TOKEN,
-        "startTime": start_time_iso,
-        "endTime": end_time_iso,
+        "token": settings.airqo_api_token.get_secret_value(),
+        "startTime": start_time.isoformat() + "Z",
+        "endTime": end_time.isoformat() + "Z",
         "recent": "no",
     }
 
-    grid_url = f"{Config.GRID_URL}{grid_id}"
+    grid_url = f"{settings.grid_url}{grid_id}"
 
     try:
-        grid_response = requests.get(grid_url, params=grid_params)
-        grid_response.raise_for_status()  # Raise an exception for 4xx and 5xx status codes
+        grid_response = requests.get(grid_url, params=grid_params, timeout=60)
+        grid_response.raise_for_status()
 
         data = grid_response.json()
-
-        # Extracting only the 'site_id' from each measurement
-        site_ids = [
+        return [
             measurement.get("site_id") for measurement in data.get("measurements", [])
         ]
-
-        return site_ids
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching air quality data: ")
+    except requests.exceptions.RequestException:
+        logger.exception(f"Error fetching grid sites for grid {grid_id}")
         return []
 
 
-# Create a BigQuery client
-client = bigquery.Client()
-
-
 def query_bigquery(site_ids, start_time, end_time):
-    # Construct the BigQuery SQL query
+    """
+    Fetches hourly consolidated PM measurements for the given sites/window.
+
+    All user-derived values (site IDs, timestamps) are bound as query
+    parameters — never interpolated into the SQL text.
+
+    Returns:
+        pd.DataFrame with timestamps localised per site, or None when no data.
+    """
+    table = Utils.table_name(settings.bigquery_hourly_consolidated)
     query = f"""
         SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5_raw_value,
         pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value, country, region, city, county
-        FROM {Config.BIGQUERY_HOURLY_CONSOLIDATED}
-        WHERE site_id IN UNNEST({site_ids})
-        AND timestamp BETWEEN TIMESTAMP('{start_time.isoformat()}')
-        AND TIMESTAMP('{end_time.isoformat()}')
+        FROM {table}
+        WHERE site_id IN UNNEST(@site_ids)
+        AND timestamp BETWEEN @start_time AND @end_time
         AND NOT pm2_5_raw_value IS NULL
     """
+    job_config = query_job_config(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("site_ids", "STRING", list(site_ids)),
+            bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
+            bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
+        ]
+    )
 
     try:
-        # Execute the query
-        query_job = client.query(query)
-
-        # Fetch and return the results as a Pandas DataFrame
-        data = query_job.to_dataframe()
+        data = (
+            shared_bigquery_client().query(query, job_config=job_config).to_dataframe()
+        )
         if data.empty:
-            print("No data available for the given parameters.")
+            logger.info("No consolidated data for the given sites/window.")
             return None
+
         if (
             np.isnan(data["site_latitude"]).any()
             or np.isnan(data["site_longitude"]).any()
@@ -89,14 +106,14 @@ def query_bigquery(site_ids, start_time, end_time):
                 ~np.isnan(data["site_latitude"]) & ~np.isnan(data["site_longitude"])
             ]
 
-            # Convert timestamp to local time based on latitude and longitude
+        # Convert timestamp to local time based on latitude and longitude
         data["timestamp"] = convert_utc_to_local(
             data["timestamp"], data["site_latitude"], data["site_longitude"]
         )
 
         return data
-    except Exception as e:
-        print(f"Error querying BigQuery: {e}")
+    except Exception:
+        logger.exception("Error querying BigQuery for grid report data")
         return None
 
 
