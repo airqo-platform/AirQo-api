@@ -10,6 +10,7 @@ jobs:
     name: check changed microservice(s)
     outputs:
       test_view_api: ${{ steps.check_files.outputs.test_view_api }} # view
+      test_analytics_api: ${{ steps.check_files.outputs.test_analytics_api }} # analytics
 
     runs-on: ubuntu-latest
     steps:
@@ -28,12 +29,16 @@ jobs:
           git diff --name-only HEAD^ HEAD > files.txt
 
           echo "test_view_api=false" >>$GITHUB_OUTPUT
+          echo "test_analytics_api=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
             echo $file
             if [[ $file == src/view/* ]]; then
               echo "test_view_api=true" >>$GITHUB_OUTPUT
+            fi
+            if [[ $file == src/analytics/* ]]; then
+              echo "test_analytics_api=true" >>$GITHUB_OUTPUT
             fi
           done < files.txt
 
@@ -75,3 +80,27 @@ jobs:
           path: target/surefire-reports/*.xml
           reporter: java-junit
           fail-on-error: true
+
+  analytics-api:
+    name: test-analytics-api
+    needs: [check]
+    if: needs.check.outputs.test_analytics_api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/analytics
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        # Suite is hermetic — BigQuery/Redis/Mongo are mocked in tests/conftest.py
+        run: python -m pytest tests/
