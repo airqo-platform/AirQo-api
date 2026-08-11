@@ -1,5 +1,6 @@
 // group-chart-config.validators.js
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
+const isEmpty = require("is-empty");
 const preferenceValidations = require("./preferences.validators");
 
 // Reused from preferences.validators.js rather than duplicated — same chart
@@ -8,6 +9,7 @@ const {
   chartConfigValidation,
   createNestedValidations,
   commonValidations,
+  validateArrayOfObjectIds,
 } = preferenceValidations.sharedHelpers;
 
 const groupIdParam = param("grp_id")
@@ -17,13 +19,6 @@ const groupIdParam = param("grp_id")
   .isMongoId()
   .withMessage("Invalid Group ID");
 
-const deviceIdParam = param("deviceId")
-  .exists()
-  .withMessage("Device ID is required")
-  .bail()
-  .isMongoId()
-  .withMessage("Invalid Device ID");
-
 const chartIdParam = param("chartId")
   .exists()
   .withMessage("Chart ID is required")
@@ -31,11 +26,61 @@ const chartIdParam = param("chartId")
   .isMongoId()
   .withMessage("Invalid Chart ID");
 
+// A saved default can apply to more than one device and/or site at once
+// (mirrors the old, deprecated Defaults model's sites[]/devices[] arrays),
+// so both are optional arrays rather than a single required :deviceId path
+// param — but at least one has to be present, since a default has to apply
+// to something.
+const scopeArrayValidations = [
+  ...validateArrayOfObjectIds("device_ids"),
+  ...validateArrayOfObjectIds("site_ids"),
+];
+
+const atLeastOneScopeRequired = body().custom((_, { req }) => {
+  const { device_ids, site_ids } = req.body;
+  if (isEmpty(device_ids) && isEmpty(site_ids)) {
+    throw new Error(
+      "At least one of device_ids or site_ids is required, and must not be empty"
+    );
+  }
+  return true;
+});
+
+// On update, device_ids/site_ids are optional — a request may only touch
+// chart fields and leave scope untouched. But if both are explicitly sent
+// and both empty, that's an unambiguous attempt to clear the scope
+// entirely, so it's rejected here rather than left to fail later. This
+// can't catch every way to end up with an empty scope (e.g. clearing just
+// one array while the existing doc's other array is already empty) — that
+// case needs the current document, so it's guarded again in
+// group-chart-config.util.js after merging with the existing doc.
+const scopeNotBothClearedOnUpdate = body().custom((_, { req }) => {
+  const { device_ids, site_ids } = req.body;
+  const bothProvided = Array.isArray(device_ids) && Array.isArray(site_ids);
+  if (bothProvided && isEmpty(device_ids) && isEmpty(site_ids)) {
+    throw new Error(
+      "device_ids and site_ids cannot both be cleared — at least one must remain"
+    );
+  }
+  return true;
+});
+
+const deviceIdQuery = query("device_id")
+  .optional()
+  .isMongoId()
+  .withMessage("device_id must be a valid Device ID");
+
+const siteIdQuery = query("site_id")
+  .optional()
+  .isMongoId()
+  .withMessage("site_id must be a valid Site ID");
+
 const groupChartConfigValidations = {
   create: [
     ...commonValidations.tenant,
     groupIdParam,
-    deviceIdParam,
+    ...scopeArrayValidations,
+    atLeastOneScopeRequired,
     body("chartConfig")
       .exists()
       .withMessage("chartConfig object is required")
@@ -53,23 +98,19 @@ const groupChartConfigValidations = {
   update: [
     ...commonValidations.tenant,
     groupIdParam,
-    deviceIdParam,
     chartIdParam,
+    ...scopeArrayValidations,
+    scopeNotBothClearedOnUpdate,
     ...chartConfigValidation,
   ],
-  delete: [
+  delete: [...commonValidations.tenant, groupIdParam, chartIdParam],
+  list: [
     ...commonValidations.tenant,
     groupIdParam,
-    deviceIdParam,
-    chartIdParam,
+    deviceIdQuery,
+    siteIdQuery,
   ],
-  list: [...commonValidations.tenant, groupIdParam, deviceIdParam],
-  getById: [
-    ...commonValidations.tenant,
-    groupIdParam,
-    deviceIdParam,
-    chartIdParam,
-  ],
+  getById: [...commonValidations.tenant, groupIdParam, chartIdParam],
 };
 
 module.exports = groupChartConfigValidations;

@@ -141,13 +141,16 @@ router.get(
 
 // Group-wide DEFAULT chart configuration routes
 // ===========================================
-// Distinct from the personal /:deviceId/charts routes above: these set the
-// shared default chart for a device within a group/organization context —
-// what everyone viewing that device's data in the group sees by default,
-// not one user's own saved view. Writes require group-manager access;
-// reads only require verified group membership.
+// Distinct from the personal /:deviceId/charts routes above: these set a
+// shared default chart within a group/organization context — what everyone
+// viewing that data in the group sees by default, not one user's own saved
+// view. Scoped by device_ids/site_ids arrays in the request body/query
+// rather than a single :deviceId path param, so one saved default can cover
+// multiple devices and/or sites at once (mirrors the old, deprecated
+// Defaults model's sites[]/devices[] shape). Writes require group-manager
+// access; reads only require verified group membership.
 router.post(
-  "/groups/:grp_id/:deviceId/charts",
+  "/groups/:grp_id/charts",
   enhancedJWTAuth,
   requireGroupManagerAccess(),
   groupChartConfigValidations.create,
@@ -155,7 +158,7 @@ router.post(
 );
 
 router.put(
-  "/groups/:grp_id/:deviceId/charts/:chartId",
+  "/groups/:grp_id/charts/:chartId",
   enhancedJWTAuth,
   requireGroupManagerAccess(),
   groupChartConfigValidations.update,
@@ -163,7 +166,7 @@ router.put(
 );
 
 router.delete(
-  "/groups/:grp_id/:deviceId/charts/:chartId",
+  "/groups/:grp_id/charts/:chartId",
   enhancedJWTAuth,
   requireGroupManagerAccess(),
   groupChartConfigValidations.delete,
@@ -171,7 +174,7 @@ router.delete(
 );
 
 router.get(
-  "/groups/:grp_id/:deviceId/charts",
+  "/groups/:grp_id/charts",
   enhancedJWTAuth,
   requireGroupMembership(),
   pagination(),
@@ -180,7 +183,7 @@ router.get(
 );
 
 router.get(
-  "/groups/:grp_id/:deviceId/charts/:chartId",
+  "/groups/:grp_id/charts/:chartId",
   enhancedJWTAuth,
   requireGroupMembership(),
   groupChartConfigValidations.getById,
