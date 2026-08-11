@@ -1,38 +1,39 @@
+"""
+Celery worker for scheduled data exports.
+
+Beat schedules ``data_export_periodic_task`` every 5 seconds; the worker
+picks SCHEDULED (and retryable FAILED) requests from MongoDB, builds a
+BigQuery export query, materialises the results into a destination table,
+extracts it to GCS, and writes the download links back onto the Mongo
+document (status READY).  There is no email step — consumers poll
+``GET /data-export?userId=``.
+
+Runs entirely on config (no Flask).  Redis is the broker/result
+backend only.  Note: the 5s beat has no distributed lock — the
+SCHEDULED→PROCESSING status flip is the only double-processing guard.
+"""
+
 import logging
 import traceback
 from datetime import timedelta
 from typing import List
 
-from celery.utils.log import get_task_logger
-from flask import Flask
-from flask_caching import Cache
-from flask_pymongo import PyMongo
-
 from celery import Celery
+from celery.utils.log import get_task_logger
 
-from config import BaseConfig as Config, CONFIGURATIONS
-from api.models import DataExportModel, DataExportStatus, DataExportRequest, EventsModel
+from api.models.data_export import DataExportModel, DataExportRequest
+from api.models.export_queries import data_export_query
+from config import settings
+from constants import DataExportStatus
 
 celery_logger = get_task_logger(__name__)
 _logger = logging.getLogger(__name__)
 
-# db initialization
-mongo = PyMongo()
-cache = Cache()
-
-
-def create_app():
-    application = Flask(__name__)
-    application.config.from_object(CONFIGURATIONS)
-    mongo.init_app(application)
-    cache.init_app(application)
-    return application
-
 
 def make_celery():
     config = {
-        "broker_url": f"{Config.CACHE_REDIS_URL}/0",
-        "result_backend": f"{Config.CACHE_REDIS_URL}/0",
+        "broker_url": f"{settings.cache_redis_url}/0",
+        "result_backend": f"{settings.cache_redis_url}/0",
         "task_default_queue": "analytics",
         "beat_schedule": {
             "data_export_periodic_task": {
@@ -56,7 +57,6 @@ def data_export_task():
     celery_logger.info("Data export periodic task running")
 
     data_export_model = DataExportModel()
-    events_model = EventsModel("airqo")
     pending_requests = data_export_model.get_scheduled_and_failed_requests()
 
     if len(pending_requests) == 0:
@@ -75,13 +75,15 @@ def data_export_task():
 
     for request in requests_for_processing:
         try:
-            query = events_model.data_export_query(
-                sites=request.sites,
-                devices=request.devices,
-                airqlouds=request.airqlouds,
+            # frequency is passed as the enum — data_export_query resolves
+            # .value itself (the old worker passed a string into code that
+            # called .value again, crashing every request).
+            query = data_export_query(
+                filter_type=request.filter_type,
+                filter_value=request.filter_value,
                 start_date=request.start_date,
                 end_date=request.end_date,
-                frequency=request.frequency.value,
+                frequency=request.frequency,
                 pollutants=request.pollutants,
             )
 
@@ -109,15 +111,13 @@ def data_export_task():
                 raise Exception("Update failed")
 
         except Exception as ex:
-            print(ex)
+            _logger.error(f"Export request {request.request_id} failed: {ex}")
             traceback.print_exc()
             request.status = DataExportStatus.FAILED
             request.retries = request.retries - 1
             data_export_model.update_request_status_and_retries(request)
 
-        celery_logger.info(
-            f"Finished processing {len(requests_for_processing)} request(s)"
-        )
+    celery_logger.info(f"Finished processing {len(requests_for_processing)} request(s)")
 
 
 if __name__ == "__main__":
