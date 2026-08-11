@@ -1577,6 +1577,7 @@ preferenceValidations.sharedHelpers = {
   chartConfigValidation,
   createNestedValidations,
   commonValidations,
+  validateArrayOfObjectIds,
 };
 
 module.exports = preferenceValidations;

@@ -13,12 +13,21 @@ const { allowedChartProperties } = require("./preference.util");
 // (req.params.grp_id, enforced upstream by requireGroupManagerAccess on
 // writes), never a body default — a group-wide default should never be
 // implicit.
+//
+// Scoping is by device_ids/site_ids arrays (from the request body on
+// create/update, or ?device_id=/?site_id= query filters on list), not a
+// single :deviceId path param — this mirrors the old, deprecated Defaults
+// model's sites[]/devices[] shape, so one saved default can cover multiple
+// devices and/or sites. Each create makes its own document (no
+// findOneAndUpdate-merge into one doc per scope, since matching an exact
+// device_ids/site_ids array combination is unreliable) — same plain-insert
+// shape the old Defaults model used.
 const groupChartConfig = {
   create: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const { groupId, deviceId } = request.params;
-      const { chartConfig } = request.body;
+      const { groupId } = request.params;
+      const { chartConfig, device_ids = [], site_ids = [] } = request.body;
       const userId = request.user._id;
 
       if (!chartConfig || !chartConfig.fieldId) {
@@ -29,32 +38,19 @@ const groupChartConfig = {
         };
       }
 
-      // Atomically add this chart to the group's default set for this
-      // device, creating the doc if it doesn't exist yet — same
-      // findOneAndUpdate-keyed-on-the-unique-index shape as the personal
-      // chart create, which is what keeps it safe from duplicate-key
-      // errors on a first save (see the note in preference.util.js).
-      const groupChart = await GroupChartConfigModel(tenant).findOneAndUpdate(
-        { group_id: groupId, device_id: deviceId },
-        {
-          $push: { chartConfigurations: chartConfig },
-          $set: { updated_by: userId },
-          $setOnInsert: {
-            group_id: groupId,
-            device_id: deviceId,
-            created_by: userId,
-          },
-        },
-        { upsert: true, new: true, runValidators: true }
-      );
+      const groupChart = await GroupChartConfigModel(tenant).create({
+        group_id: groupId,
+        device_ids,
+        site_ids,
+        chartConfigurations: [chartConfig],
+        created_by: userId,
+        updated_by: userId,
+      });
 
       return {
         success: true,
         message: "Group chart configuration created successfully",
-        data:
-          groupChart.chartConfigurations[
-            groupChart.chartConfigurations.length - 1
-          ],
+        data: groupChart.chartConfigurations[0],
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -71,20 +67,19 @@ const groupChartConfig = {
   update: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const { groupId, deviceId, chartId } = request.params;
-      const updates = request.body;
+      const { groupId, chartId } = request.params;
+      const { device_ids, site_ids, ...chartUpdates } = request.body;
       const userId = request.user._id;
 
       const groupChart = await GroupChartConfigModel(tenant).findOne({
         group_id: groupId,
-        device_id: deviceId,
         "chartConfigurations._id": chartId,
       });
 
       if (!groupChart) {
         return {
           success: false,
-          message: "Group chart configuration not found for this device",
+          message: "Group chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -101,11 +96,18 @@ const groupChartConfig = {
         };
       }
 
-      Object.keys(updates)
+      Object.keys(chartUpdates)
         .filter((key) => allowedChartProperties.includes(key))
         .forEach((key) => {
-          groupChart.chartConfigurations[chartIndex][key] = updates[key];
+          groupChart.chartConfigurations[chartIndex][key] = chartUpdates[key];
         });
+
+      // device_ids/site_ids update the whole document's scope (which
+      // devices/sites this saved default applies to), not a single chart
+      // field, so they're applied separately from chartUpdates above.
+      if (Array.isArray(device_ids)) groupChart.device_ids = device_ids;
+      if (Array.isArray(site_ids)) groupChart.site_ids = site_ids;
+
       groupChart.updated_by = userId;
 
       await groupChart.save();
@@ -130,16 +132,16 @@ const groupChartConfig = {
   delete: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const { groupId, deviceId, chartId } = request.params;
+      const { groupId, chartId } = request.params;
       const userId = request.user._id;
 
       // A single atomic $pull rather than findOne -> splice -> save: the
       // read-modify-write shape raced against a concurrent delete/update on
-      // the same group+device doc (whole-document save() can silently drop
-      // the other request's change). $pull removes the matching array
-      // element directly, so there's no window for that to happen.
+      // the same doc (whole-document save() can silently drop the other
+      // request's change). $pull removes the matching array element
+      // directly, so there's no window for that to happen.
       const updateResult = await GroupChartConfigModel(tenant).updateOne(
-        { group_id: groupId, device_id: deviceId, "chartConfigurations._id": chartId },
+        { group_id: groupId, "chartConfigurations._id": chartId },
         {
           $pull: { chartConfigurations: { _id: chartId } },
           $set: { updated_by: userId },
@@ -149,7 +151,7 @@ const groupChartConfig = {
       if (updateResult.matchedCount === 0) {
         return {
           success: false,
-          message: "Group chart configuration not found for this device",
+          message: "Group chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -172,28 +174,29 @@ const groupChartConfig = {
 
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
-      const { groupId, deviceId } = request.params;
+      const { tenant, limit, skip, device_id, site_id } = request.query;
+      const { groupId } = request.params;
 
-      const groupChart = await GroupChartConfigModel(tenant).findOne({
-        group_id: groupId,
-        device_id: deviceId,
-      });
+      // Each saved default is now its own document with its own
+      // device_ids/site_ids scope (no longer one array embedded in a
+      // single per-device doc), so list returns matching documents
+      // themselves, optionally narrowed by a specific device/site.
+      const filter = { group_id: groupId };
+      if (device_id) filter.device_ids = device_id;
+      if (site_id) filter.site_ids = site_id;
 
-      // chartConfigurations is an array embedded in a single document, not
-      // its own collection — pagination (set by the route's pagination()
-      // middleware) is applied in memory rather than via a Mongo
-      // .skip()/.limit() query.
-      const allCharts = groupChart ? groupChart.chartConfigurations : [];
+      const groupCharts = await GroupChartConfigModel(tenant).find(filter);
+
       const skipNum = Number(skip) || 0;
-      const limitNum = Number(limit) || allCharts.length || 1;
-      const data = allCharts.slice(skipNum, skipNum + limitNum);
+      const limitNum = Number(limit) || groupCharts.length || 1;
+      const data = groupCharts.slice(skipNum, skipNum + limitNum);
 
       return {
         success: true,
-        message: groupChart
-          ? "Group chart configurations retrieved successfully"
-          : "No group chart configurations found for this device",
+        message:
+          data.length > 0
+            ? "Group chart configurations retrieved successfully"
+            : "No group chart configurations found",
         data,
         status: httpStatus.OK,
       };
@@ -211,17 +214,17 @@ const groupChartConfig = {
   getById: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const { groupId, deviceId, chartId } = request.params;
+      const { groupId, chartId } = request.params;
 
       const groupChart = await GroupChartConfigModel(tenant).findOne({
         group_id: groupId,
-        device_id: deviceId,
+        "chartConfigurations._id": chartId,
       });
 
       if (!groupChart) {
         return {
           success: false,
-          message: "Group chart configuration not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -241,7 +244,11 @@ const groupChartConfig = {
       return {
         success: true,
         message: "Chart configuration retrieved successfully",
-        data: chart,
+        data: {
+          ...chart.toObject(),
+          device_ids: groupChart.device_ids,
+          site_ids: groupChart.site_ids,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
