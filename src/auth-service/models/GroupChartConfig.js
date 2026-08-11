@@ -10,11 +10,16 @@ const isEmpty = require("is-empty");
 const { chartConfigSchema } = require("./Preference");
 
 /**
- * GroupChartConfig — the group/organization-wide DEFAULT chart configuration
- * for a device, as distinct from Preference.chartConfigurations (which is
- * per-user). This is what a group manager sets so that everyone viewing a
- * device's data within that group sees the same default chart, rather than
- * each user needing their own saved view.
+ * GroupChartConfig — a group/organization-wide DEFAULT chart configuration,
+ * as distinct from Preference.chartConfigurations (which is per-user). This
+ * is what a group manager sets so that everyone viewing data within that
+ * group sees the same default chart, rather than each user needing their
+ * own saved view.
+ *
+ * Scoped by device_ids/site_ids arrays rather than a single device — this
+ * mirrors the old, deprecated Defaults model (which had the same sites[]/
+ * devices[] shape) so one saved default can apply across multiple devices
+ * and/or sites at once, not just one device.
  *
  * Read access: any verified member of the group.
  * Write access: group managers/admins only (see requireGroupManagerAccess in
@@ -27,9 +32,13 @@ const groupChartConfigSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: [true, "group_id is required"],
     },
-    device_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: [true, "device_id is required"],
+    device_ids: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: [],
+    },
+    site_ids: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: [],
     },
     chartConfigurations: [chartConfigSchema],
     created_by: { type: mongoose.Schema.Types.ObjectId },
@@ -38,14 +47,27 @@ const groupChartConfigSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-groupChartConfigSchema.index({ group_id: 1, device_id: 1 }, { unique: true });
+// A saved default has to apply to something — at least one device or site.
+groupChartConfigSchema.pre("validate", function (next) {
+  if (isEmpty(this.device_ids) && isEmpty(this.site_ids)) {
+    return next(
+      new Error("At least one of device_ids or site_ids is required")
+    );
+  }
+  next();
+});
+
+groupChartConfigSchema.index({ group_id: 1 });
+groupChartConfigSchema.index({ group_id: 1, device_ids: 1 });
+groupChartConfigSchema.index({ group_id: 1, site_ids: 1 });
 
 groupChartConfigSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
       group_id: this.group_id,
-      device_id: this.device_id,
+      device_ids: this.device_ids,
+      site_ids: this.site_ids,
       chartConfigurations: this.chartConfigurations,
       created_by: this.created_by,
       updated_by: this.updated_by,

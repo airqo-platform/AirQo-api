@@ -17,7 +17,7 @@ describe("group-chart-config controller", () => {
     req = {
       query: { tenant: "airqo" },
       body: {},
-      params: { grp_id: "grp1", deviceId: "device1", chartId: "chart1" },
+      params: { grp_id: "grp1", chartId: "chart1" },
     };
     res = {
       status: sinon.stub().returnsThis(),
@@ -45,7 +45,6 @@ describe("group-chart-config controller", () => {
       expect(createStub.calledOnce).to.equal(true);
       const forwardedRequest = createStub.getCall(0).args[0];
       expect(forwardedRequest.params.groupId).to.equal("grp1");
-      expect(forwardedRequest.params.deviceId).to.equal("device1");
       expect(res.status.calledWith(httpStatus.OK)).to.equal(true);
     });
 

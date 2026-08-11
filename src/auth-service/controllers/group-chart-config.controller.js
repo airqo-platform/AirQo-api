@@ -25,11 +25,11 @@ const sendResponse = (res, result) => {
 };
 
 // Every group-chart-config route needs the exact same request shaping:
-// grp_id -> params.groupId (deviceId is already in params, courtesy of
-// Express's own route matching) and a defaulted tenant — built fresh here
-// rather than mutating req.query, since request.query would otherwise be
-// the SAME object reference as req.query (a shallow spread copies the key,
-// not the object it points to).
+// grp_id -> params.groupId and a defaulted tenant — built fresh here rather
+// than mutating req.query, since request.query would otherwise be the SAME
+// object reference as req.query (a shallow spread copies the key, not the
+// object it points to). device_ids/site_ids arrive in the body (create/
+// update) or query (list filters) and need no reshaping.
 // Takes a method NAME, not the function itself — looking it up on
 // groupChartConfigUtil fresh on every call (rather than capturing the
 // function reference once at module-load time) is what lets
