@@ -1,6 +1,7 @@
 const GroupChartConfigModel = require("@models/GroupChartConfig");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- group-chart-config-util`
@@ -34,6 +35,17 @@ const groupChartConfig = {
         return {
           success: false,
           message: "Chart configuration must include a field ID",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Enforced by the route validators too, but checked again here so a
+      // direct/validator-bypassing call fails as a clear 400 rather than
+      // hitting the schema's pre-validate hook and surfacing as a 500.
+      if (isEmpty(device_ids) && isEmpty(site_ids)) {
+        return {
+          success: false,
+          message: "At least one of device_ids or site_ids is required",
           status: httpStatus.BAD_REQUEST,
         };
       }
@@ -108,6 +120,20 @@ const groupChartConfig = {
       if (Array.isArray(device_ids)) groupChart.device_ids = device_ids;
       if (Array.isArray(site_ids)) groupChart.site_ids = site_ids;
 
+      // Checked here (post-merge, pre-save) rather than left to the
+      // schema's pre-validate hook: a request can clear one array while
+      // leaving the other untouched, and only the merged result — not the
+      // request body alone — can tell us whether that leaves the doc with
+      // no scope at all. Catching it here returns a normal 400 instead of
+      // an uncaught validation error surfacing as a 500.
+      if (isEmpty(groupChart.device_ids) && isEmpty(groupChart.site_ids)) {
+        return {
+          success: false,
+          message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       groupChart.updated_by = userId;
 
       await groupChart.save();
@@ -135,25 +161,39 @@ const groupChartConfig = {
       const { groupId, chartId } = request.params;
       const userId = request.user._id;
 
-      // A single atomic $pull rather than findOne -> splice -> save: the
+      // findOneAndUpdate rather than findOne -> splice -> save: the
       // read-modify-write shape raced against a concurrent delete/update on
       // the same doc (whole-document save() can silently drop the other
-      // request's change). $pull removes the matching array element
-      // directly, so there's no window for that to happen.
-      const updateResult = await GroupChartConfigModel(tenant).updateOne(
+      // request's change). It's still a single atomic command like the
+      // $pull-only updateOne this replaced — the difference is it also
+      // hands back the updated document, which is what lets us detect (and
+      // clean up) a doc left with zero charts after this pull. Since
+      // create() always makes its own new document rather than merging
+      // into an existing one, nothing else can race to repopulate this
+      // specific doc's chartConfigurations between the pull and the
+      // cleanup delete below.
+      const updatedDoc = await GroupChartConfigModel(tenant).findOneAndUpdate(
         { group_id: groupId, "chartConfigurations._id": chartId },
         {
           $pull: { chartConfigurations: { _id: chartId } },
           $set: { updated_by: userId },
-        }
+        },
+        { new: true }
       );
 
-      if (updateResult.matchedCount === 0) {
+      if (!updatedDoc) {
         return {
           success: false,
           message: "Group chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
+      }
+
+      // A saved default with no charts left in it is dead weight — it'd
+      // otherwise keep showing up in list() (matching on group_id/scope)
+      // with an empty chartConfigurations array.
+      if (updatedDoc.chartConfigurations.length === 0) {
+        await GroupChartConfigModel(tenant).deleteOne({ _id: updatedDoc._id });
       }
 
       return {
@@ -185,19 +225,25 @@ const groupChartConfig = {
       if (device_id) filter.device_ids = device_id;
       if (site_id) filter.site_ids = site_id;
 
-      const groupCharts = await GroupChartConfigModel(tenant).find(filter);
-
+      // Paginated at the query level, not in memory — each saved default
+      // is its own document now (not one array embedded in a single doc),
+      // so a group with many saved defaults would otherwise mean loading
+      // all of them just to slice a page off in JS. skip(0)/limit(0) are
+      // both no-ops in MongoDB, so this is safe to chain unconditionally.
       const skipNum = Number(skip) || 0;
-      const limitNum = Number(limit) || groupCharts.length || 1;
-      const data = groupCharts.slice(skipNum, skipNum + limitNum);
+      const limitNum = Number(limit) || 0;
+      const groupCharts = await GroupChartConfigModel(tenant)
+        .find(filter)
+        .skip(skipNum)
+        .limit(limitNum);
 
       return {
         success: true,
         message:
-          data.length > 0
+          groupCharts.length > 0
             ? "Group chart configurations retrieved successfully"
             : "No group chart configurations found",
-        data,
+        data: groupCharts,
         status: httpStatus.OK,
       };
     } catch (error) {

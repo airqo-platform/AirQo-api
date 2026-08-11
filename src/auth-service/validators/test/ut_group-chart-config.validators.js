@@ -172,6 +172,23 @@ describe("group-chart-config validators", () => {
       expect(res.status).to.equal(422);
     });
 
+    it("rejects when device_ids and site_ids are both explicitly sent empty — an unambiguous attempt to clear the scope entirely", async () => {
+      const res = await request(app)
+        .put(`/test/groups/${validId()}/charts/${validId()}`)
+        .send({ device_ids: [], site_ids: [] });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "device_ids and site_ids cannot both be cleared"
+      );
+    });
+
+    it("accepts clearing just one scope array when the other is left untouched — the validator can't know the existing doc's scope, so this is allowed here and guarded again at the util layer", async () => {
+      const res = await request(app)
+        .put(`/test/groups/${validId()}/charts/${validId()}`)
+        .send({ device_ids: [] });
+      expect(res.status).to.equal(200);
+    });
+
     it("accepts a well-formed partial update", async () => {
       const res = await request(app)
         .put(`/test/groups/${validId()}/charts/${validId()}`)

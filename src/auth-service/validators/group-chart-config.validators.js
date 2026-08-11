@@ -46,6 +46,25 @@ const atLeastOneScopeRequired = body().custom((_, { req }) => {
   return true;
 });
 
+// On update, device_ids/site_ids are optional — a request may only touch
+// chart fields and leave scope untouched. But if both are explicitly sent
+// and both empty, that's an unambiguous attempt to clear the scope
+// entirely, so it's rejected here rather than left to fail later. This
+// can't catch every way to end up with an empty scope (e.g. clearing just
+// one array while the existing doc's other array is already empty) — that
+// case needs the current document, so it's guarded again in
+// group-chart-config.util.js after merging with the existing doc.
+const scopeNotBothClearedOnUpdate = body().custom((_, { req }) => {
+  const { device_ids, site_ids } = req.body;
+  const bothProvided = Array.isArray(device_ids) && Array.isArray(site_ids);
+  if (bothProvided && isEmpty(device_ids) && isEmpty(site_ids)) {
+    throw new Error(
+      "device_ids and site_ids cannot both be cleared — at least one must remain"
+    );
+  }
+  return true;
+});
+
 const deviceIdQuery = query("device_id")
   .optional()
   .isMongoId()
@@ -81,6 +100,7 @@ const groupChartConfigValidations = {
     groupIdParam,
     chartIdParam,
     ...scopeArrayValidations,
+    scopeNotBothClearedOnUpdate,
     ...chartConfigValidation,
   ],
   delete: [...commonValidations.tenant, groupIdParam, chartIdParam],

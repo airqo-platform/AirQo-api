@@ -81,13 +81,45 @@ describe("group-chart-config UTIL", function() {
       expect(result.data).to.deep.equal(chartConfig);
     });
 
-    it("defaults device_ids/site_ids to empty arrays when omitted from the body", async function() {
+    it("rejects when device_ids and site_ids are both omitted (defaulted to empty arrays)", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId },
+        body: { chartConfig: { fieldId: 1 } },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.create(request, next);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(createStub.called).to.equal(false);
+    });
+
+    it("rejects when device_ids and site_ids are both explicitly empty arrays — same 400 the route validators enforce, so a validator-bypassing call still fails cleanly instead of hitting the schema and 500ing", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId },
+        body: { chartConfig: { fieldId: 1 }, device_ids: [], site_ids: [] },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.create(request, next);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(createStub.called).to.equal(false);
+    });
+
+    it("defaults the omitted one to an empty array when only one of device_ids/site_ids is given", async function() {
       const chartConfig = { fieldId: 1 };
       createStub.resolves({ chartConfigurations: [chartConfig] });
       const request = {
         query: { tenant: "airqo" },
         params: { groupId },
-        body: { chartConfig },
+        body: { chartConfig, device_ids: [deviceId] },
         user: { _id: userId },
       };
       const next = sinon.stub();
@@ -95,7 +127,7 @@ describe("group-chart-config UTIL", function() {
       await rewireGroupChartConfigUtil.create(request, next);
 
       const [doc] = createStub.getCall(0).args;
-      expect(doc.device_ids).to.deep.equal([]);
+      expect(doc.device_ids).to.deep.equal([deviceId]);
       expect(doc.site_ids).to.deep.equal([]);
     });
 
@@ -201,6 +233,56 @@ describe("group-chart-config UTIL", function() {
       expect(doc.site_ids).to.deep.equal([siteId]);
     });
 
+    it("rejects (400, not a save() that trips the schema into a 500) when both scope arrays are explicitly cleared", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = { _id: { toString: () => chartId }, title: "Old title" };
+      const doc = {
+        chartConfigurations: [chart],
+        device_ids: [deviceId],
+        site_ids: [siteId],
+        save: saveStub,
+      };
+      findOneStub.resolves(doc);
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId, chartId },
+        body: { device_ids: [], site_ids: [] },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.update(request, next);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(saveStub.called).to.equal(false);
+    });
+
+    it("rejects when clearing just one scope array leaves the doc's other array already empty — a case the validator layer alone can't see, since it needs the existing document", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = { _id: { toString: () => chartId }, title: "Old title" };
+      const doc = {
+        chartConfigurations: [chart],
+        device_ids: [deviceId],
+        site_ids: [], // already empty on the existing document
+        save: saveStub,
+      };
+      findOneStub.resolves(doc);
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId, chartId },
+        body: { device_ids: [] }, // site_ids untouched, but it's already []
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.update(request, next);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(saveStub.called).to.equal(false);
+    });
+
     it("returns an internal error response when the model throws", async function() {
       findOneStub.rejects(new Error("Mongo down"));
       const request = {
@@ -219,20 +301,23 @@ describe("group-chart-config UTIL", function() {
   });
 
   describe("delete", function() {
-    let updateOneStub;
+    let findOneAndUpdateStub;
+    let deleteOneStub;
 
     beforeEach(function() {
       origGroupChartConfigModel = rewireGroupChartConfigUtil.__get__(
         "GroupChartConfigModel"
       );
-      updateOneStub = sinon.stub();
+      findOneAndUpdateStub = sinon.stub();
+      deleteOneStub = sinon.stub().resolves();
       rewireGroupChartConfigUtil.__set__("GroupChartConfigModel", () => ({
-        updateOne: updateOneStub,
+        findOneAndUpdate: findOneAndUpdateStub,
+        deleteOne: deleteOneStub,
       }));
     });
 
     it("returns 404 when nothing matches the group/chart filter", async function() {
-      updateOneStub.resolves({ matchedCount: 0, modifiedCount: 0 });
+      findOneAndUpdateStub.resolves(null);
       const request = {
         query: { tenant: "airqo" },
         params: { groupId, chartId },
@@ -244,10 +329,14 @@ describe("group-chart-config UTIL", function() {
 
       expect(result.success).to.equal(false);
       expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(deleteOneStub.called).to.equal(false);
     });
 
-    it("pulls the chart atomically in a single updateOne, keyed on group_id + chartId only — no read-modify-write race with a concurrent update", async function() {
-      updateOneStub.resolves({ matchedCount: 1, modifiedCount: 1 });
+    it("pulls the chart atomically via findOneAndUpdate, keyed on group_id + chartId only — no read-modify-write race with a concurrent update", async function() {
+      findOneAndUpdateStub.resolves({
+        _id: "doc1",
+        chartConfigurations: [{ fieldId: 2 }],
+      });
       const request = {
         query: { tenant: "airqo" },
         params: { groupId, chartId },
@@ -257,8 +346,8 @@ describe("group-chart-config UTIL", function() {
 
       const result = await rewireGroupChartConfigUtil.delete(request, next);
 
-      expect(updateOneStub.calledOnce).to.equal(true);
-      const [filter, update] = updateOneStub.getCall(0).args;
+      expect(findOneAndUpdateStub.calledOnce).to.equal(true);
+      const [filter, update, options] = findOneAndUpdateStub.getCall(0).args;
       expect(filter).to.deep.equal({
         group_id: groupId,
         "chartConfigurations._id": chartId,
@@ -267,11 +356,48 @@ describe("group-chart-config UTIL", function() {
         chartConfigurations: { _id: chartId },
       });
       expect(update.$set.updated_by).to.equal(userId);
+      expect(options.new).to.equal(true);
+      expect(result.success).to.equal(true);
+    });
+
+    it("leaves the parent document alone when other charts remain after the pull", async function() {
+      findOneAndUpdateStub.resolves({
+        _id: "doc1",
+        chartConfigurations: [{ fieldId: 2 }],
+      });
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId, chartId },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      await rewireGroupChartConfigUtil.delete(request, next);
+
+      expect(deleteOneStub.called).to.equal(false);
+    });
+
+    it("cascades and removes the whole document once its last chart is pulled, so it doesn't linger in list() with an empty chartConfigurations array", async function() {
+      findOneAndUpdateStub.resolves({
+        _id: "doc1",
+        chartConfigurations: [],
+      });
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId, chartId },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.delete(request, next);
+
+      expect(deleteOneStub.calledOnce).to.equal(true);
+      expect(deleteOneStub.getCall(0).args[0]).to.deep.equal({ _id: "doc1" });
       expect(result.success).to.equal(true);
     });
 
     it("returns an internal error response when the model throws", async function() {
-      updateOneStub.rejects(new Error("Mongo down"));
+      findOneAndUpdateStub.rejects(new Error("Mongo down"));
       const request = {
         query: { tenant: "airqo" },
         params: { groupId, chartId },
@@ -289,6 +415,30 @@ describe("group-chart-config UTIL", function() {
   describe("list", function() {
     let findStub;
 
+    // Mimics a real Mongoose Query: .skip()/.limit() are chainable (return
+    // the same object) and the object itself is awaitable. This is what
+    // lets the util's find(filter).skip(n).limit(n) actually paginate at
+    // the query level instead of loading everything into memory to slice.
+    function chainableFind(resolvedValue, rejectedError) {
+      const calls = {};
+      const chain = {
+        skip(n) {
+          calls.skip = n;
+          return chain;
+        },
+        limit(n) {
+          calls.limit = n;
+          return chain;
+        },
+        then(resolve, reject) {
+          return rejectedError
+            ? Promise.reject(rejectedError).then(resolve, reject)
+            : Promise.resolve(resolvedValue).then(resolve, reject);
+        },
+      };
+      return { chain, calls };
+    }
+
     beforeEach(function() {
       origGroupChartConfigModel = rewireGroupChartConfigUtil.__get__(
         "GroupChartConfigModel"
@@ -300,7 +450,8 @@ describe("group-chart-config UTIL", function() {
     });
 
     it("returns an empty array (still success) when nothing exists yet for this group", async function() {
-      findStub.resolves([]);
+      const { chain } = chainableFind([]);
+      findStub.returns(chain);
       const request = {
         query: { tenant: "airqo" },
         params: { groupId },
@@ -321,7 +472,8 @@ describe("group-chart-config UTIL", function() {
         { group_id: groupId, device_ids: [deviceId], site_ids: [] },
         { group_id: groupId, device_ids: [], site_ids: [siteId] },
       ];
-      findStub.resolves(docs);
+      const { chain } = chainableFind(docs);
+      findStub.returns(chain);
       const request = {
         query: { tenant: "airqo" },
         params: { groupId },
@@ -334,7 +486,8 @@ describe("group-chart-config UTIL", function() {
     });
 
     it("narrows the filter by device_id/site_id query params when provided", async function() {
-      findStub.resolves([]);
+      const { chain } = chainableFind([]);
+      findStub.returns(chain);
       const request = {
         query: { tenant: "airqo", device_id: deviceId, site_id: siteId },
         params: { groupId },
@@ -350,9 +503,10 @@ describe("group-chart-config UTIL", function() {
       });
     });
 
-    it("honors limit/skip from the route's pagination() middleware", async function() {
-      const docs = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
-      findStub.resolves(docs);
+    it("paginates at the query level via skip()/limit(), not by loading everything and slicing in memory", async function() {
+      const docs = [{ id: 2 }, { id: 3 }];
+      const { chain, calls } = chainableFind(docs);
+      findStub.returns(chain);
       const request = {
         query: { tenant: "airqo", limit: 2, skip: 1 },
         params: { groupId },
@@ -361,11 +515,29 @@ describe("group-chart-config UTIL", function() {
 
       const result = await rewireGroupChartConfigUtil.list(request, next);
 
-      expect(result.data).to.deep.equal([{ id: 2 }, { id: 3 }]);
+      expect(calls.skip).to.equal(1);
+      expect(calls.limit).to.equal(2);
+      expect(result.data).to.deep.equal(docs);
+    });
+
+    it("defaults skip/limit to 0 — a MongoDB no-op — when omitted from the query", async function() {
+      const { chain, calls } = chainableFind([]);
+      findStub.returns(chain);
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId },
+      };
+      const next = sinon.stub();
+
+      await rewireGroupChartConfigUtil.list(request, next);
+
+      expect(calls.skip).to.equal(0);
+      expect(calls.limit).to.equal(0);
     });
 
     it("returns an internal error response when the model throws", async function() {
-      findStub.rejects(new Error("Mongo down"));
+      const { chain } = chainableFind(null, new Error("Mongo down"));
+      findStub.returns(chain);
       const request = {
         query: { tenant: "airqo" },
         params: { groupId },
