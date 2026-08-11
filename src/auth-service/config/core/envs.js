@@ -196,7 +196,7 @@ const envs = {
   CLEAN_AIR_FORUM_SELFIE_TAG: "clean-air-forum-selfie",
   CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS: parseNumber(
     process.env.CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS,
-    90,
+    730,
   ),
   // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
   // uses this URL for login location lookups; when absent, geolocation is
