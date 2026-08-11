@@ -2925,20 +2925,18 @@ const deviceUtil = {
           .lean();
 
         // Publish recall message to Kafka. Include createdActivity (same
-        // shape as activity.util.js's processRecall) so the consumer's
+        // payload shape as activity.util.js's recall) so the consumer's
         // required-fields check doesn't reject this message.
         if (createdActivity) {
+          const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+          let kafkaProducer;
           try {
-            const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-            const kafkaProducer = kafka.producer({
-              groupId: constants.UNIQUE_PRODUCER_GROUP,
-            });
+            kafkaProducer = kafka.producer();
             await kafkaProducer.connect();
             await kafkaProducer.send({
               topic: recallTopic,
               messages: [
                 {
-                  action: "create",
                   value: JSON.stringify({
                     createdActivity: createdActivity.toObject
                       ? createdActivity.toObject()
@@ -2949,7 +2947,6 @@ const deviceUtil = {
                 },
               ],
             });
-            await kafkaProducer.disconnect();
             logText(
               `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
             );
@@ -2957,6 +2954,16 @@ const deviceUtil = {
             logger.error(
               `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
             );
+          } finally {
+            if (kafkaProducer) {
+              try {
+                await kafkaProducer.disconnect();
+              } catch (disconnectError) {
+                logger.error(
+                  `Failed to disconnect Kafka producer after recall notification for ${device.name}: ${disconnectError.message}`,
+                );
+              }
+            }
           }
         } else {
           logger.error(
@@ -3190,20 +3197,18 @@ const deviceUtil = {
               .lean();
 
             // Publish recall message to Kafka. Include createdActivity (same
-            // shape as activity.util.js's processRecall) so the consumer's
+            // payload shape as activity.util.js's recall) so the consumer's
             // required-fields check doesn't reject this message.
             if (createdActivity) {
+              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
+              let kafkaProducer;
               try {
-                const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-                const kafkaProducer = kafka.producer({
-                  groupId: constants.UNIQUE_PRODUCER_GROUP,
-                });
+                kafkaProducer = kafka.producer();
                 await kafkaProducer.connect();
                 await kafkaProducer.send({
                   topic: recallTopic,
                   messages: [
                     {
-                      action: "create",
                       value: JSON.stringify({
                         createdActivity: createdActivity.toObject
                           ? createdActivity.toObject()
@@ -3214,7 +3219,6 @@ const deviceUtil = {
                     },
                   ],
                 });
-                await kafkaProducer.disconnect();
                 logText(
                   `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
                 );
@@ -3222,6 +3226,16 @@ const deviceUtil = {
                 logger.error(
                   `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
                 );
+              } finally {
+                if (kafkaProducer) {
+                  try {
+                    await kafkaProducer.disconnect();
+                  } catch (disconnectError) {
+                    logger.error(
+                      `Failed to disconnect Kafka producer after recall notification for ${device.name}: ${disconnectError.message}`,
+                    );
+                  }
+                }
               }
             } else {
               logger.error(
