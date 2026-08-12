@@ -618,7 +618,7 @@ class BigQueryApi:
         self, dataframe: pd.DataFrame, cursor_field: str, filter_type: str
     ) -> Optional[str]:
         """
-        Generates the next cursor value from a dataframe of results and stores it in Redis.
+        Generates the next signed stateless cursor token from a dataframe of results.
 
         Args:
             dataframe (pd.DataFrame): The result dataframe.
@@ -626,7 +626,7 @@ class BigQueryApi:
             filter_type (str): Type of filter being applied (e.g., 'site_id').
 
         Returns:
-            Optional[str]: Cursor token for retrieving the stored cursor, or None if no more data.
+            Optional[str]: Self-contained signed cursor token, or None if no more data.
         """
         cursor_token = None
         filter_type = self.field_mappings.get(filter_type, None)

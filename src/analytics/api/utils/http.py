@@ -129,8 +129,7 @@ class AirQoRequests:
         # written to the log file and stdout whenever a call retries or fails.
         # Moving it to an Authorization header requires a coordinated change
         # on the device-registry side, so it is deliberately left as-is for
-        # now. Until then, treat analytics logs as containing secrets, and
-        # rotate AIRQO_API_TOKEN if they are ever shared outside the team.
+        # now.
         params.update({"token": self.AIRQO_API_TOKEN})
 
         # Retry budget is settings-driven: the old fixed total=5/backoff=5

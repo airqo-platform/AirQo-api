@@ -28,8 +28,7 @@ class StatelessCursorUtils:
     Utility class for handling pagination cursors in the API using stateless tokens.
     Provides methods for encoding, decoding, and extracting information from cursors.
 
-    Note: This implementation uses stateless tokens (rather than Redis-backed
-    ones) so cursors stay valid across API replicas.
+    Note: This implementation uses stateless tokens.
 
     Tokens are **HMAC-signed**.  The payload is base64 for transport only,
     which is not a security boundary — anyone can decode and re-encode it.
@@ -43,7 +42,6 @@ class StatelessCursorUtils:
     Token format: ``<b64(payload)>.<b64(hmac_sha256(b64(payload)))>``
     """
 
-    # Cursor expiration time in seconds (0.1 hours)
     CURSOR_EXPIRATION = int(0.1 * 60 * 60)  # Ensure this is an integer (6 minutes)
 
     @staticmethod
@@ -86,7 +84,6 @@ class StatelessCursorUtils:
                 "invalid cursor" on the *next* request instead of here.
         """
         try:
-            # Embed expiration timestamp in the token
             expiration = int(time.time()) + StatelessCursorUtils.CURSOR_EXPIRATION
             payload_b64 = _b64encode(f"{cursor_str}|{expiration}".encode())
             return f"{payload_b64}.{StatelessCursorUtils._sign(payload_b64)}"
