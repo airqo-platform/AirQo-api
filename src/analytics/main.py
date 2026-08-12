@@ -1,8 +1,8 @@
 """
-FastAPI Application for AirQo Analytics API
+FastAPI application for the AirQo Analytics API.
 
-This module creates and configures the FastAPI application, replacing the Flask-based
-main.py. It includes middleware setup, router registration, and error handling.
+Creates and configures the app: middleware, router registration, the shared
+error envelope, and the liveness/readiness endpoints.
 """
 
 from contextlib import asynccontextmanager
@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from config import settings
 from api.routers import v2_router, v3_router
 from api.middlewares.rate_limiter import RateLimiterMiddleware
-from api.utils.cache import init_cache
+from api.utils.cache import init_cache, close_cache
 
 # Initialize logging if method exists (for production config)
 if hasattr(settings, "init_logging"):
@@ -38,13 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     logger.info("Starting AirQo Analytics API")
     await init_cache()
-    logger.info("Cache initialized")
 
     yield
 
     # Shutdown
     logger.info("Shutting down AirQo Analytics API")
-    # Add cleanup operations here if needed
+    await close_cache()
 
 
 def create_fastapi_app() -> FastAPI:

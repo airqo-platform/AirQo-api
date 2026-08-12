@@ -280,6 +280,81 @@ class TestCacheIncr:
 
     @pytest.mark.asyncio
     async def test_returns_none_on_redis_error(self):
-        """None is the signal the limiter turns into a fail-closed rejection."""
+        """None is the signal the limiter uses to fall back to local counters."""
         self.mock_redis.pipeline.side_effect = Exception("Redis down")
         assert await cache_incr("k", 60) is None
+
+
+class TestRedisRecovery:
+    """Starting while Redis is down must not disable Redis for the lifetime of
+    the process. `from_url` does not connect — the pool connects lazily — so
+    the client is kept and the service picks Redis up when it returns."""
+
+    def teardown_method(self):
+        # These tests deliberately leave a mock in the module-global _cache;
+        # restore it so later test files never talk to a leaked mock.
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+
+    @pytest.mark.asyncio
+    async def test_client_is_retained_when_startup_ping_fails(self):
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        mock_redis = AsyncMock()
+        mock_redis.ping.side_effect = Exception("Connection refused")
+
+        with patch("aioredis.from_url", return_value=mock_redis):
+            await init_cache()
+
+        # Retained, not discarded — otherwise every helper short-circuits
+        # forever and nothing ever retries.
+        assert api.utils.cache._cache is mock_redis
+
+    @pytest.mark.asyncio
+    async def test_recovers_without_restart_after_a_failed_startup(self):
+        """The whole point: a command issued after Redis returns succeeds."""
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        mock_redis = AsyncMock()
+        mock_redis.ping.side_effect = Exception("Connection refused")
+
+        with patch("aioredis.from_url", return_value=mock_redis):
+            await init_cache()
+
+        # Redis comes back: the pipeline now works.
+        pipeline = MagicMock()
+        pipeline.execute = AsyncMock(return_value=[1, -1])
+        mock_redis.pipeline = MagicMock(return_value=pipeline)
+
+        assert await cache_incr("k", 60) == 1
+
+    @pytest.mark.asyncio
+    async def test_socket_timeouts_are_bounded(self):
+        """Without these, every request during an outage would stall on the
+        OS-level TCP timeout rather than falling back promptly."""
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        with patch("aioredis.from_url") as from_url:
+            from_url.return_value = AsyncMock()
+            await init_cache()
+
+        kwargs = from_url.call_args.kwargs
+        assert (
+            kwargs["socket_connect_timeout"] == api.utils.cache._SOCKET_TIMEOUT_SECONDS
+        )
+        assert kwargs["socket_timeout"] == api.utils.cache._SOCKET_TIMEOUT_SECONDS
+
+    @pytest.mark.asyncio
+    async def test_malformed_url_still_yields_no_client(self):
+        """A URL that cannot build a client is not retryable — stay None."""
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        with patch("aioredis.from_url", side_effect=Exception("bad url")):
+            await init_cache()
+
+        assert api.utils.cache._cache is None

@@ -1,6 +1,7 @@
 import ipaddress
 import logging
-from typing import Callable, List
+import time
+from typing import Callable, Dict, List, Tuple
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -41,13 +42,6 @@ def get_client_ip(request: Request) -> str:
     gateway's address for every request — keying rate limits on it would
     throttle all users as a single client.  The gateway appends the original
     client to X-Forwarded-For.
-
-    X-Forwarded-For is only honoured when the immediate peer is a configured
-    trusted proxy. It is a client-settable header: trusting it unconditionally
-    let any caller rotate a fake value per request and bypass the limit
-    entirely — which, on endpoints that trigger BigQuery scans, is a billing
-    problem as much as an availability one. With no TRUSTED_PROXIES set the
-    header is ignored, so the default is safe rather than convenient.
     """
     peer = request.client.host if request.client else None
 
@@ -69,11 +63,6 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
     Counters live in Redis and are incremented atomically *before* the request
     is handled, so concurrent bursts cannot all pass the check on a stale read.
-
-    Note on "distributed": this is only global if every replica shares one
-    Redis. The Helm chart currently runs a Redis sidecar per API pod, so with
-    replicaCount: 3 the effective global limit is 3x the configured one. Point
-    REDIS_SERVER at a shared instance to make the limit truly cluster-wide.
     """
 
     def __init__(self, app: Callable, rate_limit: int = 100, window_seconds: int = 60):
@@ -198,26 +187,77 @@ class RateLimitExceeded(HTTPException):
         )
 
 
+# ---------------------------------------------------------------------------
+# In-process fallback, used only while Redis is unreachable.
+#
+# Counters live in this process, so the effective ceiling becomes roughly
+# (gunicorn workers x replicas) x the configured limit, and they reset on
+# restart. That is deliberately approximate: it keeps the API serving and
+# still bounds a runaway caller, which beats both 429-ing every request and
+# waving everything through unmetered.
+# ---------------------------------------------------------------------------
+
+_local_counters: Dict[str, Tuple[int, float]] = {}
+_local_prune_due = 0.0
+_degraded_logged_at = 0.0
+
+_PRUNE_INTERVAL = 60.0
+# Redis being down would otherwise log once per request.
+_DEGRADED_LOG_INTERVAL = 60.0
+
+
+def _prune_local(now: float) -> None:
+    """Drop expired windows so the dict cannot grow without bound."""
+    global _local_prune_due
+    if now < _local_prune_due:
+        return
+    _local_prune_due = now + _PRUNE_INTERVAL
+    for key, (_, expires_at) in list(_local_counters.items()):
+        if now >= expires_at:
+            del _local_counters[key]
+
+
+def _consume_locally(cache_key: str, limit: int, window_seconds: int) -> bool:
+    """Fixed-window counter held in this process. Returns False when exhausted."""
+    # monotonic: immune to wall-clock adjustments mid-window.
+    now = time.monotonic()
+    _prune_local(now)
+
+    count, expires_at = _local_counters.get(cache_key, (0, 0.0))
+    if now >= expires_at:
+        count, expires_at = 0, now + window_seconds
+
+    count += 1
+    _local_counters[cache_key] = (count, expires_at)
+    return count <= limit
+
+
+def _log_degraded() -> None:
+    """Warn that limiting is degraded, at most once a minute."""
+    global _degraded_logged_at
+    now = time.monotonic()
+    if now - _degraded_logged_at >= _DEGRADED_LOG_INTERVAL:
+        _degraded_logged_at = now
+        logger.warning(
+            "Redis unavailable — rate limiting has fallen back to per-process "
+            "counters. Limits are now approximate (roughly workers x replicas "
+            "times the configured value) until Redis returns."
+        )
+
+
 async def _consume(cache_key: str, limit: int, window_seconds: int) -> bool:
     """
     Atomically consume one unit of quota. Returns False when exhausted.
 
-    Fails **closed** when Redis is unavailable. The previous behaviour treated
-    an unreachable cache as "under the limit", so a Redis outage silently
-    disabled rate limiting altogether — and because cache_get swallows its own
-    errors and returns None, the except branch never fired and nothing logged
-    it. Rejecting is the safer default for endpoints that trigger billable
-    BigQuery scans; set RATE_LIMIT_FAIL_OPEN=true to restore the old behaviour
-    if availability matters more than the spend.
+    Redis is the source of truth; `cache_incr` returns None when it is
+    unreachable, and that is treated as "unknown" rather than "under the
+    limit" — the request falls through to the in-process counter above.
     """
     count = await cache_incr(cache_key, window_seconds)
 
     if count is None:
-        if settings.rate_limit_fail_open:
-            logger.warning("Rate limit store unavailable; allowing request (fail-open)")
-            return True
-        logger.error("Rate limit store unavailable; rejecting request (fail-closed)")
-        return False
+        _log_degraded()
+        return _consume_locally(cache_key, limit, window_seconds)
 
     return count <= limit
 

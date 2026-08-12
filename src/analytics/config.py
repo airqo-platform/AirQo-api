@@ -1,6 +1,5 @@
 """
-FastAPI Configuration using Pydantic Settings
-Replaces the Flask-specific configuration with Pydantic-based settings.
+Application settings, resolved from the environment via pydantic-settings.
 """
 
 import os
@@ -12,17 +11,12 @@ from constants import DataType, DeviceCategory, Frequency
 
 
 class BaseConfig(BaseSettings):
-    """
-    Base configuration shared across all environments using Pydantic settings.
-
-    This replaces the Flask-specific configuration with modern Pydantic settings
-    that provide automatic validation, type hints, and environment variable support.
-    """
+    """Base configuration shared across all environments."""
 
     # -------------------------------------------------------------------------
     # Pydantic v2 settings — unknown env vars are silently ignored so the
-    # shared .env file can contain variables for other services (Flask ports,
-    # DNS helpers, etc.) without causing validation errors.
+    # shared .env file can carry other services' variables without causing
+    # validation errors.
     # -------------------------------------------------------------------------
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -71,11 +65,7 @@ class BaseConfig(BaseSettings):
         default=None, validation_alias="GOOGLE_APPLICATION_CREDENTIALS"
     )
 
-    # Cache settings
-    cache_type: str = Field(default="RedisCache", validation_alias="CACHE_TYPE")
-    cache_default_timeout: int = Field(
-        default=7200, validation_alias="CACHE_DEFAULT_TIMEOUT"
-    )
+    # Redis settings
     cache_key_prefix: str = Field(
         default="Analytics-production", validation_alias="CACHE_KEY_PREFIX"
     )
@@ -164,11 +154,6 @@ class BaseConfig(BaseSettings):
 
     max_query_days: int = Field(default=365, validation_alias="MAX_QUERY_DAYS")
     max_filter_values: int = Field(default=1000, validation_alias="MAX_FILTER_VALUES")
-    # Rate limiting fails closed when Redis is unreachable; flip this if
-    # availability matters more than bounding BigQuery spend.
-    rate_limit_fail_open: bool = Field(
-        default=False, validation_alias="RATE_LIMIT_FAIL_OPEN"
-    )
 
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]

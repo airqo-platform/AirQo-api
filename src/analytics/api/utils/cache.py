@@ -1,8 +1,12 @@
 """
-Cache Initialization and Management for FastAPI
+Async Redis client used for rate limiting and the readiness probe.
 
-This module provides async-compatible caching functionality
-using Redis as the backend, replacing Flask-Caching.
+When Redis is unreachable the helpers degrade instead of raising: `cache_get`
+returns None, `cache_set` returns False and `cache_incr` returns None, each
+attempt bounded by the socket timeout below. `cache_incr` returning None means
+"unknown", not "zero" — it is the signal the rate limiter uses to fall back
+to per-process counters. The client itself is None only when the Redis URL
+is malformed.
 """
 
 import logging
@@ -15,28 +19,50 @@ logger = logging.getLogger(__name__)
 # Global cache instance
 _cache: Optional[aioredis.Redis] = None
 
+# Bounds how long a request can stall on an unreachable Redis. Every call
+# retries the connection, so this is the per-request cost of a Redis outage.
+_SOCKET_TIMEOUT_SECONDS = 1.0
+
 
 async def init_cache() -> None:
     """
-    Initialize the Redis cache connection.
+    Create the Redis client during application startup.
 
-    This function should be called during application startup.
+    The client is kept even when the initial ping fails. `from_url` does not
+    open a connection — the pool connects lazily on the first command — so
+    holding on to it lets the service pick Redis up on its own once it comes
+    back.
+
+    Timeouts are deliberately short: while Redis is unreachable every request
+    still attempts a connection, and without a bound that attempt would stall
+    the request for the OS-level TCP timeout.
     """
     global _cache
 
     try:
         _cache = aioredis.from_url(
-            settings.cache_redis_url, encoding="utf-8", decode_responses=True
+            settings.cache_redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_connect_timeout=_SOCKET_TIMEOUT_SECONDS,
+            socket_timeout=_SOCKET_TIMEOUT_SECONDS,
         )
+    except Exception as e:
+        # Only a malformed URL reaches here; there is nothing to retry.
+        logger.error(f"Failed to create Redis client: {str(e)}")
+        _cache = None
+        return
 
-        # Test the connection
+    try:
         await _cache.ping()
         logger.info("Redis cache initialized successfully")
-
     except Exception as e:
-        logger.error(f"Failed to initialize Redis cache: {str(e)}")
-        # Continue without cache - application should still work
-        _cache = None
+        logger.error(
+            f"Redis unreachable at startup ({str(e)}). Continuing in degraded "
+            "mode: rate limiting uses per-process counters and /health/ready "
+            "reports 503 until Redis answers. The client will reconnect by "
+            "itself — no restart needed."
+        )
 
 
 async def get_cache() -> Optional[aioredis.Redis]:
@@ -110,8 +136,8 @@ async def cache_incr(key: str, expire: int) -> Optional[int]:
     Atomically increment a counter, setting its TTL only on creation.
 
     Returns the post-increment value, or None when the cache is unavailable.
-    Callers must treat None as "unknown" — for rate limiting that means
-    failing closed, not waving the request through.
+    Callers must treat None as "unknown", not "zero" — the rate limiter
+    responds by falling back to its in-process counters.
 
     The TTL is applied only when the counter is created (the INCR returned 1).
     Refreshing it on every hit would keep a busy client's key alive forever,

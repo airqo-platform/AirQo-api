@@ -14,6 +14,8 @@ Three properties matter here and each has its own section below:
     BigQuery scans).
 """
 
+import time
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import HTTPException
@@ -223,32 +225,125 @@ class TestForwardedForTrust:
 
 
 class TestCacheUnavailable:
-    """cache_incr returns None when Redis is unreachable."""
+    """`cache_incr` returns None when Redis is unreachable; the limiter then
+    falls back to per-process counters rather than 429-ing everything or
+    waving everything through."""
 
-    @pytest.mark.asyncio
-    async def test_fails_closed_by_default(self):
-        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=5, window_seconds=60)
+    @pytest.fixture(autouse=True)
+    def _reset_local_state(self):
+        import api.middlewares.rate_limiter as rl
 
-        with patch(
+        rl._local_counters.clear()
+        rl._local_prune_due = 0.0
+        rl._degraded_logged_at = 0.0
+        yield
+        rl._local_counters.clear()
+
+    @staticmethod
+    def _redis_down():
+        return patch(
             "api.middlewares.rate_limiter.cache_incr",
             new_callable=AsyncMock,
             return_value=None,
-        ):
+        )
+
+    @pytest.mark.asyncio
+    async def test_still_serves_when_redis_is_down(self):
+        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=5, window_seconds=60)
+
+        with self._redis_down():
+            assert await middleware._consume_quota("client_1") is True
+
+    @pytest.mark.asyncio
+    async def test_fallback_still_enforces_the_limit(self):
+        """Degraded does not mean unlimited — the per-process counter still
+        cuts a runaway caller off at the configured ceiling."""
+        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=3, window_seconds=60)
+
+        with self._redis_down():
+            results = [await middleware._consume_quota("client_1") for _ in range(5)]
+
+        assert results == [True, True, True, False, False]
+
+    @pytest.mark.asyncio
+    async def test_fallback_counters_are_per_client(self):
+        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=1, window_seconds=60)
+
+        with self._redis_down():
+            assert await middleware._consume_quota("client_a") is True
+            assert await middleware._consume_quota("client_b") is True
+            assert await middleware._consume_quota("client_a") is False
+
+    @pytest.mark.asyncio
+    async def test_window_resets_after_it_expires(self):
+        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=1, window_seconds=60)
+
+        with self._redis_down():
+            assert await middleware._consume_quota("client_1") is True
             assert await middleware._consume_quota("client_1") is False
 
+            # Expire the window without sleeping.
+            import api.middlewares.rate_limiter as rl
+
+            key = next(iter(rl._local_counters))
+            count, _ = rl._local_counters[key]
+            rl._local_counters[key] = (count, time.monotonic() - 1)
+
+            assert await middleware._consume_quota("client_1") is True
+
     @pytest.mark.asyncio
-    async def test_fail_open_is_opt_in(self, monkeypatch):
-        from config import settings
+    async def test_degraded_state_is_logged_but_not_per_request(self, caplog):
+        """Redis being down must be visible, without one line per request."""
+        import logging
 
-        monkeypatch.setattr(settings, "rate_limit_fail_open", True)
-        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=5, window_seconds=60)
+        middleware = RateLimiterMiddleware(
+            MagicMock(), rate_limit=50, window_seconds=60
+        )
 
+        with self._redis_down(), caplog.at_level(logging.WARNING):
+            for _ in range(10):
+                await middleware._consume_quota("client_1")
+
+        degraded = [r for r in caplog.records if "Redis unavailable" in r.message]
+        assert len(degraded) == 1
+
+    @pytest.mark.asyncio
+    async def test_redis_recovery_resumes_shared_counting(self):
+        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=1, window_seconds=60)
+
+        with self._redis_down():
+            assert await middleware._consume_quota("client_1") is True
+            assert await middleware._consume_quota("client_1") is False
+
+        # Redis returns: its count is authoritative again.
         with patch(
             "api.middlewares.rate_limiter.cache_incr",
             new_callable=AsyncMock,
-            return_value=None,
+            return_value=1,
         ):
             assert await middleware._consume_quota("client_1") is True
+
+    @pytest.mark.asyncio
+    async def test_expired_entries_are_pruned(self):
+        import api.middlewares.rate_limiter as rl
+
+        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=5, window_seconds=60)
+
+        with self._redis_down():
+            for i in range(20):
+                await middleware._consume_quota(f"client_{i}")
+
+            assert len(rl._local_counters) == 20
+
+            # Age every window out, then force the prune to be due.
+            now = time.monotonic()
+            for key, (count, _) in list(rl._local_counters.items()):
+                rl._local_counters[key] = (count, now - 1)
+            rl._local_prune_due = 0.0
+
+            await middleware._consume_quota("client_fresh")
+
+        assert len(rl._local_counters) == 1
 
 
 class TestRateLimitExceeded:
@@ -312,18 +407,28 @@ class TestRouteRateLimit:
         await limiter(r2)
 
     @pytest.mark.asyncio
-    async def test_fails_closed_when_cache_unavailable(self):
+    async def test_falls_back_to_local_counter_when_cache_unavailable(self):
+        """The per-route limiter degrades the same way as the middleware:
+        it keeps serving, but still enforces the ceiling locally."""
+        import api.middlewares.rate_limiter as rl
         from api.middlewares.rate_limiter import RouteRateLimit
 
-        limiter = RouteRateLimit(limit=10, window=60)
+        rl._local_counters.clear()
+        limiter = RouteRateLimit(limit=2, window=60)
         request = _request(path="/api/v3/data-download", peer="1.2.3.4")
 
-        with patch(
-            "api.middlewares.rate_limiter.cache_incr",
-            new_callable=AsyncMock,
-            return_value=None,
-        ):
-            with pytest.raises(HTTPException) as exc:
+        try:
+            with patch(
+                "api.middlewares.rate_limiter.cache_incr",
+                new_callable=AsyncMock,
+                return_value=None,
+            ):
+                await limiter(request)
                 await limiter(request)
 
-        assert exc.value.status_code == 429
+                with pytest.raises(HTTPException) as exc:
+                    await limiter(request)
+
+            assert exc.value.status_code == 429
+        finally:
+            rl._local_counters.clear()
