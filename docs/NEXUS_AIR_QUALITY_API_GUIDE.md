@@ -1,17 +1,18 @@
 # Nexus Air Quality API Guide
 
-> **Audience:** Frontend engineers working on the AirQo Nexus redesign. This covers the endpoints built in response to the Nexus backend requirements doc: nearby air quality, African AQI rankings, historical comparisons, the dynamic AQI legend — plus chart configuration defaults.
+> **Audience:** Frontend engineers working on the AirQo Nexus redesign. This covers the endpoints built in response to the Nexus backend requirements doc: nearby air quality, African AQI rankings, historical comparisons, the dynamic AQI legend — plus chart configuration.
 
 **Updates since this guide was first shared:**
 1. Section 1's claim that device-registry and analytics were "now aligned" on AQI colors/breakpoints was premature — corrected below.
 2. Section 4 didn't include the actual endpoint path, which caused a mix-up with a different, similarly-named endpoint (`grids/nearby`, which returns polygons, not readings) — the correct path is now included.
-3. Section 5 previously pointed at the wrong endpoint (a per-user preference feature, not a group-wide default). The real capability didn't exist, so it was built — then refined again to support multiple devices/sites per saved default (see the section for the current contract).
+3. Section 5 previously pointed at the wrong endpoint (a per-user preference feature, not a group-wide default). The real capability didn't exist, so it was built — then refined to support multiple devices/sites per saved default.
+4. Direction changed again: rather than a group-wide default, users now configure their own chart locations and settings even within a group. Section 5 now documents the personal chart endpoints (no more `deviceId` in the URL, plus new `subTitle` and per-location `locationColors` fields) as the one to build against; the group-default endpoints are still there but no longer the recommended path.
 
 ---
 
 ## Overview
 
-All five capabilities from the requirements doc are ready to integrate, including chart configuration defaults (section 5).
+All five capabilities from the requirements doc are ready to integrate, including chart configuration (section 5).
 
 Everything below is described in terms of what you send and what comes back. Base URL and request conventions (headers, error format) match the rest of the AirQo API you're already integrating with.
 
@@ -94,41 +95,77 @@ We're intentionally not introducing a second nearby-readings endpoint — there 
 
 ---
 
-## 5. Chart configuration defaults
+## 5. Chart configuration
 
-**Group-wide DEFAULT chart configuration**, distinct from `/preferences/:deviceId/charts` (a *per-user* saved-chart feature, keyed on `user_id` + `group_id` — keep using that one for "my saved charts"). This is what a group manager sets so everyone viewing a group's data sees the same default chart, rather than each user needing their own saved view. Lives in **auth-service**, alongside the personal preferences it's a sibling of.
+**Direction change:** earlier drafts of this section covered group-wide *default* charts (one shared config every group member sees). Per direction from the Nexus side, that's no longer the model going forward — users configure their own locations and chart settings even within a group, rather than inheriting someone else's defaults. **Personal chart configuration is what you should build against.** The group-default endpoints still exist and still work (documented lower down for completeness), but they're not the recommended path anymore.
 
-**Read access:** any verified member of the group. **Write access:** group managers/admins only — a shared default shouldn't be something any single member can silently change for everyone else.
+### Personal chart configuration (build against this)
 
-**Scoped by `device_ids`/`site_ids` arrays, not a single device.** A saved default can apply to multiple devices and/or multiple sites at once (mirroring how the old, deprecated `/users/defaults` endpoint worked) — there is no `deviceId` in the URL for any of these routes; at least one of `device_ids` or `site_ids` must be provided and non-empty.
+`/api/v2/users/preferences/charts...` — keyed on `user_id` + `group_id`, each chart belongs to one user. Lives in **auth-service**.
 
-`POST /api/v2/users/preferences/groups/:grp_id/charts`
+**Scoped by `device_ids`/`site_ids` arrays, not a single device.** This changed since the last version of this doc — there's no `deviceId` in the URL anymore. One chart can compare multiple locations at once (e.g. Kampala + Jinja together), so scope is two arrays on the chart itself. At least one of `device_ids`/`site_ids` must be provided and non-empty.
 
-Body:
+**Two new chart fields, both raised as gaps in the previous version of this endpoint:**
+- **`subTitle`** — was present on the old netmanager preference doc but missing from the new chart-config object; it's back, as a field on each individual chart (alongside `title`).
+- **`locationColors`** — lets you assign a distinct color per selected device/site, so a multi-location chart doesn't default to one color throughout (e.g. Kampala in red, Jinja in yellow). Each entry is `{ "id": "<deviceOrSiteId>", "color": "<hex>" }`, and every `id` used here must already be present in that chart's `device_ids` or `site_ids` — assigning a color to a location the chart doesn't include is rejected. If a selected location has no entry in `locationColors`, it falls back to the chart-wide `color` field (unchanged, still there).
+
+#### Create a chart
+`POST /api/v2/users/preferences/charts`
+
 ```json
 {
-  "device_ids": ["<deviceId1>", "<deviceId2>"],
-  "site_ids": ["<siteId1>"],
+  "group_id": "<optional, defaults to your default group>",
+  "device_ids": ["<kampalaDeviceId>", "<jinjaDeviceId>"],
+  "site_ids": [],
   "chartConfig": {
     "fieldId": 1,
-    "title": "PM2.5",
-    "chartType": "Line"
+    "title": "PM2.5 — Kampala vs Jinja",
+    "subTitle": "Last 7 days",
+    "chartType": "Line",
+    "locationColors": [
+      { "id": "<kampalaDeviceId>", "color": "#FF0000" },
+      { "id": "<jinjaDeviceId>", "color": "#FFFF00" }
+    ]
   }
 }
 ```
-`chartConfig.fieldId` (1–8) is required; every other chart field from the personal-chart contract is supported here too (`chartType`, `days`, `results`, `referenceLines`, `comparisonPeriod`, etc.). `device_ids`/`site_ids` can be used together or independently — just at least one non-empty array.
+`chartConfig.fieldId` (1–8) is required; every other chart field you already know (`chartType`, `days`, `results`, `referenceLines`, `comparisonPeriod`, `showLegend`, etc.) is unchanged and still supported.
 
-`PUT /api/v2/users/preferences/groups/:grp_id/charts/:chartId` — partial update, send only the chart fields changing. `device_ids`/`site_ids` can also be sent here to change which devices/sites this saved default applies to.
+#### Update a chart
+`PUT /api/v2/users/preferences/charts/:chartId` — partial update, send only what's changing. No `deviceId` in the URL.
 
-`DELETE /api/v2/users/preferences/groups/:grp_id/charts/:chartId`
+**Field shape differs from create:** on create, `subTitle`/`locationColors`/etc. are nested inside `chartConfig`. On update, there's no `chartConfig` wrapper — send them as top-level body fields directly, same as `title` or `chartType` below. Nesting them under `chartConfig` here is silently ignored, not an error, so double-check this if a field update doesn't seem to take.
 
-`GET /api/v2/users/preferences/groups/:grp_id/charts` — list all group-default chart documents. Optional `?device_id=` / `?site_id=` query params narrow the list to defaults scoped to that device/site. Each item in the response is its own document with its own `device_ids`, `site_ids`, and `chartConfigurations`.
+```json
+{
+  "subTitle": "Last 30 days",
+  "locationColors": [{ "id": "<kampalaDeviceId>", "color": "#00AA00" }]
+}
+```
 
-`GET /api/v2/users/preferences/groups/:grp_id/charts/:chartId` — a single chart, returned together with the `device_ids`/`site_ids` it applies to.
+`device_ids`/`site_ids` can be included to change scope, but the chart can't end up with neither set. Two ways that's rejected:
+- Sending both as empty arrays in the same request.
+- Sending just one as an empty array when the *other* is already empty on the existing chart (e.g. clearing `device_ids` on a chart that only ever had `device_ids`, never `site_ids`) — this can't be caught from the request body alone, so it's checked against the saved chart and rejected the same way.
 
-All require the same auth header you're already using elsewhere. A write from someone who isn't a manager/admin of `:grp_id` returns `403`, not a silent no-op.
+#### Delete a chart
+`DELETE /api/v2/users/preferences/charts/:chartId` — no body, no `deviceId` in the URL.
 
-**On the duplicate-values error some testers hit separately:** that isn't from the chart endpoints at all — it comes from the general `POST /api/v2/users/preferences/` (plain create) endpoint. That one legitimately fails with a duplicate-key conflict for any user who already has a preference doc for that group, which is the common case, not an edge case — `POST /upsert` is the endpoint meant to be called repeatedly. The error response now includes a hint saying exactly that.
+#### List your charts
+`GET /api/v2/users/preferences/charts` — returns every chart you've configured for a group. Optional query params: `?group_id=` (defaults to your default group), `?device_id=`, `?site_id=` (narrows to charts scoped to that location).
+
+#### Get a single chart
+`GET /api/v2/users/preferences/charts/:chartId`
+
+#### Copy a chart
+`POST /api/v2/users/preferences/charts/:chartId/copy` — duplicates a chart (including its `device_ids`/`site_ids`/`locationColors`) as a new one, titled `"<original title> (Copy)"`.
+
+All of the above require the same auth header you're already using elsewhere, and `chartId` alone is enough to identify a chart for update/delete/get/copy — you don't need to also pass `group_id` for those.
+
+### Group-wide default charts (still live, not the recommended path)
+
+`/api/v2/users/preferences/groups/:grp_id/charts...` — one shared config per group, read by any member, written by managers/admins only. Same `device_ids`/`site_ids`/`chartConfig` shape as above. Kept working in case shared defaults come back into scope later, but don't build new work against this unless told otherwise.
+
+**On the duplicate-values error some testers hit separately:** that isn't from either chart endpoint family — it comes from the general `POST /api/v2/users/preferences/` (plain create) endpoint. That one legitimately fails with a duplicate-key conflict for any user who already has a preference doc for that group, which is the common case, not an edge case — `POST /upsert` is the endpoint meant to be called repeatedly. The error response now includes a hint saying exactly that.
 
 ---
 
