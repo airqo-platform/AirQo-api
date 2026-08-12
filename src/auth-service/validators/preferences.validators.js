@@ -137,12 +137,20 @@ const createNestedValidations = (prefix) => {
       .optional()
       .isArray()
       .withMessage("locationColors must be an array"),
+    // Each entry's id/color are optional only in the sense that the whole
+    // array is optional — once an entry exists, both fields are required on
+    // the schema (chartConfigSchema), so catching a missing one here as a
+    // clean 422 avoids it reaching the DB layer and surfacing as a 500.
     body(`${prefix}.locationColors.*.id`)
-      .optional()
+      .exists()
+      .withMessage("locationColors[].id is required")
+      .bail()
       .isMongoId()
       .withMessage("locationColors[].id must be a valid ObjectId"),
     body(`${prefix}.locationColors.*.color`)
-      .optional()
+      .exists()
+      .withMessage("locationColors[].color is required")
+      .bail()
       .isString()
       .withMessage("locationColors[].color must be a string"),
     body(`${prefix}.xAxisLabel`)
@@ -1089,12 +1097,18 @@ const chartConfigValidation = [
     .optional()
     .isArray()
     .withMessage("locationColors must be an array"),
+  // Same reasoning as createNestedValidations above: the array is optional,
+  // but once an entry is present both fields are required on the schema.
   body("locationColors.*.id")
-    .optional()
+    .exists()
+    .withMessage("locationColors[].id is required")
+    .bail()
     .isMongoId()
     .withMessage("locationColors[].id must be a valid ObjectId"),
   body("locationColors.*.color")
-    .optional()
+    .exists()
+    .withMessage("locationColors[].color is required")
+    .bail()
     .isString()
     .withMessage("locationColors[].color must be a string"),
   body("xAxisLabel")

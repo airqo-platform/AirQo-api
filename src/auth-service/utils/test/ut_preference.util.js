@@ -571,6 +571,25 @@ describe("preference chart UTIL", function() {
       expect(result.success).to.equal(false);
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
+
+    it("returns 400 (not 500) when the model rejects with a schema ValidationError — e.g. chartConfigSchema's locationColors referential check", async function() {
+      const validationError = new Error(
+        "locationColors references id 507f1f77bcf86cd799439099 which isn't in this chart's device_ids or site_ids"
+      );
+      validationError.name = "ValidationError";
+      findOneAndUpdateStub.rejects(validationError);
+      const request = {
+        query: { tenant: "airqo" },
+        body: { chartConfig: { fieldId: 1 }, device_ids: [deviceId] },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.equal(validationError.message);
+    });
   });
 
   describe("updateChart", function() {
@@ -672,6 +691,36 @@ describe("preference chart UTIL", function() {
       expect(result.success).to.equal(false);
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
+
+    it("returns 400 (not 500) when save() rejects with a schema ValidationError — e.g. locationColors referencing an id outside device_ids/site_ids", async function() {
+      const validationError = new Error(
+        "locationColors references id 507f1f77bcf86cd799439099 which isn't in this chart's device_ids or site_ids"
+      );
+      validationError.name = "ValidationError";
+      const saveStub = sinon.stub().rejects(validationError);
+      const chart = {
+        _id: { toString: () => chartId },
+        title: "Old title",
+        device_ids: [deviceId],
+        site_ids: [],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: {
+          tenant: "airqo",
+          locationColors: [{ id: "507f1f77bcf86cd799439099", color: "#FF0000" }],
+        },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.equal(validationError.message);
+    });
   });
 
   describe("deleteChart", function() {
@@ -686,7 +735,10 @@ describe("preference chart UTIL", function() {
     });
 
     it("returns 404 when nothing matches user_id + chartId", async function() {
-      updateOneStub.resolves({ matchedCount: 0 });
+      // { n, nModified, ok } — the actual shape this driver/mongoose combo
+      // returns from updateOne here; matchedCount is not present (verified
+      // empirically against a live connection, not assumed).
+      updateOneStub.resolves({ n: 0, nModified: 0, ok: 1 });
       const request = {
         body: { tenant: "airqo" },
         params: { chartId },
@@ -700,7 +752,7 @@ describe("preference chart UTIL", function() {
     });
 
     it("pulls only the matching chart, keyed on user_id + chartId — never deletes the whole preference doc, which also holds unrelated settings", async function() {
-      updateOneStub.resolves({ matchedCount: 1 });
+      updateOneStub.resolves({ n: 1, nModified: 1, ok: 1 });
       const request = {
         body: { tenant: "airqo" },
         params: { chartId },
@@ -912,9 +964,6 @@ describe("preference chart UTIL", function() {
         }),
       };
       const chartConfigurations = [sourceChart];
-      chartConfigurations.push = Array.prototype.push.bind(
-        chartConfigurations
-      );
       const doc = { chartConfigurations, save: saveStub };
       findOneStub.resolves(doc);
       const request = {

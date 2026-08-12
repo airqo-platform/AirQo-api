@@ -66,6 +66,9 @@ describe("personal chart validators", () => {
         .post("/test/charts")
         .send({ chartConfig: { fieldId: 1 }, device_ids: ["not-an-id"] });
       expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "device_ids must be an array of valid ObjectId strings"
+      );
     });
 
     it("rejects a missing chartConfig", async () => {
@@ -99,6 +102,51 @@ describe("personal chart validators", () => {
           device_ids: [validId()],
         });
       expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "locationColors[].id must be a valid ObjectId"
+      );
+    });
+
+    it("rejects a chartConfig.locationColors entry missing id", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: {
+            fieldId: 1,
+            locationColors: [{ color: "#FF0000" }],
+          },
+          device_ids: [validId()],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "locationColors[].id is required"
+      );
+    });
+
+    it("rejects a chartConfig.locationColors entry missing color", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: {
+            fieldId: 1,
+            locationColors: [{ id: validId() }],
+          },
+          device_ids: [validId()],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "locationColors[].color is required"
+      );
+    });
+
+    it("accepts a request with no locationColors at all", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: { fieldId: 1 },
+          device_ids: [validId()],
+        });
+      expect(res.status).to.equal(200);
     });
 
     it("accepts a well-formed request scoped to device_ids only", async () => {
@@ -177,6 +225,26 @@ describe("personal chart validators", () => {
           locationColors: [{ id: deviceId, color: "#00AA00" }],
         });
       expect(res.status).to.equal(200);
+    });
+
+    it("rejects a locationColors entry missing id", async () => {
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({ locationColors: [{ color: "#00AA00" }] });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "locationColors[].id is required"
+      );
+    });
+
+    it("rejects a locationColors entry missing color", async () => {
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({ locationColors: [{ id: validId() }] });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "locationColors[].color is required"
+      );
     });
   });
 

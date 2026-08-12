@@ -132,7 +132,9 @@ We're intentionally not introducing a second nearby-readings endpoint — there 
 `chartConfig.fieldId` (1–8) is required; every other chart field you already know (`chartType`, `days`, `results`, `referenceLines`, `comparisonPeriod`, `showLegend`, etc.) is unchanged and still supported.
 
 #### Update a chart
-`PUT /api/v2/users/preferences/charts/:chartId` — partial update, send only what's changing. No `deviceId` in the URL. `device_ids`/`site_ids` can be included to change scope, but the chart can't end up with both empty — clearing both in one request is rejected.
+`PUT /api/v2/users/preferences/charts/:chartId` — partial update, send only what's changing. No `deviceId` in the URL.
+
+**Field shape differs from create:** on create, `subTitle`/`locationColors`/etc. are nested inside `chartConfig`. On update, there's no `chartConfig` wrapper — send them as top-level body fields directly, same as `title` or `chartType` below. Nesting them under `chartConfig` here is silently ignored, not an error, so double-check this if a field update doesn't seem to take.
 
 ```json
 {
@@ -140,6 +142,10 @@ We're intentionally not introducing a second nearby-readings endpoint — there 
   "locationColors": [{ "id": "<kampalaDeviceId>", "color": "#00AA00" }]
 }
 ```
+
+`device_ids`/`site_ids` can be included to change scope, but the chart can't end up with neither set. Two ways that's rejected:
+- Sending both as empty arrays in the same request.
+- Sending just one as an empty array when the *other* is already empty on the existing chart (e.g. clearing `device_ids` on a chart that only ever had `device_ids`, never `site_ids`) — this can't be caught from the request body alone, so it's checked against the saved chart and rejected the same way.
 
 #### Delete a chart
 `DELETE /api/v2/users/preferences/charts/:chartId` — no body, no `deviceId` in the URL.

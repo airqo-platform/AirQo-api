@@ -138,7 +138,7 @@ chartConfigSchema.pre("validate", function(next) {
     )
   );
   const unknownEntry = this.locationColors.find(
-    (entry) => !selectedIds.has(entry.id.toString())
+    (entry) => !entry.id || !selectedIds.has(entry.id.toString())
   );
 
   if (unknownEntry) {

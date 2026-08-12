@@ -179,6 +179,20 @@ const handleDefaultGroup = async (tenant, body, next) => {
   }
 };
 
+// A chart write can fail schema validation at the DB layer — e.g.
+// chartConfigSchema's pre-validate hook rejecting a locationColors entry
+// whose id isn't in device_ids/site_ids — which is a client mistake, not a
+// server fault. Classifying it here (rather than duplicating the hook's
+// check inline before every write) keeps both catch blocks a clean 400 for
+// any such schema rejection, present or future, without hand-copying the
+// hook's specific rule into the util layer.
+const chartValidationErrorResponse = (error) => ({
+  success: false,
+  message: "Bad Request Error",
+  errors: { message: error.message },
+  status: httpStatus.BAD_REQUEST,
+});
+
 // Define allowed properties for chart updates
 const allowedChartProperties = [
   "fieldId",
@@ -917,6 +931,9 @@ const preferences = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error creating chart: ${error.message}`);
       return {
         success: false,
@@ -928,7 +945,10 @@ const preferences = {
   },
   updateChart: async (request, next) => {
     try {
-      const { tenant } = request.body;
+      // The controller always normalizes request.query.tenant; body.tenant
+      // is only ever populated if a caller duplicates it there too, which
+      // isn't the convention this API validates against.
+      const tenant = (request.query || {}).tenant || request.body.tenant;
       const { chartId } = request.params;
       const updates = request.body;
       const userId = request.user._id;
@@ -993,6 +1013,9 @@ const preferences = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error updating chart: ${error.message}`);
       return {
         success: false,
@@ -1004,7 +1027,7 @@ const preferences = {
   },
   deleteChart: async (request, next) => {
     try {
-      const { tenant } = request.body;
+      const tenant = (request.query || {}).tenant || request.body.tenant;
       const { chartId } = request.params;
       const userId = request.user._id;
 
@@ -1020,7 +1043,12 @@ const preferences = {
         { $pull: { chartConfigurations: { _id: chartId } } }
       );
 
-      if (updateResult.matchedCount === 0) {
+      // This driver/mongoose combination returns the legacy { n, nModified,
+      // ok } shape from updateOne, not { matchedCount }, which is
+      // undefined here — checked defensively either way rather than
+      // trusting one specific shape.
+      const matchedCount = updateResult.matchedCount ?? updateResult.n;
+      if (matchedCount === 0) {
         return {
           success: false,
           message: "Chart configuration not found",
@@ -1154,7 +1182,7 @@ const preferences = {
   },
   copyChartConfiguration: async (request, next) => {
     try {
-      const { tenant } = request.body;
+      const tenant = (request.query || {}).tenant || request.body.tenant;
       const { chartId } = request.params;
       const userId = request.user._id;
 
