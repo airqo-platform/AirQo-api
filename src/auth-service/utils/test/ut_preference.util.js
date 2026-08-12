@@ -475,3 +475,466 @@ describe("create preference UTIL", function () {
     });
   });
 });
+
+describe("preference chart UTIL", function() {
+  let origPreferenceModel;
+  const userId = "507f1f77bcf86cd799439011";
+  const groupId = "507f1f77bcf86cd799439012";
+  const deviceId = "507f1f77bcf86cd799439013";
+  const chartId = "507f1f77bcf86cd799439014";
+  const siteId = "507f1f77bcf86cd799439015";
+
+  afterEach(function() {
+    rewirePreferenceUtil.__set__("PreferenceModel", origPreferenceModel);
+    sinon.restore();
+  });
+
+  describe("createChart", function() {
+    let findOneAndUpdateStub;
+
+    beforeEach(function() {
+      origPreferenceModel = rewirePreferenceUtil.__get__("PreferenceModel");
+      findOneAndUpdateStub = sinon.stub();
+      rewirePreferenceUtil.__set__("PreferenceModel", () => ({
+        findOneAndUpdate: findOneAndUpdateStub,
+      }));
+    });
+
+    it("rejects a chartConfig with no fieldId", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        body: { chartConfig: {}, device_ids: [deviceId] },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("rejects when device_ids and site_ids are both omitted — same 400 the route validators enforce, so a validator-bypassing call still fails cleanly instead of hitting the schema and 500ing", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        body: { chartConfig: { fieldId: 1 } },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("pushes a chart scoped to the given device_ids/site_ids into the user's preference doc for the group, upserting if it doesn't exist yet", async function() {
+      const chartConfig = { fieldId: 1, title: "PM2.5" };
+      findOneAndUpdateStub.resolves({
+        chartConfigurations: [{ ...chartConfig, device_ids: [deviceId], site_ids: [siteId] }],
+      });
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          chartConfig,
+          device_ids: [deviceId],
+          site_ids: [siteId],
+          group_id: groupId,
+        },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(findOneAndUpdateStub.calledOnce).to.equal(true);
+      const [filter, update, options] = findOneAndUpdateStub.getCall(0).args;
+      expect(filter).to.deep.equal({ user_id: userId, group_id: groupId });
+      expect(update.$push.chartConfigurations).to.deep.equal({
+        ...chartConfig,
+        device_ids: [deviceId],
+        site_ids: [siteId],
+      });
+      expect(options.upsert).to.equal(true);
+      expect(result.success).to.equal(true);
+    });
+
+    it("returns an internal error response when the model throws", async function() {
+      findOneAndUpdateStub.rejects(new Error("Mongo down"));
+      const request = {
+        query: { tenant: "airqo" },
+        body: { chartConfig: { fieldId: 1 }, device_ids: [deviceId] },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
+  });
+
+  describe("updateChart", function() {
+    let findOneStub;
+
+    beforeEach(function() {
+      origPreferenceModel = rewirePreferenceUtil.__get__("PreferenceModel");
+      findOneStub = sinon.stub();
+      rewirePreferenceUtil.__set__("PreferenceModel", () => ({
+        findOne: findOneStub,
+      }));
+    });
+
+    it("returns 404 when no preference doc contains this chartId (no group_id needed — chartId alone is unique)", async function() {
+      findOneStub.resolves(null);
+      const request = {
+        body: { tenant: "airqo", title: "New title" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(findOneStub.getCall(0).args[0]).to.deep.equal({
+        user_id: userId,
+        "chartConfigurations._id": chartId,
+      });
+    });
+
+    it("only applies whitelisted properties (including the new subTitle/locationColors fields) and persists via save()", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = {
+        _id: { toString: () => chartId },
+        title: "Old title",
+        device_ids: [deviceId],
+        site_ids: [],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: {
+          tenant: "airqo",
+          title: "New title",
+          subTitle: "New subtitle",
+          locationColors: [{ id: deviceId, color: "#FF0000" }],
+          notAllowedField: "ignore me",
+        },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(chart.title).to.equal("New title");
+      expect(chart.subTitle).to.equal("New subtitle");
+      expect(chart.locationColors).to.deep.equal([
+        { id: deviceId, color: "#FF0000" },
+      ]);
+      expect(chart.notAllowedField).to.equal(undefined);
+      expect(saveStub.calledOnce).to.equal(true);
+      expect(result.success).to.equal(true);
+    });
+
+    it("rejects (400, not a save() that trips the schema into a 500) when the update leaves the chart with no device_ids or site_ids", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = {
+        _id: { toString: () => chartId },
+        title: "Old title",
+        device_ids: [deviceId],
+        site_ids: [],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo", device_ids: [] },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(saveStub.called).to.equal(false);
+    });
+
+    it("returns an internal error response when the model throws", async function() {
+      findOneStub.rejects(new Error("Mongo down"));
+      const request = {
+        body: { tenant: "airqo", title: "New title" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
+  });
+
+  describe("deleteChart", function() {
+    let updateOneStub;
+
+    beforeEach(function() {
+      origPreferenceModel = rewirePreferenceUtil.__get__("PreferenceModel");
+      updateOneStub = sinon.stub();
+      rewirePreferenceUtil.__set__("PreferenceModel", () => ({
+        updateOne: updateOneStub,
+      }));
+    });
+
+    it("returns 404 when nothing matches user_id + chartId", async function() {
+      updateOneStub.resolves({ matchedCount: 0 });
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.deleteChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+    });
+
+    it("pulls only the matching chart, keyed on user_id + chartId — never deletes the whole preference doc, which also holds unrelated settings", async function() {
+      updateOneStub.resolves({ matchedCount: 1 });
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.deleteChart(request);
+
+      expect(updateOneStub.calledOnce).to.equal(true);
+      const [filter, update] = updateOneStub.getCall(0).args;
+      expect(filter).to.deep.equal({
+        user_id: userId,
+        "chartConfigurations._id": chartId,
+      });
+      expect(update.$pull).to.deep.equal({
+        chartConfigurations: { _id: chartId },
+      });
+      expect(result.success).to.equal(true);
+    });
+
+    it("returns an internal error response when the model throws", async function() {
+      updateOneStub.rejects(new Error("Mongo down"));
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.deleteChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
+  });
+
+  describe("getChartConfigurations", function() {
+    let findOneStub;
+
+    beforeEach(function() {
+      origPreferenceModel = rewirePreferenceUtil.__get__("PreferenceModel");
+      findOneStub = sinon.stub();
+      rewirePreferenceUtil.__set__("PreferenceModel", () => ({
+        findOne: findOneStub,
+      }));
+    });
+
+    it("returns an empty array (still success) when the user has no preference doc yet for this group", async function() {
+      findOneStub.resolves(null);
+      const request = {
+        query: { tenant: "airqo", group_id: groupId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.getChartConfigurations(
+        request
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([]);
+      expect(findOneStub.getCall(0).args[0]).to.deep.equal({
+        user_id: userId,
+        group_id: groupId,
+      });
+    });
+
+    it("narrows by device_id/site_id query params against each chart's own scope arrays", async function() {
+      const chartForDevice = {
+        fieldId: 1,
+        device_ids: [deviceId],
+        site_ids: [],
+      };
+      const chartForSite = { fieldId: 2, device_ids: [], site_ids: [siteId] };
+      findOneStub.resolves({
+        chartConfigurations: [chartForDevice, chartForSite],
+      });
+      const request = {
+        query: { tenant: "airqo", group_id: groupId, device_id: deviceId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.getChartConfigurations(
+        request
+      );
+
+      expect(result.data).to.deep.equal([chartForDevice]);
+    });
+
+    it("paginates the (embedded) chartConfigurations array in memory via limit/skip", async function() {
+      const docs = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+      findOneStub.resolves({ chartConfigurations: docs });
+      const request = {
+        query: { tenant: "airqo", group_id: groupId, limit: 2, skip: 1 },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.getChartConfigurations(
+        request
+      );
+
+      expect(result.data).to.deep.equal([{ id: 2 }, { id: 3 }]);
+    });
+
+    it("returns an internal error response when the model throws", async function() {
+      findOneStub.rejects(new Error("Mongo down"));
+      const request = {
+        query: { tenant: "airqo", group_id: groupId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.getChartConfigurations(
+        request
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    });
+  });
+
+  describe("getChartConfigurationById", function() {
+    let findOneStub;
+
+    beforeEach(function() {
+      origPreferenceModel = rewirePreferenceUtil.__get__("PreferenceModel");
+      findOneStub = sinon.stub();
+      rewirePreferenceUtil.__set__("PreferenceModel", () => ({
+        findOne: findOneStub,
+      }));
+    });
+
+    it("returns 404 when no preference doc contains this chartId", async function() {
+      findOneStub.resolves(null);
+      const request = {
+        query: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.getChartConfigurationById(
+        request
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+    });
+
+    it("returns the chart when found, looked up by user_id + chartId only (no group_id needed)", async function() {
+      const chart = {
+        _id: { toString: () => chartId },
+        fieldId: 3,
+        device_ids: [deviceId],
+      };
+      findOneStub.resolves({ chartConfigurations: [chart] });
+      const request = {
+        query: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.getChartConfigurationById(
+        request
+      );
+
+      expect(findOneStub.getCall(0).args[0]).to.deep.equal({
+        user_id: userId,
+        "chartConfigurations._id": chartId,
+      });
+      expect(result.success).to.equal(true);
+      expect(result.data).to.equal(chart);
+    });
+  });
+
+  describe("copyChartConfiguration", function() {
+    let findOneStub;
+
+    beforeEach(function() {
+      origPreferenceModel = rewirePreferenceUtil.__get__("PreferenceModel");
+      findOneStub = sinon.stub();
+      rewirePreferenceUtil.__set__("PreferenceModel", () => ({
+        findOne: findOneStub,
+      }));
+    });
+
+    it("returns 404 when no preference doc contains this chartId", async function() {
+      findOneStub.resolves(null);
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.copyChartConfiguration(
+        request
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+    });
+
+    it("copies the source chart (including its device_ids/site_ids/locationColors scope) as a new chart", async function() {
+      const saveStub = sinon.stub().resolves();
+      const sourceChart = {
+        _id: { toString: () => chartId },
+        toObject: () => ({
+          _id: chartId,
+          title: "PM2.5",
+          device_ids: [deviceId],
+          site_ids: [],
+          locationColors: [{ id: deviceId, color: "#FF0000" }],
+        }),
+      };
+      const chartConfigurations = [sourceChart];
+      chartConfigurations.push = Array.prototype.push.bind(
+        chartConfigurations
+      );
+      const doc = { chartConfigurations, save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.copyChartConfiguration(
+        request
+      );
+
+      expect(saveStub.calledOnce).to.equal(true);
+      expect(result.success).to.equal(true);
+      expect(result.data.title).to.equal("PM2.5 (Copy)");
+      expect(result.data.device_ids).to.deep.equal([deviceId]);
+      expect(result.data.locationColors).to.deep.equal([
+        { id: deviceId, color: "#FF0000" },
+      ]);
+      expect(result.data._id).to.equal(undefined);
+    });
+  });
+});
