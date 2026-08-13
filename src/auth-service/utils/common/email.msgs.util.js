@@ -1199,7 +1199,11 @@ module.exports = {
     </tr>
   `;
 
-    return constants.EMAIL_BODY({ email, content, name: contact_name });
+    return constants.EMAIL_BODY({
+      email,
+      content,
+      name: escapeHtml(contact_name),
+    });
   },
 
   notifyAdminsOfNewOrgRequest: ({

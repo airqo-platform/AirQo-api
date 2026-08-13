@@ -71,7 +71,7 @@ const AccessRequestSchema = new Schema(
     message: {
       type: String,
       trim: true,
-      maxlength: 500,
+      maxlength: 1000, // matches groupValidations.sendGroupInvitations' body("invitations.*.message") limit
     },
   },
   {

@@ -457,7 +457,7 @@ describe("createAccessRequest Util", () => {
 
     it("should validate role_id and auto-approve an existing user via the invitations[] contract", async () => {
       const next = sinon.stub();
-      const roleId = "role_id_123";
+      const roleId = "60d21b4667d0d8992e610c87";
       const existingUser = {
         _id: "existing_user_id",
         email: "existing@example.com",

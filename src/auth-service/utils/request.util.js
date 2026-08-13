@@ -5,6 +5,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
+const validator = require("validator");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { mailer, generateFilter } = require("@utils/common");
@@ -109,10 +110,17 @@ const createAccessRequest = {
           );
           return;
         }
-        const recipients = await createGroupUtil.getGroupManagementRecipients(
-          tenant,
-          grp_id,
-        );
+        let recipients = [];
+        try {
+          recipients = await createGroupUtil.getGroupManagementRecipients(
+            tenant,
+            grp_id,
+          );
+        } catch (recipientsError) {
+          logger.error(
+            `Failed to resolve group management recipients for group ${grp_id}: ${recipientsError.message}`,
+          );
+        }
         if (recipients.length === 0) {
           logger.warn(
             `No group manager/admin found to notify for join request to group ${grp_id}`,
@@ -120,34 +128,35 @@ const createAccessRequest = {
         }
         const requesterName = `${firstName} ${lastName}`;
 
+        // Note: no `next` passed to these mailer calls — they run inside
+        // Promise.allSettled as non-critical, best-effort notifications, and
+        // createMailerFunction's own next(error)-then-return behavior would
+        // otherwise resolve (not reject) with `undefined`, and could also
+        // attempt to write to the outer HTTP response from within what's
+        // meant to be a background operation. Omitting next makes failures
+        // throw and be captured cleanly as "rejected" instead.
         const [requesterEmailResult, ...managerEmailResults] =
           await Promise.allSettled([
-            mailer.request(
-              {
-                firstName,
-                lastName,
-                email: user.email,
-                tenant,
-                entity_title: group.grp_title,
-              },
-              next,
-            ),
+            mailer.request({
+              firstName,
+              lastName,
+              email: user.email,
+              tenant,
+              entity_title: group.grp_title,
+            }),
             ...recipients.map((recipient) =>
-              mailer.notifyGroupManagerOfJoinRequest(
-                {
-                  email: recipient.email,
-                  contact_name:
-                    [recipient.firstName, recipient.lastName]
-                      .filter(Boolean)
-                      .join(" ") || recipient.email,
-                  requester_name: requesterName,
-                  requester_email: user.email,
-                  entity_title: group.grp_title,
-                  request_id: createdAccessRequest._id,
-                  tenant,
-                },
-                next,
-              ),
+              mailer.notifyGroupManagerOfJoinRequest({
+                email: recipient.email,
+                contact_name:
+                  [recipient.firstName, recipient.lastName]
+                    .filter(Boolean)
+                    .join(" ") || recipient.email,
+                requester_name: requesterName,
+                requester_email: user.email,
+                entity_title: group.grp_title,
+                request_id: createdAccessRequest._id,
+                tenant,
+              }),
             ),
           ]);
 
@@ -313,7 +322,7 @@ const createAccessRequest = {
         (entry) =>
           !entry.email ||
           typeof entry.email !== "string" ||
-          !entry.email.includes("@"),
+          !validator.isEmail(entry.email),
       );
       if (invalidEmails.length > 0) {
         next(
@@ -368,7 +377,23 @@ const createAccessRequest = {
         existingPendingRequests.map((req) => [req.email.toLowerCase(), req]),
       );
 
-      const expiryHours = Number(expiry_hours) || 168; // default: 7 days, matches prior fixed expiry
+      let expiryHours = 168; // default: 7 days, matches prior fixed expiry
+      if (expiry_hours !== undefined && expiry_hours !== null) {
+        const parsedExpiryHours = Number(expiry_hours);
+        if (
+          !Number.isFinite(parsedExpiryHours) ||
+          parsedExpiryHours < 1 ||
+          parsedExpiryHours > 8760
+        ) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "expiry_hours must be between 1 and 8760 (1 year)",
+            }),
+          );
+          return;
+        }
+        expiryHours = parsedExpiryHours;
+      }
       const INVITATION_EXPIRY_MS = expiryHours * 60 * 60 * 1000;
 
       const existingRequests = [];
@@ -448,7 +473,7 @@ const createAccessRequest = {
                     .lean();
                   if (!roleDoc) {
                     logger.error(
-                      `Auto-approve skipped for ${email}: role_id ${role_id} does not belong to group ${grp_id}`,
+                      `Auto-approve skipped for user ${existingUser._id}: role_id ${role_id} does not belong to group ${grp_id}`,
                     );
                   } else {
                     autoApproveResult = await UserModel(
@@ -456,13 +481,15 @@ const createAccessRequest = {
                     ).assignUserToGroup(existingUser._id, grp_id, role_id, "user");
                   }
                 } else {
-                  autoApproveResult = await createGroupUtil.assignOneUser(
-                    {
-                      params: { grp_id, user_id: existingUser._id },
-                      query: { tenant },
-                    },
-                    next,
-                  );
+                  // No `next` passed here — a caught rejection below is the
+                  // correct outcome for a per-recipient, best-effort
+                  // auto-approve step; assignOneUser's failure branches call
+                  // next(error) unconditionally, which would otherwise reach
+                  // into the outer HTTP response from inside this loop.
+                  autoApproveResult = await createGroupUtil.assignOneUser({
+                    params: { grp_id, user_id: existingUser._id },
+                    query: { tenant },
+                  });
                 }
 
                 if (autoApproveResult && autoApproveResult.success) {
@@ -473,12 +500,12 @@ const createAccessRequest = {
                   createdAccessRequest.status = "approved";
                 } else if (autoApproveResult) {
                   logger.error(
-                    `Auto-approve failed for ${email} in group ${grp_id}: ${autoApproveResult.message}`,
+                    `Auto-approve failed for user ${existingUser._id} in group ${grp_id}: ${autoApproveResult.message}`,
                   );
                 }
               } catch (autoApproveError) {
                 logger.error(
-                  `Auto-approve error for ${email} in group ${grp_id}: ${autoApproveError.message}`,
+                  `Auto-approve error for user ${existingUser._id} in group ${grp_id}: ${autoApproveError.message}`,
                 );
               }
             }

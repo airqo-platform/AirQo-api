@@ -1,5 +1,6 @@
 // middleware/accessRequestAuth.js
 const httpStatus = require("http-status");
+const mongoose = require("mongoose");
 const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const AccessRequestModel = require("@models/AccessRequest");
@@ -30,6 +31,14 @@ const requireAccessRequestManagerAccess = (requestIdParam = "request_id") => {
         return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: "request_id is required",
+          })
+        );
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "request_id is not a valid Object ID",
           })
         );
       }
