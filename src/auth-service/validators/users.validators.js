@@ -1126,9 +1126,9 @@ const checkEmail = [
   body("email")
     .exists()
     .withMessage("Email is required")
+    .trim()
     .isEmail()
-    .withMessage("Invalid email format")
-    .trim(),
+    .withMessage("Invalid email format"),
 ];
 
 const setPassword = [

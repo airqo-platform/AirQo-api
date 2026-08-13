@@ -5005,8 +5005,9 @@ const createUserModule = {
   // rate limiting at the route layer rather than a generic response here.
   checkEmailExists: async ({ email, tenant }) => {
     try {
+      const normalizedEmail = (email || "").toLowerCase().trim();
       const user = await UserModel(tenant)
-        .findOne({ email })
+        .findOne({ email: normalizedEmail })
         .select(
           "password hasSetPassword google_id github_id linkedin_id microsoft_id twitter_id facebook_id apple_id",
         )
@@ -5028,7 +5029,7 @@ const createUserModule = {
       throw new HttpError(
         "Unable to check email",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message },
+        { message: "An internal error occurred while checking the email." },
       );
     }
   },

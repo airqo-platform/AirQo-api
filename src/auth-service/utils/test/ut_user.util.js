@@ -1198,6 +1198,17 @@ describe("create-user-util", function () {
       sinon.assert.calledWith(findOneStub, { email: "unknown@example.com" });
     });
 
+    it("should normalize the email (lowercase + trim) before querying", async () => {
+      leanStub.resolves(null);
+
+      await rewireCreateUser.checkEmailExists({
+        email: "  Known@Example.COM  ",
+        tenant: "airqo",
+      });
+
+      sinon.assert.calledWith(findOneStub, { email: "known@example.com" });
+    });
+
     it("should return exists:true with authMethods when an account matches", async () => {
       leanStub.resolves({
         _id: "user_id",
