@@ -78,10 +78,19 @@ const permissionAuthStub = {
     next(),
 };
 
+// requireAccessRequestManagerAccess looks up the AccessRequest and delegates
+// to requireGroupManagerAccess, both of which need a real DB/RBACService —
+// stub it the same way as the other auth middleware above.
+const accessRequestAuthStub = {
+  requireAccessRequestManagerAccess: (requestIdParam) => (req, res, next) =>
+    next(),
+};
+
 const router = proxyquire("@routes/v2/requests.routes", {
   "@controllers/request.controller": createRequestControllerStub,
   "@middleware/passport": passportStub,
   "@middleware/permissionAuth": permissionAuthStub,
+  "@middleware/accessRequestAuth": accessRequestAuthStub,
 });
 
 // Realistic 24-char hex Mongo ObjectId strings, since the real validators
