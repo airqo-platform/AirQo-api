@@ -551,11 +551,11 @@ const groupController = {
         : req.query.tenant;
       // Forced, never caller-overridable: only the lean, already-safe
       // "summary" projection (excludes grp_users/grp_manager) is exposed to
-      // this authenticated-only, membership-independent endpoint.
+      // this authenticated-only, membership-independent endpoint, and only
+      // ACTIVE groups are discoverable — a caller-supplied grp_status could
+      // otherwise be used to enumerate inactive/unconfigured groups.
       request.query.category = "summary";
-      request.query.grp_status = isEmpty(req.query.grp_status)
-        ? "ACTIVE"
-        : req.query.grp_status;
+      request.query.grp_status = "ACTIVE";
 
       const result = await groupUtil.list(request, next);
 
