@@ -17,7 +17,43 @@ const logger = require("log4js").getLogger(
 const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
 const RoleModel = require("@models/Role");
+const RBACService = require("@services/rbac.service");
 const { logObject, HttpError, logText } = require("@utils/shared");
+
+// Mirrors middleware/groupNetworkAuth.js's requireGroupManagerAccess — used
+// where a group-manager-level check is needed from inside a util function
+// rather than as route middleware (e.g. gating auto-approve below).
+const isGroupManagerOrAdmin = async (tenant, userId, groupId) => {
+  const rbacService = RBACService.getInstance(
+    tenant || constants.DEFAULT_TENANT,
+  );
+  const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(userId);
+  if (isSystemSuperAdmin) {
+    return true;
+  }
+  const [isGroupManager, hasManagerPermissions, hasManagerRole] =
+    await Promise.all([
+      rbacService.isGroupManager(userId, groupId),
+      rbacService.hasPermission(
+        userId,
+        [
+          constants.GROUP_MANAGEMENT,
+          constants.USER_MANAGEMENT,
+          constants.GROUP_SETTINGS,
+        ],
+        false,
+        groupId,
+        "group",
+      ),
+      rbacService.hasRole(
+        userId,
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
+        groupId,
+        "group",
+      ),
+    ]);
+  return isGroupManager || hasManagerPermissions || hasManagerRole;
+};
 
 const createAccessRequest = {
   requestAccessToGroup: async (request, next) => {
@@ -355,6 +391,26 @@ const createAccessRequest = {
       }
 
       const shouldAutoApprove = auto_approve === true || auto_approve === "true";
+
+      if (shouldAutoApprove) {
+        const canAutoApprove = await isGroupManagerOrAdmin(
+          tenant,
+          inviterId,
+          grp_id,
+        );
+        if (!canAutoApprove) {
+          logger.warn(
+            `User ${inviterId} attempted to auto-approve invitations to group ${grp_id} without manager/admin rights`,
+          );
+          next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "Only a group manager or admin can auto-approve invitations",
+            }),
+          );
+          return;
+        }
+      }
 
       const existingUsers = await UserModel(tenant)
         .find({ email: { $in: uniqueEmails } })

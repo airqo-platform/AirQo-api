@@ -400,11 +400,16 @@ describe("createAccessRequest Util", () => {
       group_roles: [{ group: grp_id }],
     };
 
+    let origIsGroupManagerOrAdmin;
+
     beforeEach(() => {
       origGroupModel = rewireAccessRequest.__get__("GroupModel");
       origUserModel = rewireAccessRequest.__get__("UserModel");
       origAccessRequestModel = rewireAccessRequest.__get__("AccessRequestModel");
       origRoleModel = rewireAccessRequest.__get__("RoleModel");
+      origIsGroupManagerOrAdmin = rewireAccessRequest.__get__(
+        "isGroupManagerOrAdmin",
+      );
     });
 
     afterEach(() => {
@@ -412,6 +417,10 @@ describe("createAccessRequest Util", () => {
       rewireAccessRequest.__set__("UserModel", origUserModel);
       rewireAccessRequest.__set__("AccessRequestModel", origAccessRequestModel);
       rewireAccessRequest.__set__("RoleModel", origRoleModel);
+      rewireAccessRequest.__set__(
+        "isGroupManagerOrAdmin",
+        origIsGroupManagerOrAdmin,
+      );
       sinon.restore();
     });
 
@@ -488,6 +497,10 @@ describe("createAccessRequest Util", () => {
           lean: sinon.stub().resolves({ _id: roleId, group_id: grp_id }),
         }),
       }));
+      rewireAccessRequest.__set__(
+        "isGroupManagerOrAdmin",
+        sinon.stub().resolves(true),
+      );
       sinon
         .stub(mailer, "requestToJoinGroupByEmail")
         .resolves({ success: true, status: httpStatus.OK });
@@ -520,6 +533,41 @@ describe("createAccessRequest Util", () => {
         status: "approved",
       });
       sinon.assert.notCalled(next);
+    });
+
+    it("should reject auto_approve with 403 when the inviter is not a group manager/admin", async () => {
+      const next = sinon.stub();
+
+      rewireAccessRequest.__set__("GroupModel", () => ({
+        findById: sinon.stub().returns({ lean: sinon.stub().resolves(groupDoc) }),
+      }));
+      rewireAccessRequest.__set__("UserModel", () => ({
+        findById: sinon.stub().returns({ lean: sinon.stub().resolves(inviterDetails) }),
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([]) }),
+      }));
+      rewireAccessRequest.__set__("AccessRequestModel", () => ({
+        find: sinon.stub().returns({ lean: sinon.stub().resolves([]) }),
+      }));
+      rewireAccessRequest.__set__(
+        "isGroupManagerOrAdmin",
+        sinon.stub().resolves(false),
+      );
+
+      const request = {
+        params: { grp_id },
+        query: { tenant },
+        body: {
+          invitations: [{ email: "someone@example.com" }],
+          auto_approve: true,
+        },
+        user: inviter,
+      };
+
+      await rewireAccessRequest.requestAccessToGroupByEmail(request, next);
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err.statusCode).to.equal(httpStatus.FORBIDDEN);
     });
   });
 
