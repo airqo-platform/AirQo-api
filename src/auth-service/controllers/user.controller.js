@@ -840,6 +840,23 @@ const userController = {
       handleError(error, next);
     }
   },
+  checkEmail: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { email } = request.body;
+      const { tenant } = request.query;
+      const result = await userUtil.checkEmailExists({ email, tenant });
+
+      res.status(httpStatus.OK).json({
+        success: true,
+        exists: result.exists,
+        ...(result.exists ? { authMethods: result.authMethods } : {}),
+      });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   resetPassword: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

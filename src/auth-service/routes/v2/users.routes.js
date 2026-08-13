@@ -602,6 +602,13 @@ router.post(
 );
 
 router.post(
+  "/check-email",
+  rateLimiter.login,
+  userValidations.checkEmail,
+  userController.checkEmail,
+);
+
+router.post(
   "/setPassword",
   enhancedJWTAuth,
   userValidations.setPassword,

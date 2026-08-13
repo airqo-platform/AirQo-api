@@ -478,6 +478,13 @@ router.post(
 );
 
 router.post(
+  "/check-email",
+  rateLimiter.login,
+  userValidations.checkEmail,
+  userController.checkEmail
+);
+
+router.post(
   "/reset-password/:token",
   userValidations.resetPassword,
   userController.resetPassword

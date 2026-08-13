@@ -1163,6 +1163,75 @@ describe("create-user-util", function () {
     // Add more test cases to cover other scenarios
     // For example, when generating the reset token fails, when modifying the user fails, etc.
   });
+  describe("checkEmailExists", () => {
+    let origUserModel;
+    let findOneStub;
+    let selectStub;
+    let leanStub;
+
+    beforeEach(() => {
+      leanStub = sinon.stub();
+      selectStub = sinon.stub().returns({ lean: leanStub });
+      findOneStub = sinon.stub().returns({ select: selectStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findOne: findOneStub,
+      }));
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should return exists:false when no account matches the email", async () => {
+      leanStub.resolves(null);
+
+      const response = await rewireCreateUser.checkEmailExists({
+        email: "unknown@example.com",
+        tenant: "airqo",
+      });
+
+      expect(response.success).to.equal(true);
+      expect(response.exists).to.equal(false);
+      expect(response).to.not.have.property("authMethods");
+      sinon.assert.calledWith(findOneStub, { email: "unknown@example.com" });
+    });
+
+    it("should return exists:true with authMethods when an account matches", async () => {
+      leanStub.resolves({
+        _id: "user_id",
+        password: "hashed",
+        hasSetPassword: true,
+        google_id: "google123",
+      });
+
+      const response = await rewireCreateUser.checkEmailExists({
+        email: "known@example.com",
+        tenant: "airqo",
+      });
+
+      expect(response.success).to.equal(true);
+      expect(response.exists).to.equal(true);
+      expect(response.authMethods.password).to.equal(true);
+      expect(response.authMethods.google).to.equal(true);
+      expect(response.authMethods.github).to.equal(false);
+    });
+
+    it("should throw an HttpError on a database failure", async () => {
+      leanStub.rejects(new Error("connection lost"));
+
+      try {
+        await rewireCreateUser.checkEmailExists({
+          email: "known@example.com",
+          tenant: "airqo",
+        });
+        expect.fail("should have thrown");
+      } catch (error) {
+        expect(error.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      }
+    });
+  });
   describe("updateForgottenPassword", () => {
     let origUserModel;
     let findOneAndUpdateStub;
