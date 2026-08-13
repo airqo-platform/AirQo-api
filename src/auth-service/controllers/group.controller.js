@@ -7,6 +7,7 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 const groupUtil = require("@utils/group.util");
+const requestUtil = require("@utils/request.util");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -533,6 +534,64 @@ const groupController = {
     }
   },
 
+  discover: async (req, res, next) => {
+    try {
+      logText("discovering groups....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      // Forced, never caller-overridable: only the lean, already-safe
+      // "summary" projection (excludes grp_users/grp_manager) is exposed to
+      // this authenticated-only, membership-independent endpoint.
+      request.query.category = "summary";
+      request.query.grp_status = isEmpty(req.query.grp_status)
+        ? "ACTIVE"
+        : req.query.grp_status;
+
+      const result = await groupUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          groups: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+
   // Enhanced set manager with automatic role assignment
   enhancedSetManager: (req, res, next) => {
     logText("enhancedSetManager called");
@@ -735,8 +794,10 @@ const groupController = {
     }
   },
 
+  // Delegates to the same canonical implementation as
+  // POST /requests/emails/groups/:grp_id — see requestUtil.requestAccessToGroupByEmail.
   sendGroupInvitations: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.sendGroupInvitations),
+    executeGroupAction(req, res, next, requestUtil.requestAccessToGroupByEmail),
 
   listGroupInvitations: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listGroupInvitations),

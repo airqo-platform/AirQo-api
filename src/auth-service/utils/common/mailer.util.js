@@ -867,6 +867,9 @@ const getEmailSubject = (functionName, params) => {
     requestToJoinGroupByEmail: `Your AirQo Account Request to Access ${processString(
       params.entity_title || "",
     )} Team`,
+    notifyGroupManagerOfJoinRequest: `New Join Request: ${sanitizeEmailString(
+      params.entity_title || "",
+    )}`,
     afterAcceptingInvitation: `Welcome to ${
       params.entity_title ? processString(params.entity_title) : "the team"
     }!`,
@@ -981,6 +984,7 @@ const EMAIL_CATEGORIES = {
     "candidate",
     "request",
     "requestToJoinGroupByEmail",
+    "notifyGroupManagerOfJoinRequest",
     "afterAcceptingInvitation",
     "user",
     "assign",
@@ -1626,6 +1630,19 @@ const mailer = {
       ...baseMailOptions,
       bcc: params.inviterEmail,
     }),
+  ),
+  notifyGroupManagerOfJoinRequest: createMailerFunction(
+    "notifyGroupManagerOfJoinRequest", //
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.notifyGroupManagerOfJoinRequest({
+        email: params.email,
+        contact_name: params.contact_name,
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        entity_title: params.entity_title,
+        request_id: params.request_id,
+      }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
     msgs.inquiry(

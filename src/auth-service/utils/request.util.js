@@ -15,6 +15,7 @@ const logger = require("log4js").getLogger(
 );
 const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
+const RoleModel = require("@models/Role");
 const { logObject, HttpError, logText } = require("@utils/shared");
 
 const createAccessRequest = {
@@ -108,16 +109,61 @@ const createAccessRequest = {
           );
           return;
         }
-        const responseFromSendEmail = await mailer.request(
-          {
-            firstName,
-            lastName,
-            email: user.email,
-            tenant,
-            entity_title: group.grp_title,
-          },
-          next,
+        const recipients = await createGroupUtil.getGroupManagementRecipients(
+          tenant,
+          grp_id,
         );
+        if (recipients.length === 0) {
+          logger.warn(
+            `No group manager/admin found to notify for join request to group ${grp_id}`,
+          );
+        }
+        const requesterName = `${firstName} ${lastName}`;
+
+        const [requesterEmailResult, ...managerEmailResults] =
+          await Promise.allSettled([
+            mailer.request(
+              {
+                firstName,
+                lastName,
+                email: user.email,
+                tenant,
+                entity_title: group.grp_title,
+              },
+              next,
+            ),
+            ...recipients.map((recipient) =>
+              mailer.notifyGroupManagerOfJoinRequest(
+                {
+                  email: recipient.email,
+                  contact_name:
+                    [recipient.firstName, recipient.lastName]
+                      .filter(Boolean)
+                      .join(" ") || recipient.email,
+                  requester_name: requesterName,
+                  requester_email: user.email,
+                  entity_title: group.grp_title,
+                  request_id: createdAccessRequest._id,
+                  tenant,
+                },
+                next,
+              ),
+            ),
+          ]);
+
+        const managerEmailFailures = managerEmailResults.filter(
+          (r) => r.status === "rejected" || r.value?.success === false,
+        );
+        if (managerEmailFailures.length > 0) {
+          logger.error(
+            `Non-critical: ${managerEmailFailures.length}/${recipients.length} group-manager notification(s) failed for group ${grp_id}`,
+          );
+        }
+
+        const responseFromSendEmail =
+          requesterEmailResult.status === "fulfilled"
+            ? requesterEmailResult.value
+            : { success: false, message: requesterEmailResult.reason?.message };
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -157,7 +203,15 @@ const createAccessRequest = {
 
   requestAccessToGroupByEmail: async (request, next) => {
     try {
-      const { tenant, emails, user, grp_id } = {
+      const {
+        tenant,
+        emails,
+        invitations,
+        auto_approve,
+        expiry_hours,
+        user,
+        grp_id,
+      } = {
         ...request,
         ...request.body,
         ...request.query,
@@ -227,36 +281,71 @@ const createAccessRequest = {
         return;
       }
 
-      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      // Accept either the plain `emails: string[]` contract (used by Nexus's
+      // "invite by email" flow) or the richer `invitations: [{email,
+      // role_id, message}]` contract (used by manager-initiated invites that
+      // want to pre-assign a role and/or auto-approve).
+      const rawInvitationEntries = [];
+      if (Array.isArray(emails)) {
+        emails.forEach((email) => rawInvitationEntries.push({ email }));
+      }
+      if (Array.isArray(invitations)) {
+        invitations.forEach((invitation) =>
+          rawInvitationEntries.push({
+            email: invitation?.email,
+            role_id: invitation?.role_id,
+            message: invitation?.message,
+          }),
+        );
+      }
+
+      if (rawInvitationEntries.length === 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Emails array is required and must not be empty",
+            message:
+              "Either 'emails' or 'invitations' is required and must not be empty",
           }),
         );
         return;
       }
 
-      const invalidEmails = emails.filter(
-        (email) => !email || typeof email !== "string" || !email.includes("@"),
+      const invalidEmails = rawInvitationEntries.filter(
+        (entry) =>
+          !entry.email ||
+          typeof entry.email !== "string" ||
+          !entry.email.includes("@"),
       );
       if (invalidEmails.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Invalid email formats: ${invalidEmails.join(", ")}`,
+            message: `Invalid email formats: ${invalidEmails
+              .map((entry) => entry.email)
+              .join(", ")}`,
           }),
         );
         return;
       }
 
-      const uniqueEmails = [
-        ...new Set(emails.map((email) => email.toLowerCase())),
-      ];
-      if (uniqueEmails.length !== emails.length) {
+      // Dedup by lowercased email — first occurrence wins for role_id/message.
+      const invitationDetailsByEmail = new Map();
+      rawInvitationEntries.forEach((entry) => {
+        const normalizedEmail = entry.email.toLowerCase();
+        if (!invitationDetailsByEmail.has(normalizedEmail)) {
+          invitationDetailsByEmail.set(normalizedEmail, {
+            role_id: entry.role_id,
+            message: entry.message,
+          });
+        }
+      });
+      const uniqueEmails = [...invitationDetailsByEmail.keys()];
+      if (uniqueEmails.length !== rawInvitationEntries.length) {
         logger.warn("Duplicate emails found in invitation request", {
-          emails,
-          uniqueEmails,
+          rawCount: rawInvitationEntries.length,
+          uniqueCount: uniqueEmails.length,
         });
       }
+
+      const shouldAutoApprove = auto_approve === true || auto_approve === "true";
 
       const existingUsers = await UserModel(tenant)
         .find({ email: { $in: uniqueEmails } })
@@ -279,7 +368,8 @@ const createAccessRequest = {
         existingPendingRequests.map((req) => [req.email.toLowerCase(), req]),
       );
 
-      const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+      const expiryHours = Number(expiry_hours) || 168; // default: 7 days, matches prior fixed expiry
+      const INVITATION_EXPIRY_MS = expiryHours * 60 * 60 * 1000;
 
       const existingRequests = [];
       const successResponses = [];
@@ -314,6 +404,8 @@ const createAccessRequest = {
 
           const invitationToken = crypto.randomBytes(32).toString("hex");
           const expiryDate = new Date(Date.now() + INVITATION_EXPIRY_MS);
+          const { role_id, message } =
+            invitationDetailsByEmail.get(normalizedEmail) || {};
 
           const accessRequestData = {
             email: normalizedEmail,
@@ -327,6 +419,13 @@ const createAccessRequest = {
             invitationTokenExpires: expiryDate,
           };
 
+          if (role_id) {
+            accessRequestData.role_id = role_id;
+          }
+          if (message) {
+            accessRequestData.message = message;
+          }
+
           if (existingUser) {
             accessRequestData.user_id = existingUser._id;
           }
@@ -339,6 +438,50 @@ const createAccessRequest = {
             const createdAccessRequest = responseFromCreateAccessRequest.data;
 
             const userExists = !!existingUser;
+
+            if (shouldAutoApprove && existingUser) {
+              try {
+                let autoApproveResult;
+                if (role_id) {
+                  const roleDoc = await RoleModel(tenant)
+                    .findOne({ _id: role_id, group_id: grp_id })
+                    .lean();
+                  if (!roleDoc) {
+                    logger.error(
+                      `Auto-approve skipped for ${email}: role_id ${role_id} does not belong to group ${grp_id}`,
+                    );
+                  } else {
+                    autoApproveResult = await UserModel(
+                      tenant,
+                    ).assignUserToGroup(existingUser._id, grp_id, role_id, "user");
+                  }
+                } else {
+                  autoApproveResult = await createGroupUtil.assignOneUser(
+                    {
+                      params: { grp_id, user_id: existingUser._id },
+                      query: { tenant },
+                    },
+                    next,
+                  );
+                }
+
+                if (autoApproveResult && autoApproveResult.success) {
+                  await AccessRequestModel(tenant).modify({
+                    filter: { _id: createdAccessRequest._id },
+                    update: { status: "approved" },
+                  });
+                  createdAccessRequest.status = "approved";
+                } else if (autoApproveResult) {
+                  logger.error(
+                    `Auto-approve failed for ${email} in group ${grp_id}: ${autoApproveResult.message}`,
+                  );
+                }
+              } catch (autoApproveError) {
+                logger.error(
+                  `Auto-approve error for ${email} in group ${grp_id}: ${autoApproveError.message}`,
+                );
+              }
+            }
 
             const responseFromSendEmail =
               await mailer.requestToJoinGroupByEmail(
@@ -414,7 +557,7 @@ const createAccessRequest = {
 
       const responseData = {
         summary: {
-          total_emails: emails.length,
+          total_emails: rawInvitationEntries.length,
           unique_emails: uniqueEmails.length,
           successful_invitations: successCount,
           failed_invitations: failureCount,

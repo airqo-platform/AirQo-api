@@ -64,6 +64,15 @@ const AccessRequestSchema = new Schema(
     expires_at: {
       type: Date,
     },
+    role_id: {
+      type: ObjectId,
+      ref: "role",
+    },
+    message: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
   },
   {
     timestamps: true,

@@ -1171,6 +1171,37 @@ module.exports = {
     return constants.EMAIL_BODY({ email, content });
   },
 
+  notifyGroupManagerOfJoinRequest: ({
+    email,
+    contact_name,
+    requester_name,
+    requester_email,
+    entity_title,
+    request_id,
+  }) => {
+    const reviewLink = `${constants.NEXUS_BASE_URL}/org/member-requests?request_id=${request_id}`;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Hello ${escapeHtml(contact_name)},</p>
+        <p><strong>${escapeHtml(requester_name)}</strong> (${escapeHtml(
+          requester_email,
+        )}) has requested to join "<strong>${escapeHtml(
+          entity_title,
+        )}</strong>" on AirQo Nexus.</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${reviewLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Review Request</a>
+        </div>
+        <p>You can approve or reject this request from your organization's member requests page.</p>
+        <p>Best,<br/>The AirQo Team</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email, content, name: contact_name });
+  },
+
   notifyAdminsOfNewOrgRequest: ({
     organization_name,
     contact_name,
