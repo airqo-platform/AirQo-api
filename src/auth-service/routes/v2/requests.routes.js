@@ -5,6 +5,9 @@ const createRequestController = require("@controllers/request.controller");
 const requestValidations = require("@validators/requests.validators");
 const { enhancedJWTAuth, optionalJWTAuth } = require("@middleware/passport");
 const { requirePermissions } = require("@middleware/permissionAuth");
+const {
+  requireAccessRequestManagerAccess,
+} = require("@middleware/accessRequestAuth");
 const constants = require("@config/constants");
 const { validate, headers, pagination } = require("@validators/common");
 
@@ -58,6 +61,7 @@ router.post(
   "/:request_id/approve",
   requestValidations.approveAccessRequest,
   enhancedJWTAuth,
+  requireAccessRequestManagerAccess(),
   createRequestController.approveAccessRequest,
 );
 
@@ -65,6 +69,7 @@ router.post(
   "/:request_id/reject",
   requestValidations.rejectAccessRequest,
   enhancedJWTAuth,
+  requireAccessRequestManagerAccess(),
   createRequestController.rejectAccessRequest,
 );
 

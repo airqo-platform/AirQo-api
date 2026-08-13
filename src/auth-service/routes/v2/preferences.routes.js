@@ -96,29 +96,35 @@ router.get(
   preferenceController.listAll
 );
 
+// Personal chart configuration routes
+// ===========================================
+// Scoped by device_ids/site_ids arrays on the chart itself rather than a
+// single :deviceId path param, so one chart can compare multiple locations
+// at once (e.g. Kampala + Jinja together), each optionally colored via
+// locationColors.
 router.post(
-  "/:deviceId/charts",
+  "/charts",
   enhancedJWTAuth,
   preferenceValidations.createChart,
   preferenceController.createChart
 );
 
 router.put(
-  "/:deviceId/charts/:chartId",
+  "/charts/:chartId",
   enhancedJWTAuth,
   preferenceValidations.updateChart,
   preferenceController.updateChart
 );
 
 router.delete(
-  "/:deviceId/charts/:chartId",
+  "/charts/:chartId",
   enhancedJWTAuth,
   preferenceValidations.deleteChart,
   preferenceController.deleteChart
 );
 
 router.get(
-  "/:deviceId/charts",
+  "/charts",
   enhancedJWTAuth,
   pagination(),
   preferenceValidations.getChartConfigurations,
@@ -126,14 +132,14 @@ router.get(
 );
 
 router.post(
-  "/:deviceId/charts/:chartId/copy",
+  "/charts/:chartId/copy",
   enhancedJWTAuth,
   preferenceValidations.copyChart,
   preferenceController.copyChart
 );
 
 router.get(
-  "/:deviceId/charts/:chartId",
+  "/charts/:chartId",
   enhancedJWTAuth,
   preferenceValidations.getChartConfigurationById,
   preferenceController.getChartConfigurationById

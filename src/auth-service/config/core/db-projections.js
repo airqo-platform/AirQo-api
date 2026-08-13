@@ -248,6 +248,8 @@ const dbProjections = {
     requestType: 1,
     targetId: 1,
     status: 1,
+    role_id: 1,
+    message: 1,
     createdAt: {
       $dateToString: {
         format: "%Y-%m-%d %H:%M:%S",
