@@ -4999,6 +4999,41 @@ const createUserModule = {
     }
   },
 
+  // Supports a two-step login flow (email first, then password/SSO based on
+  // the response). Unlike initiatePasswordReset, this intentionally reveals
+  // account existence — that's the point of the feature — mitigated by
+  // rate limiting at the route layer rather than a generic response here.
+  checkEmailExists: async ({ email, tenant }) => {
+    try {
+      const normalizedEmail = (email || "").toLowerCase().trim();
+      const user = await UserModel(tenant)
+        .findOne({ email: normalizedEmail })
+        .select(
+          "password hasSetPassword google_id github_id linkedin_id microsoft_id twitter_id facebook_id apple_id",
+        )
+        .lean();
+
+      if (!user) {
+        return { success: true, exists: false };
+      }
+
+      return {
+        success: true,
+        exists: true,
+        authMethods: buildAuthMethods(user),
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in checkEmailExists: ${error.message}`,
+      );
+      throw new HttpError(
+        "Unable to check email",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: "An internal error occurred while checking the email." },
+      );
+    }
+  },
+
   setPassword: async (request, next) => {
     try {
       const { password, confirmPassword } = request.body;

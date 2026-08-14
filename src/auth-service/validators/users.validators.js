@@ -1122,6 +1122,15 @@ const resetPasswordRequest = [
   //Potentially add tenant validation here as well, using the oneOf approach if necessary
 ];
 
+const checkEmail = [
+  body("email")
+    .exists()
+    .withMessage("Email is required")
+    .trim()
+    .isEmail()
+    .withMessage("Invalid email format"),
+];
+
 const setPassword = [
   body("password")
     .exists()
@@ -2016,6 +2025,7 @@ module.exports = {
   getUser,
   getEnhancedProfileForUser,
   resetPasswordRequest,
+  checkEmail,
   resetPassword,
   setPassword,
   verifyMobileEmail,
