@@ -2314,6 +2314,11 @@ const deviceUtil = {
         return {
           success: false,
           message: responseFromTransformRequestBody.message,
+          errors: {
+            message:
+              responseFromTransformRequestBody.message ||
+              "the device details could not be transformed into a payload accepted by the external device-channel provider -- crosscheck required fields such as name/long_name",
+          },
         };
       }
       return await axios
@@ -2340,15 +2345,19 @@ const deviceUtil = {
         })
         .catch((error) => {
           if (error.response) {
+            const status = error.response.status
+              ? error.response.status
+              : parseInt(error.response.data && error.response.data.status);
+            const channelProviderMessage =
+              (error.response.data &&
+                (error.response.data.error || error.response.data.message)) ||
+              error.response.statusText ||
+              "the external channel provider rejected the channel creation request";
             return {
               success: false,
-              status: error.response.status
-                ? error.response.status
-                : parseInt(error.response.data.status),
+              status,
               errors: {
-                message: error.response.statusText
-                  ? error.response.statusText
-                  : error.response.data.error,
+                message: `device channel creation failed with HTTP ${status}: ${channelProviderMessage} -- an internal team member should check the external device-channel provider (e.g. account quota, API key validity, service status)`,
               },
             };
           } else {
@@ -2357,8 +2366,9 @@ const deviceUtil = {
               message: "Bad Gateway Error",
               status: httpStatus.BAD_GATEWAY,
               errors: {
-                message:
-                  "unable to create the device on thingspeak, crosscheck why",
+                message: `unable to reach the external device-channel provider to create the device channel${
+                  error.code ? ` (${error.code})` : ""
+                } -- an internal team member should crosscheck the channel provider's base URL/API key configuration, account status, and network connectivity`,
               },
             };
           }
