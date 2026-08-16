@@ -8,6 +8,7 @@ const {
   verifyAndBindResources,
   enforceCohortBinding,
 } = require("@middleware/token-resource-binding.middleware");
+const { requirePermission } = require("@airqo-packages/rbac-middleware");
 
 router.use(headers);
 // Attach resource binding metadata to every request in this router.
@@ -96,6 +97,19 @@ router.get(
 router.post(
   "/:cohort_id/assign-devices",
   cohortValidations.assignManyDevicesToCohort,
+  createCohortController.assignManyDevicesToCohort,
+);
+
+// RBAC enforcement pilot (AirQo-api#6986). Same behaviour as
+// POST /:cohort_id/assign-devices above, gated behind a real permission
+// check instead of relying on the frontend alone to hide the button.
+// The old route above is untouched and still has no server-side check —
+// once this pilot proves out, other mutation routes will be migrated to
+// this pattern one at a time, coordinated with frontend.
+router.post(
+  "/:cohort_id/devices",
+  cohortValidations.assignManyDevicesToCohort,
+  requirePermission("DEVICE_UPDATE"),
   createCohortController.assignManyDevicesToCohort,
 );
 

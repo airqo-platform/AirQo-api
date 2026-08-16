@@ -1,0 +1,40 @@
+{
+  "name": "@airqo-packages/rbac-middleware",
+  "version": "0.1.0",
+  "description": "Express middleware for AirQo backend services to enforce permission-based access control via auth-service's token-verify endpoint, without requiring direct database access to auth-service.",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "mocha test/**/*.test.js --exit"
+  },
+  "keywords": [
+    "airqo",
+    "rbac",
+    "permissions",
+    "middleware"
+  ],
+  "author": "AirQo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/airqo-platform/AirQo-api.git",
+    "directory": "packages/airqo-rbac-middleware"
+  },
+  "bugs": {
+    "url": "https://github.com/airqo-platform/AirQo-api/issues"
+  },
+  "homepage": "https://github.com/airqo-platform/AirQo-api/tree/staging/packages/airqo-rbac-middleware#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "axios": "^1.17.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.3",
+    "mocha": "^8.1.3",
+    "sinon": "^9.2.4"
+  }
+}
