@@ -2330,23 +2330,29 @@ const deviceUtil = {
         .then(async (response) => {
           try {
             const apiKeys = response.data && response.data.api_keys;
+            const writeKeyEntry = Array.isArray(apiKeys)
+              ? apiKeys.find((key) => key && key.write_flag)
+              : undefined;
+            const readKeyEntry = Array.isArray(apiKeys)
+              ? apiKeys.find((key) => key && !key.write_flag)
+              : undefined;
+            const writeKey = writeKeyEntry && writeKeyEntry.api_key;
+            const readKey = readKeyEntry && readKeyEntry.api_key;
+
             if (
               isEmpty(response.data && response.data.id) ||
-              !apiKeys ||
-              !apiKeys[0] ||
-              !apiKeys[1]
+              isEmpty(writeKey) ||
+              isEmpty(readKey)
             ) {
               throw new Error(
                 "the external device-channel provider returned an unexpected response shape",
               );
             }
-            let writeKey = apiKeys[0].write_flag ? apiKeys[0].api_key : "";
-            let readKey = !apiKeys[1].write_flag ? apiKeys[1].api_key : "";
 
             let newChannel = {
               device_number: `${response.data.id}`,
-              writeKey: writeKey,
-              readKey: readKey,
+              writeKey,
+              readKey,
             };
 
             return {
@@ -2355,17 +2361,28 @@ const deviceUtil = {
               data: newChannel,
             };
           } catch (parseError) {
+            let cleanupMessage = "any partially-created channel was rolled back";
             if (response.data && !isEmpty(response.data.id)) {
-              await deviceUtil.deleteOnThingspeak(
-                { query: { device_number: response.data.id } },
-                next,
-              );
+              try {
+                const responseFromDeleteOnThingspeak = await deviceUtil.deleteOnThingspeak(
+                  { query: { device_number: response.data.id } },
+                  next,
+                );
+                if (
+                  !responseFromDeleteOnThingspeak ||
+                  !responseFromDeleteOnThingspeak.success
+                ) {
+                  cleanupMessage = `the partially-created channel (device_number: ${response.data.id}) could NOT be automatically rolled back -- manual cleanup on the external device-channel provider is required`;
+                }
+              } catch (cleanupError) {
+                cleanupMessage = `the partially-created channel (device_number: ${response.data.id}) could NOT be automatically rolled back (${cleanupError.message}) -- manual cleanup on the external device-channel provider is required`;
+              }
             }
             return {
               success: false,
               status: httpStatus.BAD_GATEWAY,
               errors: {
-                message: `the external device-channel provider returned an unusable response while creating the device channel (${parseError.message}) -- an internal team member should check the provider's response format; any partially-created channel was rolled back`,
+                message: `the external device-channel provider returned an unusable response while creating the device channel (${parseError.message}) -- an internal team member should check the provider's response format; ${cleanupMessage}`,
               },
             };
           }
