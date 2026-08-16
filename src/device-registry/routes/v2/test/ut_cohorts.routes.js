@@ -3,276 +3,441 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const express = require("express");
 const request = require("supertest");
-const createCohortController = require("@controllers/create-cohort");
-const { check, oneOf, query, body, param } = require("express-validator");
-const constants = require("@config/constants");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-const { logElement, logText, logObject } = require("@utils/log");
-const isEmpty = require("is-empty");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohorts-route-v2`);
-const { getModelByTenant } = require("@config/database");
-const NetworkSchema = require("@models/Network");
+const proxyquire = require("proxyquire");
 
-const app = express();
-app.use(express.json());
+const realController = require("@controllers/cohort.controller");
 
-/*************************** Mocked Data ***************************/
-// Replace with relevant mocked data
+const VALID_COHORT_ID = "507f1f77bcf86cd799439011";
+const VALID_DEVICE_ID = "507f1f77bcf86cd799439012";
+const VALID_NET_ID = "507f1f77bcf86cd799439013";
 
-/*************************** Unit Test ***************************/
-describe("Cohort Controller", () => {
+/**
+ * Mounts the real cohorts.routes.js router with one or more controller
+ * methods stubbed (the real controller module is spread so every route
+ * still has a valid handler function to bind to at registration time —
+ * only the methods under test are overridden). @airqo-packages/rbac-middleware
+ * is left real; none of the routes covered here reference requirePermission
+ * (that's covered separately by ut_cohorts-devices-pilot.routes.js).
+ */
+const mountRoutesWithControllerStub = (controllerOverrides) => {
+  const controllerStub = { ...realController, ...controllerOverrides };
+  const cohortsRoutes = proxyquire("@routes/v2/cohorts.routes", {
+    "@controllers/cohort.controller": controllerStub,
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use("/cohorts", cohortsRoutes);
+  return app;
+};
+
+const okStub = () =>
+  sinon.stub().callsFake((req, res) => {
+    res.status(200).json({ success: true, message: "ok" });
+  });
+
+describe("cohorts.routes.js", () => {
   afterEach(() => {
     sinon.restore();
   });
 
   describe("DELETE /cohorts/:cohort_id", () => {
-    it("should delete a cohort", async () => {
-      const deleteStub = sinon.stub(createCohortController, "delete");
-      // Replace with relevant implementation and expected response
+    it("should call the delete controller for a valid cohort_id", async () => {
+      const deleteStub = okStub();
+      const app = mountRoutesWithControllerStub({ delete: deleteStub });
 
-      const response = await request(app).delete("/cohorts/:cohort_id");
+      const response = await request(app).delete(`/cohorts/${VALID_COHORT_ID}`);
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(deleteStub.calledOnce).to.equal(true);
+    });
+
+    it("should reject a non-ObjectId cohort_id with a 400 before reaching the controller", async () => {
+      const deleteStub = okStub();
+      const app = mountRoutesWithControllerStub({ delete: deleteStub });
+
+      const response = await request(app).delete("/cohorts/not-an-object-id");
+
+      expect(response.status).to.equal(400);
+      expect(deleteStub.called).to.equal(false);
+    });
+  });
+
+  describe("PUT /cohorts/:cohort_id/name", () => {
+    it("should call updateName for a valid rename request", async () => {
+      const updateNameStub = okStub();
+      const app = mountRoutesWithControllerStub({ updateName: updateNameStub });
+
+      const response = await request(app)
+        .put(`/cohorts/${VALID_COHORT_ID}/name`)
+        .send({
+          name: "renamed-cohort",
+          confirm_update: "true",
+          update_reason: "Correcting a typo in the original cohort name",
+        });
+
+      expect(response.status).to.equal(200);
+      expect(updateNameStub.calledOnce).to.equal(true);
     });
   });
 
   describe("PUT /cohorts/:cohort_id", () => {
-    it("should update a cohort", async () => {
-      const updateStub = sinon.stub(createCohortController, "update");
-      // Replace with relevant implementation and expected response
+    it("should call update for a valid update request", async () => {
+      const updateStub = okStub();
+      const app = mountRoutesWithControllerStub({ update: updateStub });
 
-      const response = await request(app).put("/cohorts/:cohort_id");
+      const response = await request(app)
+        .put(`/cohorts/${VALID_COHORT_ID}`)
+        .send({ description: "an updated description" });
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(updateStub.calledOnce).to.equal(true);
     });
   });
 
   describe("POST /cohorts", () => {
-    it("should create a new cohort", async () => {
-      const createStub = sinon.stub(createCohortController, "create");
-      // Replace with relevant implementation and expected response
+    it("should call create for a valid new cohort", async () => {
+      const createStub = okStub();
+      const app = mountRoutesWithControllerStub({ create: createStub });
 
-      const response = await request(app).post("/cohorts");
+      const response = await request(app)
+        .post("/cohorts")
+        .send({ name: "a new cohort" });
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(createStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts", () => {
-    it("should list cohorts", async () => {
-      const listStub = sinon.stub(createCohortController, "list");
-      // Replace with relevant implementation and expected response
+    it("should call list", async () => {
+      const listStub = okStub();
+      const app = mountRoutesWithControllerStub({ list: listStub });
 
       const response = await request(app).get("/cohorts");
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts/summary", () => {
-    it("should list cohort summaries", async () => {
-      const listSummaryStub = sinon.stub(createCohortController, "listSummary");
-      // Replace with relevant implementation and expected response
+    it("should call listSummary", async () => {
+      const listSummaryStub = okStub();
+      const app = mountRoutesWithControllerStub({ listSummary: listSummaryStub });
 
       const response = await request(app).get("/cohorts/summary");
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listSummaryStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts/dashboard", () => {
-    it("should list cohort dashboard data", async () => {
-      const listDashboardStub = sinon.stub(
-        createCohortController,
-        "listDashboard"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call listDashboard", async () => {
+      const listDashboardStub = okStub();
+      const app = mountRoutesWithControllerStub({ listDashboard: listDashboardStub });
 
       const response = await request(app).get("/cohorts/dashboard");
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listDashboardStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("GET /cohorts/users", () => {
+    it("should call listUserCohorts", async () => {
+      const listUserCohortsStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listUserCohorts: listUserCohortsStub,
+      });
+
+      const response = await request(app).get("/cohorts/users");
+
+      expect(response.status).to.equal(200);
+      expect(listUserCohortsStub.calledOnce).to.equal(true);
     });
   });
 
   describe("PUT /cohorts/:cohort_id/assign-device/:device_id", () => {
-    it("should assign a device to a cohort", async () => {
-      const assignOneDeviceStub = sinon.stub(
-        createCohortController,
-        "assignOneDeviceToCohort"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call assignOneDeviceToCohort for valid ids", async () => {
+      const assignOneDeviceStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        assignOneDeviceToCohort: assignOneDeviceStub,
+      });
 
       const response = await request(app).put(
-        "/cohorts/:cohort_id/assign-device/:device_id"
+        `/cohorts/${VALID_COHORT_ID}/assign-device/${VALID_DEVICE_ID}`
       );
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(assignOneDeviceStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts/:cohort_id/assigned-devices", () => {
-    it("should list assigned devices for a cohort", async () => {
-      const listAssignedDevicesStub = sinon.stub(
-        createCohortController,
-        "listAssignedDevices"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call listAssignedDevices for a valid cohort_id", async () => {
+      const listAssignedDevicesStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listAssignedDevices: listAssignedDevicesStub,
+      });
 
       const response = await request(app).get(
-        "/cohorts/:cohort_id/assigned-devices"
+        `/cohorts/${VALID_COHORT_ID}/assigned-devices`
       );
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listAssignedDevicesStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts/:cohort_id/available-devices", () => {
-    it("should list available devices for a cohort", async () => {
-      const listAvailableDevicesStub = sinon.stub(
-        createCohortController,
-        "listAvailableDevices"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call listAvailableDevices for a valid cohort_id", async () => {
+      const listAvailableDevicesStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listAvailableDevices: listAvailableDevicesStub,
+      });
 
       const response = await request(app).get(
-        "/cohorts/:cohort_id/available-devices"
+        `/cohorts/${VALID_COHORT_ID}/available-devices`
       );
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listAvailableDevicesStub.calledOnce).to.equal(true);
     });
   });
 
   describe("POST /cohorts/:cohort_id/assign-devices", () => {
-    it("should assign multiple devices to a cohort", async () => {
-      const assignManyDevicesStub = sinon.stub(
-        createCohortController,
-        "assignManyDevicesToCohort"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call assignManyDevicesToCohort for a valid device_ids array", async () => {
+      const assignManyDevicesStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        assignManyDevicesToCohort: assignManyDevicesStub,
+      });
 
-      const response = await request(app).post(
-        "/cohorts/:cohort_id/assign-devices"
-      );
+      const response = await request(app)
+        .post(`/cohorts/${VALID_COHORT_ID}/assign-devices`)
+        .send({ device_ids: [VALID_DEVICE_ID] });
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(assignManyDevicesStub.calledOnce).to.equal(true);
     });
   });
 
   describe("DELETE /cohorts/:cohort_id/unassign-many-devices", () => {
-    it("should unassign multiple devices from a cohort", async () => {
-      const unassignManyDevicesStub = sinon.stub(
-        createCohortController,
-        "unAssignManyDevicesFromCohort"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call unAssignManyDevicesFromCohort for a valid device_ids array", async () => {
+      const unassignManyDevicesStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        unAssignManyDevicesFromCohort: unassignManyDevicesStub,
+      });
 
-      const response = await request(app).delete(
-        "/cohorts/:cohort_id/unassign-many-devices"
-      );
+      const response = await request(app)
+        .delete(`/cohorts/${VALID_COHORT_ID}/unassign-many-devices`)
+        .send({ device_ids: [VALID_DEVICE_ID] });
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(unassignManyDevicesStub.calledOnce).to.equal(true);
     });
   });
 
   describe("DELETE /cohorts/:cohort_id/unassign-device/:device_id", () => {
-    it("should unassign a device from a cohort", async () => {
-      const unassignOneDeviceStub = sinon.stub(
-        createCohortController,
-        "unAssignOneDeviceFromCohort"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call unAssignOneDeviceFromCohort for valid ids", async () => {
+      const unassignOneDeviceStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        unAssignOneDeviceFromCohort: unassignOneDeviceStub,
+      });
 
       const response = await request(app).delete(
-        "/cohorts/:cohort_id/unassign-device/:device_id"
+        `/cohorts/${VALID_COHORT_ID}/unassign-device/${VALID_DEVICE_ID}`
       );
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(unassignOneDeviceStub.calledOnce).to.equal(true);
     });
   });
 
   describe("POST /cohorts/networks", () => {
-    it("should create a new network", async () => {
-      const createNetworkStub = sinon.stub(
-        createCohortController,
-        "createNetwork"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call createNetwork for a valid network payload", async () => {
+      const createNetworkStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        createNetwork: createNetworkStub,
+      });
 
-      const response = await request(app).post("/cohorts/networks");
+      const response = await request(app)
+        .post("/cohorts/networks")
+        .send({
+          admin_secret: "test-secret",
+          net_name: "test-network",
+          net_email: "network@example.com",
+        });
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(createNetworkStub.calledOnce).to.equal(true);
     });
   });
 
   describe("PUT /cohorts/networks/:net_id", () => {
-    it("should update a network", async () => {
-      const updateNetworkStub = sinon.stub(
-        createCohortController,
-        "updateNetwork"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call updateNetwork for a valid net_id", async () => {
+      const updateNetworkStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        updateNetwork: updateNetworkStub,
+      });
 
-      const response = await request(app).put("/cohorts/networks/:net_id");
+      const response = await request(app).put(`/cohorts/networks/${VALID_NET_ID}`);
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(updateNetworkStub.calledOnce).to.equal(true);
     });
   });
 
   describe("DELETE /cohorts/networks/:net_id", () => {
-    it("should delete a network", async () => {
-      const deleteNetworkStub = sinon.stub(
-        createCohortController,
-        "deleteNetwork"
+    it("should call deleteNetwork for a valid net_id", async () => {
+      const deleteNetworkStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        deleteNetwork: deleteNetworkStub,
+      });
+
+      const response = await request(app).delete(
+        `/cohorts/networks/${VALID_NET_ID}`
       );
-      // Replace with relevant implementation and expected response
 
-      const response = await request(app).delete("/cohorts/networks/:net_id");
-
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(deleteNetworkStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts/networks", () => {
-    it("should list networks", async () => {
-      const listNetworksStub = sinon.stub(
-        createCohortController,
-        "listNetworks"
-      );
-      // Replace with relevant implementation and expected response
+    it("should call listNetworks", async () => {
+      const listNetworksStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listNetworks: listNetworksStub,
+      });
 
       const response = await request(app).get("/cohorts/networks");
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listNetworksStub.calledOnce).to.equal(true);
     });
   });
 
   describe("GET /cohorts/networks/:net_id", () => {
-    it("should get a specific network", async () => {
-      const getNetworkStub = sinon.stub(createCohortController, "listNetworks");
-      // Replace with relevant implementation and expected response
+    it("should call listNetworks for a specific net_id", async () => {
+      const listNetworksStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listNetworks: listNetworksStub,
+      });
 
-      const response = await request(app).get("/cohorts/networks/:net_id");
+      const response = await request(app).get(
+        `/cohorts/networks/${VALID_NET_ID}`
+      );
 
-      // Add assertions based on expected response and function calls
       expect(response.status).to.equal(200);
+      expect(listNetworksStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("GET /cohorts/verify/:cohort_id", () => {
+    it("should call verify for a valid cohort_id", async () => {
+      const verifyStub = okStub();
+      const app = mountRoutesWithControllerStub({ verify: verifyStub });
+
+      const response = await request(app).get(
+        `/cohorts/verify/${VALID_COHORT_ID}`
+      );
+
+      expect(response.status).to.equal(200);
+      expect(verifyStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("POST /cohorts/from-cohorts", () => {
+    it("should call createFromCohorts for a valid payload", async () => {
+      const createFromCohortsStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        createFromCohorts: createFromCohortsStub,
+      });
+
+      const response = await request(app)
+        .post("/cohorts/from-cohorts")
+        .send({ name: "merged-cohort", cohort_ids: [VALID_COHORT_ID] });
+
+      expect(response.status).to.equal(200);
+      expect(createFromCohortsStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("POST /cohorts/sites", () => {
+    it("should call listSitesByCohort for a valid cohort_ids array", async () => {
+      const listSitesByCohortStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listSitesByCohort: listSitesByCohortStub,
+      });
+
+      const response = await request(app)
+        .post("/cohorts/sites")
+        .send({ cohort_ids: [VALID_COHORT_ID] });
+
+      expect(response.status).to.equal(200);
+      expect(listSitesByCohortStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("POST /cohorts/devices", () => {
+    it("should call listDevicesByCohort for a valid cohort_ids array", async () => {
+      const listDevicesByCohortStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listDevicesByCohort: listDevicesByCohortStub,
+      });
+
+      const response = await request(app)
+        .post("/cohorts/devices")
+        .send({ cohort_ids: [VALID_COHORT_ID] });
+
+      expect(response.status).to.equal(200);
+      expect(listDevicesByCohortStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("POST /cohorts/cached-sites", () => {
+    it("should call listCachedSitesByCohort for a valid cohort_ids array", async () => {
+      const listCachedSitesByCohortStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listCachedSitesByCohort: listCachedSitesByCohortStub,
+      });
+
+      const response = await request(app)
+        .post("/cohorts/cached-sites")
+        .send({ cohort_ids: [VALID_COHORT_ID] });
+
+      expect(response.status).to.equal(200);
+      expect(listCachedSitesByCohortStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("POST /cohorts/cached-devices", () => {
+    it("should call listCachedDevicesByCohort for a valid cohort_ids array", async () => {
+      const listCachedDevicesByCohortStub = okStub();
+      const app = mountRoutesWithControllerStub({
+        listCachedDevicesByCohort: listCachedDevicesByCohortStub,
+      });
+
+      const response = await request(app)
+        .post("/cohorts/cached-devices")
+        .send({ cohort_ids: [VALID_COHORT_ID] });
+
+      expect(response.status).to.equal(200);
+      expect(listCachedDevicesByCohortStub.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("GET /cohorts/:cohort_id", () => {
+    it("should call list (the catch-all handler) for a valid cohort_id", async () => {
+      const listStub = okStub();
+      const app = mountRoutesWithControllerStub({ list: listStub });
+
+      const response = await request(app).get(`/cohorts/${VALID_COHORT_ID}`);
+
+      expect(response.status).to.equal(200);
+      expect(listStub.calledOnce).to.equal(true);
     });
   });
 });

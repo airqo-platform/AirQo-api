@@ -57,6 +57,7 @@
     "@migrations": "migrations"
   },
   "dependencies": {
+    "@airqo-packages/rbac-middleware": "^0.1.0",
     "@e965/xlsx": "^0.20.3",
     "@google-cloud/bigquery": "^5.5.0",
     "@google-cloud/iot": "^1.5.0",
