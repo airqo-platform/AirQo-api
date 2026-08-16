@@ -160,7 +160,7 @@ class RBACService {
     }
   }
 
-  async getUserPermissions(userId) {
+  async getUserPermissions(userId, { strict = false } = {}) {
     try {
       const cacheKey = userId.toString();
       const now = Date.now();
@@ -241,6 +241,9 @@ class RBACService {
     } catch (error) {
       console.error("❌ Enhanced RBAC ERROR in getUserPermissions:", error);
       logger.error(`Error getting user permissions: ${error.message}`);
+      if (strict) {
+        throw error;
+      }
       return this.getDefaultPermissionsByUserType("user");
     }
   }
