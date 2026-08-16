@@ -911,5 +911,31 @@ describe("token util", () => {
       expect(result.success).to.equal(true);
       expect(result.data.permissions).to.deep.equal([]);
     });
+
+    it("calls getUserPermissions with { strict: true }, so a real RBAC lookup failure cannot silently fall back to default 'user' permissions", async () => {
+      stubHappyPathDeps();
+      const getUserPermissionsStub = sinon
+        .stub()
+        .rejects(new Error("RBAC lookup failed"));
+      rewireToken.__set__("RBACService", {
+        getInstance: sinon.stub().returns({
+          getUserPermissions: getUserPermissionsStub,
+        }),
+      });
+
+      const request = {
+        headers: { "x-client-ip": "1.2.3.4" },
+        params: { token: "raw-token-123" },
+      };
+
+      const result = await rewireToken.verifyToken(request, next);
+
+      expect(
+        getUserPermissionsStub.calledWithMatch(sinon.match.any, {
+          strict: true,
+        }),
+      ).to.equal(true);
+      expect(result.data.permissions).to.deep.equal([]);
+    });
   });
 });

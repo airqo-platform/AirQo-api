@@ -1949,15 +1949,17 @@ const token = {
 
           // Resolve the token owner's permissions so downstream services
           // (e.g. device-registry) can enforce RBAC without direct DB access
-          // to auth-service. Non-critical: if this lookup fails, permissions
-          // stays empty and callers relying on it correctly fail closed
-          // rather than silently granting access.
+          // to auth-service. { strict: true } is required here: by default
+          // getUserPermissions() swallows lookup errors and falls back to
+          // default "user" permissions, which would defeat the fail-closed
+          // guarantee callers rely on — strict mode makes it rethrow instead,
+          // so the catch below can force permissions back to [].
           let permissions = [];
           if (client.user_id) {
             try {
               permissions = await RBACService.getInstance(
                 "airqo"
-              ).getUserPermissions(client.user_id);
+              ).getUserPermissions(client.user_id, { strict: true });
             } catch (permErr) {
               logger.error(
                 `Non-critical: permission resolution failed for verify response: ${permErr.message}`
