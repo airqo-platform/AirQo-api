@@ -2318,6 +2318,8 @@ const deviceUtil = {
             responseFromTransformRequestBody.status || httpStatus.BAD_REQUEST,
           errors: {
             message:
+              (responseFromTransformRequestBody.errors &&
+                responseFromTransformRequestBody.errors.message) ||
               responseFromTransformRequestBody.message ||
               "the device details could not be transformed into a payload accepted by the external device-channel provider -- crosscheck required fields such as name/long_name",
           },
@@ -2325,25 +2327,48 @@ const deviceUtil = {
       }
       return await axios
         .post(baseURL, transformedBody)
-        .then((response) => {
-          let writeKey = response.data.api_keys[0].write_flag
-            ? response.data.api_keys[0].api_key
-            : "";
-          let readKey = !response.data.api_keys[1].write_flag
-            ? response.data.api_keys[1].api_key
-            : "";
+        .then(async (response) => {
+          try {
+            const apiKeys = response.data && response.data.api_keys;
+            if (
+              isEmpty(response.data && response.data.id) ||
+              !apiKeys ||
+              !apiKeys[0] ||
+              !apiKeys[1]
+            ) {
+              throw new Error(
+                "the external device-channel provider returned an unexpected response shape",
+              );
+            }
+            let writeKey = apiKeys[0].write_flag ? apiKeys[0].api_key : "";
+            let readKey = !apiKeys[1].write_flag ? apiKeys[1].api_key : "";
 
-          let newChannel = {
-            device_number: `${response.data.id}`,
-            writeKey: writeKey,
-            readKey: readKey,
-          };
+            let newChannel = {
+              device_number: `${response.data.id}`,
+              writeKey: writeKey,
+              readKey: readKey,
+            };
 
-          return {
-            success: true,
-            message: "successfully created the device on thingspeak",
-            data: newChannel,
-          };
+            return {
+              success: true,
+              message: "successfully created the device on thingspeak",
+              data: newChannel,
+            };
+          } catch (parseError) {
+            if (response.data && !isEmpty(response.data.id)) {
+              await deviceUtil.deleteOnThingspeak(
+                { query: { device_number: response.data.id } },
+                next,
+              );
+            }
+            return {
+              success: false,
+              status: httpStatus.BAD_GATEWAY,
+              errors: {
+                message: `the external device-channel provider returned an unusable response while creating the device channel (${parseError.message}) -- an internal team member should check the provider's response format; any partially-created channel was rolled back`,
+              },
+            };
+          }
         })
         .catch((error) => {
           if (error.response) {
@@ -2351,9 +2376,24 @@ const deviceUtil = {
               error.response.status ||
               parseInt(error.response.data && error.response.data.status) ||
               httpStatus.INTERNAL_SERVER_ERROR;
+            const normalizeProviderDetail = (value) => {
+              if (typeof value === "string") return value;
+              if (Array.isArray(value)) {
+                return value
+                  .map(normalizeProviderDetail)
+                  .filter(Boolean)
+                  .join("; ");
+              }
+              if (value && typeof value === "object") {
+                return value.message || value.error || JSON.stringify(value);
+              }
+              return undefined;
+            };
             const channelProviderMessage =
-              (error.response.data &&
-                (error.response.data.error || error.response.data.message)) ||
+              normalizeProviderDetail(
+                error.response.data &&
+                  (error.response.data.error || error.response.data.message),
+              ) ||
               error.response.statusText ||
               "the external channel provider rejected the channel creation request";
             return {
