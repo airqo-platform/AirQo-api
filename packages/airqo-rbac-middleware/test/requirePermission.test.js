@@ -84,8 +84,14 @@ describe("requirePermission middleware", () => {
   });
 
   it("propagates auth-service's explicit rejection status/message", async () => {
-    axiosGetStub.resolves({
-      data: { success: false, status: 401, message: "Token expired" },
+    // axios rejects (rather than resolves) for non-2xx responses — this
+    // mirrors what auth-service actually returns for an invalid token
+    // (a real 401), exercising verifyTokenClient's err.response branch.
+    axiosGetStub.rejects({
+      response: {
+        status: 401,
+        data: { success: false, status: 401, message: "Token expired" },
+      },
     });
 
     const middleware = requirePermission("DEVICE_UPDATE", {
