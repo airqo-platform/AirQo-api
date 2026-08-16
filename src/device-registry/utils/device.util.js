@@ -2314,41 +2314,110 @@ const deviceUtil = {
         return {
           success: false,
           message: responseFromTransformRequestBody.message,
+          status:
+            responseFromTransformRequestBody.status || httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              (responseFromTransformRequestBody.errors &&
+                responseFromTransformRequestBody.errors.message) ||
+              responseFromTransformRequestBody.message ||
+              "the device details could not be transformed into a payload accepted by the external device-channel provider -- crosscheck required fields such as name/long_name",
+          },
         };
       }
       return await axios
         .post(baseURL, transformedBody)
-        .then((response) => {
-          let writeKey = response.data.api_keys[0].write_flag
-            ? response.data.api_keys[0].api_key
-            : "";
-          let readKey = !response.data.api_keys[1].write_flag
-            ? response.data.api_keys[1].api_key
-            : "";
+        .then(async (response) => {
+          try {
+            const apiKeys = response.data && response.data.api_keys;
+            const writeKeyEntry = Array.isArray(apiKeys)
+              ? apiKeys.find((key) => key && key.write_flag)
+              : undefined;
+            const readKeyEntry = Array.isArray(apiKeys)
+              ? apiKeys.find((key) => key && !key.write_flag)
+              : undefined;
+            const writeKey = writeKeyEntry && writeKeyEntry.api_key;
+            const readKey = readKeyEntry && readKeyEntry.api_key;
 
-          let newChannel = {
-            device_number: `${response.data.id}`,
-            writeKey: writeKey,
-            readKey: readKey,
-          };
+            if (
+              isEmpty(response.data && response.data.id) ||
+              isEmpty(writeKey) ||
+              isEmpty(readKey)
+            ) {
+              throw new Error(
+                "the external device-channel provider returned an unexpected response shape",
+              );
+            }
 
-          return {
-            success: true,
-            message: "successfully created the device on thingspeak",
-            data: newChannel,
-          };
+            let newChannel = {
+              device_number: `${response.data.id}`,
+              writeKey,
+              readKey,
+            };
+
+            return {
+              success: true,
+              message: "successfully created the device on thingspeak",
+              data: newChannel,
+            };
+          } catch (parseError) {
+            let cleanupMessage = "any partially-created channel was rolled back";
+            if (response.data && !isEmpty(response.data.id)) {
+              try {
+                const responseFromDeleteOnThingspeak = await deviceUtil.deleteOnThingspeak(
+                  { query: { device_number: response.data.id } },
+                  next,
+                );
+                if (
+                  !responseFromDeleteOnThingspeak ||
+                  !responseFromDeleteOnThingspeak.success
+                ) {
+                  cleanupMessage = `the partially-created channel (device_number: ${response.data.id}) could NOT be automatically rolled back -- manual cleanup on the external device-channel provider is required`;
+                }
+              } catch (cleanupError) {
+                cleanupMessage = `the partially-created channel (device_number: ${response.data.id}) could NOT be automatically rolled back (${cleanupError.message}) -- manual cleanup on the external device-channel provider is required`;
+              }
+            }
+            return {
+              success: false,
+              status: httpStatus.BAD_GATEWAY,
+              errors: {
+                message: `the external device-channel provider returned an unusable response while creating the device channel (${parseError.message}) -- an internal team member should check the provider's response format; ${cleanupMessage}`,
+              },
+            };
+          }
         })
         .catch((error) => {
           if (error.response) {
+            const status =
+              error.response.status ||
+              parseInt(error.response.data && error.response.data.status) ||
+              httpStatus.INTERNAL_SERVER_ERROR;
+            const normalizeProviderDetail = (value) => {
+              if (typeof value === "string") return value;
+              if (Array.isArray(value)) {
+                return value
+                  .map(normalizeProviderDetail)
+                  .filter(Boolean)
+                  .join("; ");
+              }
+              if (value && typeof value === "object") {
+                return value.message || value.error || JSON.stringify(value);
+              }
+              return undefined;
+            };
+            const channelProviderMessage =
+              normalizeProviderDetail(
+                error.response.data &&
+                  (error.response.data.error || error.response.data.message),
+              ) ||
+              error.response.statusText ||
+              "the external channel provider rejected the channel creation request";
             return {
               success: false,
-              status: error.response.status
-                ? error.response.status
-                : parseInt(error.response.data.status),
+              status,
               errors: {
-                message: error.response.statusText
-                  ? error.response.statusText
-                  : error.response.data.error,
+                message: `device channel creation failed with HTTP ${status}: ${channelProviderMessage} -- an internal team member should check the external device-channel provider (e.g. account quota, API key validity, service status)`,
               },
             };
           } else {
@@ -2357,8 +2426,9 @@ const deviceUtil = {
               message: "Bad Gateway Error",
               status: httpStatus.BAD_GATEWAY,
               errors: {
-                message:
-                  "unable to create the device on thingspeak, crosscheck why",
+                message: `unable to reach the external device-channel provider to create the device channel${
+                  error.code ? ` (${error.code})` : ""
+                } -- an internal team member should crosscheck the channel provider's base URL/API key configuration, account status, and network connectivity`,
               },
             };
           }
