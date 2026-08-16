@@ -2314,6 +2314,8 @@ const deviceUtil = {
         return {
           success: false,
           message: responseFromTransformRequestBody.message,
+          status:
+            responseFromTransformRequestBody.status || httpStatus.BAD_REQUEST,
           errors: {
             message:
               responseFromTransformRequestBody.message ||
@@ -2345,9 +2347,10 @@ const deviceUtil = {
         })
         .catch((error) => {
           if (error.response) {
-            const status = error.response.status
-              ? error.response.status
-              : parseInt(error.response.data && error.response.data.status);
+            const status =
+              error.response.status ||
+              parseInt(error.response.data && error.response.data.status) ||
+              httpStatus.INTERNAL_SERVER_ERROR;
             const channelProviderMessage =
               (error.response.data &&
                 (error.response.data.error || error.response.data.message)) ||
