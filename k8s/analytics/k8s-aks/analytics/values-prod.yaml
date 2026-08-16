@@ -35,7 +35,7 @@ api:
 jobs:
   reports:
     name: analytics-report
-    secret: prod-env-analytics-report-job
+    secret: prod-env-analytics
   resources:
     requests:
       cpu: 500m
