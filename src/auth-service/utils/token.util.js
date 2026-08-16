@@ -16,6 +16,7 @@ const BlockedDomainModel = require("@models/BlockedDomain");
 const BlockedASNModel = require("@models/BlockedASN");
 const FlaggedTokenModel = require("@models/FlaggedToken");
 const { AbstractTokenFactory } = require("@services/atf.service");
+const RBACService = require("@services/rbac.service");
 const {
   redisGetAsync,
   redisSetAsync,
@@ -1946,12 +1947,31 @@ const token = {
             endpoint: endpoint ? endpoint : "unknown",
           });
 
+          // Resolve the token owner's permissions so downstream services
+          // (e.g. device-registry) can enforce RBAC without direct DB access
+          // to auth-service. Non-critical: if this lookup fails, permissions
+          // stays empty and callers relying on it correctly fail closed
+          // rather than silently granting access.
+          let permissions = [];
+          if (client.user_id) {
+            try {
+              permissions = await RBACService.getInstance(
+                "airqo"
+              ).getUserPermissions(client.user_id);
+            } catch (permErr) {
+              logger.error(
+                `Non-critical: permission resolution failed for verify response: ${permErr.message}`
+              );
+            }
+          }
+
           // Return resource-binding data so downstream services (e.g.
           // device-registry) can enforce grid/cohort restrictions without a
           // second DB call.
           return createValidTokenResponse({
             allowed_grids:   accessToken.allowed_grids   || [],
             allowed_cohorts: accessToken.allowed_cohorts || [],
+            permissions,
           });
         }
       }

@@ -820,4 +820,96 @@ describe("token util", () => {
       expect(threw).to.equal(false);
     });
   });
+
+  describe("verifyToken() - permissions in response", () => {
+    let origIsIPBlacklisted, origRBACService;
+
+    const stubHappyPathDeps = () => {
+      rewireToken.__set__("AccessTokenModel", () => ({
+        findOne: () => ({
+          select: sinon.stub().resolves({
+            client_id: "client-1",
+            token: "raw-token-123",
+            allowed_grids: [],
+            allowed_cohorts: [],
+            scopes: [],
+          }),
+        }),
+      }));
+
+      rewireToken.__set__("ClientModel", () => ({
+        findById: () => ({
+          select: sinon.stub().resolves({
+            isActive: true,
+            user_id: "user-1",
+            enforce_origin: false,
+          }),
+        }),
+      }));
+
+      rewireToken.__set__("UserModel", () => ({
+        updateOne: sinon.stub().resolves({}),
+      }));
+
+      rewireToken.__set__("isIPBlacklisted", sinon.stub().resolves(false));
+    };
+
+    beforeEach(() => {
+      origIsIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+      origRBACService = rewireToken.__get__("RBACService");
+    });
+
+    afterEach(() => {
+      rewireToken.__set__("isIPBlacklisted", origIsIPBlacklisted);
+      rewireToken.__set__("RBACService", origRBACService);
+    });
+
+    it("includes the token owner's permissions in a successful verify response", async () => {
+      stubHappyPathDeps();
+      rewireToken.__set__("RBACService", {
+        getInstance: sinon.stub().returns({
+          getUserPermissions: sinon
+            .stub()
+            .resolves(["DEVICE_VIEW", "DEVICE_UPDATE"]),
+        }),
+      });
+
+      const request = {
+        headers: { "x-client-ip": "1.2.3.4" },
+        params: { token: "raw-token-123" },
+      };
+
+      const result = await rewireToken.verifyToken(request, next);
+
+      expect(result.success).to.equal(true);
+      expect(result.data.permissions).to.deep.equal([
+        "DEVICE_VIEW",
+        "DEVICE_UPDATE",
+      ]);
+      // Existing fields must be preserved — this must be an additive change.
+      expect(result.data).to.have.property("allowed_grids");
+      expect(result.data).to.have.property("allowed_cohorts");
+    });
+
+    it("returns an empty permissions array (so callers fail closed) if permission lookup throws", async () => {
+      stubHappyPathDeps();
+      rewireToken.__set__("RBACService", {
+        getInstance: sinon.stub().returns({
+          getUserPermissions: sinon
+            .stub()
+            .rejects(new Error("RBAC lookup failed")),
+        }),
+      });
+
+      const request = {
+        headers: { "x-client-ip": "1.2.3.4" },
+        params: { token: "raw-token-123" },
+      };
+
+      const result = await rewireToken.verifyToken(request, next);
+
+      expect(result.success).to.equal(true);
+      expect(result.data.permissions).to.deep.equal([]);
+    });
+  });
 });
