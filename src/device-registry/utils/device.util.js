@@ -2325,6 +2325,21 @@ const deviceUtil = {
           },
         };
       }
+
+      // the external device-channel provider's channel-creation endpoint
+      // expects "tags" as a comma-separated string, not a JSON array --
+      // sending an array causes the provider to fail with an HTTP 500
+      if (Array.isArray(transformedBody.tags)) {
+        const normalizedTags = transformedBody.tags
+          .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+          .filter(Boolean);
+        if (normalizedTags.length > 0) {
+          transformedBody.tags = normalizedTags.join(",");
+        } else {
+          delete transformedBody.tags;
+        }
+      }
+
       return await axios
         .post(baseURL, transformedBody)
         .then(async (response) => {

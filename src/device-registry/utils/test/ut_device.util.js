@@ -1916,8 +1916,74 @@ describe("Device Util", () => {
         const result = await deviceUtil.createOnThingSpeak({ body: {} });
 
         expect(result.success).to.be.false;
-        expect(result.errors.message).to.equal("Bad Request");
+        expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+        expect(result.errors.message).to.include("Bad Request");
         expect(axios.post.calledOnce).to.be.true;
+      });
+
+      it("should send array tags to the external provider as a comma-separated string", async () => {
+        const responseFromPost = {
+          data: {
+            api_keys: [
+              { write_flag: true, api_key: "WRITE_KEY" },
+              { write_flag: false, api_key: "READ_KEY" },
+            ],
+            id: "DEVICE_ID",
+          },
+        };
+        sinon.stub(axios, "post").resolves(responseFromPost);
+
+        const request = { body: { name: "aq_001", tags: ["pm2.5", "humidity"] } };
+        const result = await deviceUtil.createOnThingSpeak(request);
+
+        expect(result.success).to.be.true;
+        expect(axios.post.calledOnce).to.be.true;
+        const outboundBody = axios.post.firstCall.args[1];
+        expect(outboundBody.tags).to.equal("pm2.5,humidity");
+        // the original request body must be untouched -- tags are stored
+        // as an array in our own database independently of this call
+        expect(request.body.tags).to.deep.equal(["pm2.5", "humidity"]);
+      });
+
+      it("should trim tags and drop blank entries before sending to the external provider", async () => {
+        const responseFromPost = {
+          data: {
+            api_keys: [
+              { write_flag: true, api_key: "WRITE_KEY" },
+              { write_flag: false, api_key: "READ_KEY" },
+            ],
+            id: "DEVICE_ID",
+          },
+        };
+        sinon.stub(axios, "post").resolves(responseFromPost);
+
+        const request = {
+          body: { name: "aq_001", tags: [" inlab ", "", "  ", "industrial"] },
+        };
+        const result = await deviceUtil.createOnThingSpeak(request);
+
+        expect(result.success).to.be.true;
+        const outboundBody = axios.post.firstCall.args[1];
+        expect(outboundBody.tags).to.equal("inlab,industrial");
+      });
+
+      it("should omit tags entirely when only blank entries are provided", async () => {
+        const responseFromPost = {
+          data: {
+            api_keys: [
+              { write_flag: true, api_key: "WRITE_KEY" },
+              { write_flag: false, api_key: "READ_KEY" },
+            ],
+            id: "DEVICE_ID",
+          },
+        };
+        sinon.stub(axios, "post").resolves(responseFromPost);
+
+        const request = { body: { name: "aq_001", tags: ["", "  "] } };
+        await deviceUtil.createOnThingSpeak(request);
+
+        const outboundBody = axios.post.firstCall.args[1];
+        expect(outboundBody).to.not.have.property("tags");
       });
 
       it("should handle axios.post failure without response and return failure status", async () => {
