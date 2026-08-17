@@ -16,6 +16,7 @@ const {
   handleResponse,
 } = require("@utils/common");
 const { logObject, logText } = require("@utils/shared");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 // Job identification
 const JOB_NAME = "incomplete-profile-job";
@@ -29,6 +30,12 @@ const checkStatus = async () => {
   // Prevent overlapping executions
   if (isJobRunning) {
     logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    return;
+  }
+
+  const gotLock = await acquireCronLock("airqo", JOB_NAME);
+  if (!gotLock) {
+    logger.info(`${JOB_NAME}: another pod already handled this run — skipping`);
     return;
   }
 

@@ -5,6 +5,7 @@ const logger = log4js.getLogger(
 );
 const cron = require("node-cron");
 const UnknownIPModel = require("@models/UnknownIP");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const JOB_NAME = "unknown-ip-cleanup-job";
 // Run every Sunday at 02:00 AM — low-traffic window
@@ -26,6 +27,9 @@ const cleanupUnknownIPs = async () => {
   }
 
   const tenant = constants.DEFAULT_TENANT || "airqo";
+
+  const gotLock = await acquireCronLock(tenant, JOB_NAME);
+  if (!gotLock) return;
 
   try {
     logger.info(`${JOB_NAME}: starting cleanup (retention = ${RETENTION_DAYS} days)`);

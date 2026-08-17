@@ -3,6 +3,7 @@ const TransactionModel = require("@models/Transaction");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const { stringify } = require("@utils/common");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-amount-fix-job`
@@ -31,6 +32,9 @@ const fixTransactionAmounts = async () => {
   isJobRunning = true;
 
   try {
+    const gotLock = await acquireCronLock(TENANT, jobName);
+    if (!gotLock) return;
+
     // Fast pre-check: exit immediately if there is nothing to fix.
     const dirtyCount = await TransactionModel(TENANT).countDocuments(
       DIRTY_FILTER

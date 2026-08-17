@@ -7,6 +7,7 @@ const log4js = require("log4js");
 const { mailer, stringify } = require("@utils/common");
 const httpStatus = require("http-status");
 const cron = require("node-cron");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/check-subscription-status -- ops-alerts`,
@@ -17,6 +18,10 @@ const checkSubscriptionStatuses = async () => {
     logger.warn("Paddle not configured — skipping subscription status check job");
     return;
   }
+
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
+
   try {
     const batchSize = 100;
     let skip = 0;

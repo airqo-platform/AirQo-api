@@ -11,11 +11,13 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preference-update-job`
 );
 const { stringify } = require("@utils/common");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const isEmpty = require("is-empty");
 const BATCH_SIZE = 100;
 const NUMBER_OF_SITES_PER_USER = 2; // Number of sites to select for each user
 const SELECTION_POOL_SIZE = 20; // Size of the pool to select from
+const jobName = "preferences-update-job";
 
 // Function to validate critical default values
 const validateDefaultValues = () => {
@@ -127,6 +129,9 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
   }
 
   try {
+    const gotLock = await acquireCronLock("airqo", jobName);
+    if (!gotLock) return;
+
     const batchSize = BATCH_SIZE;
     let skip = 0;
 
@@ -257,7 +262,6 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
 
 global.cronJobs = global.cronJobs || {};
 const schedule = "30 * * * *"; // At minute 30 of every hour
-const jobName = "preferences-update-job";
 global.cronJobs[jobName] = cron.schedule(
   schedule,
   () => updatePreferences("featured"),
