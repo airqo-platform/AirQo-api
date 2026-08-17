@@ -3,6 +3,7 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const { mailer, stringify } = require("@utils/common");
 const log4js = require("log4js");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/inactive-users-job script -- ops-alerts`,
 );
@@ -11,10 +12,15 @@ const inactiveThresholdInDays = 45;
 const reminderCooldownInDays = 90; // Don't send reminders more than once every 90 days
 const BATCH_SIZE = 100;
 const CONCURRENCY_LIMIT = 10; // Number of emails to send in parallel
+const jobName = "inactive-users-job";
 
 const sendInactivityReminders = async () => {
   try {
     const tenant = (constants.DEFAULT_TENANT || "airqo").toLowerCase();
+
+    const gotLock = await acquireCronLock(tenant, jobName);
+    if (!gotLock) return;
+
     const now = new Date();
 
     const inactiveThresholdDate = new Date();

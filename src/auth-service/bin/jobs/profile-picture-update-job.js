@@ -10,12 +10,14 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/profile-picture-update-job`
 );
 const { stringify } = require("@utils/common");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 const isEmpty = require("is-empty");
 
 // Configuration
 const BATCH_SIZE = 100;
 const DEFAULT_PROFILE_PICTURE = constants.DEFAULT_ORGANISATION_PROFILE_PICTURE;
 const MAX_CONCURRENT_OPERATIONS = 5; // Limit concurrent operations
+const jobName = "profile-picture-update-job";
 
 // Function to validate URL
 const isValidUrl = (url) => {
@@ -104,6 +106,9 @@ async function updateProfilePictures() {
     return;
   }
 
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
+
   const stats = {
     networks: { processed: 0, success: 0, error: 0 },
     groups: { processed: 0, success: 0, error: 0 },
@@ -187,7 +192,6 @@ async function updateProfilePictures() {
 global.cronJobs = global.cronJobs || {};
 // // Schedule the job to run daily at midnight
 const schedule = "0 0 * * *";
-const jobName = "profile-picture-update-job";
 global.cronJobs[jobName] = cron.schedule(schedule, updateProfilePictures, {
   scheduled: true,
   timezone: "Africa/Nairobi",

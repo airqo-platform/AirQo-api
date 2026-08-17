@@ -8,6 +8,7 @@ const { logObject, logText } = require("@utils/shared");
 
 const { LogModel } = require("@models/log");
 const ActivityModel = require("@models/Activity");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const BATCH_SIZE = 500;
 const MAX_RETRIES = 3;
@@ -310,6 +311,9 @@ async function updateUserActivities({ tenant = "airqo" } = {}, retryCount = 0) {
 
 async function runUpdateUserActivities() {
   try {
+    const gotLock = await acquireCronLock("airqo", jobName);
+    if (!gotLock) return;
+
     const result = await updateUserActivities({ tenant: "airqo" });
     logObject("Run result", result);
   } catch (error) {

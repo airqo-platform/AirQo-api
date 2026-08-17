@@ -11,6 +11,7 @@ const UserModel = require("@models/User");
 const tokenUtil = require("@utils/token.util");
 const { mailer } = require("@utils/common");
 const { logText } = require("@utils/shared");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const TIMEZONE = constants.TIMEZONE || "Africa/Kampala";
 const DAILY_SCHEDULE = "0 9 * * *"; // 9:00 AM every day
@@ -168,6 +169,8 @@ const sendWeeklyBypassDigest = async (tenant = "airqo") => {
 const runDailyBypassMaintenance = async (tenant = "airqo") => {
   try {
     if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") return;
+    const gotLock = await acquireCronLock(tenant, "bypass-expiry-job-daily");
+    if (!gotLock) return;
     await revokeExpiredBypasses(tenant);
     await sendUpcomingExpiryReminders(tenant);
   } catch (error) {
@@ -178,6 +181,8 @@ const runDailyBypassMaintenance = async (tenant = "airqo") => {
 const runWeeklyBypassDigest = async (tenant = "airqo") => {
   try {
     if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") return;
+    const gotLock = await acquireCronLock(tenant, "bypass-expiry-job-weekly");
+    if (!gotLock) return;
     await sendWeeklyBypassDigest(tenant);
   } catch (error) {
     logger.error(`bypass-expiry-job weekly digest failed: ${error.message}`);

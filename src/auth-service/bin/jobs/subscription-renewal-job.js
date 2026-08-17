@@ -8,6 +8,7 @@ const log4js = require("log4js");
 const httpStatus = require("http-status");
 const cron = require("node-cron");
 const { mailer, stringify } = require("@utils/common");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- subscription-renewal-utils -- ops-alerts`,
@@ -22,6 +23,10 @@ const subscriptionRenewalUtils = {
       logger.warn("Paddle not configured — skipping automatic renewal job");
       return;
     }
+
+    const gotLock = await acquireCronLock("airqo", "subscription-renewal-job");
+    if (!gotLock) return;
+
     try {
       const batchSize = 100;
       let skip = 0;
@@ -140,6 +145,12 @@ const subscriptionRenewalUtils = {
    */
   sendUpcomingRenewalNotifications: async () => {
     try {
+      const gotLock = await acquireCronLock(
+        "airqo",
+        "subscription-renewal-notification-job",
+      );
+      if (!gotLock) return;
+
       const batchSize = 100;
       let skip = 0;
 

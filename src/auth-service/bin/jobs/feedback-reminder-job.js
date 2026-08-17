@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const constants = require("@config/constants");
 const mailer = require("@utils/common/mailer.util");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 const log4js = require("log4js");
 
 const logger = log4js.getLogger(
@@ -13,6 +14,8 @@ const STALE_THRESHOLD_DAYS = constants.FEEDBACK_REMINDER_THRESHOLD_DAYS;
 // Cap the digest at this many items to keep the email readable.
 const MAX_ITEMS_PER_DIGEST = 50;
 
+const jobName = "feedback-reminder-job";
+
 const sendFeedbackReminderDigest = async () => {
   // Require the model here (not at module load) so the DB connection is ready.
   const FeedbackModel = require("@models/Feedback");
@@ -20,6 +23,14 @@ const sendFeedbackReminderDigest = async () => {
 
   if (!constants.SUPPORT_EMAIL) {
     logger.warn("SUPPORT_EMAIL not configured — skipping feedback reminder job");
+    return;
+  }
+
+  const gotLock = await acquireCronLock(tenant, jobName);
+  if (!gotLock) {
+    logger.info(
+      "Feedback reminder job: another pod already handled this week's digest — skipping",
+    );
     return;
   }
 
@@ -72,7 +83,6 @@ const sendFeedbackReminderDigest = async () => {
 global.cronJobs = global.cronJobs || {};
 // Every Monday at 8 AM Nairobi time
 const schedule = "0 8 * * 1";
-const jobName = "feedback-reminder-job";
 global.cronJobs[jobName] = cron.schedule(
   schedule,
   sendFeedbackReminderDigest,
