@@ -16,8 +16,12 @@ const {
   generateFilter,
   handleResponse,
 } = require("@utils/common");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const checkStatus = async () => {
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
+
   try {
     const thresholdDate = new Date(Date.now() - inactiveThreshold);
     const batchSize = 100;

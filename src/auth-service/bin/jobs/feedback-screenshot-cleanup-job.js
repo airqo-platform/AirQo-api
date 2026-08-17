@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const cloudinary = require("@config/cloudinary");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/feedback-screenshot-cleanup-job`,
@@ -23,6 +24,9 @@ const cleanupOldFeedbackScreenshots = async () => {
     );
     return;
   }
+
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
