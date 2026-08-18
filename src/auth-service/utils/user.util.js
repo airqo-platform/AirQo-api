@@ -21,6 +21,7 @@ const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
+const createRequestUtil = require("@utils/request.util.js");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db, getDb } = require("@config/firebase-admin");
@@ -4165,6 +4166,13 @@ const createUserModule = {
           `PostHog registration track error: ${analyticsError.message}`,
         );
       }
+
+      // Fire-and-forget: never block or fail registration on this.
+      createRequestUtil.autoSuggestGroupsByDomain(
+        user_id,
+        normalizedEmail,
+        dbTenant,
+      );
 
       const token = accessCodeGenerator
         .generate(

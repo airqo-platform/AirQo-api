@@ -4,6 +4,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const PreferenceModel = require("@models/Preference");
 const GroupModel = require("@models/Group");
+const ActivityLogModel = require("@models/ActivityLog");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 const { generateFilter } = require("@utils/common");
@@ -17,6 +18,7 @@ const logger = require("log4js").getLogger(
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
 const mailer = require("@utils/common/mailer.util");
+const { ActivityLogger } = require("@utils/common/activity-logger.util");
 const {
   invalidateUserRBACCache,
 } = require("@services/rbac.service");
@@ -421,6 +423,52 @@ const groupUtil = {
       );
     }
   },
+
+  /**
+   * Replace a group's verified email domains (used for registration-time
+   * auto-suggestion — never for instant membership). Restricted at the route
+   * level to SYSTEM_ADMIN, deliberately not group managers, so a group admin
+   * can't claim a domain they don't control and silently absorb its users.
+   */
+  updateEmailDomains: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+      const { email_domains } = request.body;
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { grp_email_domains: email_domains || [] },
+        { new: true, runValidators: true },
+      );
+
+      if (!updatedGroup) {
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${grp_id} not found`,
+          }),
+        );
+        return;
+      }
+
+      return {
+        success: true,
+        message: "Group email domains updated successfully",
+        data: { grp_email_domains: updatedGroup.grp_email_domains },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   /**
    * Generate a slug from a group title
    * @param {string} title - The group title
@@ -1496,6 +1544,19 @@ const groupUtil = {
         );
 
         if (assignmentResult && assignmentResult.success) {
+          ActivityLogger.logActivity({
+            tenant,
+            group_id: grp_id,
+            activity_type: "MEMBER_ADDED",
+            actor: { user_id: request.user?._id, email: request.user?.email },
+            target_user: {
+              user_id: assignmentResult.data._id,
+              email: assignmentResult.data.email,
+              name: `${assignmentResult.data.firstName || ""} ${
+                assignmentResult.data.lastName || ""
+              }`.trim(),
+            },
+          });
           return {
             success: true,
             message: "User assigned to the Group successfully",
@@ -1622,6 +1683,13 @@ const groupUtil = {
             "user",
           );
           results.successful.push(user_id);
+          ActivityLogger.logActivity({
+            tenant,
+            group_id: grp_id,
+            activity_type: "MEMBER_ADDED",
+            actor: { user_id: request.user?._id, email: request.user?.email },
+            target_user: { user_id, email: user.email },
+          });
         } catch (error) {
           results.failed_assignments.push({ user_id, reason: error.message });
           logger.error(`Failed to assign user ${user_id}: ${error.message}`);
@@ -1760,6 +1828,19 @@ const groupUtil = {
       );
 
       if (!isEmpty(updatedUser)) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: grp_id,
+          activity_type: "MEMBER_REMOVED",
+          actor: { user_id: request.user?._id, email: request.user?.email },
+          target_user: {
+            user_id: updatedUser._id,
+            email: updatedUser.email,
+            name: `${updatedUser.firstName || ""} ${
+              updatedUser.lastName || ""
+            }`.trim(),
+          },
+        });
         return {
           success: true,
           message: "Successfully unassigned User from the Group",
@@ -1963,6 +2044,14 @@ const groupUtil = {
         logger.info(
           `Deleted ${deleteResult.deletedCount} preferences for users from group ${grp_id}`,
         );
+
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: grp_id,
+          activity_type: "MEMBER_REMOVED",
+          actor: { user_id: request.user?._id, email: request.user?.email },
+          details: `Bulk removal of ${nModified} user(s): ${user_ids.join(", ")}`,
+        });
 
         if (notFoundCount > 0) {
           return {
@@ -2470,6 +2559,21 @@ const groupUtil = {
           tenant,
         );
       }
+
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "MANAGER_CHANGED",
+        actor: { user_id: request.user?._id, email: request.user?.email },
+        target_user: {
+          user_id: user._id,
+          email: user.email,
+          name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        },
+        details: group.grp_manager
+          ? `Manager changed from ${group.grp_manager_username || group.grp_manager} to ${user.email}`
+          : `Manager set to ${user.email}`,
+      });
 
       return {
         success: true,
@@ -3256,6 +3360,21 @@ const groupUtil = {
         { new: true },
       );
 
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "ROLE_ASSIGNED",
+        actor: { user_id: request.user?._id, email: request.user?.email },
+        target_user: {
+          user_id: user._id,
+          email: user.email,
+          name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        },
+        details: reason
+          ? `Assigned role ${role.role_name}: ${reason}`
+          : `Assigned role ${role.role_name}`,
+      });
+
       return {
         success: true,
         message: `Role ${role.role_name} successfully assigned to user`,
@@ -3641,9 +3760,8 @@ const groupUtil = {
       }
 
       if (activity_type) filter.activity_type = activity_type;
-      if (user_id) filter.actor_id = user_id;
+      if (user_id) filter["actor.user_id"] = user_id;
 
-      // We will have a dedicated ActivityLog model
       const activities = await groupUtil.getActivityLogEntries(filter, {
         limit: parseInt(limit),
         skip: parseInt(skip),
@@ -4161,28 +4279,27 @@ const groupUtil = {
   /**
    * Helper: Get activity log entries
    */
-  getActivityLogEntries: async (filter, options) => {
+  getActivityLogEntries: async (filter, options = {}) => {
     try {
-      // Mock activity data for demonstration
-      // In production, this would query your ActivityLog model
-      return [
-        {
-          id: "activity_1",
-          activity_type: "member_added",
-          actor: { name: "John Manager", email: "john@example.com" },
-          target_user: { name: "Jane Doe", email: "jane@example.com" },
-          details: { role: "Member" },
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "activity_2",
-          activity_type: "role_assigned",
-          actor: { name: "John Manager", email: "john@example.com" },
-          target_user: { name: "Bob Smith", email: "bob@example.com" },
-          details: { role: "Admin", previous_role: "Member" },
-          timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-      ];
+      const { limit = 100, skip = 0, tenant } = options;
+      const response = await ActivityLogModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+
+      if (!response || response.success === false) {
+        return [];
+      }
+
+      return (response.data || []).map((entry) => ({
+        id: entry._id,
+        activity_type: entry.activity_type,
+        actor: entry.actor,
+        target_user: entry.target_user,
+        details: entry.details,
+        timestamp: entry.createdAt,
+      }));
     } catch (error) {
       logger.error(`Error getting activity log entries: ${error.message}`);
       return [];
@@ -4803,6 +4920,14 @@ const groupUtil = {
           }),
         );
       }
+
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "MEMBER_LEFT",
+        actor: { user_id: updatedUser._id, email: updatedUser.email },
+        target_user: { user_id: updatedUser._id, email: updatedUser.email },
+      });
 
       return {
         success: true,

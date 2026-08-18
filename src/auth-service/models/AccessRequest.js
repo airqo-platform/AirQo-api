@@ -45,7 +45,7 @@ const AccessRequestSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "cancelled"],
       default: "pending",
     },
     invitationToken: {
@@ -72,6 +72,22 @@ const AccessRequestSchema = new Schema(
       type: String,
       trim: true,
       maxlength: 1000, // matches groupValidations.sendGroupInvitations' body("invitations.*.message") limit
+    },
+    cancelled_by: {
+      type: ObjectId,
+      ref: "user",
+    },
+    cancelled_at: {
+      type: Date,
+    },
+    source: {
+      type: String,
+      enum: ["manual", "domain_match", "join_link"],
+      default: "manual",
+    },
+    source_link_id: {
+      type: ObjectId,
+      ref: "group_join_link",
     },
   },
   {

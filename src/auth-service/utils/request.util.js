@@ -8,7 +8,7 @@ const isEmpty = require("is-empty");
 const validator = require("validator");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { mailer, generateFilter } = require("@utils/common");
+const { mailer, generateFilter, ActivityLogger } = require("@utils/common");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
@@ -517,6 +517,14 @@ const createAccessRequest = {
 
           if (responseFromCreateAccessRequest.success === true) {
             const createdAccessRequest = responseFromCreateAccessRequest.data;
+
+            ActivityLogger.logActivity({
+              tenant,
+              group_id: grp_id,
+              activity_type: "INVITE_SENT",
+              actor: { user_id: inviterId, email: inviterEmail },
+              target_user: { email: normalizedEmail },
+            });
 
             const userExists = !!existingUser;
 
@@ -1618,6 +1626,13 @@ const createAccessRequest = {
           );
 
           if (responseFromAssignUserToGroup.success === true) {
+            ActivityLogger.logActivity({
+              tenant,
+              group_id: accessRequest.targetId,
+              activity_type: "JOIN_REQUEST_APPROVED",
+              actor: { user_id: request.user?._id, email: request.user?.email },
+              target_user: { user_id: user._id, email },
+            });
             const updatedUserDetails = { groups: 1 };
             const responseFromSendEmail = await mailer.update(
               {
@@ -1783,6 +1798,16 @@ const createAccessRequest = {
       );
 
       if (responseFromModifyAccessRequest.success === true) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: accessRequest.targetId,
+          activity_type: "JOIN_REQUEST_REJECTED",
+          actor: { user_id: request.user?._id, email: request.user?.email },
+          target_user: accessRequest.user_id
+            ? { user_id: accessRequest.user_id, email: accessRequest.email }
+            : { email: accessRequest.email },
+        });
+
         // Send rejection notification email
         let userEmail = accessRequest.email;
         let userName = "User";
@@ -1867,6 +1892,146 @@ const createAccessRequest = {
     }
   },
 
+  cancelAccessRequest: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant } = query;
+      const { request_id } = params;
+      const cancelledBy = request.user ? request.user._id : undefined;
+
+      // Check if request exists
+      const accessRequest =
+        await AccessRequestModel(tenant).findById(request_id);
+
+      if (isEmpty(accessRequest)) {
+        return {
+          success: false,
+          message: "Access request does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "Access request does not exist, please crosscheck",
+          },
+        };
+      }
+
+      // Only a still-pending invite/request can be cancelled
+      if (accessRequest.status !== "pending") {
+        return {
+          success: false,
+          message: `Cannot cancel request - it has already been ${accessRequest.status}`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This access request has already been ${accessRequest.status} and cannot be cancelled`,
+            current_status: accessRequest.status,
+            request_id: accessRequest._id,
+          },
+        };
+      }
+
+      const filter = { _id: ObjectId(accessRequest._id) };
+      const update = {
+        status: "cancelled",
+        cancelled_by: cancelledBy,
+        cancelled_at: new Date(),
+      };
+
+      const responseFromModifyAccessRequest = await AccessRequestModel(
+        tenant,
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next,
+      );
+
+      if (responseFromModifyAccessRequest.success === true) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: accessRequest.targetId,
+          activity_type: "INVITE_CANCELLED",
+          actor: { user_id: cancelledBy },
+          target_user: accessRequest.user_id
+            ? { user_id: accessRequest.user_id, email: accessRequest.email }
+            : { email: accessRequest.email },
+          details: `Invite to ${accessRequest.email || accessRequest.user_id} was cancelled before being accepted`,
+        });
+      }
+
+      return responseFromModifyAccessRequest;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  /**
+   * Fire-and-forget: if a newly-registered user's email domain matches any
+   * group's grp_email_domains, auto-create a PENDING AccessRequest to each
+   * matching group so the user doesn't have to search for it — the group's
+   * own admin still approves via the normal access-request flow. This is
+   * deliberately not instant membership (see grp_email_domains in
+   * models/Group.js for why). Never throws — registration must succeed
+   * regardless of what happens here.
+   */
+  autoSuggestGroupsByDomain: async (userId, email, tenant) => {
+    try {
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return;
+      }
+      const domain = email.split("@")[1].toLowerCase().trim();
+      if (!domain) {
+        return;
+      }
+
+      const matchingGroups = await GroupModel(tenant)
+        .find({ grp_email_domains: domain, grp_status: "ACTIVE" })
+        .lean();
+
+      if (isEmpty(matchingGroups)) {
+        return;
+      }
+
+      for (const group of matchingGroups) {
+        try {
+          const alreadyRequested = await AccessRequestModel(tenant).findOne({
+            user_id: userId,
+            targetId: group._id,
+            requestType: "group",
+            status: "pending",
+          });
+          if (alreadyRequested) {
+            continue;
+          }
+
+          await AccessRequestModel(tenant).register(
+            {
+              user_id: userId,
+              email,
+              targetId: group._id,
+              status: "pending",
+              requestType: "group",
+              source: "domain_match",
+            },
+            () => {},
+          );
+        } catch (perGroupError) {
+          logger.warn(
+            `autoSuggestGroupsByDomain: failed for group ${group._id}: ${perGroupError.message}`,
+          );
+        }
+      }
+    } catch (error) {
+      logger.warn(`autoSuggestGroupsByDomain failed: ${error.message}`);
+    }
+  },
+
   list: async (request, next) => {
     try {
       const { query } = request;
@@ -1926,7 +2091,17 @@ const createAccessRequest = {
     try {
       const { query, body } = request;
       const filter = generateFilter.requests(request, next);
-      const update = body;
+      // Only these fields may be changed via the generic update route — the
+      // caller is now authorized as a manager of the request's target group
+      // (see requireAccessRequestManagerAccess), but the request body itself
+      // must still not be able to rewrite targetId/email/requestType/etc.
+      const allowedFields = ["status", "message"];
+      const update = {};
+      allowedFields.forEach((field) => {
+        if (body[field] !== undefined) {
+          update[field] = body[field];
+        }
+      });
       const tenant = query.tenant;
 
       const responseFromModifyAccessRequest = await AccessRequestModel(
