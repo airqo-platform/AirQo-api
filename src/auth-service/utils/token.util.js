@@ -971,7 +971,7 @@ const isIPBlacklistedHelper = async (
                   tokenName: listTokenResponse.data[0].name || "",
                   suspensionReason,
                   suspendedAt,
-                  cooldownKey: tokenHash,
+                  cooldownKey: listTokenResponse.data[0]._id || tokenHash,
                 })
                 .catch((e) =>
                   logger.error(
@@ -1204,12 +1204,17 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
             emailResponse &&
             emailResponse.success !== false &&
             !emailResponse.data?.blocked &&
-            !emailResponse.data?.blockedByCooldown
+            !emailResponse.data?.blockedByCooldown &&
+            !emailResponse.data?.duplicate
           ) {
             logger.info(
-              `Auto-suspension email sent — user=${user.email} client=${accessToken.client_id}`
+              `Auto-suspension email queued — user=${user.email} client=${accessToken.client_id}`
             );
-          } else if (emailResponse?.data?.blockedByCooldown || emailResponse?.data?.blocked) {
+          } else if (
+            emailResponse?.data?.blockedByCooldown ||
+            emailResponse?.data?.blocked ||
+            emailResponse?.data?.duplicate
+          ) {
             logger.info(
               `Auto-suspension email suppressed by cooldown — user=${user.email} client=${accessToken.client_id}`
             );
