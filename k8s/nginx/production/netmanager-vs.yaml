@@ -55,7 +55,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/analytics
+    - path: ~ /api\/(?:v[1-2]\/|v3\/public\/)analytics
       action:
         proxy:
           upstream: analytics
