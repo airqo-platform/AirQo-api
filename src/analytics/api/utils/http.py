@@ -1,4 +1,4 @@
-from config import BaseConfig as Config
+from config import settings
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
@@ -100,8 +100,8 @@ class AirQoRequests:
         """
         Initialize the AirQoRequests instance.
         """
-        self.AIRQO_API_TOKEN = Config.AIRQO_API_TOKEN
-        self.BASE_URL_V2 = Config.AIRQO_API_BASE_URL
+        self.AIRQO_API_TOKEN = settings.airqo_api_token.get_secret_value()
+        self.BASE_URL_V2 = settings.airqo_api_base_url
 
     def request(self, endpoint, params=None, body=None, method="get", base_url=None):
         """
@@ -123,15 +123,31 @@ class AirQoRequests:
         headers: Dict[str, Any] = {}
         if params is None:
             params = {}
+        # SECURITY / TODO: the token is sent as a query parameter, so it lands
+        # in urllib3's retry log lines (they print the full URL) and in any
+        # exception text derived from that URL — i.e. a live credential is
+        # written to the log file and stdout whenever a call retries or fails.
+        # Moving it to an Authorization header requires a coordinated change
+        # on the device-registry side, so it is deliberately left as-is for
+        # now.
         params.update({"token": self.AIRQO_API_TOKEN})
 
+        # Retry budget is settings-driven: the old fixed total=5/backoff=5
+        # meant a worst case of ~75s, which is unacceptable for callers on
+        # the API request path (privacy checks during data download).
         retry_strategy = Retry(
-            total=5,
-            backoff_factor=5,
+            total=settings.airqo_api_retries,
+            backoff_factor=settings.airqo_api_backoff_factor,
         )
 
         http = urllib3.PoolManager(retries=retry_strategy)
         url = f"{base_url}/{endpoint}"
+
+        # Without an explicit timeout urllib3 waits forever. This runs inside
+        # asyncio.to_thread on the download path, so one hung device-registry
+        # socket permanently consumes a thread from the *shared* default
+        # executor — enough of them and every threaded operation stalls.
+        timeout = settings.airqo_api_timeout
 
         try:
             if method.lower() in ["put", "post"]:
@@ -143,10 +159,11 @@ class AirQoRequests:
                     url,
                     headers=headers,
                     body=simplejson.dumps(body, ignore_nan=True) if body else None,
+                    timeout=timeout,
                 )
             elif method.lower() == "get":
                 response = http.request(
-                    method.upper(), url, fields=params, headers=headers
+                    method.upper(), url, fields=params, headers=headers, timeout=timeout
                 )
             else:
                 logger.exception("Method not supported")

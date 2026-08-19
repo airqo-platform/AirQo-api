@@ -13,6 +13,7 @@ from api.utils.pollutants.pm_25 import (
     AQCSV_DATA_STATUS_MAPPER,
 )
 from api.utils.http import AirQoRequests
+from api.utils.messages import FILTER_MSG
 from constants import Frequency
 
 import logging
@@ -203,7 +204,13 @@ def format_to_aqcsv(
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
-    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency.value)
+    # Normalise to the plain string value once: FREQUENCY_MAPPER/BQ_FREQUENCY_MAPPER
+    # are keyed by string, and `Frequency` (a plain Enum, not str-Enum) never
+    # compares equal to a string, so both dict lookups and the qc branch below
+    # must operate on this normalised value rather than the enum member itself.
+    frequency_value = frequency.value if isinstance(frequency, Frequency) else frequency
+
+    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency_value)
 
     dataframe = pd.DataFrame(data)
     if dataframe.empty:
@@ -217,11 +224,11 @@ def format_to_aqcsv(
         inplace=True,
     )
 
-    dataframe["duration"] = FREQUENCY_MAPPER[frequency]
+    dataframe["duration"] = FREQUENCY_MAPPER[frequency_value]
     dataframe["poc"] = 1
     dataframe["qc"] = (
         AQCSV_QC_CODE_MAPPER["averaged"]
-        if frequency != "raw"
+        if frequency_value != "raw"
         else AQCSV_QC_CODE_MAPPER["estimated"]
     )
     dataframe["datetime"] = dataframe["datetime"].apply(str_to_aqcsv_date_format)
@@ -336,14 +343,15 @@ def filter_non_private_sites_devices(
 
 def get_validated_filter(json_data):
     """
-    Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
-    and applies filtering if necessary.
+    Validates that exactly one of 'sites', 'device_ids', 'device_names' or
+    'grid_ids' is provided in the request, and applies filtering if necessary.
 
     Args:
         json_data (dict): JSON payload from the request.
 
     Returns:
-        tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
+        tuple: The name of the filter ("sites", "device_ids", "device_names"
+        or "grid_ids") and its validated value if valid.
 
     Raises:
         ValueError: If more than one or none of the filters are provided.
@@ -358,21 +366,25 @@ def get_validated_filter(json_data):
     sites = [
         "sites",
     ]
+    # "airqlouds" was removed — the concept is deprecated in favour of grids.
     valid_filters = [
         "sites",
         "device_ids",
         "device_names",
+        "grid_ids",
     ]
 
     provided_filters = [key for key in valid_filters if json_data.get(key)]
-    try:
-        filter_type = provided_filters[0]
-    except IndexError:
-        error_message = (
-            "Invalid filter: please provide a valid device, site or airqloud"
-        )
+    if not provided_filters:
+        # Indexing straight into an empty list raised IndexError, which
+        # surfaced as an unhandled 500 rather than the intended 400. Request
+        # schemas normally catch this first, but callers that bypass them
+        # (or send a since-removed filter such as `airqlouds`) reach here.
+        return None, None, FILTER_MSG
 
-    filter_value = json_data.get(filter_type, None)
+    filter_type = provided_filters[0]
+    filter_value = json_data.get(filter_type)
+
     # TODO Uncomment when proper access control is implemented in device registry.
     # TODO Filter/validate device names/ids existence.
     # if filter_type in sites:
@@ -390,66 +402,3 @@ def get_validated_filter(json_data):
     validated_data = filter_value
 
     return filter_type, validated_data, error_message
-
-
-def get_validated_forecast_filter(json_data):
-    """
-    Validate that exactly one of the following is provided:
-      - country
-      - city
-    #   - latitude and longitude (both required)
-
-    Returns: (filter_type, filter_value, error_message)
-    """
-    filter_type = None
-    filter_value = None
-    error_message = ""
-
-    has_country = bool(json_data.get("country"))
-    has_city = bool(json_data.get("city"))
-    # has_lat = json_data.get("latitude") is not None
-    # has_lon = json_data.get("longitude") is not None
-
-    # Count provided top-level filter groups
-    provided = 0
-    if has_country:
-        provided += 1
-    if has_city:
-        provided += 1
-    # if has_lat or has_lon:
-    #     provided += 1
-
-    if provided == 0:
-        error_message = (
-            "Provide one of: 'country', 'city', or both 'latitude' and 'longitude'."
-        )
-        return None, None, error_message
-
-    if provided > 1:
-        error_message = "Provide only one of: 'country', 'city', or a pair of 'latitude' and 'longitude'."
-        return None, None, error_message
-
-    # # Validate lat & lon pair
-    # if has_lat or has_lon:
-    #     if not (has_lat and has_lon):
-    #         error_message = "Both 'latitude' and 'longitude' must be provided together."
-    #         return None, None, error_message
-    #     try:
-    #         lat = float(json_data.get("latitude"))
-    #         lon = float(json_data.get("longitude"))
-    #     except Exception:
-    #         error_message = "Invalid latitude or longitude. Must be numeric."
-    #         return None, None, error_message
-    #     filter_type = "latlon"
-    #     filter_value = {"latitude": lat, "longitude": lon}
-    #     return filter_type, filter_value, error_message
-
-    if has_country:
-        filter_type = "country"
-        filter_value = str(json_data.get("country")).strip()
-        return filter_type, filter_value, error_message
-
-    if has_city:
-        filter_type = "city"
-        filter_value = str(json_data.get("city")).strip()
-        return filter_type, filter_value, error_message

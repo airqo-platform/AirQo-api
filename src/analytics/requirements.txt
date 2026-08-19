@@ -1,30 +1,35 @@
-flask <= 2.0.3
-flask_excel <= 0.0.7
-flask-restx <= 0.5.1
-flask-cors <= 3.0.10
-Flask-Caching <= 2.0.0
-flasgger <= 0.9.5
-Werkzeug <= 2.0.3
-pandas
-pymongo~=4.5.0
-pytz~=2023.3.post1
-flask_pymongo <= 2.3.0
-python-decouple
-python-dotenv
-marshmallow
-google-cloud-bigquery[pandas]
-redis
-python-decouple
-celery
-google-cloud-storage
-gunicorn
-google-cloud-bigquery-storage==2.27.0
-simplejson
-flask-limiter==3.11.0
+# FastAPI dependencies
+fastapi >= 0.100.0
+uvicorn[standard] >= 0.23.0
+pydantic >= 2.0.0
+pydantic-settings >= 2.0.0
 
-# Ports for stable python 3 functionality
-dataclasses~=0.6
-pytest~=7.4.2
+# Async and HTTP clients
+httpx >= 0.24.0
+aioredis >= 2.0.0
+requests
+urllib3
+
+# Data processing and external APIs
+pandas
 numpy
+pymongo~=4.5.0
+google-cloud-bigquery[pandas]
+google-cloud-storage
+google-cloud-bigquery-storage==2.27.0
+redis
+celery
+
+# Utilities
+python-dotenv
 python-dateutil~=2.8.2
+pytz~=2023.3.post1
 timezonefinder
+simplejson
+
+# Testing
+pytest~=7.4.2
+pytest-asyncio >= 0.21.0
+
+# Development and deployment
+gunicorn

@@ -1,81 +1,95 @@
-from flask import request, jsonify, Response
-from typing import Any, Dict, List
+"""
+Grid air-quality report processing.
+
+Framework-free port of the Flask grid-report feature (outer analytics
+``/api/v2/analytics/grid/report`` and ``/grid/report/diurnal``): every function
+here takes plain arguments and returns dicts / raises exceptions — no Flask
+``request``/``jsonify``. HTTP concerns (status codes, request parsing) live in
+``GridReportService`` (api/services) and the v2 router.
+
+Pipeline (both report variants):
+1. Resolve grid_id -> site IDs via the external Grid API
+   (``fetch_air_quality_data``, api/utils/pollutants/report.py).
+2. Query hourly consolidated PM data for those sites from BigQuery
+   (``query_bigquery``, parameterized).
+3. Enrich into a DataFrame with date/hour/month breakdown columns
+   (``results_to_dataframe``).
+4. Aggregate with ``PManalysis`` and shape the response dict.
+
+Everything here is blocking I/O + pandas; callers on the event loop must run
+these via ``asyncio.to_thread`` (GridReportService does).
+
+Raises:
+    ValueError: invalid date range (equal start/end, or span > 12 months).
+    LookupError: no sites found for the grid, or no data for the window —
+        mapped to HTTP 404 by the service layer.
+"""
+
 from datetime import datetime
+from typing import Any, Dict, List
+
 import numpy as np
 
 from api.utils.pollutants.report import (
+    PManalysis,
     fetch_air_quality_data,
     query_bigquery,
     results_to_dataframe,
-    PManalysis,
 )
 
 import logging
 
-logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
+logger = logging.getLogger(__name__)
 
 
-def air_quality_data() -> Response:
+def validate_dates(start: datetime, end: datetime) -> None:
     """
-    Fetch and process air quality data for a specified grid and time range.
+    Validate a reporting window.
 
-    This function:
-    1. Parses input JSON for grid_id, start_time, and end_time.
-    2. Validates the time range (must not exceed 12 months and start != end).
-    3. Fetches air quality site IDs for the given grid and timeframe.
-    4. Queries BigQuery for PM2.5 data for the selected sites.
-    5. Processes the results into various aggregated forms (daily, monthly, yearly, etc.).
-    6. Returns a structured JSON response with air quality statistics.
+    Rules (unchanged from the original API contract):
+    - Start time cannot equal end time.
+    - The range must not exceed 12 months (365 days).
 
-    **Request JSON Format**
-    {
-        "grid_id": "<grid_identifier>",
-        "start_time": "YYYY-MM-DDTHH:MM:SS",
-        "end_time": "YYYY-MM-DDTHH:MM:SS"
-    }
+    Raises:
+        ValueError: When either rule is violated.
+    """
+    if start == end:
+        raise ValueError("Start time and end time cannot be the same.")
+    if (end - start).days > 365:
+        raise ValueError("Time range exceeded 12 months.")
 
-    **Response**
-    JSON containing:
-        - grid metadata
-        - time period
-        - various aggregated PM2.5 data (daily, hourly, monthly, yearly)
-        - site/city/country/region-level statistics
+
+def build_grid_report(
+    grid_id: str, start_time: datetime, end_time: datetime
+) -> Dict[str, Any]:
+    """
+    Build the full grid air-quality report.
+
+    Args:
+        grid_id: The grid identifier.
+        start_time: Start of the reporting window.
+        end_time: End of the reporting window.
 
     Returns:
-        flask.Response:
-            - 200 with structured air quality data (if successful)
-            - 400 for invalid time range or date format
-            - 404 if no site data is available
+        The ``{"airquality": {...}}`` response dict with daily/monthly/annual,
+        site/city/country/region-level PM aggregates (NaN already nullified).
+
+    Raises:
+        ValueError: Invalid date range.
+        LookupError: No sites for the grid, or no data for the window.
     """
-    data: Dict[str, str] = request.get_json() or {}
-    grid_id: str = data.get("grid_id", "")
-    start_time_str: str = data.get("start_time", "")
-    end_time_str: str = data.get("end_time", "")
+    validate_dates(start_time, end_time)
 
-    # Validate and parse time range
-    try:
-        start_time: datetime = datetime.fromisoformat(start_time_str)
-        end_time: datetime = datetime.fromisoformat(end_time_str)
-        validate_dates(start_time, end_time)
-    except ValueError as e:
-        logging.error("Invalid date format: %s", e)
-        return jsonify({"error": "Invalid date format"}), 400
-
-    # Fetch available site IDs for the requested grid & timeframe
-    site_ids: list[str] = fetch_air_quality_data(grid_id, start_time, end_time)
-
+    site_ids: List[str] = fetch_air_quality_data(grid_id, start_time, end_time)
     if not site_ids:
-        return jsonify({"message": "No site IDs found for the given parameters."}), 404
+        raise LookupError("No site IDs found for the given parameters.")
 
-    # Query BigQuery for raw air quality measurements
-    results: Any = query_bigquery(site_ids, start_time, end_time)
+    results = query_bigquery(site_ids, start_time, end_time)
     if results is None:
-        return jsonify({"message": "No data available for the given time frame."}), 404
+        raise LookupError("No data available for the given time frame.")
 
     processed_data = results_to_dataframe(results)
-
-    # ✅ Extracted helper function for all PM aggregations
-    aggregated_pm: Dict[str, Any] = compute_pm_aggregates(processed_data)
+    aggregated_pm = compute_pm_aggregates(processed_data)
 
     # Convert timestamps into human-readable formats
     aggregated_pm["daily_mean_pm"]["date"] = aggregated_pm["daily_mean_pm"][
@@ -85,9 +99,8 @@ def air_quality_data() -> Response:
         "timestamp"
     ].dt.strftime("%Y-%m-%d %H:%M %Z")
 
-    logging.info("Successfully processed air quality data for grid_id %s", grid_id)
+    logger.info("Successfully processed air quality data for grid_id %s", grid_id)
 
-    # Build structured response
     response_data: Dict[str, Any] = {
         "airquality": {
             "status": "success",
@@ -101,108 +114,57 @@ def air_quality_data() -> Response:
                 "startTime": start_time.isoformat(),
                 "endTime": end_time.isoformat(),
             },
-            **aggregated_pm["final_dict"],  # directly merge all computed aggregates
+            **aggregated_pm["final_dict"],
         }
     }
-
-    # Replace NaN with None for JSON serialization
-    return jsonify(replace_nan_with_null(response_data))
+    return replace_nan_with_null(response_data)
 
 
-def air_quality_data_diurnal() -> Response:
+def build_grid_diurnal_report(
+    grid_id: str, start_time: datetime, end_time: datetime
+) -> Dict[str, Any]:
     """
-    Fetch and process **diurnal (hourly)** air quality data for a specified grid and time range.
+    Build the diurnal (hourly-pattern) grid air-quality report.
 
-    This function:
-    1. Parses input JSON for `grid_id`, `start_time`, and `end_time`.
-    2. Validates the time range:
-        - Start time cannot equal end time.
-        - Maximum range is 12 months.
-    3. Fetches available site IDs for the grid within the specified time frame.
-    4. Queries BigQuery for raw PM2.5 data for those sites.
-    5. Processes the results into **hourly/diurnal PM2.5 aggregates**.
-    6. Returns a structured JSON response with diurnal statistics.
+    Same pipeline as :func:`build_grid_report`, but aggregates only the
+    hour-of-day and day/hour breakdowns.
 
-    **Request JSON Example**
-    ```json
-    {
-        "grid_id": "grid_123",
-        "start_time": "2024-01-01T00:00:00",
-        "end_time": "2024-02-01T00:00:00"
-    }
-    ```
-
-    **Response Example**
-    ```json
-    {
-        "airquality": {
-            "status": "success",
-            "grid_id": "grid_123",
-            "sites": {
-                "site_ids": ["site1", "site2"],
-                "number_of_sites": 2,
-                "grid name": "Example Grid"
-            },
-            "period": {
-                "startTime": "2024-01-01T00:00:00",
-                "endTime": "2024-02-01T00:00:00"
-            },
-            "diurnal": [... hourly mean PM2.5 data ...],
-            "mean_pm_by_day_hour": [... day-hour aggregated PM2.5 data ...]
-        }
-    }
-    ```
-
-    Returns:
-        Response:
-            - `200 OK` with JSON data containing diurnal PM2.5 statistics.
-            - `400 Bad Request` if the date format is invalid or the time range is invalid.
-            - `404 Not Found` if no site IDs or no data is available for the given parameters.
+    Raises:
+        ValueError: Invalid date range.
+        LookupError: No sites for the grid, or no data for the window.
     """
-    # ✅ Parse incoming JSON request safely
-    data: Dict[str, str] = request.get_json() or {}
-    grid_id: str = data.get("grid_id", "")
-    start_time_str: str = data.get("start_time", "")
-    end_time_str: str = data.get("end_time", "")
+    validate_dates(start_time, end_time)
 
-    # ✅ Validate and parse time range
-    try:
-        start_time: datetime = datetime.fromisoformat(start_time_str)
-        end_time: datetime = datetime.fromisoformat(end_time_str)
-        validate_dates(start_time, end_time)
-
-    except ValueError as e:
-        logging.error("Invalid date format: %s", e)
-        return jsonify({"error": "Invalid date format"}), 400
-
-    # ✅ Fetch available site IDs for the requested grid & timeframe
     site_ids: List[str] = fetch_air_quality_data(grid_id, start_time, end_time)
-
     if not site_ids:
-        return jsonify({"message": "No site IDs found for the given parameters."}), 404
+        raise LookupError("No site IDs found for the given parameters.")
 
-    # ✅ Query BigQuery for raw air quality measurements
-    results: Any = query_bigquery(site_ids, start_time, end_time)
+    results = query_bigquery(site_ids, start_time, end_time)
     if results is None:
-        return jsonify({"message": "No data available for the given time frame."}), 404
+        raise LookupError("No data available for the given time frame.")
 
     processed_data = results_to_dataframe(results)
     computed_data = compute_pm_aggregates_diurnal(
         processed_data, start_time, end_time, grid_id, site_ids
     )
-    response_data = replace_nan_with_null(computed_data)
-    return jsonify(response_data)
+
+    logger.info(
+        "Successfully processed diurnal air quality data for grid_id %s", grid_id
+    )
+    return replace_nan_with_null(computed_data)
 
 
 def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
     """
-    Compute various PM2.5 aggregations for a given dataframe.
+    Compute the full set of PM2.5/PM10 aggregations for the standard report.
 
     Args:
-        processed_data: DataFrame containing air quality readings.
+        processed_data: DataFrame from ``results_to_dataframe``.
 
     Returns:
-        dict: A dictionary of all computed PM2.5 statistics, including daily, monthly, yearly, site-level, city-level, and region-level data.
+        dict with the two frames needing timestamp formatting
+        (``daily_mean_pm``, ``datetime_mean_pm``), the grid name, and
+        ``final_dict`` holding every aggregate as JSON-ready records.
     """
     daily_mean_pm2_5 = PManalysis.mean_daily_pm2_5(processed_data)
     datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
@@ -248,26 +210,30 @@ def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
 
 
 def compute_pm_aggregates_diurnal(
-    processed_data: Any, start_time: datetime, end_time: datetime, grid_id, site_ids
+    processed_data: Any,
+    start_time: datetime,
+    end_time: datetime,
+    grid_id: str,
+    site_ids: List[str],
 ) -> Dict[str, Any]:
-    daily_mean_pm2_5 = PManalysis.mean_daily_pm2_5(processed_data)
-    datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
+    """
+    Compute the diurnal aggregates and shape the diurnal response dict.
+
+    Args:
+        processed_data: DataFrame from ``results_to_dataframe``.
+        start_time: Start of the reporting window (echoed in the response).
+        end_time: End of the reporting window (echoed in the response).
+        grid_id: Grid identifier (echoed in the response).
+        site_ids: Sites included (echoed in the response).
+
+    Returns:
+        The ``{"airquality": {...}}`` diurnal response dict.
+    """
     hour_mean_pm2_5 = PManalysis.mean_pm2_5_by_hour(processed_data)
     mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
-    grid_name: str = PManalysis.gridname(processed_data)
+    grid_name = PManalysis.gridname(processed_data)
 
-    # ✅ Convert timestamps into human-readable formats
-    daily_mean_pm2_5["date"] = daily_mean_pm2_5["date"].dt.strftime("%Y-%m-%d")
-    datetime_mean_pm2_5["timestamp"] = datetime_mean_pm2_5["timestamp"].dt.strftime(
-        "%Y-%m-%d %H:%M %Z"
-    )
-
-    logging.info(
-        "Successfully processed diurnal air quality data for grid_id %s", grid_id
-    )
-
-    # ✅ Prepare the JSON response
-    response_data: Dict[str, Any] = {
+    return {
         "airquality": {
             "status": "success",
             "grid_id": grid_id,
@@ -284,7 +250,6 @@ def compute_pm_aggregates_diurnal(
             "mean_pm_by_day_hour": mean_pm_by_day_hour.to_dict(orient="records"),
         }
     }
-    return response_data
 
 
 def replace_nan_with_null(obj: Any) -> Any:
@@ -292,10 +257,10 @@ def replace_nan_with_null(obj: Any) -> Any:
     Recursively replace NaN values with None for JSON serialization.
 
     Args:
-        obj: A nested list, dict, or primitive type.
+        obj: A nested list, dict, or primitive.
 
     Returns:
-        A structure with NaN replaced by None.
+        The same structure with every NaN replaced by None.
     """
     if isinstance(obj, list):
         return [replace_nan_with_null(item) for item in obj]
@@ -304,32 +269,3 @@ def replace_nan_with_null(obj: Any) -> Any:
     elif isinstance(obj, float) and np.isnan(obj):
         return None
     return obj
-
-
-def validate_dates(start: datetime, end: datetime) -> None:
-    """
-    Validate a start and end datetime for an API request.
-
-    Rules:
-    - Start time cannot equal end time.
-    - The date range must not exceed 12 months (365 days).
-
-    Args:
-        start (datetime): The start time.
-        end (datetime): The end time.
-
-    Returns:
-        Tuple[bool, Union[None, Response]]:
-            - (True, None) if the date range is valid.
-            - (False, Response) if invalid, with a Flask JSON error response.
-
-    Example:
-        >>> valid, error = validate_dates(dt1, dt2)
-        >>> if not valid:
-        >>>     return error
-    """
-    if start == end:
-        raise ValueError("error: Start time and end time cannot be the same.")
-
-    if (end - start).days > 365:
-        raise ValueError("error Time range exceeded 12 months")

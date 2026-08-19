@@ -1,21 +1,34 @@
+# Secrets — never commit these.
+# The deploy workflows write google_application_credentials.json into this
+# directory at build time, so it reappears on every deploy run.
+google_application_credentials.json
+*-service-account*.json
+airqo-250220-*.json
 .env
-analytics_env/
-.vscode
-__pycache__/
-testing.env
-env/
-env2/
-venv
+.env.*
+!.env.example
 
-helpers/cloud_function_update_daily_measurements.py
-helpers/cloud_function_update_hourly_measurements.py
-helpers/cloud_function_update_raw_measurements.py
-.DS_Store
-
-jobs/reports/airqo-250220-642e046f4223.json
-*.docx
-*.csv
-*.db
-# *.json
-env (3)
+# Runtime logs (TimedRotatingFileHandler writes analytics-api.log.<date>)
+logs/
 *.log
+*.log.*
+
+# Local scratch — captured BigQuery/API response dumps
+file*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Virtualenvs
+venv/
+env/
+.venv/
+
+# Editors / OS
+.DS_Store
+.idea/
