@@ -678,6 +678,26 @@ ReadingsSchema.index(
   },
 );
 
+// recent()'s $match combines site_id/device_id + time + deviceDetails.isActive in a
+// single stage, but site_time_latest_idx/device_time_latest_idx above don't cover
+// isActive and time_device_active_idx doesn't cover site_id/device_id — so the planner
+// picks between two partial indexes and can flip plans (intermittent slow queries /
+// maxTimeMS timeouts) depending on cached stats. These cover the full $match shape.
+ReadingsSchema.index(
+  { site_id: 1, time: -1, "deviceDetails.isActive": 1 },
+  {
+    name: "site_time_active_recent_idx",
+    background: true,
+  },
+);
+ReadingsSchema.index(
+  { device_id: 1, time: -1, "deviceDetails.isActive": 1 },
+  {
+    name: "device_time_active_recent_idx",
+    background: true,
+  },
+);
+
 // listForMap()'s $match always combines all three of time + pm2_5.value>0 +
 // deviceDetails.isActive!=false in a single query — time_pm25_map_idx and
 // time_device_active_idx above each cover only two of the three, so Mongo can

@@ -583,6 +583,31 @@ const readingsValidations = {
     executeMiddlewareSequentially(middleware, req, res, next);
   },
 
+  // Same result as `recent`, but for callers that want to POST a long site_id
+  // list in the body instead of a comma-separated query string. Reuses the
+  // existing recent() pipeline unchanged: once site_ids is validated it's
+  // copied onto req.query.site_id, which generateFilter.telemetry already reads.
+  recentBySiteIds: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      body("site_ids")
+        .exists()
+        .withMessage("site_ids is required")
+        .bail()
+        .isArray({ min: 1 })
+        .withMessage("site_ids must be a non-empty array"),
+      body("site_ids.*")
+        .isMongoId()
+        .withMessage("each entry in site_ids must be a valid ObjectId"),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, () => {
+      req.query.site_id = req.body.site_ids;
+      next();
+    });
+  },
+
   listAverages: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,

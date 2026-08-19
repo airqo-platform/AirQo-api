@@ -137,6 +137,12 @@ const routes = [
     controller: "recentReadings",
   },
   {
+    method: "post",
+    path: "/recent",
+    middlewares: [checkValidation("recentBySiteIds")],
+    controller: "recentReadings",
+  },
+  {
     method: "get",
     path: "/worst/devices",
     middlewares: [checkValidation("worstReadingForDevices")],

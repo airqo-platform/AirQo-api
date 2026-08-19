@@ -126,4 +126,37 @@ describe("ReadingModel time-window helpers", () => {
       expect(options.background).to.equal(true);
     });
   });
+
+  describe("recent() covering indexes", () => {
+    // recent()'s single $match stage combines site_id/device_id + time +
+    // deviceDetails.isActive. site_time_latest_idx/device_time_latest_idx don't
+    // cover isActive, and time_device_active_idx doesn't cover site_id/device_id,
+    // so without a fully-covering index the planner alternates between two
+    // partial indexes — causing intermittent maxTimeMS timeouts under load.
+    it("site_time_active_recent_idx covers site_id, time, and deviceDetails.isActive together", () => {
+      const [keys, options] = ReadingModel.schema
+        .indexes()
+        .find(([, opts]) => opts.name === "site_time_active_recent_idx");
+
+      expect(keys).to.deep.equal({
+        site_id: 1,
+        time: -1,
+        "deviceDetails.isActive": 1,
+      });
+      expect(options.background).to.equal(true);
+    });
+
+    it("device_time_active_recent_idx covers device_id, time, and deviceDetails.isActive together", () => {
+      const [keys, options] = ReadingModel.schema
+        .indexes()
+        .find(([, opts]) => opts.name === "device_time_active_recent_idx");
+
+      expect(keys).to.deep.equal({
+        device_id: 1,
+        time: -1,
+        "deviceDetails.isActive": 1,
+      });
+      expect(options.background).to.equal(true);
+    });
+  });
 });
