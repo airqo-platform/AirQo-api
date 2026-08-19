@@ -73,6 +73,14 @@ router.post(
   createRequestController.rejectAccessRequest,
 );
 
+router.post(
+  "/:request_id/cancel",
+  requestValidations.cancelAccessRequest,
+  enhancedJWTAuth,
+  requireAccessRequestManagerAccess(),
+  createRequestController.cancelAccessRequest,
+);
+
 router.get(
   "/groups",
   requestValidations.listForGroup,
@@ -118,10 +126,16 @@ router.delete(
   createRequestController.cleanupExpiredRequests,
 );
 
+// Both routes below previously had no authorization beyond "is logged in" —
+// any authenticated user could modify/delete any group's or network's
+// AccessRequest by guessing a request_id. requireAccessRequestManagerAccess()
+// resolves the request's target group and requires manager access to it,
+// matching /approve and /reject.
 router.delete(
   "/:request_id",
   requestValidations.deleteRequest,
   enhancedJWTAuth,
+  requireAccessRequestManagerAccess(),
   createRequestController.delete,
 );
 
@@ -129,6 +143,7 @@ router.put(
   "/:request_id",
   requestValidations.updateRequest,
   enhancedJWTAuth,
+  requireAccessRequestManagerAccess(),
   createRequestController.update,
 );
 

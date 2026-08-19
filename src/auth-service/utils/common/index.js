@@ -1,4 +1,5 @@
 const mailer = require("./mailer.util");
+const { ActivityLogger } = require("./activity-logger.util");
 const stringify = require("./stringify.util");
 const {
   generateDateFormat,
@@ -39,6 +40,7 @@ module.exports = {
   mergeWithDefaults,
   winstonLogger,
   mailer,
+  ActivityLogger,
   stringify,
   generateDateFormat,
   threeMonthsFromNow,

@@ -11,29 +11,30 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- rate-limiter`);
 const limiterCache = new Map();
 
 // Enhanced Redis availability check
+// `redis` here is the wrapper exported by @config/redis, not the raw client —
+// it has no isOpen/isReady of its own (those previously always evaluated
+// undefined, so this check always returned false and the Redis-backed path
+// below was silently dead). redisUtils.isAvailable() is the wrapper's own
+// correct isOpen/isReady check.
 const isRedisAvailable = () => {
   try {
-    return redis && redis.isOpen && redis.isReady;
+    return !!(redis && redis.redisUtils && redis.redisUtils.isAvailable());
   } catch (error) {
     logger.warn(`Redis availability check failed: ${error.message}`);
     return false;
   }
 };
 
-// Test Redis connectivity with timeout
+// Test Redis connectivity with timeout. Delegates to the wrapper's own
+// redisUtils.ping(), which already races a timeout and returns a boolean —
+// there's no bare redis.ping() on the wrapper to call directly.
 const testRedisConnectivity = async (timeoutMs = 3000) => {
   if (!isRedisAvailable()) {
     return false;
   }
 
   try {
-    const pingPromise = redis.ping();
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Redis ping timeout")), timeoutMs)
-    );
-
-    const result = await Promise.race([pingPromise, timeoutPromise]);
-    return result === "PONG";
+    return await redis.redisUtils.ping(timeoutMs);
   } catch (error) {
     logger.warn(`Redis connectivity test failed: ${error.message}`);
     return false;
@@ -44,8 +45,10 @@ const testRedisConnectivity = async (timeoutMs = 3000) => {
 const createRedisStore = (options) => {
   try {
     return new RedisStore({
-      // Function to send commands to Redis
-      sendCommand: (...args) => redis.sendCommand(args),
+      // Function to send commands to Redis. `redis.sendCommand` doesn't
+      // exist on the wrapper — the raw node-redis client (which has it) is
+      // exported separately as `redis.redis`.
+      sendCommand: (...args) => redis.redis.sendCommand(args),
 
       // Key prefix for this store
       prefix: options.prefix || "rl:",
@@ -73,6 +76,14 @@ const createLimiterConfig = (options, useRedis = false) => {
     legacyHeaders: false,
     skipFailedRequests: false,
     skipSuccessfulRequests: false,
+    // If the store throws at request time (Redis blip, this file's own
+    // sendCommand wiring, etc.), allow the request through rather than
+    // propagating to Express's error handler — express-rate-limit's async
+    // wrapper routes store errors to next(error) regardless of the try/catch
+    // in createDynamicLimiter below, so this is the only place that can
+    // actually make a live store error fail open instead of erroring the
+    // request.
+    passOnStoreError: true,
     // Suppress both trust-proxy and IPv6-fallback validations — keyGenerator reads
     // HAProxy-set headers (x-client-ip / x-client-original-ip) that clients cannot
     // spoof, so req.ip trustworthiness and IPv6 normalisation are not concerns here.
@@ -298,8 +309,8 @@ const getRateLimiterStats = async () => {
       available: redisAvailable,
       connected: redisConnectivity,
       client: {
-        isOpen: redis?.isOpen || false,
-        isReady: redis?.isReady || false,
+        isOpen: redis?.redis?.isOpen || false,
+        isReady: redis?.redis?.isReady || false,
       },
     },
     cache: {
@@ -375,7 +386,7 @@ const gracefulShutdown = async () => {
     clearLimiterCache();
 
     // Close Redis connections if needed
-    if (redis && redis.isOpen) {
+    if (redis && redis.redis && redis.redis.isOpen) {
       logger.info(
         "Rate limiter cache cleared, Redis connection managed externally"
       );

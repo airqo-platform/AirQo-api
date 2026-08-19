@@ -168,6 +168,9 @@ const groupController = {
   removeUniqueConstraint: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.removeUniqueConstraint),
 
+  updateEmailDomains: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateEmailDomains),
+
   list: async (req, res, next) => {
     try {
       const { params } = req;

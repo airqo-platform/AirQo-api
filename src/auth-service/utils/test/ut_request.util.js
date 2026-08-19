@@ -13,9 +13,18 @@ const constants = require("@config/constants");
 const { mockRequest, mockResponse } = require("mock-req-res");
 const { generateFilter } = require("@utils/common");
 const createGroupUtil = require("@utils/group.util");
+const { ActivityLogger } = require("@utils/common/activity-logger.util");
 const { expect } = chai;
 
 describe("createAccessRequest Util", () => {
+  // Several of these functions fire-and-forget an activity log write; stub it
+  // globally so no test attempts a real Mongo write via ActivityLogModel.
+  // Each nested describe's own `afterEach(() => sinon.restore())` tears this
+  // down along with its own stubs.
+  beforeEach(() => {
+    sinon.stub(ActivityLogger, "logActivity").returns({ success: true });
+  });
+
   describe("requestAccessToGroup()", () => {
     let requestMock;
     let origGroupModel;

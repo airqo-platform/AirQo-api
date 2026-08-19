@@ -120,6 +120,26 @@ const GroupSchema = new Schema(
     grp_manager_username: { type: String },
     grp_manager_firstname: { type: String },
     grp_manager_lastname: { type: String },
+    // Verified email domains for this group (e.g. "mukwano.com"). Used only to
+    // auto-suggest (create a pending AccessRequest for) this group to a new
+    // registrant with a matching email — never to grant instant membership,
+    // since that would let anyone who could set this field silently absorb
+    // any user who signs up with that domain. Settable by SYSTEM_ADMIN only
+    // (see routes/v3/groups.routes.js PUT /:grp_id/email-domains).
+    grp_email_domains: {
+      type: [String],
+      default: [],
+      set: (domains) =>
+        Array.isArray(domains)
+          ? [
+              ...new Set(
+                domains
+                  .filter((d) => typeof d === "string" && d.trim())
+                  .map((d) => d.toLowerCase().trim()),
+              ),
+            ]
+          : domains,
+    },
     grp_website: { type: String },
     grp_industry: { type: String },
     grp_country: { type: String },
@@ -163,6 +183,7 @@ GroupSchema.plugin(uniqueValidator, {
 });
 
 GroupSchema.index({ grp_title: 1 }, { unique: true });
+GroupSchema.index({ grp_email_domains: 1 });
 
 GroupSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],

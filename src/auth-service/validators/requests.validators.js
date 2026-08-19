@@ -212,6 +212,22 @@ const rejectAccessRequest = [
   ],
 ];
 
+const cancelAccessRequest = [
+  validateTenant,
+  [
+    param("request_id")
+      .exists()
+      .withMessage("the request_id should be provided")
+      .bail()
+      .notEmpty()
+      .withMessage("request_id should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("the request_id should be an object ID")
+      .trim(),
+  ],
+];
+
 const listForGroup = [validateTenant];
 const listForNetwork = [validateTenant];
 
@@ -328,6 +344,7 @@ module.exports = {
   listPending,
   approveAccessRequest,
   rejectAccessRequest,
+  cancelAccessRequest,
   listForGroup,
   listForNetwork,
   deleteRequest,
