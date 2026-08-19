@@ -583,6 +583,33 @@ const readingsValidations = {
     executeMiddlewareSequentially(middleware, req, res, next);
   },
 
+  // Same result as `recent`, but for callers that want to POST a long site_id
+  // list in the body instead of a comma-separated query string. site_ids is
+  // required here (unlike the optional query `site_id` on GET, since it's the
+  // whole point of this endpoint) — once that's confirmed non-empty and all
+  // valid ObjectIds, it's copied onto req.query.site_id and handed to the
+  // `recent` validator so POST gets the identical conflicting-param checks
+  // (e.g. device_id + site_id) and sanitization that GET already applies.
+  recentBySiteIds: (req, res, next) => {
+    const validationRules = [
+      body("site_ids")
+        .exists()
+        .withMessage("site_ids is required")
+        .bail()
+        .isArray({ min: 1 })
+        .withMessage("site_ids must be a non-empty array"),
+      body("site_ids.*")
+        .isMongoId()
+        .withMessage("each entry in site_ids must be a valid ObjectId"),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, () => {
+      req.query.site_id = req.body.site_ids;
+      readingsValidations.recent(req, res, next);
+    });
+  },
+
   listAverages: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
