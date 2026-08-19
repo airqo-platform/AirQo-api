@@ -119,6 +119,16 @@ const joinLinkUtil = {
         next,
       );
 
+      if (response.success === true) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: grp_id,
+          activity_type: "JOIN_LINK_REVOKED",
+          actor: { user_id: request.user?._id, email: request.user?.email },
+          details: `Revoked join link ${link_id}`,
+        });
+      }
+
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -175,6 +185,12 @@ const joinLinkUtil = {
         return;
       }
 
+      // The checks above (is_active/expired/max_uses) are advisory — they give
+      // a specific, friendly error in the common case but are inherently
+      // racy against concurrent redeems. The claim below is the actual gate:
+      // it re-checks all three conditions and increments uses_count in one
+      // atomic findOneAndUpdate, so two concurrent redeems can't both pass a
+      // stale max_uses check and push the link over its limit.
       if (link.max_uses && link.uses_count >= link.max_uses) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
@@ -203,6 +219,56 @@ const joinLinkUtil = {
         return;
       }
 
+      const claimedLink = await GroupJoinLinkModel(tenant).findOneAndUpdate(
+        {
+          _id: link._id,
+          $and: [
+            { is_active: true },
+            {
+              $or: [
+                { expires_at: null },
+                { expires_at: { $exists: false } },
+                { expires_at: { $gt: new Date() } },
+              ],
+            },
+            {
+              $or: [
+                { max_uses: null },
+                { max_uses: { $exists: false } },
+                { $expr: { $lt: ["$uses_count", "$max_uses"] } },
+              ],
+            },
+          ],
+        },
+        { $inc: { uses_count: 1 } },
+        { new: true },
+      );
+
+      if (isEmpty(claimedLink)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "This join link is no longer available (revoked, expired, or reached its usage limit)",
+          }),
+        );
+        return;
+      }
+
+      // Compensate the claim above if the actual membership/request write
+      // fails, so a failed redeem doesn't permanently burn a use.
+      const releaseClaim = async () => {
+        await GroupJoinLinkModel(tenant)
+          .findOneAndUpdate(
+            { _id: claimedLink._id },
+            { $inc: { uses_count: -1 } },
+          )
+          .catch((releaseError) => {
+            logger.error(
+              `Failed to release join-link claim for ${claimedLink._id}: ${releaseError.message}`,
+            );
+          });
+      };
+
       if (link.requires_approval === false) {
         const assignmentResult = await groupUtil.assignOneUser(
           {
@@ -214,13 +280,9 @@ const joinLinkUtil = {
         );
 
         if (!assignmentResult || assignmentResult.success !== true) {
+          await releaseClaim();
           return assignmentResult;
         }
-
-        await GroupJoinLinkModel(tenant).modify({
-          filter: { _id: link._id },
-          update: { $inc: { uses_count: 1 } },
-        });
 
         ActivityLogger.logActivity({
           tenant,
@@ -238,6 +300,36 @@ const joinLinkUtil = {
         };
       }
 
+      // Avoid spamming managers with duplicate pending requests if the user
+      // already has one for this group (e.g. from a prior redeem of the same
+      // or a different link, or a manual request).
+      const existingPendingRequest = await AccessRequestModel(tenant).findOne(
+        {
+          user_id: userId,
+          targetId: link.group_id,
+          requestType: "group",
+          status: "pending",
+        },
+      );
+
+      if (existingPendingRequest) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: link.group_id,
+          activity_type: "JOIN_LINK_USED",
+          actor: { user_id: userId, email: user.email },
+          details: "Redeemed join link — existing pending request reused",
+        });
+
+        return {
+          success: true,
+          message:
+            "You already have a pending request to join this group — an admin still needs to approve it",
+          status: httpStatus.OK,
+          data: existingPendingRequest,
+        };
+      }
+
       const accessRequestResponse = await AccessRequestModel(tenant).register(
         {
           user_id: userId,
@@ -252,11 +344,6 @@ const joinLinkUtil = {
       );
 
       if (accessRequestResponse.success === true) {
-        await GroupJoinLinkModel(tenant).modify({
-          filter: { _id: link._id },
-          update: { $inc: { uses_count: 1 } },
-        });
-
         ActivityLogger.logActivity({
           tenant,
           group_id: link.group_id,
@@ -274,6 +361,7 @@ const joinLinkUtil = {
         };
       }
 
+      await releaseClaim();
       return accessRequestResponse;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

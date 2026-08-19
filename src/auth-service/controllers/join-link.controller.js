@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const { logObject, HttpError, extractErrorsFromRequest } = require("@utils/shared");
+const { HttpError, extractErrorsFromRequest } = require("@utils/shared");
 const joinLinkUtil = require("@utils/join-link.util");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -18,6 +18,7 @@ const respond = (res, result) => {
       success: true,
       message: result.message,
       data: result.data,
+      ...(result.meta ? { meta: result.meta } : {}),
     });
   }
   const status = result.status ? result.status : httpStatus.INTERNAL_SERVER_ERROR;

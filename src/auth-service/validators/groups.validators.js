@@ -315,10 +315,16 @@ const updateEmailDomains = [
       .withMessage("the email_domains should be provided")
       .bail()
       .custom((value) => Array.isArray(value))
-      .withMessage("email_domains must be an array"),
+      .withMessage("email_domains must be an array")
+      .bail()
+      .custom((value) => value.length <= 20)
+      .withMessage("email_domains must not contain more than 20 entries"),
     body("email_domains.*")
       .trim()
       .toLowerCase()
+      .isLength({ max: 253 })
+      .withMessage("each entry in email_domains must not exceed 253 characters")
+      .bail()
       .matches(/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/)
       .withMessage(
         "each entry in email_domains must be a bare domain, e.g. mukwano.com (no protocol, path, or @)",

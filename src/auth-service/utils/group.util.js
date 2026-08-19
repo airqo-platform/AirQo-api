@@ -451,6 +451,16 @@ const groupUtil = {
         return;
       }
 
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "DOMAIN_LIST_UPDATED",
+        actor: { user_id: request.user?._id, email: request.user?.email },
+        details: `Email domains set to: ${
+          updatedGroup.grp_email_domains.join(", ") || "(none)"
+        }`,
+      });
+
       return {
         success: true,
         message: "Group email domains updated successfully",
@@ -903,8 +913,13 @@ const groupUtil = {
         }
       }
 
+      // grp_email_domains is SYSTEM_ADMIN-only (see PUT /:grp_id/email-domains)
+      // — must not be settable through general group creation, which only
+      // requires GROUP_CREATE.
+      const { grp_email_domains: _ignoredEmailDomains, ...safeBody } = body;
+
       const modifiedBody = {
-        ...body,
+        ...safeBody,
         grp_manager: ObjectId(user._id),
         grp_manager_username: user.email,
         grp_manager_firstname: user.firstName,
@@ -1168,6 +1183,16 @@ const groupUtil = {
         delete update.organization_slug;
         logger.warn(
           `Attempt to update organization_slug for group ${grp_id} was blocked. Use the dedicated slug endpoint instead.`,
+        );
+      }
+
+      // grp_email_domains is SYSTEM_ADMIN-only (see PUT /:grp_id/email-domains)
+      // — must not be settable through general group update, which only
+      // requires GROUP_EDIT/GROUP_MANAGEMENT.
+      if (update.grp_email_domains !== undefined) {
+        delete update.grp_email_domains;
+        logger.warn(
+          `Attempt to update grp_email_domains for group ${grp_id} via the general update route was blocked. Use PUT /:grp_id/email-domains (SYSTEM_ADMIN only) instead.`,
         );
       }
 
@@ -3360,6 +3385,16 @@ const groupUtil = {
         { new: true },
       );
 
+      if (!updatedUser) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Unable to assign role — the user is no longer a member of this group",
+          }),
+        );
+        return;
+      }
+
       ActivityLogger.logActivity({
         tenant,
         group_id: grp_id,
@@ -3762,11 +3797,14 @@ const groupUtil = {
       if (activity_type) filter.activity_type = activity_type;
       if (user_id) filter["actor.user_id"] = user_id;
 
-      const activities = await groupUtil.getActivityLogEntries(filter, {
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        tenant,
-      });
+      const { activities, meta } = await groupUtil.getActivityLogEntries(
+        filter,
+        {
+          limit: parseInt(limit),
+          skip: parseInt(skip),
+          tenant,
+        },
+      );
 
       return {
         success: true,
@@ -3781,6 +3819,7 @@ const groupUtil = {
             user_id,
           },
         },
+        meta,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -4289,20 +4328,23 @@ const groupUtil = {
       });
 
       if (!response || response.success === false) {
-        return [];
+        return { activities: [], meta: null };
       }
 
-      return (response.data || []).map((entry) => ({
-        id: entry._id,
-        activity_type: entry.activity_type,
-        actor: entry.actor,
-        target_user: entry.target_user,
-        details: entry.details,
-        timestamp: entry.createdAt,
-      }));
+      return {
+        activities: (response.data || []).map((entry) => ({
+          id: entry._id,
+          activity_type: entry.activity_type,
+          actor: entry.actor,
+          target_user: entry.target_user,
+          details: entry.details,
+          timestamp: entry.createdAt,
+        })),
+        meta: response.meta || null,
+      };
     } catch (error) {
       logger.error(`Error getting activity log entries: ${error.message}`);
-      return [];
+      return { activities: [], meta: null };
     }
   },
 

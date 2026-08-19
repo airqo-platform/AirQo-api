@@ -3492,6 +3492,14 @@ const createUserModule = {
               return responseFromUpdateUser;
             }
 
+            // Fire-and-forget: now that the email is actually verified, see
+            // if its domain matches a group's grp_email_domains.
+            createRequestUtil.autoSuggestGroupsByDomain(
+              user._id,
+              user.email,
+              tenant,
+            );
+
             // ✅ STEP 8: Delete verification token
             filter = { token };
             const responseFromDeleteToken = await VerifyTokenModel(
@@ -3781,6 +3789,14 @@ const createUserModule = {
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
+
+            // Fire-and-forget: now that the email is actually verified, see
+            // if its domain matches a group's grp_email_domains.
+            createRequestUtil.autoSuggestGroupsByDomain(
+              user._id,
+              user.email,
+              tenant,
+            );
 
             // ✅ STEP 6: Delete verification token
             filter = { token };
@@ -4167,12 +4183,10 @@ const createUserModule = {
         );
       }
 
-      // Fire-and-forget: never block or fail registration on this.
-      createRequestUtil.autoSuggestGroupsByDomain(
-        user_id,
-        normalizedEmail,
-        dbTenant,
-      );
+      // autoSuggestGroupsByDomain intentionally does NOT run here — an
+      // unverified email address isn't a trustworthy signal of domain
+      // ownership. It's fired from verifyEmail/verifyMobileEmail instead,
+      // once the address is actually confirmed.
 
       const token = accessCodeGenerator
         .generate(

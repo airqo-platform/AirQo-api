@@ -1797,16 +1797,23 @@ const createAccessRequest = {
         responseFromModifyAccessRequest,
       );
 
-      if (responseFromModifyAccessRequest.success === true) {
-        ActivityLogger.logActivity({
-          tenant,
-          group_id: accessRequest.targetId,
-          activity_type: "JOIN_REQUEST_REJECTED",
-          actor: { user_id: request.user?._id, email: request.user?.email },
-          target_user: accessRequest.user_id
-            ? { user_id: accessRequest.user_id, email: accessRequest.email }
-            : { email: accessRequest.email },
-        });
+      if (
+        responseFromModifyAccessRequest.success === true &&
+        responseFromModifyAccessRequest.data?.status === "rejected"
+      ) {
+        // ActivityLog.group_id is group-specific — only log for group-type
+        // requests (network-type rejections aren't attributable to a group).
+        if (accessRequest.requestType === "group") {
+          ActivityLogger.logActivity({
+            tenant,
+            group_id: accessRequest.targetId,
+            activity_type: "JOIN_REQUEST_REJECTED",
+            actor: { user_id: request.user?._id, email: request.user?.email },
+            target_user: accessRequest.user_id
+              ? { user_id: accessRequest.user_id, email: accessRequest.email }
+              : { email: accessRequest.email },
+          });
+        }
 
         // Send rejection notification email
         let userEmail = accessRequest.email;
@@ -1945,7 +1952,12 @@ const createAccessRequest = {
         next,
       );
 
-      if (responseFromModifyAccessRequest.success === true) {
+      // ActivityLog.group_id is group-specific — only log for group-type
+      // requests (network-type cancellations aren't attributable to a group).
+      if (
+        responseFromModifyAccessRequest.success === true &&
+        accessRequest.requestType === "group"
+      ) {
         ActivityLogger.logActivity({
           tenant,
           group_id: accessRequest.targetId,
@@ -2090,7 +2102,6 @@ const createAccessRequest = {
   update: async (request, next) => {
     try {
       const { query, body } = request;
-      const filter = generateFilter.requests(request, next);
       // Only these fields may be changed via the generic update route — the
       // caller is now authorized as a manager of the request's target group
       // (see requireAccessRequestManagerAccess), but the request body itself
@@ -2102,6 +2113,29 @@ const createAccessRequest = {
           update[field] = body[field];
         }
       });
+
+      if (Object.keys(update).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "No updatable fields provided",
+            allowed_fields: allowedFields,
+          },
+        };
+      }
+
+      // Approving via this generic route would otherwise just flip the
+      // status without ever granting membership (assignOneUser), checking
+      // expiry, or rolling back on a failed assignment — all of which
+      // approveAccessRequest already does correctly. Route through it
+      // instead of duplicating that logic here.
+      if (update.status === "approved") {
+        return createAccessRequest.approveAccessRequest(request, next);
+      }
+
+      const filter = generateFilter.requests(request, next);
       const tenant = query.tenant;
 
       const responseFromModifyAccessRequest = await AccessRequestModel(
