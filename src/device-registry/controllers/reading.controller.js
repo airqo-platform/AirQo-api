@@ -12,7 +12,6 @@ const {
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const createEventUtil = require("@utils/event.util");
-const AirQloudModel = require("@models/Airqloud");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const GridModel = require("@models/Grid");
@@ -121,8 +120,8 @@ const processGridIds = async (grid_ids, request) => {
         // Grid is private — treat as empty site set, not an error
         return null;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-        logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
+        logger.warn(
+          `🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
         );
         return {
           success: false,
@@ -155,7 +154,7 @@ const processGridIds = async (grid_ids, request) => {
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
     );
   }
@@ -373,7 +372,7 @@ const createReading = {
         },
       };
 
-      const result = await createEventUtil.read(request, next);
+      const result = await createEventUtil.listForMap(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;

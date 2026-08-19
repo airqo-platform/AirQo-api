@@ -15,6 +15,7 @@ const path = require("path");
 const EmailQueueModel = require("@models/EmailQueue");
 const EmailLogModel = require("@models/EmailLog");
 const AdminAlertCounterModel = require("@models/AdminAlertCounter");
+const ApplicationEmailConfigurationModel = require("@models/ApplicationEmailConfiguration");
 const { emailDeduplicator } = require("./email-deduplication.util");
 const {
   logObject,
@@ -172,6 +173,58 @@ const stopEmailQueue = () => {
   }
 };
 
+// Cache for application email configs — keyed by tenant, 5-minute TTL.
+// Avoids a DB round-trip on every email send while staying reasonably fresh.
+const _appEmailConfigCache = new Map();
+const _APP_EMAIL_CONFIG_TTL_MS = 5 * 60 * 1000;
+
+const _getApplicationEmailConfig = async (tenant) => {
+  const normalizedTenant = (tenant || "").toLowerCase();
+  const cached = _appEmailConfigCache.get(normalizedTenant);
+  if (cached && Date.now() - cached.fetchedAt < _APP_EMAIL_CONFIG_TTL_MS) {
+    return cached.data;
+  }
+  try {
+    const config = await ApplicationEmailConfigurationModel(normalizedTenant)
+      .findOne({})
+      .sort({ createdAt: 1 })
+      .lean();
+    _appEmailConfigCache.set(normalizedTenant, { data: config, fetchedAt: Date.now() });
+    return config;
+  } catch (error) {
+    logger.warn(
+      `Failed to fetch application email config for tenant ${normalizedTenant}: ${error.message}`
+    );
+    return null;
+  }
+};
+
+// Returns the adminCCEmails string if `email` is a registered application
+// email address, otherwise returns null.
+const _resolveAdminCCForApplicationEmail = async (email, tenant) => {
+  try {
+    const config = await _getApplicationEmailConfig(tenant);
+    if (
+      !config ||
+      !config.adminCCEmails ||
+      !Array.isArray(config.applicationEmails) ||
+      config.applicationEmails.length === 0
+    ) {
+      return null;
+    }
+    const normalized = email.toLowerCase().trim();
+    const isAppEmail = config.applicationEmails.some(
+      (e) => e.toLowerCase().trim() === normalized
+    );
+    return isAppEmail ? config.adminCCEmails : null;
+  } catch (error) {
+    logger.warn(
+      `Failed to resolve admin CC for ${email}: ${error.message}`
+    );
+    return null;
+  }
+};
+
 let attachments = [
   {
     filename: "airqoLogo.png",
@@ -252,7 +305,8 @@ const createMailerFunction = (
 
       // ✅ STEP 3: Subscription check based on category
       const isCoreFunction =
-        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName);
+        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName) ||
+        (EMAIL_CATEGORIES.TRANSACTIONAL || []).includes(functionName);
 
       if (!isCoreFunction) {
         const checkResult = await SubscriptionModel(
@@ -432,6 +486,40 @@ const createMailerFunction = (
       const mailOptions = customMailOptionsModifier
         ? customMailOptionsModifier(baseMailOptions, { email, ...otherParams })
         : baseMailOptions;
+
+      // ✅ STEP 4c-CC: If the recipient is a registered application email address,
+      // merge admin CC into any existing cc set by customMailOptionsModifier.
+      // Skip when routing to the support inbox — feedback and similar internal
+      // emails must not gain extra CCs from application email lookups.
+      const isRoutedToSupport =
+        constants.SUPPORT_EMAIL &&
+        mailOptions.to &&
+        mailOptions.to.toLowerCase().trim() ===
+          constants.SUPPORT_EMAIL.toLowerCase().trim();
+      try {
+        const adminCC =
+          !isRoutedToSupport &&
+          (await _resolveAdminCCForApplicationEmail(mailOptions.to, tenant));
+        if (adminCC) {
+          const existing = mailOptions.cc
+            ? (Array.isArray(mailOptions.cc)
+                ? mailOptions.cc
+                : String(mailOptions.cc).split(",").map((e) => e.trim())
+              ).filter(Boolean)
+            : [];
+          const incoming = adminCC.split(",").map((e) => e.trim()).filter(Boolean);
+          const merged = [...new Set([...existing, ...incoming])];
+          mailOptions.cc = merged.join(",");
+          logger.info(
+            `Admin CC applied for application email ${mailOptions.to} on tenant ${tenant}`
+          );
+        }
+      } catch (ccError) {
+        // Non-fatal — proceed without CC rather than blocking the primary email.
+        logger.warn(
+          `Admin CC resolution failed for ${mailOptions.to}: ${ccError.message}`
+        );
+      }
 
       // ✅ STEP 4d: DB-backed deduplication check before queuing
       let emailResult;
@@ -722,7 +810,14 @@ const getEmailSubject = (functionName, params) => {
     newDeviceLogin: "Security Alert: New Sign-In to Your AirQo Account",
     sendBotAlert: "🚨 Security Alert: Automated Bot Activity Detected",
     expiredToken: "Action Required: Your AirQo API Token Has Expired",
-    expiringToken: "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
+    expiringToken:
+      Number.isFinite(params.daysRemaining) && params.daysRemaining >= 0
+        ? `Action Required: Your AirQo API Token Expires in ${params.daysRemaining} Day${params.daysRemaining === 1 ? "" : "s"} — Regenerate Now`
+        : "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
+    autoSuspendedToken: "Security Alert: Your AirQo API Token Has Been Suspended",
+    bypassExpiryReminder: "Action Required Soon: Your API Token's Security Exemption Is Expiring",
+    bypassExpired: "Security Alert: Your API Token's Security Exemption Has Expired",
+    bypassReportDigest: "Weekly Security-Bypass Report",
 
     // ===== SENSOR MANUFACTURER (NETWORK) REQUEST FUNCTIONS =====
     notifyAdminOfSensorManufacturerRequest: `New Sensor Manufacturer Request: ${sanitizeEmailString(
@@ -772,6 +867,9 @@ const getEmailSubject = (functionName, params) => {
     requestToJoinGroupByEmail: `Your AirQo Account Request to Access ${processString(
       params.entity_title || "",
     )} Team`,
+    notifyGroupManagerOfJoinRequest: `New Join Request: ${sanitizeEmailString(
+      params.entity_title || "",
+    )}`,
     afterAcceptingInvitation: `Welcome to ${
       params.entity_title ? processString(params.entity_title) : "the team"
     }!`,
@@ -800,6 +898,12 @@ const getEmailSubject = (functionName, params) => {
     inquiry: `Thank you for your inquiry - AirQo ${params.category || ""} team`,
     newMobileAppUser: params.subject || "AirQo Mobile App Notification",
     feedback: params.subject || "AirQo Feedback Submission",
+    feedbackConfirmation: "Thank you for your feedback – AirQo",
+    feedbackStatusUpdate: "Update on your AirQo feedback – AirQo",
+    feedbackAdminReply: "A response to your AirQo feedback – AirQo",
+    feedbackWeeklyDigest: "Weekly Digest: Pending Feedback Items – AirQo",
+    feedbackAssigned: "Feedback item assigned to you – AirQo",
+    feedbackWatcherNotification: "Update on a feedback item you are watching – AirQo",
     sendReport: "Your AirQo Account Report",
     siteActivity: "Your AirQo Account: Monitor Deployment/Recall Alert",
     fieldActivity: (() => {
@@ -853,6 +957,9 @@ const EMAIL_CATEGORIES = {
     "sendCompromiseSummary",
     "expiredToken",
     "expiringToken",
+    "bypassExpiryReminder",
+    "bypassExpired",
+    "bypassReportDigest",
     "onboardingAccountSetup",
     "notifyGroupStatusChanged",
   ],
@@ -877,6 +984,7 @@ const EMAIL_CATEGORIES = {
     "candidate",
     "request",
     "requestToJoinGroupByEmail",
+    "notifyGroupManagerOfJoinRequest",
     "afterAcceptingInvitation",
     "user",
     "assign",
@@ -903,6 +1011,8 @@ const EMAIL_CATEGORIES = {
     "updateProfileReminder",
     "sendPollutionAlert",
   ],
+  // Triggered directly by user action — always delivered regardless of subscription status
+  TRANSACTIONAL: ["feedbackConfirmation"],
 };
 
 /**
@@ -921,7 +1031,14 @@ const createSecurityEmailFunction = (
     let otherParams = {};
     let tenant = "";
     try {
-      ({ email, tenant = "airqo", ...otherParams } = params);
+      let cooldownKey;
+      ({ email, tenant = "airqo", cooldownKey, ...otherParams } = params);
+      // Optional per-call cooldown scoping. Without it, the cooldown/dedup
+      // window is keyed only by (email, functionName) — fine for one-token
+      // alerts, but for per-token notifications (e.g. bypass expiry) that
+      // would let one token's email suppress another token's distinct alert
+      // to the same owner. Callers that don't pass cooldownKey are unaffected.
+      const emailType = cooldownKey ? `${functionName}:${cooldownKey}` : functionName;
 
       // ✅ STEP 1: Input validation
       if (!email) {
@@ -957,7 +1074,7 @@ const createSecurityEmailFunction = (
           const EmailLog = EmailLogModel(tenant);
           const cooldownCheck = await EmailLog.canSendEmail({
             email,
-            emailType: functionName,
+            emailType,
             cooldownDays,
           });
 
@@ -1016,6 +1133,21 @@ const createSecurityEmailFunction = (
         html: emailMessageFunction({ email, ...otherParams }),
         attachments: attachments,
       };
+
+      // ✅ STEP 4-CC: Add admin CC for registered application email addresses.
+      try {
+        const adminCC = await _resolveAdminCCForApplicationEmail(email, tenant);
+        if (adminCC) {
+          baseMailOptions.cc = adminCC;
+          logger.info(
+            `Admin CC applied for application email ${email} on tenant ${tenant}`
+          );
+        }
+      } catch (ccError) {
+        logger.warn(
+          `Admin CC resolution failed for ${email}: ${ccError.message}`
+        );
+      }
 
       // ✅ STEP 5: DB-backed deduplication check before queuing
       let emailResult;
@@ -1136,7 +1268,7 @@ const createSecurityEmailFunction = (
           const EmailLog = EmailLogModel(tenant);
           await EmailLog.logEmailSent({
             email,
-            emailType: functionName,
+            emailType,
             metadata: {
               messageId: emailResult.data.messageId,
               ...otherParams,
@@ -1332,12 +1464,21 @@ const createAdminAlertFunction = (
           // each produce distinct keys and are not incorrectly collapsed together).
           // We deliberately do NOT use mailOptions.to here because that is now always
           // the SUPPORT_EMAIL placeholder and would collapse all bot IPs into one key.
-          const stableKeyContent = `${mailOptions.bcc}:${mailOptions.subject}:${otherParams.ip}`;
+          const normalizedBcc = (mailOptions.bcc || "")
+            .split(",")
+            .map((e) => e.trim().toLowerCase())
+            .filter(Boolean)
+            .sort()
+            .join(",");
+          const stableKeyContent = `${normalizedBcc}:${mailOptions.subject}:${otherParams.ip}`;
           const stableKey = crypto
             .createHash("md5")
             .update(stableKeyContent)
             .digest("hex");
           dedupOptions.overrideKey = `email_dedup:${stableKey}`;
+          // Hold the dedup lock for 24 h — the IP is already blacklisted after the
+          // first alert, so a second email for the same IP within a day adds no value.
+          dedupOptions.ttlSeconds = 86400;
         }
 
         shouldSend = await emailDeduplicator.checkAndMarkEmail(
@@ -1489,6 +1630,19 @@ const mailer = {
       ...baseMailOptions,
       bcc: params.inviterEmail,
     }),
+  ),
+  notifyGroupManagerOfJoinRequest: createMailerFunction(
+    "notifyGroupManagerOfJoinRequest", //
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.notifyGroupManagerOfJoinRequest({
+        email: params.email,
+        contact_name: params.contact_name,
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        entity_title: params.entity_title,
+        request_id: params.request_id,
+      }),
   ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
     msgs.inquiry(
@@ -1745,16 +1899,23 @@ const mailer = {
       return {
         ...baseMailOptions,
         to: constants.SUPPORT_EMAIL,
-        cc: params.email,
         subject: params.subject,
         text: safeScreenshotUrl
           ? `${params.message}\n\nScreenshot: ${safeScreenshotUrl}`
           : params.message,
         html: `<p>${escapedMessage}</p>${screenshotHtml}`,
-        bcc: undefined,
         attachments: undefined,
       };
     },
+  ),
+  feedbackConfirmation: createMailerFunction(
+    "feedbackConfirmation",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackConfirmation({
+        email: params.email,
+        subject: params.subject,
+      }),
   ),
   sendReport: async (
     {
@@ -2356,11 +2517,29 @@ const mailer = {
         token: params.token,
         tokenName: params.tokenName,
         expires: params.expires,
+        daysRemaining: params.daysRemaining,
       }),
     {
       cooldownDays: constants.EXPIRING_TOKEN_REMINDER_DAYS,
       enableCooldown: true,
     },
+  ),
+  // One email per token per day maximum — callers pass cooldownKey (the token
+  // id/hash) so this is scoped per-token, not per-user, meaning a user with
+  // multiple tokens still gets a distinct alert for each one.
+  autoSuspendedToken: createSecurityEmailFunction(
+    "autoSuspendedToken",
+    (params) =>
+      msgs.tokenAutoSuspended({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+        tokenName: params.tokenName,
+        suspensionReason: params.suspensionReason,
+        suspendedAt: params.suspendedAt,
+      }),
+    { cooldownDays: 1, enableCooldown: true },
   ),
   newDeviceLogin: createSecurityEmailFunction(
     "newDeviceLogin",
@@ -2558,6 +2737,57 @@ const mailer = {
       enableCooldown: true,
     },
   ),
+  // Sent once per expiry cycle — the cooldown is set equal to the reminder
+  // lead window itself, so a daily job run only produces one email per
+  // token+bypass, not one per day the token sits inside the lead window.
+  bypassExpiryReminder: createSecurityEmailFunction(
+    "bypassExpiryReminder",
+    (params) =>
+      msgs.bypassExpiryReminder({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+        tokenName: params.tokenName,
+        bypassLabel: params.bypassLabel,
+        expiresAt: params.expiresAt,
+      }),
+    {
+      cooldownDays: constants.BYPASS_EXPIRY_REMINDER_LEAD_DAYS,
+      enableCooldown: true,
+    },
+  ),
+  // One-time notice sent by bypass-expiry-job right after it auto-clears an
+  // expired bypass flag — no repeat risk since the flag can only expire once
+  // per grant (renewing it resets bypass_*_expires_at to a new future date).
+  bypassExpired: createSecurityEmailFunction(
+    "bypassExpired",
+    (params) =>
+      msgs.bypassExpired({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+        tokenName: params.tokenName,
+        bypassLabel: params.bypassLabel,
+      }),
+    { cooldownDays: 1, enableCooldown: true },
+  ),
+  // Internal admin-only weekly digest of every token with an active bypass.
+  // Uses the admin-alert path (BCC, SUPPORT_EMAIL audit copy, daily rate cap)
+  // rather than createSecurityEmailFunction since this goes to a recipient
+  // list, not a single token owner.
+  bypassReportDigest: createAdminAlertFunction(
+    "bypassReportDigest",
+    (params) =>
+      msgs.bypassReportDigest({
+        recipients: params.recipients,
+        bypasses: params.bypasses,
+      }),
+    {
+      maxAlertsPerDay: 1,
+    },
+  ),
   clientActivationRequestAdmin: createMailerFunction(
     "clientActivationRequestAdmin", //
     "CLIENT_MANAGEMENT",
@@ -2652,6 +2882,64 @@ const mailer = {
         new_status: params.new_status,
         reason: params.reason,
         email: params.email,
+      }),
+  ),
+
+  feedbackStatusUpdate: createMailerFunction(
+    "feedbackStatusUpdate",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackStatusUpdate({
+        email: params.email,
+        subject: params.subject,
+        oldStatus: params.oldStatus,
+        newStatus: params.newStatus,
+      }),
+  ),
+
+  feedbackAdminReply: createMailerFunction(
+    "feedbackAdminReply",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackAdminReply({
+        email: params.email,
+        subject: params.subject,
+        replyMessage: params.replyMessage,
+      }),
+  ),
+
+  feedbackWeeklyDigest: createMailerFunction(
+    "feedbackWeeklyDigest",
+    "OPTIONAL",
+    (params) => msgs.feedbackWeeklyDigest({ count: params.count, items: params.items }),
+    (baseMailOptions, params) => ({
+      ...baseMailOptions,
+      to: params.to || constants.SUPPORT_EMAIL,
+    }),
+  ),
+
+  feedbackAssigned: createMailerFunction(
+    "feedbackAssigned",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackAssigned({
+        email: params.email,
+        name: params.name,
+        subject: params.subject,
+        feedbackId: params.feedbackId,
+      }),
+  ),
+
+  feedbackWatcherNotification: createMailerFunction(
+    "feedbackWatcherNotification",
+    "OPTIONAL",
+    (params) =>
+      msgs.feedbackWatcherNotification({
+        email: params.email,
+        name: params.name,
+        subject: params.subject,
+        event: params.event,
+        detail: params.detail,
       }),
   ),
 };

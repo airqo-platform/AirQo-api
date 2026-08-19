@@ -1,4 +1,6 @@
 require("module-alias/register");
+// Ensure TENANTS includes legacy values before constants module loads
+process.env.TENANTS = "kcca,airqo,airqount";
 const chai = require("chai");
 const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
@@ -23,8 +25,20 @@ const {
 
 chai.use(sinonChai);
 
+const constants = require("@config/constants");
+
 describe("Validation Functions", () => {
   describe("validateTenant", () => {
+    let origTenants;
+    before(() => {
+      origTenants = constants.TENANTS;
+      // Ensure kcca is in TENANTS regardless of module-load-time env state
+      constants.TENANTS = ["kcca", "airqo", "airqount"];
+    });
+    after(() => {
+      constants.TENANTS = origTenants;
+    });
+
     it("should validate KCCA tenant", () => {
       const result = validateTenant({ tenant: "KCCA" });
       expect(result).to.be.undefined;
@@ -88,7 +102,7 @@ describe("Validation Functions", () => {
 
     it("should validate client_id", () => {
       const result = validateTokenCreate([
-        { client_id: "1234567890abcdef1234567890abcdef" },
+        { client_id: "1234567890abcdef12345678" },
       ]);
       expect(result).to.be.undefined;
     });
@@ -102,9 +116,9 @@ describe("Validation Functions", () => {
 
     it("should sanitize client_id", () => {
       const result = validateTokenCreate([
-        { client_id: "1234567890abcdef1234567890abcdef" },
+        { client_id: "1234567890abcdef12345678" },
       ]);
-      expect(result[0].client_id).to.equal("1234567890abcdef1234567890abcdef");
+      expect(result).to.be.undefined;
     });
 
     it("should validate expires field", () => {
@@ -145,6 +159,131 @@ describe("Validation Functions", () => {
       expect(result)
         .to.have.property("msg")
         .that.equals("the date should not be before the current date");
+    });
+
+    it("should accept bypass_anomaly_detection true", () => {
+      const result = validateTokenUpdate([{ bypass_anomaly_detection: true }]);
+      expect(result).to.be.undefined;
+    });
+
+    it("should accept bypass_anomaly_detection false", () => {
+      const result = validateTokenUpdate([{ bypass_anomaly_detection: false }]);
+      expect(result).to.be.undefined;
+    });
+
+    it("should reject non-boolean bypass_anomaly_detection", () => {
+      const result = validateTokenUpdate([{ bypass_anomaly_detection: "yes" }]);
+      expect(result)
+        .to.have.property("msg")
+        .that.equals("bypass_anomaly_detection must be a boolean");
+    });
+
+    ["bypass_compromise_detection", "bypass_ip_blacklist"].forEach((field) => {
+      it(`should accept ${field} true`, () => {
+        const result = validateTokenUpdate([{ [field]: true }]);
+        expect(result).to.be.undefined;
+      });
+
+      it(`should accept ${field} false`, () => {
+        const result = validateTokenUpdate([{ [field]: false }]);
+        expect(result).to.be.undefined;
+      });
+
+      it(`should reject non-boolean ${field}`, () => {
+        const result = validateTokenUpdate([{ [field]: "yes" }]);
+        expect(result)
+          .to.have.property("msg")
+          .that.equals(`${field} must be a boolean`);
+      });
+    });
+
+    [
+      "bypass_anomaly_detection_expires_at",
+      "bypass_compromise_detection_expires_at",
+      "bypass_ip_blacklist_expires_at",
+    ].forEach((field) => {
+      it(`should accept a future datetime for ${field}`, () => {
+        const result = validateTokenUpdate([{ [field]: "2050-01-01T00:00:00Z" }]);
+        expect(result).to.be.undefined;
+      });
+
+      it(`should accept null for ${field} to clear it`, () => {
+        const result = validateTokenUpdate([{ [field]: null }]);
+        expect(result).to.be.undefined;
+      });
+
+      it(`should reject a past datetime for ${field}`, () => {
+        const result = validateTokenUpdate([{ [field]: "2020-01-01T00:00:00Z" }]);
+        expect(result)
+          .to.have.property("msg")
+          .that.equals(`${field} must be in the future`);
+      });
+
+      it(`should reject an invalid datetime string for ${field}`, () => {
+        const result = validateTokenUpdate([{ [field]: "not-a-date" }]);
+        expect(result)
+          .to.have.property("msg")
+          .that.equals(`${field} must be a valid datetime, or null to clear it`);
+      });
+    });
+
+    describe("admin-only guard (middleware mode)", () => {
+      const buildReq = (user, body) => ({ user, body });
+
+      it("should reject setting bypass_compromise_detection with no req.user", () => {
+        const next = sinon.stub();
+        validateTokenUpdate(
+          buildReq(undefined, { bypass_compromise_detection: true }),
+          {},
+          next
+        );
+        expect(next).to.have.been.calledOnce;
+        const err = next.firstCall.args[0];
+        expect(err.errors[0].message).to.equal(
+          "bypass_compromise_detection can only be set by administrators"
+        );
+      });
+
+      it("should reject setting bypass_ip_blacklist_expires_at from a non-admin user", () => {
+        const next = sinon.stub();
+        validateTokenUpdate(
+          buildReq(
+            { email: "someone@example.com" },
+            { bypass_ip_blacklist_expires_at: "2050-01-01T00:00:00Z" }
+          ),
+          {},
+          next
+        );
+        expect(next).to.have.been.calledOnce;
+        const err = next.firstCall.args[0];
+        expect(err.errors[0].message).to.equal(
+          "bypass_ip_blacklist_expires_at can only be set by administrators"
+        );
+      });
+
+      it("should allow an admin user to set a bypass_* field", () => {
+        const origAllowlist = constants.SUPER_ADMIN_EMAIL_ALLOWLIST;
+        constants.SUPER_ADMIN_EMAIL_ALLOWLIST = ["admin@airqo.net"];
+        const next = sinon.stub();
+        try {
+          validateTokenUpdate(
+            buildReq({ email: "admin@airqo.net" }, { bypass_compromise_detection: true }),
+            {},
+            next
+          );
+        } finally {
+          constants.SUPER_ADMIN_EMAIL_ALLOWLIST = origAllowlist;
+        }
+        expect(next).to.have.been.calledOnce;
+        expect(next.firstCall.args[0]).to.be.undefined;
+      });
+
+      it("should not trigger the admin guard when no bypass_* field is touched", () => {
+        const next = sinon.stub();
+        validateTokenUpdate(buildReq(undefined, { name: "Updated" }), {}, next);
+        expect(next).to.have.been.calledOnce;
+        expect(next.firstCall.args[0]).to.be.undefined;
+      });
     });
   });
 
@@ -354,7 +493,7 @@ describe("Validation Functions", () => {
   describe("validateIpRangeIdParam", () => {
     it("should validate IP range ID parameter", () => {
       const result = validateIpRangeIdParam({
-        id: "1234567890abcdef1234567890abcdef",
+        id: "1234567890abcdef12345678",
       });
       expect(result).to.be.undefined;
     });
@@ -382,9 +521,9 @@ describe("Validation Functions", () => {
 
     it("should sanitize ID", () => {
       const result = validateIpRangeIdParam({
-        id: "1234567890abcdef1234567890abcdef",
+        id: "1234567890abcdef12345678",
       });
-      expect(result.id).to.equal("1234567890abcdef1234567890abcdef");
+      expect(result).to.be.undefined;
     });
   });
 
@@ -459,7 +598,7 @@ describe("Validation Functions", () => {
   describe("validateIdParam", () => {
     it("should validate ID parameter", () => {
       const result = validateIdParam({
-        id: "1234567890abcdef1234567890abcdef",
+        id: "1234567890abcdef12345678",
       });
       expect(result).to.be.undefined;
     });
@@ -487,9 +626,9 @@ describe("Validation Functions", () => {
 
     it("should sanitize ID", () => {
       const result = validateIdParam({
-        id: "1234567890abcdef1234567890abcdef",
+        id: "1234567890abcdef12345678",
       });
-      expect(result.id).to.equal("1234567890abcdef1234567890abcdef");
+      expect(result).to.be.undefined;
     });
   });
 });

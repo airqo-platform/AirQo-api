@@ -142,6 +142,7 @@ const siteSchema = new Schema(
     approximate_latitude: {
       type: Number,
       required: [true, "approximate_latitude is required!"],
+      immutable: true,
     },
     longitude: {
       type: Number,
@@ -151,6 +152,7 @@ const siteSchema = new Schema(
     approximate_longitude: {
       type: Number,
       required: [true, "approximate_longitude is required!"],
+      immutable: true,
     },
     approximate_distance_in_km: {
       type: Number,
@@ -325,6 +327,15 @@ const siteSchema = new Schema(
       type: Date,
       default: null,
     },
+    // Diagnostic-only field: does NOT affect rawOnlineStatus/isOnline. Mirrors
+    // the primary device's dateValidStatus (see models/Device.js) so consumers
+    // can distinguish "device clock is wrong" from "device isn't transmitting"
+    // at the site level without rawOnlineStatus itself changing meaning.
+    dateValidStatus: {
+      type: String,
+      enum: ["valid", "future_timestamp", "invalid_format", "unknown"],
+      default: "unknown",
+    },
     /**
      * The latest PM2.5 readings for this site.
      * May be null or undefined if no readings have been recorded yet.
@@ -495,38 +506,41 @@ siteSchema.pre(
       const updates = this.getUpdate();
       if (updates) {
         // Prevent modification of restricted fields
-        const restrictedFields = [
+        const COORDINATE_FIELDS = [
           "latitude",
           "longitude",
-          "_id",
-          "generated_name",
-          "lat_long",
+          "approximate_latitude",
+          "approximate_longitude",
         ];
-        restrictedFields.forEach((field) => {
-          // Remove from top-level updates
-          if (updates[field]) delete updates[field];
+        const SILENT_STRIP_FIELDS = ["_id", "generated_name", "lat_long"];
+        const ALL_RESTRICTED = [...COORDINATE_FIELDS, ...SILENT_STRIP_FIELDS];
 
-          // Remove from $set
-          if (updates.$set && updates.$set[field]) {
-            if (field === "latitude" || field === "longitude") {
-              return next(
-                new HttpError(
-                  "Cannot modify latitude or longitude after creation",
-                  httpStatus.BAD_REQUEST,
-                  {
-                    message:
-                      "Cannot modify latitude or longitude after creation",
-                  },
-                ),
-              );
-            }
-            delete updates.$set[field];
-          }
+        // Reject any attempt to set a coordinate — check both top-level and
+        // $set paths before touching anything, so next() is called exactly once.
+        const coordInTopLevel = COORDINATE_FIELDS.some((f) => f in updates);
+        const coordInSet =
+          updates.$set &&
+          COORDINATE_FIELDS.some((f) => f in updates.$set);
 
-          // Remove from $push
-          if (updates.$push && updates.$push[field])
+        if (coordInTopLevel || coordInSet) {
+          return next(
+            new HttpError(
+              "Cannot modify site coordinates after creation",
+              httpStatus.BAD_REQUEST,
+              {
+                message: "Cannot modify site coordinates after creation",
+              },
+            ),
+          );
+        }
+
+        // Silently strip remaining restricted fields from all update paths
+        for (const field of ALL_RESTRICTED) {
+          if (field in updates) delete updates[field];
+          if (updates.$set && field in updates.$set) delete updates.$set[field];
+          if (updates.$push && field in updates.$push)
             delete updates.$push[field];
-        });
+        }
 
         // Handle array fields using $addToSet
         const arrayFieldsToAddToSet = [
@@ -603,6 +617,15 @@ siteSchema.index({ grids: 1 });
 // Placing _id before createdAt lets MongoDB satisfy the _id sort from the
 // index without an in-memory SORT stage.
 siteSchema.index({ isOnline: 1, _id: 1, createdAt: 1 });
+// Preselect index for fix-corrupted-raw-data-job — lets the hourly cleanup
+// pass find sites stuck with a future-dated raw reading in O(log n) instead
+// of a full collection scan.
+siteSchema.index({ dateValidStatus: 1, lastRawData: 1 });
+// backfill-search-name-job: equality on search_name (missing/null/""), cursor
+// on _id. As the backlog of missing-search_name sites shrinks toward zero,
+// this keeps each run's lookup proportional to the remaining backlog instead
+// of scanning the full, ever-growing sites collection.
+siteSchema.index({ search_name: 1, _id: 1 });
 
 siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
@@ -650,6 +673,7 @@ siteSchema.methods = {
       isOnline: this.isOnline,
       rawOnlineStatus: this.rawOnlineStatus,
       lastRawData: this.lastRawData,
+      dateValidStatus: this.dateValidStatus || "unknown",
       street: this.street,
       county: this.county,
       altitude: this.altitude,
@@ -717,7 +741,7 @@ siteSchema.statics = {
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdSite)) {
-        next(
+        return next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -729,18 +753,25 @@ siteSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
-      const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+      const stringifiedMessage = JSON.stringify(error ? error : "");
       let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-      Object.entries(error.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
-
-      next(new HttpError(message, status, response));
+      let message;
+      let status;
+      if (error.errors) {
+        logger.warn(`⚠️ Site validation error -- ${stringifiedMessage}`);
+        message = "validation errors for some of the provided fields";
+        status = httpStatus.CONFLICT;
+        Object.entries(error.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+        });
+      } else {
+        logger.error(`🐛🐛 Internal Server Error -- ${stringifiedMessage}`);
+        message = error.message || "internal server error";
+        status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
+        response.error = error.message;
+      }
+      return next(new HttpError(message, status, response));
     }
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
@@ -1197,9 +1228,18 @@ siteSchema.statics = {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
 
+      const PROTECTED = ["network", "_id"];
+      const sanitizedUpdate = sanitizeObject({ ...update }, PROTECTED);
+      const UPDATE_OPERATORS = ["$set", "$unset", "$setOnInsert", "$rename"];
+      for (const op of UPDATE_OPERATORS) {
+        if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+          PROTECTED.forEach((f) => delete sanitizedUpdate[op][f]);
+        }
+      }
+
       let updatedSite = await this.findOneAndUpdate(
         filter,
-        update,
+        sanitizedUpdate,
         options,
       ).exec();
 
@@ -1235,6 +1275,8 @@ siteSchema.statics = {
         "_id",
         "longitude",
         "latitude",
+        "approximate_longitude",
+        "approximate_latitude",
         "lat_long",
         "generated_name",
       ];

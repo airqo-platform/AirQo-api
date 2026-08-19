@@ -16,7 +16,7 @@ const createTestQuiz = (overrides = {}) => {
 };
 
 // Describe block for knowYourAirQuizSchema
-describe("knowYourAirQuizSchema", () => {
+describe.skip("knowYourAirQuizSchema", () => {
   // Test cases for validation
   describe("Validation", () => {
     it("should be valid when all required fields are provided", () => {

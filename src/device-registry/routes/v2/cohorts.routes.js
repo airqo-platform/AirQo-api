@@ -4,8 +4,16 @@ const router = express.Router();
 const createCohortController = require("@controllers/cohort.controller");
 const cohortValidations = require("@validators/cohorts.validators");
 const { headers, pagination } = require("@validators/common");
+const {
+  verifyAndBindResources,
+  enforceCohortBinding,
+} = require("@middleware/token-resource-binding.middleware");
 
 router.use(headers);
+// Attach resource binding metadata to every request in this router.
+// No-op when ENABLE_RESOURCE_BINDING is false (default) so existing
+// behaviour is completely unchanged until the feature is explicitly enabled.
+router.use(verifyAndBindResources);
 
 router.delete(
   "/:cohort_id",
@@ -37,6 +45,7 @@ router.get(
 router.get(
   "/:cohort_id/original",
   cohortValidations.findOriginal,
+  enforceCohortBinding,
   // No pagination needed, it returns a single document or null
   createCohortController.findOriginal,
 );
@@ -71,6 +80,7 @@ router.put(
 router.get(
   "/:cohort_id/assigned-devices",
   cohortValidations.listAssignedDevices,
+  enforceCohortBinding,
   pagination(),
   createCohortController.listAssignedDevices,
 );
@@ -78,6 +88,7 @@ router.get(
 router.get(
   "/:cohort_id/available-devices",
   cohortValidations.listAvailableDevices,
+  enforceCohortBinding,
   pagination(),
   createCohortController.listAvailableDevices,
 );
@@ -115,6 +126,7 @@ router.post(
 router.get(
   "/:cohort_id/generate",
   cohortValidations.getSiteAndDeviceIds,
+  enforceCohortBinding,
   pagination(),
   createCohortController.getSiteAndDeviceIds,
 );
@@ -198,6 +210,7 @@ router.post(
 router.get(
   "/:cohort_id",
   cohortValidations.getCohort,
+  enforceCohortBinding,
   pagination(),
   createCohortController.list,
 );

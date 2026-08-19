@@ -133,9 +133,6 @@ const commonValidations = {
         return true;
       }),
 
-    body("airqloud")
-      .optional()
-      .isString(),
     body("cohort")
       .optional()
       .isString(),

@@ -2,12 +2,13 @@ const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const SignalModel = require("@models/Signal");
 const DeviceModel = require("@models/Device");
-const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
+const AirQualitySummaryModel = require("@models/AirQualitySummary");
 const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
+const aqiUtil = require("@utils/aqi.util");
 const {
   logObject,
   logText,
@@ -25,6 +26,7 @@ const {
   stringify,
   ActivityLogger,
   throttleUtil,
+  distance,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
@@ -50,6 +52,11 @@ const asyncRetry = require("async-retry");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
+// Established maximum result size for the Nexus rankings endpoints — mirrors
+// the validated max on GET .../readings/rankings' limit param, reused here to
+// cap the number of entities the (unbounded, un-paginated) history endpoint
+// can fan out to, since level=city has no fixed upper bound like countries do.
+const MAX_RANKING_RESULTS = 100;
 let lastRedisWarning = 0;
 const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
 
@@ -660,60 +667,6 @@ class AirQualityService {
     );
   }
 }
-const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
-  try {
-    const airQloud = await AirQloudModel(tenant)
-      .findById(airqloud_id)
-      .lean();
-    logObject("airQloud", airQloud);
-
-    if (!airQloud) {
-      logger.error(
-        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `,
-      );
-      return {
-        success: false,
-        message: "Bad Request Error",
-        status: httpStatus.BAD_REQUEST,
-        errors: { message: "AirQloud not found" },
-      };
-    }
-
-    const sites = airQloud.sites || [];
-    logObject("sites from the AirQloud", sites);
-
-    if (sites.length === 0) {
-      return {
-        success: true,
-        message:
-          "Unable to find any sites associated with the provided AirQloud ID",
-        data: [],
-        status: httpStatus.OK,
-      };
-    }
-
-    const siteIds = sites.map((site) => site._id.toString());
-    logObject("siteIds", siteIds);
-    const commaSeparatedIds = siteIds.join(",");
-    logObject("commaSeparatedIds", commaSeparatedIds);
-
-    return {
-      success: true,
-      message: "Successfully retrieved the sites for this AirQloud",
-      data: commaSeparatedIds,
-      status: httpStatus.OK,
-    };
-  } catch (error) {
-    logObject("error", error);
-    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-      errors: { message: error.message },
-    };
-  }
-};
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -903,8 +856,8 @@ const processGridIds = async (grid_ids, request) => {
         // Grid is private — treat as empty site set, not an error
         return null;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-        logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
+        logger.warn(
+          `🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -935,7 +888,7 @@ const processGridIds = async (grid_ids, request) => {
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
@@ -1043,83 +996,6 @@ const processCohortIds = async (cohort_ids, request) => {
     };
   }
 };
-const processAirQloudIds = async (airqloud_ids, request) => {
-  logObject("airqloud_ids", airqloud_ids);
-  const airqloudIdArray = Array.isArray(airqloud_ids)
-    ? airqloud_ids
-    : airqloud_ids.toString().split(",");
-  logObject("airqloudIdArray", airqloudIdArray);
-
-  const siteIdPromises = airqloudIdArray.map(async (airqloud_id) => {
-    if (!isEmpty(airqloud_id)) {
-      logObject("airqloud_id under processAirQloudIds", airqloud_id);
-      const responseFromGetSitesOfAirQloud = await getSitesFromAirQloud({
-        airqloud_id,
-      });
-
-      logObject(
-        "responseFromGetSitesOfAirQloud",
-        responseFromGetSitesOfAirQloud,
-      );
-
-      if (responseFromGetSitesOfAirQloud.success === false) {
-        logger.error(
-          `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfAirQloud,
-          )}`,
-        );
-        return responseFromGetSitesOfAirQloud;
-      } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
-        logger.error(
-          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
-        );
-        return {
-          success: false,
-          message: `The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
-        };
-      }
-
-      logObject(
-        "responseFromGetSitesOfAirQloud.data",
-        responseFromGetSitesOfAirQloud.data,
-      );
-
-      logObject(
-        "responseFromGetSitesOfAirQloud.data.split",
-        responseFromGetSitesOfAirQloud.data.split(","),
-      );
-
-      const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
-      return arrayOfSites;
-    }
-  });
-
-  const siteIdResults = await Promise.all(siteIdPromises);
-  logObject("siteIdResults", siteIdResults);
-
-  const invalidSiteIdResults = siteIdResults.filter(
-    (result) => result != null && result.success === false,
-  );
-
-  if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
-    );
-  }
-  logObject("invalidSiteIdResults", invalidSiteIdResults);
-
-  const validSiteIdResults = siteIdResults.filter(
-    (result) => result != null && !(result.success === false),
-  );
-
-  logObject("validSiteIdResults", validSiteIdResults);
-
-  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
-    logObject("validSiteIdResults.join(,)", validSiteIdResults.join(","));
-    request.query.site_id = validSiteIdResults.join(",");
-  }
-};
-
 const isEventTimestampValid = (
   timestamp,
   maxAgeMs = constants.MAX_EVENT_AGE_MS,
@@ -1315,10 +1191,16 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
+// Shared helper used by normalizeMeasurements and enrichMeasurementsWithDeviceContext.
+// Both transformation paths need to derive the day bucket from measurement.time.
+const _addDayField = (measurement) => {
+  const day = generateDateFormatWithoutHrs(measurement.time);
+  return { ...measurement, day };
+};
+
 const createEvent = {
   processGridIds,
   processCohortIds,
-  processAirQloudIds,
   listForMap: async (request, next) => {
     try {
       const { query } = request;
@@ -1342,10 +1224,7 @@ const createEvent = {
 
       const filter = generateFilter.readingsMap(request, next);
 
-      // DIAGNOSTIC WARN — non-fatal: log the effective filter before it reaches
-      // MongoDB so any stray tenant/ObjectId contamination is immediately visible
-      // in Slack without waiting for a zero-result symptom.
-      logger.warn(
+      logger.info(
         `[listForMap] tenant=${tenant} limit=${limit} skip=${skip} ` +
           `filter=${JSON.stringify(filter, (_, v) =>
             v && typeof v === "object" && v._bsontype ? `ObjectId(${v})` : v,
@@ -1459,8 +1338,6 @@ const createEvent = {
         device_id,
         device_lat_long,
         site_id,
-        airqloud_id,
-        airqloud_name,
         device_number,
         startTime,
         endTime,
@@ -1594,8 +1471,6 @@ const createEvent = {
       ${device_name ? `AND device_name="${device_name}"` : ""}
       ${device_id ? `AND device_id="${device_id}"` : ""}
       ${site_id ? `AND site_id="${site_id}"` : ""}
-      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
       ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
       ${
         tenant
@@ -1619,8 +1494,6 @@ const createEvent = {
       ${device_name ? `AND device_name="${device_name}"` : ""}
       ${device_id ? `AND device_id="${device_id}"` : ""}
       ${site_id ? `AND site_id="${site_id}"` : ""}
-      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
       ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
      ${tenant ? `AND tenant="${tenant}"` : ""}
      ORDER BY timestamp
@@ -1641,8 +1514,6 @@ const createEvent = {
     ${device_name ? `AND device_name="${device_name}"` : ""}
     ${device_id ? `AND device_id="${device_id}"` : ""}
     ${site_id ? `AND site_id="${site_id}"` : ""}
-    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
     ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
     ${tenant ? `AND tenant="${tenant}"` : ""}
     ORDER BY timestamp
@@ -1876,6 +1747,212 @@ const createEvent = {
       );
     }
   },
+
+  // African city/country AQI rankings — groups the latest reading per site
+  // (same "latest-per-site" shape as getRepresentativeAirQuality above) by
+  // the denormalized siteDetails.country/city field, since no grid hierarchy
+  // exists to roll city grids up into country grids.
+  getAirQualityRankings: async (request, next) => {
+    try {
+      const {
+        tenant = "airqo",
+        level = "country",
+        sort = "best",
+        limit = 20,
+      } = request.query;
+
+      const groupField = `$siteDetails.${level}`;
+      const africanCountries = Object.keys(constants.countryCodes);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const pipeline = [
+        {
+          $match: {
+            time: { $gte: threeDaysAgo },
+            "siteDetails.country": { $in: africanCountries },
+            "pm2_5.value": { $ne: null, $type: "number" },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+        {
+          $group: {
+            _id: groupField,
+            avg_pm2_5: { $avg: "$pm2_5.value" },
+            site_count: { $sum: 1 },
+          },
+        },
+        { $match: { _id: { $ne: null } } },
+        // Secondary sort on _id (entity name) breaks ties deterministically —
+        // without it, two entities with the same avg_pm2_5 could swap order
+        // between identical requests, since Mongo doesn't guarantee sort
+        // stability on its own.
+        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1, _id: 1 } },
+        { $limit: Number(limit) },
+      ];
+
+      const rows = await ReadingModel(tenant)
+        .aggregate(pipeline)
+        .option({
+          allowDiskUse: true,
+          maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+        });
+
+      // Resolved once per request (not per row) so an admin-set custom AQI
+      // config (see utils/aqi.util.js's resolveActiveAqiRanges) is reflected
+      // here identically to what GET /aqi-ranges returns — the legend and
+      // these derived categories must never disagree.
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(tenant);
+
+      const generatedAt = new Date().toISOString();
+      const data = rows.map((row, index) => {
+        // Round once and derive both AQI fields from the same rounded value
+        // that's displayed — deriving them from the raw average instead could
+        // show a category that doesn't match the displayed figure whenever
+        // rounding lands exactly on a category boundary.
+        const avgPm25 = Math.round(row.avg_pm2_5 * 100) / 100;
+        return {
+          rank: index + 1,
+          name: row._id,
+          level,
+          country_code:
+            level === "country" ? constants.countryCodes[row._id] || null : null,
+          avg_pm2_5: avgPm25,
+          // aqi_index always comes from the fixed EPA numeric breakpoints
+          // (calculatePm25Aqi is not admin-configurable) — pairing it with a
+          // category derived from a *custom* range would show a number and
+          // a label that don't actually agree with each other, since a
+          // custom config has no guaranteed relationship to the EPA scale.
+          // Only emit it alongside the default, EPA-aligned ranges.
+          aqi_index:
+            resolvedAqiRanges.source === "custom"
+              ? null
+              : aqiUtil.calculatePm25Aqi(avgPm25),
+          aqi_category: aqiUtil.categoryFromConcentration(avgPm25, resolvedAqiRanges),
+          site_count: row.site_count,
+          generated_at: generatedAt,
+        };
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved air quality rankings",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankings -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  // Annual-only multi-region historical rollup. Missing years are returned
+  // as explicit nulls (never coerced to zero) per Nexus acceptance criteria.
+  //
+  // Reads from the AirQualitySummary collection (populated by
+  // air-quality-rollup-job.js) rather than aggregating raw readings — raw
+  // Reading documents are purged ~14 days after ingestion, so a live
+  // aggregation over a multi-year window could never see most of the range
+  // it claims to support. The precomputed rows are the only place real
+  // multi-year history survives; a year with no row here has no data (never
+  // coerced to a live re-aggregation, and never coerced to zero).
+  getAirQualityRankingsHistory: async (request, next) => {
+    try {
+      const { tenant = "airqo", level = "country" } = request.query;
+      const startYear = Number(request.query.start_year);
+      const endYear = Number(request.query.end_year);
+
+      // No need to re-filter by African country here — the rollup job only
+      // ever writes rows for siteDetails.country in constants.countryCodes.
+      const summaryDocs = await AirQualitySummaryModel(tenant)
+        .find({
+          tenant,
+          level,
+          year: { $gte: startYear, $lte: endYear },
+        })
+        .sort({ entity: 1 })
+        .lean();
+
+      const rows = summaryDocs
+        .filter((doc) => doc.reading_count > 0)
+        .map((doc) => ({
+          entity: doc.entity,
+          year: doc.year,
+          avg_pm2_5: Math.round((doc.sum_pm2_5 / doc.reading_count) * 100) / 100,
+          site_count: (doc.contributing_sites || []).length,
+        }));
+
+      // Resolved once per request, same reasoning as getAirQualityRankings —
+      // must never disagree with GET /aqi-ranges or the current rankings.
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(tenant);
+
+      const years = [];
+      for (let y = startYear; y <= endYear; y += 1) years.push(y);
+
+      const byEntity = new Map();
+      rows.forEach((row) => {
+        if (!byEntity.has(row.entity)) byEntity.set(row.entity, new Map());
+        byEntity.get(row.entity).set(row.year, row);
+      });
+
+      const data = Array.from(byEntity.entries())
+        // Countries are inherently bounded (~54, per constants.countryCodes),
+        // but level=city has no fixed upper bound — cap the response so it
+        // can't fan out across every distinct city ever seen.
+        .slice(0, MAX_RANKING_RESULTS)
+        .map(([entity, byYear]) => ({
+          name: entity,
+          level,
+          country_code:
+            level === "country" ? constants.countryCodes[entity] || null : null,
+          values: years.map((year) => {
+            const row = byYear.get(year);
+            return {
+              year,
+              avg_pm2_5: row ? row.avg_pm2_5 : null,
+              aqi_category: row
+                ? aqiUtil.categoryFromConcentration(row.avg_pm2_5, resolvedAqiRanges)
+                : null,
+              site_count: row ? row.site_count : 0,
+            };
+          }),
+        }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved historical air quality rankings",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankingsHistory -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   latestFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
@@ -2051,8 +2128,19 @@ const createEvent = {
             tenant,
           );
 
+          // Persist every blocked request for an accurate digest count;
+          // shouldLog only throttles the noisy warn line, not the count.
+          throttleUtil.logRateLimitEvent(
+            "BLOCKED",
+            clientId,
+            { remainingSeconds },
+            tenant,
+          );
+
           if (shouldLog) {
-            logger.error(
+            // Individual events are batched into the daily digest
+            // (rate-limit-digest-job) instead of alerting Slack in real time.
+            logger.warn(
               `🚫 RATE LIMITED | client=${clientId} | ${remainingSeconds}s remaining`,
             );
           }
@@ -2083,8 +2171,18 @@ const createEvent = {
           tracker.blockedUntil = now + BLOCK_DURATION;
           await throttleUtil.setRateLimitTracker(clientId, tracker, tenant);
 
-          logger.error(
-            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=5m`,
+          const blockedForSeconds = Math.round(BLOCK_DURATION / 1000);
+          const blockedForMinutes = Math.round(BLOCK_DURATION / 60000);
+          // Individual events are batched into the daily digest
+          // (rate-limit-digest-job) instead of alerting Slack in real time.
+          logger.warn(
+            `🚨 RATE LIMIT TRIGGERED | client=${clientId} | ${tracker.count} qpm | blocked=${blockedForMinutes}m`,
+          );
+          throttleUtil.logRateLimitEvent(
+            "TRIGGERED",
+            clientId,
+            { qpm: tracker.count, blockedForMinutes },
+            tenant,
           );
 
           return {
@@ -2094,7 +2192,7 @@ const createEvent = {
               "Emergency rate limit triggered. Too many historical queries.",
             errors: {
               message: `Rate limit exceeded: ${tracker.count} historical queries in 1 minute. Maximum allowed: ${MAX_HISTORICAL_PER_MINUTE}.`,
-              blocked_for_seconds: 300,
+              blocked_for_seconds: blockedForSeconds,
               recommendation: HISTORICAL_DATA_RECOMMENDATION,
               analytics_platform_url: ANALYTICS_PLATFORM_URL,
               support_email: SUPPORT_EMAIL,
@@ -2125,7 +2223,8 @@ const createEvent = {
           : "Using standard data query",
       );
 
-      const filter = generateFilter.events(request, next);
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(tenant);
+      const filter = generateFilter.events(request, next, resolvedAqiRanges);
       filter.isHistorical = isHistorical;
 
       try {
@@ -2728,7 +2827,8 @@ const createEvent = {
   },
   fetchAndStoreData: async (request, next) => {
     try {
-      const filter = generateFilter.fetch(request);
+      const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges("airqo");
+      const filter = generateFilter.fetch(request, next, resolvedAqiRanges);
       // Fetch the data
       const viewEventsResponse = await EventModel("airqo").fetch(filter);
       logText("we are running running the data insertion script");
@@ -2963,6 +3063,10 @@ const createEvent = {
         filter,
         skip,
         limit,
+        // Narrower than the shared DIAGNOSTIC_WINDOW_DAYS default — this call
+        // site is the Nexus /recent endpoint, which only needs current state,
+        // not a full day of history to scan through.
+        lookbackDays: constants.RECENT_ENDPOINT_LOOKBACK_HOURS / 24,
       });
       const dbQueryDuration = Date.now() - dbQueryStart;
 
@@ -3024,6 +3128,16 @@ const createEvent = {
           // Fallback: query the events collection directly so callers always
           // get data while the readings pipeline issue is being investigated.
           try {
+            // generateFilter.fetch() defaults to a 3-day window (and would
+            // otherwise inherit a wider startTime/endTime from request.query,
+            // e.g. a job lookback) when no startTime is given — set explicitly
+            // here, after the spread so it takes precedence, to keep this
+            // fallback as narrow as the primary ReadingModel.recent() query
+            // above instead of reintroducing a wide scan on cache-miss.
+            const fallbackStartTime = new Date(
+              Date.now() -
+                constants.RECENT_ENDPOINT_LOOKBACK_HOURS * 60 * 60 * 1000,
+            ).toISOString();
             const fallbackRequest = {
               query: {
                 ...request.query,
@@ -3031,9 +3145,17 @@ const createEvent = {
                 metadata: "site_id",
                 active: "yes",
                 brief: "yes",
+                startTime: fallbackStartTime,
               },
             };
-            const fallbackFilter = generateFilter.fetch(fallbackRequest);
+            const resolvedAqiRanges = await aqiUtil.resolveActiveAqiRanges(
+              tenant,
+            );
+            const fallbackFilter = generateFilter.fetch(
+              fallbackRequest,
+              next,
+              resolvedAqiRanges,
+            );
             const eventsResponse = await EventModel(tenant).fetch(
               fallbackFilter,
             );
@@ -4128,8 +4250,6 @@ const createEvent = {
         device_id,
         site,
         site_id,
-        airqloud_id,
-        airqloud,
         tenant,
         skip,
         limit,
@@ -4176,8 +4296,6 @@ const createEvent = {
       _${device_number ? device_number : "noDeviceNumber"}
       _${metadata ? metadata : "noMetadata"}
       _${external ? external : "noExternal"}
-      _${airqloud ? airqloud : "noAirQloud"}
-      _${airqloud_id ? airqloud_id : "noAirQloudID"}
       _${lat_long ? lat_long : "noLatLong"}
       _${page ? page : "noPage"}
       _${running ? running : "noRunning"}
@@ -4798,18 +4916,11 @@ const createEvent = {
       }
     });
   },
-  transformMeasurements_v2: async (measurements, next) => {
+  normalizeMeasurements: async (measurements, next) => {
     try {
-      logText("we are transforming version 2....");
-      let promises = measurements.map(async (measurement) => {
+      const promises = measurements.map(async (measurement) => {
         try {
-          let time = measurement.time;
-          const day = generateDateFormatWithoutHrs(time);
-          let data = {
-            day: day,
-            ...measurement,
-          };
-          return data;
+          return { success: true, data: _addDayField(measurement) };
         } catch (e) {
           logger.error(`internal server error -- ${e.message}`);
           return {
@@ -4819,19 +4930,13 @@ const createEvent = {
           };
         }
       });
-      return Promise.all(promises).then((results) => {
-        if (results.every((res) => res.success)) {
-          return {
-            success: true,
-            data: results,
-          };
-        } else {
-          return {
-            success: true,
-            data: results,
-          };
-        }
-      });
+      const results = await Promise.all(promises);
+      const successful = results.filter((r) => r.success).map((r) => r.data);
+      const failures = results.filter((r) => !r.success);
+      if (failures.length > 0) {
+        logger.error(`normalizeMeasurements: ${failures.length} measurement(s) failed day-field normalization`);
+      }
+      return { success: true, data: successful, failures };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -5083,15 +5188,23 @@ const createEvent = {
       }
 
       // Step 3: Match readings with site distances and sort
+      const staleThresholdMs =
+        (constants.EVENTS_STALENESS_THRESHOLD_HOURS || 2) * 60 * 60 * 1000;
       const readingsWithDistance = readings.data
         .map((reading) => {
           const site = sitesWithDistance.find(
             (site) => site._id.toString() === reading.site_id.toString(),
           );
+          const ageMs = reading.time
+            ? Date.now() - new Date(reading.time).getTime()
+            : null;
 
           return {
             ...reading,
             distance: site ? site.distance : Infinity,
+            is_stale: ageMs === null ? null : ageMs > staleThresholdMs,
+            data_age_minutes:
+              ageMs === null ? null : Math.round(ageMs / 60000),
           };
         })
         .sort((a, b) => a.distance - b.distance)
@@ -5338,11 +5451,27 @@ const createEvent = {
         }
       }
 
+      // Always use the device registry as the authoritative source for site/grid
+      // assignment. The payload's site_id/grid_id comes from the ingestion
+      // pipeline's device cache, which can be stale after a recall or
+      // redeployment. The device registry is updated atomically at recall/deploy
+      // time, so deviceRecord.site_id is always correct.
+      // If payload and registry disagree, log it so the discrepancy is visible.
+      const payloadSite = site_id == null ? null : site_id.toString();
+      const registrySite =
+        deviceRecord.site_id == null ? null : deviceRecord.site_id.toString();
+      if (payloadSite !== null && payloadSite !== registrySite) {
+        logger.warn(
+          `[resolveDeviceDeploymentContext] site_id mismatch for device ${deviceRecord.name}: ` +
+            `payload="${site_id}" registry="${deviceRecord.site_id}" — using registry value`,
+        );
+      }
+
       return {
         deviceRecord,
         actualDeploymentType,
-        resolvedSiteId: site_id || deviceRecord.site_id,
-        resolvedGridId: grid_id || deviceRecord.grid_id,
+        resolvedSiteId: deviceRecord.site_id || null,
+        resolvedGridId: deviceRecord.grid_id || null,
       };
     } catch (error) {
       // Re-throw HttpErrors as-is
@@ -5358,18 +5487,14 @@ const createEvent = {
       );
     }
   },
-  transformMeasurements_v3: async (measurements, next) => {
+  enrichMeasurementsWithDeviceContext: async (measurements, next) => {
     try {
-      logText("Transforming measurements v3 with mobile device support...");
+      logText("Enriching measurements with device context (deployment type, site/grid resolution)...");
 
       let promises = measurements.map(async (measurement) => {
         try {
-          let time = measurement.time;
-          const day = generateDateFormatWithoutHrs(time);
-
           let transformedMeasurement = {
-            day: day,
-            ...measurement,
+            ..._addDayField(measurement),
             deployment_type: measurement.deployment_type || "static",
           };
 
@@ -5392,6 +5517,7 @@ const createEvent = {
               }
             } else if (deploymentContext.actualDeploymentType === "mobile") {
               transformedMeasurement.grid_id = deploymentContext.resolvedGridId;
+              delete transformedMeasurement.site_id;
             }
           } catch (contextError) {
             // CHANGED: Re-throw with better error details instead of catching
@@ -5444,7 +5570,7 @@ const createEvent = {
         failed_count: failed.length,
       };
     } catch (error) {
-      logger.error(`Error in transformMeasurements_v3: ${error.message}`);
+      logger.error(`Error in enrichMeasurementsWithDeviceContext: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -5461,7 +5587,7 @@ const createEvent = {
       let eventsRejected = [];
       let errors = [];
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+      const responseFromTransformMeasurements = await createEvent.normalizeMeasurements(
         measurements,
         next,
       );
@@ -5473,8 +5599,66 @@ const createEvent = {
           }, ${stringify(measurements)}`,
         );
       }
+      if (responseFromTransformMeasurements.failures?.length > 0) {
+        logger.error(
+          `insert: ${responseFromTransformMeasurements.failures.length} measurement(s) dropped during normalization`
+        );
+      }
+
+      // Build a registry-authoritative site_id map for this batch.
+      // normalizeMeasurements is a pass-through that uses the payload's
+      // site_id directly. If the pipeline's device cache is stale (e.g. after
+      // a recall), the payload carries the wrong site_id. One batch lookup here
+      // corrects all measurements before any writes occur.
+      const batchDeviceIds = [
+        ...new Set(
+          responseFromTransformMeasurements.data
+            .map((m) => m.device_id)
+            .filter(Boolean)
+        ),
+      ];
+      const registryDeviceMap = new Map();
+      if (batchDeviceIds.length > 0) {
+        try {
+          const registryDevices = await DeviceModel(tenant)
+            .find({ _id: { $in: batchDeviceIds } })
+            .select("_id site_id isActive")
+            .lean();
+          registryDevices.forEach((d) => {
+            registryDeviceMap.set(d._id.toString(), {
+              site_id: d.site_id ?? null,
+            });
+          });
+        } catch (registryLookupError) {
+          logger.error(
+            `insert: batch device registry lookup failed — proceeding with payload site_ids: ${registryLookupError.message}`
+          );
+        }
+      }
 
       for (const measurement of responseFromTransformMeasurements.data) {
+        // Override site_id with the registry value when available so a stale
+        // pipeline cache cannot route readings to a recalled site.
+        if (measurement.device_id) {
+          const registryEntry = registryDeviceMap.get(
+            measurement.device_id.toString()
+          );
+          if (registryEntry !== undefined) {
+            if (
+              measurement.site_id != null &&
+              (registryEntry.site_id == null ||
+                registryEntry.site_id.toString() !==
+                  measurement.site_id.toString())
+            ) {
+              logger.warn(
+                `insert: site_id mismatch for device ${measurement.device_id} — ` +
+                  `payload="${measurement.site_id}" registry="${registryEntry.site_id}" — using registry value`
+              );
+            }
+            measurement.site_id = registryEntry.site_id;
+          }
+        }
+
         try {
           // logObject("the measurement in the insertion process", measurement);
           const eventsFilter = {
@@ -5664,7 +5848,7 @@ const createEvent = {
         }
       }
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
+      const responseFromTransformMeasurements = await createEvent.enrichMeasurementsWithDeviceContext(
         measurements,
         next,
       );
@@ -6154,11 +6338,20 @@ const createEvent = {
   },
 
   processLocationIds: async (
-    { grid_ids, cohort_ids, airqloud_ids, type },
+    { grid_ids, cohort_ids, type },
     request,
     next,
   ) => {
     try {
+      const SUPPORTED_TYPES = ["grid", "cohort"];
+      if (!SUPPORTED_TYPES.includes(type)) {
+        return {
+          success: false,
+          locationErrors: 1,
+          message: `Unsupported location type "${type}". Supported types: ${SUPPORTED_TYPES.join(", ")}.`,
+        };
+      }
+
       let locationErrors = 0;
 
       if (type === "grid" && grid_ids) {
@@ -6169,11 +6362,6 @@ const createEvent = {
       } else if (type === "cohort" && cohort_ids) {
         await createEvent.processCohortIds(cohort_ids, request);
         if (isEmpty(request.query.device_id)) {
-          locationErrors++;
-        }
-      } else if (type === "airqloud" && airqloud_ids) {
-        await createEvent.processAirQloudIds(airqloud_ids, request);
-        if (isEmpty(request.query.site_id)) {
           locationErrors++;
         }
       }
@@ -6402,5 +6590,10 @@ const createEvent = {
     }
   },
 };
+
+// Backward-compatible aliases — retained so any caller still using the old
+// versioned names continues to work without modification.
+createEvent.transformMeasurements_v2 = createEvent.normalizeMeasurements;
+createEvent.transformMeasurements_v3 = createEvent.enrichMeasurementsWithDeviceContext;
 
 module.exports = createEvent;

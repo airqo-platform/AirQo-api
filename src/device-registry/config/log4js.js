@@ -74,6 +74,28 @@ if (isDevelopment()) {
     },
   };
 
+  // log4js uses exact or dot-hierarchical category matching — it does NOT
+  // do suffix matching. Job files use the naming pattern:
+  //   `${ENVIRONMENT} -- <job-name> -- ops-alerts`
+  // which never resolves to the "ops-alerts" category above. Register each
+  // full category name explicitly. Always include the "app" appender so
+  // INFO/WARN messages reach the log file regardless of environment;
+  // slackWarn is added later only for production.
+  // WARN and above → Slack routing in production is enabled for the job names in
+  // OPS_ALERTS_JOB_NAMES below; all other categories rely on the default category
+  // (ERROR only → Slack).
+  const OPS_ALERTS_JOB_NAMES = [
+    "network-status-check-job",
+    "rate-limit-digest-job",
+  ];
+  const env = constants.ENVIRONMENT;
+  OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
+    config.categories[`${env} -- ${jobName} -- ops-alerts`] = {
+      appenders: ["app"],
+      level: "info",
+    };
+  });
+
   if (hasSlackConfig) {
     try {
       config.appenders.slack = {
@@ -102,7 +124,18 @@ if (isDevelopment()) {
 
       config.categories.default.appenders.push("slackErrors");
       config.categories.error.appenders.push("slackErrors");
-      config.categories["ops-alerts"].appenders.push("slackWarn");
+
+      // Production: WARN and above → Slack for ops-alerts jobs.
+      // Non-production: only ERROR → Slack (same as default), WARN is silent.
+      // In both cases ops-alerts categories already have "app" for file logging.
+      const opsAlertsSlackAppender =
+        env === "PRODUCTION ENVIRONMENT" ? "slackWarn" : "slackErrors";
+      config.categories["ops-alerts"].appenders.push(opsAlertsSlackAppender);
+      OPS_ALERTS_JOB_NAMES.forEach((jobName) => {
+        config.categories[
+          `${env} -- ${jobName} -- ops-alerts`
+        ].appenders.push(opsAlertsSlackAppender);
+      });
 
       console.log(
         "✅ Slack appender configured successfully (ERROR and above only, WARN and above for ops-alerts)",

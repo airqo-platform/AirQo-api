@@ -165,6 +165,20 @@ const redisExpireAsync = async (key, seconds) => {
   }
 };
 
+const redisMgetAsync = async (keys) => {
+  if (!keys || keys.length === 0) return [];
+  if (!redis.isOpen || !redis.isReady) {
+    console.warn(`[redis] not available for MGET (${keys.length} keys)`);
+    return keys.map(() => null);
+  }
+  try {
+    return await redis.mGet(keys);
+  } catch (error) {
+    console.error(`[redis] MGET failed: ${error.message}`);
+    throw error;
+  }
+};
+
 const redisDelAsync = async (key) => {
   if (!redis.isOpen || !redis.isReady) {
     console.warn(`[redis] not available for DEL ${key}`);
@@ -263,6 +277,7 @@ const redisWrapper = {
   redisIncrAsync,
   redisExpireAsync,
   redisDelAsync,
+  redisMgetAsync,
   redisPingAsync,
   redisUtils,
   redisSetWithTTLAsync,

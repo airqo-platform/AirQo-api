@@ -190,13 +190,6 @@ const commonValidations = {
       .trim(),
   ],
 
-  airqloudId: [
-    query("airqloud_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the provided airqloud_id cannot be empty IF provided"),
-  ],
-
   cohortId: [
     query("cohort_id")
       .optional()
@@ -407,7 +400,6 @@ const measurementsValidations = {
     ...commonValidations.device,
     commonValidations.optionalObjectId("device_id"),
     ...commonValidations.latLong,
-    ...commonValidations.airqloudId,
     ...commonValidations.cohortId,
     ...commonValidations.gridId,
     ...commonValidations.deviceNumber,
@@ -433,7 +425,6 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.device,
     ...commonValidations.latLong,
-    ...commonValidations.airqloudId,
     ...commonValidations.cohortId,
     ...commonValidations.gridId,
     ...commonValidations.deviceNumber,
@@ -480,7 +471,6 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.device,
     ...commonValidations.latLong,
-    ...commonValidations.airqloudId,
     ...commonValidations.cohortId,
     ...commonValidations.gridId,
     ...commonValidations.deviceNumber,
@@ -524,7 +514,6 @@ const measurementsValidations = {
     ...commonValidations.device,
     commonValidations.validObjectId("device_id"),
     ...commonValidations.latLong,
-    commonValidations.validObjectId("airqloud_id"),
     ...commonValidations.deviceNumber,
     ...commonValidations.site,
     commonValidations.validObjectId("site_id"),
@@ -567,20 +556,6 @@ const measurementsValidations = {
     commonValidations.validObjectId("site_id"),
   ],
 
-  listHistoricalAirqloudMeasurements: [
-    ...baseValidations,
-    commonValidations.validObjectId("airqloud_id"),
-  ],
-
-  listRecentAirqloudMeasurements: [
-    ...baseValidations,
-    commonValidations.validObjectId("airqloud_id"),
-  ],
-
-  listAirqloudMeasurements: [
-    ...baseValidations,
-    commonValidations.validObjectId("airqloud_id"),
-  ],
   listHistoricalGridMeasurements: [
     ...baseValidations,
     commonValidations.validObjectId("grid_id"),

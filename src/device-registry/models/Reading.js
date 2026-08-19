@@ -60,7 +60,9 @@ const createSafePollutantLookup = (
 // normalises it internally so both callers behave identically regardless
 // of how filter.time was passed.
 //
-//   • No callerTime / no resolvable $gte → 48 h default (partial index hit)
+//   • No callerTime / no resolvable $gte → MAP_DEFAULT_LOOKBACK_HOURS default
+//                                           (env-configurable, clamped to the
+//                                           14 d TTL floor; see below)
 //   • resolved $gte within 48 h          → honour as-is
 //   • resolved $gte within 14 d          → honour as-is
 //   • resolved $gte older than 14 d      → clamp to fourteenDaysAgo (TTL),
@@ -75,9 +77,21 @@ const createSafePollutantLookup = (
 const clampMapTimeWindow = (callerTime) => {
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  // Default when the caller supplies no explicit time filter — deliberately
+  // narrower than the 48h/14d tiers below, which only govern how far back an
+  // *explicit* caller-supplied window is honoured before being clamped.
+  // Clamped to the same 14 d TTL floor so a misconfigured (too-large)
+  // MAP_DEFAULT_LOOKBACK_HOURS can never trigger a full-collection scan —
+  // there's no data older than the TTL to scan anyway.
+  const defaultLookbackAgo = new Date(
+    Math.max(
+      Date.now() - constants.MAP_DEFAULT_LOOKBACK_HOURS * 60 * 60 * 1000,
+      fourteenDaysAgo.getTime(),
+    ),
+  );
 
   // Normalise: a plain Date is treated as a lower bound; an object may carry
-  // $gte; anything else (null/undefined) resolves to undefined → default 48 h.
+  // $gte; anything else (null/undefined) resolves to undefined → default lookback.
   const callerGte =
     callerTime instanceof Date
       ? callerTime
@@ -87,7 +101,7 @@ const clampMapTimeWindow = (callerTime) => {
 
   let effectiveGte;
   if (!callerGte) {
-    effectiveGte = fortyEightHoursAgo;
+    effectiveGte = defaultLookbackAgo;
   } else if (callerGte >= fortyEightHoursAgo) {
     effectiveGte = callerGte;
   } else if (callerGte >= fourteenDaysAgo) {
@@ -653,11 +667,47 @@ ReadingsSchema.index(
   },
 );
 
+// Compound index to support the recent() $match on time + deviceDetails.isActive.
+// Without this, MongoDB filters deviceDetails.isActive in memory after the time
+// range scan. background: true avoids blocking reads during the index build.
+ReadingsSchema.index(
+  { time: -1, "deviceDetails.isActive": 1 },
+  {
+    name: "time_device_active_idx",
+    background: true,
+  },
+);
+
+// listForMap()'s $match always combines all three of time + pm2_5.value>0 +
+// deviceDetails.isActive!=false in a single query — time_pm25_map_idx and
+// time_device_active_idx above each cover only two of the three, so Mongo can
+// use at most one and must filter the remaining condition in memory. This
+// index covers all three together for that specific, always-present shape.
+ReadingsSchema.index(
+  { time: -1, "pm2_5.value": 1, "deviceDetails.isActive": 1 },
+  {
+    name: "map_time_pm25_active_idx",
+    partialFilterExpression: { "pm2_5.value": { $gt: 0 } },
+    background: true,
+  },
+);
+
 // Sparse index for non-null coordinates (mobile devices)
 ReadingsSchema.index(
   { "location.latitude.value": 1, "location.longitude.value": 1, time: -1 },
   {
     sparse: true,
+    background: true,
+  },
+);
+
+// Supports the Nexus rankings/historical-rankings aggregations, which $match
+// on siteDetails.country ahead of a time-range filter. Without this, that
+// $match falls back to a full collection scan.
+ReadingsSchema.index(
+  { "siteDetails.country": 1, time: -1 },
+  {
+    name: "country_time_idx",
     background: true,
   },
 );
@@ -979,29 +1029,72 @@ ReadingsSchema.statics.latestForMap = async function(
     };
   }
 };
-// Temporary diagnostic window — override via DIAGNOSTIC_WINDOW_DAYS env var.
-// Revert to 3 once the root cause of the empty readings collection is confirmed.
+// Lookback window for "recent" readings — override via DIAGNOSTIC_WINDOW_DAYS env var.
+// Kept at 1 day so an offline device doesn't surface a stale reading as "recent".
 const DIAGNOSTIC_WINDOW_DAYS = constants.DIAGNOSTIC_WINDOW_DAYS;
+// Grace period for legitimate clock skew between a device and our servers.
+// Without an upper bound at all, a device with a broken clock reporting a
+// future-dated reading (e.g. year 2028) would win $first after sort({time:-1})
+// forever — no genuine future reading can ever be "more recent" than it — so
+// that bogus reading would display as "the current reading" indefinitely.
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+// lookbackDays lets a specific caller (e.g. the Nexus-facing /recent endpoint)
+// request a narrower window than the shared DIAGNOSTIC_WINDOW_DAYS default
+// that other callers (mobile app, signals) still rely on. Exported standalone
+// so its precedence/fallback logic is unit-testable without a DB connection.
+const resolveRecentLookbackDays = (lookbackDays, fallbackDays) =>
+  Number.isFinite(lookbackDays) && lookbackDays > 0
+    ? lookbackDays
+    : fallbackDays;
 
 ReadingsSchema.statics.recent = async function(
-  { filter = {}, limit = 1000, skip = 0 } = {},
+  { filter = {}, limit = 1000, skip = 0, lookbackDays } = {},
   next,
 ) {
   try {
-    let lookbackStart = new Date();
-    lookbackStart.setDate(lookbackStart.getDate() - DIAGNOSTIC_WINDOW_DAYS);
+    const effectiveLookbackDays = resolveRecentLookbackDays(
+      lookbackDays,
+      DIAGNOSTIC_WINDOW_DAYS,
+    );
+    const lookbackStart = new Date(
+      Date.now() - effectiveLookbackDays * 24 * 60 * 60 * 1000,
+    );
+
+    // Guard against non-object filter values. The createEventUtil.read()
+    // caller passes next (a function) as the filter argument when invoked
+    // with only two arguments — spreading a function silently yields {}.
+    // Normalising here makes the drop visible rather than silent.
+    const safeFilter =
+      filter !== null &&
+      typeof filter === "object" &&
+      !Array.isArray(filter)
+        ? filter
+        : {};
+
+    if (safeFilter !== filter) {
+      logger.warn(
+        `ReadingModel.recent: received non-object filter (${typeof filter}) — ` +
+          `falling back to empty filter. Likely cause: caller passed next as filter.`
+      );
+    }
 
     let groupBy = "$site_id";
-    if (filter.device || filter.device_id) {
+    if (safeFilter.device || safeFilter.device_id) {
       groupBy = "$device_id";
     }
 
     const pipeline = this.aggregate()
       .match({
-        ...filter,
+        ...safeFilter,
         time: {
           $gte: lookbackStart,
+          // Upper bound — see MAX_CLOCK_SKEW_MS comment above. Deliberately
+          // set after spreading safeFilter, same as $gte, so a caller-supplied
+          // time filter can never widen this past "now".
+          $lte: new Date(Date.now() + MAX_CLOCK_SKEW_MS),
         },
+        "deviceDetails.isActive": { $ne: false },
       })
       .sort({ time: -1 })
       .group({
@@ -1953,7 +2046,7 @@ ReadingsSchema.statics.listForMap = async function(
       ...safeFilterForMatch
     } = filter;
 
-    logger.warn(
+    logger.info(
       `[ReadingModel.listForMap] $match preview: ` +
         `effectiveGte=${effectiveGte.toISOString()} ` +
         `safeFilter=${JSON.stringify(safeFilterForMatch, (_, v) =>
@@ -1967,6 +2060,7 @@ ReadingsSchema.statics.listForMap = async function(
           ...safeFilterForMatch,
           time: timeConstraint,
           "pm2_5.value": { $gt: 0 },
+          "deviceDetails.isActive": { $ne: false },
         },
       },
 
@@ -2017,6 +2111,11 @@ ReadingsSchema.statics.listForMap = async function(
           aqi_category: 1,
           aqi_color_name: 1,
           aqi_index: 1,
+          aqi_ranges: 1,
+          averages: 1,
+          frequency: 1,
+          is_reading_primary: 1,
+          deviceDetails: 1,
           health_tips: 1,
           site_image: 1,
           device_categories: { $ifNull: ["$device_categories", null] },
@@ -2032,7 +2131,13 @@ ReadingsSchema.statics.listForMap = async function(
       },
     ];
 
-    const results = await this.aggregate(pipeline).allowDiskUse(true);
+    // Bounded the same way as ReadingModel.recent() — without this, a slow
+    // match under load can hang past the point the Nexus proxy has already
+    // given up, holding a queryDB pool connection for nothing.
+    const results = await this.aggregate(pipeline).option({
+      allowDiskUse: true,
+      maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+    });
 
     const { paginatedResults = [], totalCount = [] } = results[0] || {};
     const total = totalCount[0]?.count || 0;
@@ -2147,5 +2252,12 @@ const ReadingModel = (tenant) => {
     return readings;
   }
 };
+
+// Exposed for direct unit testing without a DB connection — ReadingModel(tenant)
+// itself requires one (see above). `schema` lets tests introspect index
+// definitions via schema.indexes() without constructing a live model.
+ReadingModel.clampMapTimeWindow = clampMapTimeWindow;
+ReadingModel.resolveRecentLookbackDays = resolveRecentLookbackDays;
+ReadingModel.schema = ReadingsSchema;
 
 module.exports = ReadingModel;

@@ -428,6 +428,7 @@ router.get(
 
 router.get(
   "/verify/:user_id/:token",
+  rateLimiter.emailVerification,
   userValidations.verifyEmail,
   userController.verifyEmail
 );
@@ -474,6 +475,13 @@ router.post(
   "/reset-password-request",
   userValidations.resetPasswordRequest,
   userController.resetPasswordRequest
+);
+
+router.post(
+  "/check-email",
+  rateLimiter.login,
+  userValidations.checkEmail,
+  userController.checkEmail
 );
 
 router.post(

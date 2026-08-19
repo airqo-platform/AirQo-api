@@ -44,7 +44,9 @@ const create = [
       .notEmpty()
       .withMessage("the firstName cannot be empty")
       .bail()
-      .trim(),
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("the firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("the lastName should be provided")
@@ -52,7 +54,9 @@ const create = [
       .notEmpty()
       .withMessage("the lastName cannot be empty")
       .bail()
-      .trim(),
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("the lastName cannot exceed 100 characters"),
     body("country")
       .exists()
       .withMessage("the country should be provided")
@@ -174,11 +178,17 @@ const confirm = [
     body("firstName")
       .exists()
       .withMessage("the firstName should be provided")
-      .trim(),
+      .bail()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("the firstName cannot exceed 100 characters"),
     body("lastName")
       .exists()
       .withMessage("the lastName should be provided")
-      .trim(),
+      .bail()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("the lastName cannot exceed 100 characters"),
     body("category")
       .exists()
       .withMessage("the category should be provided")

@@ -21,6 +21,11 @@ const {
   listBlockedDomains,
   removeBlockedDomain,
   validateIdParam,
+  createBlockedASN,
+  listBlockedASNs,
+  deleteBlockedASN,
+  listFlaggedTokens,
+  resolveFlaggedToken,
 } = require("@validators/token.validators");
 
 const { validate, headers, pagination } = require("@validators/common");
@@ -28,6 +33,10 @@ const { validate, headers, pagination } = require("@validators/common");
 const { tokenVerifyIpRateLimiter, tokenVerifyRateLimiter } = require("@middleware/rate-limit.middleware");
 
 const domainBlockingMiddleware = require("@middleware/domain-blocking.middleware");
+const honeypotHandler = require("@middleware/honeypot.middleware");
+const { requireSystemAdmin } = require("@middleware/adminAccess");
+
+const requireAirQoSuperAdmin = requireSystemAdmin();
 // Apply common middleware
 router.use(headers); // Keep headers global
 
@@ -81,13 +90,25 @@ router.put(
   createTokenController.regenerate,
 );
 
-// Update token
+// Update token (legacy path — kept for backwards compatibility)
+// enhancedJWTAuth runs before validateTokenUpdate so req.user is available
+// for the bypass_anomaly_detection admin-only custom validator.
 router.put(
   "/:token/update",
   validateTenant,
   validateTokenParam,
-  validateTokenUpdate,
   enhancedJWTAuth,
+  validateTokenUpdate,
+  createTokenController.update,
+);
+
+// Update token (REST-idiomatic alias — same controller, cleaner path)
+router.patch(
+  "/:token",
+  validateTenant,
+  validateTokenParam,
+  enhancedJWTAuth,
+  validateTokenUpdate,
   createTokenController.update,
 );
 
@@ -310,6 +331,91 @@ router.delete(
   enhancedJWTAuth,
   createTokenController.removeBlockedDomain,
 );
+
+/******************** Blocked ASN management *******************************/
+router.post(
+  "/blocked-asns",
+  validateAirqoTenantOnly,
+  createBlockedASN,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.createBlockedASN,
+);
+
+router.get(
+  "/blocked-asns",
+  validateAirqoTenantOnly,
+  listBlockedASNs,
+  pagination(),
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.listBlockedASNs,
+);
+
+router.delete(
+  "/blocked-asns/:id",
+  validateAirqoTenantOnly,
+  deleteBlockedASN,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.deleteBlockedASN,
+);
+
+/******************** Flagged token management *****************************/
+router.get(
+  "/flagged-tokens",
+  validateAirqoTenantOnly,
+  listFlaggedTokens,
+  pagination(),
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.listFlaggedTokens,
+);
+
+router.put(
+  "/flagged-tokens/:id/resolve",
+  validateAirqoTenantOnly,
+  resolveFlaggedToken,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.resolveFlaggedToken,
+);
+
+/******************** Security-bypass reporting *****************************
+ * Admin-only report of tokens that currently have an active security-bypass
+ * flag (bypass_anomaly_detection / bypass_compromise_detection /
+ * bypass_ip_blacklist). Same data backs the weekly digest email sent by
+ * bin/jobs/bypass-expiry-job.js.
+ *************************************************************************/
+router.get(
+  "/bypasses",
+  validateAirqoTenantOnly,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  createTokenController.listBypassedTokens,
+);
+
+/******************** Cross-service honeypot flag endpoint **************
+ * Called by downstream services (e.g. device-registry) to report a
+ * honeypot hit for a token they cannot suspend themselves (token DB lives
+ * only in auth-service).  Protected by JWT — not reachable from outside.
+ *************************************************************************/
+router.post(
+  "/honeypot-flag",
+  validateAirqoTenantOnly,
+  enhancedJWTAuth,
+  createTokenController.honeypotFlag,
+);
+
+/*************************** Honeypot routes *****************************
+ * These paths look plausible but are NOT documented anywhere.
+ * Any request reaching them is flagged and the token auto-suspended.
+ *************************************************************************/
+router.get("/export-all", honeypotHandler);
+router.get("/dump", honeypotHandler);
+router.get("/admin/export", honeypotHandler);
+router.post("/bulk-export", honeypotHandler);
+router.get("/internal/all-tokens", honeypotHandler);
 
 /*************************** Get TOKEN's information ********************* */
 router.get(

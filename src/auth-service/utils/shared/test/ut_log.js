@@ -1,7 +1,7 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { logText, logElement, logObject, logError } = require("@utils/shared/log");
 
 describe("logger", () => {
   describe("logText", () => {

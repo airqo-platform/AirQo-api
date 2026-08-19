@@ -10,6 +10,7 @@ const UserModel = require("@models/User"); // Import UserModel
 const { mailer } = require("@utils/common");
 const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const TIMEZONE = constants.TIMEZONE || "Africa/Kampala";
 const JOB_NAME = "daily-compromise-summary-job";
@@ -20,6 +21,9 @@ const generateAndSendSummaries = async (tenant = "airqo") => {
     if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
       return;
     }
+
+    const gotLock = await acquireCronLock(tenant, JOB_NAME);
+    if (!gotLock) return;
 
     const yesterday = moment().subtract(1, "day").toDate();
 

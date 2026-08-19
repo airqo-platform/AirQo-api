@@ -236,6 +236,32 @@ const redisSetAsync = async (key, value, ttlSeconds = null) => {
   }
 };
 
+const redisIncrAsync = async (key) => {
+  const prefixedKey = `${KEY_PREFIX}${key}`;
+  if (!client.isOpen || !client.isReady) {
+    const item = fallbackCache.get(prefixedKey);
+    // Guard against NaN from corrupted or missing count field.
+    const prevCount = item && typeof item.count === "number" ? item.count : 0;
+    const newCount = prevCount + 1;
+    // Evict one entry when at capacity so the map stays bounded.
+    if (!fallbackCache.has(prefixedKey) && fallbackCache.size >= FALLBACK_CACHE_MAX_SIZE) {
+      fallbackCache.delete(fallbackCache.keys().next().value);
+    }
+    fallbackCache.set(prefixedKey, {
+      value: String(newCount),
+      count: newCount,
+      expires: Date.now() + FALLBACK_CACHE_TTL,
+    });
+    return newCount;
+  }
+  try {
+    return await client.incr(prefixedKey);
+  } catch (error) {
+    logThrottledOperationError("INCR", prefixedKey, error);
+    throw error;
+  }
+};
+
 const redisExpireAsync = async (key, seconds) => {
   const prefixedKey = `${KEY_PREFIX}${key}`;
   // Update fallback cache expiry
@@ -355,6 +381,7 @@ process.on("beforeExit", gracefulShutdown);
 module.exports = client;
 module.exports.redisGetAsync = redisGetAsync;
 module.exports.redisSetAsync = redisSetAsync;
+module.exports.redisIncrAsync = redisIncrAsync;
 module.exports.redisExpireAsync = redisExpireAsync;
 module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;

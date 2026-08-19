@@ -188,6 +188,7 @@ def _upsert_single_grid(
 
     grid_field_changed = _apply_grid_scalars(db_grid, grid_data)
     desired, backfilled = _build_desired_sites(db, grid_data.get("sites", []))
+    db.flush()
     junction_changed = _sync_grid_junctions(db, grid_id, desired)
 
     if is_new:
@@ -210,12 +211,21 @@ async def sync_grids(db: Session, token: str) -> Dict[str, Any]:
 
     Embedded sites are backfilled into sync_site non-authoritatively.
     """
-    all_grids = await _fetch_all_grids(token)
+    try:
+        all_grids = await _fetch_all_grids(token)
 
-    if all_grids is None:
+        if all_grids is None:
+            return {
+                "success": False,
+                "message": "Failed to fetch grids from platform",
+                "grids_synced": 0,
+                "sites_backfilled": 0,
+            }
+    except Exception as exc:
+        logger.exception(f"Grid sync failed: {exc}")
         return {
             "success": False,
-            "message": "Failed to fetch grids from platform",
+            "message": "Grid sync failed",
             "grids_synced": 0,
             "sites_backfilled": 0,
         }

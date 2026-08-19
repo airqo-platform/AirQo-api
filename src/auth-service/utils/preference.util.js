@@ -179,10 +179,28 @@ const handleDefaultGroup = async (tenant, body, next) => {
   }
 };
 
+// A chart write can fail schema validation at the DB layer — e.g.
+// chartConfigSchema's pre-validate hook rejecting a locationColors entry
+// whose id isn't in device_ids/site_ids — which is a client mistake, not a
+// server fault. Classifying it here (rather than duplicating the hook's
+// check inline before every write) keeps both catch blocks a clean 400 for
+// any such schema rejection, present or future, without hand-copying the
+// hook's specific rule into the util layer.
+const chartValidationErrorResponse = (error) => ({
+  success: false,
+  message: "Bad Request Error",
+  errors: { message: error.message },
+  status: httpStatus.BAD_REQUEST,
+});
+
 // Define allowed properties for chart updates
 const allowedChartProperties = [
   "fieldId",
   "title",
+  "subTitle",
+  "device_ids",
+  "site_ids",
+  "locationColors",
   "xAxisLabel",
   "yAxisLabel",
   "color",
@@ -845,7 +863,12 @@ const preferences = {
   },
   createChart: async (request, next) => {
     try {
-      const { tenant, deviceId, chartConfig } = request.body;
+      const { tenant } = request.query;
+      const {
+        chartConfig,
+        device_ids: deviceIds = [],
+        site_ids: siteIds = [],
+      } = request.body;
       const userId = request.user._id; // Assuming JWT authentication
 
       // Basic validation
@@ -857,36 +880,47 @@ const preferences = {
         };
       }
 
-      // Find preference record - look for a device in device_ids array
-      const preference = await PreferenceModel(tenant).findOne({
-        user_id: userId,
-        device_ids: { $in: [deviceId] },
-      });
-
-      if (!preference) {
-        // If preference doesn't exist, create a new one
-        const newPreference = {
-          user_id: userId,
-          device_ids: [deviceId],
-          chartConfigurations: [chartConfig],
-          period: {
-            value: "Last 7 days",
-            label: "Last 7 days",
-            unitValue: 7,
-            unit: "day",
-          },
+      // Enforced by the route validators too, but checked again here so a
+      // validator-bypassing call still fails as a clear 400 rather than
+      // hitting the schema's pre-validate hook and surfacing as a 500.
+      if (isEmpty(deviceIds) && isEmpty(siteIds)) {
+        return {
+          success: false,
+          message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
         };
-
-        const result = await PreferenceModel(tenant).register(
-          newPreference,
-          next
-        );
-        return result;
       }
 
-      // Add the new chart to existing preference
-      preference.chartConfigurations.push(chartConfig);
-      await preference.save();
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
+
+      // Scope lives on the chart itself now (device_ids/site_ids), not a
+      // single device tracked at the preference-document level, so one
+      // chart can compare multiple locations at once.
+      const chartToInsert = {
+        ...chartConfig,
+        device_ids: deviceIds,
+        site_ids: siteIds,
+      };
+
+      // Atomically add this chart to the user's preference doc for this
+      // group, creating the doc if it doesn't exist yet.
+      const preference = await PreferenceModel(tenant).findOneAndUpdate(
+        { user_id: userId, group_id: groupId },
+        {
+          $push: { chartConfigurations: chartToInsert },
+          $setOnInsert: {
+            user_id: userId,
+            group_id: groupId,
+            period: {
+              value: "Last 7 days",
+              label: "Last 7 days",
+              unitValue: 7,
+              unit: "day",
+            },
+          },
+        },
+        { upsert: true, new: true, runValidators: true }
+      );
 
       return {
         success: true,
@@ -897,6 +931,9 @@ const preferences = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error creating chart: ${error.message}`);
       return {
         success: false,
@@ -908,21 +945,26 @@ const preferences = {
   },
   updateChart: async (request, next) => {
     try {
-      const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      // The controller always normalizes request.query.tenant; body.tenant
+      // is only ever populated if a caller duplicates it there too, which
+      // isn't the convention this API validates against.
+      const tenant = (request.query || {}).tenant || request.body.tenant;
+      const { chartId } = request.params;
       const updates = request.body;
       const userId = request.user._id;
 
-      // Find preference record
+      // chartId (a subdocument _id) is globally unique on its own, so the
+      // chart's parent preference doc can be found by user_id + chartId
+      // alone — no need for the caller to also know/send group_id.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
         return {
           success: false,
-          message: "Preference not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -940,22 +982,40 @@ const preferences = {
         };
       }
 
+      const chart = preference.chartConfigurations[chartIndex];
+
       // Update allowed properties
       Object.keys(updates)
         .filter((key) => allowedChartProperties.includes(key))
         .forEach((key) => {
-          preference.chartConfigurations[chartIndex][key] = updates[key];
+          chart[key] = updates[key];
         });
+
+      // Checked here (post-merge, pre-save) rather than left to the
+      // schema's pre-validate hook: a request can clear one array while
+      // leaving the other untouched, and only the merged result — not the
+      // request body alone — can tell us whether that leaves the chart
+      // with no scope at all.
+      if (isEmpty(chart.device_ids) && isEmpty(chart.site_ids)) {
+        return {
+          success: false,
+          message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       await preference.save();
 
       return {
         success: true,
         message: "Chart configuration updated successfully",
-        data: preference.chartConfigurations[chartIndex],
+        data: chart,
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error updating chart: ${error.message}`);
       return {
         success: false,
@@ -967,40 +1027,34 @@ const preferences = {
   },
   deleteChart: async (request, next) => {
     try {
-      const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const tenant = (request.query || {}).tenant || request.body.tenant;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
-      const preference = await PreferenceModel(tenant).findOne({
-        user_id: userId,
-        device_ids: { $in: [deviceId] },
-      });
-
-      if (!preference) {
-        return {
-          success: false,
-          message: "Preference not found for this device",
-          status: httpStatus.NOT_FOUND,
-        };
-      }
-
-      // Find the chart in the chartConfigurations array
-      const chartIndex = preference.chartConfigurations.findIndex(
-        (chart) => chart._id.toString() === chartId
+      // A single atomic $pull rather than findOne -> splice -> save avoids
+      // racing a concurrent delete/update on the same doc. Note this only
+      // ever removes the one chart, never the parent Preference document —
+      // unlike the group chart config's dedicated per-default documents,
+      // this doc also holds the user's other settings (pollutant, theme,
+      // frequency, etc.), so an empty chartConfigurations array doesn't
+      // mean the document itself is disposable.
+      const updateResult = await PreferenceModel(tenant).updateOne(
+        { user_id: userId, "chartConfigurations._id": chartId },
+        { $pull: { chartConfigurations: { _id: chartId } } }
       );
 
-      if (chartIndex === -1) {
+      // This driver/mongoose combination returns the legacy { n, nModified,
+      // ok } shape from updateOne, not { matchedCount }, which is
+      // undefined here — checked defensively either way rather than
+      // trusting one specific shape.
+      const matchedCount = updateResult.matchedCount ?? updateResult.n;
+      if (matchedCount === 0) {
         return {
           success: false,
           message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
-
-      // Remove the chart
-      preference.chartConfigurations.splice(chartIndex, 1);
-      await preference.save();
 
       return {
         success: true,
@@ -1019,29 +1073,51 @@ const preferences = {
   },
   getChartConfigurations: async (request, next) => {
     try {
-      const { tenant } = request.query || {};
-      const { deviceId } = request.params;
+      const { tenant, limit, skip, device_id, site_id } =
+        request.query || {};
       const userId = request.user._id;
+      const groupId = request.query.group_id || constants.DEFAULT_GROUP;
 
-      // Find preference record
+      // One preference doc per (user_id, group_id) holds every chart the
+      // user has configured for that group — no per-device doc to look up
+      // anymore, since scope now lives on each chart itself.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        group_id: groupId,
       });
 
       if (!preference) {
         return {
           success: true,
-          message: "No chart configurations found for this device",
+          message: "No chart configurations found for this group",
           data: [],
           status: httpStatus.OK,
         };
       }
 
+      let allCharts = preference.chartConfigurations || [];
+      if (device_id) {
+        allCharts = allCharts.filter((chart) =>
+          (chart.device_ids || []).some((id) => id.toString() === device_id)
+        );
+      }
+      if (site_id) {
+        allCharts = allCharts.filter((chart) =>
+          (chart.site_ids || []).some((id) => id.toString() === site_id)
+        );
+      }
+
+      // chartConfigurations is an array embedded in a single document, not
+      // its own collection — pagination (set by the route's pagination()
+      // middleware) is applied in memory rather than via a Mongo
+      // .skip()/.limit() query.
+      const skipNum = Number(skip) || 0;
+      const limitNum = Number(limit) || allCharts.length || 1;
+
       return {
         success: true,
         message: "Chart configurations retrieved successfully",
-        data: preference.chartConfigurations || [],
+        data: allCharts.slice(skipNum, skipNum + limitNum),
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1057,19 +1133,20 @@ const preferences = {
   getChartConfigurationById: async (request, next) => {
     try {
       const { tenant } = request.query || {};
-      const { deviceId, chartId } = request.params;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
+      // chartId is unique on its own, so the parent preference doc can be
+      // found by user_id + chartId alone — no group_id needed.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
         return {
           success: false,
-          message: "Preference not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -1105,20 +1182,21 @@ const preferences = {
   },
   copyChartConfiguration: async (request, next) => {
     try {
-      const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const tenant = (request.query || {}).tenant || request.body.tenant;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
+      // chartId is unique on its own, so the parent preference doc can be
+      // found by user_id + chartId alone — no group_id needed.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
         return {
           success: false,
-          message: "Preference not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -2047,5 +2125,10 @@ const preferences = {
     }
   },
 };
+
+// Exposed for reuse by group-chart-config.util.js — the group-scoped
+// default chart config accepts/updates the same whitelist of chart fields
+// as the personal one, so this avoids a second list drifting out of sync.
+preferences.allowedChartProperties = allowedChartProperties;
 
 module.exports = preferences;

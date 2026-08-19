@@ -289,6 +289,18 @@ const connectToMongoDB = () => {
           },
         );
 
+        const {
+          runStripSystemPermissionsMigration,
+        } = require("@migrations/strip-system-permissions-from-org-roles");
+        console.log("🚀 Kicking off system-permissions cleanup migration on startup...");
+        Promise.all(tenants.map((t) => runStripSystemPermissionsMigration(t))).catch(
+          (err) => {
+            logger.error(
+              `Background migration 'runStripSystemPermissionsMigration' failed: ${err.message}`,
+            );
+          },
+        );
+
         isConnected = true;
         console.log(
           "✅ All database initializations complete. isConnected is now true.",

@@ -1,3 +1,10 @@
+// Populate process.env from .env.{NODE_ENV}.json before anything below reads
+// it. Previously this only happened if a specific test bootstrap file
+// (bin/test/ut_index.js) happened to load first — order that a correct,
+// fully-recursive test glob no longer guarantees. Idempotent: only fills
+// keys not already set, safe to call from multiple entry points.
+require("./env-loader").loadEnvironment();
+
 const coreConfig = require("./core");
 const { EnvOnlyValidator } = require("../utils/validation-reporter");
 
@@ -24,7 +31,7 @@ function envConfig(env) {
   // which reads .env.{NODE_ENV}.json (Azure Key Vault). Keys are canonical
   // (no environment prefix) — no alias mapping needed here.
 
-  const analyticsBaseUrl = process.env.ANALYTICS_BASE_URL;
+  const nexusBaseUrl = process.env.NEXUS_BASE_URL;
 
   const transformations = {
     // ── Boolean flags ─────────────────────────────────────────────────────────
@@ -50,6 +57,29 @@ function envConfig(env) {
       process.env.ENABLE_SCOPE_ENFORCEMENT,
       false,
     ),
+    ENABLE_ERROR_RATE_BREAKER: parseBool(
+      process.env.ENABLE_ERROR_RATE_BREAKER,
+      false,
+    ),
+    ERROR_RATE_THRESHOLD: (() => {
+      const v = parseInt(process.env.ERROR_RATE_THRESHOLD, 10);
+      return Number.isFinite(v) && v > 0 ? v : 50;
+    })(),
+    ANOMALY_SUSPEND_THRESHOLD: (() => {
+      const v = parseInt(process.env.ANOMALY_SUSPEND_THRESHOLD, 10);
+      return Number.isFinite(v) && v > 0 ? v : 10;
+    })(),
+    COMPROMISE_SUSPEND_THRESHOLD: (() => {
+      const v = parseInt(process.env.COMPROMISE_SUSPEND_THRESHOLD, 10);
+      return Number.isFinite(v) && v > 0 ? v : 50;
+    })(),
+    // How many days before a bypass_*_expires_at date bypass-expiry-job starts
+    // sending a reminder email. Also used as the reminder email's cooldown so
+    // a token only gets reminded once per expiry cycle, not once per job run.
+    BYPASS_EXPIRY_REMINDER_LEAD_DAYS: (() => {
+      const v = parseInt(process.env.BYPASS_EXPIRY_REMINDER_LEAD_DAYS, 10);
+      return Number.isFinite(v) && v > 0 ? v : 3;
+    })(),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
     POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),
@@ -66,13 +96,13 @@ function envConfig(env) {
     // AIRQO_GROUP_ID is an alias for DEFAULT_GROUP used by legacy callers.
     AIRQO_GROUP_ID: process.env.DEFAULT_GROUP,
 
-    // Platform URLs derived from the single canonical ANALYTICS_BASE_URL.
-    PWD_RESET: analyticsBaseUrl ? `${analyticsBaseUrl}/reset` : undefined,
-    LOGIN_PAGE: analyticsBaseUrl
-      ? `${analyticsBaseUrl}/user/login`
+    // Platform URLs derived from the single canonical NEXUS_BASE_URL.
+    PWD_RESET: nexusBaseUrl ? `${nexusBaseUrl}/reset` : undefined,
+    LOGIN_PAGE: nexusBaseUrl
+      ? `${nexusBaseUrl}/user/login`
       : undefined,
-    FORGOT_PAGE: analyticsBaseUrl ? `${analyticsBaseUrl}/forgot` : undefined,
-    PLATFORM_BASE_URL: analyticsBaseUrl,
+    FORGOT_PAGE: nexusBaseUrl ? `${nexusBaseUrl}/forgot` : undefined,
+    PLATFORM_BASE_URL: nexusBaseUrl,
 
     // ── Per-environment defaults ──────────────────────────────────────────────
     ENVIRONMENT:
@@ -88,8 +118,8 @@ function envConfig(env) {
     ONBOARDING_BASE_URL:
       process.env.ONBOARDING_BASE_URL ||
       (env === "staging"
-        ? "https://staging-analytics.airqo.net/onboarding"
-        : "https://analytics.airqo.net/onboarding"),
+        ? "https://staging-nexus.airqo.net/onboarding"
+        : "https://nexus.airqo.net/onboarding"),
   };
 
   // Priority (highest → lowest):

@@ -287,6 +287,15 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    // Diagnostic-only field: does NOT affect rawOnlineStatus/isOnline. Records
+    // why the most recently checked raw feed timestamp was (or wasn't) trusted,
+    // so consumers can distinguish "device clock is wrong" from "device isn't
+    // transmitting" without rawOnlineStatus itself changing meaning.
+    dateValidStatus: {
+      type: String,
+      enum: ["valid", "future_timestamp", "invalid_format", "unknown"],
+      default: "unknown",
+    },
     /**
      * The latest PM2.5 readings for this device.
      * May be null or undefined if no readings have been recorded yet.
@@ -534,6 +543,13 @@ deviceSchema.index({ status: 1, grid_id: 1 });
 deviceSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
 // Index for offline entity checks
 deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
+// Preselect index for fix-corrupted-raw-data-job — lets the hourly cleanup
+// pass find devices stuck with a future-dated raw reading in O(log n) instead
+// of a full collection scan.
+deviceSchema.index({ dateValidStatus: 1, lastRawData: 1 });
+// backfill-search-name-job: distinct("site_id", {isActive: true, ...}) needs
+// to stay an index scan (not a full collection scan) as the fleet grows.
+deviceSchema.index({ isActive: 1, site_id: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
@@ -895,6 +911,7 @@ deviceSchema.methods = {
       isOnline: this.isOnline,
       rawOnlineStatus: this.rawOnlineStatus,
       lastRawData: this.lastRawData,
+      dateValidStatus: this.dateValidStatus || "unknown",
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
@@ -982,26 +999,32 @@ deviceSchema.statics = {
       };
     } catch (error) {
       logObject("The error in the Device Model", error);
-      logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
 
       let response = {};
       let message = "Validation errors for some of the provided fields";
 
-      // Check if the error is an instance of HttpError
       if (error instanceof HttpError) {
-        // Log the HTTP error details
         logger.error(
           `HTTP Error: ${error.message}, Status: ${error.statusCode}`,
         );
-        response.message = error.message; // Use the message from HttpError
-        response.details = error.details || {}; // Capture additional details if available
+        response.message = error.message;
+        response.details = error.details || {};
+      } else if (error.name === "ValidationError") {
+        // Mongoose unique/validation constraint — an expected business conflict,
+        // not an internal failure. Log at WARN so Slack stays clean.
+        logger.warn(`🐛 Device validation conflict -- ${stringify(error)}`);
+        if (error.errors) {
+          Object.entries(error.errors).forEach(([key, value]) => {
+            response[key] = value.message;
+          });
+        }
       } else if (error.errors) {
-        // Handle validation errors
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         Object.entries(error.errors).forEach(([key, value]) => {
-          response[key] = value.message; // Capture specific field errors
+          response[key] = value.message;
         });
       } else {
-        // Fallback for unexpected errors
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         response.message = "An unexpected error occurred.";
       }
 
@@ -1068,18 +1091,9 @@ deviceSchema.statics = {
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceId: "$_id" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ["$device", "$$deviceName"] },
-                    { $eq: ["$device_id", "$$deviceId"] },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
             { $sort: { createdAt: -1 } },
             {
               $project: {
@@ -1099,84 +1113,123 @@ deviceSchema.statics = {
             },
             { $limit: maxActivities },
           ],
-          as: "activities",
+          as: "_act_by_id",
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceName: "$name" },
           pipeline: [
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] } } },
+            { $sort: { createdAt: -1 } },
             {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                      ],
-                    },
-                    { $eq: ["$activityType", "deployment"] },
-                  ],
-                },
+              $project: {
+                _id: 1,
+                site_id: 1,
+                device_id: 1,
+                device: 1,
+                activityType: 1,
+                maintenanceType: 1,
+                recallType: 1,
+                date: 1,
+                description: 1,
+                nextMaintenance: 1,
+                createdAt: 1,
+                tags: 1,
               },
             },
-            { $sort: { createdAt: -1 } },
-            { $limit: 1 },
+            { $limit: maxActivities },
           ],
-          as: "latest_deployment_activity",
+          as: "_act_by_name",
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceId: "$_id" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                      ],
-                    },
-                    { $eq: ["$activityType", "maintenance"] },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] }, activityType: "deployment" } },
             { $sort: { createdAt: -1 } },
             { $limit: 1 },
           ],
-          as: "latest_maintenance_activity",
+          as: "_dep_by_id",
         })
         .lookup({
           from: "activities",
-          let: { deviceName: "$name", deviceId: "$_id" },
+          let: { deviceName: "$name" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        { $eq: ["$device", "$$deviceName"] },
-                        { $eq: ["$device_id", "$$deviceId"] },
-                      ],
-                    },
-                    {
-                      $or: [
-                        { $eq: ["$activityType", "recall"] },
-                        { $eq: ["$activityType", "recallment"] },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] }, activityType: "deployment" } },
             { $sort: { createdAt: -1 } },
             { $limit: 1 },
           ],
-          as: "latest_recall_activity",
+          as: "_dep_by_name",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] }, activityType: "maintenance" } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_mnt_by_id",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] }, activityType: "maintenance" } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_mnt_by_name",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] }, activityType: { $in: ["recall", "recallment"] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_rcl_by_id",
+        })
+        .lookup({
+          from: "activities",
+          let: { deviceName: "$name" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$device", "$$deviceName"] }, activityType: { $in: ["recall", "recallment"] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "_rcl_by_name",
+        })
+        .addFields({
+          activities: {
+            $slice: [
+              {
+                $sortArray: {
+                  input: { $setUnion: ["$_act_by_id", "$_act_by_name"] },
+                  sortBy: { createdAt: -1 },
+                },
+              },
+              maxActivities,
+            ],
+          },
+          latest_deployment_activity: {
+            $slice: [{ $concatArrays: ["$_dep_by_id", "$_dep_by_name"] }, 1],
+          },
+          latest_maintenance_activity: {
+            $slice: [{ $concatArrays: ["$_mnt_by_id", "$_mnt_by_name"] }, 1],
+          },
+          latest_recall_activity: {
+            $slice: [{ $concatArrays: ["$_rcl_by_id", "$_rcl_by_name"] }, 1],
+          },
+          _act_by_id: "$$REMOVE",
+          _act_by_name: "$$REMOVE",
+          _dep_by_id: "$$REMOVE",
+          _dep_by_name: "$$REMOVE",
+          _mnt_by_id: "$$REMOVE",
+          _mnt_by_name: "$$REMOVE",
+          _rcl_by_id: "$$REMOVE",
+          _rcl_by_name: "$$REMOVE",
         })
         .addFields({
           device_categories: {
@@ -1683,7 +1736,8 @@ deviceSchema.statics = {
         .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
-        .allowDiskUse(true);
+        .allowDiskUse(true)
+        .option({ maxTimeMS: 60000 });
 
       const response = await pipeline;
 
@@ -1768,7 +1822,7 @@ deviceSchema.statics = {
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
-      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      const invalidKeys = ["name", "_id", "writeKey", "readKey", "network"];
       // Lifecycle fields may only be written by activity functions (deploy /
       // recall / maintain).  Block them here unless the caller explicitly opts
       // in via opts.allowLifecycleFields — activity callers set this flag.
@@ -1777,16 +1831,18 @@ deviceSchema.statics = {
       }
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
-      // Also strip lifecycle fields nested inside Mongo update operators so a
+      // Also strip protected fields nested inside Mongo update operators so a
       // payload like { $set: { status: "deployed" } } cannot bypass the guard.
-      if (!opts.allowLifecycleFields) {
-        const UPDATE_OPERATORS = [
-          "$set", "$unset", "$setOnInsert", "$rename",
-          "$inc", "$mul", "$min", "$max",
-          "$push", "$pull", "$addToSet", "$pullAll", "$bit",
-        ];
-        for (const op of UPDATE_OPERATORS) {
-          if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+      const ALWAYS_PROTECTED = ["network", ...invalidKeys];
+      const UPDATE_OPERATORS = [
+        "$set", "$unset", "$setOnInsert", "$rename",
+        "$inc", "$mul", "$min", "$max",
+        "$push", "$pull", "$addToSet", "$pullAll", "$bit",
+      ];
+      for (const op of UPDATE_OPERATORS) {
+        if (sanitizedUpdate[op] && typeof sanitizedUpdate[op] === "object") {
+          ALWAYS_PROTECTED.forEach((f) => delete sanitizedUpdate[op][f]);
+          if (!opts.allowLifecycleFields) {
             constants.LIFECYCLE_FIELDS.forEach((f) => delete sanitizedUpdate[op][f]);
           }
         }

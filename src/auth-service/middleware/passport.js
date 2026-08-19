@@ -1128,13 +1128,13 @@ function setLocalAuth(req, res, next) {
 
 /**
  * Builds the set of URL origins that are permitted as redirect_after targets.
- * Always includes ANALYTICS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
+ * Always includes NEXUS_BASE_URL and VERTEX_BASE_URL. ALLOWED_REDIRECT_ORIGINS
  * (comma-separated) can extend the list. Localhost is added in non-production.
  */
 function resolveAllowedRedirectOrigins() {
   const origins = new Set();
   const candidates = [
-    constants.ANALYTICS_BASE_URL,
+    constants.NEXUS_BASE_URL,
     constants.VERTEX_BASE_URL,
     constants.ALLOWED_REDIRECT_ORIGINS,
   ];
@@ -1158,10 +1158,42 @@ function resolveAllowedRedirectOrigins() {
 // Computed once at module load — inputs are fixed env vars.
 const ALLOWED_ORIGINS = resolveAllowedRedirectOrigins();
 
+// Deep-link scheme prefixes allowed as redirect_after targets.
+// Custom schemes (e.g. vertex://, airqo://) cannot be exploited for web phishing since
+// the OS routes them to the registered app, not a website.
+const ALLOWED_CUSTOM_SCHEME_PREFIXES = (
+  constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://,airqo://"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// Origin of the Nexus frontend. Used to select the correct failure-redirect
+// path: nexus uses /user/login, vertex and others use /login.
+const NEXUS_ORIGIN = (() => {
+  try {
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 function isAllowedRedirect(url, allowedOrigins) {
   if (!url || typeof url !== "string") return false;
   try {
-    return allowedOrigins.has(new URL(url).origin);
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // Custom schemes (e.g. vertex://) are checked against an explicit prefix
+      // allowlist rather than by origin, since custom protocols have no web origin.
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const urlLower = url.toLowerCase();
+      return ALLOWED_CUSTOM_SCHEME_PREFIXES.some((prefix) =>
+        urlLower.startsWith(prefix.toLowerCase())
+      );
+    }
+    return allowedOrigins.has(parsed.origin);
   } catch (_) {
     return false;
   }
@@ -1189,14 +1221,28 @@ function setGoogleAuth(req, res, next) {
       req.session.oauthTenant = tenant;
     }
 
-    // Persist redirect_after so the callback controller can route the user
-    // to the correct app (e.g. Vertex) instead of the default analytics URL.
-    // Clear any stale value from a previous attempt before writing a new one.
+    // Persist redirect_after in a shared-domain cookie so it survives the
+    // cross-server OAuth round-trip (vertex initiates → analytics handles
+    // callback). The session is kept as a same-server fallback.
+    const cookieDomain = constants.OAUTH_COOKIE_DOMAIN;
+    const clearOpts = { path: "/" };
+    if (cookieDomain) clearOpts.domain = cookieDomain;
+    res.clearCookie("_oauth_redirect_after", clearOpts);
     if (req.session) delete req.session.oauthRedirectAfter;
+
     const redirectAfter = req.query.redirect_after;
-    if (redirectAfter && req.session) {
+    if (redirectAfter) {
       if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
-        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+        const cookieOpts = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+          sameSite: "lax",
+          maxAge: 600 * 1000,
+          path: "/",
+        };
+        if (cookieDomain) cookieOpts.domain = cookieDomain;
+        res.cookie("_oauth_redirect_after", redirectAfter, cookieOpts);
+        if (req.session) req.session.oauthRedirectAfter = redirectAfter;
       } else {
         let rejectedOrigin;
         try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
@@ -1249,14 +1295,28 @@ function setOAuthProvider(req, res, next) {
       req.session.oauthTenant = tenant;
     }
 
-    // Persist redirect_after so the callback controller can route the user
-    // to the correct app (e.g. Vertex) instead of the default analytics URL.
-    // Clear any stale value from a previous attempt before writing a new one.
+    // Persist redirect_after in a shared-domain cookie so it survives the
+    // cross-server OAuth round-trip (vertex initiates → analytics handles
+    // callback). The session is kept as a same-server fallback.
+    const cookieDomain = constants.OAUTH_COOKIE_DOMAIN;
+    const clearOpts = { path: "/" };
+    if (cookieDomain) clearOpts.domain = cookieDomain;
+    res.clearCookie("_oauth_redirect_after", clearOpts);
     if (req.session) delete req.session.oauthRedirectAfter;
+
     const redirectAfter = req.query.redirect_after;
-    if (redirectAfter && req.session) {
+    if (redirectAfter) {
       if (isAllowedRedirect(redirectAfter, ALLOWED_ORIGINS)) {
-        req.session.oauthRedirectAfter = new URL(redirectAfter).origin;
+        const cookieOpts = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test",
+          sameSite: "lax",
+          maxAge: 600 * 1000,
+          path: "/",
+        };
+        if (cookieDomain) cookieOpts.domain = cookieDomain;
+        res.cookie("_oauth_redirect_after", redirectAfter, cookieOpts);
+        if (req.session) req.session.oauthRedirectAfter = redirectAfter;
       } else {
         let rejectedOrigin;
         try { rejectedOrigin = new URL(redirectAfter).origin; } catch (_) { rejectedOrigin = "invalid"; }
@@ -1395,14 +1455,31 @@ function handleOAuthCallbackError(err, provider, res, next) {
  * failure URL instead of surfacing as an unhandled 500.
  */
 const authGoogleCallback = (req, res, next) => {
+  const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
+  let validatedOrigin = null;
+  if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
+    try {
+      const parsed = new URL(rawRedirect);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        validatedOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default Nexus failure URL.
+    } catch {}
+  }
+  const failureBase = validatedOrigin && validatedOrigin !== NEXUS_ORIGIN
+    ? `${validatedOrigin}/login`
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
+      || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
   passport.authenticate("google", {
-    failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    failureRedirect: buildOAuthFailureRedirect(failureBase),
     session: false,
   })(req, res, (err) => {
     if (err) return handleOAuthCallbackError(err, "google", res, next);
     next();
   });
 };
+
 
 /**
  * Dynamically initiates OAuth flow for any supported provider.
@@ -1458,9 +1535,23 @@ const authOAuth = (req, res, next) => {
  */
 const authOAuthCallback = (req, res, next) => {
   const provider = req.oauthProvider || (req.params.provider || "").toLowerCase() || "google";
-  const failureRedirectUrl = buildOAuthFailureRedirect(
-    constants.GMAIL_VERIFICATION_FAILURE_REDIRECT,
-  );
+  const rawRedirect = req.cookies && req.cookies["_oauth_redirect_after"];
+  let validatedOrigin = null;
+  if (rawRedirect && isAllowedRedirect(rawRedirect, ALLOWED_ORIGINS)) {
+    try {
+      const parsed = new URL(rawRedirect);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        validatedOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default Nexus failure URL.
+    } catch {}
+  }
+  const failureBase = validatedOrigin && validatedOrigin !== NEXUS_ORIGIN
+    ? `${validatedOrigin}/login`
+    : constants.GMAIL_VERIFICATION_FAILURE_REDIRECT
+      || (validatedOrigin ? `${validatedOrigin}/user/login` : "/");
+  const failureRedirectUrl = buildOAuthFailureRedirect(failureBase);
   passport.authenticate(provider, {
     session: false,
     failureRedirect: failureRedirectUrl,
@@ -1490,6 +1581,30 @@ const authOAuthCallback = (req, res, next) => {
         provider: safeProvider,
         errorType: err.name,
         message: err.message,
+      });
+    } else if (
+      err.message &&
+      err.message.includes("Failed to find request token in session")
+    ) {
+      // OAuth 1.0a request token missing from session. Common causes:
+      // (1) session cookie overwritten by another service sharing Domain=.airqo.net,
+      // (2) Redis session store unavailable — the app fell back to MongoStore (MongoDB-backed),
+      // (3) browser back-button replay after the token was already consumed.
+      // Logged at ERROR so it surfaces in ArgoCD / alerting pipelines.
+      logger.error(`[passport] OAuth 1.0a session token missing for ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name || "Error",
+        message: err.message,
+        sessionExists: !!req.session,
+        hasOauthKey: !!(req.session && req.session.oauth),
+      });
+    } else if (err.name === "TokenError" && err.code === "invalid_grant") {
+      // Authorization code expired or already used — user-triggered (slow
+      // browser, back-button replay, or double-submit). Not a code bug.
+      logger.warn(`[passport] OAuth code rejected by ${safeProvider}`, {
+        provider: safeProvider,
+        errorType: err.name,
+        code: err.code,
       });
     } else {
       logger.error(`[passport] OAuth callback error for ${safeProvider}`, {
@@ -1525,6 +1640,12 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+function parseJWTokenFromHeader(authHeader) {
+  const match = authHeader && authHeader.match(/^JWT\s+(.+)$/i);
+  if (!match || !match[1].trim()) return null;
+  return match[1].trim();
+}
+
 const enhancedJWTAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -1536,21 +1657,12 @@ const enhancedJWTAuth = (req, res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
-      return next(
-        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
-        }),
-      );
-    }
-
-    const token = match[2].trim();
+    const token = parseJWTokenFromHeader(authHeader);
     if (!token) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message: "Token is missing from Authorization header",
+          message:
+            "Invalid Authorization header format. Expected 'JWT <token>'",
         }),
       );
     }
@@ -1625,7 +1737,10 @@ const enhancedJWTAuth = (req, res, next) => {
                 res.set("Access-Control-Expose-Headers", "X-Access-Token");
               }
             } catch (refreshError) {
-              logger.error(
+              // Best-effort background refresh — the existing token is still
+              // valid, so the request proceeds. A persistent failure here will
+              // surface through DB health alerts rather than per-request noise.
+              logger.warn(
                 `Failed to refresh token for user ${decoded.id || decoded._id}: ${refreshError.message}`,
               );
             }
@@ -1681,10 +1796,7 @@ const optionalJWTAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return next();
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) return next();
-
-    const token = match[2].trim();
+    const token = parseJWTokenFromHeader(authHeader);
     if (!token) return next();
 
     const endpoint =
@@ -1783,17 +1895,15 @@ const refreshTokenAuth = (req, _res, next) => {
       );
     }
 
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match || !match[2]) {
+    const token = parseJWTokenFromHeader(authHeader);
+    if (!token) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message:
-            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+            "Invalid Authorization header format. Expected 'JWT <token>'",
         }),
       );
     }
-
-    const token = match[2].trim();
 
     jwt.verify(
       token,

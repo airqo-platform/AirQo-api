@@ -162,7 +162,7 @@ const enhancedErrorHandler = (err, req, res, next) => {
             commonSolutions: [
               "Include valid JWT token in Authorization header",
               "Check that your login session hasn't expired",
-              "Ensure the token format is 'Bearer <token>'",
+              "Ensure the token format is 'JWT <token>'",
             ],
           };
           break;

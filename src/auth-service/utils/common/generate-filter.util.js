@@ -127,6 +127,35 @@ const filter = {
       );
     }
   },
+  selfies: (req, next) => {
+    try {
+      let { id, eventId } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = { hidden: false };
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (eventId) {
+        filter["eventId"] = eventId;
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   tenantSettings: (req, next) => {
     try {
       const { query, params } = req;
@@ -1083,7 +1112,7 @@ const filter = {
   },
   groups: (req, next) => {
     try {
-      const { grp_title, grp_status, category, grp_id } = {
+      const { grp_title, grp_status, category, grp_id, cohort_id } = {
         ...req.query,
         ...req.params,
       };
@@ -1098,9 +1127,11 @@ const filter = {
       if (grp_title) {
         filter["grp_title"] = grp_title;
       }
-
       if (category) {
         filter["category"] = category;
+      }
+      if (cohort_id) {
+        filter["cohorts"] = ObjectId(cohort_id);
       }
       logObject("the filter we are sending", filter);
       return filter;

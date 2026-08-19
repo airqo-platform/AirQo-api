@@ -1,299 +1,270 @@
-"""Source metadata inference from OSM context and satellite pollutant signals.
+"""Air-pollution source inference from free OpenStreetMap context."""
 
-This module combines:
-1. Nearby OpenStreetMap-derived site context (category, land use, roads, natural features).
-2. Optional Sentinel-5P pollutant summaries over a date window.
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
-It returns ranked source-type candidates and supporting evidence for downstream APIs.
-"""
-
-from datetime import datetime, timedelta, timezone
-import math
-from statistics import mean
-from typing import Dict, List, Tuple
-
-from models.pull_satellite_model import Sentinel5PModel
+from models.sentinel2_context_model import Sentinel2ContextModel
 from models.site_category_model import SiteCategoryModel
 
 
 class SourceMetadataModel:
-    """Build source-attribution metadata for a latitude/longitude point.
+    """Rank likely source types without satellite or paid data services."""
 
-    The model produces a normalized ranking across source types:
-    `traffic`, `industrial`, `biomass_burning`, `dust_resuspension`, and
-    `mixed_urban`.
-    """
+    MODEL_VERSION = "2.0.0"
+    SOURCE_TYPES = (
+        "traffic",
+        "industrial",
+        "domestic_combustion",
+        "biomass_burning",
+        "waste_burning",
+        "dust_resuspension",
+        "mixed_urban",
+    )
 
-    MODEL_VERSION = "1.0.0"
-    DEFAULT_POLLUTANTS = ["SO2", "HCHO", "CO", "NO2", "O3", "AOD"]
-
-    @staticmethod
-    def _clean_numeric(value, default=0.0):
-        """Safely coerce numeric-like input to float, falling back on invalid values."""
-        try:
-            if value is None:
-                return default
-            numeric = float(value)
-            if not math.isfinite(numeric):
-                return default
-            return numeric
-        except Exception:
-            return default
+    @classmethod
+    def _empty_scores(cls):
+        return {source_type: 0.0 for source_type in cls.SOURCE_TYPES}
 
     @staticmethod
-    def _normalize_scores(scores: Dict[str, float]) -> Dict[str, float]:
-        """Normalize non-negative scores to probabilities that sum to ~1.0."""
-        total = sum(max(v, 0.0) for v in scores.values())
+    def _normalize_scores(scores):
+        total = sum(max(value, 0.0) for value in scores.values())
         if total <= 0:
-            n = len(scores)
-            return {k: round(1.0 / n, 4) for k in scores.keys()} if n else {}
-        return {k: round(max(v, 0.0) / total, 4) for k, v in scores.items()}
-
-    def _infer_from_site_category(
-        self,
-        category: str,
-        landuse: str,
-        natural: str,
-        highway: str,
-    ) -> Tuple[Dict[str, float], List[str]]:
-        """Infer source likelihoods from OSM-derived categorical context.
-
-        Returns a tuple of:
-        - score dict by source type
-        - human-readable evidence statements explaining applied heuristics
-        """
-        score = {
-            "traffic": 0.0,
-            "industrial": 0.0,
-            "biomass_burning": 0.0,
-            "dust_resuspension": 0.0,
-            "mixed_urban": 0.0,
+            return {source_type: 0.0 for source_type in scores}
+        return {
+            source_type: round(max(value, 0.0) / total, 4)
+            for source_type, value in scores.items()
         }
+
+    def _infer_from_context(self, category, tags, feature_counts):
+        scores = self._empty_scores()
         evidence = []
+        landuse = str(tags.get("landuse") or "").lower()
+        natural = str(tags.get("natural") or "").lower()
+        highway = str(tags.get("highway") or "").lower()
+        amenity = str(tags.get("amenity") or "").lower()
+        man_made = str(tags.get("man_made") or "").lower()
+        power = str(tags.get("power") or "").lower()
 
-        category = (category or "").strip()
-        landuse = (landuse or "").strip().lower()
-        natural = (natural or "").strip().lower()
-        highway = (highway or "").strip().lower()
-
-        if category == "Major Highway":
-            score["traffic"] += 0.55
-            evidence.append("Site category indicates major-road influence.")
-        elif category == "Urban Commercial":
-            score["mixed_urban"] += 0.35
-            evidence.append("Site category indicates commercial urban activity.")
+        if category == "Urban Commercial":
+            scores["mixed_urban"] += 0.35
+            scores["traffic"] += 0.2
+            evidence.append("Commercial or industrial urban activity is mapped nearby.")
         elif category == "Urban Background":
-            score["mixed_urban"] += 0.30
-            score["traffic"] += 0.15
-            evidence.append("Site category indicates urban background emissions.")
+            scores["mixed_urban"] += 0.4
+            scores["traffic"] += 0.2
+            scores["domestic_combustion"] += 0.15
+            evidence.append("The point is in a built-up urban or residential context.")
         elif category == "Background Site":
-            score["dust_resuspension"] += 0.20
-            score["biomass_burning"] += 0.10
-            evidence.append("Site category indicates lower direct anthropogenic pressure.")
-        elif category == "Water Body":
-            score["mixed_urban"] += 0.05
-            evidence.append("Site category indicates water body context.")
+            scores["biomass_burning"] += 0.25
+            scores["dust_resuspension"] += 0.2
+            evidence.append("The point is in a rural, green, or low-density context.")
 
-        if highway in {"motorway", "trunk", "primary", "secondary"}:
-            score["traffic"] += 0.25
-            evidence.append(f"Nearby highway type '{highway}' suggests traffic emissions.")
-        elif highway in {"residential", "tertiary", "unclassified", "service"}:
-            score["traffic"] += 0.12
-            evidence.append(f"Nearby road type '{highway}' suggests local traffic influence.")
+        if highway in SiteCategoryModel.MAJOR_HIGHWAYS:
+            scores["traffic"] += 0.5
+            scores["dust_resuspension"] += 0.1
+            evidence.append(f"Highway type '{highway}' supports traffic and road-dust influence.")
+        elif highway in SiteCategoryModel.LOCAL_HIGHWAYS:
+            scores["traffic"] += 0.2
+            evidence.append(f"Road type '{highway}' supports local traffic influence.")
 
-        if landuse in {"industrial", "quarry", "mine"}:
-            score["industrial"] += 0.30
-            score["dust_resuspension"] += 0.12
-            evidence.append(f"Landuse '{landuse}' suggests industrial/mineral activity.")
+        if landuse in {"industrial", "quarry", "mine"} or man_made in {"chimney", "works", "petroleum_well"}:
+            scores["industrial"] += 0.75
+            scores["dust_resuspension"] += 0.2
+            evidence.append(f"Mapped industrial context '{landuse or man_made}' supports industrial emissions.")
+        elif landuse == "construction":
+            scores["dust_resuspension"] += 0.65
+            scores["industrial"] += 0.15
+            evidence.append("Mapped construction activity supports fugitive dust.")
         elif landuse in {"commercial", "retail"}:
-            score["mixed_urban"] += 0.15
-            evidence.append(f"Landuse '{landuse}' suggests dense human activity.")
-        elif landuse in {"farmland", "grass", "forest", "scrub", "orchard"}:
-            score["biomass_burning"] += 0.12
-            evidence.append(f"Landuse '{landuse}' may indicate seasonal biomass influence.")
+            scores["mixed_urban"] += 0.3
+            scores["traffic"] += 0.15
+            evidence.append(f"Land use '{landuse}' supports mixed commercial activity.")
+        elif landuse in {"farmland", "farmyard", "forest", "orchard", "scrub"}:
+            scores["biomass_burning"] += 0.4
+            scores["dust_resuspension"] += 0.15
+            evidence.append(f"Land use '{landuse}' may support seasonal biomass or soil-dust influence.")
 
-        if natural in {"bare_rock", "scrub", "heath"}:
-            score["dust_resuspension"] += 0.15
-            evidence.append(f"Natural feature '{natural}' may indicate dust influence.")
+        if natural in {"bare_rock", "sand", "scrub", "heath"}:
+            scores["dust_resuspension"] += 0.35
+            evidence.append(f"Natural cover '{natural}' supports wind-blown or resuspended dust.")
+        if power in {"plant", "generator"}:
+            scores["industrial"] += 0.55
+            evidence.append(f"Mapped power infrastructure '{power}' supports stationary combustion.")
+        if amenity in {"waste_transfer_station", "waste_disposal", "recycling"}:
+            scores["waste_burning"] += 0.6
+            evidence.append(f"Mapped waste amenity '{amenity}' supports waste-related emissions.")
+        elif amenity == "fuel":
+            scores["traffic"] += 0.2
+            scores["mixed_urban"] += 0.1
+            evidence.append("A mapped fuel station supports transport activity.")
 
-        return score, evidence
+        road_count = int(feature_counts.get("highway", 0) or 0)
+        industry_count = (
+            int(feature_counts.get("industrial", 0) or 0)
+            + int(feature_counts.get("man_made", 0) or 0)
+            + int(feature_counts.get("power", 0) or 0)
+        )
+        if road_count >= 5:
+            scores["traffic"] += min(0.3, road_count * 0.015)
+            evidence.append(f"{road_count} mapped road features indicate a connected road environment.")
+        if industry_count >= 2:
+            scores["industrial"] += min(0.3, industry_count * 0.05)
+            evidence.append(f"{industry_count} mapped infrastructure features strengthen industrial evidence.")
 
-    def _infer_from_satellite(
-        self, pollutant_means: Dict[str, float]
-    ) -> Tuple[Dict[str, float], List[str]]:
-        """Infer source likelihoods from pollutant threshold heuristics."""
-        score = {
-            "traffic": 0.0,
-            "industrial": 0.0,
-            "biomass_burning": 0.0,
-            "dust_resuspension": 0.0,
-            "mixed_urban": 0.0,
-        }
+        if not any(scores.values()):
+            scores["mixed_urban"] = 0.1
+            evidence.append("No strong mapped source signal was found; attribution confidence is low.")
+        return scores, evidence
+
+    def _infer_from_sentinel2(self, satellite_context):
+        scores = self._empty_scores()
         evidence = []
+        indices = satellite_context.get("indices") or {}
+        ndvi = indices.get("ndvi")
+        ndbi = indices.get("ndbi")
+        ndwi = indices.get("ndwi")
+        bare_soil = indices.get("bare_soil_index")
+        burn_ratio = indices.get("normalized_burn_ratio")
+        aerosol = satellite_context.get("aerosol_optical_thickness")
 
-        no2 = self._clean_numeric(pollutant_means.get("NO2"))
-        co = self._clean_numeric(pollutant_means.get("CO"))
-        so2 = self._clean_numeric(pollutant_means.get("SO2"))
-        hcho = self._clean_numeric(pollutant_means.get("HCHO"))
-        aod = self._clean_numeric(pollutant_means.get("AOD"))
-        o3 = self._clean_numeric(pollutant_means.get("O3"))
+        if ndvi is not None and ndvi >= 0.45:
+            scores["biomass_burning"] += 0.2
+            evidence.append(
+                f"Sentinel-2 NDVI {ndvi:.2f} indicates substantial vegetation or biomass."
+            )
+        elif ndvi is not None and ndvi <= 0.15:
+            scores["dust_resuspension"] += 0.12
+            scores["mixed_urban"] += 0.08
+            evidence.append(
+                f"Sentinel-2 NDVI {ndvi:.2f} indicates sparse vegetation."
+            )
 
-        if no2 > 0.00008:
-            score["traffic"] += 0.25
-            score["industrial"] += 0.10
-            evidence.append("Elevated NO2 suggests combustion sources (traffic/industry).")
-        if co > 0.03:
-            score["biomass_burning"] += 0.25
-            score["traffic"] += 0.10
-            evidence.append("Elevated CO suggests incomplete combustion.")
-        if so2 > 0.00005:
-            score["industrial"] += 0.30
-            evidence.append("Elevated SO2 suggests industrial/fuel sulfur emissions.")
-        if hcho > 0.0001:
-            score["biomass_burning"] += 0.12
-            score["mixed_urban"] += 0.08
-            evidence.append("Elevated HCHO suggests VOC-related oxidation/combustion.")
-        if aod > 1.0:
-            score["dust_resuspension"] += 0.25
-            evidence.append("High AOD suggests particulate loading (dust/smoke).")
-        if o3 > 0.13:
-            score["mixed_urban"] += 0.10
-            evidence.append("Elevated O3 supports secondary pollution formation.")
+        if ndbi is not None and ndbi >= 0.1:
+            scores["mixed_urban"] += 0.25
+            scores["domestic_combustion"] += 0.12
+            scores["traffic"] += 0.08
+            evidence.append(
+                f"Sentinel-2 NDBI {ndbi:.2f} supports a built-up surface context."
+            )
+        if bare_soil is not None and bare_soil >= 0.1:
+            scores["dust_resuspension"] += 0.35
+            evidence.append(
+                f"Sentinel-2 bare-soil index {bare_soil:.2f} supports exposed-soil dust."
+            )
+        if ndwi is not None and ndwi >= 0.2:
+            scores["dust_resuspension"] *= 0.5
+            evidence.append(
+                f"Sentinel-2 NDWI {ndwi:.2f} indicates water or a wet surface."
+            )
+        if burn_ratio is not None and burn_ratio < 0.1 and (ndvi or 0) < 0.3:
+            scores["biomass_burning"] += 0.18
+            evidence.append(
+                f"Sentinel-2 burn ratio {burn_ratio:.2f} is consistent with a dry or disturbed surface."
+            )
+        if aerosol is not None and aerosol >= 0.25:
+            scores["dust_resuspension"] += 0.12
+            scores["biomass_burning"] += 0.08
+            evidence.append(
+                f"Sentinel-2 aerosol optical thickness {aerosol:.3f} indicates elevated optical aerosol loading."
+            )
 
-        return score, evidence
-
-    def _aggregate_satellite_means(
-        self,
-        longitude: float,
-        latitude: float,
-        start_date: str,
-        end_date: str,
-        pollutants: List[str],
-    ) -> Dict[str, float]:
-        """Compute per-pollutant means from Sentinel-5P observations.
-
-        Each pollutant is queried independently to reduce cross-column NaN effects.
-        """
-        aggregated = {}
-        model = Sentinel5PModel()
-
-        for pollutant in pollutants:
-            values = []
-            try:
-                # Query each pollutant independently to avoid mixed-frame NaN contamination.
-                df = model.get_pollutant_data(
-                    longitude=longitude,
-                    latitude=latitude,
-                    start_date=start_date,
-                    end_date=end_date,
-                    pollutants=[pollutant],
-                )
-                if pollutant in df.columns:
-                    for raw_value in df[pollutant].tolist():
-                        value = self._clean_numeric(raw_value, default=None)
-                        if value is not None:
-                            values.append(value)
-            except Exception:
-                values = []
-
-            aggregated[pollutant] = round(mean(values), 10) if values else None
-
-        return aggregated
+        return scores, evidence
 
     def build_source_metadata(
         self,
-        latitude: float,
-        longitude: float,
-        start_date: str = None,
-        end_date: str = None,
-        pollutants: List[str] = None,
-        include_satellite: bool = True,
-    ) -> Dict:
-        """Build ranked source metadata for a coordinate and time window.
+        latitude,
+        longitude,
+        start_date=None,
+        end_date=None,
+        pollutants=None,
+        include_satellite=False,
+    ):
+        """Build context-only source metadata.
 
-        Args:
-            latitude: Target latitude.
-            longitude: Target longitude.
-            start_date: Inclusive UTC date in `%Y-%m-%d`. Defaults to 7 days before now.
-            end_date: Inclusive UTC date in `%Y-%m-%d`. Defaults to today.
-            pollutants: Pollutants to aggregate when satellite data is enabled.
-            include_satellite: Whether to include Sentinel-5P-derived scoring.
-
-        Returns:
-            A dictionary containing primary and candidate source types, evidence,
-            and computation metadata.
+        Satellite context uses the free Sentinel-2 L2A STAC archive.
         """
-        if pollutants is None or len(pollutants) == 0:
-            pollutants = self.DEFAULT_POLLUTANTS
+        site_model = SiteCategoryModel()
+        satellite_context = None
+        satellite_error = None
+        if include_satellite:
+            sentinel_model = Sentinel2ContextModel()
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                site_future = executor.submit(
+                    site_model.categorize_site_osm,
+                    latitude,
+                    longitude,
+                )
+                satellite_future = executor.submit(
+                    sentinel_model.get_context,
+                    latitude,
+                    longitude,
+                    start_date,
+                    end_date,
+                )
+                site_result = site_future.result()
+                try:
+                    satellite_context = satellite_future.result()
+                except Exception as error:
+                    satellite_error = str(error)
+        else:
+            site_result = site_model.categorize_site_osm(latitude, longitude)
 
-        if end_date is None:
-            end_date = datetime.utcnow().strftime("%Y-%m-%d")
-        if start_date is None:
-            start_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
-
-        site_model = SiteCategoryModel(category=None)
         (
             category,
-            search_radius,
+            distance_m,
             area_name,
             landuse,
             natural,
             waterway,
             highway,
             debug_info,
-        ) = site_model.categorize_site_osm(latitude, longitude)
+        ) = site_result
 
-        site_scores, site_evidence = self._infer_from_site_category(
-            category=category, landuse=landuse, natural=natural, highway=highway
+        details = site_model.last_details
+        matched_feature = details.get("matched_feature") or {}
+        tags = dict(matched_feature.get("tags") or {})
+        tags.update(
+            {
+                key: value
+                for key, value in {
+                    "landuse": landuse,
+                    "natural": natural,
+                    "waterway": waterway,
+                    "highway": highway,
+                }.items()
+                if value and not tags.get(key)
+            }
         )
-
-        satellite_means = None
-        satellite_scores = {
-            "traffic": 0.0,
-            "industrial": 0.0,
-            "biomass_burning": 0.0,
-            "dust_resuspension": 0.0,
-            "mixed_urban": 0.0,
-        }
-        satellite_evidence = []
-        satellite_error = None
-
-        if include_satellite:
-            try:
-                satellite_means = self._aggregate_satellite_means(
-                    longitude=longitude,
-                    latitude=latitude,
-                    start_date=start_date,
-                    end_date=end_date,
-                    pollutants=pollutants,
-                )
-                satellite_scores, satellite_evidence = self._infer_from_satellite(
-                    satellite_means
-                )
-            except Exception as ex:
-                satellite_error = str(ex)
-
-        combined_scores = {
-            k: round(site_scores.get(k, 0.0) + satellite_scores.get(k, 0.0), 6)
-            for k in site_scores.keys()
-        }
-        normalized = self._normalize_scores(combined_scores)
-        ranked = sorted(normalized.items(), key=lambda x: x[1], reverse=True)
-
-        primary_source = ranked[0][0] if ranked else "unknown"
-        primary_confidence = ranked[0][1] if ranked else 0.0
-
+        raw_scores, evidence = self._infer_from_context(
+            category,
+            tags,
+            details.get("nearby_feature_counts") or {},
+        )
+        if satellite_context:
+            satellite_scores, satellite_evidence = self._infer_from_sentinel2(
+                satellite_context
+            )
+            raw_scores = {
+                source_type: raw_scores.get(source_type, 0.0)
+                + satellite_scores.get(source_type, 0.0)
+                for source_type in self.SOURCE_TYPES
+            }
+            evidence.extend(satellite_evidence)
+        normalized = self._normalize_scores(raw_scores)
+        ranked = sorted(normalized.items(), key=lambda item: item[1], reverse=True)
+        primary_source, primary_confidence = ranked[0] if ranked else ("unknown", 0.0)
         candidates = [
-            {"source_type": source, "confidence": conf}
-            for source, conf in ranked[:3]
-        ]
-
-        data_sources = ["OpenStreetMap (Overpass)"]
-        if include_satellite and satellite_error is None:
-            data_sources.append("Google Earth Engine Sentinel-5P")
+            {"source_type": source_type, "confidence": confidence}
+            for source_type, confidence in ranked
+            if confidence > 0
+        ][:4]
 
         return {
-            "location": {"latitude": latitude, "longitude": longitude},
+            "location": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "area_name": area_name,
+            },
             "primary_source": {
                 "source_type": primary_source,
                 "confidence": primary_confidence,
@@ -302,24 +273,44 @@ class SourceMetadataModel:
             "evidence": {
                 "site_category": {
                     "category": category,
-                    "search_radius": search_radius,
-                    "area_name": area_name,
+                    "distance_to_matched_feature_m": distance_m,
                     "landuse": landuse,
                     "natural": natural,
                     "waterway": waterway,
                     "highway": highway,
+                    "classification_method": details.get("classification_method"),
+                    "classification_confidence": details.get("confidence"),
                 },
-                "satellite_pollutants_mean": satellite_means,
-                "site_reasoning": site_evidence,
-                "satellite_reasoning": satellite_evidence,
+                "matched_feature": matched_feature,
+                "nearby_feature_counts": details.get("nearby_feature_counts", {}),
+                "sentinel2_context": satellite_context,
+                "sentinel2_error": satellite_error,
+                "reasoning": evidence,
                 "osm_debug_info": debug_info,
-                "satellite_error": satellite_error,
             },
             "metadata": {
                 "model_version": self.MODEL_VERSION,
                 "computed_at_utc": datetime.now(timezone.utc).isoformat(),
-                "date_range": {"start_date": start_date, "end_date": end_date},
-                "data_sources": data_sources,
-                "disclaimer": "Source is inferred from heuristics and satellite/context signals; further study and ground validation are required.",
+                "data_sources": [
+                    "OpenStreetMap Overpass API",
+                    "OpenStreetMap Nominatim",
+                    *(
+                        ["Copernicus Sentinel-2 L2A via Element 84 Earth Search"]
+                        if satellite_context
+                        else []
+                    ),
+                ],
+                "satellite_data_used": satellite_context is not None,
+                "satellite_provider": (
+                    "Copernicus Sentinel-2 L2A via Element 84 Earth Search"
+                    if satellite_context
+                    else None
+                ),
+                "elapsed_ms": details.get("elapsed_ms"),
+                "cache_hit": details.get("cache_hit", False),
+                "disclaimer": (
+                    "Sources are inferred from mapped geographic context and require "
+                    "ground validation; unmapped or mobile sources may be missed."
+                ),
             },
         }

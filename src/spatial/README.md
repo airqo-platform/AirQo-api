@@ -1,10 +1,10 @@
 # Air Quality Spatial Analysis API
 
-Flask service for spatial air-quality analytics used by the AirQo platform. It exposes site categorization, sensor placement, heatmaps, source metadata, and satellite-derived PM2.5.
+Flask service for spatial air-quality analytics used by the AirQo platform. It exposes site categorization, sensor placement, heatmaps, and source metadata enriched with free Sentinel-2 context.
 
 ## Prerequisites
 - Python 3.11 and `pip`.
-- Google Cloud/Earth Engine service account JSON with access to BigQuery and Storage (`GOOGLE_APPLICATION_CREDENTIALS`).
+- Google Cloud credentials only for features that use Storage or BigQuery.
 - AirQo API token for upstream data access.
 - Redis (optional but recommended) for caching heatmap responses.
 
@@ -15,7 +15,7 @@ Flask service for spatial air-quality analytics used by the AirQo platform. It e
    - Windows: `py -3.11 -m venv venv && venv\Scripts\activate`
 3. Install dependencies:  
    `python -m pip install --upgrade pip && pip install -r requirements.txt`
-4. Create a `.env` in `src/spatial` (example values below) and place your Google credentials JSON where `GOOGLE_APPLICATION_CREDENTIALS` points.
+4. Create a `.env` in `src/spatial` using the example values below.
 
 ```
 AIRQO_API_TOKEN=your-platform-token
@@ -23,20 +23,33 @@ AIRQO_API_BASE_URL=https://api.airqo.net
 GRID_URL_ID=your-grid-endpoint-or-id
 GOOGLE_APPLICATION_CREDENTIALS=./google_application_credentials.json
 GOOGLE_CLOUD_PROJECT_ID=your-project-id
-GOOGLE_APPLICATION_CREDENTIALS_EMAIL=service-account@project.iam.gserviceaccount.com
-PROJECT_BUCKET=your-gcs-bucket
 SPATIAL_PROJECT_BUCKET=your-spatial-gcs-bucket
 BIGQUERY_HOURLY_CONSOLIDATED=project.dataset.hourly_consolidated
+PROJECT_BUCKET=airqo_prediction_bucket
+SATELLITE_PREDICTION_BUCKET=airqo_prediction_bucket
 BIGQUERY_SATELLITE_MODEL_PREDICTIONS=project.dataset.satellite_predictions
+SATELLITE_PREDICTION_MODEL_FILE=satellite_prediction_model_v2.pkl
+SATELLITE_MODEL_CACHE_DIR=/tmp/airqo_spatial_models
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
 REDIS_URL=redis://localhost:6379/0
 REDIS_PASSWORD=
 REDIS_CACHE_TTL=3600
+HEATMAP_REFRESH_INTERVAL_SECONDS=3600
+HEATMAP_REFRESH_RETRY_SECONDS=300
+HEATMAP_REFRESH_TIMEOUT_SECONDS=600
 MODEL_DIR_FILE=./models
 OSMNX_CACHE_MAX_FILES=100
 OSMNX_CACHE_MAX_AGE_HOURS=168
+FIRMS_MAP_KEY=your-free-nasa-firms-map-key
+FIRMS_API_BASE_URL=https://firms.modaps.eosdis.nasa.gov
+FIRMS_REQUEST_TIMEOUT_SECONDS=30
+ACTIVE_FIRE_CACHE_TTL_SECONDS=43200
+NASA_POWER_REQUEST_TIMEOUT_SECONDS=30
+NASA_POWER_WEATHER_FALLBACK_DAYS=7
+PLANETARY_COMPUTER_STAC_URL=https://planetarycomputer.microsoft.com/api/stac/v1
+ERA5_COLLECTION=era5-pds
 ```
 
 ## Start the microservice
@@ -190,10 +203,10 @@ Site categorization:
 curl "http://127.0.0.1:5000/api/v2/spatial/categorize_site?latitude=0.322502&longitude=32.584726"
 ```
 
-Source metadata without satellite lookup:
+Source metadata with free Sentinel-2 land-surface context:
 
 ```bash
-curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=false"
+curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=true"
 ```
 
 Heatmaps:
@@ -227,7 +240,7 @@ docker inspect airqo-spatial-test
 ## API authentication
 Requests to this service are not authenticated by default, but the service itself uses `AIRQO_API_TOKEN` to pull upstream data. Protect deployments behind your API gateway or add middleware if you need request-level auth.
 
-## Endpoint quick reference
+## Endpoint quick reference 
 All routes are prefixed with `/api/v2/spatial`.
 
 | Endpoint | Method | Purpose |
@@ -237,13 +250,36 @@ All routes are prefixed with `/api/v2/spatial`.
 | `/categorize_site` | GET | Classify a site by latitude/longitude. |
 | `/source_metadata` | GET | Infer likely air-pollution source metadata for a point. |
 | `/source_metadata/batch` | POST | Infer source metadata for multiple points in one request. |
-| `/derived_pm2_5` | GET | Derived PM2.5 from satellite AOD for a point and date range (JSON body). |
-| `/derived_pm2_5_daily` | GET | Daily MODIS AOD data for a point and date range (JSON body). |
-| `/satellite_data` | GET | Retrieve satellite pollutant data. |
-| `/sentinel5p` | GET | Retrieve Sentinel-5P pollutant data. |
-| `/satellite_prediction` | POST | Predict PM2.5 from satellite features at a point. |
+| `/satellite_prediction` | POST | Predict PM2.5 using a Sentinel-2-compatible trained model. |
+| `/active_fires/africa` | GET | Return NASA FIRMS active fire detections in Africa from the last 24 hours by default. |
 | `/heatmaps` | GET | Generate and return base64 PNG AQI heatmaps for all cities. |
 | `/heatmaps/<id>` | GET | Heatmap for a specific city id. |
+
+
+## `/satellite_prediction` API
+
+Use `/satellite_prediction` to predict PM2.5 for one latitude/longitude and date using the deployed `satellite_prediction_model_v2.pkl` model. The model is loaded from `SATELLITE_PREDICTION_BUCKET` on cache miss, then reused from memory and `SATELLITE_MODEL_CACHE_DIR` so repeated API calls do not download it from GCS every time.
+
+Single-date request body:
+```json
+{
+  "latitude": 0.3476,
+  "longitude": 32.5825,
+  "timestamp": "2026-06-20"
+}
+```
+
+Daily range request body:
+```json
+{
+  "latitude": 0.3476,
+  "longitude": 32.5825,
+  "starttime": "2026-06-20",
+  "endtime": "2026-06-20"
+}
+```
+
+`date` is accepted as an alias for `timestamp`, and `start_date`/`end_date` are accepted as aliases for `starttime`/`endtime`. A daily range returns `daily_pm2_5` and cannot exceed 30 inclusive days. Responses include `place_name` and `place` from reverse geocoding the latitude/longitude. If the deployed model declares `temperature`, `humidity`, `air_temperature`, or `relative_humidity`, the API adds daily NASA POWER weather features for the requested prediction date, falling back to the nearest complete NASA POWER day within `NASA_POWER_WEATHER_FALLBACK_DAYS` when the requested day is missing, then falling back to ERA5 from Microsoft Planetary Computer if NASA POWER still cannot provide complete weather features. Models that only declare Sentinel-2 features continue to avoid the weather request. Sentinel-2 surface features come from the newest usable scene available up to the requested date, so adjacent daily predictions can share the same `scene_id` when no newer satellite pass is available.
 
 ## `/polygon_site_location` API
 
@@ -473,9 +509,9 @@ Site categorization:
 curl "http://127.0.0.1:5000/api/v2/spatial/categorize_site?latitude=0.322502&longitude=32.584726"
 ```
 
-Source metadata (single point):
+Source metadata (single point with free Sentinel-2 context):
 ```bash
-curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726&include_satellite=false"
+curl "http://127.0.0.1:5000/api/v2/spatial/source_metadata?latitude=0.322502&longitude=32.584726"
 ```
 
 Source metadata (batch):
@@ -483,23 +519,10 @@ Source metadata (batch):
 curl -X POST http://127.0.0.1:5000/api/v2/spatial/source_metadata/batch \
   -H "Content-Type: application/json" \
   -d '{
-    "include_satellite": false,
     "items": [
       {"id": "site-1", "latitude": 0.322502, "longitude": 32.584726},
       {"id": "site-2", "latitude": 0.347596, "longitude": 32.582520}
     ]
-  }'
-```
-
-Derived PM2.5 (GET with JSON body):
-```bash
-curl -X GET http://127.0.0.1:5000/api/v2/spatial/derived_pm2_5 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "latitude": 0.322502,
-    "longitude": 32.584726,
-    "start_date": "2024-01-01",
-    "end_date": "2024-01-07"
   }'
 ```
 
@@ -509,8 +532,47 @@ curl http://127.0.0.1:5000/api/v2/spatial/heatmaps
 curl http://127.0.0.1:5000/api/v2/spatial/heatmaps/123   # by city id
 ```
 
+Africa active fires:
+```bash
+curl "http://127.0.0.1:5000/api/v2/spatial/active_fires/africa?source=VIIRS_NOAA20_NRT&min_confidence=nominal"
+```
+
+This endpoint uses NASA FIRMS and requires `FIRMS_MAP_KEY`. Optional query
+parameters are `source`, `hours` (1-120), `day_range` (1-5), `date`
+(`YYYY-MM-DD`), `min_confidence`, and `limit`. By default, the endpoint returns
+current UTC-day detections. If `hours` is provided, it switches to a rolling
+hour window and fetches enough FIRMS whole-day ranges to cover that window.
+Results are filtered by UTC acquisition time and Africa-only geometry before
+responding. Raw FIRMS rows are cached in Redis for up to 12 hours by default
+using `ACTIVE_FIRE_CACHE_TTL_SECONDS`; if Redis is unavailable, the endpoint
+falls back to direct FIRMS requests.
+
+The response advertises the valid FIRMS products and the product used for the
+current request:
+
+```json
+{
+  "source": "NASA FIRMS",
+  "product": "VIIRS_NOAA20_NRT",
+  "source_options": {
+    "available": [
+      "MODIS_NRT",
+      "MODIS_SP",
+      "VIIRS_NOAA20_NRT",
+      "VIIRS_NOAA20_SP",
+      "VIIRS_NOAA21_NRT",
+      "VIIRS_SNPP_NRT",
+      "VIIRS_SNPP_SP"
+    ],
+    "selected": "VIIRS_NOAA20_NRT",
+    "default": "VIIRS_NOAA20_NRT"
+  }
+}
+```
+
 ## Notes and troubleshooting
 - `must_have_locations` must fall inside the supplied polygon for site selection.
-- BigQuery/Earth Engine operations require valid service account credentials and access to the configured datasets and buckets.
-- Redis is optional; if unavailable the heatmap endpoints still work but skip caching.
+- BigQuery and Storage operations require credentials for their configured datasets and buckets.
+- Redis is optional; if unavailable the heatmap and active-fire endpoints still work but skip caching.
+- Heatmap JSON is cached without expiry. The first cached request after `HEATMAP_REFRESH_INTERVAL_SECONDS` starts one background `/map` version check; unchanged data keeps the existing cache, while changed data atomically replaces it. Refresh processes are terminated after `HEATMAP_REFRESH_TIMEOUT_SECONDS`, and failed or timed-out refreshes retry after `HEATMAP_REFRESH_RETRY_SECONDS`.
 - OSMnx request cache files are stored in `src/spatial/cache`. Old cache files are pruned automatically based on `OSMNX_CACHE_MAX_FILES` and `OSMNX_CACHE_MAX_AGE_HOURS`.

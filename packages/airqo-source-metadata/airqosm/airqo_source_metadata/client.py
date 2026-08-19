@@ -1,15 +1,20 @@
 import json
+import math
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional, Union
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
 DEFAULT_PLATFORM_BASE_URL = "https://platform.airqo.net"
+SOURCE_METADATA_PATH = "/api/v2/spatial/source_metadata"
+PACKAGE_VERSION = "0.3.0"
 
 
 class SourceMetadataClientError(RuntimeError):
+    """Raised when a platform request or response cannot be processed."""
+
     def __init__(
         self,
         message: str,
@@ -30,41 +35,53 @@ def _unwrap_singleton_lists(payload: Any) -> Any:
 
 
 def normalize_platform_response(payload: Any) -> Dict[str, Any]:
+    """Normalize an object or singleton-list AirQo response into one object."""
     normalized = _unwrap_singleton_lists(payload)
 
     if not isinstance(normalized, dict):
         raise ValueError("Platform response must resolve to a JSON object.")
 
-    if "data" in normalized and isinstance(normalized.get("data"), dict):
+    if "data" in normalized:
+        if not isinstance(normalized["data"], dict):
+            raise ValueError("Platform response field 'data' must be a JSON object.")
         response = dict(normalized)
         response.setdefault("message", "Operation successful")
         return response
 
     message = normalized.get("message", "Operation successful")
     data = {key: value for key, value in normalized.items() if key != "message"}
-
-    return {
-        "message": message,
-        "data": data,
-    }
+    return {"message": message, "data": data}
 
 
 class SourceMetadataClient:
+    """Client for the AirQo coordinate-based source metadata endpoint."""
+
     def __init__(
         self,
         *,
         base_url: str = DEFAULT_PLATFORM_BASE_URL,
         token: Optional[str] = None,
-        timeout: int = 30,
+        timeout: Union[int, float] = 30,
     ) -> None:
+        if not str(base_url).strip():
+            raise ValueError("base_url must not be empty.")
+        if float(timeout) <= 0:
+            raise ValueError("timeout must be greater than zero.")
+
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
 
     @staticmethod
     def _validate_coordinates(latitude: float, longitude: float) -> None:
-        lat = float(latitude)
-        lon = float(longitude)
+        try:
+            lat = float(latitude)
+            lon = float(longitude)
+        except (TypeError, ValueError) as ex:
+            raise ValueError("Latitude and longitude must be numbers.") from ex
+
+        if not math.isfinite(lat) or not math.isfinite(lon):
+            raise ValueError("Latitude and longitude must be finite numbers.")
         if lat < -90 or lat > 90:
             raise ValueError("Latitude must be between -90 and 90.")
         if lon < -180 or lon > 180:
@@ -91,8 +108,9 @@ class SourceMetadataClient:
         longitude: float,
         include_satellite: bool = True,
         token: Optional[str] = None,
-        extra_params: Optional[Dict[str, Any]] = None,
+        extra_params: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """Fetch and normalize source metadata for one coordinate."""
         self._validate_coordinates(latitude, longitude)
 
         params: Dict[str, Any] = {
@@ -101,17 +119,23 @@ class SourceMetadataClient:
             "include_satellite": str(bool(include_satellite)).lower(),
             "token": self._resolve_token(token),
         }
-
         if extra_params:
-            params.update({key: value for key, value in extra_params.items() if value is not None})
+            reserved = params.keys() & extra_params.keys()
+            if reserved:
+                names = ", ".join(sorted(reserved))
+                raise ValueError(
+                    f"extra_params cannot override reserved parameters: {names}."
+                )
+            params.update(
+                {key: value for key, value in extra_params.items() if value is not None}
+            )
 
         query = urlencode(params)
-        url = f"{self.base_url}/api/v2/spatial/source_metadata?{query}"
         request = Request(
-            url,
+            f"{self.base_url}{SOURCE_METADATA_PATH}?{query}",
             headers={
                 "Accept": "application/json",
-                "User-Agent": "airqosm/0.2.0",
+                "User-Agent": f"airqosm/{PACKAGE_VERSION}",
             },
         )
 
@@ -128,24 +152,35 @@ class SourceMetadataClient:
                 f"Platform request failed with status {ex.code}."
             )
             raise SourceMetadataClientError(
-                message,
-                status_code=ex.code,
-                payload=payload,
+                message, status_code=ex.code, payload=payload
+            ) from ex
+        except TimeoutError as ex:
+            raise SourceMetadataClientError(
+                "The platform source metadata request timed out."
             ) from ex
         except URLError as ex:
+            if isinstance(getattr(ex, "reason", None), TimeoutError):
+                raise SourceMetadataClientError(
+                    "The platform source metadata request timed out."
+                ) from ex
             raise SourceMetadataClientError(
                 f"Unable to reach the platform source metadata API: {ex.reason}"
             ) from ex
 
         payload = self._safe_load_json(body)
-        return normalize_platform_response(payload)
+        try:
+            return normalize_platform_response(payload)
+        except ValueError as ex:
+            raise SourceMetadataClientError(str(ex), payload=payload) from ex
 
     @staticmethod
     def _safe_load_json(body: str) -> Any:
         try:
             return json.loads(body)
         except json.JSONDecodeError as ex:
-            raise SourceMetadataClientError("Platform response was not valid JSON.") from ex
+            raise SourceMetadataClientError(
+                "Platform response was not valid JSON."
+            ) from ex
 
     @staticmethod
     def _extract_error_message(payload: Any) -> Optional[str]:

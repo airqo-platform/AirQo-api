@@ -4,12 +4,14 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const { stringify } = require("@utils/common");
 const RoleModel = require("@models/Role");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- token-strategy-migration-job`
 );
 
 const BATCH_SIZE = 100;
+const JOB_NAME = "token-strategy-migration-job";
 
 let isJobRunning = false;
 
@@ -24,6 +26,9 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
 
   const tenantId = tenant || constants.DEFAULT_TENANT || "airqo";
   try {
+    const gotLock = await acquireCronLock(tenantId, JOB_NAME);
+    if (!gotLock) return;
+
     logger.info(
       "🚀 Starting data migration job (token strategy, legacy fields & roles)..."
     );

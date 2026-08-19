@@ -64,9 +64,23 @@ function envConfig(env) {
       env === "production", // default on in production only
     ),
 
+    BACKFILL_SEARCH_NAME_SCHEDULER_ENABLED: parseBool(
+      process.env.BACKFILL_SEARCH_NAME_SCHEDULER_ENABLED,
+      env === "production", // default on in production only
+    ),
+
     FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED: parseBool(
       process.env.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED,
       env !== "staging", // default off in staging only
+    ),
+
+    // Token resource binding — when true, cohort/grid read routes call the
+    // auth-service verify endpoint and enforce allowed_grids / allowed_cohorts.
+    // Default off so existing behaviour is completely unchanged until explicitly
+    // enabled via the env var.
+    ENABLE_RESOURCE_BINDING: parseBool(
+      process.env.ENABLE_RESOURCE_BINDING,
+      false,
     ),
 
     // Integer (ms): maximum time the MongoDB driver waits for a response on an
@@ -89,24 +103,66 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 25000;
     })(),
 
-    // Temporary diagnostic window for ReadingModel.recent().
-    // Revert to 3 once the root cause of the empty readings collection is confirmed.
+    // Lookback window for ReadingModel.recent(). Kept at 1 day so a device that has
+    // been offline for days doesn't still surface a stale reading as "recent" in the mobile app.
     DIAGNOSTIC_WINDOW_DAYS: (() => {
       const val = parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10);
-      return Number.isFinite(val) && val > 0 ? val : 3;
+      return Number.isFinite(val) && val > 0 ? val : 1;
+    })(),
+
+    // Lookback window specifically for the Nexus-facing /recent endpoint
+    // (createEventUtil.readRecentWithFilter). Narrower than the shared
+    // DIAGNOSTIC_WINDOW_DAYS default (used by mobile/other callers of
+    // ReadingModel.recent()) to keep the sort-then-group scan small under load.
+    RECENT_ENDPOINT_LOOKBACK_HOURS: (() => {
+      const val = parseInt(process.env.RECENT_ENDPOINT_LOOKBACK_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 6;
+    })(),
+
+    // Default lookback window for ReadingModel.listForMap() when the caller
+    // supplies no explicit time filter. Previously hard-coded to 48h, which
+    // meant every unfiltered /map load sorted+grouped up to 48h of readings
+    // across every device just to surface one latest-per-site row. 6h keeps
+    // typical map usage covered while cutting the scan size dramatically.
+    MAP_DEFAULT_LOOKBACK_HOURS: (() => {
+      const val = parseInt(process.env.MAP_DEFAULT_LOOKBACK_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 6;
+    })(),
+
+    // MongoDB maxTimeMS for the device-listing aggregations in device.util.js
+    // (list(), getDeviceCountSummary()) that back Vertex's /devices/summary,
+    // /devices/status/*, and /devices/summary/count. These were previously
+    // hard-coded to 45000ms, longer than Vertex's own 30s proxy timeout for
+    // the "devices" endpoint group — meaning a slow query would outlive the
+    // client's patience and keep holding a pooled connection for no benefit.
+    // Same reasoning as READINGS_AGGREGATE_TIMEOUT_MS, same default.
+    DEVICE_LIST_AGGREGATE_TIMEOUT_MS: (() => {
+      // Number() (unlike parseInt) rejects partial parses ("25000ms") and
+      // requires the whole string to be numeric; isSafeInteger rejects
+      // fractional ("25000.5") and out-of-range values.
+      const val = Number(process.env.DEVICE_LIST_AGGREGATE_TIMEOUT_MS);
+      return Number.isSafeInteger(val) && val > 0 ? val : 25000;
     })(),
 
     // Default lookback window for event/measurement queries (generate-filter fetch).
-    // Temporarily raised to 7 for diagnosis — revert to 3 when data pipeline is healthy.
     DEFAULT_QUERY_RANGE_DAYS: (() => {
       const val = parseInt(process.env.DEFAULT_QUERY_RANGE_DAYS, 10);
-      return Number.isFinite(val) && val > 0 ? val : 3;
+      return Number.isFinite(val) && val > 0 ? val : 1;
     })(),
 
     // How many hours without a successful event insertion before firing a Slack alert.
     EVENTS_STALENESS_THRESHOLD_HOURS: (() => {
       const val = parseInt(process.env.EVENTS_STALENESS_THRESHOLD_HOURS, 10);
       return Number.isFinite(val) && val > 0 ? val : 2;
+    })(),
+
+    // How many days of events to retain in MongoDB before purging.
+    // Aligned with the ingestion guard (30-day max lookback in store-readings-job)
+    // and the API query limit (1-day default window, 7-day historical threshold).
+    // Override via EVENTS_RETENTION_DAYS env var.
+    EVENTS_RETENTION_DAYS: (() => {
+      const val = parseInt(process.env.EVENTS_RETENTION_DAYS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 90;
     })(),
   };
 

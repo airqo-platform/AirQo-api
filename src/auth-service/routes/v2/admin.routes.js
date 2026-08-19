@@ -126,6 +126,14 @@ router.post(
   createAdminController.dropIndex
 );
 
+router.post(
+  "/maintenance/db/create-index",
+  enhancedJWTAuth,
+  requirePermissions([constants.DATABASE_ADMIN]),
+  adminValidations.validateProductionSafety,
+  createAdminController.createIndex
+);
+
 router.get(
   "/migration/deprecated-fields-status",
   adminValidations.auditValidation,

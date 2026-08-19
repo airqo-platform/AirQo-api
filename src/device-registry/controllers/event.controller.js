@@ -12,7 +12,6 @@ const {
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const createEventUtil = require("@utils/event.util");
-const AirQloudModel = require("@models/Airqloud");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const GridModel = require("@models/Grid");
@@ -94,61 +93,30 @@ function handleResponse({
   return res.status(status).json(response);
 }
 
-const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
-  try {
-    const airQloud = await AirQloudModel(tenant)
-      .findById(airqloud_id)
-      .lean();
-    logObject("airQloud", airQloud);
-
-    if (!airQloud) {
-      logger.error(
-        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `,
-      );
-      return {
-        success: false,
-        message: "Bad Request Error",
-        status: httpStatus.BAD_REQUEST,
-        errors: { message: "c" },
-      };
-    }
-
-    const sites = airQloud.sites || [];
-    logObject("sites from the AirQloud", sites);
-
-    if (sites.length === 0) {
-      return {
-        success: true,
-        message:
-          "Unable to find any sites associated with the provided AirQloud ID",
-        data: [],
-        status: httpStatus.OK,
-      };
-    }
-
-    const siteIds = sites.map((site) => site._id.toString()); // Convert ObjectId to string
-    logObject("siteIds", siteIds);
-    // Join the siteIds into a comma-separated string
-    const commaSeparatedIds = siteIds.join(",");
-    logObject("commaSeparatedIds", commaSeparatedIds);
-
-    return {
-      success: true,
-      message: "Successfully retrieved the sites for this AirQloud",
-      data: commaSeparatedIds,
-      status: httpStatus.OK,
-    };
-  } catch (error) {
-    logObject("error", error);
-    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-      errors: { message: error.message },
-    };
+// Shared by getAirQualityRankings / getAirQualityRankingsHistory — both
+// utils either resolve a {success, message, data|errors, status} result or
+// resolve undefined after already forwarding an error via next() themselves.
+function sendRankingResponse(res, result) {
+  // result is undefined when the util already forwarded an error via
+  // next() — don't also send a response here, or Express double-sends.
+  if (!result) {
+    return;
   }
-};
+  if (result.success) {
+    res.status(result.status || httpStatus.OK).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } else {
+    res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: result.message,
+      errors: result.errors || { message: "" },
+    });
+  }
+}
+
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -158,7 +126,22 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
 
     const filter = generateFilter.grids(request);
-    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+    // Pass a no-op so GridModel's catch block can call next() without throwing
+    // TypeError: next is not a function. getSitesFromGrid has its own catch that
+    // handles the resulting undefined return gracefully.
+    const reseponseFromListGrid = await GridModel(tenant).list(
+      { filter },
+      () => {},
+    );
+
+    if (!reseponseFromListGrid) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve grid data from database" },
+      };
+    }
 
     const gridDetails = reseponseFromListGrid.data[0];
 
@@ -335,8 +318,8 @@ const processGridIds = async (grid_ids, request) => {
         );
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-        logger.error(
-          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
+        logger.warn(
+          `🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         );
         return {
           success: false,
@@ -361,7 +344,7 @@ const processGridIds = async (grid_ids, request) => {
   );
 
   if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
+    logger.warn(
       `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
     );
   }
@@ -439,83 +422,6 @@ const processCohortIds = async (cohort_ids, request) => {
     request.query.device_id = flattened.join(",");
   }
 };
-const processAirQloudIds = async (airqloud_ids, request) => {
-  logObject("airqloud_ids", airqloud_ids);
-  const airqloudIdArray = Array.isArray(airqloud_ids)
-    ? airqloud_ids
-    : airqloud_ids.toString().split(",");
-  logObject("airqloudIdArray", airqloudIdArray);
-
-  const siteIdPromises = airqloudIdArray.map(async (airqloud_id) => {
-    if (!isEmpty(airqloud_id)) {
-      logObject("airqloud_id under processAirQloudIds", airqloud_id);
-      const responseFromGetSitesOfAirQloud = await getSitesFromAirQloud({
-        airqloud_id,
-      });
-
-      logObject(
-        "responseFromGetSitesOfAirQloud",
-        responseFromGetSitesOfAirQloud,
-      );
-
-      if (responseFromGetSitesOfAirQloud.success === false) {
-        logger.error(
-          `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfAirQloud,
-          )}`,
-        );
-        return responseFromGetSitesOfAirQloud;
-      } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
-        logger.error(
-          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
-        );
-        return {
-          success: false,
-          message: `The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
-        };
-      }
-
-      logObject(
-        "responseFromGetSitesOfAirQloud.data",
-        responseFromGetSitesOfAirQloud.data,
-      );
-      logObject(
-        "responseFromGetSitesOfAirQloud.data.split",
-        responseFromGetSitesOfAirQloud.data.split(","),
-      );
-
-      const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
-      return arrayOfSites;
-    }
-  });
-
-  const siteIdResults = await Promise.all(siteIdPromises);
-  logObject("siteIdResults", siteIdResults);
-
-  const invalidSiteIdResults = siteIdResults.filter(
-    (result) => !result || result.success === false,
-  );
-
-  if (!isEmpty(invalidSiteIdResults)) {
-    logger.error(
-      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`,
-    );
-  }
-
-  logObject("invalidSiteIdResults", invalidSiteIdResults);
-
-  const validSiteIdResults = siteIdResults.filter(
-    (result) => result && result.success !== false,
-  );
-
-  logObject("validSiteIdResults", validSiteIdResults);
-
-  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
-    logObject("validSiteIdResults.join(,)", validSiteIdResults.join(","));
-    request.query.site_id = validSiteIdResults.join(",");
-  }
-};
-
 /**
  * Safely extracts measurements and meta from a listForMap result,
  * providing empty defaults so the response shape is always consistent.
@@ -619,6 +525,54 @@ const createEvent = {
         next,
       );
       handleResponse({ res, result, key: "data" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getAirQualityRankings: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankings(req, next);
+      sendRankingResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  getAirQualityRankingsHistory: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankingsHistory(
+        req,
+        next,
+      );
+      sendRankingResponse(res, result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1163,16 +1117,7 @@ const createEvent = {
         }
       }
 
-      // Directly create the filter for the 'read' utility
-      const filter = {};
-      if (request.query.device_id) {
-        const deviceIds = request.query.device_id
-          .split(",")
-          .map((id) => id.trim());
-        filter.device_id = { $in: deviceIds };
-      }
-
-      const result = await createEventUtil.read(request, filter, next);
+      const result = await createEventUtil.listForMap(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -2743,168 +2688,6 @@ const createEvent = {
       return;
     }
   },
-  listByAirQloud: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
-        );
-        return;
-      }
-
-      const request = req;
-      // Security: Prevent public requests from setting internal flag
-      delete request.query.internal;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      request.query.metadata = "site_id";
-      request.query.brief = "yes";
-      request.query.recent = "yes";
-
-      const { airqloud_id } = { ...req.query, ...req.params };
-
-      let locationErrors = 0;
-
-      if (airqloud_id) {
-        await processAirQloudIds(airqloud_id, request);
-        if (isEmpty(request.query.site_id)) {
-          locationErrors++;
-        }
-      }
-
-      if (locationErrors === 0) {
-        const result = await createEventUtil.list(request, next);
-
-        if (isEmpty(result) || res.headersSent) {
-          return;
-        }
-
-        logObject("the result for listing events", result);
-
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      } else {
-        res.status(httpStatus.BAD_REQUEST).json({
-          success: false,
-          errors: {
-            message: `Unable to process measurements for the provided AirQloud IDs ${airqloud_id}`,
-          },
-          message: "Bad Request Error",
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-      return;
-    }
-  },
-  listByAirQloudHistorical: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
-        );
-        return;
-      }
-
-      const request = req;
-      // Security: Prevent public requests from setting internal flag
-      delete request.query.internal;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      request.query.metadata = "site_id";
-      request.query.brief = "yes";
-      request.query.recent = "no";
-
-      const { airqloud_id } = { ...req.query, ...req.params };
-
-      let locationErrors = 0;
-
-      if (airqloud_id) {
-        await processAirQloudIds(airqloud_id, request);
-        if (isEmpty(request.query.site_id)) {
-          locationErrors++;
-        }
-      }
-
-      if (locationErrors === 0) {
-        const result = await createEventUtil.list(request, next);
-
-        if (isEmpty(result) || res.headersSent) {
-          return;
-        }
-        logObject("the result for listing events", result);
-
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      } else {
-        res.status(httpStatus.BAD_REQUEST).json({
-          success: false,
-          errors: {
-            message: `Unable to process measurements for the provided AirQloud IDs ${airqloud_id}`,
-          },
-          message: "Bad Request Error",
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-      return;
-    }
-  },
   listByGridHistorical: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2950,12 +2733,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status
@@ -3033,12 +2817,13 @@ const createEvent = {
 
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const payload = result.data && result.data[0];
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            meta: payload ? payload.meta : {},
+            measurements: payload ? payload.data : [],
           });
         } else if (result.success === false) {
           const status = result.status

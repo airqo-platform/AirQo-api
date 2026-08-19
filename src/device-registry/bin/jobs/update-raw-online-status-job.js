@@ -17,6 +17,7 @@ const { getUptimeAccuracyUpdateObject } = require("@utils/common");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const RAW_INACTIVE_THRESHOLD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future feed timestamps
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
@@ -141,7 +142,36 @@ const isDeviceRawActive = (lastFeedTime) => {
     return false;
   }
   const timeDiff = new Date().getTime() - new Date(lastFeedTime).getTime();
+  // A negative diff beyond clock-skew tolerance means lastFeedTime is
+  // future-dated (bad device clock, possibly already persisted from before
+  // isValidFeedTimestamp existed) — treat it as not active rather than
+  // letting the negative diff satisfy "< threshold" forever.
+  if (timeDiff < -MAX_CLOCK_SKEW_MS) {
+    return false;
+  }
   return timeDiff < RAW_INACTIVE_THRESHOLD;
+};
+
+// Classifies a raw feed timestamp for the diagnostic-only dateValidStatus
+// field. Returns null when there's nothing to evaluate (caller should leave
+// dateValidStatus untouched in that case, rather than overwriting it with a
+// stale verdict).
+const classifyFeedTimestamp = (timestamp) => {
+  if (!timestamp) {
+    return null;
+  }
+  const parsed = new Date(timestamp).getTime();
+  if (isNaN(parsed)) {
+    return "invalid_format";
+  }
+  return parsed - Date.now() > MAX_CLOCK_SKEW_MS ? "future_timestamp" : "valid";
+};
+
+// Rejects unparseable timestamps and ones further in the future than clock
+// skew can explain, so a bad feed/device timestamp never gets persisted as
+// lastRawData/lastActive (surfaces downstream as transmissionStatus "Invalid Date").
+const isValidFeedTimestamp = (timestamp) => {
+  return classifyFeedTimestamp(timestamp) === "valid";
 };
 
 const isValidPM25 = (value) => {
@@ -164,8 +194,13 @@ const mockNext = (error) => {
 const processDeviceBatch = async (devices, processor) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
 
-  // 1. Get all device numbers from the current batch
-  const deviceNumbers = devices.map((d) => d.device_number).filter(Boolean);
+  // 1. Get device numbers for airqo devices only — ThingSpeak channels only
+  // exist for network="airqo". Other networks (airgradient, iqair, etc.) store
+  // their manufacturer location/serial ID in device_number but have no ThingSpeak
+  // channel, so including them here produces wasted DB look-ups.
+  const deviceNumbers = devices
+    .filter((d) => d.network === "airqo" && d.device_number)
+    .map((d) => d.device_number);
 
   // 2. Fetch all necessary device details in a single query with timeout
   let deviceDetailsMap = new Map();
@@ -316,6 +351,66 @@ const processDeviceBatch = async (devices, processor) => {
   }
 };
 
+// Builds the rawOnlineStatus bulk-write op for a site driven by a primary device.
+// Returns a single updateOne op object, or null only when the device itself is
+// ineligible (missing site_id or isPrimaryInLocation is false).
+// When siteDataMap lacks the site entry, buildSiteStatusUpdate still emits a
+// site write op for rawOnlineStatus/lastRawData but skips accuracy tracking
+// (onlineStatusAccuracy counters) since the current site state is unavailable.
+const buildSiteStatusUpdate = (
+  device,
+  siteDataMap,
+  isRawOnline,
+  lastFeedTime,
+  dateValidStatus = null,
+) => {
+  if (!device.site_id || !device.isPrimaryInLocation) return null;
+
+  const currentSite = siteDataMap
+    ? siteDataMap.get(device.site_id.toString())
+    : null;
+
+  if (!currentSite) {
+    logger.warn(
+      `Site ${device.site_id} not found in prefetch for device ${device.name}; ` +
+        `updating rawOnlineStatus without accuracy tracking`,
+    );
+  }
+
+  const siteUpdateFields = { rawOnlineStatus: isRawOnline };
+  if (lastFeedTime) {
+    siteUpdateFields.lastRawData = new Date(lastFeedTime);
+  }
+  // Diagnostic-only, mirrors the device's dateValidStatus — never influences
+  // rawOnlineStatus above.
+  if (dateValidStatus) {
+    siteUpdateFields.dateValidStatus = dateValidStatus;
+  }
+
+  let siteSetUpdate = {};
+  let siteIncUpdate = null;
+  if (currentSite) {
+    const accuracyResult = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: currentSite.rawOnlineStatus,
+      isNowOnline: isRawOnline,
+      currentStats: currentSite.onlineStatusAccuracy,
+      reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
+    });
+    siteSetUpdate = accuracyResult.setUpdate;
+    siteIncUpdate = accuracyResult.incUpdate;
+  }
+
+  return {
+    updateOne: {
+      filter: { _id: device.site_id },
+      update: {
+        $set: { ...siteUpdateFields, ...siteSetUpdate },
+        ...(siteIncUpdate && { $inc: siteIncUpdate }),
+      },
+    },
+  };
+};
+
 // Extracted individual device processing function - FIXED VERSION
 const processIndividualDevice = async (
   device,
@@ -333,32 +428,39 @@ const processIndividualDevice = async (
   if (hasExistingRawData) {
     const existingDataAge =
       new Date().getTime() - new Date(device.lastRawData).getTime();
-    shouldMarkOfflineFromStaleData = existingDataAge >= RAW_INACTIVE_THRESHOLD;
+    // A future-dated lastRawData (bad device clock) must NOT be treated as
+    // fresh — a negative age would otherwise stay "not stale" indefinitely.
+    const isFutureDated = existingDataAge < -MAX_CLOCK_SKEW_MS;
+    shouldMarkOfflineFromStaleData =
+      isFutureDated || existingDataAge >= RAW_INACTIVE_THRESHOLD;
 
     // If data is stale, log it for visibility
     if (shouldMarkOfflineFromStaleData) {
       logger.debug(
-        `Device ${device.name} has stale lastRawData (${Math.round(
-          existingDataAge / (60 * 60 * 1000),
-        )}h old)`,
+        isFutureDated
+          ? `Device ${device.name} has future-dated lastRawData (${device.lastRawData}); treating as stale`
+          : `Device ${device.name} has stale lastRawData (${Math.round(
+              existingDataAge / (60 * 60 * 1000),
+            )}h old)`,
       );
     }
   }
 
-  if (!device.device_number) {
+  // Resolve the network adapter once, before any routing decision.
+  // DB record takes precedence over static config so operator-customised
+  // adapter config is honoured at runtime.
+  const externalAdapter =
+    device.api_code && device.network && device.network !== "airqo"
+      ? await getNetworkAdapter(device.network).catch(() => null)
+      : null;
+
+  // Route to the external-API path when:
+  //   • the device has no device_number (never had a ThingSpeak channel), OR
+  //   • the adapter declares online_check_via_feed (e.g. AirGradient) —
+  //     these devices may have device_number set to their manufacturer
+  //     location ID, which is NOT a ThingSpeak channel.
+  if (!device.device_number || externalAdapter?.online_check_via_feed) {
     // ── External device path ────────────────────────────────────────────────
-    // If the device has an api_code and its network adapter declares
-    // online_check_via_feed, call the external API to determine live status.
-    // This resolves the historic "no_device_number" skip for non-AirQo devices.
-    //
-    // Devices that still lack api_code (not yet migrated / unknown network)
-    // fall through to the unchanged stale-data fallback below.
-    // Resolve adapter: DB record takes precedence over static config so any
-    // operator-customised adapter config is honoured at runtime.
-    const externalAdapter =
-      device.api_code && device.network && device.network !== "airqo"
-        ? await getNetworkAdapter(device.network)
-        : null;
 
     if (externalAdapter?.online_check_via_feed) {
       try {
@@ -377,6 +479,7 @@ const processIndividualDevice = async (
 
         let isRawOnline = false;
         let lastFeedTime = null;
+        let dateValidStatus = null;
 
         if (externalResult.success && !isEmpty(externalResult.data)) {
           const data = externalResult.data;
@@ -390,11 +493,24 @@ const processIndividualDevice = async (
             data.ts ||
             null;
 
-          if (tsValue) {
+          dateValidStatus = classifyFeedTimestamp(tsValue);
+
+          if (tsValue && isValidFeedTimestamp(tsValue)) {
             lastFeedTime = tsValue;
             isRawOnline = isDeviceRawActive(tsValue);
+          } else if (tsValue) {
+            logger.warn(
+              `🙀🙀 Ignoring invalid/future feed timestamp (${tsValue}) for device ${device.name ||
+                device._id}`,
+            );
+            // Don't blindly mark offline on a bad timestamp — fall back to
+            // whether the device's existing lastRawData is still fresh.
+            isRawOnline = isDeviceRawActive(device.lastRawData);
           } else {
-            // No timestamp field — successful non-empty response means online
+            // No timestamp field present at all — nothing was actually
+            // evaluated, so dateValidStatus is left untouched (stays whatever
+            // it already was) rather than being claimed "valid" with no
+            // evidence. successful non-empty response still means online.
             isRawOnline = true;
             lastFeedTime = new Date().toISOString();
           }
@@ -403,6 +519,11 @@ const processIndividualDevice = async (
         const updateFields = { rawOnlineStatus: isRawOnline };
         if (lastFeedTime) {
           updateFields.lastRawData = new Date(lastFeedTime);
+        }
+        // dateValidStatus is diagnostic-only — never influences rawOnlineStatus/
+        // isOnline above. Only written when we actually evaluated a timestamp.
+        if (dateValidStatus) {
+          updateFields.dateValidStatus = dateValidStatus;
         }
         if (
           STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
@@ -429,6 +550,16 @@ const processIndividualDevice = async (
           updateDoc.$inc = incUpdate;
         }
 
+        const siteUpdates = [];
+        const siteStatusOp = buildSiteStatusUpdate(
+          device,
+          siteDataMap,
+          isRawOnline,
+          lastFeedTime,
+          dateValidStatus,
+        );
+        if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
         return {
           deviceUpdate: {
             updateOne: {
@@ -436,6 +567,7 @@ const processIndividualDevice = async (
               update: updateDoc,
             },
           },
+          siteUpdates,
         };
       } catch (externalError) {
         logger.error(
@@ -446,6 +578,7 @@ const processIndividualDevice = async (
           "external_api_error",
           shouldMarkOfflineFromStaleData,
           hasExistingRawData,
+          siteDataMap,
         );
       }
     }
@@ -492,6 +625,18 @@ const processIndividualDevice = async (
     };
   }
 
+  // Warn only when a non-airqo device has an external api_code but its adapter
+  // does not enable online_check_via_feed — that combination is actionable
+  // (the adapter config needs updating). Placeholder networks without api_code
+  // reach this path by design and produce no meaningful warning.
+  if (device.network && device.network !== "airqo" && device.api_code) {
+    logger.warn(
+      `update-raw-online-status-job: device ${device.name} (network: ${device.network}) ` +
+        `has api_code but reached the ThingSpeak path. ` +
+        `Set online_check_via_feed: true in the network adapter config.`,
+    );
+  }
+
   // Get the API key from the pre-fetched details
   const detail = deviceDetailsMap.get(device.device_number);
   if (!detail || !detail.readKey) {
@@ -527,6 +672,15 @@ const processIndividualDevice = async (
       updateDoc.$inc = incUpdate;
     }
 
+    const siteUpdates = [];
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
     return {
       deviceUpdate: {
         updateOne: {
@@ -534,6 +688,7 @@ const processIndividualDevice = async (
           update: updateDoc,
         },
       },
+      siteUpdates,
     };
   }
 
@@ -554,6 +709,7 @@ const processIndividualDevice = async (
         "decryption_failed",
         shouldMarkOfflineFromStaleData,
         hasExistingRawData,
+        siteDataMap,
       );
     }
     apiKey = decryptResponse.data;
@@ -566,6 +722,7 @@ const processIndividualDevice = async (
       "decryption_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
+      siteDataMap,
     );
   }
 
@@ -588,8 +745,17 @@ const processIndividualDevice = async (
     let lastFeedTime = null;
     let latestRawPm25 = null;
     let updateFields = {};
+    const dateValidStatus =
+      thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]
+        ? classifyFeedTimestamp(thingspeakData.feeds[0].created_at)
+        : null;
 
-    if (thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]) {
+    if (
+      thingspeakData &&
+      thingspeakData.feeds &&
+      thingspeakData.feeds[0] &&
+      isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
+    ) {
       const lastFeed = thingspeakData.feeds[0];
       lastFeedTime = lastFeed.created_at;
       isRawOnline = isDeviceRawActive(lastFeedTime);
@@ -607,6 +773,24 @@ const processIndividualDevice = async (
         };
       }
     } else {
+      if (
+        thingspeakData &&
+        thingspeakData.feeds &&
+        thingspeakData.feeds[0] &&
+        thingspeakData.feeds[0].created_at &&
+        !isValidFeedTimestamp(thingspeakData.feeds[0].created_at)
+      ) {
+        logger.warn(
+          `🙀🙀 Ignoring invalid/future ThingSpeak timestamp (${thingspeakData
+            .feeds[0].created_at}) for device ${device.name ||
+            device._id}, channel ${device.device_number}`,
+        );
+        // Don't blindly mark offline on a bad timestamp — fall back to
+        // whether the device's existing lastRawData is still fresh. The
+        // shouldMarkOfflineFromStaleData check below can still override this
+        // to false if that fallback data is itself stale.
+        isRawOnline = isDeviceRawActive(device.lastRawData);
+      }
       // ============================================================================
       // CRITICAL FIX: No new data from ThingSpeak
       // Use existing lastRawData to determine status
@@ -624,6 +808,10 @@ const processIndividualDevice = async (
     if (lastFeedTime) {
       // Continue updating lastRawData for backward compatibility
       updateFields.lastRawData = new Date(lastFeedTime);
+    }
+    // Diagnostic-only — never influences rawOnlineStatus/isOnline above.
+    if (dateValidStatus) {
+      updateFields.dateValidStatus = dateValidStatus;
     }
 
     // ALSO update primary online status for UNDEPLOYED or MOBILE devices
@@ -692,62 +880,33 @@ const processIndividualDevice = async (
       };
     }
 
-    // Prepare site update if PM2.5 is valid and device is primary for its site
+    // Build site rawOnlineStatus update (shared with external-API path)
     const siteUpdates = [];
-    if (device.site_id && device.isPrimaryInLocation) {
-      // Fetch current site to get its rawOnlineStatus for accuracy check
-      const currentSite = siteDataMap.get(device.site_id.toString());
-
-      if (!currentSite) {
-        logger.warn(
-          `Site ${device.site_id} not found for device ${device.name}, skipping site update`,
-        );
-      } else {
-        const {
-          setUpdate: siteSetUpdate,
-          incUpdate: siteIncUpdate,
-        } = getUptimeAccuracyUpdateObject({
-          isCurrentlyOnline: currentSite.rawOnlineStatus,
-          isNowOnline: isRawOnline,
-          currentStats: currentSite.onlineStatusAccuracy,
-          reason: isRawOnline ? "online_raw_site" : "offline_raw_site",
-        });
-
-        const siteUpdateFields = {
-          rawOnlineStatus: isRawOnline,
-        };
-        if (lastFeedTime) {
-          siteUpdateFields.lastRawData = new Date(lastFeedTime);
-        }
-
-        // Unconditional status update for the site
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isRawOnline,
+      lastFeedTime,
+      dateValidStatus,
+    );
+    if (siteStatusOp) {
+      siteUpdates.push(siteStatusOp);
+      // Conditional PM2.5 update for the site (ThingSpeak path only)
+      if (latestRawPm25) {
         siteUpdates.push({
           updateOne: {
-            filter: { _id: device.site_id },
+            filter: {
+              _id: device.site_id,
+              $or: [
+                { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
+                { "latest_pm2_5.raw.time": { $exists: false } },
+              ],
+            },
             update: {
-              $set: { ...siteUpdateFields, ...siteSetUpdate },
-              ...(siteIncUpdate && { $inc: siteIncUpdate }),
+              $set: { "latest_pm2_5.raw": latestRawPm25 },
             },
           },
         });
-
-        // Conditional PM2.5 update for the site
-        if (latestRawPm25) {
-          siteUpdates.push({
-            updateOne: {
-              filter: {
-                _id: device.site_id,
-                $or: [
-                  { "latest_pm2_5.raw.time": { $lt: latestRawPm25.time } },
-                  { "latest_pm2_5.raw.time": { $exists: false } },
-                ],
-              },
-              update: {
-                $set: { "latest_pm2_5.raw": latestRawPm25 },
-              },
-            },
-          });
-        }
       }
     }
 
@@ -765,6 +924,7 @@ const processIndividualDevice = async (
       "fetch_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
+      siteDataMap,
     );
   }
 };
@@ -775,6 +935,7 @@ const createFailureUpdate = (
   reason,
   shouldMarkOfflineFromStaleData = false,
   hasExistingRawData = false,
+  siteDataMap = null,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -806,6 +967,18 @@ const createFailureUpdate = (
     updateDoc.$inc = incUpdate;
   }
 
+  const siteUpdates = [];
+  if (siteDataMap) {
+    // No lastFeedTime on failure — propagate only the online/offline decision
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+  }
+
   return {
     deviceUpdate: {
       updateOne: {
@@ -813,6 +986,7 @@ const createFailureUpdate = (
         update: updateDoc,
       },
     },
+    siteUpdates,
   };
 };
 
@@ -914,6 +1088,39 @@ const updateRawOnlineStatus = async () => {
       } catch (finalBatchError) {
         logger.error(
           `Final batch processing error: ${finalBatchError.message}`,
+        );
+      }
+    }
+
+    // Cleanup pass: find sites that have rawOnlineStatus: true but no active
+    // device currently assigned. These are sites recalled before the recall
+    // flow was fixed to clear rawOnlineStatus at recall time.
+    if (!processor.shouldStopExecution()) {
+      try {
+        const activeSiteIds = await DeviceModel("airqo").distinct("site_id", {
+          isActive: true,
+          site_id: { $ne: null },
+        });
+
+        const staleResult = await SiteModel("airqo").updateMany(
+          {
+            rawOnlineStatus: true,
+            _id: { $nin: activeSiteIds },
+          },
+          {
+            $set: { rawOnlineStatus: false, isOnline: false },
+          }
+        );
+
+        if (staleResult.modifiedCount > 0) {
+          logger.info(
+            `Stale-site cleanup: cleared rawOnlineStatus on ${staleResult.modifiedCount} site(s) with no active device.`
+          );
+        }
+      } catch (cleanupError) {
+        logger.error(
+          `Stale-site cleanup failed: ${cleanupError.message}`,
+          { stack: cleanupError.stack }
         );
       }
     }

@@ -1,286 +1,250 @@
 require("module-alias/register");
-const chai = require("chai");
-const expect = chai.expect;
-const DefaultsSchema = require("@models/Defaults");
+const rewire = require("rewire");
 const mongoose = require("mongoose");
 
-describe("DefaultsSchema - Statics", () => {
-  describe("Static Method: register", () => {
+// Bootstrap in-memory model registration so factory works without DB
+try {
+  const _schema = rewire("@models/Defaults").__get__("DefaultsSchema");
+  if (!mongoose.modelNames().includes("defaults")) {
+    mongoose.model("defaults", _schema);
+  }
+} catch (_) {}
+
+const chai = require("chai");
+const expect = chai.expect;
+const sinon = require("sinon");
+const httpStatus = require("http-status");
+const DefaultsModel = require("@models/Defaults");
+
+describe("DefaultsModel - Statics", () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  describe("register", () => {
     it("should create a new default and return success response", async () => {
-      // Mock input data
       const args = {
         pollutant: "CO2",
         frequency: "hourly",
-        user: mongoose.Types.ObjectId(),
-        airqloud: mongoose.Types.ObjectId(),
-        startDate: new Date(),
-        endDate: new Date(),
+        user: new mongoose.Types.ObjectId(),
         chartType: "line",
         chartTitle: "Default Chart",
-        chartSubTitle: "Default Chart Subtitle",
-        sites: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-        network_id: mongoose.Types.ObjectId(),
-        period: {
-          value: "2023-07-01T00:00:00.000Z",
-          label: "July 2023",
-          unitValue: 1,
-          unit: "month",
-        },
       };
+      const createdData = { ...args, _id: new mongoose.Types.ObjectId() };
 
-      // Call the register static method
-      const result = await DefaultsSchema.register(args);
+      const createStub = sinon
+        .stub(DefaultsModel("airqo"), "create")
+        .resolves(createdData);
 
-      // Assertions
+      const result = await DefaultsModel("airqo").register(args);
+
       expect(result).to.be.an("object").that.includes({
         success: true,
         message: "default created successfully with no issues detected",
         status: httpStatus.OK,
       });
       expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions to verify the result
+
+      createStub.restore();
     });
 
     it("should handle duplicate values and return conflict response", async () => {
-      // Mock input data with duplicate values
-      const args = {
-        pollutant: "CO2",
-        frequency: "hourly",
-        user: mongoose.Types.ObjectId(),
-        airqloud: mongoose.Types.ObjectId(),
-        startDate: new Date(),
-        endDate: new Date(),
-        chartType: "line",
-        chartTitle: "Default Chart",
-        chartSubTitle: "Default Chart Subtitle",
-        sites: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-        network_id: mongoose.Types.ObjectId(),
-        period: {
-          value: "2023-07-01T00:00:00.000Z",
-          label: "July 2023",
-          unitValue: 1,
-          unit: "month",
-        },
-      };
+      const args = { pollutant: "CO2", user: new mongoose.Types.ObjectId() };
 
-      // Call the register static method
-      const result = await DefaultsSchema.register(args);
+      const createStub = sinon
+        .stub(DefaultsModel("airqo"), "create")
+        .throws({ code: 11000, keyValue: { pollutant: "CO2" }, message: "dup key" });
 
-      // Assertions
+      const result = await DefaultsModel("airqo").register(args);
+
       expect(result).to.be.an("object").that.includes({
         success: false,
         message: "duplicate values provided",
         status: httpStatus.CONFLICT,
       });
       expect(result).to.have.property("errors").that.is.an("object");
-      // Add more assertions to verify the result
-    });
 
-    // Add more test cases to cover additional scenarios
+      createStub.restore();
+    });
   });
 
-  describe("Static Method: list", () => {
+  describe("list", () => {
     it("should return a list of defaults", async () => {
-      // Mock input data (optional)
-      const filter = { frequency: "hourly" };
-      const skip = 0;
-      const limit = 20;
+      const mockDefaults = [{ pollutant: "CO2", frequency: "hourly" }];
 
-      // Call the list static method
-      const result = await DefaultsSchema.list({ filter, skip, limit });
+      const findStub = sinon
+        .stub(DefaultsModel("airqo"), "find")
+        .returns({
+          sort: sinon.stub().returnsThis(),
+          skip: sinon.stub().returnsThis(),
+          limit: sinon.stub().returnsThis(),
+          exec: sinon.stub().resolves(mockDefaults),
+        });
+      const countStub = sinon
+        .stub(DefaultsModel("airqo"), "countDocuments")
+        .resolves(1);
 
-      // Assertions
+      const result = await DefaultsModel("airqo").list({ filter: {}, skip: 0, limit: 20 });
+
       expect(result).to.be.an("object").that.includes({
         success: true,
         message: "successfully listed the defaults",
         status: httpStatus.OK,
       });
       expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions to verify the result
+
+      findStub.restore();
+      countStub.restore();
     });
 
-    it("should handle error and return conflict response", async () => {
-      // Mock input data (optional)
-      const filter = { pollutant: "CO2" };
-      const skip = 0;
-      const limit = 20;
+    it("should return error response on failure", async () => {
+      const findStub = sinon
+        .stub(DefaultsModel("airqo"), "find")
+        .throws(new Error("DB error"));
 
-      // Call the list static method
-      const result = await DefaultsSchema.list({ filter, skip, limit });
+      const result = await DefaultsModel("airqo").list({ filter: {} });
 
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: false,
-        message: "Data conflicts detected",
-        status: httpStatus.CONFLICT,
-      });
-      expect(result).to.have.property("errors").that.is.an("object");
-      // Add more assertions to verify the result
+      expect(result.success).to.be.false;
+
+      findStub.restore();
     });
-
-    // Add more test cases to cover additional scenarios
   });
 
-  describe("Static Method: modify", () => {
+  describe("modify", () => {
     it("should modify the default and return success response", async () => {
-      // Mock input data
-      const filter = { pollutant: "CO2" };
-      const update = { frequency: "daily" };
+      const defaultData = {
+        _id: new mongoose.Types.ObjectId(),
+        pollutant: "CO2",
+        frequency: "daily",
+      };
 
-      // Call the modify static method
-      const result = await DefaultsSchema.modify({ filter, update });
+      const findOneAndUpdateStub = sinon
+        .stub(DefaultsModel("airqo"), "findOneAndUpdate")
+        .returns({ exec: sinon.stub().resolves({ ...defaultData, _doc: defaultData }) });
 
-      // Assertions
+      const result = await DefaultsModel("airqo").modify({
+        filter: { pollutant: "CO2" },
+        update: { frequency: "daily" },
+      });
+
       expect(result).to.be.an("object").that.includes({
         success: true,
         message: "successfully modified the default",
         status: httpStatus.OK,
       });
       expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions to verify the result
+
+      findOneAndUpdateStub.restore();
     });
 
-    it("should handle error and return conflict response", async () => {
-      // Mock input data
-      const filter = { pollutant: "CO2" };
-      const update = { frequency: "daily" };
+    it("should handle not found and return not found response", async () => {
+      const findOneAndUpdateStub = sinon
+        .stub(DefaultsModel("airqo"), "findOneAndUpdate")
+        .returns({ exec: sinon.stub().resolves(null) });
 
-      // Call the modify static method
-      const result = await DefaultsSchema.modify({ filter, update });
+      const result = await DefaultsModel("airqo").modify({
+        filter: { pollutant: "nonexistent" },
+        update: { frequency: "daily" },
+      });
 
-      // Assertions
       expect(result).to.be.an("object").that.includes({
         success: false,
-        message: "duplicate values provided",
-        status: httpStatus.CONFLICT,
+        status: httpStatus.BAD_REQUEST,
       });
-      expect(result).to.have.property("errors").that.is.an("object");
-      // Add more assertions to verify the result
-    });
+      expect(result.message).to.include("does not exist");
 
-    // Add more test cases to cover additional scenarios
+      findOneAndUpdateStub.restore();
+    });
   });
 
-  describe("Static Method: remove", () => {
+  describe("remove", () => {
     it("should remove the default and return success response", async () => {
-      // Mock input data
-      const filter = { pollutant: "CO2" };
+      const defaultData = {
+        _id: new mongoose.Types.ObjectId(),
+        user: new mongoose.Types.ObjectId(),
+        chartTitle: "Default Chart",
+      };
 
-      // Call the remove static method
-      const result = await DefaultsSchema.remove({ filter });
+      const findOneAndRemoveStub = sinon
+        .stub(DefaultsModel("airqo"), "findOneAndRemove")
+        .returns({ exec: sinon.stub().resolves({ ...defaultData, _doc: defaultData }) });
 
-      // Assertions
+      const result = await DefaultsModel("airqo").remove({
+        filter: { _id: defaultData._id },
+      });
+
       expect(result).to.be.an("object").that.includes({
         success: true,
         message: "successfully removed the default",
         status: httpStatus.OK,
       });
       expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions to verify the result
+
+      findOneAndRemoveStub.restore();
     });
 
-    it("should handle error and return conflict response", async () => {
-      // Mock input data
-      const filter = { pollutant: "CO2" };
+    it("should handle not found and return not found response", async () => {
+      const findOneAndRemoveStub = sinon
+        .stub(DefaultsModel("airqo"), "findOneAndRemove")
+        .returns({ exec: sinon.stub().resolves(null) });
 
-      // Call the remove static method
-      const result = await DefaultsSchema.remove({ filter });
+      const result = await DefaultsModel("airqo").remove({
+        filter: { _id: "nonexistent" },
+      });
 
-      // Assertions
       expect(result).to.be.an("object").that.includes({
         success: false,
-        message: "Data conflicts detected",
-        status: httpStatus.CONFLICT,
+        status: httpStatus.BAD_REQUEST,
       });
-      expect(result).to.have.property("errors").that.is.an("object");
-      // Add more assertions to verify the result
-    });
+      expect(result.message).to.include("does not exist");
 
-    // Add more test cases to cover additional scenarios
+      findOneAndRemoveStub.restore();
+    });
   });
 });
 
-describe("DefaultsSchema - Methods", () => {
-  describe("Method: toJSON", () => {
+describe("DefaultsModel - Methods", () => {
+  describe("toJSON", () => {
     it("should return the JSON representation of the default object", () => {
-      // Mock a default object
-      const defaultObj = new DefaultsSchema({
-        _id: mongoose.Types.ObjectId(),
+      const defaultId = new mongoose.Types.ObjectId();
+      const userId = new mongoose.Types.ObjectId();
+      const createdAt = new Date();
+
+      const defaultObj = new (DefaultsModel("airqo"))({
+        _id: defaultId,
         pollutant: "CO2",
         frequency: "hourly",
-        user: mongoose.Types.ObjectId(),
-        airqloud: mongoose.Types.ObjectId(),
-        startDate: new Date(),
-        endDate: new Date(),
+        user: userId,
         chartType: "line",
         chartTitle: "Default Chart",
         chartSubTitle: "Default Chart Subtitle",
-        sites: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-        network_id: mongoose.Types.ObjectId(),
-        period: {
-          value: "2023-07-01T00:00:00.000Z",
-          label: "July 2023",
-          unitValue: 1,
-          unit: "month",
-        },
-        createdAt: new Date(),
+        createdAt,
       });
 
-      // Call the toJSON method
       const result = defaultObj.toJSON();
 
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        _id: defaultObj._id,
-        pollutant: defaultObj.pollutant,
-        frequency: defaultObj.frequency,
-        user: defaultObj.user,
-        airqloud: defaultObj.airqloud,
-        startDate: defaultObj.startDate,
-        endDate: defaultObj.endDate,
-        chartType: defaultObj.chartType,
-        chartTitle: defaultObj.chartTitle,
-        chartSubTitle: defaultObj.chartSubTitle,
-        sites: defaultObj.sites,
-        network_id: defaultObj.network_id,
-        period: defaultObj.period,
-        createdAt: defaultObj.createdAt,
-      });
-      // Add more assertions to verify the result
+      expect(result).to.be.an("object");
+      expect(result._id.toString()).to.equal(defaultId.toString());
+      expect(result).to.have.property("pollutant", "CO2");
+      expect(result).to.have.property("frequency", "hourly");
+      expect(result).to.have.property("chartType", "line");
+      expect(result).to.have.property("chartTitle", "Default Chart");
     });
 
-    it("should not include the _id field in the JSON representation", () => {
-      // Mock a default object
-      const defaultObj = new DefaultsSchema({
-        _id: mongoose.Types.ObjectId(),
+    it("should include expected fields in the JSON representation", () => {
+      const defaultObj = new (DefaultsModel("airqo"))({
         pollutant: "CO2",
         frequency: "hourly",
-        user: mongoose.Types.ObjectId(),
-        airqloud: mongoose.Types.ObjectId(),
-        startDate: new Date(),
-        endDate: new Date(),
+        user: new mongoose.Types.ObjectId(),
         chartType: "line",
-        chartTitle: "Default Chart",
-        chartSubTitle: "Default Chart Subtitle",
-        sites: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-        network_id: mongoose.Types.ObjectId(),
-        period: {
-          value: "2023-07-01T00:00:00.000Z",
-          label: "July 2023",
-          unitValue: 1,
-          unit: "month",
-        },
-        createdAt: new Date(),
+        chartTitle: "Test Chart",
       });
 
-      // Call the toJSON method
       const result = defaultObj.toJSON();
 
-      // Assertions
-      expect(result).to.be.an("object").that.does.not.have.property("_id");
-      // Add more assertions to verify the result
+      expect(result).to.have.property("_id");
+      expect(result).to.have.property("pollutant");
+      expect(result).to.have.property("frequency");
     });
-
-    // Add more test cases to cover additional scenarios if needed
   });
 });

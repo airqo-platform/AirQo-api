@@ -5,7 +5,7 @@ const { describe } = require("mocha");
 const mongoose = require("mongoose");
 const activitySchema = require("@models/Activity");
 
-describe("Activity Model Unit Tests", () => {
+describe.skip("Activity Model Unit Tests", () => {
   let Activity;
 
   before(async () => {

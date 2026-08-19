@@ -92,10 +92,8 @@ class SourceMetadataView:
         Expected query parameters:
         - ``latitude`` (required): float in [-90, 90]
         - ``longitude`` (required): float in [-180, 180]
-        - ``start_date`` (optional): ``YYYY-MM-DD``
-        - ``end_date`` (optional): ``YYYY-MM-DD``
-        - ``pollutants`` (optional): comma-separated list, e.g. ``NO2,SO2,CO``
-        - ``include_satellite`` (optional): boolean-like value, default ``true``
+        ``include_satellite`` defaults to true and adds free Sentinel-2 L2A
+        land-surface context from a public STAC archive.
 
         Responses:
         - ``200``: ``{"message": "Operation successful", "data": ...}``
@@ -141,10 +139,8 @@ class SourceMetadataView:
           - ``latitude`` (required)
           - ``longitude`` (required)
           - ``id`` (optional request identifier echoed as ``request_id``)
-        - ``start_date`` (optional): ``YYYY-MM-DD``
-        - ``end_date`` (optional): ``YYYY-MM-DD``
-        - ``pollutants`` (optional): list of pollutant strings
-        - ``include_satellite`` (optional): boolean-like value, default ``true``
+        ``include_satellite`` defaults to true and adds free Sentinel-2 L2A
+        land-surface context from a public STAC archive.
 
         Behavior:
         - Invalid top-level payload structure returns ``400``.
@@ -181,6 +177,11 @@ class SourceMetadataView:
         failures = []
 
         for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                failures.append(
+                    {"index": idx, "error": "Each item must be a JSON object."}
+                )
+                continue
             lat, lon, error = SourceMetadataView._validate_coordinates(
                 item.get("latitude"), item.get("longitude")
             )

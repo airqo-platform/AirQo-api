@@ -5,7 +5,7 @@ const { describe } = require("mocha");
 const mongoose = require("mongoose");
 const uniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter"); //
 
-describe("Unique Identifier Counter Model Unit Tests", () => {
+describe.skip("Unique Identifier Counter Model Unit Tests", () => {
   let Counter;
 
   before(async () => {

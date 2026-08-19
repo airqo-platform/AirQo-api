@@ -3,6 +3,7 @@ const DeviceModel = require("@models/Device");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
 const ShippingBatchModel = require("@models/ShippingBatch");
+const SiteModel = require("@models/Site");
 const mongoose = require("mongoose");
 const { isValidObjectId } = require("mongoose");
 const axios = require("axios");
@@ -13,6 +14,7 @@ const {
   generateFilter,
   claimTokenUtil,
   ActivityLogger,
+  computeTransmissionStatus,
 } = require("@utils/common");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
@@ -569,7 +571,7 @@ const deviceUtil = {
 
       const results = await DeviceModel(tenant)
         .aggregate(pipeline)
-        .option({ maxTimeMS: 45000 })
+        .option({ maxTimeMS: constants.DEVICE_LIST_AGGREGATE_TIMEOUT_MS })
         .allowDiskUse(true);
 
       const summary = results[0] || {
@@ -595,6 +597,192 @@ const deviceUtil = {
           { message: error.message },
         ),
       );
+    }
+  },
+  getDeviceCountSummaryByNetwork: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $group: {
+            _id: { $ifNull: [{ $toLower: "$network" }, "unknown"] },
+            total: { $sum: 1 },
+            operational: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            data_available: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            not_transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
+
+      return {
+        success: true,
+        message: "Successfully retrieved per-network health summary.",
+        data: results.map((r) => ({
+          network: r._id,
+          total_monitors: r.total,
+          operational_count: r.operational,
+          transmitting_count: r.transmitting,
+          data_available_count: r.data_available,
+          not_transmitting_count: r.not_transmitting,
+          not_transmitting_percentage:
+            r.total > 0
+              ? parseFloat(((r.not_transmitting / r.total) * 100).toFixed(2))
+              : 0,
+        })),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
+    }
+  },
+  getDeviceCountSummaryByCohort: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.devices(request, next);
+
+      const pipeline = [
+        { $match: filter },
+        { $unwind: { path: "$cohorts", preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: "$cohorts",
+            total: { $sum: 1 },
+            operational: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", true] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            data_available: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", true] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            not_transmitting: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isOnline", false] }, { $eq: ["$rawOnlineStatus", false] }] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ];
+
+      const results = await DeviceModel(tenant)
+        .aggregate(pipeline)
+        .option({ maxTimeMS: 45000 })
+        .allowDiskUse(true);
+
+      const cohortIds = results.map((r) => r._id);
+      const cohorts = await CohortModel(tenant)
+        .find({ _id: { $in: cohortIds } })
+        .select("_id name")
+        .lean();
+      const cohortNameById = {};
+      cohorts.forEach((c) => {
+        cohortNameById[c._id.toString()] = c.name;
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved per-cohort health summary.",
+        data: results.map((r) => ({
+          cohort_id: r._id.toString(),
+          cohort_name: cohortNameById[r._id.toString()] || "unknown",
+          total_monitors: r.total,
+          operational_count: r.operational,
+          transmitting_count: r.transmitting,
+          data_available_count: r.data_available,
+          not_transmitting_count: r.not_transmitting,
+          not_transmitting_percentage:
+            r.total > 0
+              ? parseFloat(((r.not_transmitting / r.total) * 100).toFixed(2))
+              : 0,
+        })),
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Internal Server Error ${error.message}`);
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message },
+      );
+      if (typeof next === "function") {
+        return next(httpError);
+      }
+      throw httpError;
     }
   },
   getDeviceById: async (req, next) => {
@@ -1472,19 +1660,9 @@ const deviceUtil = {
             {
               $lookup: {
                 from: activitiesColl,
-                let: { deviceName: "$name", deviceId: "$_id" },
+                let: { deviceId: "$_id" },
                 pipeline: [
-                  {
-                    // Prioritize indexed device_id lookup, fall back to legacy device name for backwards compatibility
-                    $match: {
-                      $expr: {
-                        $or: [
-                          { $eq: ["$device_id", "$$deviceId"] },
-                          { $eq: ["$device", "$$deviceName"] },
-                        ],
-                      },
-                    },
-                  },
+                  { $match: { $expr: { $eq: ["$device_id", "$$deviceId"] } } },
                   { $sort: { createdAt: -1 } },
                   {
                     $project: {
@@ -1504,7 +1682,52 @@ const deviceUtil = {
                   },
                   { $limit: maxActivities },
                 ],
-                as: "activities",
+                as: "_act_by_id",
+              },
+            },
+            {
+              $lookup: {
+                from: activitiesColl,
+                let: { deviceName: "$name" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$device", "$$deviceName"] } } },
+                  { $sort: { createdAt: -1 } },
+                  {
+                    $project: {
+                      _id: 1,
+                      site_id: 1,
+                      device_id: 1,
+                      device: 1,
+                      activityType: 1,
+                      maintenanceType: 1,
+                      recallType: 1,
+                      date: 1,
+                      description: 1,
+                      nextMaintenance: 1,
+                      createdAt: 1,
+                      tags: 1,
+                    },
+                  },
+                  { $limit: maxActivities },
+                ],
+                as: "_act_by_name",
+              },
+            },
+            {
+              $addFields: {
+                activities: {
+                  $slice: [
+                    {
+                      $sortArray: {
+                        input: { $setUnion: ["$_act_by_id", "$_act_by_name"] },
+                        sortBy: { createdAt: -1 },
+                      },
+                    },
+                    maxActivities,
+                  ],
+                },
+                _act_by_id: "$$REMOVE",
+                _act_by_name: "$$REMOVE",
               },
             },
             getDeviceCategoriesAddFieldsStage(),
@@ -1635,7 +1858,7 @@ const deviceUtil = {
 
       const results = await DeviceModel(tenant)
         .aggregate(facetPipeline)
-        .option({ maxTimeMS: 45000 })
+        .option({ maxTimeMS: constants.DEVICE_LIST_AGGREGATE_TIMEOUT_MS })
         .allowDiskUse(true);
 
       const paginatedResults = results[0].paginatedResults;
@@ -1749,10 +1972,18 @@ const deviceUtil = {
         }
       }
 
+      const enrichedResults =
+        detailLevel === "minimal"
+          ? paginatedResults
+          : paginatedResults.map((device) => ({
+              ...device,
+              transmissionStatus: computeTransmissionStatus(device),
+            }));
+
       return {
         success: true,
         message: "successfully retrieved the device details",
-        data: paginatedResults,
+        data: enrichedResults,
         status: httpStatus.OK,
         meta,
       };
@@ -2083,41 +2314,125 @@ const deviceUtil = {
         return {
           success: false,
           message: responseFromTransformRequestBody.message,
+          status:
+            responseFromTransformRequestBody.status || httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              (responseFromTransformRequestBody.errors &&
+                responseFromTransformRequestBody.errors.message) ||
+              responseFromTransformRequestBody.message ||
+              "the device details could not be transformed into a payload accepted by the external device-channel provider -- crosscheck required fields such as name/long_name",
+          },
         };
       }
+
+      // the external device-channel provider's channel-creation endpoint
+      // expects "tags" as a comma-separated string, not a JSON array --
+      // sending an array causes the provider to fail with an HTTP 500
+      if (Array.isArray(transformedBody.tags)) {
+        const normalizedTags = transformedBody.tags
+          .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+          .filter(Boolean);
+        if (normalizedTags.length > 0) {
+          transformedBody.tags = normalizedTags.join(",");
+        } else {
+          delete transformedBody.tags;
+        }
+      }
+
       return await axios
         .post(baseURL, transformedBody)
-        .then((response) => {
-          let writeKey = response.data.api_keys[0].write_flag
-            ? response.data.api_keys[0].api_key
-            : "";
-          let readKey = !response.data.api_keys[1].write_flag
-            ? response.data.api_keys[1].api_key
-            : "";
+        .then(async (response) => {
+          try {
+            const apiKeys = response.data && response.data.api_keys;
+            const writeKeyEntry = Array.isArray(apiKeys)
+              ? apiKeys.find((key) => key && key.write_flag)
+              : undefined;
+            const readKeyEntry = Array.isArray(apiKeys)
+              ? apiKeys.find((key) => key && !key.write_flag)
+              : undefined;
+            const writeKey = writeKeyEntry && writeKeyEntry.api_key;
+            const readKey = readKeyEntry && readKeyEntry.api_key;
 
-          let newChannel = {
-            device_number: `${response.data.id}`,
-            writeKey: writeKey,
-            readKey: readKey,
-          };
+            if (
+              isEmpty(response.data && response.data.id) ||
+              isEmpty(writeKey) ||
+              isEmpty(readKey)
+            ) {
+              throw new Error(
+                "the external device-channel provider returned an unexpected response shape",
+              );
+            }
 
-          return {
-            success: true,
-            message: "successfully created the device on thingspeak",
-            data: newChannel,
-          };
+            let newChannel = {
+              device_number: `${response.data.id}`,
+              writeKey,
+              readKey,
+            };
+
+            return {
+              success: true,
+              message: "successfully created the device on thingspeak",
+              data: newChannel,
+            };
+          } catch (parseError) {
+            let cleanupMessage = "any partially-created channel was rolled back";
+            if (response.data && !isEmpty(response.data.id)) {
+              try {
+                const responseFromDeleteOnThingspeak = await deviceUtil.deleteOnThingspeak(
+                  { query: { device_number: response.data.id } },
+                  next,
+                );
+                if (
+                  !responseFromDeleteOnThingspeak ||
+                  !responseFromDeleteOnThingspeak.success
+                ) {
+                  cleanupMessage = `the partially-created channel (device_number: ${response.data.id}) could NOT be automatically rolled back -- manual cleanup on the external device-channel provider is required`;
+                }
+              } catch (cleanupError) {
+                cleanupMessage = `the partially-created channel (device_number: ${response.data.id}) could NOT be automatically rolled back (${cleanupError.message}) -- manual cleanup on the external device-channel provider is required`;
+              }
+            }
+            return {
+              success: false,
+              status: httpStatus.BAD_GATEWAY,
+              errors: {
+                message: `the external device-channel provider returned an unusable response while creating the device channel (${parseError.message}) -- an internal team member should check the provider's response format; ${cleanupMessage}`,
+              },
+            };
+          }
         })
         .catch((error) => {
           if (error.response) {
+            const status =
+              error.response.status ||
+              parseInt(error.response.data && error.response.data.status) ||
+              httpStatus.INTERNAL_SERVER_ERROR;
+            const normalizeProviderDetail = (value) => {
+              if (typeof value === "string") return value;
+              if (Array.isArray(value)) {
+                return value
+                  .map(normalizeProviderDetail)
+                  .filter(Boolean)
+                  .join("; ");
+              }
+              if (value && typeof value === "object") {
+                return value.message || value.error || JSON.stringify(value);
+              }
+              return undefined;
+            };
+            const channelProviderMessage =
+              normalizeProviderDetail(
+                error.response.data &&
+                  (error.response.data.error || error.response.data.message),
+              ) ||
+              error.response.statusText ||
+              "the external channel provider rejected the channel creation request";
             return {
               success: false,
-              status: error.response.status
-                ? error.response.status
-                : parseInt(error.response.data.status),
+              status,
               errors: {
-                message: error.response.statusText
-                  ? error.response.statusText
-                  : error.response.data.error,
+                message: `device channel creation failed with HTTP ${status}: ${channelProviderMessage} -- an internal team member should check the external device-channel provider (e.g. account quota, API key validity, service status)`,
               },
             };
           } else {
@@ -2126,8 +2441,9 @@ const deviceUtil = {
               message: "Bad Gateway Error",
               status: httpStatus.BAD_GATEWAY,
               errors: {
-                message:
-                  "unable to create the device on thingspeak, crosscheck why",
+                message: `unable to reach the external device-channel provider to create the device channel${
+                  error.code ? ` (${error.code})` : ""
+                } -- an internal team member should crosscheck the channel provider's base URL/API key configuration, account status, and network connectivity`,
               },
             };
           }
@@ -2672,8 +2988,9 @@ const deviceUtil = {
           );
         }
 
+        let createdActivity;
         try {
-          await ActivityModel(tenant).create({
+          createdActivity = await ActivityModel(tenant).create({
             activityType: "recallment",
             device: device.name,
             device_id: device._id,
@@ -2692,32 +3009,50 @@ const deviceUtil = {
           .findById(device._id)
           .lean();
 
-        // Publish recall message to Kafka
-        try {
+        // Publish recall message to Kafka. Include createdActivity (same
+        // payload shape as activity.util.js's recall) so the consumer's
+        // required-fields check doesn't reject this message.
+        if (createdActivity) {
           const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
-            topic: recallTopic,
-            messages: [
-              {
-                action: "create",
-                value: JSON.stringify({
-                  updatedDevice: recalledDevice,
-                  user_id: user_id,
-                }),
-              },
-            ],
-          });
-          await kafkaProducer.disconnect();
-          logText(
-            `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
-          );
-        } catch (error) {
+          let kafkaProducer;
+          try {
+            kafkaProducer = kafka.producer();
+            await kafkaProducer.connect();
+            await kafkaProducer.send({
+              topic: recallTopic,
+              messages: [
+                {
+                  value: JSON.stringify({
+                    createdActivity: createdActivity.toObject
+                      ? createdActivity.toObject()
+                      : createdActivity,
+                    updatedDevice: recalledDevice,
+                    user_id: user_id,
+                  }),
+                },
+              ],
+            });
+            logText(
+              `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
+            );
+          } catch (error) {
+            logger.error(
+              `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+            );
+          } finally {
+            if (kafkaProducer) {
+              try {
+                await kafkaProducer.disconnect();
+              } catch (disconnectError) {
+                logger.error(
+                  `Failed to disconnect Kafka producer after recall notification for ${device.name}: ${disconnectError.message}`,
+                );
+              }
+            }
+          }
+        } else {
           logger.error(
-            `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+            `Skipped Kafka recall notification for ${device.name}: activity creation failed, so createdActivity is unavailable.`,
           );
         }
 
@@ -2925,8 +3260,9 @@ const deviceUtil = {
               throw new Error("Device status changed during recall operation");
             }
 
+            let createdActivity;
             try {
-              await ActivityModel(tenant).create({
+              createdActivity = await ActivityModel(tenant).create({
                 activityType: "recallment",
                 device: device.name,
                 device_id: device._id,
@@ -2945,32 +3281,50 @@ const deviceUtil = {
               .findById(device._id)
               .lean();
 
-            // Publish recall message to Kafka
-            try {
+            // Publish recall message to Kafka. Include createdActivity (same
+            // payload shape as activity.util.js's recall) so the consumer's
+            // required-fields check doesn't reject this message.
+            if (createdActivity) {
               const recallTopic = constants.RECALL_TOPIC || "recall-topic";
-              const kafkaProducer = kafka.producer({
-                groupId: constants.UNIQUE_PRODUCER_GROUP,
-              });
-              await kafkaProducer.connect();
-              await kafkaProducer.send({
-                topic: recallTopic,
-                messages: [
-                  {
-                    action: "create",
-                    value: JSON.stringify({
-                      updatedDevice: recalledDevice,
-                      user_id: user_id,
-                    }),
-                  },
-                ],
-              });
-              await kafkaProducer.disconnect();
-              logText(
-                `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
-              );
-            } catch (error) {
+              let kafkaProducer;
+              try {
+                kafkaProducer = kafka.producer();
+                await kafkaProducer.connect();
+                await kafkaProducer.send({
+                  topic: recallTopic,
+                  messages: [
+                    {
+                      value: JSON.stringify({
+                        createdActivity: createdActivity.toObject
+                          ? createdActivity.toObject()
+                          : createdActivity,
+                        updatedDevice: recalledDevice,
+                        user_id: user_id,
+                      }),
+                    },
+                  ],
+                });
+                logText(
+                  `Successfully published automatic recall event for device ${device.name} to Kafka topic ${recallTopic}`,
+                );
+              } catch (error) {
+                logger.error(
+                  `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+                );
+              } finally {
+                if (kafkaProducer) {
+                  try {
+                    await kafkaProducer.disconnect();
+                  } catch (disconnectError) {
+                    logger.error(
+                      `Failed to disconnect Kafka producer after recall notification for ${device.name}: ${disconnectError.message}`,
+                    );
+                  }
+                }
+              }
+            } else {
               logger.error(
-                `internal server error -- while publishing recall message to Kafka -- ${error.message}`,
+                `Skipped Kafka recall notification for ${device.name}: activity creation failed, so createdActivity is unavailable.`,
               );
             }
 
@@ -3245,7 +3599,7 @@ const deviceUtil = {
 
   getMyDevices: async (request, next) => {
     try {
-      const { user_id, cohort_ids, group_ids } = request.query;
+      const { user_id, cohort_ids, group_ids, status } = request.query;
       const { tenant } = request.query;
       const skip = request.query.skip || 0;
       const limit = request.query.limit || 30;
@@ -3318,12 +3672,24 @@ const deviceUtil = {
         filter.$or.push({ cohorts: { $in: allCohortIds } });
       }
 
-      const [total, devices] = await Promise.all([
+      // 4. Apply optional status filter (isOnline + rawOnlineStatus combination)
+      const STATUS_FILTER_MAP = {
+        operational: { isOnline: true, rawOnlineStatus: true },
+        transmitting: { isOnline: false, rawOnlineStatus: true },
+        not_transmitting: { isOnline: false, rawOnlineStatus: false },
+        data_available: { isOnline: true, rawOnlineStatus: false },
+      };
+
+      if (status && STATUS_FILTER_MAP[status]) {
+        Object.assign(filter, STATUS_FILTER_MAP[status]);
+      }
+
+      const [total, rawDevices] = await Promise.all([
         DeviceModel(tenant).countDocuments(filter),
         DeviceModel(tenant)
           .find(filter)
           .select(
-            "name long_name status isActive deployment_date latitude longitude claim_status owner_id claimed_at",
+            "name long_name status isActive isOnline rawOnlineStatus dateValidStatus lastActive deployment_date latitude longitude claim_status owner_id claimed_at createdAt groups site_id",
           )
           .sort({ claimed_at: -1 })
           .skip(skip)
@@ -3331,10 +3697,36 @@ const deviceUtil = {
           .lean(),
       ]);
 
+      const siteIdByKey = new Map();
+      (rawDevices || [])
+        .map((d) => d.site_id)
+        .filter(Boolean)
+        .forEach((id) => siteIdByKey.set(id.toString(), id));
+      const siteIds = [...siteIdByKey.values()];
+
+      const siteMap = new Map();
+      if (siteIds.length > 0) {
+        const sites = await SiteModel(tenant)
+          .find({ _id: { $in: siteIds } })
+          .select("_id name location_name")
+          .lean();
+        sites.forEach((s) => siteMap.set(s._id.toString(), s));
+      }
+
+      const devices = (rawDevices || []).map(({ site_id, ...dev }) => ({
+        ...dev,
+        site: site_id ? siteMap.get(site_id.toString()) || null : null,
+        transmissionStatus: computeTransmissionStatus(dev),
+        // .select()/.lean() returns no key at all for documents predating this
+        // field — normalize here since a Mongoose schema default can't apply
+        // to a plain lean() object.
+        dateValidStatus: dev.dateValidStatus || "unknown",
+      }));
+
       return {
         success: true,
         message: "Devices retrieved successfully",
-        data: devices || [],
+        data: devices,
         status: httpStatus.OK,
         meta: {
           total,
@@ -3813,6 +4205,10 @@ const deviceUtil = {
         `Bulk preparation completed: ${successful.length} successful, ${failed.length} failed.` +
         (batchCreated
           ? ` Shipping batch '${batch_name}' was created.`
+          : successful.length === 0 && batch_name
+          ? " No shipping batch was created as no devices were prepared successfully."
+          : batch_name
+          ? " Shipping batch was not created due to a batch creation error."
           : " No shipping batch was created as 'batch_name' was not provided.");
       return {
         success: true,

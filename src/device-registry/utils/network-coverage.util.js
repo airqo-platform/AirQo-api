@@ -16,6 +16,9 @@
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const NetworkCoverageRegistryModel = require("@models/NetworkCoverageRegistry");
+const GridModel = require("@models/Grid");
+const SdgCityModel = require("@models/SdgCity");
+const CityPopulationRegistryModel = require("@models/CityPopulationRegistry");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -244,16 +247,26 @@ function buildRegistryBySiteId(registryRecords) {
  * extended metadata is layered from the registry entry when present.
  *
  * deviceCategory — the dominant category of active devices at this site
- * (bam | lowcost | gas). This is the authoritative source for `type`;
- * the registry entry never overrides it for AirQo pipeline monitors.
+ * (bam | lowcost | gas). Used to derive `type` via DEVICE_CATEGORY_TO_TYPE
+ * unless the registry entry carries an explicit, valid type override.
+ *
+ * Type precedence:
+ *   1. reg.type — when set and a recognised MONITOR_TYPES value (curator override)
+ *   2. DEVICE_CATEGORY_TO_TYPE[deviceCategory] — canonical device-category mapping
+ *   3. "LCS" — safe default
  */
 function buildAirQoMonitorItem(siteDoc, registryDoc, deviceCategory) {
   const reg = registryDoc || {};
   const country = siteDoc.country || "";
 
-  // Derive type directly from the device's own category — the canonical,
-  // validated source of truth in DeviceModel. No manual curation needed.
-  const type = DEVICE_CATEGORY_TO_TYPE[deviceCategory] || "LCS";
+  // Registry type wins when explicitly set to a valid enum value — allows curators
+  // to correct misclassifications without touching device metadata. Invalid or
+  // blank registry values fall through to the canonical device category mapping.
+  const validTypes = NetworkCoverageRegistryModel.MONITOR_TYPES;
+  const type =
+    (reg.type && validTypes.includes(reg.type) ? reg.type : null) ||
+    DEVICE_CATEGORY_TO_TYPE[deviceCategory] ||
+    "LCS";
 
   return {
     id: String(siteDoc._id),
@@ -343,6 +356,121 @@ function buildStandaloneMonitorItem(registryDoc) {
 }
 
 /**
+ * Computes the full impact stats suite for any flat list of monitors.
+ * Used by the impact util for both the overall aggregate and each per-
+ * manufacturer slice so every entry exposes identical metrics.
+ *
+ * populationByCity is a unified, composite-keyed Map built by fetchAllSources
+ * from two sources (CityPopulationRegistry crowd data + SdgCity, in that
+ * priority order). Cities absent from both sources return population: null.
+ *
+ * @param {object[]} monitors        - Flat MonitorListItem array
+ * @param {Map}      populationByCity - From fetchAllSources; keys are either
+ *                                      "city|country" (full lowercase name,
+ *                                      CityPopulationRegistry) or "city|iso2"
+ *                                      (lowercase ISO2, SdgCity). Lookups try
+ *                                      both formats.
+ */
+function computeMonitorStats(monitors, populationByCity) {
+
+  const byType = { Reference: 0, LCS: 0, Inactive: 0 };
+  const byStatus = { active: 0, inactive: 0 };
+  const byCountryMap = new Map();
+  // Composite key = "city|country" to disambiguate same-named cities across
+  // different countries (e.g. "Lagos, Nigeria" vs "Lagos, Portugal").
+  const byCityMap = new Map();
+
+  for (const monitor of monitors) {
+    if (byType[monitor.type] !== undefined) byType[monitor.type]++;
+    if (byStatus[monitor.status] !== undefined) byStatus[monitor.status]++;
+
+    const countryKey = monitor.country || "Unknown";
+    if (!byCountryMap.has(countryKey)) {
+      byCountryMap.set(countryKey, {
+        country: countryKey,
+        iso2: monitor.iso2 || "",
+        population: null,
+        total: 0,
+        Reference: 0,
+        LCS: 0,
+        Inactive: 0,
+        active: 0,
+        inactive: 0,
+      });
+    }
+    const cs = byCountryMap.get(countryKey);
+    cs.total++;
+    if (cs[monitor.type] !== undefined) cs[monitor.type]++;
+    if (cs[monitor.status] !== undefined) cs[monitor.status]++;
+
+    if (monitor.city) {
+      const cityKey = `${monitor.city.trim()}|${countryKey}`;
+      if (!byCityMap.has(cityKey)) {
+        const cityLower = monitor.city.trim().toLowerCase();
+        const countryLower = (monitor.country || "").toLowerCase();
+        const iso2Lower = (monitor.iso2 || "").toLowerCase();
+        const cityPop =
+          populationByCity.get(`${cityLower}|${countryLower}`) ??
+          populationByCity.get(`${cityLower}|${iso2Lower}`) ??
+          null;
+        byCityMap.set(cityKey, {
+          city: monitor.city.trim(),
+          country: countryKey,
+          iso2: monitor.iso2 || "",
+          population: cityPop,
+          total: 0,
+          Reference: 0,
+          LCS: 0,
+          Inactive: 0,
+          active: 0,
+          inactive: 0,
+        });
+      }
+      const cty = byCityMap.get(cityKey);
+      cty.total++;
+      if (cty[monitor.type] !== undefined) cty[monitor.type]++;
+      if (cty[monitor.status] !== undefined) cty[monitor.status]++;
+    }
+  }
+
+  // Roll up city populations to their parent country entries.
+  for (const cityEntry of byCityMap.values()) {
+    if (cityEntry.population !== null) {
+      const ce = byCountryMap.get(cityEntry.country);
+      if (ce) ce.population = (ce.population ?? 0) + cityEntry.population;
+    }
+  }
+
+  // Sum city populations for the total. null means no population data yet
+  // from either source — never substitute estimates or default to 0.
+  let totalPopulationReached = null;
+  let citiesWithPopulationData = 0;
+  for (const cityEntry of byCityMap.values()) {
+    if (cityEntry.population !== null) {
+      totalPopulationReached = (totalPopulationReached ?? 0) +
+        cityEntry.population;
+      citiesWithPopulationData++;
+    }
+  }
+
+  return {
+    byType,
+    byStatus,
+    totalCities: byCityMap.size,
+    totalCountries: byCountryMap.size,
+    totalPopulationReached,
+    citiesWithPopulationData,
+    byCountry: Array.from(byCountryMap.values()).sort((a, b) =>
+      a.country.localeCompare(b.country)
+    ),
+    byCity: Array.from(byCityMap.values()).sort((a, b) => {
+      const cc = a.country.localeCompare(b.country);
+      return cc !== 0 ? cc : a.city.localeCompare(b.city);
+    }),
+  };
+}
+
+/**
  * Groups a flat list of MonitorListItems by country → CountryCoverage[].
  * Sorted alphabetically by country name.
  */
@@ -355,10 +483,24 @@ function groupByCountry(monitors) {
         id: slugify(key),
         country: key,
         iso2: monitor.iso2,
+        stats: {
+          total: 0,
+          Reference: 0,
+          LCS: 0,
+          Inactive: 0,
+          active: 0,
+          inactive: 0,
+        },
         monitors: [],
       });
     }
-    countryMap.get(key).monitors.push(monitor);
+    const entry = countryMap.get(key);
+    entry.monitors.push(monitor);
+    entry.stats.total++;
+    if (entry.stats[monitor.type] !== undefined)
+      entry.stats[monitor.type]++;
+    if (entry.stats[monitor.status] !== undefined)
+      entry.stats[monitor.status]++;
   }
   return Array.from(countryMap.values()).sort((a, b) =>
     a.country.localeCompare(b.country)
@@ -366,9 +508,9 @@ function groupByCountry(monitors) {
 }
 
 /**
- * Applies search / activeOnly / types filters to a flat monitor list.
+ * Applies search / activeOnly / types / network filters to a flat monitor list.
  */
-function applyFilters(monitors, { search, activeOnly, types } = {}) {
+function applyFilters(monitors, { search, activeOnly, types, network } = {}) {
   let result = monitors;
 
   if (activeOnly === true || activeOnly === "true") {
@@ -382,6 +524,18 @@ function applyFilters(monitors, { search, activeOnly, types } = {}) {
       .filter(Boolean);
     if (allowedTypes.length > 0) {
       result = result.filter((m) => allowedTypes.includes(m.type));
+    }
+  }
+
+  if (network) {
+    const allowedNetworks = network
+      .split(",")
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean);
+    if (allowedNetworks.length > 0) {
+      result = result.filter((m) =>
+        allowedNetworks.includes((m.network || "").trim().toLowerCase())
+      );
     }
   }
 
@@ -421,18 +575,26 @@ const SITE_PROJECTION = {
   description: 1,
   land_use: 1,
   site_category: 1,
+  grids: 1,
 };
+
+// Minimal Grid projection — shape, centers, geoHash, shape_update_history are
+// heavy spatial fields not needed for city aggregation.
+const GRID_PROJECTION = { _id: 1, name: 1, long_name: 1, admin_level: 1 };
 
 /**
  * Core data fetch used by list, getCountryMonitors, and exportCsv.
  *
- * Returns { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId }
- * so callers can build monitor items in whatever way they need.
- *
- * categoryBySiteId — Map<String(site_id), category> where category is the
- * dominant equipment category of active devices at that site.
- * Priority: bam (2) > gas (1) > lowcost (0). This ensures a site hosting
- * both a reference monitor and a low-cost sensor is classified as "Reference".
+ * Returns:
+ *   airqoSites          — Site docs for all sites with at least one active device
+ *   standaloneEntries   — standalone NetworkCoverageRegistry docs (no site_id)
+ *   registryBySiteId    — Map<String(site_id), registryDoc> for enrichment
+ *   categoryBySiteId    — Map<String(site_id), category> dominant device category
+ *   cityGridsBySiteId   — Map<String(site_id), Grid[]> sub-country grids per site
+ *                         (empty map when Grid lookup fails — non-fatal)
+ *   sdgByGridId         — Map<String(grid_id), { population, name }> latest SDG
+ *                         population per city grid. Empty when no SDG data exists
+ *                         yet — callers must treat population as optional.
  */
 async function fetchAllSources(tenant) {
   // 1. Aggregate active devices to get both the site_id list AND the dominant
@@ -513,7 +675,119 @@ async function fetchAllSources(tenant) {
   // 4. Build enrichment map
   const registryBySiteId = buildRegistryBySiteId(enrichmentDocs);
 
-  return { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId };
+  // 5. Resolve sub-country grids for each active site so callers can derive
+  //    city names and population without fetching heavy spatial Grid documents.
+  //    Both the Grid lookup and the SdgCity join are non-fatal — callers receive
+  //    empty maps and degrade gracefully when data is unavailable.
+  const cityGridsBySiteId = new Map();
+  const sdgByGridId = new Map();
+
+  const allGridIds = [
+    ...new Set(
+      airqoSites.flatMap((s) => (s.grids || []).map((id) => id.toString()))
+    ),
+  ];
+
+  if (allGridIds.length > 0) {
+    try {
+      // Only sub-country grids are relevant for city-level aggregation.
+      const cityGridDocs = await GridModel(tenant)
+        .find(
+          { _id: { $in: allGridIds }, admin_level: { $ne: "country" } },
+          GRID_PROJECTION
+        )
+        .lean();
+
+      const gridById = new Map(
+        cityGridDocs.map((g) => [g._id.toString(), g])
+      );
+
+      for (const site of airqoSites) {
+        const siteGrids = (site.grids || [])
+          .map((id) => gridById.get(id.toString()))
+          .filter(Boolean);
+        if (siteGrids.length > 0) {
+          cityGridsBySiteId.set(site._id.toString(), siteGrids);
+        }
+      }
+
+      // Population join via SdgCity — new use case, data may not exist yet.
+      // Use aggregate to pick the most recent year when multiple rows exist
+      // for the same grid (SDG data is versioned by year).
+      const cityGridObjectIds = cityGridDocs.map((g) => g._id);
+      if (cityGridObjectIds.length > 0) {
+        try {
+          const sdgDocs = await SdgCityModel(tenant).aggregate([
+            { $match: { grid_id: { $in: cityGridObjectIds } } },
+            { $sort: { year: -1 } },
+            {
+              $group: {
+                _id: "$grid_id",
+                population: { $first: "$population" },
+                name: { $first: "$name" },
+                country: { $first: "$country" },
+              },
+            },
+          ]);
+          for (const doc of sdgDocs) {
+            sdgByGridId.set(doc._id.toString(), {
+              population: doc.population,
+              name: doc.name,
+              country: doc.country,
+            });
+          }
+        } catch (err) {
+          logger.warn(
+            `SDG population lookup skipped (non-fatal — data may not exist yet): ${err.message}`
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        `Grid city lookup skipped (non-fatal): ${err.message}`
+      );
+    }
+  }
+
+  // 6. Build unified city population map (composite key → population).
+  //    Key format: "city|country" (both lowercase) for CityPopulationRegistry
+  //    entries (country is full name, e.g. "kampala|uganda") and "city|iso2"
+  //    (lowercase ISO2) for SdgCity entries (e.g. "kampala|ug").
+  //    Priority: CityPopulationRegistry as base; SdgCity overrides when both
+  //    exist for the same city — SdgCity is the authoritative SDG source.
+  //    Both fetches are non-fatal.
+  const populationByCity = new Map();
+  try {
+    const cityPopDocs = await CityPopulationRegistryModel(tenant)
+      .find({}, { city: 1, country: 1, population: 1 })
+      .lean();
+    for (const doc of cityPopDocs) {
+      if (doc.city && doc.country && doc.population != null) {
+        populationByCity.set(`${doc.city}|${doc.country}`, doc.population);
+      }
+    }
+  } catch (err) {
+    logger.warn(
+      `City population registry lookup skipped (non-fatal): ${err.message}`
+    );
+  }
+  for (const sdgEntry of sdgByGridId.values()) {
+    if (sdgEntry.name && sdgEntry.population != null) {
+      const cityLower = sdgEntry.name.trim().toLowerCase();
+      const iso2Lower = (sdgEntry.country || "").toLowerCase();
+      populationByCity.set(`${cityLower}|${iso2Lower}`, sdgEntry.population);
+    }
+  }
+
+  return {
+    airqoSites,
+    standaloneEntries,
+    registryBySiteId,
+    categoryBySiteId,
+    cityGridsBySiteId,
+    sdgByGridId,
+    populationByCity,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -528,10 +802,15 @@ const networkCoverageUtil = {
    */
   list: async (request) => {
     try {
-      const { tenant, search, activeOnly, types } = request.query;
+      const { tenant, search, activeOnly, types, network } = request.query;
 
-      const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
-        await fetchAllSources(tenant);
+      const {
+        airqoSites,
+        standaloneEntries,
+        registryBySiteId,
+        categoryBySiteId,
+        populationByCity,
+      } = await fetchAllSources(tenant);
 
       // Build monitor items from both sources
       const airqoMonitors = airqoSites.map((site) =>
@@ -543,13 +822,71 @@ const networkCoverageUtil = {
       );
       const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
 
-      const filtered = applyFilters([...airqoMonitors, ...externalMonitors], {
+      const allMonitors = [...airqoMonitors, ...externalMonitors];
+
+      // availableNetworks is derived before filtering so the source dropdown
+      // always shows every network regardless of the active filter.
+      const availableNetworks = [
+        ...new Set(
+          allMonitors
+            .map((m) => (m.network || "").trim().toLowerCase())
+            .filter(Boolean)
+        ),
+      ].sort();
+
+      const filtered = applyFilters(allMonitors, {
         search,
         activeOnly,
         types,
+        network,
       });
 
       const countries = groupByCountry(filtered);
+
+      // ── Impact stats (computed from the filtered set) ──────────────────────
+      const byType = { Reference: 0, LCS: 0, Inactive: 0 };
+      const byStatus = { active: 0, inactive: 0 };
+      // Track city+country pairs to avoid double-counting same-named cities
+      // in different countries (e.g. "Lagos, Nigeria" vs "Lagos, Portugal").
+      const cityPairsMap = new Map();
+
+      for (const monitor of filtered) {
+        if (byType[monitor.type] !== undefined) byType[monitor.type]++;
+        if (byStatus[monitor.status] !== undefined) byStatus[monitor.status]++;
+        if (monitor.city) {
+          const cityKey = `${monitor.city.trim()}|${monitor.country || ""}`;
+          if (!cityPairsMap.has(cityKey)) {
+            cityPairsMap.set(cityKey, {
+              city: monitor.city.trim(),
+              country: monitor.country || "",
+              iso2: monitor.iso2 || "",
+            });
+          }
+        }
+      }
+
+      // Population: sum by city+country composite key from the unified
+      // populationByCity map (CityPopulationRegistry + SdgCity merged in
+      // fetchAllSources). null when no population data exists for any city.
+      let totalPopulationReached = null;
+      let citiesWithPopulationData = 0;
+      if (populationByCity.size > 0) {
+        let popSum = 0;
+        for (const { city, country, iso2 } of cityPairsMap.values()) {
+          const cityLower = city.toLowerCase();
+          const countryLower = country.toLowerCase();
+          const iso2Lower = iso2.toLowerCase();
+          const pop =
+            populationByCity.get(`${cityLower}|${countryLower}`) ??
+            populationByCity.get(`${cityLower}|${iso2Lower}`) ??
+            null;
+          if (pop != null) {
+            popSum += pop;
+            citiesWithPopulationData++;
+          }
+        }
+        if (citiesWithPopulationData > 0) totalPopulationReached = popSum;
+      }
 
       return {
         success: true,
@@ -557,9 +894,16 @@ const networkCoverageUtil = {
         data: {
           countries,
           meta: {
+            totalMonitors: filtered.length,
+            byType,
+            byStatus,
+            totalCities: cityPairsMap.size,
             totalCountries: countries.length,
             monitoredCountries: countries.filter((c) => c.monitors.length > 0)
               .length,
+            totalPopulationReached,
+            citiesWithPopulationData,
+            availableNetworks,
             generatedAt: new Date().toISOString(),
           },
         },
@@ -681,7 +1025,7 @@ const networkCoverageUtil = {
    */
   getCountryMonitors: async (request) => {
     try {
-      const { tenant, activeOnly, types } = request.query;
+      const { tenant, activeOnly, types, network } = request.query;
       const { countryId } = request.params;
 
       const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
@@ -703,7 +1047,7 @@ const networkCoverageUtil = {
 
       const allMonitors = applyFilters(
         [...airqoMonitors, ...externalMonitors],
-        { activeOnly, types }
+        { activeOnly, types, network }
       );
 
       if (allMonitors.length === 0) {
@@ -749,7 +1093,8 @@ const networkCoverageUtil = {
    */
   exportCsv: async (request) => {
     try {
-      const { tenant, search, activeOnly, types, countryId } = request.query;
+      const { tenant, search, activeOnly, types, network, countryId } =
+        request.query;
 
       const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
         await fetchAllSources(tenant);
@@ -767,6 +1112,7 @@ const networkCoverageUtil = {
         search,
         activeOnly,
         types,
+        network,
       });
 
       if (countryId) {
@@ -881,6 +1227,82 @@ const networkCoverageUtil = {
   },
 
   /**
+   * GET /network-coverage/cities
+   * List crowd-sourced city population records, optionally filtered by
+   * country (lowercase match).
+   */
+  listCities: async (request) => {
+    try {
+      const { tenant, country } = request.query;
+      const filter = country
+        ? { country: country.trim().toLowerCase() }
+        : {};
+      const result = await CityPopulationRegistryModel(tenant).list(filter);
+      return result;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 networkCoverageUtil.listCities: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * POST /network-coverage/cities
+   * Submit or update a city population record.
+   * Always an upsert — one record per city-country pair.
+   */
+  upsertCity: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const result = await CityPopulationRegistryModel(tenant).register(
+        request.body
+      );
+      return result;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 networkCoverageUtil.upsertCity: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * DELETE /network-coverage/cities/:cityId
+   * Remove a city population record by its _id.
+   */
+  deleteCity: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { cityId } = request.params;
+      const result = await CityPopulationRegistryModel(tenant).removeById(
+        cityId
+      );
+      return result;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 networkCoverageUtil.deleteCity: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
    * DELETE /network-coverage/registry/:registryId
    * Remove a registry entry by its own _id.
    */
@@ -897,6 +1319,109 @@ const networkCoverageUtil = {
       logger.error(
         `🐛🐛 networkCoverageUtil.deleteRegistry: ${error.message}`
       );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * GET /network-coverage/impact
+   * Returns aggregate impact metrics only — no countries / monitors payload.
+   * Intended for grant reporting, dashboards, and partner communications that
+   * need headline numbers without downloading the full monitor list.
+   *
+   * Accepts the same query filters as /network-coverage (network, activeOnly,
+   * types, search) so stats always reflect the active filter.
+   *
+   * Response shape:
+   *   top-level fields  — overall stats for the filtered set
+   *   byCountry[]             — per-country breakdown (total, type, status)
+   *   bySensorManufacturer[]  — per-manufacturer breakdown with the full stats
+   *                             suite (byType, byStatus, totalCities,
+   *                             totalCountries, totalPopulationReached,
+   *                             citiesWithPopulationData, byCountry, byCity)
+   *                             so any manufacturer slice exposes identical
+   *                             metrics to the overall view.
+   *
+   * totalPopulationReached is null (not 0) when no population data exists
+   * for any monitored city.
+   */
+  impact: async (request) => {
+    try {
+      const { tenant, search, activeOnly, types, network } = request.query;
+
+      const {
+        airqoSites,
+        standaloneEntries,
+        registryBySiteId,
+        categoryBySiteId,
+        populationByCity,
+      } = await fetchAllSources(tenant);
+
+      const airqoMonitors = airqoSites.map((site) =>
+        buildAirQoMonitorItem(
+          site,
+          registryBySiteId.get(String(site._id)),
+          categoryBySiteId.get(String(site._id))
+        )
+      );
+      const externalMonitors = standaloneEntries.map(
+        buildStandaloneMonitorItem
+      );
+      const allMonitors = [...airqoMonitors, ...externalMonitors];
+
+      const filtered = applyFilters(allMonitors, {
+        search,
+        activeOnly,
+        types,
+        network,
+      });
+
+      // Overall aggregate stats
+      const topLevel = computeMonitorStats(filtered, populationByCity);
+
+      // Per-manufacturer breakdown — group monitors by network slug (which
+      // maps to sensor manufacturer / data source), then run the full stats
+      // suite on each bucket so every manufacturer slice exposes identical
+      // metrics to the overall view.
+      const manufacturerBuckets = new Map();
+      for (const monitor of filtered) {
+        const key =
+          (monitor.network || "").trim().toLowerCase() || "unknown";
+        if (!manufacturerBuckets.has(key))
+          manufacturerBuckets.set(key, []);
+        manufacturerBuckets.get(key).push(monitor);
+      }
+
+      const bySensorManufacturer = Array.from(
+        manufacturerBuckets.entries()
+      )
+        .map(([manufacturer, mfgMonitors]) => ({
+          sensorManufacturer: manufacturer,
+          totalMonitors: mfgMonitors.length,
+          ...computeMonitorStats(mfgMonitors, populationByCity),
+        }))
+        .sort((a, b) =>
+          a.sensorManufacturer.localeCompare(b.sensorManufacturer)
+        );
+
+      return {
+        success: true,
+        message: "Impact summary retrieved successfully",
+        data: {
+          totalMonitors: filtered.length,
+          ...topLevel,
+          bySensorManufacturer,
+          generatedAt: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 networkCoverageUtil.impact: ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",

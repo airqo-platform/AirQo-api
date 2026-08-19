@@ -8,7 +8,7 @@ images:
     reportJob: airqoacr.azurecr.io/airqo-stage-analytics-report-job
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     devicesSummaryJob: airqoacr.azurecr.io/airqo-stage-analytics-devices-summary-job
-  tag: stage-5fbb0dc2-1779108256
+  tag: stage-02ce7905-1786444701
 externalSecret:
   enabled: true
 api:
@@ -35,7 +35,7 @@ api:
 jobs:
   reports:
     name: stage-analytics-report
-    secret: sta-env-analytics-report-job
+    secret: sta-env-analytics
   resources:
     requests:
       cpu: 500m

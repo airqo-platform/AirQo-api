@@ -76,6 +76,18 @@ router.get(
   groupController.listSummary,
 );
 
+// Group discovery — authenticated only, no GROUP_VIEW permission required.
+// GROUP_VIEW is only granted once a user already belongs to some group, so
+// a brand-new/outsider user (exactly who needs to browse groups to request
+// to join one) would otherwise get 403 on both /groups and /groups/summary.
+router.get(
+  "/discover",
+  groupValidations.listSummary,
+  validate,
+  enhancedJWTAuth,
+  groupController.discover,
+);
+
 // Group creation - requires system-level permissions
 router.post(
   "/",
@@ -387,6 +399,16 @@ router.get(
   enhancedJWTAuth,
   requireGroupAdminAccess(),
   groupController.getGroupHealth,
+);
+
+// Onboarding checklist
+router.patch(
+  "/:grp_id/onboarding",
+  enhancedJWTAuth,
+  requireGroupAdminAccess(),
+  groupValidations.updateOnboarding,
+  validate,
+  groupController.updateOnboarding,
 );
 
 // Cohort assignment routes

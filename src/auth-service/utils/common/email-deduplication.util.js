@@ -54,16 +54,26 @@ class EmailDeduplicator {
    * Atomically check if an email was recently sent and mark it as sent if not.
    * Uses MongoDB's unique index as the distributed lock — safe across multiple pods.
    *
+   * @param {object} emailData
+   * @param {object} [opts]
+   * @param {string} [opts.overrideKey]   - Pre-computed dedup key (skips generateEmailKey)
+   * @param {string} [opts.tenant]        - Tenant to scope the log collection
+   * @param {number} [opts.ttlSeconds]    - How long to hold the dedup lock (default: class ttlSeconds)
    * @returns {Promise<boolean>} true = send the email, false = duplicate, skip it
    */
-  async checkAndMarkEmail(emailData, { overrideKey, tenant = "airqo" } = {}) {
+  async checkAndMarkEmail(
+    emailData,
+    { overrideKey, tenant, ttlSeconds } = {},
+  ) {
     try {
       const key = overrideKey || this.generateEmailKey(emailData);
       const SentEmailLog = SentEmailLogModel(tenant);
+      const effectiveTtl = ttlSeconds ?? this.ttlSeconds;
+      const expiresAt = new Date(Date.now() + effectiveTtl * 1000);
 
       // Atomic insert: succeeds only if `hash` is unique.
       // A duplicate key error (11000) means the email was already sent recently.
-      await new SentEmailLog({ hash: key }).save();
+      await new SentEmailLog({ hash: key, expiresAt }).save();
 
       if (this.enableMetrics) this.metrics.emailsSent++;
       return true; // New email — proceed with sending
@@ -91,7 +101,7 @@ class EmailDeduplicator {
    * Remove a deduplication key — useful for testing or manual overrides.
    * @returns {Promise<boolean>}
    */
-  async removeEmailKey(emailData, { overrideKey, tenant = "airqo" } = {}) {
+  async removeEmailKey(emailData, { overrideKey, tenant } = {}) {
     try {
       const key = overrideKey || this.generateEmailKey(emailData);
       const SentEmailLog = SentEmailLogModel(tenant);

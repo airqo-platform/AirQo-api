@@ -39,6 +39,27 @@ function generateVueComponent(svgContent, iconName, groupName) {
   const viewBoxMatch = svgContent.match(/viewBox="([^"]+)"/);
   const viewBox = viewBoxMatch ? viewBoxMatch[1] : '0 0 24 24';
 
+  // Monochrome icons should respond to the public color prop even when the
+  // source SVG contains an explicit paint value on its paths.
+  const solidPaints = [...svgContent.matchAll(/\b(?:fill|stroke)="([^"]+)"/g)]
+    .map((match) => match[1].trim().toLowerCase())
+    .filter(
+      (paint) =>
+        !['none', 'currentcolor', 'inherit'].includes(paint) && !paint.startsWith('url('),
+    );
+  const isMonochrome = new Set(solidPaints).size <= 1;
+  const themedInnerSvg = isMonochrome
+    ? innerSvg
+        .replace(
+          /fill="(?:currentColor|#[0-9A-Fa-f]{3,8}|(?:black|white))"/g,
+          `:fill="color || 'currentColor'"`,
+        )
+        .replace(
+          /stroke="(?:currentColor|#[0-9A-Fa-f]{3,8}|(?:black|white))"/g,
+          `:stroke="color || 'currentColor'"`,
+        )
+    : innerSvg;
+
   return `<template>
   <svg
     :width="size"
@@ -48,7 +69,7 @@ function generateVueComponent(svgContent, iconName, groupName) {
     :fill="color || 'currentColor'"
     xmlns="http://www.w3.org/2000/svg"
   >
-${innerSvg
+${themedInnerSvg
   .split('\n')
   .map((line) => (line ? `    ${line}` : ''))
   .join('\n')}

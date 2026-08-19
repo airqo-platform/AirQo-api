@@ -1,0 +1,7 @@
+# Mocha config. package.json's "test" script previously used an unquoted
+# ./**/test/ut_*.js glob, which the shell (not mocha) expanded — and plain
+# `sh` doesn't recurse `**`, so only single-level "test" directories ever
+# ran (~84 of 123 ut_*.js files). Quoting the glob here lets mocha's own
+# glob resolution (which does recurse) find all of them.
+spec: "./**/test/ut_*.js"
+exit: true

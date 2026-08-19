@@ -87,6 +87,8 @@ async def get_collocation_sites(token: str, db: Session, params: Dict[str, Any] 
             "device_name": dev.device_name,
             "category": dev.category or "lowcost",
             "isActive": bool(link.is_active),
+            "last_active": None,
+            "status": dev.status,
         })
 
     # 4. Build response shape (matches the previous platform-derived layout).
@@ -195,6 +197,27 @@ def _collect_site_device_names(sites: List[Dict[str, Any]]) -> List[str]:
     return list(names)
 
 
+def _latest_mapped_record(mapped: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Return the latest mapped record by datetime, if any."""
+    dated = [r for r in mapped if r.get("datetime")]
+    if not dated:
+        return None
+    return max(dated, key=lambda r: str(r.get("datetime")))
+
+
+def _latest_bam_status(mapped: List[Dict[str, Any]]) -> Any:
+    """Return the newest non-null BAM status value (mapped from field6)."""
+    dated = [r for r in mapped if r.get("datetime")]
+    if not dated:
+        return None
+    ordered = sorted(dated, key=lambda r: str(r.get("datetime")), reverse=True)
+    for rec in ordered:
+        status_val = rec.get("status")
+        if status_val is not None:
+            return status_val
+    return None
+
+
 def _build_site_device_entry(
     dev_inf: Dict[str, Any],
     metrics: Dict[str, Any],
@@ -206,16 +229,26 @@ def _build_site_device_entry(
     mapped = metrics.get("data", []) or []
     uptime = float(metrics.get("uptime") or 0.0)
     err = _lowcost_error_margin(mapped) if category != "bam" else 0.0
+    latest_record = _latest_mapped_record(mapped)
+    latest_raw_record = metrics.get("latest_raw_record")
+    last_active = (
+        (latest_raw_record.get("datetime") if isinstance(latest_raw_record, dict) else None)
+        or (latest_record.get("datetime") if latest_record is not None else None)
+        or dev_inf.get("last_active", None)
+    )
     entry = {
         "device_name": d_name,
         "device_id": d_id or metrics.get("device_id"),
         "category": category,
         "latitude": dev_inf.get("latitude"),
         "longitude": dev_inf.get("longitude"),
-        "last_active": dev_inf.get("last_active"),
+        "deployment_status": dev_inf.get("status"),
+        "last_active": last_active,
         "uptime": round(uptime, 4),
         "error_margin": err,
     }
+    if category == "bam":
+        entry["status"] = metrics.get("latest_raw_status", _latest_bam_status(mapped))
     return entry, mapped, category
 
 
@@ -306,6 +339,26 @@ def apply_local_performance_to_sites(
     metrics_by_device = cohort_service.compute_device_performance(
         db, device_names, start, end, frequency=frequency,
     ) if device_names else {}
+
+    bam_device_names = {
+        dev.get("device_name")
+        for site in sites
+        for dev in site.get("devices_info", [])
+        if (dev.get("category") or "").lower() == "bam" and dev.get("device_name")
+    }
+    if bam_device_names:
+        raw_metrics_by_device = cohort_service.compute_device_performance(
+            db, list(bam_device_names), start, end, frequency="raw",
+        )
+        for name in bam_device_names:
+            raw_metrics = raw_metrics_by_device.get(name) or {}
+            raw_mapped = raw_metrics.get("data", []) or []
+            latest_raw_record = _latest_mapped_record(raw_mapped)
+            latest_raw_status = _latest_bam_status(raw_mapped)
+
+            metrics = metrics_by_device.setdefault(name, {})
+            metrics["latest_raw_record"] = latest_raw_record
+            metrics["latest_raw_status"] = latest_raw_status
 
     out_sites = [_process_site_for_local_perf(site, metrics_by_device, frequency) for site in sites]
 

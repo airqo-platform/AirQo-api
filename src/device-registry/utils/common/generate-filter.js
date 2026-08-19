@@ -97,9 +97,39 @@ const handlePredefinedValueMatch = (
   return stringValue;
 };
 
+// Shared by `events` and `fetch` below — both set an identical
+// "values.pm2_5.value" range filter from the `?index=<category>` query param.
+// `resolved` (optional) is the result of utils/aqi.util.js's
+// resolveActiveAqiRanges — pass it to have the filter use an admin-set custom
+// AQI range instead of the hardcoded defaults (constants.AQI_RANGES). Omit it
+// to keep the existing behavior unchanged.
+function applyAqiIndexFilter(filter, index, resolved) {
+  const activeAqiRanges = (resolved || constants).AQI_RANGES;
+  if (!index) {
+    delete filter["values.pm2_5.value"];
+  } else if (Object.keys(activeAqiRanges).includes(index)) {
+    const range = activeAqiRanges[index];
+    filter["values.pm2_5.value"] = {};
+    filter["values.pm2_5.value"]["$gte"] = range.min;
+    // Only set $lte if max is not null
+    if (range.max !== null) {
+      filter["values.pm2_5.value"]["$lte"] = range.max;
+    }
+    filter["index"] = index;
+  } else {
+    delete filter["values.pm2_5.value"];
+  }
+}
+
 //startTime=2022-12-20T10:34:15.880Z
 const generateFilter = {
-  events: (request, next) => {
+  // `resolved` (optional, trailing) is the result of
+  // utils/aqi.util.js's resolveActiveAqiRanges — pass it to have the
+  // `index`/category filter (e.g. ?index=good) use an admin-set custom AQI
+  // range instead of the hardcoded defaults (constants.AQI_RANGES). Omit it
+  // to keep the existing behavior unchanged (kept synchronous and backward
+  // compatible — this function has many callers that don't await it).
+  events: (request, next, resolved = null) => {
     const { query, params } = request;
     const {
       device,
@@ -155,19 +185,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      const range = constants.AQI_INDEX[index];
-      filter["values.pm2_5.value"]["$gte"] = range.min;
-      // Only set $lte if max is not null
-      if (range.max !== null) {
-        filter["values.pm2_5.value"]["$lte"] = range.max;
-      }
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAqiIndexFilter(filter, index, resolved);
 
     // Handle startTime and endTime filtering
     if (startTime) {
@@ -1200,7 +1218,9 @@ const generateFilter = {
       return;
     }
   },
-  fetch: (request, next) => {
+  // `resolved` (optional, trailing) — see the identical note on `events`
+  // above; same reasoning applies here.
+  fetch: (request, next, resolved = null) => {
     const { query, params } = request;
     const {
       device,
@@ -1263,20 +1283,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      const range = constants.AQI_INDEX[index];
-      filter["values.pm2_5.value"] = {};
-      filter["values.pm2_5.value"]["$gte"] = range.min;
-      // Only set $lte if max is not null
-      if (range.max !== null) {
-        filter["values.pm2_5.value"]["$lte"] = range.max;
-      }
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAqiIndexFilter(filter, index, resolved);
 
     // Handle startTime and endTime filtering
     if (startTime) {
@@ -2108,84 +2115,6 @@ const generateFilter = {
     return filter;
   },
 
-  airqlouds: (req, next) => {
-    const {
-      search,
-      id,
-      airqloud_id,
-      admin_level,
-      summary,
-      dashboard,
-      airqloud_codes,
-      category,
-      path,
-      network,
-      group,
-    } = { ...req.query, ...req.params };
-
-    const filter = {};
-
-    if (search) {
-      const escapedSearch = escapeRegex(search);
-      filter.$or = [
-        { name: { $regex: escapedSearch, $options: "i" } },
-        { long_name: { $regex: escapedSearch, $options: "i" } },
-        { description: { $regex: escapedSearch, $options: "i" } },
-      ];
-    }
-
-    if (id) {
-      filter._id = ObjectId(id);
-    }
-
-    if (airqloud_id) {
-      filter._id = ObjectId(airqloud_id);
-    }
-    if (network) {
-      filter.network = handlePredefinedValueMatch(
-        network,
-        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
-        { matchCombinations: true },
-      );
-    }
-
-    if (group) {
-      filter.groups = handlePredefinedValueMatch(
-        group,
-        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
-        { matchCombinations: true },
-      );
-    }
-    if (admin_level) {
-      filter.admin_level = admin_level;
-    }
-
-    if (summary === "yes") {
-      filter.summary = summary;
-    }
-
-    if (dashboard === "yes") {
-      filter.dashboard = dashboard;
-    }
-
-    if (airqloud_codes) {
-      const airqloudCodesArray = airqloud_codes.toString().split(",");
-      filter.airqloud_codes = { $in: airqloudCodesArray };
-    }
-
-    if (category) {
-      filter.category = category;
-    }
-
-    if (!isEmpty(path) && path === "public" && isEmpty(airqloud_id)) {
-      filter.visibility = true;
-    }
-
-    return filter;
-  },
-
-  // Replace the existing 'grids' function with this one:
-
   grids: (req, next) => {
     const {
       search,
@@ -2576,7 +2505,6 @@ const generateFilter = {
     let {
       id,
       device_id,
-      airqloud_id,
       site_id,
       device_number,
       device_name,
@@ -2594,10 +2522,6 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
-    }
-
-    if (airqloud_id) {
-      filter["airqloud_id"] = ObjectId(airqloud_id);
     }
 
     if (site_id) {

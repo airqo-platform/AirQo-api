@@ -6,6 +6,9 @@ const createSurveyController = require("@controllers/survey.controller");
 const surveyValidations = require("@validators/surveys.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
+const { requireSystemAdmin } = require("@middleware/adminAccess");
+
+const requireAirQoSuperAdmin = requireSystemAdmin();
 
 router.use(headers);
 
@@ -50,6 +53,7 @@ router.get(
   "/responses",
   surveyValidations.listResponses,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   pagination(),
   createSurveyController.listResponses,
 );
@@ -59,6 +63,7 @@ router.get(
   "/stats/:survey_id",
   surveyValidations.getSurveyStats,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createSurveyController.getStats,
 );
 
@@ -81,6 +86,7 @@ router.post(
   "/",
   surveyValidations.create,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createSurveyController.create,
 );
 
@@ -89,6 +95,7 @@ router.put(
   "/:survey_id",
   surveyValidations.update,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createSurveyController.update,
 );
 
@@ -97,6 +104,7 @@ router.delete(
   "/:survey_id",
   surveyValidations.deleteSurvey,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   createSurveyController.delete,
 );
 

@@ -98,11 +98,6 @@ const routes = [
     name: "activities",
   },
   {
-    path: "/airqlouds",
-    route: "@routes/v2/airqlouds.routes",
-    name: "airqlouds",
-  },
-  {
     path: "/lookups",
     route: "@routes/v2/lookup.routes",
     name: "lookups",
@@ -145,7 +140,9 @@ const routes = [
     name: "forecasts",
   },
   { path: "/tips", route: "@routes/v2/tips.routes", name: "tips" },
+  { path: "/aqi-ranges", route: "@routes/v2/aqi.routes", name: "aqi" },
   { path: "/kya", route: "@routes/v2/kya.routes", name: "kya" },
+  { path: "/learn", route: "@routes/v2/learn.routes", name: "learn" },
   { path: "/cohorts", route: "@routes/v2/cohorts.routes", name: "cohorts" },
   // Canonical Network CRUD endpoints — /api/v2/devices/networks/...
   // The legacy /cohorts/networks/... paths remain fully operational.
@@ -177,16 +174,26 @@ const routes = [
     route: "@routes/v2/sdg.routes",
     name: "sdg-pm-annual",
   },
+  // Honeypot routes — undocumented paths that flag and suspend probing tokens.
+  {
+    path: "/",
+    route: "@routes/v2/honeypot.routes",
+    name: "honeypot",
+  },
 ];
 
 logInfo(`Starting to load ${routes.length} routes...`);
 
-// Sort routes to ensure the root "/" (devices) route is loaded last
-// This prevents it from catching requests meant for other routes
+// Sort routes to ensure only the "devices" catch-all router is loaded last.
+// Previously sorted on path === "/" which pushed the honeypot router (also
+// mounted at "/") to the end alongside devices, allowing the devices catch-all
+// (which includes parameterised routes like /:id) to swallow honeypot paths
+// before they could be matched.  Sorting by name keeps the honeypot router in
+// front of the devices router so its specific paths are matched first.
 const sortedRoutes = routes.sort((a, b) => {
-  if (a.path === "/") return 1; // "/" goes last
-  if (b.path === "/") return -1; // "/" goes last
-  return 0; // maintain original order for others
+  if (a.name === "devices") return 1;  // devices catch-all goes last
+  if (b.name === "devices") return -1;
+  return 0;
 });
 
 // Load all routes in the correct order

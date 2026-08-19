@@ -6,6 +6,12 @@ const httpStatus = require("http-status");
 const { expect } = chai;
 
 // ── Paths (resolved once; used for require.cache patching) ────────────────────
+// Pre-load all dependencies so require.cache entries exist before patching
+require("@utils/network-creation-request.util");
+require("@models/NetworkCreationRequest");
+require("@models/Network");
+require("kafkajs");
+
 const utilPath = require.resolve("@utils/network-creation-request.util");
 const reqModelPath = require.resolve("@models/NetworkCreationRequest");
 const netModelPath = require.resolve("@models/Network");

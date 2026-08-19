@@ -5,6 +5,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
+const validator = require("validator");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { mailer, generateFilter } = require("@utils/common");
@@ -15,7 +16,44 @@ const logger = require("log4js").getLogger(
 );
 const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
+const RoleModel = require("@models/Role");
+const RBACService = require("@services/rbac.service");
 const { logObject, HttpError, logText } = require("@utils/shared");
+
+// Mirrors middleware/groupNetworkAuth.js's requireGroupManagerAccess — used
+// where a group-manager-level check is needed from inside a util function
+// rather than as route middleware (e.g. gating auto-approve below).
+const isGroupManagerOrAdmin = async (tenant, userId, groupId) => {
+  const rbacService = RBACService.getInstance(
+    tenant || constants.DEFAULT_TENANT,
+  );
+  const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(userId);
+  if (isSystemSuperAdmin) {
+    return true;
+  }
+  const [isGroupManager, hasManagerPermissions, hasManagerRole] =
+    await Promise.all([
+      rbacService.isGroupManager(userId, groupId),
+      rbacService.hasPermission(
+        userId,
+        [
+          constants.GROUP_MANAGEMENT,
+          constants.USER_MANAGEMENT,
+          constants.GROUP_SETTINGS,
+        ],
+        false,
+        groupId,
+        "group",
+      ),
+      rbacService.hasRole(
+        userId,
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
+        groupId,
+        "group",
+      ),
+    ]);
+  return isGroupManager || hasManagerPermissions || hasManagerRole;
+};
 
 const createAccessRequest = {
   requestAccessToGroup: async (request, next) => {
@@ -108,16 +146,69 @@ const createAccessRequest = {
           );
           return;
         }
-        const responseFromSendEmail = await mailer.request(
-          {
-            firstName,
-            lastName,
-            email: user.email,
+        let recipients = [];
+        try {
+          recipients = await createGroupUtil.getGroupManagementRecipients(
             tenant,
-            entity_title: group.grp_title,
-          },
-          next,
+            grp_id,
+          );
+        } catch (recipientsError) {
+          logger.error(
+            `Failed to resolve group management recipients for group ${grp_id}: ${recipientsError.message}`,
+          );
+        }
+        if (recipients.length === 0) {
+          logger.warn(
+            `No group manager/admin found to notify for join request to group ${grp_id}`,
+          );
+        }
+        const requesterName = `${firstName} ${lastName}`;
+
+        // Note: no `next` passed to these mailer calls — they run inside
+        // Promise.allSettled as non-critical, best-effort notifications, and
+        // createMailerFunction's own next(error)-then-return behavior would
+        // otherwise resolve (not reject) with `undefined`, and could also
+        // attempt to write to the outer HTTP response from within what's
+        // meant to be a background operation. Omitting next makes failures
+        // throw and be captured cleanly as "rejected" instead.
+        const [requesterEmailResult, ...managerEmailResults] =
+          await Promise.allSettled([
+            mailer.request({
+              firstName,
+              lastName,
+              email: user.email,
+              tenant,
+              entity_title: group.grp_title,
+            }),
+            ...recipients.map((recipient) =>
+              mailer.notifyGroupManagerOfJoinRequest({
+                email: recipient.email,
+                contact_name:
+                  [recipient.firstName, recipient.lastName]
+                    .filter(Boolean)
+                    .join(" ") || recipient.email,
+                requester_name: requesterName,
+                requester_email: user.email,
+                entity_title: group.grp_title,
+                request_id: createdAccessRequest._id,
+                tenant,
+              }),
+            ),
+          ]);
+
+        const managerEmailFailures = managerEmailResults.filter(
+          (r) => r.status === "rejected" || r.value?.success === false,
         );
+        if (managerEmailFailures.length > 0) {
+          logger.error(
+            `Non-critical: ${managerEmailFailures.length}/${recipients.length} group-manager notification(s) failed for group ${grp_id}`,
+          );
+        }
+
+        const responseFromSendEmail =
+          requesterEmailResult.status === "fulfilled"
+            ? requesterEmailResult.value
+            : { success: false, message: requesterEmailResult.reason?.message };
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -157,7 +248,15 @@ const createAccessRequest = {
 
   requestAccessToGroupByEmail: async (request, next) => {
     try {
-      const { tenant, emails, user, grp_id } = {
+      const {
+        tenant,
+        emails,
+        invitations,
+        auto_approve,
+        expiry_hours,
+        user,
+        grp_id,
+      } = {
         ...request,
         ...request.body,
         ...request.query,
@@ -227,35 +326,90 @@ const createAccessRequest = {
         return;
       }
 
-      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      // Accept either the plain `emails: string[]` contract (used by Nexus's
+      // "invite by email" flow) or the richer `invitations: [{email,
+      // role_id, message}]` contract (used by manager-initiated invites that
+      // want to pre-assign a role and/or auto-approve).
+      const rawInvitationEntries = [];
+      if (Array.isArray(emails)) {
+        emails.forEach((email) => rawInvitationEntries.push({ email }));
+      }
+      if (Array.isArray(invitations)) {
+        invitations.forEach((invitation) =>
+          rawInvitationEntries.push({
+            email: invitation?.email,
+            role_id: invitation?.role_id,
+            message: invitation?.message,
+          }),
+        );
+      }
+
+      if (rawInvitationEntries.length === 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Emails array is required and must not be empty",
+            message:
+              "Either 'emails' or 'invitations' is required and must not be empty",
           }),
         );
         return;
       }
 
-      const invalidEmails = emails.filter(
-        (email) => !email || typeof email !== "string" || !email.includes("@"),
+      const invalidEmails = rawInvitationEntries.filter(
+        (entry) =>
+          !entry.email ||
+          typeof entry.email !== "string" ||
+          !validator.isEmail(entry.email),
       );
       if (invalidEmails.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Invalid email formats: ${invalidEmails.join(", ")}`,
+            message: `Invalid email formats: ${invalidEmails
+              .map((entry) => entry.email)
+              .join(", ")}`,
           }),
         );
         return;
       }
 
-      const uniqueEmails = [
-        ...new Set(emails.map((email) => email.toLowerCase())),
-      ];
-      if (uniqueEmails.length !== emails.length) {
+      // Dedup by lowercased email — first occurrence wins for role_id/message.
+      const invitationDetailsByEmail = new Map();
+      rawInvitationEntries.forEach((entry) => {
+        const normalizedEmail = entry.email.toLowerCase();
+        if (!invitationDetailsByEmail.has(normalizedEmail)) {
+          invitationDetailsByEmail.set(normalizedEmail, {
+            role_id: entry.role_id,
+            message: entry.message,
+          });
+        }
+      });
+      const uniqueEmails = [...invitationDetailsByEmail.keys()];
+      if (uniqueEmails.length !== rawInvitationEntries.length) {
         logger.warn("Duplicate emails found in invitation request", {
-          emails,
-          uniqueEmails,
+          rawCount: rawInvitationEntries.length,
+          uniqueCount: uniqueEmails.length,
         });
+      }
+
+      const shouldAutoApprove = auto_approve === true || auto_approve === "true";
+
+      if (shouldAutoApprove) {
+        const canAutoApprove = await isGroupManagerOrAdmin(
+          tenant,
+          inviterId,
+          grp_id,
+        );
+        if (!canAutoApprove) {
+          logger.warn(
+            `User ${inviterId} attempted to auto-approve invitations to group ${grp_id} without manager/admin rights`,
+          );
+          next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "Only a group manager or admin can auto-approve invitations",
+            }),
+          );
+          return;
+        }
       }
 
       const existingUsers = await UserModel(tenant)
@@ -279,7 +433,24 @@ const createAccessRequest = {
         existingPendingRequests.map((req) => [req.email.toLowerCase(), req]),
       );
 
-      const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+      let expiryHours = 168; // default: 7 days, matches prior fixed expiry
+      if (expiry_hours !== undefined && expiry_hours !== null) {
+        const parsedExpiryHours = Number(expiry_hours);
+        if (
+          !Number.isFinite(parsedExpiryHours) ||
+          parsedExpiryHours < 1 ||
+          parsedExpiryHours > 8760
+        ) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "expiry_hours must be between 1 and 8760 (1 year)",
+            }),
+          );
+          return;
+        }
+        expiryHours = parsedExpiryHours;
+      }
+      const INVITATION_EXPIRY_MS = expiryHours * 60 * 60 * 1000;
 
       const existingRequests = [];
       const successResponses = [];
@@ -314,6 +485,8 @@ const createAccessRequest = {
 
           const invitationToken = crypto.randomBytes(32).toString("hex");
           const expiryDate = new Date(Date.now() + INVITATION_EXPIRY_MS);
+          const { role_id, message } =
+            invitationDetailsByEmail.get(normalizedEmail) || {};
 
           const accessRequestData = {
             email: normalizedEmail,
@@ -327,6 +500,13 @@ const createAccessRequest = {
             invitationTokenExpires: expiryDate,
           };
 
+          if (role_id) {
+            accessRequestData.role_id = role_id;
+          }
+          if (message) {
+            accessRequestData.message = message;
+          }
+
           if (existingUser) {
             accessRequestData.user_id = existingUser._id;
           }
@@ -339,6 +519,52 @@ const createAccessRequest = {
             const createdAccessRequest = responseFromCreateAccessRequest.data;
 
             const userExists = !!existingUser;
+
+            if (shouldAutoApprove && existingUser) {
+              try {
+                let autoApproveResult;
+                if (role_id) {
+                  const roleDoc = await RoleModel(tenant)
+                    .findOne({ _id: role_id, group_id: grp_id })
+                    .lean();
+                  if (!roleDoc) {
+                    logger.error(
+                      `Auto-approve skipped for user ${existingUser._id}: role_id ${role_id} does not belong to group ${grp_id}`,
+                    );
+                  } else {
+                    autoApproveResult = await UserModel(
+                      tenant,
+                    ).assignUserToGroup(existingUser._id, grp_id, role_id, "user");
+                  }
+                } else {
+                  // No `next` passed here — a caught rejection below is the
+                  // correct outcome for a per-recipient, best-effort
+                  // auto-approve step; assignOneUser's failure branches call
+                  // next(error) unconditionally, which would otherwise reach
+                  // into the outer HTTP response from inside this loop.
+                  autoApproveResult = await createGroupUtil.assignOneUser({
+                    params: { grp_id, user_id: existingUser._id },
+                    query: { tenant },
+                  });
+                }
+
+                if (autoApproveResult && autoApproveResult.success) {
+                  await AccessRequestModel(tenant).modify({
+                    filter: { _id: createdAccessRequest._id },
+                    update: { status: "approved" },
+                  });
+                  createdAccessRequest.status = "approved";
+                } else if (autoApproveResult) {
+                  logger.error(
+                    `Auto-approve failed for user ${existingUser._id} in group ${grp_id}: ${autoApproveResult.message}`,
+                  );
+                }
+              } catch (autoApproveError) {
+                logger.error(
+                  `Auto-approve error for user ${existingUser._id} in group ${grp_id}: ${autoApproveError.message}`,
+                );
+              }
+            }
 
             const responseFromSendEmail =
               await mailer.requestToJoinGroupByEmail(
@@ -414,7 +640,7 @@ const createAccessRequest = {
 
       const responseData = {
         summary: {
-          total_emails: emails.length,
+          total_emails: rawInvitationEntries.length,
           unique_emails: uniqueEmails.length,
           successful_invitations: successCount,
           failed_invitations: failureCount,
@@ -1010,9 +1236,9 @@ const createAccessRequest = {
         // Proceed with sending email notification
         let login_url;
         if (requestType === "group" && organization_slug) {
-          login_url = `${constants.ANALYTICS_BASE_URL}/org/${organization_slug}/login`;
+          login_url = `${constants.NEXUS_BASE_URL}/org/${organization_slug}/login`;
         } else {
-          login_url = `${constants.ANALYTICS_BASE_URL}/user/login`;
+          login_url = `${constants.NEXUS_BASE_URL}/user/login`;
         }
 
         const responseFromSendEmail = await mailer.afterAcceptingInvitation(

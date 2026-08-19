@@ -5,14 +5,25 @@ Special features for event app as per requirements:
 - Date hierarchy filtering
 - Event type and status filtering
 - Virtual vs venue fields
+- Side-event / main-event / parent-event filtering
 """
-from django import forms
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
-import django_filters
 from django_filters import rest_framework as filters
 
-from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Resource
+from apps.event.models import (
+    Event, Inquiry, Program, Session, PartnerLogo, Resource,
+    EventSideEvent,
+)
+
+
+def _trueish(value):
+    """Parse a query-string boolean in a permissive way."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 't'}
 
 
 class EventFilter(filters.FilterSet):
@@ -47,6 +58,39 @@ class EventFilter(filters.FilterSet):
 
     # Title/content search
     title = filters.CharFilter(lookup_expr='icontains')
+
+    # ------------------------------------------------------------------------
+    # Side-event / main-event filters (opt-in, non-breaking)
+    # ------------------------------------------------------------------------
+    # `main_events_only` and `exclude_side_events` are aliases. They
+    # exclude events that are linked as a side event of some parent.
+    main_events_only = filters.BooleanFilter(
+        method='filter_main_events_only',
+        help_text="When true, returns only top-level (non side) events.",
+    )
+    exclude_side_events = filters.BooleanFilter(
+        method='filter_exclude_side_events',
+        help_text="Alias of `main_events_only`. Excludes side events.",
+    )
+    is_side_event = filters.BooleanFilter(
+        method='filter_is_side_event',
+        help_text="When true, returns only events that are linked as side events.",
+    )
+    parent_event = filters.CharFilter(
+        method='filter_parent_event',
+        help_text="Filter side events whose parent matches the given "
+                  "event id or slug.",
+    )
+    has_side_events = filters.BooleanFilter(
+        method='filter_has_side_events',
+        help_text="When true, returns only main events that have at "
+                  "least one side event linked.",
+    )
+    organizer = filters.CharFilter(
+        method='filter_organizer',
+        help_text="Filter events linked to the given organizer (id, "
+                  "slug, or name).",
+    )
 
     def filter_event_status(self, queryset, name, value):
         """Filter by event status (upcoming/past/ongoing)"""
@@ -88,6 +132,82 @@ class EventFilter(filters.FilterSet):
                 Q(location_name__isnull=True) |
                 Q(location_name='')
             )
+
+    # ----- Side-event / main-event / organizer filters ---------------------
+
+    def _side_event_link_exists(self, queryset, *, on='side'):
+        """Return an Exists() subquery for EventSideEvent rows on this queryset.
+
+        `on='side'`    -> links where this event is the *side event* (parent links)
+        `on='parent'`  -> links where this event is the *parent event* (side links)
+        """
+        if on == 'side':
+            return Exists(
+                EventSideEvent.objects.filter(
+                    side_event=OuterRef('pk'),
+                    is_deleted=False,
+                )
+            )
+        return Exists(
+            EventSideEvent.objects.filter(
+                parent_event=OuterRef('pk'),
+                is_deleted=False,
+            )
+        )
+
+    def filter_main_events_only(self, queryset, name, value):
+        if _trueish(value):
+            return queryset.annotate(
+                _has_parent=self._side_event_link_exists(queryset, on='side')
+            ).filter(_has_parent=False)
+        return queryset
+
+    def filter_exclude_side_events(self, queryset, name, value):
+        return self.filter_main_events_only(queryset, name, value)
+
+    def filter_is_side_event(self, queryset, name, value):
+        if _trueish(value):
+            return queryset.annotate(
+                _has_parent=self._side_event_link_exists(queryset, on='side')
+            ).filter(_has_parent=True)
+        return queryset.annotate(
+            _has_parent=self._side_event_link_exists(queryset, on='side')
+        ).filter(_has_parent=False)
+
+    def filter_parent_event(self, queryset, name, value):
+        """Filter side events whose parent_event matches the given id or slug."""
+        if not value:
+            return queryset
+        if str(value).isdigit():
+            parent_filter = Q(parent_event_links__parent_event_id=int(value))
+        else:
+            parent_filter = Q(parent_event_links__parent_event__slug=value)
+        return queryset.filter(
+            parent_event_links__is_deleted=False,
+        ).filter(parent_filter).distinct()
+
+    def filter_has_side_events(self, queryset, name, value):
+        if _trueish(value):
+            return queryset.annotate(
+                _has_sides=self._side_event_link_exists(queryset, on='parent')
+            ).filter(_has_sides=True)
+        return queryset.annotate(
+            _has_sides=self._side_event_link_exists(queryset, on='parent')
+        ).filter(_has_sides=False)
+
+    def filter_organizer(self, queryset, name, value):
+        if not value:
+            return queryset
+        if str(value).isdigit():
+            return queryset.filter(
+                event_organizer_links__organizer_id=int(value),
+                event_organizer_links__is_deleted=False,
+            ).distinct()
+        return queryset.filter(
+            Q(event_organizer_links__organizer__slug=value) |
+            Q(event_organizer_links__organizer__name__icontains=value),
+            event_organizer_links__is_deleted=False,
+        ).distinct()
 
     class Meta:
         model = Event

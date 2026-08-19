@@ -144,6 +144,10 @@ const GroupSchema = new Schema(
         type: ObjectId,
       },
     ],
+    onboarding_checklist: {
+      is_dismissed: { type: Boolean, default: false },
+      completed_steps: { type: [String], default: [] },
+    },
     is_default: {
       type: Boolean,
       default: false,
@@ -365,6 +369,7 @@ GroupSchema.methods = {
       grp_timezone: this.grp_timezone,
       grp_image: this.grp_image,
       cohorts: this.cohorts,
+      onboarding_checklist: this.onboarding_checklist || { is_dismissed: false, completed_steps: [] },
     };
   },
 };

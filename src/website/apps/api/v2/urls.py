@@ -12,7 +12,12 @@ from .viewsets.africancities import AfricanCountryViewSet
 from .viewsets.board import BoardMemberViewSet
 from .viewsets.career import CareerViewSet, DepartmentViewSet
 from .viewsets.cleanair import CleanAirResourceViewSet, ForumEventViewSet
-from .viewsets.event import EventViewSet, InquiryViewSet, ProgramViewSet, SessionViewSet, PartnerLogoViewSet, ResourceViewSet
+from .viewsets.event import (
+    EventViewSet, InquiryViewSet, ProgramViewSet, SessionViewSet,
+    PartnerLogoViewSet, ResourceViewSet,
+    OrganizerViewSet, EventOrganizerViewSet, EventSideEventViewSet,
+    EventPartnerCatalogViewSet, EventPartnerViewSet,
+)
 from .viewsets.externalteams import ExternalTeamMemberViewSet, ExternalTeamMemberBiographyViewSet
 from .viewsets.faqs import FAQViewSet, CategoryViewSet
 from .viewsets.highlights import HighlightViewSet, TagViewSet
@@ -48,6 +53,16 @@ router.register(r'event-partner-logos', PartnerLogoViewSet,
                 basename='v2-event-partner-logos')
 router.register(r'event-resources', ResourceViewSet,
                 basename='v2-event-resources')
+router.register(r'event-organizers', OrganizerViewSet,
+                basename='v2-event-organizers')
+router.register(r'event-organizer-links', EventOrganizerViewSet,
+                basename='v2-event-organizer-links')
+router.register(r'event-side-events', EventSideEventViewSet,
+                basename='v2-event-side-events')
+router.register(r'event-partners', EventPartnerCatalogViewSet,
+                basename='v2-event-partners')
+router.register(r'event-partner-links', EventPartnerViewSet,
+                basename='v2-event-partner-links')
 router.register(r'blogs', BlogPostViewSet, basename='v2-blogs')
 router.register(r'external-team-members', ExternalTeamMemberViewSet,
                 basename='v2-external-team-members')

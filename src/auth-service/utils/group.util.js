@@ -25,6 +25,19 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+const computeOnboardingChecklist = (group) => {
+  const stored = group.onboarding_checklist || {
+    is_dismissed: false,
+    completed_steps: [],
+  };
+  const steps = new Set(stored.completed_steps || []);
+  if ((group.cohorts || []).length > 0) steps.add("assign-cohort");
+  return {
+    is_dismissed: stored.is_dismissed || false,
+    completed_steps: Array.from(steps),
+  };
+};
+
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
     return user.group_roles.some((assignment) => {
@@ -1251,10 +1264,17 @@ const groupUtil = {
       const { query } = request;
       const { tenant, limit, skip } = query;
       const filter = generateFilter.groups(request, next);
-      const responseFromListGroups = await GroupModel(
-        tenant.toLowerCase(),
-      ).list({ filter, limit, skip }, next);
-      return responseFromListGroups;
+      const response = await GroupModel(tenant.toLowerCase()).list(
+        { filter, limit, skip },
+        next,
+      );
+      if (response && response.success && Array.isArray(response.data)) {
+        response.data = response.data.map((group) => ({
+          ...group,
+          onboarding_checklist: computeOnboardingChecklist(group),
+        }));
+      }
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -3267,138 +3287,6 @@ const groupUtil = {
   },
 
   /**
-   * Send group invitations via email
-   */
-  sendGroupInvitations: async (request, next) => {
-    try {
-      const { grp_id } = request.params;
-      const {
-        invitations,
-        expiry_hours = 72,
-        auto_approve = false,
-      } = request.body;
-      const { tenant } = request.query;
-
-      const group = await GroupModel(tenant).findById(grp_id).lean();
-      if (!group) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Group not found",
-          }),
-        );
-        return;
-      }
-
-      const results = [];
-      const inviter = request.user;
-
-      for (const invitation of invitations) {
-        const { email, role_id, message } = invitation;
-
-        try {
-          // Check if user already exists
-          let existingUser = await UserModel(tenant).findOne({ email }).lean();
-
-          // Check if already a group member
-          if (existingUser) {
-            const isAlreadyMember = existingUser.group_roles?.some(
-              (gr) => gr.group.toString() === grp_id.toString(),
-            );
-
-            if (isAlreadyMember) {
-              results.push({
-                email,
-                status: "skipped",
-                reason: "User is already a group member",
-              });
-              continue;
-            }
-          }
-
-          // Create access request or direct assignment
-          const invitationData = {
-            email,
-            targetId: grp_id,
-            requestType: "group",
-            status: auto_approve ? "approved" : "pending",
-            inviter_id: inviter._id,
-            message,
-            role_id,
-            expiresAt: new Date(Date.now() + expiry_hours * 60 * 60 * 1000),
-          };
-
-          if (existingUser) {
-            invitationData.user_id = existingUser._id;
-          }
-
-          const accessRequest =
-            await AccessRequestModel(tenant).create(invitationData);
-
-          // If auto-approve and user exists, add to group immediately
-          if (auto_approve && existingUser && role_id) {
-            await UserModel(tenant).findByIdAndUpdate(existingUser._id, {
-              $addToSet: {
-                group_roles: {
-                  group: grp_id,
-                  role: role_id,
-                  userType: "user",
-                  createdAt: new Date(),
-                },
-              },
-            });
-          }
-
-          results.push({
-            email,
-            status: auto_approve ? "approved" : "invited",
-            invitation_id: accessRequest._id,
-            expires_at: invitationData.expiresAt,
-          });
-        } catch (error) {
-          results.push({
-            email,
-            status: "failed",
-            reason: error.message,
-          });
-        }
-      }
-
-      const successCount = results.filter(
-        (r) => r.status === "invited" || r.status === "approved",
-      ).length;
-
-      return {
-        success: true,
-        message: `${successCount}/${invitations.length} invitations processed successfully`,
-        data: {
-          invitations: results,
-          group_name: group.grp_title,
-          invited_by: inviter.email,
-          summary: {
-            total: invitations.length,
-            successful: successCount,
-            failed: results.filter((r) => r.status === "failed").length,
-            skipped: results.filter((r) => r.status === "skipped").length,
-          },
-        },
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
-        ),
-      );
-      return;
-    }
-  },
-
-  /**
    * List group invitations and their status
    */
   listGroupInvitations: async (request, next) => {
@@ -4781,6 +4669,44 @@ const groupUtil = {
       );
     }
   },
+  getGroupManagementRecipients: async (tenant, grp_id) => {
+    const group = await GroupModel(tenant)
+      .findById(grp_id)
+      .select("grp_manager grp_title")
+      .lean();
+
+    const recipients = new Map();
+
+    if (group && group.grp_manager) {
+      const manager = await UserModel(tenant)
+        .findById(group.grp_manager)
+        .select("email firstName lastName")
+        .lean();
+      if (manager && manager.email) {
+        recipients.set(manager.email, manager);
+      }
+    }
+
+    const admins = await UserModel(tenant)
+      .find({
+        group_roles: {
+          $elemMatch: {
+            group: grp_id,
+            userType: { $in: ["admin", "manager", "super_admin"] },
+          },
+        },
+      })
+      .select("email firstName lastName")
+      .lean();
+
+    admins.forEach((admin) => {
+      if (admin.email) {
+        recipients.set(admin.email, admin);
+      }
+    });
+
+    return Array.from(recipients.values());
+  },
   leaveGroup: async (request, next) => {
     try {
       const { grp_id } = request.params;
@@ -4833,6 +4759,7 @@ const groupUtil = {
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
               message:
                 "You are the manager of this group. Please transfer ownership to another member before leaving.",
+              debugCode: "GROUP_MANAGER_MUST_TRANSFER_OWNERSHIP",
             }),
           );
         }
@@ -4893,6 +4820,49 @@ const groupUtil = {
       logger.error(
         `🐛🐛 Internal Server Error on leaveGroup: ${error.message}`,
       );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  updateOnboarding: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+      const { action, step_id } = request.body;
+
+      const exists = await GroupModel(tenant).exists({ _id: grp_id });
+      if (!exists) {
+        return {
+          success: false,
+          message: "Group not found",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const updateOp =
+        action === "mark_step_complete"
+          ? { $addToSet: { "onboarding_checklist.completed_steps": step_id } }
+          : { $set: { "onboarding_checklist.is_dismissed": true } };
+
+      const updatedGroup = await GroupModel(tenant)
+        .findByIdAndUpdate(grp_id, updateOp, { new: true })
+        .lean();
+
+      return {
+        success: true,
+        message: "Onboarding state updated successfully",
+        data: { onboarding_checklist: computeOnboardingChecklist(updatedGroup) },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

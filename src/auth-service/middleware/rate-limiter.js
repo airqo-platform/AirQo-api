@@ -73,14 +73,19 @@ const createLimiterConfig = (options, useRedis = false) => {
     legacyHeaders: false,
     skipFailedRequests: false,
     skipSuccessfulRequests: false,
+    // Suppress both trust-proxy and IPv6-fallback validations — keyGenerator reads
+    // HAProxy-set headers (x-client-ip / x-client-original-ip) that clients cannot
+    // spoof, so req.ip trustworthiness and IPv6 normalisation are not concerns here.
+    validate: { trustProxy: false, keyGeneratorIpFallback: false },
 
-    // Custom key generator for more granular control
+    // Key by the HAProxy-set header. x-forwarded-for is intentionally avoided
+    // because clients can inject arbitrary values into it.
     keyGenerator: (req) => {
-      const forwarded = req.headers["x-forwarded-for"];
-      const ip = forwarded ? forwarded.split(",")[0].trim() : req.ip;
+      const ip =
+        req.headers["x-client-ip"] ||
+        req.headers["x-client-original-ip"] ||
+        req.ip;
       const userAgent = req.headers["user-agent"] || "unknown";
-
-      // Create a compound key for better rate limiting
       return `${ip}:${userAgent.slice(0, 50)}`;
     },
 
@@ -111,9 +116,14 @@ const createLimiterConfig = (options, useRedis = false) => {
         return true;
       }
 
-      // Skip for whitelisted IPs (if configured)
+      // Skip for whitelisted IPs (if configured). Use the same trusted header
+      // extraction as keyGenerator so whitelist checks can't be bypassed via XFF.
       const whitelistedIPs = constants.RATE_LIMIT_WHITELIST || [];
-      if (whitelistedIPs.includes(req.ip)) {
+      const clientIp =
+        req.headers["x-client-ip"] ||
+        req.headers["x-client-original-ip"] ||
+        req.ip;
+      if (whitelistedIPs.includes(clientIp)) {
         return true;
       }
 
@@ -267,6 +277,13 @@ const apiLimiter = createDynamicLimiter({
   message: "API rate limit exceeded. Please slow down your requests.",
 });
 
+const emailVerificationLimiter = createDynamicLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 verification attempts per hour (allows for legitimate re-clicks)
+  prefix: "email_verification",
+  message: "Too many verification attempts. Please try again in 1 hour.",
+});
+
 // Enhanced monitoring and debugging utilities
 const getRateLimiterStats = async () => {
   const redisAvailable = isRedisAvailable();
@@ -379,6 +396,7 @@ module.exports = {
   registration: conditionalRateLimiter(registrationLimiter),
   passwordReset: conditionalRateLimiter(passwordResetLimiter),
   apiGeneral: conditionalRateLimiter(apiLimiter),
+  emailVerification: conditionalRateLimiter(emailVerificationLimiter),
 
   // Utility functions
   getRateLimiterStats,

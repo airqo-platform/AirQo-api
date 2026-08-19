@@ -5,6 +5,7 @@ const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
 const { mailer, stringify } = require("@utils/common");
 const log4js = require("log4js");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/stale-accounts-job script -- ops-alerts`,
 );
@@ -18,6 +19,10 @@ const BATCH_SIZE = 100;
 const processStaleAccounts = async () => {
   try {
     const tenant = (constants.DEFAULT_TENANT || "airqo").toLowerCase();
+
+    const gotLock = await acquireCronLock(tenant, jobName);
+    if (!gotLock) return;
+
     const now = new Date();
 
     const staleThresholdDate = new Date();

@@ -62,6 +62,63 @@ const AccessTokenSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Resource binding — empty arrays mean unrestricted (backwards-compatible).
+    // IDs are stored as strings because Grids and Cohorts live in a separate
+    // microservice DB; no ObjectId cross-DB reference is possible.
+    allowed_grids: [{ type: String }],
+    allowed_cohorts: [{ type: String }],
+    // Temporal access window. When set, requests outside the window are rejected.
+    access_schedule: {
+      enabled: { type: Boolean, default: false },
+      allowed_days: [{ type: Number, min: 0, max: 6 }], // 0=Sun … 6=Sat (UTC)
+      allowed_hours_utc: {
+        start: { type: Number, min: 0, max: 23 },
+        end: { type: Number, min: 0, max: 23 },
+      },
+    },
+    // Behavioural tracking — updated async, never in the hot verify path.
+    last_user_agent: { type: String },
+    request_pattern: {
+      avg_hourly_rate: { type: Number, default: 0 },
+      anomaly_score: { type: Number, default: 0 },
+      auto_suspended: { type: Boolean, default: false },
+      suspension_reason: { type: String },
+      suspended_at: { type: Date },
+      // Incremented on high-compromise auto-suspension; used to lower the re-suspension
+      // threshold for repeat offenders after reinstatement.
+      suspension_count: { type: Number, default: 0 },
+    },
+    // Origin binding — opt-in per client.
+    // When enforce_origin is true on the parent Client, requests must carry
+    // an Origin or Referer header matching one of these values.
+    allowed_origins: [{ type: String }],
+    // Service-account flag. When true, behavioural anomaly scoring is skipped
+    // entirely so high-volume internal services (spatial, predict, mobile) are
+    // never auto-suspended by rate-spike or UA-change heuristics.
+    // Honeypot traps, IP blocks, and manual suspension still apply.
+    bypass_anomaly_detection: { type: Boolean, default: false },
+    // Optional expiry for bypass_anomaly_detection. When set and in the past,
+    // the bypass is treated as inactive at enforcement time even if the
+    // boolean itself is still true — bypass-expiry-job later clears the
+    // boolean and notifies the owner. Left unset, the bypass never expires.
+    bypass_anomaly_detection_expires_at: { type: Date },
+    // Admin-only flag. When true, the high-compromise-activity detector (many
+    // unique IPs hitting this token within 24h) never auto-suspends this token.
+    // For known multi-IP-by-design integrations (e.g. tokens fronted by a CDN,
+    // shared server pool, or third-party ingestion service) that legitimately
+    // get hit from many IPs. Honeypot traps, IP blocks, and manual suspension
+    // still apply.
+    bypass_compromise_detection: { type: Boolean, default: false },
+    bypass_compromise_detection_expires_at: { type: Date },
+    // Admin-only flag. When true, requests on this token are never rejected for
+    // originating from an IP already present in the BlacklistedIP collection
+    // (e.g. serverless/dynamic-egress integrations that legitimately rotate
+    // through IP ranges that get flagged). Distinct from bypass_compromise_detection,
+    // which only skips auto-suspension — this skips the per-request block itself.
+    // Admin-managed CIDR/ASN blocks, IP-prefix blocks, honeypot traps, and manual
+    // suspension are unaffected and still apply.
+    bypass_ip_blacklist: { type: Boolean, default: false },
+    bypass_ip_blacklist_expires_at: { type: Date },
   },
   { timestamps: true }
 );
@@ -294,7 +351,10 @@ AccessTokenSchema.statics = {
     }
   },
 
-  async getExpiringTokens({ skip = 0, limit = 100, filter = {} } = {}, next) {
+  async getExpiringTokens(
+    { skip = 0, limit = 100, filter = {}, days = 30, minDays = 0 } = {},
+    next
+  ) {
     try {
       const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.TOKENS_EXCLUSION_PROJECTION(
@@ -307,11 +367,20 @@ AccessTokenSchema.statics = {
 
       // Preserve timezone-aware date calculations
       const currentDate = moment().tz(moment.tz.guess()).toDate();
-      const oneMonthFromNow = moment(currentDate).add(1, "month").toDate();
+      const cutoffDate = moment(currentDate).add(days, "days").toDate();
+      // minDays lets callers carve out a lower-bound band (e.g. "2 to 5 days
+      // out") so a single token isn't matched by more than one reminder
+      // threshold in the same job run. Defaults to 0, preserving the
+      // cumulative "expiring within the next N days" behavior for existing
+      // callers that don't pass it.
+      const floorDate =
+        minDays > 0
+          ? moment(currentDate).add(minDays, "days").toDate()
+          : currentDate;
 
       const response = await this.aggregate()
         .match({
-          expires: { $gt: currentDate, $lt: oneMonthFromNow },
+          expires: { $gt: floorDate, $lte: cutoffDate },
           ...filter,
         })
         .lookup({
@@ -334,8 +403,8 @@ AccessTokenSchema.statics = {
         .allowDiskUse(true);
 
       return createSuccessResponse("list", response, "expiring access token", {
-        message: "Successfully retrieved tokens expiring within the next month",
-        emptyMessage: "No tokens found expiring within the next month",
+        message: `Successfully retrieved tokens expiring within the next ${days} day(s)`,
+        emptyMessage: `No tokens found expiring within the next ${days} day(s)`,
       });
     } catch (error) {
       return createErrorResponse(
@@ -433,6 +502,19 @@ AccessTokenSchema.methods = {
       last_ip_address: this.last_ip_address,
       expires: this.expires,
       tier: this.tier,
+      allowed_grids: this.allowed_grids,
+      allowed_cohorts: this.allowed_cohorts,
+      access_schedule: this.access_schedule,
+      last_user_agent: this.last_user_agent,
+      request_pattern: this.request_pattern,
+      allowed_origins: this.allowed_origins,
+      // bypass_anomaly_detection (pre-existing) is kept here; the newer
+      // bypass_compromise_detection/bypass_ip_blacklist flags and all
+      // *_expires_at companions are intentionally NOT exposed through this
+      // general-purpose serializer — they're admin-set/admin-facing detail,
+      // surfaced instead via the dedicated listActiveBypasses()/GET
+      // /tokens/bypasses admin report, not to every caller who can view a token.
+      bypass_anomaly_detection: this.bypass_anomaly_detection,
     };
   },
 };

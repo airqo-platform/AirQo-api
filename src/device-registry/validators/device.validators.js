@@ -487,6 +487,12 @@ const validateCreateDevice = [
 ];
 
 const validateUpdateDevice = [
+  body("network")
+    .not()
+    .exists()
+    .withMessage(
+      "Cannot directly update network. The network field is set at device creation and cannot be changed.",
+    ),
   body("mobility")
     .not()
     .exists()
@@ -619,6 +625,16 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isPrimaryInLocation must be Boolean"),
+  body("authRequired")
+    .optional()
+    .notEmpty()
+    .withMessage("authRequired cannot be empty if provided")
+    .bail()
+    .trim()
+    .isBoolean()
+    .withMessage("authRequired must be a boolean")
+    .bail()
+    .toBoolean(),
   body("isUsedForCollocation")
     .optional()
     .notEmpty()
@@ -1071,6 +1087,7 @@ const validateBulkUpdateDevices = [
         "device_manufacturer",
         "category",
         "collocation",
+        "authRequired",
       ];
 
       const invalidFields = Object.keys(value).filter(
@@ -1084,6 +1101,16 @@ const validateBulkUpdateDevices = [
 
       return true;
     }),
+  body("updateData.authRequired")
+    .optional()
+    .notEmpty()
+    .withMessage("updateData.authRequired cannot be empty if provided")
+    .bail()
+    .trim()
+    .isBoolean()
+    .withMessage("updateData.authRequired must be a boolean")
+    .bail()
+    .toBoolean(),
   ...validateUpdateDevice,
 ];
 
@@ -1244,6 +1271,14 @@ const validateGetMyDevices = [
     .withMessage("organization_id must be a valid MongoDB ObjectId")
     .bail()
     .customSanitizer((value) => ObjectId(value)),
+
+  query("status")
+    .optional()
+    .trim()
+    .isIn(["operational", "transmitting", "not_transmitting", "data_available"])
+    .withMessage(
+      "status must be one of: operational, transmitting, not_transmitting, data_available"
+    ),
 ];
 
 const validateDeviceAvailability = [

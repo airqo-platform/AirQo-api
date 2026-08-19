@@ -3,113 +3,75 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const express = require("express");
 const request = require("supertest");
-const inquiryRoutes = require("../inquiries");
-
-// Import mock controller for inquiry route (you need to provide mock implementations for this)
-const createInquiryController = require("./mockControllers/create-inquiry");
+const proxyquire = require("proxyquire").noPreserveCache();
 
 describe("Inquiry API Routes", () => {
   let app;
+  let createInquiryController;
 
   beforeEach(() => {
+    createInquiryController = {
+      create: sinon.stub(),
+      list: sinon.stub(),
+      update: sinon.stub(),
+      delete: sinon.stub(),
+    };
+
+    // Require the route AFTER stubs are in place so the router binds our stubs
+    const inquiryRoutes = proxyquire("../inquiries.routes", {
+      "@controllers/inquiry.controller": createInquiryController,
+    });
+
     app = express();
     app.use(express.json());
-
-    // Mock the usage of the router file in the main router
     app.use("/", inquiryRoutes);
   });
 
   afterEach(() => {
-    sinon.restore(); // Restore Sinon stubs after each test
+    sinon.restore();
   });
 
-  // Test cases for the "/register" route
   describe("POST /register", () => {
     it("should create an inquiry and return status code 201", async () => {
-      // Mock the behavior of the createInquiryController's create function
-      sinon
-        .stub(createInquiryController, "create")
-        .resolves(/* Mocked data here */);
+      createInquiryController.create.callsFake((req, res) =>
+        res.status(201).json({})
+      );
 
-      // Perform the HTTP POST request
-      const response = await request(app)
-        .post("/register")
-        .send({
-          /* Request body with valid data for the inquiry */
-        })
-        .expect(201);
-
-      // Assert the response
+      const response = await request(app).post("/register").send({}).expect(201);
       expect(response.body).to.be.an("object");
-      // Add more assertions based on the expected response data
     });
-
-    // Add more test cases for different scenarios related to the POST /register route
   });
 
-  // Test cases for the root route "/"
   describe("GET /", () => {
     it("should return a list of inquiries with status code 200", async () => {
-      // Mock the behavior of the createInquiryController's list function
-      sinon.stub(createInquiryController, "list").resolves([
-        /* Mocked data here */
-      ]);
+      createInquiryController.list.callsFake((req, res) =>
+        res.status(200).json([])
+      );
 
-      // Perform the HTTP GET request
       const response = await request(app).get("/").expect(200);
-
-      // Assert the response
       expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
     });
-
-    // Add more test cases for different scenarios related to the root route
   });
 
-  // Test cases for the DELETE route "/"
   describe("DELETE /", () => {
     it("should delete an inquiry and return status code 200", async () => {
-      // Mock the behavior of the createInquiryController's delete function
-      sinon
-        .stub(createInquiryController, "delete")
-        .resolves(/* Mocked data here */);
+      createInquiryController.delete.callsFake((req, res) =>
+        res.status(200).json({})
+      );
 
-      // Perform the HTTP DELETE request
-      const response = await request(app)
-        .delete("/")
-        .query({ id: "valid_id" })
-        .expect(200);
-
-      // Assert the response
+      const response = await request(app).delete("/").query({ id: "valid_id" }).expect(200);
       expect(response.body).to.be.an("object");
-      // Add more assertions based on the expected response data
     });
-
-    // Add more test cases for different scenarios related to the DELETE route
   });
 
-  // Test cases for the PUT route "/"
   describe("PUT /", () => {
     it("should update an inquiry and return status code 200", async () => {
-      // Mock the behavior of the createInquiryController's update function
-      sinon
-        .stub(createInquiryController, "update")
-        .resolves(/* Mocked data here */);
+      createInquiryController.update.callsFake((req, res) =>
+        res.status(200).json({})
+      );
 
-      // Perform the HTTP PUT request
-      const response = await request(app)
-        .put("/")
-        .query({ id: "valid_id" })
-        .send({
-          /* Request body with valid data for updating the inquiry */
-        })
-        .expect(200);
-
-      // Assert the response
+      const response = await request(app).put("/").query({ id: "valid_id" }).send({}).expect(200);
       expect(response.body).to.be.an("object");
-      // Add more assertions based on the expected response data
     });
-
-    // Add more test cases for different scenarios related to the PUT route
   });
 });

@@ -69,10 +69,8 @@ const dbProjections = {
     role_description: 1,
     role_status: 1,
     role_code: 1,
-    network_id: 1,
     role_permissions: 1,
     user_count: 1,
-    network: "$network",
     group: "$group",
     createdAt: 1,
     updatedAt: 1,
@@ -80,31 +78,6 @@ const dbProjections = {
   ROLES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       network_id: 0,
-      "network.__v": 0,
-      "network.net_status": 0,
-      "network.net_children": 0,
-      "network.net_users": 0,
-      "network.net_departments": 0,
-      "network.net_permissions": 0,
-      "network.net_roles": 0,
-      "network.net_groups": 0,
-      "network.net_email": 0,
-      "network.net_phoneNumber": 0,
-      "network.net_data_source": 0,
-      "network.net_api_key": 0,
-      "network.net_category": 0,
-      "network.createdAt": 0,
-      "network.updatedAt": 0,
-      "network.net_acronym": 0,
-      "network.net_manager": 0,
-      "network.net_manager_username": 0,
-      "network.net_manager_firstname": 0,
-      "network.net_manager_lastname": 0,
-      "network.net_profile_picture": 0,
-      "network.is_default": 0,
-      "network.net_username": 0,
-      "network.net_connection_endpoint": 0,
-      "network.net_connection_string": 0,
       "role_permissions.description": 0,
       "role_permissions.createdAt": 0,
       "role_permissions.updatedAt": 0,
@@ -126,7 +99,6 @@ const dbProjections = {
           "role_permissions.updatedAt": 0,
           "role_permissions.__v": 0,
           "role_permissions.network_id": 0,
-          network: 0,
           createdAt: 0,
           updatedAt: 0,
         },
@@ -161,6 +133,7 @@ const dbProjections = {
     phoneNumber: 1,
     timezone: 1,
     cohorts: 1,
+    devices: 1,
     clients: "$clients",
     groups: {
       $cond: {
@@ -218,6 +191,7 @@ const dbProjections = {
     updatedAt: 1,
     my_groups: "$my_groups",
     firebase_uid: 1,
+    onboarding_checklist: 1,
   },
   USERS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
@@ -274,6 +248,8 @@ const dbProjections = {
     requestType: 1,
     targetId: 1,
     status: 1,
+    role_id: 1,
+    message: 1,
     createdAt: {
       $dateToString: {
         format: "%Y-%m-%d %H:%M:%S",
@@ -427,6 +403,7 @@ const dbProjections = {
     grp_timezone: 1,
     grp_image: 1,
     cohorts: 1,
+    onboarding_checklist: 1,
     createdAt: 1,
     numberOfGroupUsers: {
       $cond: {

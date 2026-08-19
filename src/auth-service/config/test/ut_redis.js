@@ -1,139 +1,175 @@
+require("module-alias/register");
 const { expect } = require("chai");
+const rewire = require("rewire");
 const sinon = require("sinon");
-const Redis = require("ioredis");
-const constants = require("@config/constants");
-const { logElement } = require("@utils/shared");
-const REDIS_SERVER = constants.REDIS_SERVER;
-const REDIS_PORT = constants.REDIS_PORT;
 
-describe("client1 Redis instance", () => {
-  let createStub;
+const redisConfig = rewire("@config/redis");
+
+describe("redis wrapper functions", () => {
+  let mockRedis;
 
   beforeEach(() => {
-    // Stub the Redis constructor with sinon.stub()
-    createStub = sinon.stub(Redis, "create").returns({
-      set: sinon.stub().resolves("OK"),
+    mockRedis = {
+      isOpen: false,
+      isReady: false,
       get: sinon.stub().resolves("value"),
+      set: sinon.stub().resolves("OK"),
+      setEx: sinon.stub().resolves("OK"),
+      incr: sinon.stub().resolves(1),
+      expire: sinon.stub().resolves(1),
       del: sinon.stub().resolves(1),
-      hgetall: sinon.stub().resolves({ key1: "value1", key2: "value2" }),
-      zrange: sinon.stub().resolves(["value1", "value2", "value3"]),
-      quit: sinon.stub().resolves("OK"),
-    });
-
-    // Stub the logElement function from 'log' module
-    sinon.stub(logElement);
+      mGet: sinon.stub().resolves(["value1", "value2"]),
+      ping: sinon.stub().resolves("PONG"),
+    };
+    redisConfig.__set__("redis", mockRedis);
   });
 
   afterEach(() => {
-    // Restore the original behavior of the stubbed functions
     sinon.restore();
   });
 
-  it("should set a value in Redis", async () => {
-    const client = new Redis({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+  describe("when Redis is not available (isOpen=false, isReady=false)", () => {
+    it("redisGetAsync returns null", async () => {
+      const result = await redisConfig.redisGetAsync("test-key");
+      expect(result).to.be.null;
     });
 
-    const result = await client.set("key", "value");
-
-    expect(result).to.equal("OK");
-    expect(createStub).to.have.been.calledOnceWith({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+    it("redisSetAsync returns null", async () => {
+      const result = await redisConfig.redisSetAsync("key", "value");
+      expect(result).to.be.null;
     });
-    expect(createStub().set).to.have.been.calledOnceWith("key", "value");
+
+    it("redisIncrAsync returns null", async () => {
+      const result = await redisConfig.redisIncrAsync("counter");
+      expect(result).to.be.null;
+    });
+
+    it("redisExpireAsync returns 0", async () => {
+      const result = await redisConfig.redisExpireAsync("key", 60);
+      expect(result).to.equal(0);
+    });
+
+    it("redisDelAsync returns 0", async () => {
+      const result = await redisConfig.redisDelAsync("key");
+      expect(result).to.equal(0);
+    });
+
+    it("redisMgetAsync returns array of nulls", async () => {
+      const result = await redisConfig.redisMgetAsync(["key1", "key2"]);
+      expect(result).to.deep.equal([null, null]);
+    });
+
+    it("redisMgetAsync returns empty array for empty input", async () => {
+      const result = await redisConfig.redisMgetAsync([]);
+      expect(result).to.deep.equal([]);
+    });
+
+    it("redisPingAsync throws when Redis not ready", async () => {
+      try {
+        await redisConfig.redisPingAsync();
+        throw new Error("Should have thrown");
+      } catch (err) {
+        expect(err.message).to.equal("Redis not available");
+      }
+    });
+
+    it("redisSetWithTTLAsync returns null", async () => {
+      const result = await redisConfig.redisSetWithTTLAsync("key", "value", 60);
+      expect(result).to.be.null;
+    });
+
+    it("redisSetNXAsync throws when Redis not ready", async () => {
+      try {
+        await redisConfig.redisSetNXAsync("key", "value", 60);
+        throw new Error("Should have thrown");
+      } catch (err) {
+        expect(err.message).to.equal("Redis not available for distributed lock");
+      }
+    });
+
+    it("redisUtils.isAvailable returns false", () => {
+      expect(redisConfig.redisUtils.isAvailable()).to.be.false;
+    });
+
+    it("redisUtils.getStatus returns disconnected state", () => {
+      const status = redisConfig.redisUtils.getStatus();
+      expect(status.connected).to.be.false;
+      expect(status.ready).to.be.false;
+    });
+
+    it("redisUtils.ping returns false", async () => {
+      const result = await redisConfig.redisUtils.ping();
+      expect(result).to.be.false;
+    });
   });
 
-  it("should get a value from Redis", async () => {
-    const client = new Redis({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+  describe("when Redis is available (isOpen=true, isReady=true)", () => {
+    beforeEach(() => {
+      mockRedis.isOpen = true;
+      mockRedis.isReady = true;
     });
 
-    const result = await client.get("key");
-
-    expect(result).to.equal("value");
-    expect(createStub).to.have.been.calledOnceWith({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
-    });
-    expect(createStub().get).to.have.been.calledOnceWith("key");
-  });
-
-  it("should delete a value from Redis", async () => {
-    const client = new Redis({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+    it("redisGetAsync calls redis.get and returns value", async () => {
+      const result = await redisConfig.redisGetAsync("test-key");
+      expect(result).to.equal("value");
+      expect(mockRedis.get.calledWith("test-key")).to.be.true;
     });
 
-    const result = await client.del("key");
-
-    expect(result).to.equal(1);
-    expect(createStub).to.have.been.calledOnceWith({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
-    });
-    expect(createStub().del).to.have.been.calledOnceWith("key");
-  });
-
-  it("should get all values for a hash key from Redis", async () => {
-    const client = new Redis({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+    it("redisSetAsync calls redis.set and returns OK", async () => {
+      const result = await redisConfig.redisSetAsync("key", "value");
+      expect(result).to.equal("OK");
+      expect(mockRedis.set.calledWith("key", "value")).to.be.true;
     });
 
-    const result = await client.hgetall("hashKey");
-
-    expect(result).to.deep.equal({ key1: "value1", key2: "value2" });
-    expect(createStub).to.have.been.calledOnceWith({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
-    });
-    expect(createStub().hgetall).to.have.been.calledOnceWith("hashKey");
-  });
-
-  it("should get the range of values from a sorted set key in Redis", async () => {
-    const client = new Redis({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+    it("redisSetAsync with TTL calls redis.setEx", async () => {
+      const result = await redisConfig.redisSetAsync("key", "value", 60);
+      expect(result).to.equal("OK");
+      expect(mockRedis.setEx.calledWith("key", 60, "value")).to.be.true;
     });
 
-    const result = await client.zrange("setKey", 0, -1);
-
-    expect(result).to.deep.equal(["value1", "value2", "value3"]);
-    expect(createStub).to.have.been.calledOnceWith({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
-    });
-    expect(createStub().zrange).to.have.been.calledOnceWith("setKey", 0, -1);
-  });
-
-  it("should quit the Redis connection", async () => {
-    const client = new Redis({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+    it("redisIncrAsync calls redis.incr and returns count", async () => {
+      const result = await redisConfig.redisIncrAsync("counter");
+      expect(result).to.equal(1);
+      expect(mockRedis.incr.calledWith("counter")).to.be.true;
     });
 
-    const result = await client.quit();
-
-    expect(result).to.equal("OK");
-    expect(createStub).to.have.been.calledOnceWith({
-      port: REDIS_PORT,
-      host: REDIS_SERVER,
-      showFriendlyErrorStack: true,
+    it("redisExpireAsync calls redis.expire and returns 1", async () => {
+      const result = await redisConfig.redisExpireAsync("key", 60);
+      expect(result).to.equal(1);
+      expect(mockRedis.expire.calledWith("key", 60)).to.be.true;
     });
-    expect(createStub().quit).to.have.been.calledOnce;
+
+    it("redisDelAsync calls redis.del and returns count", async () => {
+      const result = await redisConfig.redisDelAsync("key");
+      expect(result).to.equal(1);
+      expect(mockRedis.del.calledWith("key")).to.be.true;
+    });
+
+    it("redisMgetAsync calls redis.mGet and returns values", async () => {
+      const result = await redisConfig.redisMgetAsync(["key1", "key2"]);
+      expect(result).to.deep.equal(["value1", "value2"]);
+      expect(mockRedis.mGet.calledWith(["key1", "key2"])).to.be.true;
+    });
+
+    it("redisSetWithTTLAsync calls redis.setEx", async () => {
+      const result = await redisConfig.redisSetWithTTLAsync("key", "value", 60);
+      expect(result).to.equal("OK");
+      expect(mockRedis.setEx.calledWith("key", 60, "value")).to.be.true;
+    });
+
+    it("redisUtils.isAvailable returns true", () => {
+      expect(redisConfig.redisUtils.isAvailable()).to.be.true;
+    });
+
+    it("redisUtils.getStatus returns connected state", () => {
+      const status = redisConfig.redisUtils.getStatus();
+      expect(status.connected).to.be.true;
+      expect(status.ready).to.be.true;
+    });
+
+    it("redisUtils.ping returns true on PONG", async () => {
+      const result = await redisConfig.redisUtils.ping();
+      expect(result).to.be.true;
+    });
   });
 });

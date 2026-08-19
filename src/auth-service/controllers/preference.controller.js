@@ -695,10 +695,7 @@ const preferences = {
         );
       }
 
-      const request = {
-        ...req,
-        body: { ...req.body, deviceId: req.params.deviceId },
-      };
+      const request = req;
 
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -727,10 +724,7 @@ const preferences = {
         );
       }
 
-      const request = {
-        ...req,
-        body: { ...req.body, deviceId: req.params.deviceId },
-      };
+      const request = req;
 
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -759,10 +753,7 @@ const preferences = {
         );
       }
 
-      const request = {
-        ...req,
-        body: { ...req.body, deviceId: req.params.deviceId },
-      };
+      const request = req;
 
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -791,10 +782,7 @@ const preferences = {
         );
       }
 
-      const request = {
-        ...req,
-        body: { ...req.body, deviceId: req.params.deviceId },
-      };
+      const request = req;
 
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)

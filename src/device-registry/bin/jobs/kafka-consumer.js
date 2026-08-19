@@ -13,7 +13,6 @@ const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
 const CohortModel = require("@models/Cohort");
-const axios = require("axios");
 const createCohortUtil = require("@utils/cohort.util");
 
 const { stringify } = require("@utils/common");
@@ -450,36 +449,10 @@ const handleGroupCreated = async (payload) => {
       return;
     }
 
-    // 1. Validate that the group actually exists in the auth-service
-    let groupDetails;
-    try {
-      const response = await axios.get(
-        `${constants.AUTH_SERVICE_URL}/groups/${groupId}`,
-        {
-          headers: { "x-api-key": constants.INTER_SERVICE_TOKEN },
-          params: { tenant },
-        }
-      );
-      groupDetails = response.data.data;
-      if (isEmpty(groupDetails)) {
-        logger.warn(
-          `KAFKA-CONSUMER: Group with ID ${groupId} not found in auth-service for tenant ${tenant}. Skipping cohort creation.`
-        );
-        return;
-      }
-    } catch (error) {
-      logger.error(
-        `KAFKA-CONSUMER: Error fetching group details for ID ${groupId} from auth-service: ${error.message}`,
-        payload
-      );
-      // Stop processing if we can't verify the group
-      return;
-    }
-
     const cohortName = `coh_group_${groupId}`;
     const cohortDescription = `Default cohort for organization: ${groupName}`;
 
-    // 2. Check for idempotency: if a cohort with this name already exists, skip.
+    // 1. Check for idempotency: if a cohort with this name already exists, skip.
     const existingCohort = await CohortModel(tenant).findOne({
       name: cohortName,
     });
@@ -491,19 +464,32 @@ const handleGroupCreated = async (payload) => {
       return;
     }
 
-    // 3. Create the default cohort
-    // Derive network from group data, fall back to tenant if not present
-    const network = groupDetails.network || tenant;
-
-    await CohortModel(tenant).create({
-      name: cohortName,
-      description: cohortDescription,
-      network: network,
-      grp_id: groupId, // Link the cohort to the group
+    // 2. Create the default cohort via util so COHORT_TOPIC is published
+    const request = {
+      body: {
+        name: cohortName,
+        description: cohortDescription,
+        network: tenant,
+        grp_id: groupId,
+      },
+      query: { tenant },
+    };
+    const result = await createCohortUtil.create(request, (err) => {
+      if (err)
+        logger.error(
+          `KAFKA-CONSUMER: Error creating cohort for group ${groupId}: ${err.message}`
+        );
     });
 
+    if (result && result.success === false) {
+      logger.error(
+        `KAFKA-CONSUMER: Failed to create cohort for group ${groupId}: ${result.message}`
+      );
+      return;
+    }
+
     logger.info(
-      `KAFKA-CONSUMER: Successfully created default cohort '${cohortName}' for group ID ${groupId} in network '${network}'.`
+      `KAFKA-CONSUMER: Successfully created default cohort '${cohortName}' for group ID ${groupId} in tenant '${tenant}'.`
     );
   } catch (error) {
     logger.error(

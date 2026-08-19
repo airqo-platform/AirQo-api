@@ -7,7 +7,7 @@ const logger = log4js.getLogger(
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const { logObject, logText } = require("@utils/shared");
-const { calculatePm25Aqi } = require("@utils/aqi.util");
+const { calculatePm25Aqi, resolveActiveAqiRanges } = require("@utils/aqi.util");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
@@ -295,10 +295,17 @@ async function fetchAndStoreReadings() {
         brief: "yes",
       },
     };
-    const filter = generateFilter.fetch(request);
+    // index is never set on this job's own request (it fetches everything,
+    // not a category slice), so this doesn't change what gets fetched here —
+    // kept for consistency with the other generateFilter.fetch call sites.
+    // The AQI classification actually stamped onto stored readings comes
+    // from EventModel("airqo").fetch() below, which resolves its own
+    // up-to-date config internally (see models/Event.js's fetchData).
+    const resolvedAqiRanges = await resolveActiveAqiRanges("airqo");
+    const filter = generateFilter.fetch(request, null, resolvedAqiRanges);
 
     const jobStartMs = Date.now();
-    logger.warn(
+    logger.info(
       `⏰ store-readings-job STARTED at ${new Date().toISOString()}`,
     );
 
@@ -342,7 +349,7 @@ async function fetchAndStoreReadings() {
 
     const data = viewEventsResponse.data[0].data;
     const fetchDuration = Date.now() - jobStartMs;
-    logger.warn(
+    logger.info(
       `📦 store-readings-job: EventModel.fetch() returned ${
         data.length
       } events in ${fetchDuration}ms`,
@@ -398,7 +405,7 @@ async function fetchAndStoreReadings() {
     // Always surface the final result to Slack so we can confirm the job is healthy
     const totalDuration = Date.now() - jobStartMs;
     if (report.summary.successRate >= 95) {
-      logger.warn(
+      logger.info(
         `✅ store-readings-job DONE — ${report.summary.readingsProcessed}/${
           report.summary.totalDocuments
         } readings stored (${
@@ -435,7 +442,7 @@ let currentJobPromise = null;
 
 const jobWrapper = async () => {
   if (isJobRunning) {
-    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    logger.info(`${JOB_NAME} is already running, skipping this execution`);
     return;
   }
 

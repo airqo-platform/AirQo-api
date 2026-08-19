@@ -1,7 +1,16 @@
 require("module-alias/register");
+
+// Prevent the Cloudinary config guard from aborting module load in test env.
+// Cloudinary is never used during tests; these values are dummies.
+process.env.CLOUD_NAME = process.env.CLOUD_NAME || "test-cloud";
+process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test-key";
+process.env.CLOUDINARY_API_SECRET =
+  process.env.CLOUDINARY_API_SECRET || "test-secret";
+
 const { expect } = require("chai");
 const sinon = require("sinon");
 const proxyquire = require("proxyquire");
+const rewire = require("rewire");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 
@@ -91,6 +100,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         logElement: sinon.stub(),
         extractErrorsFromRequest: sinon.stub(),
       },
+      log4js: {
+        getLogger: sinon.stub().returns(loggerStub),
+      },
       jsonwebtoken: {
         verify: jwtVerifyStub,
         sign: sinon.stub(),
@@ -129,19 +141,17 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
       );
     });
 
-    it("should accept Bearer token format", async () => {
+    it("should reject Bearer token format with 401", async () => {
       req.headers.authorization = "Bearer validtoken123";
-
-      jwtVerifyStub.callsFake((token, secret, options, callback) => {
-        callback(null, {
-          _id: "user123",
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        });
-      });
 
       await enhancedJWTAuth(req, res, next);
 
-      expect(jwtVerifyStub.calledOnce).to.be.true;
+      expect(next.calledOnce).to.be.true;
+      expect(next.firstCall.args[0]).to.be.instanceOf(HttpError);
+      expect(next.firstCall.args[0].message).to.equal("Unauthorized");
+      expect(next.firstCall.args[0].errors.message).to.equal(
+        "Invalid Authorization header format. Expected 'JWT <token>'",
+      );
     });
 
     it("should accept JWT token format", async () => {
@@ -160,7 +170,7 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
     });
 
     it("should return 401 when token is empty", async () => {
-      req.headers.authorization = "Bearer   ";
+      req.headers.authorization = "JWT   ";
 
       await enhancedJWTAuth(req, res, next);
 
@@ -454,7 +464,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         });
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
+      await nextCalled;
 
       expect(res.set.calledWith("X-Access-Token")).to.be.true;
       expect(
@@ -480,7 +492,9 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         createToken: sinon.stub().rejects(new Error("Token creation failed")),
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
+      await nextCalled;
 
       // Should still proceed despite refresh failure
       expect(next.calledOnce).to.be.true;
@@ -618,9 +632,149 @@ describe("enhancedJWTAuth Middleware Unit Tests", () => {
         createToken: sinon.stub().rejects(new Error("Refresh failed")),
       });
 
+      const nextCalled = new Promise((resolve) => next.callsFake(resolve));
       await enhancedJWTAuth(req, res, next);
+      await nextCalled;
 
-      expect(loggerStub.error.called).to.be.true;
+      // The middleware uses logger.warn (not logger.error) for best-effort
+      // refresh failures since the existing token is still valid.
+      expect(loggerStub.warn.called).to.be.true;
+    });
+  });
+});
+
+describe("setGoogleAuth — redirect_after custom-scheme validation", () => {
+  let setGoogleAuth;
+  let req, res, next;
+  let loggerStub;
+
+  const HttpError = class extends Error {
+    constructor(message, statusCode, errors) {
+      super(message);
+      this.statusCode = statusCode;
+      this.errors = errors;
+    }
+  };
+
+  const constantsStub = {
+    ...constants,
+    NEXUS_BASE_URL: "https://nexus.airqo.net",
+    VERTEX_BASE_URL: "https://vertex.airqo.net",
+    ALLOWED_REDIRECT_ORIGINS: "",
+    ALLOWED_CUSTOM_SCHEME_PREFIXES: "vertex://,beacon://,dataflo://,analytics://",
+    OAUTH_COOKIE_DOMAIN: "",
+    ENVIRONMENT: "test",
+  };
+
+  before(() => {
+    loggerStub = { warn: sinon.stub(), error: sinon.stub(), info: sinon.stub() };
+
+    const mod = proxyquire("@middleware/passport", {
+      "@models/User": sinon.stub(),
+      "@models/AccessToken": sinon.stub(),
+      "@models/Client": sinon.stub(),
+      "@models/Permission": sinon.stub(),
+      "@utils/common": {
+        winstonLogger: loggerStub,
+        mailer: {},
+        stringify: sinon.stub(),
+      },
+      "@services/atf.service": { AbstractTokenFactory: sinon.stub() },
+      "@utils/user.util": { _getEffectiveTokenStrategy: sinon.stub() },
+      "@utils/shared": {
+        HttpError,
+        logObject: sinon.stub(),
+        logText: sinon.stub(),
+        logElement: sinon.stub(),
+        extractErrorsFromRequest: sinon.stub().returns(null),
+      },
+      "@services/analytics.service": {},
+      "@config/passport-strategies": { configureStrategies: sinon.stub() },
+      "@config/constants": constantsStub,
+      jsonwebtoken: {
+        verify: sinon.stub(),
+        sign: sinon.stub(),
+        "@noCallThru": true,
+      },
+    });
+
+    setGoogleAuth = mod.setGoogleAuth;
+  });
+
+  beforeEach(() => {
+    req = { query: {}, session: {}, cookies: {} };
+    res = { clearCookie: sinon.stub(), cookie: sinon.stub() };
+    next = sinon.stub();
+  });
+
+  afterEach(() => sinon.restore());
+
+  describe("custom-scheme allowlist", () => {
+    it("sets the redirect cookie for an allowed custom scheme (vertex://login)", () => {
+      req.query.redirect_after = "vertex://login";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "vertex://login")).to.be.true;
+    });
+
+    it("sets the redirect cookie for a second allowed scheme (beacon://home)", () => {
+      req.query.redirect_after = "beacon://home";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "beacon://home")).to.be.true;
+    });
+
+    it("sets the redirect cookie for dataflo://auth", () => {
+      req.query.redirect_after = "dataflo://auth";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "dataflo://auth")).to.be.true;
+    });
+
+    it("sets the redirect cookie for analytics://home", () => {
+      req.query.redirect_after = "analytics://home";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "analytics://home")).to.be.true;
+    });
+
+    it("does not set the cookie for an unrecognised custom scheme (evil://hack)", () => {
+      req.query.redirect_after = "evil://hack";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
+    });
+  });
+
+  describe("case-insensitive scheme matching", () => {
+    it("sets the cookie for VERTEX://login (uppercase scheme)", () => {
+      req.query.redirect_after = "VERTEX://login";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "VERTEX://login")).to.be.true;
+    });
+
+    it("sets the cookie for Vertex://login (mixed-case scheme)", () => {
+      req.query.redirect_after = "Vertex://login";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.calledWith("_oauth_redirect_after", "Vertex://login")).to.be.true;
+    });
+  });
+
+  describe("http/https origin checks are unaffected (regression guard)", () => {
+    it("sets the cookie for an allowed https origin", () => {
+      req.query.redirect_after = "https://nexus.airqo.net/dashboard";
+      setGoogleAuth(req, res, next);
+      expect(
+        res.cookie.calledWith("_oauth_redirect_after", "https://nexus.airqo.net/dashboard")
+      ).to.be.true;
+    });
+
+    it("does not set the cookie for an https URL not in the allowed origins", () => {
+      req.query.redirect_after = "https://evil.com/phish";
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
+    });
+  });
+
+  describe("edge cases", () => {
+    it("does not set the cookie when redirect_after is absent", () => {
+      setGoogleAuth(req, res, next);
+      expect(res.cookie.called).to.be.false;
     });
   });
 });

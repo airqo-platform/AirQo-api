@@ -553,18 +553,10 @@ const transactions = {
     // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
-    try {
-      // Implement admin notification mechanism
-      await adminAlertService.sendErrorAlert({
-        errorType: "TRANSACTION_COMPLETION_FAILED",
-        details: {
-          message: error.message,
-          transactionId: eventData?.id,
-        },
-      });
-    } catch (notificationError) {
-      logger.error("Failed to send admin notification", notificationError);
-    }
+    opsLogger.error("TRANSACTION_COMPLETION_FAILED", {
+      message: error.message,
+      transactionId: eventData?.id,
+    });
   },
   handleFailedTransaction: async (eventData) => {
     try {
@@ -1030,6 +1022,19 @@ const transactions = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.code === "subscription_locked_pending_changes") {
+        logger.warn(
+          `Cancellation blocked by pending scheduled change: user=${user._id} subscription=${subscriptionId}`,
+        );
+        return {
+          success: false,
+          message:
+            "You have a scheduled plan change pending. It will take effect on your next billing date, after which you can cancel.",
+          errors: { message: error.message },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       logger.error("Subscription cancellation failed", error);
       return {
         success: false,
@@ -1440,8 +1445,8 @@ const transactions = {
         return {
           success: false,
           message: "No active subscription found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "User has no subscription ID" },
+          status: httpStatus.OK,
+          data: { subscribed: false, subscriptionStatus: "none" },
         };
       }
 
@@ -1461,7 +1466,8 @@ const transactions = {
         message: "Subscription status retrieved successfully",
         status: httpStatus.OK,
         data: {
-          status: subscriptionStatus.status,
+          subscriptionStatus: subscriptionStatus.status,
+          subscribed: true,
           lastChecked: new Date(),
           subscriptionId: freshUser.currentSubscriptionId,
         },

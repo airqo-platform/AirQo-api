@@ -220,6 +220,70 @@ const networkCoverageController = {
       handleError(error, next);
     }
   },
+
+  /**
+   * GET /network-coverage/cities
+   * List crowd-sourced city population records.
+   */
+  listCities: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await networkCoverageUtil.listCities(request);
+      sendResponse(res, result, "cities");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * POST /network-coverage/cities
+   * Submit or update a city population record.
+   */
+  upsertCity: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await networkCoverageUtil.upsertCity(request);
+      sendResponse(res, result, "city");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * DELETE /network-coverage/cities/:cityId
+   * Remove a city population record.
+   */
+  deleteCity: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await networkCoverageUtil.deleteCity(request);
+      sendResponse(res, result, "city");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * GET /network-coverage/impact
+   * Aggregate impact metrics – no monitor payload.
+   */
+  impact: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await networkCoverageUtil.impact(request);
+      sendResponse(res, result, "impact");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
 };
 
 module.exports = networkCoverageController;

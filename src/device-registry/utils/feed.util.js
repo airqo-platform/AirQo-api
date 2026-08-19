@@ -670,10 +670,13 @@ const createFeed = {
       // Non-actionable vendor errors (404 device not found, 422 transient,
       // 5xx vendor outage) are outside our control and map to "device offline"
       // — log at warn to avoid flooding Slack.
-      // Network-level failures (no HTTP response: ECONNREFUSED, ETIMEDOUT,
-      // DNS) may indicate problems on our side and stay at error.
+      // Network-level failures split by cause:
+      //   ECONNABORTED — Axios client timeout; vendor API was slow, not our fault → warn
+      //   ECONNREFUSED / DNS / other no-response errors → may be our side → error
       const ACTIONABLE_STATUSES = [401, 403, 429];
-      if (!error.response) {
+      if (!error.response && error.code === "ECONNABORTED") {
+        logger.warn(logMsg);
+      } else if (!error.response) {
         logger.error(logMsg);
       } else if (ACTIONABLE_STATUSES.includes(error.response.status)) {
         logger.error(logMsg);

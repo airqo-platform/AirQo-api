@@ -88,27 +88,6 @@ router.get(
 );
 
 router.get(
-  "/airqlouds/:airqloud_id/historical",
-  measurementsValidations.listHistoricalAirqloudMeasurements,
-  pagination(),
-  eventController.listByAirQloudHistorical
-);
-
-router.get(
-  "/airqlouds/:airqloud_id/recent",
-  measurementsValidations.listRecentAirqloudMeasurements,
-  pagination(),
-  eventController.listByAirQloud
-);
-
-router.get(
-  "/airqlouds/:airqloud_id",
-  measurementsValidations.listAirqloudMeasurements,
-  pagination(),
-  eventController.listByAirQloud
-);
-
-router.get(
   "/grids/:grid_id/historical",
   measurementsValidations.listHistoricalGridMeasurements,
   pagination(),

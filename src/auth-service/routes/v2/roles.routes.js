@@ -5,6 +5,9 @@ const roleController = require("@controllers/role.controller");
 const roleValidations = require("@validators/roles.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
+const { requireSystemAdmin } = require("@middleware/adminAccess");
+
+const requireAirQoSuperAdmin = requireSystemAdmin();
 
 const injectCurrentUserId = (req, res, next) => {
   req.params.user_id = req.user._id;
@@ -27,6 +30,7 @@ router.get(
   roleValidations.listSummary,
   validate,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   pagination(),
   roleController.listSummary,
 );
@@ -94,6 +98,7 @@ router.put(
   roleValidations.assignUserToRolePut,
   validate,
   enhancedJWTAuth,
+  requireAirQoSuperAdmin,
   roleController.assignUserToRole,
 );
 
@@ -212,6 +217,41 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   roleController.auditDeprecatedFields,
+);
+
+// Purge network_roles arrays from all users (network use case retired).
+// network_roles is already excluded from all API responses; this removes the
+// zombie data from MongoDB. Supports ?dry_run=true to preview.
+router.post(
+  "/admin/cleanup-user-network-roles",
+  roleValidations.cleanupUserNetworkRoles,
+  validate,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  roleController.cleanupUserNetworkRoles,
+);
+
+// Migrate all network-scoped roles to group-scoped (network use case retired).
+// Supports ?dry_run=true to preview changes without writing.
+// Supports ?action=delete_zero_user to also delete roles with no users after migrating.
+router.post(
+  "/admin/migrate-network-to-group",
+  roleValidations.migrateNetworkRolesToGroup,
+  validate,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  roleController.migrateNetworkRolesToGroup,
+);
+
+// Repair a user's role assignment: clears phantom entries, resolves
+// network-typed roles to their group equivalent, and writes the correct entry.
+router.put(
+  "/:role_id/user/:user_id/repair",
+  roleValidations.repairUserRoleAssignment,
+  validate,
+  enhancedJWTAuth,
+  requireAirQoSuperAdmin,
+  roleController.repairUserRoleAssignment,
 );
 
 router.get(

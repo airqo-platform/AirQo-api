@@ -106,6 +106,8 @@ const envs = {
   GMAIL_VERIFICATION_SUCCESS_REDIRECT:
     process.env.GMAIL_VERIFICATION_SUCCESS_REDIRECT,
   SESSION_SECRET: process.env.SESSION_SECRET,
+  SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME,
+  OAUTH_COOKIE_DOMAIN: process.env.OAUTH_COOKIE_DOMAIN,
   PADDLE_WEBHOOK_SECRET: process.env.PADDLE_WEBHOOK_SECRET,
   PADDLE_PRODUCT_ID: process.env.PADDLE_PRODUCT_ID,
   PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID:
@@ -162,11 +164,40 @@ const envs = {
     process.env.FEEDBACK_SCREENSHOT_RETENTION_DAYS,
     30,
   ),
+  // How many days a pending actionable item must sit untouched before it
+  // appears in the weekly reminder digest. Configurable without a redeploy.
+  FEEDBACK_REMINDER_THRESHOLD_DAYS: parseNumber(
+    process.env.FEEDBACK_REMINDER_THRESHOLD_DAYS,
+    7,
+  ),
+  // ── Third-party feedback integrations (all optional) ──────────────────────
+  // Set only the vars for the tools your team uses. Any integration whose
+  // required vars are absent is silently skipped — no errors are thrown.
+  //
+  // Slack: paste the Incoming Webhook URL from api.slack.com/apps
+  SLACK_FEEDBACK_WEBHOOK_URL: process.env.SLACK_FEEDBACK_WEBHOOK_URL || null,
+  // JIRA: base URL of your Atlassian instance, admin email, API token,
+  // target project key, and optional issue type override.
+  JIRA_BASE_URL: process.env.JIRA_BASE_URL || null,
+  JIRA_EMAIL: process.env.JIRA_EMAIL || null,
+  JIRA_API_TOKEN: process.env.JIRA_API_TOKEN || null,
+  JIRA_PROJECT_KEY: process.env.JIRA_PROJECT_KEY || null,
+  JIRA_ISSUE_TYPE: process.env.JIRA_ISSUE_TYPE || null,
 
   // ── Cloudinary ─────────────────────────────────────────────────────────────
   CLOUD_NAME: process.env.CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  // Clean Air Forum selfies: the Cloudinary upload preset should tag every
+  // upload with CLEAN_AIR_FORUM_SELFIE_TAG. The daily cron job in
+  // bin/jobs/selfie-cleanup-job.js deletes tagged Cloudinary assets (and
+  // their Mongo records) after CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS days,
+  // so storage/cost doesn't grow unbounded after each event.
+  CLEAN_AIR_FORUM_SELFIE_TAG: "clean-air-forum-selfie",
+  CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS: parseNumber(
+    process.env.CLEAN_AIR_FORUM_SELFIE_RETENTION_DAYS,
+    730,
+  ),
   // Optional pro/HTTPS-capable IP geolocation endpoint. When set, device.util
   // uses this URL for login location lookups; when absent, geolocation is
   // skipped entirely (returns null) to avoid plaintext HTTP calls.
@@ -195,12 +226,12 @@ const envs = {
   PADDLE_ENVIRONMENT: process.env.PADDLE_ENVIRONMENT,
 
   // ── Platform URLs ──────────────────────────────────────────────────────────
-  ANALYTICS_BASE_URL: process.env.ANALYTICS_BASE_URL,
+  NEXUS_BASE_URL: process.env.NEXUS_BASE_URL,
   VERTEX_BASE_URL: process.env.VERTEX_BASE_URL,
 
   // ── Security ───────────────────────────────────────────────────────────────
   ADMIN_SETUP_SECRET: process.env.ADMIN_SETUP_SECRET,
-  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
+  HCAPTCHA_SECRET_KEY: process.env.HCAPTCHA_SECRET_KEY,
   FORCE_SAFE_TOKEN_STRATEGY: parseBoolean(
     process.env.FORCE_SAFE_TOKEN_STRATEGY,
     false,
@@ -240,8 +271,12 @@ const envs = {
 
   // ── OAuth redirect allowlist ───────────────────────────────────────────────
   // Comma-separated list of additional origins allowed as redirect_after targets
-  // beyond ANALYTICS_BASE_URL and VERTEX_BASE_URL (which are always included).
+  // beyond NEXUS_BASE_URL and VERTEX_BASE_URL (which are always included).
   ALLOWED_REDIRECT_ORIGINS: process.env.ALLOWED_REDIRECT_ORIGINS,
+  // Comma-separated custom URL scheme prefixes (e.g. "vertex://,airqo://") that are
+  // allowed as redirect_after targets. These are app deep-link schemes and cannot be
+  // exploited for web phishing. (Defaults are enforced in the redirect validation logic.)
+  ALLOWED_CUSTOM_SCHEME_PREFIXES: process.env.ALLOWED_CUSTOM_SCHEME_PREFIXES,
 
   // ── API / network ──────────────────────────────────────────────────────────
   API_TOKEN: process.env.API_TOKEN,

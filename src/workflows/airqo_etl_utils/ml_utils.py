@@ -2778,7 +2778,21 @@ class ForecastModelTrainer(BaseMlUtils):
 
     @staticmethod
     def _read_site_forecasts_from_bigquery(table: str) -> pd.DataFrame:
-        """Read the current site forecast table if it already exists."""
+        """
+        Load persisted site forecasts from a BigQuery table.
+
+        The helper is used before forecast persistence so new forecast rows can be
+        reconciled with records that are already stored. A missing table is treated
+        as an empty forecast store because first-time deployments should be able to
+        create and populate the destination without failing on the initial read.
+
+        Args:
+            table: Fully qualified BigQuery table name to read from.
+
+        Returns:
+            A DataFrame containing the table contents, or an empty DataFrame when
+            the table has not been created yet.
+        """
         from .bigquery_api import BigQueryApi
 
         bigquery_api = BigQueryApi()
@@ -2795,7 +2809,27 @@ class ForecastModelTrainer(BaseMlUtils):
         *,
         fail_on_error: bool = False,
     ) -> pd.DataFrame:
-        """Attach daily MET.no weather summaries to site daily forecast rows."""
+        """
+        Add MET.no daily weather features to site-level daily forecasts.
+
+        Forecast rows are matched to MET.no summaries by forecast date and by
+        site coordinates rounded to two decimal places, which mirrors the query
+        precision used when requesting MET.no data. The returned frame always
+        includes every column listed in SITE_DAILY_FORECAST_MET_COLUMNS so later
+        persistence code can use a stable schema even when MET.no is unavailable
+        or has no data for a site.
+
+        Args:
+            data: Forecast rows with site_id, site_name, site_latitude,
+                site_longitude, and date columns.
+            fail_on_error: When True, re-raise MET.no fetch or merge failures.
+                When False, log the failure and return forecast rows with empty
+                MET.no columns.
+
+        Returns:
+            A copy of the forecast data enriched with MET.no columns. Temporary
+            coordinate helper columns are removed before returning.
+        """
         if data.empty:
             return data
 
@@ -2870,7 +2904,28 @@ class ForecastModelTrainer(BaseMlUtils):
         *,
         fail_on_error: bool = False,
     ) -> pd.DataFrame:
-        """Attach hourly MET.no forecast details to site hourly forecast rows."""
+        """
+        Add MET.no hourly weather features to site-level hourly forecasts.
+
+        Timestamps are normalized to UTC hour boundaries before merging, and site
+        coordinates are rounded to two decimal places to match the MET.no request
+        keys. After the direct timestamp merge, sparse weather gaps are backfilled
+        from the nearest MET.no observation for the same rounded coordinate pair.
+        The output schema is kept stable by adding missing MET.no columns with
+        null values when enrichment is unavailable or incomplete.
+
+        Args:
+            data: Forecast rows with site_id, site_name, site_latitude,
+                site_longitude, and timestamp columns.
+            fail_on_error: When True, re-raise MET.no fetch or merge failures.
+                When False, log the failure and return forecast rows with empty
+                MET.no columns.
+
+        Returns:
+            A copy of the forecast data enriched with hourly MET.no columns.
+            Temporary coordinate and daily date helper columns are removed before
+            returning.
+        """
         if data.empty:
             return data
 
@@ -2929,6 +2984,12 @@ class ForecastModelTrainer(BaseMlUtils):
                 on=["timestamp", "met_no_query_latitude", "met_no_query_longitude"],
                 how="left",
             )
+            enriched = (
+                ForecastModelTrainer._fill_hourly_met_gaps_with_nearest_observation(
+                    enriched,
+                    met_hourly,
+                )
+            )
         except Exception as exc:
             if fail_on_error:
                 raise
@@ -2940,6 +3001,103 @@ class ForecastModelTrainer(BaseMlUtils):
             return with_empty_met_columns(enriched)
 
         return with_empty_met_columns(enriched)
+
+    @staticmethod
+    def _fill_hourly_met_gaps_with_nearest_observation(
+        forecasts: pd.DataFrame,
+        met_hourly: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Fill missing hourly MET.no values from the nearest observation per site.
+
+        MET.no can return fewer hourly records than the forecast horizon expects.
+        This helper keeps the original forecast row order, groups rows by rounded
+        MET.no query latitude and longitude, and uses an as-of merge to find the
+        nearest weather timestamp within each coordinate group. Only missing
+        values are filled, so values already populated by the exact timestamp
+        merge are preserved.
+
+        Args:
+            forecasts: Hourly forecast rows that may already contain some MET.no
+                columns plus timestamp and rounded MET.no coordinate columns.
+            met_hourly: Raw hourly MET.no rows keyed by timestamp and rounded
+                MET.no coordinate columns.
+
+        Returns:
+            The forecast frame with missing MET.no columns filled where a nearest
+            observation exists. If required keys or MET.no columns are absent, the
+            input frame is returned unchanged.
+        """
+        if forecasts.empty or met_hourly.empty:
+            return forecasts
+
+        key_columns = [
+            "met_no_query_latitude",
+            "met_no_query_longitude",
+        ]
+        required_columns = ["timestamp", *key_columns]
+        if any(column not in forecasts.columns for column in required_columns):
+            return forecasts
+        if any(column not in met_hourly.columns for column in required_columns):
+            return forecasts
+
+        met_columns = [
+            column for column in SITE_DAILY_FORECAST_MET_COLUMNS if column in met_hourly
+        ]
+        if not met_columns:
+            return forecasts
+
+        filled = forecasts.copy()
+        filled["timestamp"] = pd.to_datetime(
+            filled["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+
+        met_lookup = met_hourly[required_columns + met_columns].copy()
+        met_lookup["timestamp"] = pd.to_datetime(
+            met_lookup["timestamp"], utc=True, errors="coerce"
+        ).dt.floor("h")
+        met_lookup = met_lookup.dropna(subset=required_columns)
+        if met_lookup.empty:
+            return forecasts
+
+        for key in key_columns:
+            filled[key] = pd.to_numeric(filled[key], errors="coerce")
+            met_lookup[key] = pd.to_numeric(met_lookup[key], errors="coerce")
+
+        row_order = "_forecast_row_order"
+        filled[row_order] = np.arange(len(filled))
+
+        met_groups = {
+            coordinates if isinstance(coordinates, tuple) else (coordinates,): group
+            for coordinates, group in met_lookup.groupby(key_columns, dropna=True)
+        }
+
+        nearest_frames: List[pd.DataFrame] = []
+        for coordinates, forecast_group in filled.groupby(key_columns, dropna=True):
+            coordinates = coordinates if isinstance(coordinates, tuple) else (coordinates,)
+            met_group = met_groups.get(coordinates)
+            if met_group is None or met_group.empty:
+                continue
+
+            nearest = pd.merge_asof(
+                forecast_group.sort_values("timestamp")[[row_order, "timestamp"]],
+                met_group.sort_values("timestamp")[["timestamp", *met_columns]],
+                on="timestamp",
+                direction="nearest",
+            )
+            nearest_frames.append(nearest.drop(columns=["timestamp"]))
+
+        if not nearest_frames:
+            return filled.drop(columns=[row_order], errors="ignore")
+
+        nearest_met = pd.concat(nearest_frames, ignore_index=True).set_index(row_order)
+        filled = filled.set_index(row_order, drop=True)
+        for column in met_columns:
+            if column not in filled.columns:
+                filled[column] = np.nan
+            filled[column] = filled[column].combine_first(nearest_met[column])
+
+        return filled.sort_index().reset_index(drop=True)
 
     @staticmethod
     def _has_site_forecast_met_data(data: pd.DataFrame) -> bool:

@@ -20,6 +20,7 @@ const {
 const msgs = require("./email.msgs.util");
 const emailTemplates = require("./email.templates.util");
 const generateFilter = require("./generate-filter.util");
+const { generateGuestIdentity } = require("./guest-identity.util");
 const winstonLogger = require("./log-winston.util");
 const { publishKafkaEvent } = require("./kafka.util");
 const slugUtils = require("./slug.util");
@@ -57,5 +58,6 @@ module.exports = {
   msgs,
   emailTemplates,
   generateFilter,
+  generateGuestIdentity,
   publishKafkaEvent,
 };

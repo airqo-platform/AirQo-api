@@ -31,6 +31,7 @@ const {
 } = require("@utils/shared");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
+const isSecureEnv = !isDev && process.env.NODE_ENV !== "test";
 const rateLimit = require("express-rate-limit");
 
 // ── Session store ─────────────────────────────────────────────────────────
@@ -109,9 +110,12 @@ const jobs = [
   "@bin/jobs/profile-picture-update-job",
   "@bin/jobs/role-cleanup-job",
   "@bin/jobs/daily-compromise-summary-job",
+  "@bin/jobs/bypass-expiry-job",
   "@bin/jobs/unknown-ip-cleanup-job",
   "@bin/jobs/feedback-screenshot-cleanup-job",
+  "@bin/jobs/feedback-reminder-job",
   "@bin/jobs/transaction-amount-fix-job",
+  "@bin/jobs/selfie-cleanup-job",
 ];
 
 // Initialize log4js with SAFE configuration
@@ -172,14 +176,24 @@ app.set("trust proxy", true);
 // request — causing 30-second timeouts when the store is slow. API routes
 // authenticate via the Authorization header and never rely on sessions.
 const sessionMiddleware = session({
+  // Use a service-specific cookie name to prevent collision with other
+  // *.airqo.net services (e.g. vertex) that also set connect.sid cookies
+  // with Domain=.airqo.net. A collision overwrites the auth-service session
+  // between Twitter OAuth 1.0a initiation and callback, causing
+  // "Failed to find request token in session".
+  name: constants.SESSION_COOKIE_NAME || "airqo_auth.sid",
   secret: constants.SESSION_SECRET,
   store: buildSessionStore(),
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProd,
+    secure: isSecureEnv,
     httpOnly: true,
     sameSite: "lax",
+    // Share the session cookie across all *.airqo.net subdomains so that
+    // Twitter OAuth 1.0a request tokens written by one server (e.g. vertex)
+    // are readable by the analytics callback server that handles the redirect.
+    ...(constants.OAUTH_COOKIE_DOMAIN ? { domain: constants.OAUTH_COOKIE_DOMAIN } : {}),
   },
 });
 
@@ -277,6 +291,13 @@ const transactionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
   message: "Too many transaction requests, please try again later",
+  // Key by the HAProxy-set header rather than req.ip, which is influenced by
+  // the permissive trust proxy setting and can be spoofed via X-Forwarded-For.
+  keyGenerator: (req) =>
+    req.headers["x-client-ip"] ||
+    req.headers["x-client-original-ip"] ||
+    req.ip,
+  validate: { trustProxy: false, keyGeneratorIpFallback: false },
 });
 app.use("/api/v2/users/transactions", transactionLimiter);
 
@@ -706,8 +727,9 @@ const createServer = () => {
   });
 
   // Memory usage monitoring (optional - for debugging)
-  if (isDev) {
-    process.on("exit", (code) => {
+  if (isDev && !createServer._exitMonitorRegistered) {
+    createServer._exitMonitorRegistered = true;
+    process.once("exit", (code) => {
       const memUsage = process.memoryUsage();
       console.log(`📊 Process exiting with code ${code}. Memory usage:`, {
         rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,

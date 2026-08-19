@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { AqHome01, AqBarChart01, AqSettings01 } from '../components';
+import { AqAirQlouds, AqHome01, AqBarChart01, AqSettings01, AqSites } from '../components';
 
 describe('Vue Icon Components', () => {
   it('should render AqHome01 icon correctly', () => {
@@ -39,6 +39,17 @@ describe('Vue Icon Components', () => {
     });
     // Check that the component receives the color prop
     expect(wrapper.vm.color).toBe('#ff0000');
+  });
+
+  it.each([
+    ['AqAirQlouds', AqAirQlouds],
+    ['AqSites', AqSites],
+  ])('should apply color to %s paths', (_name, Icon) => {
+    const wrapper = mount(Icon, {
+      props: { color: '#ff0000' },
+    });
+
+    expect(wrapper.find('path').attributes('fill')).toBe('#ff0000');
   });
 
   it('should have default props', () => {

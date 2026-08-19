@@ -7,6 +7,7 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 const groupUtil = require("@utils/group.util");
+const requestUtil = require("@utils/request.util");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -533,6 +534,65 @@ const groupController = {
     }
   },
 
+  discover: async (req, res, next) => {
+    try {
+      logText("discovering groups....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      // Forced, never caller-overridable: only the lean, already-safe
+      // "summary" projection (excludes grp_users/grp_manager) is exposed to
+      // this authenticated-only, membership-independent endpoint, and only
+      // ACTIVE groups are discoverable — a caller-supplied grp_status could
+      // otherwise be used to enumerate inactive/unconfigured groups.
+      request.query.category = "summary";
+      request.query.grp_status = "ACTIVE";
+
+      const result = await groupUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          groups: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+
   // Enhanced set manager with automatic role assignment
   enhancedSetManager: (req, res, next) => {
     logText("enhancedSetManager called");
@@ -735,8 +795,66 @@ const groupController = {
     }
   },
 
-  sendGroupInvitations: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.sendGroupInvitations),
+  // Delegates to the same canonical implementation as
+  // POST /requests/emails/groups/:grp_id — see requestUtil.requestAccessToGroupByEmail.
+  // Not routed through executeGroupAction: mirrors
+  // request.controller.js's requestAccessToGroupByEmail response shape
+  // (the `request` key, not `data`) so both routes return identical
+  // payloads for the same underlying operation.
+  sendGroupInvitations: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await requestUtil.requestAccessToGroupByEmail(
+        request,
+        next,
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          request: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
 
   listGroupInvitations: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listGroupInvitations),
@@ -851,6 +969,9 @@ const groupController = {
 
   listGroupCohorts: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listGroupCohorts),
+
+  updateOnboarding: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateOnboarding),
 
   leaveGroup: async (req, res, next) => {
     try {

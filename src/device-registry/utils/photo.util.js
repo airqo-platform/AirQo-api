@@ -206,63 +206,67 @@ const createPhoto = {
       logElement("path", path);
       logElement("resource_type", resource_type);
       logElement("device_name", device_name);
-      return cloudinary.uploader.upload(
-        path,
-        {
-          resource_type: resource_type,
-          public_id: device_name,
-          chunk_size: 6000000,
-          eager: [
-            { width: 300, height: 300, crop: "pad", audio_codec: "none" },
-            {
-              width: 160,
-              height: 100,
-              crop: "crop",
-              gravity: "south",
-              audio_codec: "none",
-            },
-          ],
-          eager_async: true,
-          eager_notification_url: "",
-        },
-        function(error, result) {
-          if (error) {
-            return {
-              success: false,
-              message: "unable to upload image",
-              errors: {
-                message: error,
+      return new Promise((resolve) => {
+        cloudinary.uploader.upload(
+          path,
+          {
+            resource_type: resource_type,
+            public_id: device_name,
+            chunk_size: 6000000,
+            eager: [
+              { width: 300, height: 300, crop: "pad", audio_codec: "none" },
+              {
+                width: 160,
+                height: 100,
+                crop: "crop",
+                gravity: "south",
+                audio_codec: "none",
               },
-              status: httpStatus.BAD_GATEWAY,
-            };
+            ],
+            eager_async: true,
+            eager_notification_url: "",
+          },
+          function(error, result) {
+            if (error) {
+              resolve({
+                success: false,
+                message: "unable to upload image",
+                errors: {
+                  message: error.message || error,
+                },
+                status: httpStatus.BAD_GATEWAY,
+              });
+              return;
+            }
+            if (result) {
+              let response = {};
+              response["body"] = {};
+              response["body"]["image_code"] = result.public_id;
+              response["body"]["image_url"] = result.secure_url;
+              response["body"]["metadata"] = {};
+              response["body"]["metadata"]["public_id"] = result.public_id;
+              response["body"]["metadata"]["version"] = result.version;
+              response["body"]["metadata"]["signature"] = result.signature;
+              response["body"]["metadata"]["width"] = result.width;
+              response["body"]["metadata"]["height"] = result.height;
+              response["body"]["metadata"]["format"] = result.format;
+              response["body"]["metadata"]["resource_type"] =
+                result.resource_type;
+              response["body"]["metadata"]["created_at"] = result.created_at;
+              response["body"]["metadata"]["bytes"] = result.bytes;
+              response["body"]["metadata"]["type"] = result.type;
+              response["body"]["metadata"]["url"] = result.url;
+              response["body"]["metadata"]["secure_url"] = result.secure_url;
+              resolve({
+                success: true,
+                message: "successfully uploaded the media",
+                data: response,
+                status: httpStatus.OK,
+              });
+            }
           }
-          if (result) {
-            let response = {};
-            response["body"]["image_code"] = result.public_id;
-            response["body"]["image_url"] = result.secure_url;
-            response["body"]["metadata"] = {};
-            response["body"]["metadata"]["public_id"] = result.public_id;
-            response["body"]["metadata"]["version"] = result.version;
-            response["body"]["metadata"]["signature"] = result.signature;
-            response["body"]["metadata"]["width"] = result.width;
-            response["body"]["metadata"]["height"] = result.height;
-            response["body"]["metadata"]["format"] = result.format;
-            response["body"]["metadata"]["resource_type"] =
-              result.resource_type;
-            response["body"]["metadata"]["created_at"] = result.created_at;
-            response["body"]["metadata"]["bytes"] = result.bytes;
-            response["body"]["metadata"]["type"] = result.type;
-            response["body"]["metadata"]["url"] = result.url;
-            response["body"]["metadata"]["secure_url"] = result.secure_url;
-            return {
-              success: true,
-              message: "successfully uploaded the media",
-              data: response,
-              status: httpStatus.OK,
-            };
-          }
-        }
-      );
+        );
+      });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -398,7 +402,7 @@ const createPhoto = {
   extractImageIds: (request, next) => {
     try {
       const { image_urls } = request.body;
-      const { device_name, device_id, site_id, airqloud_id } = request.query;
+      const { device_name, device_id, site_id } = request.query;
       let photoNamesWithoutExtension = [];
       image_urls.forEach((imageURL) => {
         logElement("the imageURL", imageURL);
@@ -415,8 +419,7 @@ const createPhoto = {
             responseFromGetLastPath.data.thirdLastSegment
           }/${device_name ||
             site_id ||
-            device_id ||
-            airqloud_id}/${cloudinaryPublicId}`;
+            device_id}/${cloudinaryPublicId}`;
           photoNamesWithoutExtension.push(
             prependFolderNameToCloudinaryPublicId
           );
@@ -538,14 +541,13 @@ const createPhoto = {
     try {
       let { body, query } = request;
       let { tenant } = query;
-      let { image_url, device_name, device_id, site_id, airqloud_id } = body;
+      let { image_url, device_name, device_id, site_id } = body;
       let requestForImageIdExtraction = {};
       requestForImageIdExtraction["body"] = {};
       requestForImageIdExtraction["query"] = {};
       requestForImageIdExtraction["query"]["device_name"] = device_name;
       requestForImageIdExtraction["query"]["device_id"] = device_id;
       requestForImageIdExtraction["query"]["site_id"] = site_id;
-      requestForImageIdExtraction["query"]["airqloud_id"] = airqloud_id;
       requestForImageIdExtraction["body"]["image_urls"] = [];
       requestForImageIdExtraction["body"]["image_urls"].push(image_url);
       const responseFromExtractImage = await createPhoto.extractImageIds(

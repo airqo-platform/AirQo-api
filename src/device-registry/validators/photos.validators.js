@@ -108,19 +108,6 @@ const commonValidations = {
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    body("airqloud_id")
-      .exists()
-      .withMessage(
-        "a key photo identifier is missing in the request, consider adding a airqloud_id",
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("airqloud_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
   ]),
   deviceDetails: [
     body("device_number")
@@ -176,18 +163,6 @@ const commonValidations = {
       .isInt()
       .withMessage("should be an integer value"),
     body("device_id")
-      .optional()
-      .notEmpty()
-      .withMessage("cannot be empty")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    body("airqloud_id")
       .optional()
       .notEmpty()
       .withMessage("cannot be empty")
@@ -318,7 +293,6 @@ const photoValidations = {
         ...commonValidations.deviceNumber,
         ...commonValidations.deviceName,
         commonValidations.validObjectId("device_id", false),
-        commonValidations.validObjectId("airqloud_id", false),
       ],
     ]),
 
@@ -342,11 +316,10 @@ const photoValidations = {
     oneOf([
       commonValidations.validObjectId("site_id", true, body),
       commonValidations.validObjectId("device_id", true, body),
-      commonValidations.validObjectId("airqloud_id", true, body),
       body("device_name")
         .exists()
         .withMessage(
-          "a key photo identifier is missing in the request, consider adding either  device_name (preferred) or airqloud_id or device_id or site_id",
+          "a key photo identifier is missing in the request, consider adding either device_name (preferred) or device_id or site_id",
         )
         .bail()
         .trim()

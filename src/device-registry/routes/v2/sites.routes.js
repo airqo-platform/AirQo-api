@@ -107,13 +107,6 @@ router.get(
   pagination(),
   siteController.listNearestWeatherStation
 );
-router.get(
-  "/airqlouds/",
-  validateTenant,
-  validateMandatorySiteIdentifier,
-  pagination(),
-  siteController.findAirQlouds
-);
 router.post("/", validateTenant, validateCreateSite, siteController.register);
 router.post(
   "/metadata",

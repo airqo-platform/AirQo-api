@@ -45,6 +45,109 @@ const handleError = (error, next) => {
   );
 };
 
+const NEXUS_ORIGIN = (() => {
+  try {
+    return constants.NEXUS_BASE_URL
+      ? new URL(constants.NEXUS_BASE_URL).origin
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
+function validateRedirectUrl(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      // Custom-scheme deep links (e.g. vertex://, airqo://) are allowed against an
+      // explicit prefix list instead of origin comparison.
+      const allowedPrefixes = (
+        constants.ALLOWED_CUSTOM_SCHEME_PREFIXES || "vertex://,airqo://"
+      )
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // Schemes are case-insensitive per RFC 3986, so normalise before comparing.
+      const rawLower = raw.toLowerCase();
+      return allowedPrefixes.some((prefix) =>
+        rawLower.startsWith(prefix.toLowerCase())
+      )
+        ? raw
+        : null;
+    }
+    const origin = parsed.origin;
+    const candidates = [
+      constants.NEXUS_BASE_URL,
+      constants.VERTEX_BASE_URL,
+      constants.ALLOWED_REDIRECT_ORIGINS,
+    ].filter(Boolean);
+    const allowed = new Set();
+    for (const entry of candidates) {
+      for (const s of entry.split(",")) {
+        try { allowed.add(new URL(s.trim()).origin); } catch {}
+      }
+    }
+    if (process.env.NODE_ENV !== "production") {
+      allowed.add("http://localhost:3000");
+      allowed.add("http://localhost:5000");
+    }
+    return allowed.has(origin) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveOAuthRedirectContext(req, res) {
+  const rawRedirectUrl =
+    (req.cookies && req.cookies["_oauth_redirect_after"]) ||
+    (req.session && req.session.oauthRedirectAfter) ||
+    null;
+  const validatedUrl = validateRedirectUrl(rawRedirectUrl);
+  if (req.cookies && req.cookies["_oauth_redirect_after"]) {
+    const clearOpts = { path: "/" };
+    if (constants.OAUTH_COOKIE_DOMAIN) clearOpts.domain = constants.OAUTH_COOKIE_DOMAIN;
+    res.clearCookie("_oauth_redirect_after", clearOpts);
+  }
+  if (req.session) delete req.session.oauthRedirectAfter;
+  let redirectOrigin = null;
+  if (validatedUrl) {
+    try {
+      const parsed = new URL(validatedUrl);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        redirectOrigin = parsed.origin;
+      }
+      // Custom-scheme URLs (e.g. vertex://) have no web origin — leave null so
+      // failure redirects fall through to the default Nexus failure URL.
+    } catch {}
+  }
+  let failureRedirectUrl;
+  if (redirectOrigin && redirectOrigin !== NEXUS_ORIGIN) {
+    failureRedirectUrl = `${redirectOrigin}/login?error=oauth_failed`;
+  } else {
+    const base =
+      constants.GMAIL_VERIFICATION_FAILURE_REDIRECT ||
+      (redirectOrigin ? `${redirectOrigin}/user/login` : "/");
+    const hasErrorParam = /[?&]error=/.test(base);
+    const sep = base.includes("?") ? "&" : "?";
+    failureRedirectUrl = hasErrorParam ? base : `${base}${sep}error=oauth_failed`;
+  }
+  return { validatedUrl, redirectOrigin, failureRedirectUrl };
+}
+
+function buildSuccessRedirectUrl(base, successParam, token) {
+  try {
+    const url = new URL(base);
+    url.searchParams.set("success", successParam);
+    url.hash = `token=${encodeURIComponent(token)}`;
+    return url.toString();
+  } catch {
+    // Fallback for relative paths (e.g. when GMAIL_VERIFICATION_SUCCESS_REDIRECT is unset)
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}success=${encodeURIComponent(successParam)}#token=${encodeURIComponent(token)}`;
+  }
+}
+
 const sendResponse = (res, result, dataKey = "data") => {
   if (isEmpty(result) || res.headersSent) {
     return;
@@ -157,6 +260,8 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
+      const { validatedUrl, failureRedirectUrl } = resolveOAuthRedirectContext(req, res);
+
       // Guard: req.user must be set by Passport before this controller runs.
       // If it is missing, Passport failed silently or the middleware chain
       // was misconfigured. Redirect to failure rather than throwing.
@@ -165,11 +270,7 @@ const userController = {
           "googleCallback: req.user is not set after passport auth — " +
             "redirecting to failure URL",
         );
-        if (!res.headersSent) {
-          return res.redirect(
-            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
-          );
-        }
+        if (!res.headersSent) return res.redirect(failureRedirectUrl);
         return;
       }
 
@@ -189,11 +290,7 @@ const userController = {
           `googleCallback: user ${req.user._id} not found after OAuth — ` +
             `redirecting to failure URL`,
         );
-        if (!res.headersSent) {
-          return res.redirect(
-            `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
-          );
-        }
+        if (!res.headersSent) return res.redirect(failureRedirectUrl);
         return;
       }
 
@@ -229,15 +326,10 @@ const userController = {
         }
       })();
 
-      const redirectAfter =
-        (req.session && req.session.oauthRedirectAfter) || null;
-      if (req.session) delete req.session.oauthRedirectAfter;
-      const baseRedirect = (
-        redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
-      ).replace(/\/$/, "");
-      res.redirect(
-        `${baseRedirect}/user/home?success=google#token=${encodeURIComponent(token)}`,
-      );
+      const baseRedirect = validatedUrl
+        ? validatedUrl.replace(/\/$/, "")
+        : (constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || "").replace(/\/$/, "") + "/user/home";
+      res.redirect(buildSuccessRedirectUrl(baseRedirect, "google", token));
     } catch (error) {
       handleError(error, next);
     }
@@ -257,9 +349,11 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
+      const { validatedUrl, failureRedirectUrl } = resolveOAuthRedirectContext(req, res);
+
       if (!req.user) {
         logger.error("oauthCallback: req.user is not set after passport auth");
-        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+        return res.redirect(failureRedirectUrl);
       }
 
       const { tenant } = request.query;
@@ -290,7 +384,7 @@ const userController = {
         logger.error(
           `oauthCallback: user ${req.user._id} not found after refresh`,
         );
-        return res.redirect(`${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`);
+        return res.redirect(failureRedirectUrl);
       }
 
       const userDetails = await freshUser.toAuthJSON();
@@ -328,15 +422,10 @@ const userController = {
         }
       })();
 
-      const redirectAfter =
-        (req.session && req.session.oauthRedirectAfter) || null;
-      if (req.session) delete req.session.oauthRedirectAfter;
-      const baseRedirect = (
-        redirectAfter || constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || ""
-      ).replace(/\/$/, "");
-      return res.redirect(
-        `${baseRedirect}/user/home?success=${encodeURIComponent(providerForLog)}#token=${encodeURIComponent(token)}`,
-      );
+      const baseRedirect = validatedUrl
+        ? validatedUrl.replace(/\/$/, "")
+        : (constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT || "").replace(/\/$/, "") + "/user/home";
+      return res.redirect(buildSuccessRedirectUrl(baseRedirect, providerForLog, token));
     } catch (error) {
       handleError(error, next);
     }
@@ -486,6 +575,7 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
       const result = await userUtil.createFirebaseUser(request, next);
+      if (!result) return;
       sendResponse(res, result[0], "user");
     } catch (error) {
       handleError(error, next);
@@ -746,6 +836,23 @@ const userController = {
       res
         .status(httpStatus.OK)
         .json({ success: true, message: result.message });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  checkEmail: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { email } = request.body;
+      const { tenant } = request.query;
+      const result = await userUtil.checkEmailExists({ email, tenant });
+
+      res.status(httpStatus.OK).json({
+        success: true,
+        exists: result.exists,
+        ...(result.exists ? { authMethods: result.authMethods } : {}),
+      });
     } catch (error) {
       handleError(error, next);
     }
@@ -1821,6 +1928,151 @@ const userController = {
       if (!request) return;
       const result = await userUtil.updateFeedbackStatus(request, next);
       sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  replyToFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.replyToFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateFeedbackNotes: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateFeedbackNotes(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  bulkUpdateFeedbackStatus: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.bulkUpdateFeedbackStatus(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  assignFeedback: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.assignFeedback(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listFeedbackStaff: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listFeedbackStaff(request, next);
+      sendResponse(res, result, "staff");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  addFeedbackWatcher: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.addFeedbackWatcher(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  removeFeedbackWatcher: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.removeFeedbackWatcher(request, next);
+      sendResponse(res, result, "feedback");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  registerWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.registerWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  listWebhooks: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listWebhooks(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          webhooks: result.data,
+          meta: result.meta,
+        });
+      }
+      return res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: result.message,
+        errors: result.errors || { message: "Internal Server Error" },
+      });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  deleteWebhook: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.deleteWebhook(request, next);
+      sendResponse(res, result, "webhook");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  updateOnboarding: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.updateOnboarding(request, next);
+      sendResponse(res, result, "onboarding_checklist");
     } catch (error) {
       handleError(error, next);
     }

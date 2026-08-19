@@ -269,10 +269,22 @@ const authRoutes = [
     description: "Guest user management",
   },
   {
+    path: "/selfies",
+    route: "@routes/v2/selfies.routes",
+    name: "selfies",
+    description: "Clean Air Forum selfie wall submissions and moderation",
+  },
+  {
     path: "/tenant-settings",
     route: "@routes/v2/tenant-settings.routes",
     name: "tenant-settings",
     description: "Multi-tenant settings management",
+  },
+  {
+    path: "/application-email-configs",
+    route: "@routes/v2/application-email-configs.routes",
+    name: "application-email-configs",
+    description: "Application email CC configuration — auto-CCs admins when system emails target app inboxes",
   },
   {
     path: "/privacy",
@@ -400,7 +412,7 @@ function getCategoryForRoute(routeName) {
       "surveys",
     ],
     notifications: ["notification-preferences", "campaigns"],
-    misc: ["checklist", "transactions", "guests"],
+    misc: ["checklist", "transactions", "guests", "selfies"],
   };
 
   for (const [category, routes] of Object.entries(categories)) {

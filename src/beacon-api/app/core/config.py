@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     GCS_BUCKET_NAME: str = ""
     GOOGLE_APPLICATION_CREDENTIALS_JSON: Union[Dict[str, Any], str] = {}
 
+    BEACON_API_SLACK_WEBHOOK_URL: str = ""
+    SLACK_DEV_NOTIFS: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 settings = Settings()

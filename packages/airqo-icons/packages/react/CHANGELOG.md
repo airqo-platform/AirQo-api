@@ -1,5 +1,12 @@
 # @airqo/icons-react
 
+## 0.2.10
+
+### Patch Changes
+
+- Fixed monochrome SVG color handling for `AqAirQlouds` and `AqSites`.
+- Added regression coverage for both public React exports.
+
 ## 0.2.9
 
 ### Patch Changes

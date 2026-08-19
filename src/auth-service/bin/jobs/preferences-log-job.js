@@ -19,9 +19,13 @@ const {
   handleResponse,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logUserPreferences = async () => {
   try {
+    const gotLock = await acquireCronLock("airqo", jobName);
+    if (!gotLock) return;
+
     logText("Starting user preferences logging job...");
     const defaultGroupId = mongoose.Types.ObjectId(constants.DEFAULT_GROUP);
 

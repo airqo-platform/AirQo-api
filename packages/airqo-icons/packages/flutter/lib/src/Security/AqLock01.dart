@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqLock01 icon widget (lock-01.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqLock01 extends StatelessWidget {
+  /// Creates a AqLock01 icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqLock01({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M17 10V8C17 5.23858 14.7614 3 12 3C9.23858 3 7 5.23858 7 8V10M12 14.5V16.5M8.8 21H15.2C16.8802 21 17.7202 21 18.362 20.673C18.9265 20.3854 19.3854 19.9265 19.673 19.362C20 18.7202 20 17.8802 20 16.2V14.8C20 13.1198 20 12.2798 19.673 11.638C19.3854 11.0735 18.9265 10.6146 18.362 10.327C17.7202 10 16.8802 10 15.2 10H8.8C7.11984 10 6.27976 10 5.63803 10.327C5.07354 10.6146 4.6146 11.0735 4.32698 11.638C4 12.2798 4 13.1198 4 14.8V16.2C4 17.8802 4 18.7202 4.32698 19.362C4.6146 19.9265 5.07354 20.3854 5.63803 20.673C6.27976 21 7.11984 21 8.8 21Z" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

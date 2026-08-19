@@ -3,7 +3,11 @@ const express = require("express");
 const router = express.Router();
 const preferenceController = require("@controllers/preference.controller");
 const preferenceValidations = require("@validators/preferences.validators");
+const groupChartConfigController = require("@controllers/group-chart-config.controller");
+const groupChartConfigValidations = require("@validators/group-chart-config.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { requireGroupManagerAccess } = require("@middleware/groupNetworkAuth");
+const { requireGroupMembership } = require("@middleware/permissionAuth");
 const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers); // Keep headers global
@@ -92,29 +96,35 @@ router.get(
   preferenceController.listAll
 );
 
+// Personal chart configuration routes
+// ===========================================
+// Scoped by device_ids/site_ids arrays on the chart itself rather than a
+// single :deviceId path param, so one chart can compare multiple locations
+// at once (e.g. Kampala + Jinja together), each optionally colored via
+// locationColors.
 router.post(
-  "/:deviceId/charts",
+  "/charts",
   enhancedJWTAuth,
   preferenceValidations.createChart,
   preferenceController.createChart
 );
 
 router.put(
-  "/:deviceId/charts/:chartId",
+  "/charts/:chartId",
   enhancedJWTAuth,
   preferenceValidations.updateChart,
   preferenceController.updateChart
 );
 
 router.delete(
-  "/:deviceId/charts/:chartId",
+  "/charts/:chartId",
   enhancedJWTAuth,
   preferenceValidations.deleteChart,
   preferenceController.deleteChart
 );
 
 router.get(
-  "/:deviceId/charts",
+  "/charts",
   enhancedJWTAuth,
   pagination(),
   preferenceValidations.getChartConfigurations,
@@ -122,17 +132,68 @@ router.get(
 );
 
 router.post(
-  "/:deviceId/charts/:chartId/copy",
+  "/charts/:chartId/copy",
   enhancedJWTAuth,
   preferenceValidations.copyChart,
   preferenceController.copyChart
 );
 
 router.get(
-  "/:deviceId/charts/:chartId",
+  "/charts/:chartId",
   enhancedJWTAuth,
   preferenceValidations.getChartConfigurationById,
   preferenceController.getChartConfigurationById
+);
+
+// Group-wide DEFAULT chart configuration routes
+// ===========================================
+// Distinct from the personal /:deviceId/charts routes above: these set a
+// shared default chart within a group/organization context — what everyone
+// viewing that data in the group sees by default, not one user's own saved
+// view. Scoped by device_ids/site_ids arrays in the request body/query
+// rather than a single :deviceId path param, so one saved default can cover
+// multiple devices and/or sites at once (mirrors the old, deprecated
+// Defaults model's sites[]/devices[] shape). Writes require group-manager
+// access; reads only require verified group membership.
+router.post(
+  "/groups/:grp_id/charts",
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  groupChartConfigValidations.create,
+  groupChartConfigController.create
+);
+
+router.put(
+  "/groups/:grp_id/charts/:chartId",
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  groupChartConfigValidations.update,
+  groupChartConfigController.update
+);
+
+router.delete(
+  "/groups/:grp_id/charts/:chartId",
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  groupChartConfigValidations.delete,
+  groupChartConfigController.delete
+);
+
+router.get(
+  "/groups/:grp_id/charts",
+  enhancedJWTAuth,
+  requireGroupMembership(),
+  pagination(),
+  groupChartConfigValidations.list,
+  groupChartConfigController.list
+);
+
+router.get(
+  "/groups/:grp_id/charts/:chartId",
+  enhancedJWTAuth,
+  requireGroupMembership(),
+  groupChartConfigValidations.getById,
+  groupChartConfigController.getById
 );
 
 // Theme routes

@@ -1,193 +1,430 @@
-const express = require("express");
-const request = require("supertest");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-
-// Mock the router
+require("module-alias/register");
+const chai = require("chai");
+const chaiHttp = require("chai-http");
+const { expect } = chai;
+chai.use(chaiHttp);
 const sinon = require("sinon");
-const createPreferenceController = {
-  create: sinon.stub(),
-  list: sinon.stub(),
-  delete: sinon.stub(),
-  addSelectedSites: sinon.stub(),
-  updateSelectedSite: sinon.stub(),
-  deleteSelectedSite: sinon.stub(),
+// .noCallThru() is required, not optional: without it, proxyquire's default
+// "call thru" behavior always `Module._load()`s the REAL stubbed module (to
+// merge in any keys missing from our stub), regardless of whether our stub
+// is already complete. The real @controllers/preference.controller and
+// @middleware/passport transitively require @config/constants, which this
+// test suite cannot survive (see the ut_index.js comment for the full
+// explanation). noCallThru skips that real load entirely.
+const proxyquire = require("proxyquire").noCallThru();
+const supertest = require("supertest");
+const express = require("express");
+const { validationResult } = require("express-validator");
+
+// Express captures each route handler by reference at router-registration
+// time (which happens once, when this router is required), so reassigning
+// e.g. `preferenceController.create` from inside a test has no effect on
+// already-registered routes. Instead we register stable wrapper functions
+// that delegate to a per-test-mutable variable, and stub the auth middleware
+// (which otherwise requires a real JWT) to always call next().
+//
+// preferences.routes.js references every one of these controller methods at
+// require time, so every one of them must resolve to a function on the stub
+// -- even the ones this file doesn't exercise -- or Express throws while
+// registering the routes ("argument handler must be a function").
+let listImpl;
+let createImpl;
+let deleteImpl;
+let addSelectedSitesImpl;
+let updateSelectedSiteImpl;
+let deleteSelectedSiteImpl;
+
+const defaultHandler = (req, res) => res.status(200).json({ success: true });
+
+const preferenceControllerStub = {
+  validatePreferenceData: defaultHandler,
+  upsert: defaultHandler,
+  replace: defaultHandler,
+  update: defaultHandler,
+  create: (req, res) => createImpl(req, res),
+  list: (req, res) => listImpl(req, res),
+  delete: (req, res) => deleteImpl(req, res),
+  listSelectedSites: defaultHandler,
+  addSelectedSites: (req, res) => addSelectedSitesImpl(req, res),
+  updateSelectedSite: (req, res) => updateSelectedSiteImpl(req, res),
+  deleteSelectedSite: (req, res) => deleteSelectedSiteImpl(req, res),
+  getMostRecent: defaultHandler,
+  listAll: defaultHandler,
+  createChart: defaultHandler,
+  updateChart: defaultHandler,
+  deleteChart: defaultHandler,
+  getChartConfigurations: defaultHandler,
+  copyChart: defaultHandler,
+  getChartConfigurationById: defaultHandler,
+  getUserPersonalTheme: defaultHandler,
+  updateUserPersonalTheme: defaultHandler,
+  getUserGroupTheme: defaultHandler,
+  updateUserGroupTheme: defaultHandler,
+  getUserDefaultGroupTheme: defaultHandler,
+  updateUserDefaultGroupTheme: defaultHandler,
+  getUserNetworkTheme: defaultHandler,
+  updateUserNetworkTheme: defaultHandler,
+  getUserDefaultNetworkTheme: defaultHandler,
+  updateUserDefaultNetworkTheme: defaultHandler,
+  getGroupTheme: defaultHandler,
+  updateGroupTheme: defaultHandler,
+  getNetworkTheme: defaultHandler,
+  updateNetworkTheme: defaultHandler,
+  getEffectiveTheme: defaultHandler,
 };
 
-describe("Preference Controller Tests", () => {
+const passportStub = {
+  enhancedJWTAuth: (req, res, next) => next(),
+};
+
+const router = proxyquire("../preferences.routes", {
+  "@controllers/preference.controller": preferenceControllerStub,
+  "@middleware/passport": passportStub,
+});
+
+// A couple of realistic-looking 24-char hex ObjectId strings for tests that
+// need to pass isMongoId() checks.
+const VALID_USER_ID = "60d21b4667d0d8992e610c85";
+const VALID_SITE_ID = "60d21b4667d0d8992e610c86";
+
+describe("Preferences Router API Tests", () => {
   let app;
+  let request;
 
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    app.use((req, res, next) => {
-      req.query = {};
-      req.body = {};
-      req.params = {};
-      next();
-    });
-
-    // Import and apply middleware
-    const { validatePagination, headers } = require("./middleware");
-
-    app.use(validatePagination);
-    app.use(headers);
-
-    // Import routes
-    const router = require("./routes");
-    app.use("/api/preferences", router);
+    app.use("/", router);
+    request = supertest(app);
   });
 
-  describe("POST /api/preferences", () => {
-    it("should validate required fields", async () => {
-      const response = await request(app)
-        .post("/api/preferences")
-        .send({
-          user_id: "1234567890abcdef1234567890abcdef",
-          chartTitle: "Test Chart Title",
-          period: {},
-          site_ids: ["1234567890abcdef1234567890abcdef"],
-          device_ids: ["1234567890abcdef1234567890abcdef"],
-          selected_sites: [],
-        })
-        .expect(200);
+  afterEach(() => {
+    sinon.restore();
+  });
 
-      expect(response.body).toBeDefined();
+  describe("GET / (list)", () => {
+    it("should list preferences successfully", async () => {
+      listImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ preferences: [] });
+      };
+
+      const response = await request.get("/").expect(200);
+
+      expect(response.body.preferences).to.deep.equal([]);
     });
 
-    it("should fail validation for missing required fields", async () => {
-      await request(app).post("/api/preferences").send({}).expect(400);
+    it("should return a 400 error if the tenant query param is invalid", async () => {
+      listImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ preferences: [] });
+      };
+
+      // Unlike permissions.validators.js, preferences.validators.js's
+      // `tenant` chain is NOT wrapped in oneOf(), so an invalid tenant
+      // surfaces its .withMessage() text directly as errors[0].msg, not
+      // nested under errors[0].nestedErrors.
+      const response = await request
+        .get("/")
+        .query({ tenant: "invalid-tenant" })
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal(
+        "the tenant value is not among the expected ones"
+      );
     });
 
-    it("should handle partial valid data", async () => {
-      const response = await request(app)
-        .post("/api/preferences")
-        .send({
-          user_id: "1234567890abcdef1234567890abcdef",
-          chartTitle: "Partial Data Test",
-        })
-        .expect(200);
+    it("should return a 400 error if a body/query filter is invalid", async () => {
+      listImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ preferences: [] });
+      };
 
-      expect(response.body).toBeDefined();
-      // Add more specific assertions based on your API's behavior with partial data
+      // `list` also runs commonValidations.preferenceBody, which wraps a
+      // single group of otherwise-independent field chains in oneOf(), so a
+      // failure inside it (here: an invalid site_id query param) surfaces as
+      // a generic "Invalid value(s)" with the real message under
+      // nestedErrors.
+      const response = await request
+        .get("/")
+        .query({ site_id: "not-a-valid-id" })
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal("Invalid value(s)");
+      expect(response.body.errors[0].nestedErrors[0].msg).to.equal(
+        "the site_id must be an object ID"
+      );
+    });
+  });
+
+  describe("POST / (create)", () => {
+    it("should create a preference", async () => {
+      createImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(201).json({ preference: { user_id: VALID_USER_ID } });
+      };
+
+      const response = await request
+        .post("/")
+        .send({ user_id: VALID_USER_ID })
+        .expect(201);
+
+      expect(response.body.preference.user_id).to.equal(VALID_USER_ID);
     });
 
-    it("should reject invalid data types", async () => {
-      const response = await request(app)
-        .post("/api/preferences")
+    it("should return a 400 error if user_id is missing", async () => {
+      createImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(201).json({ preference: {} });
+      };
+
+      // `create` requires either a :user_id route param (absent here, since
+      // this route is POST /) or a body.user_id, via oneOf([param, body]).
+      // With neither present, both branches fail and their messages land in
+      // nestedErrors in declaration order (param branch, then body branch).
+      const response = await request.post("/").send({}).expect(400);
+
+      expect(response.body.errors[0].msg).to.equal("Invalid value(s)");
+      expect(response.body.errors[0].nestedErrors[0].msg).to.equal(
+        "the record's identifier is missing in request, consider using the user_id"
+      );
+      expect(response.body.errors[0].nestedErrors[1].msg).to.equal(
+        "the user_id should be provided in the request body"
+      );
+    });
+
+    it("should return a 400 error if pollutant is not among the accepted values", async () => {
+      createImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(201).json({ preference: {} });
+      };
+
+      const response = await request
+        .post("/")
+        .send({ user_id: VALID_USER_ID, pollutant: "invalid_pollutant" })
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal("Invalid value(s)");
+      expect(response.body.errors[0].nestedErrors[0].msg).to.equal(
+        "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
+      );
+    });
+
+    it("should return a 400 error if a selected_sites entry is missing a required field", async () => {
+      createImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(201).json({ preference: {} });
+      };
+
+      // The selected_sites check for `create` is a plain (non-express-
+      // validator) middleware that responds directly with a different error
+      // shape, and it never even reaches createImpl.
+      const response = await request
+        .post("/")
         .send({
-          user_id: 12345, // Should be a string
-          chartTitle: ["Invalid Title"], // Should be a string
-          period: "Invalid Period", // Should be an object
+          user_id: VALID_USER_ID,
+          selected_sites: [{ _id: VALID_SITE_ID, search_name: "Kampala" }],
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty("error");
-      // Add more specific assertions based on your error response structure
-    });
-
-    it("should return the correct response structure", async () => {
-      const response = await request(app)
-        .post("/api/preferences")
-        .send({
-          // ... valid data ...
-        })
-        .expect(200);
-
-      expect(response.body).toHaveProperty("id");
-      expect(response.body).toHaveProperty("user_id");
-      // Add more assertions to check all expected properties
+      expect(response.body.success).to.equal(false);
+      expect(response.body.errors["selected_sites[0]"]).to.deep.equal([
+        'Field "name" is missing',
+      ]);
     });
   });
 
-  describe("GET /api/preferences", () => {
-    it("should return preferences", async () => {
-      const response = await request(app).get("/api/preferences").expect(200);
-      expect(response.body).toBeDefined();
+  describe("DELETE /:user_id", () => {
+    it("should delete a preference", async () => {
+      deleteImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      await request.delete(`/${VALID_USER_ID}`).expect(200);
+    });
+
+    it("should return a 400 error if user_id is not a valid ObjectId", async () => {
+      deleteImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      // deletePreference's param("user_id") chain is a plain chain, not
+      // wrapped in oneOf, so its message is the direct top-level msg.
+      const response = await request
+        .delete("/not-a-valid-id")
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal(
+        "user_id must be an object ID"
+      );
     });
   });
 
-  describe("DELETE /api/preferences/:user_id", () => {
-    it("should delete preference", async () => {
-      const response = await request(app)
-        .delete("/api/preferences/1234567890abcdef1234567890abcdef")
-        .expect(204);
-      expect(createPreferenceController.delete).toHaveBeenCalled();
-    });
-  });
-
-  describe("GET /api/preferences/selected-sites", () => {
-    it("should return selected sites", async () => {
-      const response = await request(app)
-        .get("/api/preferences/selected-sites")
-        .expect(200);
-      expect(createPreferenceController.listSelectedSites).toHaveBeenCalled();
-    });
-  });
-
-  describe("POST /api/preferences/selected-sites", () => {
+  describe("POST /selected-sites (addSelectedSites)", () => {
     it("should add selected sites", async () => {
-      const response = await request(app)
-        .post("/api/preferences/selected-sites")
+      addSelectedSitesImpl = (req, res) => {
+        return res.status(200).json({ success: true });
+      };
+
+      await request
+        .post("/selected-sites")
         .send({
           selected_sites: [
             {
-              _id: "1234567890abcdef1234567890abcdef",
-              search_name: "Test Site",
-              name: "Test Name",
-              latitude: 37.7749,
-              longitude: -122.4194,
-              approximate_latitude: 37.775,
-              approximate_longitude: -122.42,
-              search_radius: 100,
-              site_tags: ["tag1", "tag2"],
+              site_id: VALID_SITE_ID,
+              search_name: "Kampala",
+              name: "Kampala Site",
             },
           ],
         })
         .expect(200);
-      expect(createPreferenceController.addSelectedSites).toHaveBeenCalled();
     });
-  });
 
-  describe("PUT /api/preferences/selected-sites/:site_id", () => {
-    it("should update selected site", async () => {
-      const response = await request(app)
-        .put("/api/preferences/selected-sites/1234567890abcdef1234567890abcdef")
+    it("should return a 400 error if a required field is missing", async () => {
+      addSelectedSitesImpl = (req, res) => {
+        return res.status(200).json({ success: true });
+      };
+
+      const response = await request
+        .post("/selected-sites")
+        .send({ selected_sites: [{ site_id: VALID_SITE_ID }] })
+        .expect(400);
+
+      expect(response.body.success).to.equal(false);
+      expect(response.body.errors["selected_sites[0]"]).to.deep.equal([
+        'Field "search_name" is missing',
+        'Field "name" is missing',
+      ]);
+    });
+
+    it("should return a 400 error if _id is provided (not allowed here)", async () => {
+      addSelectedSitesImpl = (req, res) => {
+        return res.status(200).json({ success: true });
+      };
+
+      // addSelectedSites validates with allowId=false, unlike create's
+      // allowId=true -- so _id is rejected here even though it is accepted
+      // on create.
+      const response = await request
+        .post("/selected-sites")
         .send({
-          selected_site: {
-            _id: "1234567890abcdef1234567890abcdef",
-            search_name: "Updated Test Site",
-            name: "Updated Test Name",
-            latitude: 37.775,
-            longitude: -122.42,
-            approximate_latitude: 37.775,
-            approximate_longitude: -122.42,
-            search_radius: 100,
-            site_tags: ["updated_tag1", "updated_tag2"],
-          },
+          selected_sites: [
+            {
+              _id: VALID_SITE_ID,
+              site_id: VALID_SITE_ID,
+              search_name: "Kampala",
+              name: "Kampala Site",
+            },
+          ],
         })
-        .expect(200);
-      expect(createPreferenceController.updateSelectedSite).toHaveBeenCalled();
+        .expect(400);
+
+      expect(response.body.errors["selected_sites[0]"]).to.deep.equal([
+        "_id field is not allowed",
+      ]);
     });
   });
 
-  describe("DELETE /api/preferences/selected-sites/:site_id", () => {
-    it("should delete selected site", async () => {
-      const response = await request(app)
-        .delete(
-          "/api/preferences/selected-sites/1234567890abcdef1234567890abcdef"
-        )
-        .expect(204);
-      expect(createPreferenceController.deleteSelectedSite).toHaveBeenCalled();
+  describe("PUT /selected-sites/:site_id (updateSelectedSite)", () => {
+    it("should update a selected site", async () => {
+      updateSelectedSiteImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      await request
+        .put(`/selected-sites/${VALID_SITE_ID}`)
+        .send({})
+        .expect(200);
+    });
+
+    it("should return a 400 error if site_id is not a valid ObjectId", async () => {
+      updateSelectedSiteImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      // Not wrapped in oneOf, so the message is the direct top-level msg.
+      const response = await request
+        .put("/selected-sites/not-a-valid-id")
+        .send({})
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal(
+        "site_id must be a valid MongoDB ObjectId"
+      );
     });
   });
 
-  describe("GET /api/preferences/:user_id", () => {
-    it("should return preference details", async () => {
-      const response = await request(app)
-        .get("/api/preferences/1234567890abcdef1234567890abcdef")
-        .expect(200);
-      expect(response.body).toBeDefined();
+  describe("DELETE /selected-sites/:site_id (deleteSelectedSite)", () => {
+    it("should delete a selected site", async () => {
+      deleteSelectedSiteImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      await request.delete(`/selected-sites/${VALID_SITE_ID}`).expect(200);
     });
+
+    it("should return a 400 error if site_id is not a valid ObjectId", async () => {
+      deleteSelectedSiteImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      const response = await request
+        .delete("/selected-sites/not-a-valid-id")
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal(
+        "site_id must be a valid MongoDB ObjectId"
+      );
+    });
+  });
+
+  // Dummy test to keep Mocha from exiting prematurely
+  it("Dummy test to keep Mocha from exiting prematurely", () => {
+    expect(true).to.equal(true);
   });
 });

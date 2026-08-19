@@ -16,7 +16,7 @@ const TOKEN_STRATEGIES = Object.freeze({
 
 const numericals = {
   TOKEN_STRATEGIES,
-  PASSWORD_REGEX: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/,
+  PASSWORD_REGEX: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.()+_-]{6,}$/,
   JWT_EXPIRES_IN_SECONDS: Number.isFinite(
     Number(process.env.JWT_EXPIRES_IN_SECONDS),
   )
@@ -56,6 +56,10 @@ const numericals = {
   // ── Security / notification thresholds ────────────────────────────────────
   COMPROMISED_TOKEN_COOLDOWN_DAYS: 30,
   EXPIRING_TOKEN_REMINDER_DAYS: 7,
+  // Days-before-expiry at which token-expiration-job sends a reminder email.
+  // Each value gets its own reminder (e.g. a 5-day-out email, then a
+  // separate 2-day-out email) — see token-expiration-job.js.
+  TOKEN_EXPIRY_REMINDER_DAY_THRESHOLDS: [5, 2],
   MAX_BOT_ALERTS_PER_DAY: 2,
 
   // ── Validation regex patterns ─────────────────────────────────────────────

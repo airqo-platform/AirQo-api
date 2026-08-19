@@ -12,6 +12,7 @@ const { getSchedule } = require("@utils/common");
 // Job configuration
 const JOB_NAME = "sync-networks-job";
 const JOB_SCHEDULE = getSchedule("0 */1 * * *", constants.ENVIRONMENT); // Every hour
+const MAX_INITIAL_JITTER_MS = 60000; // Up to 60s — spreads pod starts across the minute
 
 // Global state management
 let isJobRunning = false;
@@ -57,9 +58,7 @@ const initializeApiClient = () => {
     (response) => response,
     (error) => {
       if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN") {
-        logger.error(
-          `API DNS resolution error for ${error.config?.baseURL}. Check API_BASE_URL and network connectivity.`,
-        );
+        // DNS errors are logged with retry context in the fetch catch block
       } else if (error.code === "ECONNABORTED") {
         logger.error(
           `API request timeout: ${error.config?.url}`,
@@ -130,10 +129,15 @@ const fetchAuthServiceNetworks = async () => {
           success = false;
         }
       } catch (error) {
-        logger.error(
-          `Error on page ${page} calling auth-service. Message: ${
-            error.message
-          }. Code: ${error.code || "N/A"}`,
+        const isTransient =
+          error.code === "EAI_AGAIN" || error.code === "ENOTFOUND";
+        const isLastAttempt = attempt === MAX_RETRIES;
+        const logFn =
+          isTransient && !isLastAttempt ? logger.warn : logger.error;
+        const prefix = logFn === logger.error ? "🐛🐛" : "⚠️";
+        logFn.call(
+          logger,
+          `${prefix} Error on page ${page} calling auth-service. Message: ${error.message}. Code: ${error.code || "N/A"}`,
         );
         hasMore = false;
         success = false;
@@ -330,6 +334,9 @@ const start = () => {
   const cronJob = cron.schedule(
     JOB_SCHEDULE,
     async () => {
+      // Stagger pod starts to prevent thundering herd on auth-service at the hour boundary
+      const jitterMs = Math.floor(Math.random() * MAX_INITIAL_JITTER_MS);
+      await new Promise((res) => setTimeout(res, jitterMs));
       await performNetworkSync();
     },
     {

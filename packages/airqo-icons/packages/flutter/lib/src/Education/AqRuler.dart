@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+/// AqRuler icon widget (ruler.svg)
+/// 
+/// A customizable SVG icon widget with configurable size and color.
+class AqRuler extends StatelessWidget {
+  /// Creates a AqRuler icon widget.
+  /// 
+  /// The [size] parameter controls both width and height of the icon.
+  /// The [color] parameter overrides the default icon color.
+  /// The [semanticsLabel] parameter provides accessibility support.
+  const AqRuler({
+    super.key,
+    this.size = 24.0,
+    this.color,
+    this.semanticsLabel,
+  });
+
+  /// The size of the icon (width and height).
+  final double size;
+
+  /// The color to apply to the icon. If null, uses the default SVG colors.
+  final Color? color;
+
+  /// The semantic label for accessibility.
+  final String? semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M14.5 5.50001L16 7.00001M11.5 8.50001L13 10M8.50003 11.5L10 13M5.50003 14.5L7.00003 16M2.56567 17.5657L6.4343 21.4344C6.63231 21.6324 6.73131 21.7314 6.84548 21.7685C6.9459 21.8011 7.05407 21.8011 7.15449 21.7685C7.26866 21.7314 7.36766 21.6324 7.56567 21.4344L21.4343 7.56573C21.6323 7.36772 21.7313 7.26872 21.7684 7.15455C21.801 7.05413 21.801 6.94596 21.7684 6.84554C21.7313 6.73137 21.6323 6.63237 21.4343 6.43436L17.5657 2.56573C17.3677 2.36772 17.2687 2.26872 17.1545 2.23163C17.0541 2.199 16.9459 2.199 16.8455 2.23163C16.7313 2.26872 16.6323 2.36772 16.4343 2.56573L2.56567 16.4344C2.36766 16.6324 2.26866 16.7314 2.23156 16.8455C2.19894 16.946 2.19894 17.0541 2.23156 17.1546C2.26866 17.2687 2.36766 17.3677 2.56567 17.5657Z" stroke="#1C1D20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>''',
+        colorFilter: color != null 
+            ? ColorFilter.mode(color!, BlendMode.srcIn)
+            : null,
+        semanticsLabel: semanticsLabel,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+}

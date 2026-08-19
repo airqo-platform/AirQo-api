@@ -154,34 +154,40 @@ const updateName = [
 
 const list = [
   validateTenant,
-  oneOf([
-    query("grp_id")
-      .optional()
-      .isMongoId()
-      .withMessage("grp_id must be an object ID IF provided")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("grp_title")
-      .optional()
-      .trim()
-      .notEmpty()
-      .withMessage("grp_title should not be empty IF provided")
-      .bail(),
-    query("grp_status")
-      .optional()
-      .trim()
-      .notEmpty()
-      .withMessage("grp_status should not be empty IF provided")
-      .bail()
-      .trim()
-      .toUpperCase()
-      .isIn(["INACTIVE", "ACTIVE"])
-      .withMessage(
-        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
-      ),
-  ]),
+  query("grp_id")
+    .optional()
+    .isMongoId()
+    .withMessage("grp_id must be an object ID IF provided")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
+  query("grp_title")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("grp_title should not be empty IF provided")
+    .bail(),
+  query("grp_status")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("grp_status should not be empty IF provided")
+    .bail()
+    .trim()
+    .toUpperCase()
+    .isIn(["INACTIVE", "ACTIVE"])
+    .withMessage(
+      "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE",
+    ),
+  query("cohort_id")
+    .optional()
+    .isMongoId()
+    .withMessage("cohort_id must be a valid ObjectId IF provided")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
 ];
 
 const create = [
@@ -1074,6 +1080,33 @@ const listGroupCohorts = [validateTenant, validateGroupIdParam];
 
 const leaveGroup = [validateTenant, validateGroupIdParam];
 
+const updateOnboarding = [
+  validateTenant,
+  validateGroupIdParam,
+  body("action")
+    .exists()
+    .withMessage("action is required")
+    .bail()
+    .isIn(["mark_step_complete", "dismiss_checklist"])
+    .withMessage(
+      "action must be one of: mark_step_complete, dismiss_checklist",
+    ),
+  body("step_id")
+    .if(body("action").equals("mark_step_complete"))
+    .exists()
+    .withMessage("step_id is required when action is mark_step_complete")
+    .bail()
+    .isString()
+    .withMessage("step_id must be a string")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("step_id must not be empty")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("step_id must not exceed 100 characters"),
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -1110,4 +1143,5 @@ module.exports = {
   unassignCohortsFromGroup,
   listGroupCohorts,
   leaveGroup,
+  updateOnboarding,
 };

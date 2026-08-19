@@ -20,7 +20,7 @@ npm install @airqo-packages/network-coverage
 
 To call protected endpoints (registry write operations), you need an AirQo access token.
 
-1. Create an account at [analytics.airqo.net](https://analytics.airqo.net/user/login)
+1. Create an account at [nexus.airqo.net](https://nexus.airqo.net/user/login)
 2. Go to **Account Settings → API tab → Register a client**
 3. Generate an access token from the registered client
 4. Pass the token to the client constructor — it will be appended as `?token=` on every request automatically

@@ -31,6 +31,11 @@ const ClientSchema = new Schema(
     description: { type: String },
     rateLimit: { type: Number },
     requireClientSecret: { type: Boolean, default: false },
+    // Origin binding — when true, the verify endpoint checks that requests
+    // carry an Origin / Referer header matching one of the token's allowed_origins.
+    // Opt-in so existing clients are not affected (backwards-compatible).
+    enforce_origin: { type: Boolean, default: false },
+    allowed_origins: [{ type: String }],
   },
   { timestamps: true }
 );
@@ -251,6 +256,8 @@ ClientSchema.methods = {
       ip_address: this.ip_address,
       ip_addresses: this.ip_addresses,
       requireClientSecret: this.requireClientSecret,
+      enforce_origin: this.enforce_origin,
+      allowed_origins: this.allowed_origins,
     };
   },
 };

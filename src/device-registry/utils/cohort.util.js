@@ -68,6 +68,10 @@ const createCohort = {
 
       logObject("responseFromRegisterCohort", responseFromRegisterCohort);
 
+      if (!responseFromRegisterCohort) {
+        return;
+      }
+
       if (responseFromRegisterCohort.success === true) {
         try {
           const kafkaProducer = kafka.producer();
@@ -1877,14 +1881,6 @@ const createCohort = {
             localField: "grids",
             foreignField: "_id",
             as: "grids",
-          },
-        },
-        {
-          $lookup: {
-            from: "airqlouds",
-            localField: "airqlouds",
-            foreignField: "_id",
-            as: "airqlouds",
           },
         },
         {
