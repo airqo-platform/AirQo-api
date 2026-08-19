@@ -53,10 +53,19 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/analytics
+    - path: ~ /api\/(?:v[1-2]\/|v3\/public\/)analytics
       action:
         proxy:
           upstream: analytics
+          requestHeaders:
+            pass: true
+            # Real client IP for the analytics API's rate limiter. NGINX
+            # resolves $remote_addr from PROXY protocol (see global-config
+            # real-ip-header), and setting the header OVERWRITES any value
+            # the caller sent, so it cannot be spoofed to evade limits.
+            set:
+              - name: X-Forwarded-For
+                value: ${remote_addr}
           responseHeaders:
             add:
               - name: Content-Type
