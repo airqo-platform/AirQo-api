@@ -198,6 +198,15 @@ spec:
       action:
         proxy:
           upstream: analytics-api
+          requestHeaders:
+            pass: true
+            # Real client IP for the analytics API's rate limiter. NGINX
+            # resolves $remote_addr from PROXY protocol (see global-config
+            # real-ip-header), and setting the header OVERWRITES any value
+            # the caller sent, so it cannot be spoofed to evade limits.
+            set:
+              - name: X-Forwarded-For
+                value: ${remote_addr}
           responseHeaders:
             add:
               - name: Content-Type

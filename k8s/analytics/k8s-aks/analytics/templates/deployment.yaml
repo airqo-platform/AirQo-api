@@ -44,59 +44,22 @@ spec:
             requests:
               cpu: {{ .Values.api.resources.common.requests.cpu }}
               memory: {{ .Values.api.resources.common.requests.memory }}
-
-        - name: {{ .Values.api.label }}-redis
-          image: "{{ .Values.images.repositories.redisContainer }}:latest"
-          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
-          ports:
-            - containerPort: 6379
-              name: redis
-          envFrom:
-            - secretRef:
-                name: {{ .Values.api.secret }}
-          command: ["redis-server"]
-          volumeMounts:
-            {{- toYaml .Values.volumeMounts | nindent 12 }}
-          resources:
-            limits:
-              cpu: {{ .Values.api.resources.redis.limits.cpu }}
-              memory: {{ .Values.api.resources.redis.limits.memory }}
-            requests:
-              cpu: {{ .Values.api.resources.redis.requests.cpu }}
-              memory: {{ .Values.api.resources.redis.requests.memory }}
-
-        - name: celery-beat
-          image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag }}"
-          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
-          envFrom:
-            - secretRef:
-                name: {{ .Values.api.secret }}
-          volumeMounts:
-            {{- toYaml .Values.volumeMounts | nindent 12 }}
-          resources:
-            limits:
-              cpu: {{ .Values.api.resources.common.limits.cpu }}
-              memory: {{ .Values.api.resources.common.limits.memory }}
-            requests:
-              cpu: {{ .Values.api.resources.common.requests.cpu }}
-              memory: {{ .Values.api.resources.common.requests.memory }}
-
-        - name: celery-worker
-          image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag }}"
-          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
-          envFrom:
-            - secretRef:
-                name: {{ .Values.api.secret }}
-          volumeMounts:
-            {{- toYaml .Values.volumeMounts | nindent 12 }}
-          resources:
-            limits:
-              cpu: {{ .Values.api.resources.common.limits.cpu }}
-              memory: {{ .Values.api.resources.common.limits.memory }}
-            requests:
-              cpu: {{ .Values.api.resources.common.requests.cpu }}
-              memory: {{ .Values.api.resources.common.requests.memory }}
-
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
       volumes:
         {{- toYaml .Values.volumes | nindent 8 }}
 

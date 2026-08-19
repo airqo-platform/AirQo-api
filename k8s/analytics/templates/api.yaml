@@ -56,67 +56,37 @@ spec:
             requests:
               cpu: {{ .Values.api.resources.common.requests.cpu }}
               memory: {{ .Values.api.resources.common.requests.memory }}
-        - name: '{{ .Values.api.label }}-redis'
-          image: "{{ .Values.images.repositories.redisContainer }}:latest"
-          imagePullPolicy: IfNotPresent
-          {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
-          ports:
-            - containerPort: {{ $redisPort}}
-              name: redis
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.api.configmap }}
-          command: ["redis-server"]
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            limits:
-              cpu: {{ .Values.api.resources.redis.limits.cpu }}
-              memory: {{ .Values.api.resources.redis.limits.memory }}
-            requests:
-              cpu: {{ .Values.api.resources.redis.requests.cpu }}
-              memory: {{ .Values.api.resources.redis.requests.memory }}
-          readinessProbe:
-            initialDelaySeconds: 10
+          # /health is a pure liveness check; /health/ready additionally pings
+          # Redis. BigQuery is deliberately not probed — see main.py.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $apiPort }}
+            initialDelaySeconds: 20
+            periodSeconds: 30
             timeoutSeconds: 5
-            tcpSocket:
-              port: {{ $redisPort }}
-        - name: celery-beat
-          image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag}}"
-          imagePullPolicy: IfNotPresent
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.api.configmap }}
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            limits:
-              cpu: {{ .Values.api.resources.common.limits.cpu }}
-              memory: {{ .Values.api.resources.common.limits.memory }}
-            requests:
-              cpu: {{ .Values.api.resources.common.requests.cpu }}
-              memory: {{ .Values.api.resources.common.requests.memory }}
-        - name: celery-worker
-          image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag}}"
-          imagePullPolicy: IfNotPresent
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.api.configmap }}
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            limits:
-              cpu: {{ .Values.api.resources.common.limits.cpu }}
-              memory: {{ .Values.api.resources.common.limits.memory }}
-            requests:
-              cpu: {{ .Values.api.resources.common.requests.cpu }}
-              memory: {{ .Values.api.resources.common.requests.memory }}
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ $apiPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+        # Deliberately not deployed here (config retained in values.yaml):
+        #
+        #   redis  — a sidecar is pod-local, so each replica would get its own
+        #            instance: rate-limit counters would be per-pod and each
+        #            pod's Celery worker would use a different broker.
+        #            REDIS_SERVER must point at a Redis shared by all replicas.
+        #
+        #   celery-beat — a scheduler must be a singleton. Running it in a
+        #            replicaCount>1 Deployment means N schedulers enqueueing
+        #            the same tick. It needs its own replicas:1 Deployment.
+        #
+        #   celery-worker — its image is not built by CI for now; it returns
+        #            as its own Deployment alongside beat.
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
