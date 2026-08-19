@@ -7,6 +7,14 @@ network calls are made during the test suite.
 
 from __future__ import annotations
 
+import os
+
+# The suite must run with no .env and no ambient config (CI has neither).
+# config.py instantiates settings at import time and refuses the default
+# SECRET_KEY outside development, so force a dev environment before any
+# app module is imported. setdefault keeps a real environment in charge.
+os.environ.setdefault("APP_ENV", "development")
+
 import pytest
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
