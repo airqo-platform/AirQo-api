@@ -139,6 +139,41 @@ describe("readings.routes.js (mounted at /api/v2/devices/readings)", () => {
       expect(res.status).to.equal(400);
       expect(eventController.recentReadings).to.not.have.been.called;
     });
+
+    it("returns 400 and never reaches the controller when device_id is supplied alongside a site_ids body", async () => {
+      const app = buildApp();
+
+      const res = await request(app)
+        .post(`${BASE}/recent`)
+        .query({ device_id: validSiteId1 })
+        .send({ site_ids: [validSiteId1, validSiteId2] });
+
+      expect(res.status).to.equal(400);
+      expect(eventController.recentReadings).to.not.have.been.called;
+    });
+
+    it("normalizes site_ids onto req.query.site_id the same way GET /recent normalizes ?site_id=", async () => {
+      const app = buildApp({
+        recentReadings: sinon.stub().callsFake((req, res) => {
+          res.status(200).json({
+            success: true,
+            siteIdTypes: req.query.site_id.map(
+              (id) => id && id.constructor && id.constructor.name,
+            ),
+          });
+        }),
+      });
+
+      const res = await request(app)
+        .post(`${BASE}/recent`)
+        .send({ site_ids: [validSiteId1, validSiteId2] });
+
+      expect(res.status).to.equal(200);
+      // commonValidations.objectId's sanitizer (run via the shared `recent`
+      // validator) converts valid ObjectId strings to ObjectId instances —
+      // ["String", "String"] here would mean POST skipped that sanitization.
+      expect(res.body.siteIdTypes).to.deep.equal(["ObjectID", "ObjectID"]);
+    });
   });
 
   describe("checkController safety net", () => {

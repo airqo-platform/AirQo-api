@@ -584,12 +584,14 @@ const readingsValidations = {
   },
 
   // Same result as `recent`, but for callers that want to POST a long site_id
-  // list in the body instead of a comma-separated query string. Reuses the
-  // existing recent() pipeline unchanged: once site_ids is validated it's
-  // copied onto req.query.site_id, which generateFilter.telemetry already reads.
+  // list in the body instead of a comma-separated query string. site_ids is
+  // required here (unlike the optional query `site_id` on GET, since it's the
+  // whole point of this endpoint) — once that's confirmed non-empty and all
+  // valid ObjectIds, it's copied onto req.query.site_id and handed to the
+  // `recent` validator so POST gets the identical conflicting-param checks
+  // (e.g. device_id + site_id) and sanitization that GET already applies.
   recentBySiteIds: (req, res, next) => {
     const validationRules = [
-      ...commonValidations.tenant,
       body("site_ids")
         .exists()
         .withMessage("site_ids is required")
@@ -604,7 +606,7 @@ const readingsValidations = {
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, () => {
       req.query.site_id = req.body.site_ids;
-      next();
+      readingsValidations.recent(req, res, next);
     });
   },
 

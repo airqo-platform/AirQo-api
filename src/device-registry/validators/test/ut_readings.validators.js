@@ -1,11 +1,16 @@
 require("module-alias/register");
 process.env.NODE_ENV = "development";
 const { expect } = require("chai");
+const { isValidObjectId } = require("mongoose");
 
 const readingsValidations = require("@validators/readings.validators");
 
 const mockRequest = (query = {}) => ({ query, params: {}, body: {} });
-const mockBodyRequest = (body = {}) => ({ query: {}, params: {}, body });
+const mockBodyRequest = (body = {}, query = {}) => ({
+  query,
+  params: {},
+  body,
+});
 
 // Resolves once either next() is called (validation passed) or res.json() is
 // called (validation failed — the shared middleware responds directly with
@@ -39,10 +44,13 @@ const runValidation = (query) =>
 // Same settle-on-next-or-res.json shape as runValidation above, but drives
 // recentBySiteIds off req.body instead of req.query, and returns req so tests
 // can assert the site_ids -> query.site_id copy that the POST /recent route
-// relies on to reuse generateFilter.telemetry unchanged.
-const runBodyValidation = (body) =>
+// relies on to reuse generateFilter.telemetry unchanged. An optional query
+// object lets tests simulate query params (e.g. device_id) sent alongside
+// the POST body, since recentBySiteIds delegates to the `recent` validator
+// which reads its conflicting-param checks off req.query.
+const runBodyValidation = (body, query = {}) =>
   new Promise((resolve) => {
-    const req = mockBodyRequest(body);
+    const req = mockBodyRequest(body, query);
     const res = {};
     let settled = false;
     const settle = (result) => {
@@ -142,12 +150,33 @@ describe("readingsValidations.recentBySiteIds", () => {
     expect(res.statusCode).to.equal(400);
   });
 
-  it("accepts a valid site_ids array and copies it onto req.query.site_id", async () => {
+  it("accepts a valid site_ids array, copies it onto req.query.site_id, and normalizes it via the shared `recent` sanitizer", async () => {
     const { passed, req } = await runBodyValidation({
       site_ids: [validId1, validId2],
     });
 
     expect(passed).to.equal(true);
-    expect(req.query.site_id).to.deep.equal([validId1, validId2]);
+    // Delegating to readingsValidations.recent runs the same
+    // commonValidations.objectId("site_id") sanitizer GET /recent uses,
+    // which converts valid ObjectId strings to actual ObjectId instances —
+    // not just a raw copy of the body strings.
+    expect(req.query.site_id).to.have.lengthOf(2);
+    req.query.site_id.forEach((id) => {
+      expect(isValidObjectId(id)).to.equal(true);
+    });
+    expect(req.query.site_id.map(String)).to.deep.equal([
+      validId1,
+      validId2,
+    ]);
+  });
+
+  it("rejects when device_id is supplied (via query) alongside a site_ids body", async () => {
+    const { passed, res } = await runBodyValidation(
+      { site_ids: [validId1, validId2] },
+      { device_id: validId1 },
+    );
+
+    expect(passed).to.equal(false);
+    expect(res.statusCode).to.equal(400);
   });
 });
