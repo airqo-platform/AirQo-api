@@ -79,15 +79,41 @@ class CleaningContext:
         return self.period_column is not None
 
     @property
+    def identity_column(self) -> str:
+        """Column identifying a data source within one time bucket.
+
+        The identity varies by source; the dedup key is always
+        (identity, time). Currently implemented:
+
+        - device-backed data (lowcost, bam, ...) -> ``device_id``
+        - satellite forecasts -> ``city`` (no device_id or site_id exists;
+          city is the finest grain that query projects)
+
+        Extend this mapping as sources gain identifiers — e.g.
+        country-level queries, coordinates, or site_id-keyed data.
+        """
+        if self.device_category == DeviceCategory.SATELLITE:
+            return "city"
+        return "device_id"
+
+    @property
     def sort_columns(self) -> List[str]:
         """Columns used to order records deterministically."""
         tail = self.period_column if self.is_grouped else "datetime"
-        return ["device_id", tail]
+        return [self.identity_column, tail]
 
     @property
     def dedup_columns(self) -> List[str]:
-        """Column combination that uniquely identifies a record (for dedup)."""
-        return ["device_id"] if self.is_grouped else ["device_id", "datetime"]
+        """Column combination that uniquely identifies a record (for dedup).
+
+        Grouped frequencies key on the period column instead of datetime —
+        the query returns one row per (identity, period), so deduping on the
+        identity alone would collapse a multi-period range to a single row
+        per source.
+        """
+        if self.is_grouped:
+            return [self.identity_column, self.period_column]
+        return [self.identity_column, "datetime"]
 
 
 class CleaningStep(ABC):
@@ -171,11 +197,17 @@ class SortRecords(CleaningStep):
 
 
 class DropDuplicateRecords(CleaningStep):
-    """Drop duplicate records identified by ``ctx.dedup_columns`` (keep first)."""
+    """Drop duplicate records identified by ``ctx.dedup_columns`` (keep first).
+
+    Dedup runs only when the FULL key is present. A partial key does not
+    identify a record, so falling back to whatever columns exist silently
+    drops distinct rows — e.g. forecast data has no device_id, and deduping
+    it on datetime alone would collapse every location sharing a timestamp.
+    """
 
     def apply(self, df: pd.DataFrame, ctx: CleaningContext) -> pd.DataFrame:
-        cols = [c for c in ctx.dedup_columns if c in df.columns]
-        if cols:
+        cols = ctx.dedup_columns
+        if all(c in df.columns for c in cols):
             df = df.drop_duplicates(subset=cols, keep="first")
         return df
 

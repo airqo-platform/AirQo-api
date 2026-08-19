@@ -185,7 +185,6 @@ Response:
       "humidity": 65.3
     }
   ],
-  "total_records": 1,
   "metadata": { "total_count": 1, "has_more": false, "next": null }
 }
 ```
@@ -238,7 +237,7 @@ Request:
 }
 ```
 
-Response — note the `chart_type` key and the **absence of `total_records`**:
+Response — note the additional `chart_type` key:
 
 ```json
 {
@@ -248,9 +247,12 @@ Response — note the `chart_type` key and the **absence of `total_records`**:
   "data": [
     { "datetime": "2026-01-01T00:00:00Z", "site_id": "site1", "pm2_5": 15.5 }
   ],
-  "metadata": null
+  "metadata": { "total_count": 1, "has_more": false, "next": null }
 }
 ```
+
+For pie charts `metadata.total_count` counts the aggregated chart points (one
+per site), not the underlying rows.
 
 The record shape depends on `chartType`:
 
@@ -268,11 +270,9 @@ Successful data responses use this envelope:
 - `status` — always `"success"`
 - `message` — human-readable summary
 - `data` — the payload
-- `total_records` — records in this page, **after** cleaning
-- `metadata` — pagination block, or `null`
+- `metadata` — pagination block: `{total_count, has_more, next}`
 
-The chart endpoints differ: they add `chart_type` and omit `total_records`
-entirely.
+The chart endpoints add a `chart_type` key.
 
 All response keys are snake_case.
 
@@ -285,9 +285,8 @@ All response keys are snake_case.
 "metadata": { "total_count": 1000, "has_more": true, "next": "<cursor token>" }
 ```
 
-- `total_count` — rows in the current page as returned by the query, before the
-  cleaning pipeline runs. It is **not** a grand total of matching records, and
-  it can exceed `total_records` when deduplication removes rows.
+- `total_count` — the number of records in `data` for this page. It is **not**
+  a grand total of all matching records.
 - `has_more` — whether another page exists.
 - `next` — the token to send as `cursor` on the following request.
 

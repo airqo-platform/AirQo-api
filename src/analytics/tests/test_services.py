@@ -43,8 +43,7 @@ class TestDataExportService:
         assert isinstance(resp, DataExportResponse)
         assert resp.status == "success"
         assert len(resp.data) == 2
-        assert resp.total_records == 2
-        assert resp.metadata == meta
+        assert resp.metadata["total_count"] == 2
 
     @pytest.mark.asyncio
     async def test_export_data_passes_data_type_enum(self, export_request, sample_df):
@@ -138,7 +137,9 @@ class TestDataExportService:
             }
         )
         svc = DataExportService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
+        # Deliberately wrong: the query layer's pre-cleaning count must be
+        # overwritten with the number of records actually returned.
+        meta = {"total_count": 99, "has_more": False, "next": None}
 
         with patch(
             "api.services.AsyncBigQueryApi.query_data_async",
@@ -148,7 +149,7 @@ class TestDataExportService:
             resp = await svc.export_data(export_request)
 
         assert resp.status == "success"
-        assert resp.total_records == 2
+        assert resp.metadata["total_count"] == 2
         cols = set(resp.data[0].keys())
         assert "device_name" in cols and "device_id" not in cols
         assert "frequency" in cols

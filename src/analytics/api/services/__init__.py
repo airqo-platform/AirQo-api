@@ -400,15 +400,15 @@ class DataExportService(BaseService):
                 status="success",
                 message="No forecast data found for the specified criteria.",
                 data=[],
-                metadata=metadata,
+                metadata={**metadata, "total_count": 0},
             )
 
         records = _safe_records(df)
+        metadata["total_count"] = len(records)
         return DataExportResponse(
             status="success",
             message="Forecast data retrieved successfully.",
             data=records,
-            total_records=len(records),
             metadata=metadata,
         )
 
@@ -474,7 +474,7 @@ class DataExportService(BaseService):
                 status="success",
                 message="No data found for the specified criteria.",
                 data=[],
-                metadata=metadata,
+                metadata={**metadata, "total_count": 0},
             )
 
         records = _safe_records(df)
@@ -489,11 +489,13 @@ class DataExportService(BaseService):
                 )
             return _csv_response(records, f"{frequency.value}-air-quality-data")
 
+        # total_count must describe the records actually returned; the value
+        # the query layer set is the pre-cleaning page size.
+        metadata["total_count"] = len(records)
         return DataExportResponse(
             status="success",
             message="Data retrieved successfully.",
             data=records,
-            total_records=len(records),
             metadata=metadata,
         )
 
@@ -564,7 +566,7 @@ class DashboardService(BaseService):
                 message="No data found for the specified criteria.",
                 chart_type=request.chart_type,
                 data=[],
-                metadata=metadata,
+                metadata={**metadata, "total_count": 0},
             )
 
         records = _safe_records(df)
@@ -572,6 +574,10 @@ class DashboardService(BaseService):
             records, request.chart_type, request.pollutants
         )
 
+        # total_count must describe the points actually returned: the value
+        # the query layer set is the pre-cleaning row count, and the pie
+        # formatter additionally collapses many rows into one point per site.
+        metadata["total_count"] = len(chart_data)
         return DashboardChartResponse(
             status="success",
             message="Chart data retrieved successfully.",

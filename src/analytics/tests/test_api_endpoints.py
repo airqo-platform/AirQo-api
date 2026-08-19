@@ -44,7 +44,6 @@ def _ok_export() -> DataExportResponse:
         status="success",
         message="Data exported successfully",
         data=[{"datetime": "2023-01-01T12:00:00Z", "pm2_5": 15.5, "site_id": "site1"}],
-        total_records=1,
     )
 
 
@@ -376,9 +375,7 @@ class TestV3Endpoints:
         with patch(
             "api.services.DataExportService.export_data",
             new_callable=AsyncMock,
-            return_value=DataExportResponse(
-                status="success", data=[{"pm2_5": 10.0}], total_records=1
-            ),
+            return_value=DataExportResponse(status="success", data=[{"pm2_5": 10.0}]),
         ):
             resp = client.post(
                 "/api/v3/public/analytics/data-download", json=valid_export_payload
@@ -389,7 +386,7 @@ class TestV3Endpoints:
         with patch(
             "api.services.DataExportService.export_raw_data",
             new_callable=AsyncMock,
-            return_value=DataExportResponse(status="success", data=[], total_records=0),
+            return_value=DataExportResponse(status="success", data=[]),
         ):
             resp = client.post(
                 "/api/v3/public/analytics/raw-data", json=valid_raw_payload
@@ -608,7 +605,6 @@ class TestV3ForecastEndpoint:
             return_value=DataExportResponse(
                 status="success",
                 data=[{"pm2_5": 12.1, "country": "uganda"}],
-                total_records=1,
             ),
         ):
             resp = client.post(
@@ -616,7 +612,8 @@ class TestV3ForecastEndpoint:
                 json=self._payload(country="uganda"),
             )
         assert resp.status_code == 200
-        assert resp.json()["total_records"] == 1
+        # The record count lives only in metadata.total_count now.
+        assert "total_records" not in resp.json()
 
     def test_forecast_by_city_200(self, client):
         with patch(
@@ -676,7 +673,7 @@ class TestCsvDownload:
             )
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("application/json")
-        assert resp.json()["total_records"] == 2
+        assert resp.json()["metadata"]["total_count"] == 2
 
 
 # ---------------------------------------------------------------------------

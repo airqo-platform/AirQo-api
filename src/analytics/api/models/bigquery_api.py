@@ -426,7 +426,9 @@ class BigQueryApi:
             Tuple[pd.DataFrame, Dict[str, Any]]: A pandas DataFrame containing the queried data and
             a dictionary with metadata including pagination information:
             {
-                "total_count": int,  # Number of rows in the current result set
+                "total_count": int,  # Rows in the current result set. The service
+                                     # layer overwrites this with the record count
+                                     # actually returned after cleaning/formatting.
                 "has_more": bool,    # Whether more data is available
                 "next": str or None  # Cursor token for the next page of results, or None if no more data
             }

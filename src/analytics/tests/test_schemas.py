@@ -289,14 +289,13 @@ class TestResponseModels:
             status="success",
             message="ok",
             data=[{"datetime": "2023-01-01", "pm2_5": 15.5, "custom_col": "x"}],
-            total_records=1,
         )
         assert resp.data[0]["pm2_5"] == 15.5
 
     def test_data_export_response_empty_data(self):
         resp = DataExportResponse(status="success", data=[])
         assert resp.data == []
-        assert resp.total_records == 0
+        assert resp.metadata is None
 
     def test_dashboard_response_accepts_flexible_data(self):
         resp = DashboardChartResponse(

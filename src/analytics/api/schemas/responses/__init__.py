@@ -43,10 +43,12 @@ class DataExportResponse(BaseResponse):
     data: List[Dict[str, Any]] = Field(
         default_factory=list, description="Exported records"
     )
-    total_records: int = Field(0, description="Number of records in this page")
     metadata: Optional[Dict[str, Any]] = Field(
         None,
-        description="Pagination info: {total_count, has_more, next}",
+        description=(
+            "Pagination info: {total_count, has_more, next}; total_count is "
+            "the number of records in data"
+        ),
     )
 
 
@@ -68,7 +70,13 @@ class DashboardChartResponse(BaseResponse):
     data: List[Dict[str, Any]] = Field(
         default_factory=list, description="Chart data points"
     )
-    metadata: Optional[Dict[str, Any]] = Field(None)
+    metadata: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Pagination info: {total_count, has_more, next}; total_count is "
+            "the number of chart points in data"
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -63,11 +63,22 @@ class TestCleaningContext:
         ],
     )
     def test_grouped_frequency_uses_period_column(self, frequency, period):
+        """The dedup key is (identity, period), never the identity alone —
+        the query returns one row per period, so deduping on device_id by
+        itself would collapse a multi-period range to one row per device."""
         ctx = _ctx(frequency=frequency)
         assert ctx.is_grouped is True
         assert ctx.period_column == period
         assert ctx.sort_columns == ["device_id", period]
-        assert ctx.dedup_columns == ["device_id"]
+        assert ctx.dedup_columns == ["device_id", period]
+
+    def test_satellite_identity_is_city(self):
+        """Satellite rows have no device_id or site_id; city is the finest
+        grain the forecast query projects, so it stands in as the identity."""
+        ctx = _ctx(frequency=Frequency.HOURLY, device_category=DeviceCategory.SATELLITE)
+        assert ctx.identity_column == "city"
+        assert ctx.dedup_columns == ["city", "datetime"]
+        assert ctx.sort_columns == ["city", "datetime"]
 
 
 # ---------------------------------------------------------------------------
@@ -165,12 +176,50 @@ class TestDropDuplicateRecords:
         assert len(out) == 2
         assert out.iloc[0]["pm2_5"] == 10  # first kept, 99 dropped
 
-    def test_grouped_dedups_by_device_only(self):
+    def test_grouped_dedups_by_device_and_period(self):
         df = pd.DataFrame(
             {"device_id": ["d1", "d1"], "week": ["w1", "w1"], "pm2_5": [1, 2]}
         )
         out = DropDuplicateRecords().apply(df, _ctx(frequency=Frequency.WEEKLY))
         assert len(out) == 1
+
+    def test_grouped_keeps_distinct_periods_for_one_device(self):
+        """12 monthly rows for one device are 12 records, not duplicates."""
+        df = pd.DataFrame(
+            {
+                "device_id": ["d1"] * 12,
+                "month": [f"m{m}" for m in range(12)],
+                "pm2_5": range(12),
+            }
+        )
+        out = DropDuplicateRecords().apply(df, _ctx(frequency=Frequency.MONTHLY))
+        assert len(out) == 12
+
+    def test_satellite_dedups_by_city_and_datetime(self):
+        """Distinct cities sharing a timestamp are distinct records."""
+        df = pd.DataFrame(
+            {
+                "city": ["kampala", "gulu", "kampala"],
+                "datetime": ["t1", "t1", "t1"],
+                "pm2_5": [10, 20, 99],
+            }
+        )
+        out = DropDuplicateRecords().apply(
+            df,
+            _ctx(
+                frequency=Frequency.HOURLY,
+                device_category=DeviceCategory.SATELLITE,
+            ),
+        )
+        assert len(out) == 2  # true duplicate dropped, gulu kept
+
+    def test_skips_dedup_when_key_incomplete(self):
+        """A partial key does not identify a record: with device_id missing,
+        falling back to datetime alone would collapse distinct sources that
+        share a timestamp. Better to keep a duplicate than drop real rows."""
+        df = pd.DataFrame({"datetime": ["t1", "t1"], "pm2_5": [1, 2]})
+        out = DropDuplicateRecords().apply(df, _ctx(frequency=Frequency.HOURLY))
+        assert len(out) == 2
 
 
 class TestTagFrequency:
