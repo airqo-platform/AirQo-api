@@ -80,6 +80,12 @@ function envConfig(env) {
       const v = parseInt(process.env.BYPASS_EXPIRY_REMINDER_LEAD_DAYS, 10);
       return Number.isFinite(v) && v > 0 ? v : 3;
     })(),
+    // Group activity/audit log retention in days; 0 or unset = keep forever
+    // (this is a compliance-relevant trail, so it doesn't auto-expire by default)
+    ACTIVITY_LOG_RETENTION_DAYS: (() => {
+      const v = parseInt(process.env.ACTIVITY_LOG_RETENTION_DAYS, 10);
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    })(),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
     POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),

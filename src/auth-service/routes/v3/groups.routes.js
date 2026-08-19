@@ -3,6 +3,8 @@ const express = require("express");
 const router = express.Router();
 const groupController = require("@controllers/group.controller");
 const groupValidations = require("@validators/groups.validators");
+const joinLinkController = require("@controllers/join-link.controller");
+const joinLinkValidations = require("@validators/join-links.validators");
 const constants = require("@config/constants");
 const { enhancedJWTAuth } = require("@middleware/passport");
 
@@ -236,6 +238,18 @@ router.put(
   groupController.enhancedSetManager,
 );
 
+// Deliberately SYSTEM_ADMIN-only (not requireGroupAdmin/requireGroupManagerAccess)
+// — a group's own admin must not be able to claim a domain they don't control,
+// since that would let them silently absorb any user who signs up with it.
+router.put(
+  "/:grp_id/email-domains",
+  groupValidations.updateEmailDomains,
+  validate,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  groupController.updateEmailDomains,
+);
+
 // User listing endpoints - different permission levels
 router.get(
   "/:grp_id/assigned-users",
@@ -348,6 +362,44 @@ router.get(
   enhancedJWTAuth,
   requireGroupManagerAccess(),
   groupController.listGroupInvitations,
+);
+
+// Shareable join links - manager access to create/list/revoke; redeem just
+// requires being logged in (see joinLinkController.redeemJoinLink), since a
+// link is untargeted/shareable rather than addressed to one known recipient.
+router.post(
+  "/:grp_id/join-links",
+  joinLinkValidations.createJoinLink,
+  validate,
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  joinLinkController.createJoinLink,
+);
+
+router.get(
+  "/:grp_id/join-links",
+  joinLinkValidations.listJoinLinks,
+  validate,
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  joinLinkController.listJoinLinks,
+);
+
+router.delete(
+  "/:grp_id/join-links/:link_id",
+  joinLinkValidations.revokeJoinLink,
+  validate,
+  enhancedJWTAuth,
+  requireGroupManagerAccess(),
+  joinLinkController.revokeJoinLink,
+);
+
+router.post(
+  "/join-links/:token/redeem",
+  joinLinkValidations.redeemJoinLink,
+  validate,
+  enhancedJWTAuth,
+  joinLinkController.redeemJoinLink,
 );
 
 // Status management - admin access

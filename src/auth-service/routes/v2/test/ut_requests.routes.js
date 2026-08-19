@@ -35,6 +35,7 @@ let listImpl;
 let listPendingAccessRequestsImpl;
 let approveAccessRequestImpl;
 let rejectAccessRequestImpl;
+let cancelAccessRequestImpl;
 let listAccessRequestsForGroupImpl;
 let listPendingInvitationsForUserImpl;
 let acceptPendingInvitationImpl;
@@ -55,6 +56,7 @@ const createRequestControllerStub = {
     listPendingAccessRequestsImpl(req, res),
   approveAccessRequest: (req, res) => approveAccessRequestImpl(req, res),
   rejectAccessRequest: (req, res) => rejectAccessRequestImpl(req, res),
+  cancelAccessRequest: (req, res) => cancelAccessRequestImpl(req, res),
   listAccessRequestsForGroup: (req, res) =>
     listAccessRequestsForGroupImpl(req, res),
   listPendingInvitationsForUser: (req, res) =>
@@ -409,6 +411,42 @@ describe("Request Router API Tests", () => {
       const response = await request
         .post("/not-a-valid-id/reject")
         .send({})
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal(
+        "the request_id should be an object ID"
+      );
+    });
+  });
+
+  describe("POST /:request_id/cancel", () => {
+    it("should cancel a pending access request", async () => {
+      cancelAccessRequestImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      const response = await request
+        .post(`/${validRequestId}/cancel`)
+        .expect(200);
+
+      expect(response.body.success).to.equal(true);
+    });
+
+    it("should return a 400 error for a malformed request_id", async () => {
+      cancelAccessRequestImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      const response = await request
+        .post("/not-a-valid-id/cancel")
         .expect(400);
 
       expect(response.body.errors[0].msg).to.equal(

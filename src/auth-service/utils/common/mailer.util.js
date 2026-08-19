@@ -2524,9 +2524,9 @@ const mailer = {
       enableCooldown: true,
     },
   ),
-  // One email per day maximum — additional 24-hour deduplication per token is
-  // handled in _trackBehaviouralAnomaly via a Redis key so that a user with
-  // multiple tokens does not receive duplicate alerts for unrelated tokens.
+  // One email per token per day maximum — callers pass cooldownKey (the token
+  // id/hash) so this is scoped per-token, not per-user, meaning a user with
+  // multiple tokens still gets a distinct alert for each one.
   autoSuspendedToken: createSecurityEmailFunction(
     "autoSuspendedToken",
     (params) =>
