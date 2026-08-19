@@ -475,37 +475,40 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:latest
 
-      - name: Build and push Celery beat Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: celery-beat
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-beat:latest
+      # Not built for now — celery beat/worker are not deployed.
+      # - name: Build and push Celery beat Docker Image
+      #   uses: docker/build-push-action@v4.1.1
+      #   with:
+      #     push: true
+      #     context: src/analytics/
+      #     target: celery-beat
+      #     tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-beat:latest
 
-      - name: Build and push Celery worker Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: celery-worker
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:latest
+      # - name: Build and push Celery worker Docker Image
+      #   uses: docker/build-push-action@v4.1.1
+      #   with:
+      #     push: true
+      #     context: src/analytics/
+      #     target: celery-worker
+      #     tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:latest
 
-      - name: Build and push device summary job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: devices-summary-job
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:latest
+      # Not built for now — the devices summary job is not deployed.
+      # - name: Build and push device summary job Docker Image
+      #   uses: docker/build-push-action@v4.1.1
+      #   with:
+      #     push: true
+      #     context: src/analytics/
+      #     target: devices-summary-job
+      #     tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:latest
 
-      - name: Build and push reports job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/jobs/reports
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
+      # Not built for now — the report job is not deployed.
+      # - name: Build and push reports job Docker Image
+      #   uses: docker/build-push-action@v4.1.1
+      #   with:
+      #     push: true
+      #     context: src/analytics/jobs/reports
+      #     target: production
+      #     tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
@@ -537,10 +540,11 @@ jobs:
         run: |
           cd src/analytics/
           gcloud secrets versions access latest --secret="prod-env-analytics" > api.env
-          gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > reports.env
+          # Paused with the report-job image build:
+          # gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > reports.env
           gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-production | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-production | kubectl replace -f - -n production
+          # kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
 
   ### kafka cluster operator ###
