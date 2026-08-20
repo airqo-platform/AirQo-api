@@ -1,10 +1,13 @@
 import copy
 from datetime import datetime, timedelta, timezone
 
-from api.models import EventsModel
+from api.models.device_summary_queries import (
+    get_devices_hourly_data,
+    save_devices_summary_data,
+)
 from api.utils.data_formatters import compute_devices_summary
 from api.utils.dates import str_to_date
-from config import BaseConfig as Config
+from config import settings
 
 
 def create_date_list(start_date: datetime, end_date: datetime):
@@ -19,21 +22,19 @@ def create_date_list(start_date: datetime, end_date: datetime):
 
 
 def compute_historical_summary():
-    model = EventsModel("airqo")
     start_date = str_to_date("2023-01-01", format="%Y-%m-%d")
     end_date = str_to_date("2023-01-10", format="%Y-%m-%d")
     date_list = create_date_list(start_date, end_date)
     for date in date_list:
-        date_data = model.get_devices_hourly_data(day=date)
+        date_data = get_devices_hourly_data(day=date)
         date_summary = compute_devices_summary(copy.deepcopy(date_data))
-        model.save_devices_summary_data(copy.deepcopy(date_summary))
+        save_devices_summary_data(copy.deepcopy(date_summary))
 
 
 if __name__ == "__main__":
-    events_model = EventsModel("airqo")
-    data = events_model.get_devices_hourly_data(
+    data = get_devices_hourly_data(
         day=datetime.now(timezone.utc)
-        - timedelta(days=int(Config.DATA_SUMMARY_DAYS_INTERVAL))
+        - timedelta(days=int(settings.data_summary_days_interval))
     )
     summary = compute_devices_summary(copy.deepcopy(data))
-    events_model.save_devices_summary_data(copy.deepcopy(summary))
+    save_devices_summary_data(copy.deepcopy(summary))

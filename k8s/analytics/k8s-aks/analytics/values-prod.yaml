@@ -3,11 +3,6 @@ fullnameOverride: ''
 images:
   repositories:
     api: airqoacr.azurecr.io/airqo-analytics-api
-    celeryBeat: airqoacr.azurecr.io/airqo-analytics-celery-beat
-    celeryWorker: airqoacr.azurecr.io/airqo-analytics-celery-worker
-    reportJob: airqoacr.azurecr.io/airqo-analytics-report-job
-    redisContainer: airqoacr.azurecr.io/airqo-redis
-    devicesSummaryJob: airqoacr.azurecr.io/airqo-analytics-devices-summary-job
   tag: prod-2c64229c-1779108339
 externalSecret:
   enabled: true
@@ -25,24 +20,6 @@ api:
       requests:
         cpu: 50m
         memory: 1400Mi
-    redis:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 300m
-        memory: 256Mi
-jobs:
-  reports:
-    name: analytics-report
-    secret: prod-env-analytics
-  resources:
-    requests:
-      cpu: 500m
-      memory: 1000Mi
-    limits:
-      cpu: 1000m
-      memory: 4000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -58,11 +35,6 @@ service:
       protocol: TCP
       targetPort: 5000
       nodePort: 30003
-    - name: redis-server
-      port: 6379
-      targetPort: 6379
-      nodePort: 30114
-      protocol: TCP
 ingress:
   enabled: false
 autoscaling:

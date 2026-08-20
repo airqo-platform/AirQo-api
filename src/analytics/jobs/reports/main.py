@@ -10,7 +10,7 @@ import matplotlib.dates as mdates
 from docx import Document
 from docx.shared import Inches
 import io
-from .config import environment, configuration
+from config import environment, configuration
 from utils import (
     str_to_date_2,
 )

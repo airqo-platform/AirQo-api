@@ -3,11 +3,7 @@ from pathlib import Path
 import json
 from typing import Dict
 
-from config import BaseConfig
 from api.utils.messages import RATE_LIMIT_ERROR
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask import jsonify
 
 import logging
 
@@ -16,13 +12,6 @@ logger = logging.getLogger(__name__)
 
 def ratelimit_response():
     return RATE_LIMIT_ERROR
-
-
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=BaseConfig.CACHE_REDIS_URL,
-    default_limits=["100 per minute"],
-)
 
 
 class Utils:

@@ -1,14 +1,18 @@
+# Currently not used.
 namespace: production
 nameOverride: ''
 fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-    redisContainer: eu.gcr.io/airqo-250220/airqo-redis
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
+    # Not deployed by this chart — beat needs its own replicas:1 Deployment.
+    # celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
+    # celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
+    # reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+    # Not deployed by this chart — Redis must be shared across replicas, so it
+    # cannot be a pod-local sidecar. Point REDIS_SERVER at a shared instance.
+    # redisContainer: eu.gcr.io/airqo-250220/airqo-redis
+    # devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
   tag: prod-9a4385dc-1771443288
 api:
   name: airqo-analytics-api
@@ -24,6 +28,7 @@ api:
       requests:
         cpu: 10m
         memory: 250Mi
+    # Retained for a future standalone Redis workload; the sidecar is gone.
     redis:
       requests:
         cpu: 50m
@@ -41,6 +46,7 @@ api:
                 values:
                   - moderate-usage
           weight: 1
+# Retained for the report-job CronJob, which is not deployed by this chart.
 jobs:
   reports:
     name: prod-analytics-report
@@ -67,6 +73,8 @@ service:
       protocol: TCP
       targetPort: 5000
       nodePort: 30003
+    # No pod backs this since the Redis sidecar was removed; retained so the
+    # nodePort stays reserved for a future standalone Redis Service.
     - name: redis-server
       port: 6379
       targetPort: 6379
