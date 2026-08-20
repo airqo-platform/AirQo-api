@@ -2898,21 +2898,82 @@ const createActivity = {
         grid_id: device.grid_id || null,
       };
 
-      const createdActivity = await ActivityModel(tenant).create(activityData);
-
-      if (!createdActivity) {
+      // Device status and activity creation aren't in a single transaction
+      // (no other flow in this codebase uses Mongo sessions either), so on
+      // any failure here — thrown or a falsy result — restore the device to
+      // its pre-decommission state before reporting failure, rather than
+      // leaving it silently "decommissioned" with no activity log.
+      let createdActivity;
+      try {
+        createdActivity = await ActivityModel(tenant).create(activityData);
+        if (!createdActivity) {
+          throw new Error("ActivityModel.create returned no document");
+        }
+      } catch (activityCreateError) {
         logger.error(
-          `⚠️ Decommission inconsistency: device ${deviceName} updated to decommissioned ` +
-            `but activity creation failed. Device _id: ${device._id}`,
+          `🚨 Decommission: activity creation failed for device ${deviceName} (${updatedDevice._id}); ` +
+            `restoring prior device state. Error: ${activityCreateError.message}`,
+          { stack: activityCreateError.stack },
         );
+
+        try {
+          const revertFields = {
+            isActive: device.isActive,
+            status: device.status,
+            site_id: device.site_id ?? null,
+            grid_id: device.grid_id ?? null,
+            mobility: device.mobility,
+            recall_date: device.recall_date ?? null,
+          };
+          const revertUnset = {};
+          [
+            "deployment_type",
+            "mountType",
+            "powerType",
+            "height",
+            "isPrimaryInLocation",
+            "latitude",
+            "longitude",
+            "deployment_date",
+            "channelStatus",
+            "channelStatusCheckedAt",
+          ].forEach((field) => {
+            if (device[field] === undefined || device[field] === null) {
+              revertUnset[field] = "";
+            } else {
+              revertFields[field] = device[field];
+            }
+          });
+
+          const revertUpdate = { $set: revertFields };
+          if (Object.keys(revertUnset).length > 0) {
+            revertUpdate.$unset = revertUnset;
+          }
+          const revertPull = {};
+          if (device.site_id) revertPull.previous_sites = device.site_id;
+          if (device.grid_id) revertPull.previous_grids = device.grid_id;
+          if (Object.keys(revertPull).length > 0) {
+            revertUpdate.$pull = revertPull;
+          }
+
+          await DeviceModel(tenant).findOneAndUpdate(
+            { name: deviceName },
+            revertUpdate,
+          );
+        } catch (revertError) {
+          logger.error(
+            `🚨🚨 Decommission: failed to restore device ${deviceName} after activity creation ` +
+              `failure — device is now inconsistently "decommissioned" with no activity log. ` +
+              `Error: ${revertError.message}`,
+            { stack: revertError.stack },
+          );
+        }
+
         return {
           success: false,
           message:
-            "Decommission partially completed — activity record not created",
-          errors: {
-            message:
-              "Device was decommissioned but activity log could not be created",
-          },
+            "Decommission failed — activity log could not be created; device state was restored",
+          errors: { message: activityCreateError.message },
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }

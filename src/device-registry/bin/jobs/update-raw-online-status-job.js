@@ -428,6 +428,16 @@ const processIndividualDevice = async (
   deviceDetailsMap,
   siteDataMap,
 ) => {
+  // Decommissioned devices are permanently retired — never poll their channel.
+  // Checked here (not just filtered out of deviceNumbers upstream) because
+  // deviceDetailsMap is keyed by device_number, not device _id: if a
+  // decommissioned device shares a device_number with an active one,
+  // deviceDetailsMap would still resolve a readKey for it via the active
+  // device's entry, letting it slip through to the ThingSpeak path.
+  if (device.status === "decommissioned") {
+    return null;
+  }
+
   // ============================================================================
   // PRE-CHECK: Evaluate existing lastRawData to detect stale data
   // This ensures we mark devices offline even if ThingSpeak fetch fails

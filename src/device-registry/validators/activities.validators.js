@@ -722,7 +722,7 @@ const commonValidations = {
       .toLowerCase()
       .isIn(constants.ACTIVITY_TYPES)
       .withMessage(
-        "the activity_type value is not among the expected ones which are: recallment, deployment and maintenance",
+        "the activity_type value is not among the expected ones which are: recallment, deployment, maintenance and decommission",
       ),
   ],
   activityTags: [

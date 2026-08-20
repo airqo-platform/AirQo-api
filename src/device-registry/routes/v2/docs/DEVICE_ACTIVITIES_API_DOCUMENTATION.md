@@ -83,6 +83,7 @@ This API provides endpoints for managing device activities including deployment,
 ```
 
 - `reason` is optional free text (max 500 chars), stored on the activity's `description`.
+- `date` is required, ISO 8601, and must be no more than one month in the past or five minutes in the future.
 
 **Query Parameters:**
 

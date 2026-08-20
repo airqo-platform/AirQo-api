@@ -269,5 +269,46 @@ describe("updateRawOnlineStatusJob", () => {
       const updateOperation = bulkWriteArgs[0].updateOne.update;
       expect(updateOperation.$set).to.not.have.property("channelStatus");
     });
+
+    it("should not poll ThingSpeak for a decommissioned device that shares a device_number with an active one", async () => {
+      const activeDevice = mockDevice("ready", { _id: "active_id", name: "active_device" });
+      const decommissionedDevice = mockDevice("decommissioned", {
+        _id: "decommissioned_id",
+        name: "decommissioned_device",
+      });
+      const cursor = {
+        [Symbol.asyncIterator]: async function*() {
+          yield activeDevice;
+          yield decommissionedDevice;
+        },
+        close: sinon.stub(),
+      };
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      // Simulates the real (unfiltered-by-status) query: it resolves a
+      // readKey for device_number 12345 because the active device shares it.
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
+        select: () => ({
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
+        }),
+      });
+      findStub.returns({
+        select: () => ({
+          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+        }),
+      });
+
+      await updateRawOnlineStatus();
+
+      // Only the active device should ever reach the ThingSpeak fetch.
+      expect(fetchThingspeakDataStub.calledOnce).to.be.true;
+      expect(deviceModelStub.calledOnce).to.be.true;
+      const bulkWriteArgs = deviceModelStub.firstCall.args[0];
+      // processIndividualDevice returns null for the decommissioned device,
+      // so only one bulk op (the active device's) should be written.
+      expect(bulkWriteArgs.length).to.equal(1);
+      expect(bulkWriteArgs[0].updateOne.filter._id).to.equal("active_id");
+    });
   });
 });
