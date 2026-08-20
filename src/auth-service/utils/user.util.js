@@ -1123,14 +1123,22 @@ const createUserModule = {
       // ── 6. Conditional email notification ─────────────────────────────────────
       //
       // Only send the "Your AirQo Account Updated" email when a user-facing
-      // profile field has changed. Updates to internal or preference fields
-      // (e.g. jobTitle, interests, website) complete silently with no email.
+      // identity/contact field has changed. Updates to internal or preference
+      // fields (e.g. jobTitle, interests, website) complete silently with no
+      // email. email and password changes are deliberately excluded here since
+      // they already trigger their own dedicated notifications elsewhere
+      // (verification / password-reset emails).
       //
       // hasOwnProperty is used intentionally — a field set to "" or null still
       // warrants a notification. Only its complete absence from the payload skips it.
       //
       // To notify on additional fields in future, add them to this array.
-      const NOTIFIABLE_FIELDS = ["firstName", "lastName", "profilePicture"];
+      const NOTIFIABLE_FIELDS = [
+        "firstName",
+        "lastName",
+        "profilePicture",
+        "phoneNumber",
+      ];
       const hasNotifiableChange = NOTIFIABLE_FIELDS.some((field) =>
         Object.prototype.hasOwnProperty.call(emailUpdatePayload, field),
       );
