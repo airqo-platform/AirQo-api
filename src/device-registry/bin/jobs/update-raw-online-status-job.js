@@ -21,6 +21,10 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future fe
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
+// How long to skip re-polling a channel after it 404s (deleted upstream)
+// before trying again — bounds both wasted requests and repeat alerts to
+// once a day per device while still auto-healing if the channel returns.
+const CHANNEL_NOT_FOUND_RECHECK_MS = 24 * 60 * 60 * 1000;
 
 const JOB_NAME = "update-raw-online-status-job";
 const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
@@ -197,9 +201,16 @@ const processDeviceBatch = async (devices, processor) => {
   // 1. Get device numbers for airqo devices only — ThingSpeak channels only
   // exist for network="airqo". Other networks (airgradient, iqair, etc.) store
   // their manufacturer location/serial ID in device_number but have no ThingSpeak
-  // channel, so including them here produces wasted DB look-ups.
+  // channel, so including them here produces wasted DB look-ups. Decommissioned
+  // devices are permanently retired — polling their (possibly deleted) channel
+  // serves no purpose.
   const deviceNumbers = devices
-    .filter((d) => d.network === "airqo" && d.device_number)
+    .filter(
+      (d) =>
+        d.network === "airqo" &&
+        d.device_number &&
+        d.status !== "decommissioned",
+    )
     .map((d) => d.device_number);
 
   // 2. Fetch all necessary device details in a single query with timeout
@@ -697,6 +708,62 @@ const processIndividualDevice = async (
     return null;
   }
 
+  // Skip devices whose channel recently 404'd (deleted upstream) — no point
+  // re-hitting a channel we already know is gone. Falls through to the
+  // stale-data logic below (same treatment as "no readKey") once the flag
+  // goes stale, so a restored channel is picked back up automatically.
+  if (
+    device.channelStatus === "not_found" &&
+    device.channelStatusCheckedAt &&
+    Date.now() - new Date(device.channelStatusCheckedAt).getTime() <
+      CHANNEL_NOT_FOUND_RECHECK_MS
+  ) {
+    const isCurrentlyRawOnline = device.rawOnlineStatus;
+    const isNowRawOnline = hasExistingRawData
+      ? !shouldMarkOfflineFromStaleData
+      : false;
+
+    const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: isCurrentlyRawOnline,
+      isNowOnline: isNowRawOnline,
+      currentStats: device.onlineStatusAccuracy,
+      reason: "channel_not_found_cooldown",
+    });
+
+    const updateFields = { rawOnlineStatus: isNowRawOnline };
+    if (
+      STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+      isDeviceActuallyMobile(device)
+    ) {
+      updateFields.isOnline = isNowRawOnline;
+    }
+
+    const finalSetUpdate = { ...updateFields, ...setUpdate };
+    const updateDoc = { $set: finalSetUpdate };
+    if (incUpdate) {
+      updateDoc.$inc = incUpdate;
+    }
+
+    const siteUpdates = [];
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
+    return {
+      deviceUpdate: {
+        updateOne: {
+          filter: { _id: device._id },
+          update: updateDoc,
+        },
+      },
+      siteUpdates,
+    };
+  }
+
   let apiKey;
   try {
     const decryptResponse = await createDeviceUtil.decryptKey(
@@ -744,7 +811,13 @@ const processIndividualDevice = async (
     let isRawOnline = false;
     let lastFeedTime = null;
     let latestRawPm25 = null;
-    let updateFields = {};
+    // A successful fetch (no 404 thrown) proves the channel exists again —
+    // clear any earlier "not_found" flag so the cooldown skip above stops
+    // applying.
+    let updateFields =
+      device.channelStatus === "not_found"
+        ? { channelStatus: null, channelStatusCheckedAt: null }
+        : {};
     const dateValidStatus =
       thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]
         ? classifyFeedTimestamp(thingspeakData.feeds[0].created_at)
@@ -916,15 +989,29 @@ const processIndividualDevice = async (
       siteUpdates: siteUpdates,
     };
   } catch (error) {
-    logger.error(
-      `Error processing raw status for device ${device.name}: ${error.message}`,
-    );
+    // A 404 here means ThingSpeak has no such channel — almost always a
+    // deleted channel, a known/diagnosed condition rather than a transient
+    // fault. Route it through the dedup logger (demoted, deduplicated) and
+    // flag the device so subsequent runs skip re-polling it for a while,
+    // instead of re-alerting at error level every hour indefinitely.
+    const isChannelNotFound = error.response && error.response.status === 404;
+    if (isChannelNotFound) {
+      (global.dedupLogger || logger).warn(
+        `Channel not found (404) for device ${device.name} (channel ${device.device_number}); ` +
+          `flagging channelStatus=not_found and suppressing re-polls for 24h.`,
+      );
+    } else {
+      logger.error(
+        `Error processing raw status for device ${device.name}: ${error.message}`,
+      );
+    }
     return createFailureUpdate(
       device,
-      "fetch_error",
+      isChannelNotFound ? "channel_not_found" : "fetch_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
       siteDataMap,
+      isChannelNotFound,
     );
   }
 };
@@ -936,6 +1023,7 @@ const createFailureUpdate = (
   shouldMarkOfflineFromStaleData = false,
   hasExistingRawData = false,
   siteDataMap = null,
+  markChannelNotFound = false,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -953,6 +1041,11 @@ const createFailureUpdate = (
   const updateFields = {
     rawOnlineStatus: isNowRawOnline,
   };
+
+  if (markChannelNotFound) {
+    updateFields.channelStatus = "not_found";
+    updateFields.channelStatusCheckedAt = new Date();
+  }
 
   if (
     STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
@@ -1022,7 +1115,7 @@ const updateRawOnlineStatus = async () => {
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation network api_code access_code authRequired",
+        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation network api_code access_code authRequired channelStatus channelStatusCheckedAt",
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor

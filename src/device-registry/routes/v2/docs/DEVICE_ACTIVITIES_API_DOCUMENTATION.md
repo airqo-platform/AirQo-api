@@ -62,7 +62,68 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 2. Deploy Device (Enhanced)
+### 2. Decommission Device Activity
+
+**Endpoint:** `POST /decommission`
+
+**Description:** Permanently retires a device on the platform only — the upstream data provider (e.g. ThingSpeak) is never touched. Use this instead of deleting the device outright when its physical channel is gone for good (deleted upstream, hardware lost/destroyed, end of life): the device record and its full activity/readings history are preserved, but it's set to `status: "decommissioned"`, taken off its site/grid, and excluded from the hourly online-status polling job going forward. Fails with 400 if the device is already decommissioned.
+
+**Request Body:**
+
+```json
+{
+  "reason": "ThingSpeak channel deleted upstream",
+  "date": "2024-01-15T10:30:00.000Z",
+  "user_id": "60f1b2e4d4a5c123456789ab",
+  "firstName": "John",
+  "lastName": "Doe",
+  "userName": "johndoe",
+  "email": "john.doe@example.com"
+}
+```
+
+- `reason` is optional free text (max 500 chars), stored on the activity's `description`.
+
+**Query Parameters:**
+
+- `tenant` (optional): Network tenant (defaults to "airqo")
+- `deviceName` (required): Name of the device to decommission
+
+**Response (Success - 200):**
+
+```json
+{
+  "success": true,
+  "message": "successfully decommissioned the device",
+  "createdActivity": {
+    "_id": "60f1b2e4d4a5c123456789ac",
+    "device": "aq_device_001",
+    "date": "2024-01-15T10:30:00.000Z",
+    "description": "device decommissioned: ThingSpeak channel deleted upstream",
+    "activityType": "decommission"
+  },
+  "updatedDevice": {
+    "_id": "60f1b2e4d4a5c123456789ad",
+    "name": "aq_device_001",
+    "isActive": false,
+    "status": "decommissioned",
+    "recall_date": "2024-01-15T10:30:00.000Z"
+  },
+  "user_id": "60f1b2e4d4a5c123456789ab"
+}
+```
+
+**Response (Failure - Already Decommissioned - 400):**
+
+```json
+{
+  "success": false,
+  "message": "Device is already decommissioned",
+  "errors": { "message": "Device aq_device_001 is already decommissioned" }
+}
+```
+
+### 3. Deploy Device (Enhanced)
 
 **Endpoint:** `POST /deploy`
 
@@ -143,7 +204,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 3. Deploy Owned Device
+### 4. Deploy Owned Device
 
 **Endpoint:** `POST /deploy-owned`
 
@@ -167,7 +228,7 @@ This API provides endpoints for managing device activities including deployment,
 
 **Response:** Same as regular deployment endpoint
 
-### 4. Batch Deployment
+### 5. Batch Deployment
 
 **Endpoint:** `POST /deploy/batch`
 
@@ -241,7 +302,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 5. Deploy Mobile Device
+### 6. Deploy Mobile Device
 
 **Endpoint:** `POST /deploy/mobile`
 
@@ -267,7 +328,7 @@ This API provides endpoints for managing device activities including deployment,
 
 **Response:** Same format as regular deployment
 
-### 6. Deploy Static Device
+### 7. Deploy Static Device
 
 **Endpoint:** `POST /deploy/static`
 
@@ -289,7 +350,7 @@ This API provides endpoints for managing device activities including deployment,
 
 **Response:** Same format as regular deployment
 
-### 7. Get Deployment Statistics
+### 8. Get Deployment Statistics
 
 **Endpoint:** `GET /deploy/stats`
 
@@ -329,7 +390,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 8. Get Devices by Deployment Type
+### 9. Get Devices by Deployment Type
 
 **Endpoint:** `GET /devices/by-type/:deploymentType`
 
@@ -373,7 +434,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 9. Maintain Device
+### 10. Maintain Device
 
 **Endpoint:** `POST /maintain`
 
@@ -424,7 +485,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 10. List Activities
+### 11. List Activities
 
 **Endpoint:** `GET /`
 
@@ -468,7 +529,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 11. Update Activity
+### 12. Update Activity
 
 **Endpoint:** `PUT /`
 
@@ -503,7 +564,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 12. Bulk Update Activities
+### 13. Bulk Update Activities
 
 **Endpoint:** `PUT /bulk/`
 
@@ -521,7 +582,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 13. Bulk Add Activities
+### 14. Bulk Add Activities
 
 **Endpoint:** `POST /bulk/`
 
@@ -539,7 +600,7 @@ This API provides endpoints for managing device activities including deployment,
 }
 ```
 
-### 14. Delete Activity
+### 15. Delete Activity
 
 **Endpoint:** `DELETE /`
 

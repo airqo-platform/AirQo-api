@@ -767,6 +767,36 @@ describe("createActivity", () => {
 
     // Add more test cases as needed to cover different scenarios
   });
+  describe("decommission", () => {
+    it("should handle device not found for decommission", async () => {
+      DeviceModelStub.returns({
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+      });
+      const result = await createActivity.decommission(
+        { query: { tenant: "airqo", deviceName: "unknown" }, body: {} },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.false;
+    });
+
+    it("should reject a device that is already decommissioned", async () => {
+      DeviceModelStub.returns({
+        findOne: sandbox.stub().returns({
+          lean: sandbox
+            .stub()
+            .resolves({ _id: "device_id_123", name: "aq_01", status: "decommissioned" }),
+        }),
+      });
+      const result = await createActivity.decommission(
+        { query: { tenant: "airqo", deviceName: "aq_01" }, body: {} },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(400);
+    });
+
+    // Add more test cases as needed to cover different scenarios
+  });
   describe("maintain", () => {
     it("should handle device not found for maintenance", async () => {
       // maintain uses DeviceModel(tenant).findOne({ name: deviceName }).lean()

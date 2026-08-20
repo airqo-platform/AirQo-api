@@ -875,6 +875,28 @@ const activitiesValidations = {
     ...commonValidations.email,
   ],
 
+  // Permanently retires a device (e.g. its upstream channel was deleted and
+  // won't be recreated) without touching the upstream provider — the
+  // counterpart to the platform-only "/devices/soft" delete for cases where
+  // keeping the device record and its history matters more than removing it.
+  decommissionActivity: [
+    ...commonValidations.tenant,
+    ...commonValidations.deviceName,
+    body("reason")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("reason should not be empty if provided")
+      .isLength({ max: 500 })
+      .withMessage("reason must not exceed 500 characters"),
+    commonValidations.objectId("user_id", body),
+    ...commonValidations.date,
+    ...commonValidations.firstName,
+    ...commonValidations.lastName,
+    ...commonValidations.userName,
+    ...commonValidations.email,
+  ],
+
   deployActivity: [
     //Required fields validation
     ...commonValidations.tenant,
