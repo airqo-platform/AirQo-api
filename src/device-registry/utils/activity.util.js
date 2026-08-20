@@ -2761,6 +2761,339 @@ const createActivity = {
     }
   },
 
+  // Permanently retires a device on the platform only — it never touches the
+  // upstream provider (e.g. ThingSpeak). This is the safe alternative to
+  // deleting a device outright when its physical channel is gone for good
+  // (deleted by the hardware team, hardware lost/destroyed, etc.): the device
+  // record and its full activity/readings history are kept, it's just taken
+  // out of rotation everywhere (site assignment, online-status polling,
+  // deployment listings) via status: "decommissioned".
+  decommission: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant, deviceName } = query;
+
+      const {
+        reason,
+        date,
+        user_id,
+        firstName,
+        lastName,
+        userName,
+        email,
+        network,
+        host_id,
+      } = body;
+
+      const device = await DeviceModel(tenant)
+        .findOne({ name: deviceName })
+        .lean();
+
+      if (isEmpty(device)) {
+        return {
+          success: false,
+          message: `Invalid request, Device ${deviceName} not found`,
+          errors: { message: `Device ${deviceName} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (device.status === "decommissioned") {
+        return {
+          success: false,
+          message: "Device is already decommissioned",
+          errors: {
+            message: `Device ${deviceName} is already decommissioned`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const deviceUpdateData = {
+        $set: {
+          isActive: false,
+          status: "decommissioned",
+          recall_date: (date && new Date(date)) || new Date(),
+          site_id: null,
+          grid_id: null,
+          mobility: false,
+        },
+        $unset: {
+          deployment_type: "",
+          mountType: "",
+          powerType: "",
+          height: "",
+          isPrimaryInLocation: "",
+          latitude: "",
+          longitude: "",
+          deployment_date: "",
+          // A decommissioned channel is retired for good — stop the
+          // update-raw-online-status-job's "not_found" cooldown bookkeeping
+          // for it, it's now simply excluded from polling outright.
+          channelStatus: "",
+          channelStatusCheckedAt: "",
+        },
+      };
+
+      const pushFields = {};
+      if (device.site_id) {
+        pushFields.previous_sites = device.site_id;
+      }
+      if (device.grid_id) {
+        pushFields.previous_grids = device.grid_id;
+      }
+      if (Object.keys(pushFields).length > 0) {
+        deviceUpdateData.$push = pushFields;
+      }
+
+      const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
+        { name: deviceName },
+        deviceUpdateData,
+        { new: true },
+      );
+
+      if (!updatedDevice) {
+        return {
+          success: false,
+          message: "Decommission operation failed",
+          errors: { message: `Failed to update device ${deviceName}` },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      try {
+        const readingUpdateResult = await ReadingModel(tenant).updateMany(
+          { device_id: updatedDevice._id.toString() },
+          { $set: { "deviceDetails.isActive": false } }
+        );
+        logger.info(
+          `Decommission: marked ${readingUpdateResult.modifiedCount ??
+            "unknown"} readings inactive for device ${deviceName} (${updatedDevice._id})`
+        );
+      } catch (readingUpdateError) {
+        logger.error(
+          `🚨 Decommission: failed to mark readings inactive for device ${deviceName} (${updatedDevice._id}). ` +
+            `Query: { device_id: "${updatedDevice._id}" }. ` +
+            `Error: ${readingUpdateError.message}`,
+          { stack: readingUpdateError.stack }
+        );
+      }
+
+      const activityData = {
+        device: deviceName,
+        device_id: device._id,
+        date: (date && new Date(date)) || new Date(),
+        description: reason
+          ? `device decommissioned: ${reason}`
+          : "device decommissioned",
+        activityType: "decommission",
+        host_id: host_id || null,
+        user_id: user_id || null,
+        network: network || device.network,
+        firstName,
+        lastName,
+        userName,
+        email,
+        site_id: device.site_id || null,
+        grid_id: device.grid_id || null,
+      };
+
+      // Device status and activity creation aren't in a single transaction
+      // (no other flow in this codebase uses Mongo sessions either), so on
+      // any failure here — thrown or a falsy result — restore the device to
+      // its pre-decommission state before reporting failure, rather than
+      // leaving it silently "decommissioned" with no activity log.
+      let createdActivity;
+      try {
+        createdActivity = await ActivityModel(tenant).create(activityData);
+        if (!createdActivity) {
+          throw new Error("ActivityModel.create returned no document");
+        }
+      } catch (activityCreateError) {
+        logger.error(
+          `🚨 Decommission: activity creation failed for device ${deviceName} (${updatedDevice._id}); ` +
+            `restoring prior device state. Error: ${activityCreateError.message}`,
+          { stack: activityCreateError.stack },
+        );
+
+        try {
+          const revertFields = {
+            isActive: device.isActive,
+            status: device.status,
+            site_id: device.site_id ?? null,
+            grid_id: device.grid_id ?? null,
+            mobility: device.mobility,
+            recall_date: device.recall_date ?? null,
+          };
+          const revertUnset = {};
+          [
+            "deployment_type",
+            "mountType",
+            "powerType",
+            "height",
+            "isPrimaryInLocation",
+            "latitude",
+            "longitude",
+            "deployment_date",
+            "channelStatus",
+            "channelStatusCheckedAt",
+          ].forEach((field) => {
+            if (device[field] === undefined || device[field] === null) {
+              revertUnset[field] = "";
+            } else {
+              revertFields[field] = device[field];
+            }
+          });
+
+          const revertUpdate = { $set: revertFields };
+          if (Object.keys(revertUnset).length > 0) {
+            revertUpdate.$unset = revertUnset;
+          }
+          const revertPull = {};
+          if (device.site_id) revertPull.previous_sites = device.site_id;
+          if (device.grid_id) revertPull.previous_grids = device.grid_id;
+          if (Object.keys(revertPull).length > 0) {
+            revertUpdate.$pull = revertPull;
+          }
+
+          await DeviceModel(tenant).findOneAndUpdate(
+            { name: deviceName },
+            revertUpdate,
+          );
+        } catch (revertError) {
+          logger.error(
+            `🚨🚨 Decommission: failed to restore device ${deviceName} after activity creation ` +
+              `failure — device is now inconsistently "decommissioned" with no activity log. ` +
+              `Error: ${revertError.message}`,
+            { stack: revertError.stack },
+          );
+        }
+
+        return {
+          success: false,
+          message:
+            "Decommission failed — activity log could not be created; device state was restored",
+          errors: { message: activityCreateError.message },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      Promise.allSettled([
+        updateActivityCache(
+          tenant,
+          device.site_id,
+          device._id,
+          deviceName,
+          next,
+        ),
+      ]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            logger.error(
+              `Cache update failed for ${deviceName}: ${result.reason?.message}`,
+            );
+          }
+        });
+      });
+
+      // Same site.network re-sync as recall: a decommissioned device leaves
+      // its site the same way a recalled one does, so the site's derived
+      // fields must stay consistent for the same reasons.
+      if (device.site_id) {
+        (async () => {
+          try {
+            const remainingNetworks = await DeviceModel(tenant).distinct(
+              "network",
+              { site_id: device.site_id, isActive: true },
+            );
+            const sortedNetworks = (remainingNetworks || [])
+              .map((n) => (typeof n === "string" ? n.trim() : n))
+              .filter((n) => typeof n === "string" && n.length > 0)
+              .sort();
+
+            const networkToSet =
+              sortedNetworks.length > 0
+                ? sortedNetworks[0]
+                : constants.DEFAULT_NETWORK || "airqo";
+
+            const siteFields = { network: networkToSet };
+
+            if (sortedNetworks.length === 0) {
+              siteFields.rawOnlineStatus = false;
+              siteFields.isOnline = false;
+            }
+
+            const updateResult = await SiteModel(tenant).findByIdAndUpdate(
+              device.site_id,
+              { $set: siteFields },
+              { new: false },
+            );
+
+            if (updateResult) {
+              createSiteUtil.refreshSiteDataProvider(tenant, device.site_id);
+            }
+          } catch (err) {
+            logger.error(
+              `Failed to sync site.network after decommission for site ${device.site_id}: ${err.message}`,
+            );
+          }
+        })();
+      }
+
+      return {
+        success: true,
+        message: "successfully decommissioned the device",
+        data: {
+          createdActivity: {
+            activity_codes: createdActivity.activity_codes,
+            tags: createdActivity.tags,
+            _id: createdActivity._id,
+            device: createdActivity.device,
+            device_id: createdActivity.device_id,
+            date: createdActivity.date,
+            description: createdActivity.description,
+            activityType: createdActivity.activityType,
+            site_id: createdActivity.site_id,
+            grid_id: createdActivity.grid_id,
+            host_id: createdActivity.host_id,
+            network: createdActivity.network,
+            firstName: createdActivity.firstName,
+            lastName: createdActivity.lastName,
+            userName: createdActivity.userName,
+            email: createdActivity.email,
+            createdAt: createdActivity.createdAt,
+          },
+          updatedDevice: {
+            _id: updatedDevice._id,
+            name: updatedDevice.name,
+            long_name: updatedDevice.long_name,
+            device_number: updatedDevice.device_number,
+            isActive: updatedDevice.isActive,
+            status: updatedDevice.status,
+            recall_date: updatedDevice.recall_date,
+            site_id: updatedDevice.site_id,
+            grid_id: updatedDevice.grid_id,
+            network: updatedDevice.network,
+            category: updatedDevice.category,
+            previous_sites: updatedDevice.previous_sites,
+            previous_grids: updatedDevice.previous_grids,
+          },
+          user_id: user_id || null,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Decommission Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   maintain: async (request, next) => {
     try {
       const { query, body } = request;

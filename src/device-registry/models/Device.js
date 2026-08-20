@@ -296,6 +296,20 @@ const deviceSchema = new mongoose.Schema(
       enum: ["valid", "future_timestamp", "invalid_format", "unknown"],
       default: "unknown",
     },
+    // Set by update-raw-online-status-job when the upstream feed provider
+    // (e.g. ThingSpeak) returns 404 for this device's channel — almost always
+    // means the channel was deleted upstream. Cleared automatically the next
+    // time a fetch for this device succeeds. Used to suppress repeat alerts
+    // and skip pointless re-polling until channelStatusCheckedAt goes stale.
+    channelStatus: {
+      type: String,
+      enum: ["not_found"],
+      default: null,
+    },
+    channelStatusCheckedAt: {
+      type: Date,
+      default: null,
+    },
     /**
      * The latest PM2.5 readings for this device.
      * May be null or undefined if no readings have been recorded yet.

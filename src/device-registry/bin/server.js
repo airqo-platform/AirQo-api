@@ -230,12 +230,6 @@ try {
   );
 }
 try {
-  const syncNetworksJob = require("@bin/jobs/sync-networks-job");
-  syncNetworksJob.start();
-} catch (err) {
-  global.dedupLogger.error(`sync-networks-job failed to start: ${err.message}`);
-}
-try {
   const backfillApiCodeJob = require("@bin/jobs/backfill-api-code-job");
   backfillApiCodeJob.startJob();
 } catch (err) {
