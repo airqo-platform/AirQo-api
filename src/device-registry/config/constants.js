@@ -83,6 +83,16 @@ function envConfig(env) {
       false,
     ),
 
+    // Kill switch for RBAC permission enforcement (@airqo-packages/rbac-middleware
+    // requirePermission()). Default ON (true) — unlike ENABLE_RESOURCE_BINDING,
+    // this guards an actual authorization boundary, so it fails closed by
+    // default. Set to "false" only as an ops emergency bypass; every bypassed
+    // request is logged at warn level.
+    RBAC_ENFORCEMENT_ENABLED: parseBool(
+      process.env.RBAC_ENFORCEMENT_ENABLED,
+      true,
+    ),
+
     // Integer (ms): maximum time the MongoDB driver waits for a response on an
     // open socket before aborting the operation.  Must be long enough to cover
     // the heaviest aggregation in the service — EventModel.fetch(recent=yes)
