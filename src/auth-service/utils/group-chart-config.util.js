@@ -6,7 +6,10 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- group-chart-config-util`
 );
-const { allowedChartProperties } = require("./preference.util");
+const {
+  allowedChartProperties,
+  findStaleMetadataEntry,
+} = require("./preference.util");
 
 // Mirrors utils/preference.util.js's personal chart CRUD, but scoped to a
 // group (the org/organization-wide DEFAULT chart, as distinct from a single
@@ -46,6 +49,35 @@ const groupChartConfig = {
         return {
           success: false,
           message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Unlike the personal chart, a group chart's scope lives on this
+      // parent document (device_ids/site_ids above), not on the chart
+      // subdocument itself — so sites/devices are checked against the
+      // parent-level arrays, not any scope field on chartConfig.
+      const staleSite = findStaleMetadataEntry(
+        chartConfig.sites,
+        "site_id",
+        site_ids
+      );
+      if (staleSite) {
+        return {
+          success: false,
+          message: `sites[].site_id ${staleSite.site_id} is not in this chart's site_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const staleDevice = findStaleMetadataEntry(
+        chartConfig.devices,
+        "device_id",
+        device_ids
+      );
+      if (staleDevice) {
+        return {
+          success: false,
+          message: `devices[].device_id ${staleDevice.device_id} is not in this chart's device_ids`,
           status: httpStatus.BAD_REQUEST,
         };
       }
@@ -130,6 +162,35 @@ const groupChartConfig = {
         return {
           success: false,
           message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Checked against the parent doc's (just-merged) device_ids/site_ids,
+      // not any field on the chart subdocument — see the same check in
+      // create() above for why.
+      const updatedChart = groupChart.chartConfigurations[chartIndex];
+      const staleSite = findStaleMetadataEntry(
+        updatedChart.sites,
+        "site_id",
+        groupChart.site_ids
+      );
+      if (staleSite) {
+        return {
+          success: false,
+          message: `sites[].site_id ${staleSite.site_id} is not in this chart's site_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const staleDevice = findStaleMetadataEntry(
+        updatedChart.devices,
+        "device_id",
+        groupChart.device_ids
+      );
+      if (staleDevice) {
+        return {
+          success: false,
+          message: `devices[].device_id ${staleDevice.device_id} is not in this chart's device_ids`,
           status: httpStatus.BAD_REQUEST,
         };
       }

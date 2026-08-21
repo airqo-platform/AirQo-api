@@ -153,6 +153,50 @@ const createNestedValidations = (prefix) => {
       .bail()
       .isString()
       .withMessage("locationColors[].color must be a string"),
+    // Optional display-name snapshot for the chart's device_ids/site_ids —
+    // stored and returned verbatim, same optionality/shape as locationColors.
+    body(`${prefix}.sites`)
+      .optional()
+      .isArray()
+      .withMessage("sites must be an array"),
+    body(`${prefix}.sites.*.site_id`)
+      .exists()
+      .withMessage("sites[].site_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("sites[].site_id must be a valid ObjectId"),
+    body(`${prefix}.sites.*.name`)
+      .exists()
+      .withMessage("sites[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("sites[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("sites[].name must not exceed 200 characters"),
+    body(`${prefix}.devices`)
+      .optional()
+      .isArray()
+      .withMessage("devices must be an array"),
+    body(`${prefix}.devices.*.device_id`)
+      .exists()
+      .withMessage("devices[].device_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("devices[].device_id must be a valid ObjectId"),
+    body(`${prefix}.devices.*.name`)
+      .exists()
+      .withMessage("devices[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("devices[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("devices[].name must not exceed 200 characters"),
     body(`${prefix}.xAxisLabel`)
       .optional()
       .isString()
@@ -1111,6 +1155,47 @@ const chartConfigValidation = [
     .bail()
     .isString()
     .withMessage("locationColors[].color must be a string"),
+  // Optional display-name snapshot for device_ids/site_ids — stored and
+  // returned verbatim, same optionality/shape as locationColors.
+  body("sites").optional().isArray().withMessage("sites must be an array"),
+  body("sites.*.site_id")
+    .exists()
+    .withMessage("sites[].site_id is required")
+    .bail()
+    .isMongoId()
+    .withMessage("sites[].site_id must be a valid ObjectId"),
+  body("sites.*.name")
+    .exists()
+    .withMessage("sites[].name is required")
+    .bail()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("sites[].name must be a non-empty string")
+    .bail()
+    .isLength({ max: 200 })
+    .withMessage("sites[].name must not exceed 200 characters"),
+  body("devices")
+    .optional()
+    .isArray()
+    .withMessage("devices must be an array"),
+  body("devices.*.device_id")
+    .exists()
+    .withMessage("devices[].device_id is required")
+    .bail()
+    .isMongoId()
+    .withMessage("devices[].device_id must be a valid ObjectId"),
+  body("devices.*.name")
+    .exists()
+    .withMessage("devices[].name is required")
+    .bail()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("devices[].name must be a non-empty string")
+    .bail()
+    .isLength({ max: 200 })
+    .withMessage("devices[].name must not exceed 200 characters"),
   body("xAxisLabel")
     .optional()
     .isString()

@@ -176,6 +176,96 @@ describe("personal chart validators", () => {
         });
       expect(res.status).to.equal(200);
     });
+
+    it("accepts a well-formed request with sites/devices display-name entries", async () => {
+      const siteId = validId();
+      const deviceId = validId();
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: {
+            fieldId: 1,
+            sites: [{ site_id: siteId, name: "Site A" }],
+            devices: [{ device_id: deviceId, name: "Device A" }],
+          },
+          site_ids: [siteId],
+          device_ids: [deviceId],
+        });
+      expect(res.status).to.equal(200);
+    });
+
+    it("rejects a chartConfig.sites entry with an invalid site_id", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: {
+            fieldId: 1,
+            sites: [{ site_id: "not-an-id", name: "Site A" }],
+          },
+          site_ids: [validId()],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "sites[].site_id must be a valid ObjectId"
+      );
+    });
+
+    it("rejects a chartConfig.sites entry missing site_id", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: { fieldId: 1, sites: [{ name: "Site A" }] },
+          site_ids: [validId()],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "sites[].site_id is required"
+      );
+    });
+
+    it("rejects a chartConfig.sites entry with an empty name", async () => {
+      const siteId = validId();
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: { fieldId: 1, sites: [{ site_id: siteId, name: "  " }] },
+          site_ids: [siteId],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "sites[].name must be a non-empty string"
+      );
+    });
+
+    it("rejects a chartConfig.sites entry with a name over 200 characters", async () => {
+      const siteId = validId();
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: {
+            fieldId: 1,
+            sites: [{ site_id: siteId, name: "x".repeat(201) }],
+          },
+          site_ids: [siteId],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "sites[].name must not exceed 200 characters"
+      );
+    });
+
+    it("rejects a chartConfig.devices entry missing device_id", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: { fieldId: 1, devices: [{ name: "Device A" }] },
+          device_ids: [validId()],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "devices[].device_id is required"
+      );
+    });
   });
 
   describe("updateChart", () => {
@@ -244,6 +334,38 @@ describe("personal chart validators", () => {
       expect(res.status).to.equal(422);
       expect(JSON.stringify(res.body)).to.include(
         "locationColors[].color is required"
+      );
+    });
+
+    it("accepts a well-formed update with sites/devices display-name entries", async () => {
+      const siteId = validId();
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({
+          site_ids: [siteId],
+          sites: [{ site_id: siteId, name: "Site A" }],
+        });
+      expect(res.status).to.equal(200);
+    });
+
+    it("rejects a sites entry with an invalid site_id", async () => {
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({ sites: [{ site_id: "not-an-id", name: "Site A" }] });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "sites[].site_id must be a valid ObjectId"
+      );
+    });
+
+    it("rejects a devices entry with an empty name", async () => {
+      const deviceId = validId();
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({ devices: [{ device_id: deviceId, name: "" }] });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "devices[].name must be a non-empty string"
       );
     });
   });

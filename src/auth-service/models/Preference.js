@@ -31,6 +31,25 @@ const chartConfigSchema = new Schema({
   // sites[]/devices[] flexibility the old, deprecated Defaults model had.
   device_ids: [{ type: ObjectId, ref: "device" }],
   site_ids: [{ type: ObjectId, ref: "site" }],
+  // Optional display-name snapshot for the ids above, stored and returned
+  // verbatim as sent by the client so the frontend can render chart labels
+  // without a separate fleet-wide name-resolution call. Not kept in sync if
+  // the underlying site/device is renamed later — a deliberate snapshot,
+  // not a live reference.
+  sites: [
+    {
+      site_id: { type: ObjectId, ref: "site", required: true },
+      name: { type: String, required: true, trim: true, maxlength: 200 },
+      _id: false,
+    },
+  ],
+  devices: [
+    {
+      device_id: { type: ObjectId, ref: "device", required: true },
+      name: { type: String, required: true, trim: true, maxlength: 200 },
+      _id: false,
+    },
+  ],
   // Optional per-location color override for the ids selected above (e.g.
   // Kampala in red, Jinja in yellow) — falls back to the chart-wide `color`
   // below when a selected location has no entry here.
