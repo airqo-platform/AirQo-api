@@ -5,3 +5,4 @@
 # glob resolution (which does recurse) find all of them.
 spec: "./**/test/ut_*.js"
 exit: true
+require: "./config/test-global-setup.mjs"

@@ -1120,6 +1120,18 @@ const createUserModule = {
         };
       }
 
+      // Some accounts (e.g. phone-only Firebase sign-ups) have no email.
+      // mailer.update requires `email` and will call `next` with a 400 if it's
+      // missing, so skip the notification flow entirely in that case rather
+      // than surfacing a misleading follow-up error.
+      if (!user.email) {
+        return {
+          success: true,
+          message: responseFromModifyUser.message,
+          data: apiResponseData,
+        };
+      }
+
       // ── 6. Conditional email notification ─────────────────────────────────────
       //
       // Only send the "Your AirQo Account Updated" email when a user-facing

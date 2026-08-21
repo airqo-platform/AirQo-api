@@ -252,7 +252,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY({ email, content, fullName });
+    return constants.EMAIL_BODY({ email, content, name: fullName });
   },
   clientActivationRequest: ({
     name = "",

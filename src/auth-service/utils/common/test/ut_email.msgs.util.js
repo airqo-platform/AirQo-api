@@ -8,18 +8,28 @@ describe("email.msgs", () => {
   describe("recovery_email", () => {
     it("should return the correct recovery email message", () => {
       const token = "example-token";
-      const tenant = "example-tenant";
-      const expectedMessage =
-        "You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n" +
-        "Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n" +
-        `https://example.com/reset-password?token=${token}&tenant=${tenant}\n\n` +
-        "If you did not request this, please ignore this email and your password will remain unchanged.\n";
-      const result = constants.recovery_email({
-        token,
-        tenant,
-        email,
-        version,
-      });
+      const email = "john.doe@example.com";
+      const PASSWORD_RESET_URL = `${constants.NEXUS_BASE_URL}/user/forgotPwd/reset`;
+      const instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
+      const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    You are receiving this because you (or someone else) have requested the reset of the password for your AirQo account.
+                                    <br />
+                                    <br />
+                                    ${instructions}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can also reset your password directly within the app.
+                                    <br />
+                                    <br />
+                                    If you did not request this, please ignore this email and your password will remain unchanged.
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY({ email, content });
+      const result = msgs.recovery_email({ token, email });
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -32,18 +42,22 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to join AirQo Nexus has been received, we shall get back to you as soon as possible.
+                                    Your request to join AirQo has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
-                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo Nexus
-                                    administration.
+                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo administration.
                                     <br />
-                                    Once your application is approved, you will receive a confirmation email<br />
-                                    <br />Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
+                                    Once your application is approved, you will receive a confirmation email.
+                                    <br />
+                                    <br />
+                                    Whether you use the AirQo web platform or the mobile app, you will be able to access the data once your request is approved.
+                                    <br />
+                                    <br />
+                                    Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
                                     <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const expectedMessage = constants.EMAIL_BODY({ email, content, name });
       const joinRequestSpy = sinon.spy(msgs, "joinRequest");
 
       const result = msgs.joinRequest(firstName, lastName, email);
@@ -69,46 +83,26 @@ describe("email.msgs", () => {
         let content;
         switch (category) {
           case "policy":
-            content = ` <tr>
+            content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in our work.
-                                    <br />
-                                    Kindly let us know how you would like to partner with us and we will get back to you.
-                                    <br />
-                                    Alternatively, you can get in touch with our Policy Engagement Officer Angela Nshimye at angela@airqo.net who will be of
-                                    further support.
-                                    <br />
-                                </td>
-                            </tr>`;
-            break;
-          case "champions":
-            content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in being an air quality champion in your community.
-                                    <br />
-                                As an air quality champion, you are key in advocating for clean air practices in your community and urging community
-                                members to take action against air pollution.
-                                    <br />
-                                    Please get in touch with our Marketing and Communications Lead at maclina@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for reaching out and for your interest in AirQo’s work.</p>
+                                    <p>We collaborate with policymakers and public institutions to support evidence-based air quality policies and interventions.</p>
+                                    <p>Kindly let us know how you would like to engage or partner with us, and our team will follow up.</p>
+                                    <p>Alternatively, you may contact our Policy Engagement Officer, Angela Nshimye at <a href="mailto:angela@airqo.net">angela@airqo.net</a> for direct support.</p>
                                 </td>
                             </tr>`;
             break;
           case "researchers":
-            content = ` <tr>
+            content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for your interest in accessing our air quality data to further research in air quality monitoring and
-                                management,
-                                    <br />
-                            You can visit our website at airqo.net and navigate to <a href="https://airqo.net/explore-data">Explore Data</a> or
-                            click <a href="https://airqo.net/explore-data">here</a> to access data.
-                                    <br />
-                                    If you still need further support, please contact our Data Scientists Richard Sserujogi at Richard@airqo.net or Wabinyai
-                                    Fidel Raja at raja@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in using AirQo data for research.</p>
+                                    <p>We provide open air quality data to support research, innovation, and evidence-based decision-making across African cities.</p>
+                                    <p>Access data via <a href="https://airqo.net/explore-data">airqo.net - Explore Data</a>, or click <a href="https://airqo.net/explore-data">here</a> to access datasets directly.</p>
+                                    <p>For advanced support, collaborations, or custom data needs, contact:</p>
+                                    <p>Wabinyai Fidel Raja - Data Scientist: <a href="mailto:raja@airqo.net">raja@airqo.net</a></p>
+                                    <p>We are happy to support academic, policy, and applied research initiatives.</p>
                                 </td>
                             </tr>`;
             break;
@@ -116,32 +110,35 @@ describe("email.msgs", () => {
             content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for your interest in our work.
-                                    <br />
-                            Please get in touch with our Software Engineering Lead Martin Bbaale at martin@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in building with AirQo.</p>
+                                    <p><b>Build open-source tools for cleaner air across Africa.</b></p>
+                                    <p>Join our open-source community and help build, improve, and maintain tools that power air quality monitoring and decision-making across African cities. Contributions may include frontend or backend development, data platforms, documentation, or developer tooling.</p>
+                                    <p>Fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a> to get started.</p>
                                 </td>
                             </tr>`;
             break;
           case "general":
           case "partners":
+          case "champions":
           default:
+            // Source only branches on "policy", "researchers", "developers"
+            // and "assistance"; every other category (including "partners",
+            // "general", and "champions") falls through to this default
+            // "funder/partner" copy.
             content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in supporting our work in closing the air quality data gaps
-                                in African Cities. We are happy to foster partnerships to advance air quality monitoring and management in African
-                                Cities.
-                                    <br />
-                                    <br />
-                                    Please get in touch with our project lead Professor Engineer at baino@airqo.net or Programme Manager Deo Okure at
-                                    deo@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in supporting AirQo’s mission.</p>
+                                    <p>We work with funders to close air quality data gaps and enable sustainable air quality monitoring and management across African cities.</p>
+                                    <p>If you are interested in funding, strategic support, or long-term collaboration, please contact:</p>
+                                    <p>Professor Engineer - Project Lead: <a href="mailto:baino@airqo.net">baino@airqo.net</a></p>
+                                    <p>Deo Okure - Head of Research & Global Partnerships: <a href="mailto:dokure@airqo.net">dokure@airqo.net</a></p>
+                                    <p>We look forward to exploring how your support can accelerate clean air solutions.</p>
                                 </td>
                             </tr>`;
             break;
         }
-        const expectedMessage = constants.EMAIL_BODY(email, content, name);
+        const expectedMessage = constants.EMAIL_BODY({ email, content, name });
         const result = msgs.inquiry(name, email, category);
         expect(result).to.equal(expectedMessage);
       }
@@ -184,9 +181,9 @@ describe("email.msgs", () => {
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
                                 </td>
                             </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.welcome_kcca(firstName, lastName, password, email);
+      const expectedMessage = constants.EMAIL_BODY({ email, content, name });
       const joinRequestSpy = sinon.spy(msgs, "welcome_kcca");
+      const result = msgs.welcome_kcca(firstName, lastName, password, email);
       expect(result).to.equal(expectedMessage);
       expect(
         joinRequestSpy.calledOnceWith(firstName, lastName, password, email)
@@ -203,41 +200,28 @@ describe("email.msgs", () => {
       const email = "johndoe@test.com";
       const name = firstName + " " + lastName;
       const content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Nexus. Your login credentials are as follows:
-                                    <br />
-                                    YOUR USERNAME: ${email}
-                                    <br />
-                                    YOUR PASSWORD: ${password}
-                                    <br /><br />
-                                    To access the dashboard, please follow this link: <a href="${constants.LOGIN_PAGE}">LOGIN PAGE</a>
-                                    <br />
-                                    After login, you can change your password in your account settings. You can also use your AirQo Nexus credentials to
-                                    access the AirQo API.
-                                    <br />
-                                    The AirQo API reference can be found here: <a href=" https://docs.airqo.net/airqo-rest-api-documentation/">API
-                                        Documentation</a>
-                                    <br /><br />
-                                    By actively utilising AirQo Nexus, you automatically agree to the <a
-                                        href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo terms and conditions:</a>
-                                    <br />
-                                    For any technical challenges or suggestions, please contact us at <span
-                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
-                                    <br /><br />
-                                    Please note that this is an automated message, so please do not reply to this email.
-                                    <br />
-                                    To learn more about AirQo Nexus and its features, please refer to the <a
-                                        href="https://docs.airqo.net/airqo-platform/">user guide available here:</a>
-                                    <br /><br />
-                                    Best regards,
-                                    <br />
-                                    AirQo Data Team
-                                </td>
-                            </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.welcome_general(firstName, lastName, password, email);
+                         <td
+                             style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                             <p>Welcome to AirQo Nexus!! 🎉🎉</p>
+                             <p>Your login details are:</p>
+                             <ul>
+                                 <li>USERNAME: ${email}</li>
+                                 <li>PASSWORD: ${password}</li>
+                                 <li>Access your dashboard: <a href="${constants.LOGIN_PAGE}">LOGIN</a></li>
+                             </ul>
+                             <p>Key Documentations:</p>
+                             <ul>
+                                 <li><a href="https://docs.airqo.net/airqo-rest-api-documentation/">API Documentation</a></li>
+                                 <li><a href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo Terms and Conditions</a></li>
+                                 <li><a href="https://docs.airqo.net/airqo-platform/">User Guide</a></li>
+                             </ul>
+                             <p>For support, contact us at support@airqo.net. This is an automated message. Do not reply</p>
+                             <p>Best regards, AirQo Data Team</p>
+                         </td>
+                    </tr>`;
+      const expectedMessage = constants.EMAIL_BODY({ email, content, name });
       const joinRequestSpy = sinon.spy(msgs, "welcome_general");
+      const result = msgs.welcome_general(firstName, lastName, password, email);
       expect(result).to.equal(expectedMessage);
       expect(
         joinRequestSpy.calledOnceWith(firstName, lastName, password, email)
@@ -256,32 +240,47 @@ describe("email.msgs", () => {
         email: "john.doe@example.com",
         jobTitle: "Software Engineer",
       };
-      const updatedFields = Object.keys(updatedData)
-        .map((field) => `• ${field}`)
-        .join("\n");
+      let updatedFields = "<ol>\n";
+      Object.keys(updatedData).forEach((field) => {
+        updatedFields += ` <li>${field}</li>\n`;
+      });
+      updatedFields += "</ol>";
       const content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Nexus account details have been updated.
-                                    <br />
-                                    The following fields have been updated:
-                                    <ol>
-                                        ${updatedFields}
-                                    </ol>
-                                    <br />
-                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
-                                    <br />
-                                    Follow this link to access AirQo Nexus right now: ${constants.LOGIN_PAGE}
-                                    <br />
-                                    <br />
-                                </td>
-                            </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.user_updated(firstName, lastName, updatedData, email);
+                            <td
+                                style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo account details have been updated.
+                                <br />
+                                The following fields have been updated:
+                                
+                                ${updatedFields}
+                                
+                                <br />
+                                If this activity sounds suspicious to you, please reach out to your organization's administrator immediately.
+                                <br />
+                                If you are using the AirQo web platform, follow this link to access AirQo Nexus: ${constants.LOGIN_PAGE}
+                                <br />
+                                <br />
+                                If you are using the AirQo mobile app, you can view your updated details directly within the app.
+                                <br />
+                                <br />
+                            </td>
+                        </tr>`;
+      const expectedMessage = constants.EMAIL_BODY({ email, content, name });
       const joinRequestSpy = sinon.spy(msgs, "user_updated");
+      const result = msgs.user_updated({
+        firstName,
+        lastName,
+        updatedUserDetails: updatedData,
+        email,
+      });
       expect(result).to.equal(expectedMessage);
       expect(
-        joinRequestSpy.calledOnceWith(firstName, lastName, updatedData, email)
+        joinRequestSpy.calledOnceWith({
+          firstName,
+          lastName,
+          updatedUserDetails: updatedData,
+          email,
+        })
       ).to.be.true;
       joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
@@ -296,25 +295,28 @@ describe("email.msgs", () => {
       const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Nexus account password has been successfully reset.
+                                Your AirQo account password has been successfully reset.
                                 <br />
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
                                     <br />
+                                    If you are using the AirQo mobile app, you can log in directly within the app using your new password.
+                                    <br />
+                                    <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const expectedMessage = constants.EMAIL_BODY({ email, content, name });
+      const joinRequestSpy = sinon.spy(msgs, "forgotten_password_updated");
       const result = msgs.forgotten_password_updated(
         firstName,
         lastName,
         email
       );
-      const joinRequestSpy = sinon.spy(msgs, "forgotten_password_updated");
       expect(result).to.equal(expectedMessage);
       expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
         .true;
@@ -331,21 +333,24 @@ describe("email.msgs", () => {
       const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Nexus account password has been successfully updated.
+                                Your AirQo account password has been successfully updated.
                                 <br />
-                                If you did not initiate this password reset, please reach out to your organization's administrator immediately.
+                                If you did not initiate this password update, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Nexus right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
                                     <br />
                                     <br />
+                                    If you are using the AirQo mobile app, you can log in directly within the app using your new password.
+                                    <br />
+                                    <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.known_password_updated(firstName, lastName, email);
+      const expectedMessage = constants.EMAIL_BODY({ email, content, name });
       const joinRequestSpy = sinon.spy(msgs, "known_password_updated");
+      const result = msgs.known_password_updated(firstName, lastName, email);
       expect(result).to.equal(expectedMessage);
       expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
         .true;
@@ -366,12 +371,14 @@ describe("email.msgs", () => {
                                     <br /><br />
                                     That's it! Once verified, you'll gain access to all the app's features. Enjoy tracking your air quality and making
                                     informed decisions for a healthier life.
-
+                                    <br />
+                                    <br />
+                                    Enter this code directly in the AirQo mobile app to verify your email.
                                     <br />
                                     <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content);
+      const expectedMessage = constants.EMAIL_BODY({ email, content });
       const joinRequestSpy = sinon.spy(msgs, "join_by_email");
 
       const result = msgs.join_by_email(email, token);
@@ -396,9 +403,13 @@ describe("email.msgs", () => {
                                 <br />
                                 The code: ${token}
                                     <br />
+                                    <br />
+                                    Enter this code directly in the AirQo mobile app to re-authenticate.
+                                    <br />
+                                    <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content);
+      const expectedMessage = constants.EMAIL_BODY({ email, content });
       const joinRequestSpy = sinon.spy(msgs, "authenticate_email");
 
       const result = msgs.authenticate_email(token, email);

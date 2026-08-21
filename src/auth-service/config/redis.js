@@ -79,16 +79,21 @@ redis.on("reconnecting", () => {
   console.log("[redis] reconnecting…");
 });
 
-// Initialize connection
-(async () => {
-  try {
-    await redis.connect();
-    console.log("[redis] client connected successfully");
-  } catch (error) {
-    // Log but do not crash — the reconnect strategy will keep retrying.
-    console.error("[redis] initial connection failed:", error.message);
-  }
-})();
+// Initialize connection. Skipped under NODE_ENV=test so requiring this module
+// during unit tests doesn't open a real Redis connection and spin up the
+// indefinite exponential-backoff reconnect loop below; the wrapper functions
+// above already guard on isOpen/isReady and degrade gracefully when unconnected.
+if (process.env.NODE_ENV !== "test") {
+  (async () => {
+    try {
+      await redis.connect();
+      console.log("[redis] client connected successfully");
+    } catch (error) {
+      // Log but do not crash — the reconnect strategy will keep retrying.
+      console.error("[redis] initial connection failed:", error.message);
+    }
+  })();
+}
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────
 // Handle both SIGTERM (K8s pod termination) and SIGINT (Ctrl-C / local dev).

@@ -1,5 +1,4 @@
 require("module-alias/register");
-const sinon = require("sinon");
 const { expect } = require("chai");
 const {
   generateDateFormat,
@@ -53,7 +52,9 @@ describe("monthsFromNow", () => {
     const currentDate = new Date();
     const expectedMonth = currentDate.getMonth() + numMonths;
     currentDate.setMonth(expectedMonth);
-    currentDate.setDate(0); // Set the date to the last day of the previous month
+    if (currentDate.getMonth() !== expectedMonth % 12) {
+      currentDate.setDate(0); // Set the date to the last day of the previous month
+    }
     expect(result).to.be.instanceOf(Date);
     expect(result.getFullYear()).to.equal(currentDate.getFullYear());
     expect(result.getMonth()).to.equal(currentDate.getMonth());
@@ -185,25 +186,10 @@ describe("addMonthsToProvidedDate", () => {
 });
 
 describe("addMonthsToProvideDateTime", () => {
-  const originalIsTimeEmpty = isTimeEmpty;
-  const originalAddMonthsToProvidedDate = addMonthsToProvidedDate;
-
-  beforeEach(() => {
-    // Stub the isTimeEmpty and addMonthsToProvidedDate functions
-    sinon.stub(date, "isTimeEmpty");
-    sinon.stub(date, "addMonthsToProvidedDate");
-  });
-
-  afterEach(() => {
-    // Restore the original functions after each test
-    sinon.restore();
-  });
-
   it("should add the specified number of months to the provided date and time if the time is not empty", () => {
     const dateTime = "2023-07-25T10:30:00Z";
     const number = 3;
     const expectedDate = new Date("2023-10-25T10:30:00Z");
-    isTimeEmpty.returns(false);
     const result = addMonthsToProvideDateTime(dateTime, number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedDate.toISOString());
@@ -213,19 +199,14 @@ describe("addMonthsToProvideDateTime", () => {
     const dateTime = "2023-07-25";
     const number = 3;
     const expectedDate = "2023-10-25";
-    isTimeEmpty.returns(true);
-    addMonthsToProvidedDate.returns(expectedDate);
     const result = addMonthsToProvideDateTime(dateTime, number);
     expect(result).to.be.a("string");
     expect(result).to.equal(expectedDate);
-    expect(addMonthsToProvidedDate.calledOnceWithExactly(dateTime, number)).to
-      .be.true;
   });
 
   it("should return 'Invalid Date' if the provided date is invalid", () => {
     const invalidDateTime = "invalid";
     const number = 3;
-    isTimeEmpty.returns(false);
     const result = addMonthsToProvideDateTime(invalidDateTime, number);
     expect(result).to.equal("Invalid Date");
   });

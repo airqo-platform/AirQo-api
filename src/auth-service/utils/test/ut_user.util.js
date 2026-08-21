@@ -370,6 +370,85 @@ describe("create-user-util", function () {
       expect(result.message).to.equal("Error updating user");
     });
 
+    describe("production notification branch", function () {
+      let envStub;
+      let mailerUpdateStub;
+
+      beforeEach(function () {
+        envStub = sinon.stub(constants, "ENVIRONMENT").value(
+          "PRODUCTION ENVIRONMENT",
+        );
+        mailerUpdateStub = sinon
+          .stub(mailer, "update")
+          .resolves({ success: true, message: "email sent" });
+      });
+
+      it("should call mailer.update when payload contains only a notifiable field (phoneNumber)", async function () {
+        const request = {
+          query: { tenant: "example_tenant" },
+          body: { phoneNumber: 256700000000 },
+        };
+        const fakeUser = { _id: "uid1", email: "u@example.com", consent: {} };
+        mockModel.findOne.returns({
+          select: () => ({ lean: () => Promise.resolve(fakeUser) }),
+        });
+        mockModel.modify.resolves({
+          success: true,
+          message: "User updated successfully",
+          data: { phoneNumber: 256700000000 },
+        });
+        sinon.stub(generateFilter, "users").returns({ _id: "uid1" });
+
+        const result = await rewireCreateUser.update(request);
+
+        expect(mailerUpdateStub.calledOnce).to.be.true;
+        expect(result.success).to.be.true;
+      });
+
+      it("should not call mailer.update when payload has no notifiable fields", async function () {
+        const request = {
+          query: { tenant: "example_tenant" },
+          body: { jobTitle: "Engineer" },
+        };
+        const fakeUser = { _id: "uid1", email: "u@example.com", consent: {} };
+        mockModel.findOne.returns({
+          select: () => ({ lean: () => Promise.resolve(fakeUser) }),
+        });
+        mockModel.modify.resolves({
+          success: true,
+          message: "User updated successfully",
+          data: { jobTitle: "Engineer" },
+        });
+        sinon.stub(generateFilter, "users").returns({ _id: "uid1" });
+
+        const result = await rewireCreateUser.update(request);
+
+        expect(mailerUpdateStub.called).to.be.false;
+        expect(result.success).to.be.true;
+      });
+
+      it("should not call mailer.update when the user has no email", async function () {
+        const request = {
+          query: { tenant: "example_tenant" },
+          body: { phoneNumber: 256700000000 },
+        };
+        const fakeUser = { _id: "uid1", email: undefined, consent: {} };
+        mockModel.findOne.returns({
+          select: () => ({ lean: () => Promise.resolve(fakeUser) }),
+        });
+        mockModel.modify.resolves({
+          success: true,
+          message: "User updated successfully",
+          data: { phoneNumber: 256700000000 },
+        });
+        sinon.stub(generateFilter, "users").returns({ _id: "uid1" });
+
+        const result = await rewireCreateUser.update(request);
+
+        expect(mailerUpdateStub.called).to.be.false;
+        expect(result.success).to.be.true;
+      });
+    });
   });
   describe("lookUpFirebaseUser()", () => {
     let getAuthStub;

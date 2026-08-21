@@ -335,6 +335,9 @@ const connectToMongoDB = () => {
 };
 
 // Fire-and-forget at module load; connection errors are handled inside connectToMongoDB.
+// Under NODE_ENV=test, MONGO_URI/QUERY_MONGO_URI point at an ephemeral
+// in-memory MongoDB instance (see config/test-global-setup.js), so this still
+// connects, just never to a real cluster.
 let mainConnectionInstance = mongoose.connection;
 connectToMongoDB()
   .then((conn) => {
