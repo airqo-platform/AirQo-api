@@ -211,6 +211,25 @@ const findStaleMetadataEntry = (entries, idField, allowedIds) => {
   );
 };
 
+// Legacy preference docs created via the upsert()/replace() findOneAndUpdate
+// paths (no runValidators, no period default there) can exist without a
+// `period` even though it's required on the schema — invisible until
+// something calls preference.save(), which (unlike a findOneAndUpdate)
+// always validates every required path on the whole document, so a chart
+// change having nothing to do with `period` fails with "period: period is
+// required!". Backfilling here (the same default preference.register() and
+// createChart use) unblocks those pre-existing docs without a migration.
+const ensurePeriodDefault = (preference) => {
+  if (isEmpty(preference.period)) {
+    preference.period = {
+      value: "Last 7 days",
+      label: "Last 7 days",
+      unitValue: 7,
+      unit: "day",
+    };
+  }
+};
+
 // Define allowed properties for chart updates
 const allowedChartProperties = [
   "fieldId",
@@ -1074,6 +1093,7 @@ const preferences = {
         };
       }
 
+      ensurePeriodDefault(preference);
       await preference.save();
 
       return {
@@ -1291,6 +1311,7 @@ const preferences = {
 
       // Add the new chart to the preference
       preference.chartConfigurations.push(chartCopy);
+      ensurePeriodDefault(preference);
       await preference.save();
 
       return {
@@ -1302,6 +1323,9 @@ const preferences = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error copying chart configuration: ${error.message}`);
       return {
         success: false,
