@@ -1,24 +1,30 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const kafkaConsumer = require("@bin/jobs/kafka-consumer");
+const proxyquire = require("proxyquire").noCallThru();
 
 // Mock the required modules/functions
-const constants = require("@config/constants");
-const { mailer, stringify, emailTemplates } = require("@utils/common");
-const Joi = require("joi");
-const { jsonrepair } = require("jsonrepair");
+const { mailer } = require("@utils/common");
 
 describe("Kafka Consumer", () => {
+  let kafkaConsumer;
   let kafkaStub;
   let consumerStub;
   let mailerStub;
+  let loggerStub;
   let loggerErrorStub;
   let loggerInfoStub;
-  let jsonrepairStub;
+
+  let originalUniqueConsumerGroup;
 
   beforeEach(() => {
-    // Create stubs for Kafka consumer
+    // The real kafkajs client throws if UNIQUE_CONSUMER_GROUP is unset when
+    // `.consumer()` is called. The Kafka class itself is fully mocked below,
+    // so this is just defensive in case that ever changes.
+    originalUniqueConsumerGroup = process.env.UNIQUE_CONSUMER_GROUP;
+    process.env.UNIQUE_CONSUMER_GROUP = "test-consumer-group";
+
+    // Stubs for the Kafka consumer instance returned by `kafka.consumer()`
     consumerStub = {
       connect: sinon.stub().resolves(),
       subscribe: sinon.stub().resolves(),
@@ -29,15 +35,45 @@ describe("Kafka Consumer", () => {
       consumer: sinon.stub().returns(consumerStub),
     };
 
-    // Other stubs
+    // `new Kafka(...)` normally builds a real kafkajs client. Returning an
+    // object from a constructor overrides the default `this`, so `new
+    // KafkaMock()` yields our stub instance instead.
+    function KafkaMock() {
+      return kafkaStub;
+    }
+
+    // Fake logger so we can assert on logger.error/info calls directly,
+    // instead of depending on log4js's own appenders (which are silenced
+    // in the test environment and never touch console.error/info).
+    loggerStub = {
+      error: sinon.stub(),
+      info: sinon.stub(),
+      warn: sinon.stub(),
+      debug: sinon.stub(),
+      trace: sinon.stub(),
+    };
+    loggerErrorStub = loggerStub.error;
+    loggerInfoStub = loggerStub.info;
+
     mailerStub = sinon.stub(mailer, "newMobileAppUser");
-    loggerErrorStub = sinon.stub(console, "error");
-    loggerInfoStub = sinon.stub(console, "info");
-    jsonrepairStub = sinon.stub(jsonrepair);
+
+    // Re-require the module under test with `kafkajs` and `log4js` proxied
+    // in, so the stubs above are actually exercised by the code under test.
+    kafkaConsumer = proxyquire("../kafka-consumer", {
+      kafkajs: { Kafka: KafkaMock },
+      log4js: {
+        getLogger: () => loggerStub,
+      },
+    });
   });
 
   afterEach(() => {
     sinon.restore();
+    if (originalUniqueConsumerGroup === undefined) {
+      delete process.env.UNIQUE_CONSUMER_GROUP;
+    } else {
+      process.env.UNIQUE_CONSUMER_GROUP = originalUniqueConsumerGroup;
+    }
   });
 
   it("should properly initialize and subscribe to all topics", async () => {
@@ -77,7 +113,6 @@ describe("Kafka Consumer", () => {
 
     // Verify message processing
     expect(consumerStub.run.calledOnce).to.be.true;
-    // Add specific verification for your message handlers
   });
 
   it("should handle Kafka connection errors", async () => {
@@ -86,11 +121,10 @@ describe("Kafka Consumer", () => {
 
     await kafkaConsumer();
 
-    expect(
-      loggerErrorStub.calledWith(
-        `📶📶 Error connecting to Kafka: ${connectionError}`
-      )
-    ).to.be.true;
+    expect(loggerErrorStub.called).to.be.true;
+    const loggedMessage = loggerErrorStub.getCall(0).args[0];
+    expect(loggedMessage).to.include("Error connecting to Kafka");
+    expect(loggedMessage).to.include("Kafka connection error");
   });
 
   it("should handle message processing errors", async () => {
@@ -134,6 +168,10 @@ describe("Kafka Consumer", () => {
     });
 
     const consumerPromise = kafkaConsumer();
+
+    // Let the pending `connect()` continuation run so `subscribe()` has
+    // actually been invoked for every topic before we resolve them.
+    await new Promise((resolve) => setImmediate(resolve));
 
     // Resolve all subscriptions
     subscribePromises.forEach((resolve) => resolve());

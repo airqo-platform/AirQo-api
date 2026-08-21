@@ -735,7 +735,7 @@ describe("createAccessRequest Util", () => {
     it("should handle a valid request and return a success response", async () => {
       const tenant = "airqo";
       const next = sinon.stub();
-      const request = { query: { tenant }, body: {} };
+      const request = { query: { tenant }, body: { message: "test update" } };
 
       sinon.stub(generateFilter, "requests").returns({});
       const modifyStub = sinon.stub().resolves({ success: true });
@@ -749,7 +749,7 @@ describe("createAccessRequest Util", () => {
     it("should handle a request with invalid filter data and return an error response", async () => {
       const tenant = "airqo";
       const next = sinon.stub();
-      const request = { query: { tenant }, body: {} };
+      const request = { query: { tenant }, body: { message: "test update" } };
 
       sinon.stub(generateFilter, "requests").returns({});
       const modifyStub = sinon.stub().resolves({ success: false, message: "Invalid filter data" });
@@ -763,7 +763,7 @@ describe("createAccessRequest Util", () => {
     it("should handle an internal server error and return an error response", async () => {
       const tenant = "airqo";
       const next = sinon.stub();
-      const request = { query: { tenant }, body: {} };
+      const request = { query: { tenant }, body: { message: "test update" } };
 
       sinon.stub(generateFilter, "requests").throws(new Error("Internal Server Error"));
 
