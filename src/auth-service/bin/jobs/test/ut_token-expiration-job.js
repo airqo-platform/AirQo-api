@@ -18,6 +18,7 @@ chai.use(sinonChai);
 const expect = chai.expect;
 
 const AccessTokenModel = require("@models/AccessToken");
+const CronLockModel = require("@models/CronLock");
 const { mailer } = require("@utils/common");
 const {
   sendAlertsForExpiringTokens,
@@ -27,6 +28,7 @@ const {
 describe("token-expiration-job: sendAlertsForExpiringTokens", () => {
   let getExpiringTokensStub;
   let expiringTokenStub;
+  let cronLockCreateStub;
 
   const tokenFor = (days, suffix) => ({
     _id: `token-id-${suffix}`,
@@ -52,12 +54,21 @@ describe("token-expiration-job: sendAlertsForExpiringTokens", () => {
       .stub(mailer, "expiringToken")
       .resolves({ success: true });
 
+    // acquireCronLock is a real, minute-granularity, first-writer-wins DB
+    // lock — without stubbing it, only the first test in any given
+    // wall-clock minute actually acquires it; every other test's call
+    // silently no-ops (by design), so nothing under test ever runs.
+    cronLockCreateStub = sinon
+      .stub(CronLockModel("airqo"), "create")
+      .resolves({});
+
     sinon.stub(console, "error");
   });
 
   afterEach(() => {
     getExpiringTokensStub.restore();
     expiringTokenStub.restore();
+    cronLockCreateStub.restore();
     console.error.restore();
   });
 

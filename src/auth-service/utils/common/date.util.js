@@ -4,7 +4,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
 const { logObject, logElement, HttpError } = require("@utils/shared");
 
 function monthsFromNow(number) {
-  const num = isNaN(number) ? 1 : number;
+  const num = isNaN(number) ? 0 : number;
   const d = new Date();
   const targetMonth = d.getMonth() + num;
   d.setMonth(targetMonth);
@@ -38,27 +38,28 @@ function generateDateFormat(ISODate, next) {
   }
 }
 function isTimeEmpty(dateTime) {
-  let date = new Date(dateTime);
-  let hrs = date.getUTCHours();
-  let mins = date.getUTCMinutes();
-  let secs = date.getUTCSeconds();
-  let millisecs = date.getUTCMilliseconds();
-  if (
-    Number.isInteger(hrs) &&
-    Number.isInteger(mins) &&
-    Number.isInteger(secs) &&
-    Number.isInteger(millisecs)
-  ) {
-    return false;
+  const date = new Date(dateTime);
+  if (isNaN(date.getTime())) {
+    return true;
   }
-  return true;
+  // A date-only string parses to midnight, which is indistinguishable from an
+  // explicit midnight timestamp by looking at the parsed value alone — check
+  // the original string for an actual time component instead.
+  return !/\d{1,2}:\d{2}/.test(String(dateTime));
 }
 function formatDate(dateTime) {
-  return new Date(dateTime).toISOString();
+  const date = new Date(dateTime);
+  if (isNaN(date.getTime())) {
+    return "Invalid Date";
+  }
+  return date.toISOString();
 }
 function generateDateFormatWithoutHrs(ISODate, next) {
   try {
     let date = new Date(ISODate);
+    if (isNaN(date.getTime())) {
+      return "Invalid Date";
+    }
     let year = date.getFullYear();
     let month = date.getMonth() + 1;
     let day = date.getUTCDate();
@@ -82,11 +83,25 @@ function generateDateFormatWithoutHrs(ISODate, next) {
 function addMonthsToProvidedDate(date, number, next) {
   try {
     const originalDate = new Date(date);
+    if (isNaN(originalDate.getTime())) {
+      return "Invalid Date";
+    }
     const year = originalDate.getFullYear();
     const month = originalDate.getMonth();
     const day = originalDate.getDate();
 
-    const newDate = new Date(year, month + number, day);
+    // Clamp to the target month's actual last day — e.g. Jul 31 + 2 months
+    // must land on Sep 30, not silently overflow into Oct 1 the way a naive
+    // `new Date(year, month + number, day)` would when day 31 doesn't exist
+    // in the target month.
+    const targetMonthIndex = month + number;
+    const lastDayOfTargetMonth = new Date(
+      year,
+      targetMonthIndex + 1,
+      0
+    ).getDate();
+    const clampedDay = Math.min(day, lastDayOfTargetMonth);
+    const newDate = new Date(year, targetMonthIndex, clampedDay);
 
     const newYear = newDate.getFullYear();
     const newMonth = newDate.getMonth() + 1; // Adding 1 because getMonth() returns a zero-based index
@@ -112,12 +127,22 @@ function addMonthsToProvidedDate(date, number, next) {
 function addMonthsToProvideDateTime(dateTime, number, next) {
   try {
     if (isTimeEmpty(dateTime) === false) {
+      // Shift the month in UTC and keep the original time-of-day intact.
+      // Reconstructing from getFullYear/getMonth/getDate (local-time getters)
+      // silently dropped the time-of-day to local midnight and made the
+      // result depend on the server's timezone — this input carries an
+      // explicit time component, so it must be preserved.
       const originalDate = new Date(dateTime);
-      const year = originalDate.getFullYear();
-      const month = originalDate.getMonth();
-      const day = originalDate.getDate();
-
-      const newDate = new Date(year, month + number, day);
+      const newDate = new Date(originalDate);
+      // Clamp to the target month's actual last day — same overflow guard as
+      // addMonthsToProvidedDate (e.g. Jan 31 + 1 month must land on Feb 28,
+      // not silently overflow into March).
+      const targetMonthIndex = newDate.getUTCMonth() + number;
+      const lastDayOfTargetMonth = new Date(
+        Date.UTC(newDate.getUTCFullYear(), targetMonthIndex + 1, 0)
+      ).getUTCDate();
+      const clampedDay = Math.min(newDate.getUTCDate(), lastDayOfTargetMonth);
+      newDate.setUTCMonth(targetMonthIndex, clampedDay);
       logObject(
         "date returned by function addMonthsToProvideDateTime() 1",
         newDate

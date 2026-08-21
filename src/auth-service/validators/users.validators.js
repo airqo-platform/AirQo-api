@@ -735,6 +735,13 @@ const updateUser = [
       .bail()
       .isLength({ max: 100 })
       .withMessage("lastName cannot exceed 100 characters"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty IF provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
     body("networks")
       .optional()
       .custom((value) => {
@@ -790,6 +797,13 @@ const updateUserById = [
       .bail()
       .isLength({ max: 100 })
       .withMessage("lastName cannot exceed 100 characters"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty IF provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
     body("networks")
       .optional()
       .custom((value) => {
