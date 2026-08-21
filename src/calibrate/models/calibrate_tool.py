@@ -1,75 +1,144 @@
+import io
 import os
-from pathlib import Path
+import re
+from functools import lru_cache
+
+import joblib
 import numpy as np
 import pandas as pd
-import pickle
-import gcsfs
-import joblib
-from dotenv import load_dotenv
+from google.cloud import storage
 
-BASE_DIR = Path(__file__).resolve().parent
-dotenv_path = os.path.join(BASE_DIR, ".env")
-load_dotenv(dotenv_path)
 
-RF_REG_MODEL = os.getenv("RF_REG_MODEL", "jobs/rf_reg_model.pkl")
-LASSO_MODEL = os.getenv("LASSO_MODEL", "jobs/lasso_model.pkl")
+CALIBRATION_MODELS_BUCKET = os.getenv(
+    "CALIBRATION_MODELS_BUCKET", "calibration_training_bucket"
+)
+CALIBRATION_MODEL_PREFIX = os.getenv("CALIBRATION_MODEL_PREFIX", "calibration")
+CALIBRATION_MODEL_BLOB = os.getenv("CALIBRATION_MODEL_BLOB")
+CALIBRATION_MODEL_COUNTRY = os.getenv("CALIBRATION_MODEL_COUNTRY", "uganda")
+GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+
+DEFAULT_FEATURES = [
+    "hour",
+    "avg_pm2_5",
+    "avg_pm10",
+    "error_pm2_5",
+    "error_pm10",
+    "pm2_5_pm10",
+    "pm2_5_pm10_mod",
+]
+
+
+class CalibrationModelError(RuntimeError):
+    """Raised when a deployed calibration model cannot be loaded or used."""
+
+
+def _normalise_country(country):
+    country = (country or CALIBRATION_MODEL_COUNTRY or "").strip().lower()
+    if not country and CALIBRATION_MODEL_BLOB:
+        return "configured"
+    if not country:
+        raise ValueError("Please specify the country calibration model to use.")
+    if not re.fullmatch(r"[a-z0-9 _-]+", country):
+        raise ValueError("Country may contain only letters, numbers, spaces, _ or -.")
+    return country
+
+
+def _model_blob_name(country):
+    if CALIBRATION_MODEL_BLOB:
+        return CALIBRATION_MODEL_BLOB.strip("/")
+    prefix = CALIBRATION_MODEL_PREFIX.strip("/")
+    return f"{prefix}/{country}_pm2_5_cal_model.pkl"
+
+
+@lru_cache(maxsize=16)
+def _load_model_artifact(bucket_name, blob_name, project_id=None):
+    try:
+        client = storage.Client(project=project_id) if project_id else storage.Client()
+        model_bytes = client.bucket(bucket_name).blob(blob_name).download_as_bytes()
+        artifact = joblib.load(io.BytesIO(model_bytes))
+    except Exception as error:
+        raise CalibrationModelError(
+            f"Unable to load calibration model gs://{bucket_name}/{blob_name}."
+        ) from error
+
+    if isinstance(artifact, dict):
+        model = artifact.get("model")
+        features = artifact.get("features")
+    else:
+        model = artifact
+        features = DEFAULT_FEATURES
+
+    if model is None or not hasattr(model, "predict"):
+        raise CalibrationModelError("The calibration artifact has no usable model.")
+    if not isinstance(features, (list, tuple)) or not features:
+        raise CalibrationModelError("The calibration artifact has no feature list.")
+
+    return model, list(features)
 
 
 class Regression:
-    """
-    The class contains functionality for computing device calibrated values .
-    """
+    """Load a deployed country model from GCS and calibrate uploaded readings."""
 
-    def __init__(self):
-        self.rf_regressor = pickle.load(open(RF_REG_MODEL, "rb"))
-        self.lasso_regressor = pickle.load(open(LASSO_MODEL, "rb"))
-        # # load model from GCP
-        # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+    def __init__(self, country=None):
+        self.country = _normalise_country(country)
+        self.blob_name = _model_blob_name(self.country)
+        self.model, self.features = _load_model_artifact(
+            CALIBRATION_MODELS_BUCKET,
+            self.blob_name,
+            GCP_PROJECT_ID,
+        )
 
-    # map_columns = {"datetime":"created_at"}
     def compute_calibrated_val(self, map_columns, df):
-        # Map columns from uploaded csv
-        df.rename(columns=map_columns, inplace=True)
-        df = df.dropna()
+        df = df.rename(columns=map_columns).copy()
+        df["datetime"] = pd.to_datetime(df["datetime"], utc=True, errors="coerce")
 
-        # features from datetime and PM
-        df["datetime"] = pd.to_datetime(df["datetime"])
-        # extract hour
+        has_average_pm2_5 = "avg_pm2_5" in df.columns
+        numeric_columns = ["pm10", "s2_pm10", "temperature", "humidity"]
+        if has_average_pm2_5:
+            numeric_columns.append("avg_pm2_5")
+        else:
+            numeric_columns.extend(["pm2_5", "s2_pm2_5"])
+        df[numeric_columns] = df[numeric_columns].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        df.dropna(subset=["datetime", *numeric_columns], inplace=True)
+        if df.empty:
+            raise ValueError("No valid measurement rows were found.")
+
         df["hour"] = df["datetime"].dt.hour
+        if has_average_pm2_5:
+            # A pre-averaged reading cannot provide sensor-pair disagreement.
+            df["error_pm2_5"] = 0.0
+        else:
+            df["avg_pm2_5"] = df[["pm2_5", "s2_pm2_5"]].mean(axis=1)
+            df["error_pm2_5"] = (df["pm2_5"] - df["s2_pm2_5"]).abs()
+        df["avg_pm10"] = df[["pm10", "s2_pm10"]].mean(axis=1)
+        df["error_pm10"] = (df["pm10"] - df["s2_pm10"]).abs()
+        df["pm2_5_pm10"] = (df["avg_pm10"] - df["avg_pm2_5"]).abs()
+        denominator = df["avg_pm10"].replace(0, np.nan)
+        df["pm2_5_pm10_mod"] = df["pm2_5_pm10"] / denominator
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-        df["avg_pm2_5"] = df[["pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
-        df["avg_pm10"] = df[["pm10", "s2_pm10"]].mean(axis=1).round(2)
-        df["error_pm10"] = np.abs(df["pm10"] - df["s2_pm10"])
-        df["error_pm2_5"] = np.abs(df["pm2_5"] - df["s2_pm2_5"])
-        df["pm2_5_pm10"] = df["avg_pm2_5"] - df["avg_pm10"]
-        df["pm2_5_pm10_mod"] = df["pm2_5_pm10"] / df["avg_pm10"]
-        # df = df.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
+        missing_features = sorted(set(self.features) - set(df.columns))
+        if missing_features:
+            raise CalibrationModelError(
+                "The uploaded data cannot provide model features: "
+                + ", ".join(missing_features)
+            )
 
-        df_copy = df
+        valid_rows = df.dropna(subset=self.features)
+        if valid_rows.empty:
+            raise ValueError("No rows contain all values required by the model.")
 
-        df = df[
-            [
-                "avg_pm2_5",
-                "avg_pm10",
-                "temperature",
-                "humidity",
-                "hour",
-                "error_pm2_5",
-                "error_pm10",
-                "pm2_5_pm10",
-                "pm2_5_pm10_mod",
-            ]
-        ]
+        try:
+            calibrated_pm2_5 = self.model.predict(valid_rows[self.features])
+        except Exception as error:
+            raise CalibrationModelError(
+                "The deployed calibration model could not process the uploaded data."
+            ) from error
 
-        calibrated_pm2_5 = self.rf_regressor.predict(df)
-        calibrated_pm10 = self.lasso_regressor.predict(df)
-
-        calibrated_data = df_copy[["avg_pm2_5", "avg_pm10", "datetime"]]
-        calibrated_data["calibrated_pm2_5"] = calibrated_pm2_5.round(2)
-        calibrated_data["calibrated_pm10"] = calibrated_pm10.round(2)
-
+        calibrated_data = valid_rows[["avg_pm2_5", "avg_pm10", "datetime"]].copy()
+        calibrated_data["calibrated_pm2_5"] = np.asarray(
+            calibrated_pm2_5
+        ).round(2)
         return calibrated_data
-
-
-if __name__ == "__main__":
-    calibrateInstance = Regression()
