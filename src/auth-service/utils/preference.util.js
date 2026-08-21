@@ -200,6 +200,8 @@ const allowedChartProperties = [
   "subTitle",
   "device_ids",
   "site_ids",
+  "sites",
+  "devices",
   "locationColors",
   "xAxisLabel",
   "yAxisLabel",
