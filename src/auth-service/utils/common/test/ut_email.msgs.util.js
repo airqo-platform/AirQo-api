@@ -1,6 +1,5 @@
 require("module-alias/register");
 const { expect } = require("chai");
-const sinon = require("sinon");
 const constants = require("@config/constants");
 const msgs = require("../email.msgs.util");
 
@@ -58,89 +57,41 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content, name });
-      const joinRequestSpy = sinon.spy(msgs, "joinRequest");
-
       const result = msgs.joinRequest(firstName, lastName, email);
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
-        .true;
-      joinRequestSpy.restore();
     });
   });
   describe("inquiry", () => {
     it("should return the correct inquiry message with valid full name depending on the category", () => {
       const name = "John";
       const email = "john.doe@example.com";
-      const categories = [
-        "policy",
-        "partners",
-        "general",
-        "researchers",
-        "developers",
-        "champions",
-      ];
-      for (let category of categories) {
-        let content;
-        switch (category) {
-          case "policy":
-            content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Thank you for reaching out and for your interest in AirQo’s work.</p>
-                                    <p>We collaborate with policymakers and public institutions to support evidence-based air quality policies and interventions.</p>
-                                    <p>Kindly let us know how you would like to engage or partner with us, and our team will follow up.</p>
-                                    <p>Alternatively, you may contact our Policy Engagement Officer, Angela Nshimye at <a href="mailto:angela@airqo.net">angela@airqo.net</a> for direct support.</p>
-                                </td>
-                            </tr>`;
-            break;
-          case "researchers":
-            content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Thank you for your interest in using AirQo data for research.</p>
-                                    <p>We provide open air quality data to support research, innovation, and evidence-based decision-making across African cities.</p>
-                                    <p>Access data via <a href="https://airqo.net/explore-data">airqo.net - Explore Data</a>, or click <a href="https://airqo.net/explore-data">here</a> to access datasets directly.</p>
-                                    <p>For advanced support, collaborations, or custom data needs, contact:</p>
-                                    <p>Wabinyai Fidel Raja - Data Scientist: <a href="mailto:raja@airqo.net">raja@airqo.net</a></p>
-                                    <p>We are happy to support academic, policy, and applied research initiatives.</p>
-                                </td>
-                            </tr>`;
-            break;
-          case "developers":
-            content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Thank you for your interest in building with AirQo.</p>
-                                    <p><b>Build open-source tools for cleaner air across Africa.</b></p>
-                                    <p>Join our open-source community and help build, improve, and maintain tools that power air quality monitoring and decision-making across African cities. Contributions may include frontend or backend development, data platforms, documentation, or developer tooling.</p>
-                                    <p>Fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a> to get started.</p>
-                                </td>
-                            </tr>`;
-            break;
-          case "general":
-          case "partners":
-          case "champions":
-          default:
-            // Source only branches on "policy", "researchers", "developers"
-            // and "assistance"; every other category (including "partners",
-            // "general", and "champions") falls through to this default
-            // "funder/partner" copy.
-            content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Thank you for your interest in supporting AirQo’s mission.</p>
-                                    <p>We work with funders to close air quality data gaps and enable sustainable air quality monitoring and management across African cities.</p>
-                                    <p>If you are interested in funding, strategic support, or long-term collaboration, please contact:</p>
-                                    <p>Professor Engineer - Project Lead: <a href="mailto:baino@airqo.net">baino@airqo.net</a></p>
-                                    <p>Deo Okure - Head of Research & Global Partnerships: <a href="mailto:dokure@airqo.net">dokure@airqo.net</a></p>
-                                    <p>We look forward to exploring how your support can accelerate clean air solutions.</p>
-                                </td>
-                            </tr>`;
-            break;
-        }
-        const expectedMessage = constants.EMAIL_BODY({ email, content, name });
+
+      // Distinguishing fragments per category, rather than duplicating the
+      // full HTML content block (which drifts out of sync with the source
+      // on every wording tweak — see recovery_email/joinRequest history).
+      // Source only branches on "policy", "researchers", "developers"; every
+      // other category (including "partners", "general", "champions") falls
+      // through to the same default "funder/partner" copy.
+      const distinguishingFragmentByCategory = {
+        policy: "angela@airqo.net",
+        researchers: "raja@airqo.net",
+        developers:
+          "https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform",
+        general: "dokure@airqo.net",
+        partners: "dokure@airqo.net",
+        champions: "dokure@airqo.net",
+      };
+
+      for (const [category, fragment] of Object.entries(
+        distinguishingFragmentByCategory
+      )) {
         const result = msgs.inquiry(name, email, category);
-        expect(result).to.equal(expectedMessage);
+        // Wrapped through EMAIL_BODY with the real name/email (regression
+        // guard for the fullName/name key-mismatch bug that previously
+        // suppressed this greeting in every inquiry email sent).
+        expect(result).to.include(`Dear ${name},`);
+        expect(result).to.include(email);
+        expect(result).to.include(fragment);
       }
     });
   });
@@ -182,13 +133,7 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content, name });
-      const joinRequestSpy = sinon.spy(msgs, "welcome_kcca");
       const result = msgs.welcome_kcca(firstName, lastName, password, email);
-      expect(result).to.equal(expectedMessage);
-      expect(
-        joinRequestSpy.calledOnceWith(firstName, lastName, password, email)
-      ).to.be.true;
-      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -220,13 +165,7 @@ describe("email.msgs", () => {
                          </td>
                     </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content, name });
-      const joinRequestSpy = sinon.spy(msgs, "welcome_general");
       const result = msgs.welcome_general(firstName, lastName, password, email);
-      expect(result).to.equal(expectedMessage);
-      expect(
-        joinRequestSpy.calledOnceWith(firstName, lastName, password, email)
-      ).to.be.true;
-      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -266,23 +205,12 @@ describe("email.msgs", () => {
                             </td>
                         </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content, name });
-      const joinRequestSpy = sinon.spy(msgs, "user_updated");
       const result = msgs.user_updated({
         firstName,
         lastName,
         updatedUserDetails: updatedData,
         email,
       });
-      expect(result).to.equal(expectedMessage);
-      expect(
-        joinRequestSpy.calledOnceWith({
-          firstName,
-          lastName,
-          updatedUserDetails: updatedData,
-          email,
-        })
-      ).to.be.true;
-      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -311,16 +239,11 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content, name });
-      const joinRequestSpy = sinon.spy(msgs, "forgotten_password_updated");
       const result = msgs.forgotten_password_updated(
         firstName,
         lastName,
         email
       );
-      expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
-        .true;
-      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -349,12 +272,7 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content, name });
-      const joinRequestSpy = sinon.spy(msgs, "known_password_updated");
       const result = msgs.known_password_updated(firstName, lastName, email);
-      expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
-        .true;
-      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -379,12 +297,8 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content });
-      const joinRequestSpy = sinon.spy(msgs, "join_by_email");
-
       const result = msgs.join_by_email(email, token);
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(email, token)).to.be.true;
-      joinRequestSpy.restore();
     });
   });
   describe("authenticate_email", () => {
@@ -410,12 +324,8 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY({ email, content });
-      const joinRequestSpy = sinon.spy(msgs, "authenticate_email");
-
       const result = msgs.authenticate_email(token, email);
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(token, email)).to.be.true;
-      joinRequestSpy.restore();
     });
   });
 

@@ -9,11 +9,13 @@ const { mailer } = require("@utils/common");
 
 const rewireIncompleteProfile = rewire("../incomplete-profile-job");
 const checkStatus = rewireIncompleteProfile.__get__("checkStatus");
+const BATCH_SIZE = rewireIncompleteProfile.__get__("BATCH_SIZE");
 
 describe("checkStatus", () => {
   let origUserModel;
   let origAcquireCronLock;
   let findStub;
+  let skipStub;
   let mailerStub;
 
   // Builds a UserModel("airqo") mock supporting the chain used by the job:
@@ -23,12 +25,13 @@ describe("checkStatus", () => {
   // (ending the pagination while-loop).
   function makeUserModelMock(batches) {
     let call = 0;
+    skipStub = sinon.stub().returnsThis();
     findStub = sinon.stub().callsFake(() => {
       const data = batches[call] !== undefined ? batches[call] : [];
       call++;
       return {
         limit: sinon.stub().returnsThis(),
-        skip: sinon.stub().returnsThis(),
+        skip: skipStub,
         select: sinon.stub().returnsThis(),
         lean: sinon.stub().resolves(data),
       };
@@ -143,6 +146,9 @@ describe("checkStatus", () => {
 
       expect(findStub.callCount).to.equal(3);
       expect(mailerStub).to.have.been.calledTwice;
+      expect(skipStub.getCall(0).args[0]).to.equal(0);
+      expect(skipStub.getCall(1).args[0]).to.equal(BATCH_SIZE);
+      expect(skipStub.getCall(2).args[0]).to.equal(2 * BATCH_SIZE);
     });
   });
 

@@ -174,7 +174,11 @@ describe("Network Router API Tests", () => {
       const response = await request(app).post("/").send(withoutAdminSecret);
 
       expect(response.status).to.equal(400);
-      expect(response.body.errors[0].msg).to.equal("the admin secret is required");
+      const adminSecretError = response.body.errors.find(
+        (err) => err.param === "admin_secret"
+      );
+      expect(adminSecretError).to.exist;
+      expect(adminSecretError.msg).to.equal("the admin secret is required");
     });
 
     it("Should return 403 when the caller lacks the required permissions", async () => {

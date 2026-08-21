@@ -1,23 +1,36 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const proxyquire = require("proxyquire").noCallThru();
 const {
   HttpError,
-  extractErrorsFromRequest,
   enhancedErrorHandler,
   createOrgContextError,
   createValidationError,
   convertErrorArrayToObject,
 } = require("@utils/shared/errors");
-// Internal but stable string key that express-validator's `validationResult`
-// reads errors from (see express-validator/src/validation-result.js and
-// express-validator/src/base.js). Used here to build a minimal fake `req`
-// without running real express-validator middleware.
-const { contextsKey } = require("express-validator/src/base");
 
-const buildReqWithErrors = (errorGroups) => ({
-  [contextsKey]: errorGroups.map((errors) => ({ errors })),
+// extractErrorsFromRequest just calls express-validator's own
+// validationResult(req) and reshapes its `.errors` array — rather than
+// reaching into express-validator's private internal request state (its
+// public API gives no way to construct an arbitrary Result from scratch),
+// stub validationResult itself via proxyquire so each test controls the
+// exact errors array it returns.
+let validationResultStub;
+const { extractErrorsFromRequest } = proxyquire("@utils/shared/errors", {
+  "express-validator": {
+    validationResult: (req) => validationResultStub(req),
+  },
 });
+
+const buildReqWithErrors = (errorGroups) => {
+  const allErrors = errorGroups.flat();
+  validationResultStub = sinon.stub().returns({
+    isEmpty: () => allErrors.length === 0,
+    errors: allErrors,
+  });
+  return {};
+};
 
 describe("errors-util", () => {
   describe("HttpError", () => {

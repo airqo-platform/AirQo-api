@@ -134,7 +134,15 @@ function addMonthsToProvideDateTime(dateTime, number, next) {
       // explicit time component, so it must be preserved.
       const originalDate = new Date(dateTime);
       const newDate = new Date(originalDate);
-      newDate.setUTCMonth(newDate.getUTCMonth() + number);
+      // Clamp to the target month's actual last day — same overflow guard as
+      // addMonthsToProvidedDate (e.g. Jan 31 + 1 month must land on Feb 28,
+      // not silently overflow into March).
+      const targetMonthIndex = newDate.getUTCMonth() + number;
+      const lastDayOfTargetMonth = new Date(
+        Date.UTC(newDate.getUTCFullYear(), targetMonthIndex + 1, 0)
+      ).getUTCDate();
+      const clampedDay = Math.min(newDate.getUTCDate(), lastDayOfTargetMonth);
+      newDate.setUTCMonth(targetMonthIndex, clampedDay);
       logObject(
         "date returned by function addMonthsToProvideDateTime() 1",
         newDate

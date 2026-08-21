@@ -158,7 +158,7 @@ describe("User API Routes", () => {
     });
 
     // POST /verify
-    it("POST /verify: should verify successfully with setJWTAuth and authJWT", function (done) {
+    it("POST /verify: should verify successfully with enhancedJWTAuth stubbed", function (done) {
       verifyImpl = function (req, res) {
         res.sendStatus(200);
       };

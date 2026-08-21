@@ -15,10 +15,13 @@ describe("Kafka Consumer", () => {
   let loggerErrorStub;
   let loggerInfoStub;
 
+  let originalUniqueConsumerGroup;
+
   beforeEach(() => {
     // The real kafkajs client throws if UNIQUE_CONSUMER_GROUP is unset when
     // `.consumer()` is called. The Kafka class itself is fully mocked below,
     // so this is just defensive in case that ever changes.
+    originalUniqueConsumerGroup = process.env.UNIQUE_CONSUMER_GROUP;
     process.env.UNIQUE_CONSUMER_GROUP = "test-consumer-group";
 
     // Stubs for the Kafka consumer instance returned by `kafka.consumer()`
@@ -66,6 +69,11 @@ describe("Kafka Consumer", () => {
 
   afterEach(() => {
     sinon.restore();
+    if (originalUniqueConsumerGroup === undefined) {
+      delete process.env.UNIQUE_CONSUMER_GROUP;
+    } else {
+      process.env.UNIQUE_CONSUMER_GROUP = originalUniqueConsumerGroup;
+    }
   });
 
   it("should properly initialize and subscribe to all topics", async () => {

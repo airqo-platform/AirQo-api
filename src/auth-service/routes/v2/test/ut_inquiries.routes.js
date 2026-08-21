@@ -3,7 +3,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const express = require("express");
 const request = require("supertest");
-const proxyquire = require("proxyquire").noPreserveCache();
+const proxyquire = require("proxyquire").noCallThru().noPreserveCache();
 
 describe("Inquiry API Routes", () => {
   let app;
