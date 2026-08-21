@@ -875,6 +875,33 @@ describe("preference chart UTIL", function() {
       expect(saveStub.calledOnce).to.equal(true);
       expect(chart.sites).to.deep.equal([{ site_id: siteId, name: "Site A" }]);
     });
+
+    it("backfills a missing period before saving — legacy preference docs created via upsert()/replace() (no runValidators there) can lack it, and save() always validates the whole document", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = {
+        _id: { toString: () => chartId },
+        title: "Old title",
+        device_ids: [deviceId],
+        site_ids: [],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo", title: "New title" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(doc.period).to.deep.equal({
+        value: "Last 7 days",
+        label: "Last 7 days",
+        unitValue: 7,
+        unit: "day",
+      });
+      expect(result.success).to.equal(true);
+    });
   });
 
   describe("deleteChart", function() {
@@ -1138,6 +1165,82 @@ describe("preference chart UTIL", function() {
         { id: deviceId, color: "#FF0000" },
       ]);
       expect(result.data._id).to.equal(undefined);
+    });
+
+    it("backfills a missing period before saving — legacy preference docs created via upsert()/replace() (no runValidators there) can lack it, and save() always validates the whole document", async function() {
+      const saveStub = sinon.stub().resolves();
+      const sourceChart = {
+        _id: { toString: () => chartId },
+        toObject: () => ({ _id: chartId, title: "PM2.5", device_ids: [deviceId] }),
+      };
+      const doc = { chartConfigurations: [sourceChart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.copyChartConfiguration(
+        request
+      );
+
+      expect(doc.period).to.deep.equal({
+        value: "Last 7 days",
+        label: "Last 7 days",
+        unitValue: 7,
+        unit: "day",
+      });
+      expect(result.success).to.equal(true);
+    });
+
+    it("leaves an existing period untouched", async function() {
+      const saveStub = sinon.stub().resolves();
+      const existingPeriod = { value: "Last 30 days", label: "Last 30 days", unitValue: 30, unit: "day" };
+      const sourceChart = {
+        _id: { toString: () => chartId },
+        toObject: () => ({ _id: chartId, title: "PM2.5", device_ids: [deviceId] }),
+      };
+      const doc = {
+        chartConfigurations: [sourceChart],
+        period: existingPeriod,
+        save: saveStub,
+      };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      await rewirePreferenceUtil.copyChartConfiguration(request);
+
+      expect(doc.period).to.equal(existingPeriod);
+    });
+
+    it("returns 400 (not 500) when save() rejects with a schema ValidationError", async function() {
+      const validationError = new Error("preference validation failed: period: period is required!");
+      validationError.name = "ValidationError";
+      const saveStub = sinon.stub().rejects(validationError);
+      const sourceChart = {
+        _id: { toString: () => chartId },
+        toObject: () => ({ _id: chartId, title: "PM2.5", device_ids: [deviceId] }),
+      };
+      const doc = { chartConfigurations: [sourceChart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo" },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.copyChartConfiguration(
+        request
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.equal(validationError.message);
     });
   });
 });
