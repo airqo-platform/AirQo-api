@@ -590,6 +590,71 @@ describe("preference chart UTIL", function() {
       expect(result.status).to.equal(httpStatus.BAD_REQUEST);
       expect(result.errors.message).to.equal(validationError.message);
     });
+
+    it("rejects (400, before any DB write) a sites entry whose site_id isn't in the request's site_ids", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          chartConfig: {
+            fieldId: 1,
+            sites: [{ site_id: "507f1f77bcf86cd799439099", name: "Other site" }],
+          },
+          site_ids: [siteId],
+        },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("rejects (400, before any DB write) a devices entry whose device_id isn't in the request's device_ids", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          chartConfig: {
+            fieldId: 1,
+            devices: [
+              { device_id: "507f1f77bcf86cd799439099", name: "Other device" },
+            ],
+          },
+          device_ids: [deviceId],
+        },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("accepts sites/devices entries that match the request's site_ids/device_ids", async function() {
+      const chartConfig = {
+        fieldId: 1,
+        sites: [{ site_id: siteId, name: "Site A" }],
+        devices: [{ device_id: deviceId, name: "Device A" }],
+      };
+      findOneAndUpdateStub.resolves({
+        chartConfigurations: [
+          { ...chartConfig, device_ids: [deviceId], site_ids: [siteId] },
+        ],
+      });
+      const request = {
+        query: { tenant: "airqo" },
+        body: { chartConfig, device_ids: [deviceId], site_ids: [siteId] },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.createChart(request);
+
+      expect(result.success).to.equal(true);
+      expect(findOneAndUpdateStub.calledOnce).to.equal(true);
+    });
   });
 
   describe("updateChart", function() {
@@ -720,6 +785,95 @@ describe("preference chart UTIL", function() {
       expect(result.success).to.equal(false);
       expect(result.status).to.equal(httpStatus.BAD_REQUEST);
       expect(result.errors.message).to.equal(validationError.message);
+    });
+
+    it("rejects (400, no save()) a partial update that narrows site_ids without also updating the now-stale sites snapshot", async function() {
+      const saveStub = sinon.stub().resolves();
+      const otherSiteId = "507f1f77bcf86cd799439099";
+      const chart = {
+        _id: { toString: () => chartId },
+        device_ids: [],
+        site_ids: [siteId, otherSiteId],
+        sites: [
+          { site_id: siteId, name: "Site A" },
+          { site_id: otherSiteId, name: "Site B" },
+        ],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      // Narrows scope to siteId only, but leaves the old sites snapshot
+      // (still containing otherSiteId) untouched — this is exactly the
+      // partial update that would otherwise leave the chart returning a
+      // name for a site it's no longer scoped to.
+      const request = {
+        body: { tenant: "airqo", site_ids: [siteId] },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(saveStub.called).to.equal(false);
+    });
+
+    it("rejects (400, no save()) a partial update that narrows device_ids without also updating the now-stale devices snapshot", async function() {
+      const saveStub = sinon.stub().resolves();
+      const otherDeviceId = "507f1f77bcf86cd799439099";
+      const chart = {
+        _id: { toString: () => chartId },
+        device_ids: [deviceId, otherDeviceId],
+        site_ids: [],
+        devices: [
+          { device_id: deviceId, name: "Device A" },
+          { device_id: otherDeviceId, name: "Device B" },
+        ],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: { tenant: "airqo", device_ids: [deviceId] },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(saveStub.called).to.equal(false);
+    });
+
+    it("accepts a partial update that narrows site_ids and updates sites to match", async function() {
+      const saveStub = sinon.stub().resolves();
+      const otherSiteId = "507f1f77bcf86cd799439099";
+      const chart = {
+        _id: { toString: () => chartId },
+        device_ids: [],
+        site_ids: [siteId, otherSiteId],
+        sites: [
+          { site_id: siteId, name: "Site A" },
+          { site_id: otherSiteId, name: "Site B" },
+        ],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: {
+          tenant: "airqo",
+          site_ids: [siteId],
+          sites: [{ site_id: siteId, name: "Site A" }],
+        },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(true);
+      expect(saveStub.calledOnce).to.equal(true);
+      expect(chart.sites).to.deep.equal([{ site_id: siteId, name: "Site A" }]);
     });
   });
 
