@@ -38,15 +38,15 @@ const chartConfigSchema = new Schema({
   // not a live reference.
   sites: [
     {
-      site_id: { type: ObjectId, ref: "site" },
-      name: { type: String },
+      site_id: { type: ObjectId, ref: "site", required: true },
+      name: { type: String, required: true, trim: true, maxlength: 200 },
       _id: false,
     },
   ],
   devices: [
     {
-      device_id: { type: ObjectId, ref: "device" },
-      name: { type: String },
+      device_id: { type: ObjectId, ref: "device", required: true },
+      name: { type: String, required: true, trim: true, maxlength: 200 },
       _id: false,
     },
   ],

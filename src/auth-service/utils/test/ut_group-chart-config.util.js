@@ -146,6 +146,48 @@ describe("group-chart-config UTIL", function() {
       expect(result.success).to.equal(false);
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
+
+    it("rejects (400, before any DB write) a sites entry whose site_id isn't in the request's (parent-level) site_ids", async function() {
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId },
+        body: {
+          chartConfig: {
+            fieldId: 1,
+            sites: [{ site_id: "507f1f77bcf86cd799439099", name: "Other site" }],
+          },
+          site_ids: [siteId],
+        },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.create(request, next);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(createStub.called).to.equal(false);
+    });
+
+    it("accepts sites/devices entries that match the request's (parent-level) site_ids/device_ids", async function() {
+      const chartConfig = {
+        fieldId: 1,
+        sites: [{ site_id: siteId, name: "Site A" }],
+      };
+      createStub.resolves({ chartConfigurations: [chartConfig] });
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId },
+        body: { chartConfig, site_ids: [siteId] },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.create(request, next);
+
+      expect(result.success).to.equal(true);
+      expect(createStub.calledOnce).to.equal(true);
+    });
   });
 
   describe("update", function() {
@@ -231,6 +273,73 @@ describe("group-chart-config UTIL", function() {
 
       expect(doc.device_ids).to.deep.equal(newDeviceIds);
       expect(doc.site_ids).to.deep.equal([siteId]);
+    });
+
+    it("rejects (400, no save()) a partial update that narrows the parent doc's site_ids without also updating the chart's now-stale sites snapshot", async function() {
+      const saveStub = sinon.stub().resolves();
+      const otherSiteId = "507f1f77bcf86cd799439099";
+      const chart = {
+        _id: { toString: () => chartId },
+        sites: [
+          { site_id: siteId, name: "Site A" },
+          { site_id: otherSiteId, name: "Site B" },
+        ],
+      };
+      const doc = {
+        chartConfigurations: [chart],
+        device_ids: [],
+        site_ids: [siteId, otherSiteId],
+        save: saveStub,
+      };
+      findOneStub.resolves(doc);
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId, chartId },
+        body: { site_ids: [siteId] },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.update(request, next);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(saveStub.called).to.equal(false);
+    });
+
+    it("accepts a partial update that narrows the parent doc's site_ids and updates the chart's sites to match", async function() {
+      const saveStub = sinon.stub().resolves();
+      const otherSiteId = "507f1f77bcf86cd799439099";
+      const chart = {
+        _id: { toString: () => chartId },
+        sites: [
+          { site_id: siteId, name: "Site A" },
+          { site_id: otherSiteId, name: "Site B" },
+        ],
+      };
+      const doc = {
+        chartConfigurations: [chart],
+        device_ids: [],
+        site_ids: [siteId, otherSiteId],
+        save: saveStub,
+      };
+      findOneStub.resolves(doc);
+      const request = {
+        query: { tenant: "airqo" },
+        params: { groupId, chartId },
+        body: {
+          site_ids: [siteId],
+          sites: [{ site_id: siteId, name: "Site A" }],
+        },
+        user: { _id: userId },
+      };
+      const next = sinon.stub();
+
+      const result = await rewireGroupChartConfigUtil.update(request, next);
+
+      expect(result.success).to.equal(true);
+      expect(saveStub.calledOnce).to.equal(true);
+      expect(chart.sites).to.deep.equal([{ site_id: siteId, name: "Site A" }]);
     });
 
     it("rejects (400, not a save() that trips the schema into a 500) when both scope arrays are explicitly cleared", async function() {

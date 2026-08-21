@@ -193,6 +193,24 @@ const chartValidationErrorResponse = (error) => ({
   status: httpStatus.BAD_REQUEST,
 });
 
+// sites/devices are a display-name snapshot for a chart's site_ids/device_ids
+// — an entry referencing an id outside that scope would mean the API keeps
+// returning a name for a location the chart isn't even scoped to anymore
+// (most easily reached by a partial update that narrows site_ids/device_ids
+// without touching sites/devices). This can't live in chartConfigSchema's
+// shared pre-validate hook (like the locationColors check does) because the
+// scope lives in different places for a personal chart (the chart
+// subdocument's own site_ids/device_ids) vs. a group chart (the parent
+// document's), so it's checked explicitly wherever each one is set instead.
+const findStaleMetadataEntry = (entries, idField, allowedIds) => {
+  if (isEmpty(entries)) return undefined;
+  const allowedIdSet = new Set((allowedIds || []).map((id) => id.toString()));
+  return entries.find(
+    (entry) =>
+      !entry || !entry[idField] || !allowedIdSet.has(entry[idField].toString())
+  );
+};
+
 // Define allowed properties for chart updates
 const allowedChartProperties = [
   "fieldId",
@@ -893,6 +911,31 @@ const preferences = {
         };
       }
 
+      const staleSite = findStaleMetadataEntry(
+        chartConfig.sites,
+        "site_id",
+        siteIds
+      );
+      if (staleSite) {
+        return {
+          success: false,
+          message: `sites[].site_id ${staleSite.site_id} is not in this chart's site_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const staleDevice = findStaleMetadataEntry(
+        chartConfig.devices,
+        "device_id",
+        deviceIds
+      );
+      if (staleDevice) {
+        return {
+          success: false,
+          message: `devices[].device_id ${staleDevice.device_id} is not in this chart's device_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const groupId = request.body.group_id || constants.DEFAULT_GROUP;
 
       // Scope lives on the chart itself now (device_ids/site_ids), not a
@@ -1002,6 +1045,31 @@ const preferences = {
         return {
           success: false,
           message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const staleSite = findStaleMetadataEntry(
+        chart.sites,
+        "site_id",
+        chart.site_ids
+      );
+      if (staleSite) {
+        return {
+          success: false,
+          message: `sites[].site_id ${staleSite.site_id} is not in this chart's site_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const staleDevice = findStaleMetadataEntry(
+        chart.devices,
+        "device_id",
+        chart.device_ids
+      );
+      if (staleDevice) {
+        return {
+          success: false,
+          message: `devices[].device_id ${staleDevice.device_id} is not in this chart's device_ids`,
           status: httpStatus.BAD_REQUEST,
         };
       }
@@ -2132,5 +2200,6 @@ const preferences = {
 // default chart config accepts/updates the same whitelist of chart fields
 // as the personal one, so this avoids a second list drifting out of sync.
 preferences.allowedChartProperties = allowedChartProperties;
+preferences.findStaleMetadataEntry = findStaleMetadataEntry;
 
 module.exports = preferences;
