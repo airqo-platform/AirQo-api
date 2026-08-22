@@ -5,6 +5,12 @@ const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not
+// mongoose's isValidObjectId, which also accepts arbitrary 12-byte
+// strings — a plausible-length cohort_slug (e.g. "nairobi-2026") would be
+// misclassified as an ObjectId and silently fail to resolve.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -49,6 +55,35 @@ const commonValidations = {
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
+      }),
+  ],
+
+  // Accepts either a Mongo ObjectId (existing behaviour, unchanged) or a
+  // self-service cohort_slug (new, opt-in) — used only for cohort_id so
+  // grid_id/device_id/etc via paramObjectId above are untouched.
+  paramCohortIdentifier: (field) => [
+    param(field)
+      .exists()
+      .withMessage(`the ${field} must be provided`)
+      .bail()
+      .notEmpty()
+      .withMessage(`the ${field} should not be empty if provided`)
+      .bail()
+      .trim()
+      .toLowerCase()
+      .custom((value) => {
+        if (isObjectIdShape(value)) {
+          return true;
+        }
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+          throw new Error(
+            `${field} must be a valid object ID or a valid cohort_slug (lowercase letters, numbers and hyphens)`,
+          );
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        return isObjectIdShape(value) ? ObjectId(value) : value;
       }),
   ],
 };
@@ -143,7 +178,7 @@ const metadataValidations = {
 
   getCohort: [
     ...commonValidations.tenant,
-    ...commonValidations.paramObjectId("cohort_id"),
+    ...commonValidations.paramCohortIdentifier("cohort_id"),
     (req, res, next) => {
       const errors = validationResult(req);
 

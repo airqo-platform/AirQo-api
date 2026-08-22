@@ -15,6 +15,35 @@ const httpStatus = require("http-status");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 const crypto = require("crypto");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not
+// mongoose's isValidObjectId, which also accepts arbitrary 12-byte
+// strings — a plausible-length cohort_slug (e.g. "nairobi-2026") would be
+// misclassified as an ObjectId and silently fail to resolve.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
+// Shared per-item validator for a `cohort_ids` array body field: accepts
+// either a Mongo ObjectId or a self-service cohort_slug — additive, not a
+// restriction. Used by listDevices/listSites/promoteCohorts below.
+const cohortIdOrSlugItem = () =>
+  body("cohort_ids.*")
+    .custom((value) => {
+      if (isObjectIdShape(value)) {
+        return true;
+      }
+      if (
+        typeof value === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.toLowerCase())
+      ) {
+        return true;
+      }
+      throw new Error(
+        "Each entry in cohort_ids must be a valid MongoDB ObjectId or cohort_slug",
+      );
+    })
+    .customSanitizer((value) =>
+      typeof value === "string" ? value.toLowerCase().trim() : value,
+    );
+
 const requireAdminSecret = (req, res, next) => {
   if (!constants.ADMIN_SETUP_SECRET) {
     return next(
@@ -87,10 +116,50 @@ const createFromCohorts = [
     .withMessage("cohort_ids are required")
     .bail()
     .isArray({ min: 1 })
-    .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+    .withMessage(
+      "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+    ),
+  // Each entry may be an existing ObjectId (unchanged behaviour) or a
+  // self-service cohort_slug (new, opt-in) — additive, not a restriction.
   body("cohort_ids.*")
-    .isMongoId()
-    .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+    .custom((value) => {
+      if (isObjectIdShape(value)) {
+        return true;
+      }
+      if (
+        typeof value === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.toLowerCase())
+      ) {
+        return true;
+      }
+      throw new Error(
+        "Each entry in cohort_ids must be a valid MongoDB ObjectId or cohort_slug",
+      );
+    })
+    .customSanitizer((value) =>
+      typeof value === "string" ? value.toLowerCase().trim() : value,
+    ),
+  // Opt-in self-service identifier for the newly created merged cohort.
+  body("cohort_slug")
+    .optional()
+    .notEmpty()
+    .withMessage("cohort_slug should not be empty if provided")
+    .bail()
+    .isString()
+    .withMessage("cohort_slug must be a string")
+    .bail()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("cohort_slug must be at most 50 characters"),
+  body("group_slug")
+    .optional()
+    .notEmpty()
+    .withMessage("group_slug should not be empty if provided")
+    .bail()
+    .isString()
+    .withMessage("group_slug must be a string")
+    .bail()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("group_slug must be at most 50 characters"),
 ];
 
 const commonValidations = {
@@ -231,6 +300,35 @@ const commonValidations = {
         return ObjectId(value);
       });
   },
+
+  // Accepts either a Mongo ObjectId (existing behaviour, unchanged — still
+  // sanitized into an ObjectId instance) OR a self-service cohort_slug
+  // (left as a plain lowercase string). Purely additive: anything that
+  // satisfied paramObjectId before still does, with identical downstream
+  // typing; only genuinely non-ObjectId values gain a new, previously
+  // unsupported (and previously rejected) slug lookup path.
+  paramCohortIdentifier: (field, location = param) => {
+    return location(field)
+      .exists()
+      .withMessage(`the ${field} is missing in request`)
+      .bail()
+      .trim()
+      .toLowerCase()
+      .custom((value) => {
+        if (isObjectIdShape(value)) {
+          return true;
+        }
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+          throw new Error(
+            `${field} must be a valid object ID or a valid cohort_slug (lowercase letters, numbers and hyphens)`,
+          );
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        return isObjectIdShape(value) ? ObjectId(value) : value;
+      });
+  },
   deviceIdentifiers: oneOf([
     [
       body("devices")
@@ -287,7 +385,7 @@ const cohortValidations = {
   createFromCohorts,
   updateCohortName: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     body("name")
       .exists()
       .withMessage("name is required for name updates")
@@ -324,13 +422,13 @@ const cohortValidations = {
   ],
   deleteCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
 
   updateCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     body("name")
       .not()
       .exists()
@@ -352,11 +450,59 @@ const cohortValidations = {
     ...commonValidations.cohort_tags,
     ...commonValidations.groups,
     ...commonValidations.networkOptional,
+    // Opt-in self-service identifier: entirely optional, so existing
+    // callers who never send it are completely unaffected.
+    body("cohort_slug")
+      .optional()
+      .notEmpty()
+      .withMessage("cohort_slug should not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("cohort_slug must be a string")
+      .bail()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("cohort_slug must be at most 50 characters"),
+    body("group_slug")
+      .optional()
+      .notEmpty()
+      .withMessage("group_slug should not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("group_slug must be a string")
+      .bail()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("group_slug must be at most 50 characters"),
+    handleValidationErrors,
+  ],
+  checkCohortSlug: [
+    ...commonValidations.tenant,
+    query("slug")
+      .exists()
+      .withMessage("slug is missing in request")
+      .bail()
+      .notEmpty()
+      .withMessage("slug should not be empty")
+      .bail()
+      .isString()
+      .withMessage("slug must be a string")
+      .bail()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("slug must be at most 50 characters"),
+    query("group_slug")
+      .optional()
+      .notEmpty()
+      .withMessage("group_slug should not be empty if provided")
+      .bail()
+      .isString()
+      .withMessage("group_slug must be a string")
+      .bail()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("group_slug must be at most 50 characters"),
     handleValidationErrors,
   ],
   findOriginal: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
   listCohorts: [
@@ -455,25 +601,25 @@ const cohortValidations = {
   ],
   assignOneDeviceToCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     commonValidations.paramObjectId("device_id"),
     handleValidationErrors,
   ],
   listAssignedDevices: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
 
   listAvailableDevices: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
 
   assignManyDevicesToCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     body("device_ids")
       .exists()
       .withMessage("the device_ids should be provided")
@@ -490,7 +636,7 @@ const cohortValidations = {
   ],
   unAssignManyDevicesFromCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     body("device_ids")
       .exists()
       .withMessage("the device_ids should be provided")
@@ -508,7 +654,7 @@ const cohortValidations = {
 
   unAssignOneDeviceFromCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     commonValidations.paramObjectId("device_id"),
     handleValidationErrors,
   ],
@@ -599,18 +745,18 @@ const cohortValidations = {
 
   getSiteAndDeviceIds: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
   verifyCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
 
   getCohort: [
     ...commonValidations.tenant,
-    commonValidations.paramObjectId("cohort_id"),
+    commonValidations.paramCohortIdentifier("cohort_id"),
     handleValidationErrors,
   ],
   listDevices: [
@@ -620,10 +766,10 @@ const cohortValidations = {
       .withMessage("cohort_ids are required")
       .bail()
       .isArray({ min: 1 })
-      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
-    body("cohort_ids.*")
-      .isMongoId()
-      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+      .withMessage(
+        "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+      ),
+    cohortIdOrSlugItem(),
     check("search")
       .optional()
       .trim()
@@ -703,10 +849,10 @@ const cohortValidations = {
       .withMessage("cohort_ids are required")
       .bail()
       .isArray({ min: 1 })
-      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
-    body("cohort_ids.*")
-      .isMongoId()
-      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+      .withMessage(
+        "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+      ),
+    cohortIdOrSlugItem(),
     check("search")
       .optional()
       .trim()
@@ -794,13 +940,10 @@ const promoteCohorts = [
     .withMessage("cohort_ids is required")
     .bail()
     .isArray({ min: 1 })
-    .withMessage("cohort_ids must be a non-empty array"),
-  body("cohort_ids.*")
-    .isString()
-    .withMessage("each cohort_id must be a string")
-    .bail()
-    .custom((id) => isValidObjectId(id))
-    .withMessage("each cohort_id must be a valid MongoDB ObjectId"),
+    .withMessage(
+      "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+    ),
+  cohortIdOrSlugItem(),
   handleValidationErrors,
   requireAdminSecret,
 ];

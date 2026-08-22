@@ -2238,8 +2238,18 @@ const generateFilter = {
         if (cohortIds.length > 0) {
           filter._id = { $in: cohortIds };
         }
-      } else {
+      } else if (
+        typeof cohort_id !== "string" ||
+        /^[0-9a-fA-F]{24}$/.test(cohort_id)
+      ) {
+        // Either already an ObjectId (e.g. sanitized route params) or a raw
+        // 24-char hex string — resolve by _id, exactly as before.
         filter._id = ObjectId(cohort_id);
+      } else {
+        // Not an ObjectId shape: treat as a self-service cohort_slug.
+        // Additive — previously any non-ObjectId cohort_id would have
+        // thrown here, so this only adds a previously-unsupported lookup.
+        filter.cohort_slug = cohort_id;
       }
     } else if (name) {
       filter["name"] = name;
