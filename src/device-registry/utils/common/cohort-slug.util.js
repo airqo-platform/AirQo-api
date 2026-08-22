@@ -44,6 +44,12 @@ function sanitizeSlugSegment(input) {
 
 function buildCandidateSlug({ requestedSlug, groupSlug } = {}) {
   const requestedPart = sanitizeSlugSegment(requestedSlug);
+  // If the caller's requested part sanitizes away to nothing (e.g. "!!!"),
+  // don't silently fall back to a bare group_slug — that would let a
+  // garbage input claim a group-only identifier nobody actually asked for.
+  if (!requestedPart) {
+    return "";
+  }
   const groupPart = sanitizeSlugSegment(groupSlug);
   const combined = groupPart ? `${groupPart}-${requestedPart}` : requestedPart;
   return combined.slice(0, MAX_SLUG_LENGTH).replace(/-+$/g, "");

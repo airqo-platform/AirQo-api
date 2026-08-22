@@ -15,6 +15,12 @@ const httpStatus = require("http-status");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 const crypto = require("crypto");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not
+// mongoose's isValidObjectId, which also accepts arbitrary 12-byte
+// strings — a plausible-length cohort_slug (e.g. "nairobi-2026") would be
+// misclassified as an ObjectId and silently fail to resolve.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
 const requireAdminSecret = (req, res, next) => {
   if (!constants.ADMIN_SETUP_SECRET) {
     return next(
@@ -87,12 +93,14 @@ const createFromCohorts = [
     .withMessage("cohort_ids are required")
     .bail()
     .isArray({ min: 1 })
-    .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+    .withMessage(
+      "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+    ),
   // Each entry may be an existing ObjectId (unchanged behaviour) or a
   // self-service cohort_slug (new, opt-in) — additive, not a restriction.
   body("cohort_ids.*")
     .custom((value) => {
-      if (isValidObjectId(value)) {
+      if (isObjectIdShape(value)) {
         return true;
       }
       if (
@@ -284,7 +292,7 @@ const commonValidations = {
       .trim()
       .toLowerCase()
       .custom((value) => {
-        if (isValidObjectId(value)) {
+        if (isObjectIdShape(value)) {
           return true;
         }
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
@@ -295,7 +303,7 @@ const commonValidations = {
         return true;
       })
       .customSanitizer((value) => {
-        return isValidObjectId(value) ? ObjectId(value) : value;
+        return isObjectIdShape(value) ? ObjectId(value) : value;
       });
   },
   deviceIdentifiers: oneOf([

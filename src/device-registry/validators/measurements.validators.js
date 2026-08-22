@@ -14,6 +14,12 @@ const httpStatus = require("http-status");
 const numeral = require("numeral");
 const Decimal = require("decimal.js");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not
+// mongoose's isValidObjectId, which also accepts arbitrary 12-byte
+// strings — a plausible-length cohort_slug (e.g. "nairobi-2026") would be
+// misclassified as an ObjectId and silently fail to resolve.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
 const countDecimalPlaces = (value) => {
   try {
     const decimal = new Decimal(value);
@@ -347,7 +353,7 @@ const commonValidations = {
       .trim()
       .toLowerCase()
       .custom((value) => {
-        if (isValidObjectId(value)) {
+        if (isObjectIdShape(value)) {
           return true;
         }
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
@@ -358,7 +364,7 @@ const commonValidations = {
         return true;
       })
       .customSanitizer((value) => {
-        return isValidObjectId(value) ? ObjectId(value) : value;
+        return isObjectIdShape(value) ? ObjectId(value) : value;
       }),
   ],
 
