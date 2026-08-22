@@ -21,6 +21,29 @@ const crypto = require("crypto");
 // misclassified as an ObjectId and silently fail to resolve.
 const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
 
+// Shared per-item validator for a `cohort_ids` array body field: accepts
+// either a Mongo ObjectId or a self-service cohort_slug — additive, not a
+// restriction. Used by listDevices/listSites/promoteCohorts below.
+const cohortIdOrSlugItem = () =>
+  body("cohort_ids.*")
+    .custom((value) => {
+      if (isObjectIdShape(value)) {
+        return true;
+      }
+      if (
+        typeof value === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.toLowerCase())
+      ) {
+        return true;
+      }
+      throw new Error(
+        "Each entry in cohort_ids must be a valid MongoDB ObjectId or cohort_slug",
+      );
+    })
+    .customSanitizer((value) =>
+      typeof value === "string" ? value.toLowerCase().trim() : value,
+    );
+
 const requireAdminSecret = (req, res, next) => {
   if (!constants.ADMIN_SETUP_SECRET) {
     return next(
@@ -743,10 +766,10 @@ const cohortValidations = {
       .withMessage("cohort_ids are required")
       .bail()
       .isArray({ min: 1 })
-      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
-    body("cohort_ids.*")
-      .isMongoId()
-      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+      .withMessage(
+        "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+      ),
+    cohortIdOrSlugItem(),
     check("search")
       .optional()
       .trim()
@@ -826,10 +849,10 @@ const cohortValidations = {
       .withMessage("cohort_ids are required")
       .bail()
       .isArray({ min: 1 })
-      .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
-    body("cohort_ids.*")
-      .isMongoId()
-      .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+      .withMessage(
+        "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+      ),
+    cohortIdOrSlugItem(),
     check("search")
       .optional()
       .trim()
@@ -917,13 +940,10 @@ const promoteCohorts = [
     .withMessage("cohort_ids is required")
     .bail()
     .isArray({ min: 1 })
-    .withMessage("cohort_ids must be a non-empty array"),
-  body("cohort_ids.*")
-    .isString()
-    .withMessage("each cohort_id must be a string")
-    .bail()
-    .custom((id) => isValidObjectId(id))
-    .withMessage("each cohort_id must be a valid MongoDB ObjectId"),
+    .withMessage(
+      "cohort_ids must be a non-empty array of cohort identifiers (MongoDB ObjectIds or cohort_slug values)",
+    ),
+  cohortIdOrSlugItem(),
   handleValidationErrors,
   requireAdminSecret,
 ];

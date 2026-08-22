@@ -58,6 +58,53 @@ const cohortLookupFilter = (identifier) =>
     ? { cohort_slug: identifier }
     : { _id: identifier };
 
+const isObjectIdShape = (identifier) =>
+  /^[0-9a-fA-F]{24}$/.test(String(identifier));
+
+// Batch counterpart to cohortLookupFilter: resolves a mixed array of
+// cohort_ids (ObjectIds and/or cohort_slugs) to their canonical ObjectIds
+// in a single query, instead of each caller constructing ObjectId(id)
+// directly — which throws for a slug, or (via a loose validity check)
+// can silently drop it.
+const resolveCohortObjectIds = async (tenant, cohortIdentifiers) => {
+  const identifiers = Array.isArray(cohortIdentifiers) ? cohortIdentifiers : [];
+  const objectIdEntries = identifiers.filter((id) => isObjectIdShape(id));
+  const slugEntries = identifiers.filter((id) => !isObjectIdShape(id));
+
+  const matches = await CohortModel(tenant)
+    .find({
+      $or: [
+        { _id: { $in: objectIdEntries } },
+        { cohort_slug: { $in: slugEntries } },
+      ],
+    })
+    .select("_id cohort_slug visibility")
+    .lean();
+
+  const byIdString = new Map(matches.map((c) => [c._id.toString(), c]));
+  const bySlug = new Map(
+    matches.filter((c) => c.cohort_slug).map((c) => [c.cohort_slug, c]),
+  );
+
+  const resolved = [];
+  const notFound = [];
+  identifiers.forEach((id) => {
+    const idStr = String(id);
+    const match = byIdString.get(idStr) || bySlug.get(idStr);
+    if (match) {
+      resolved.push(match);
+    } else {
+      notFound.push(id);
+    }
+  });
+
+  return {
+    resolved,
+    resolvedIds: resolved.map((c) => c._id),
+    notFound,
+  };
+};
+
 const createCohort = {
   // Network CRUD — logic lives in network.util.js; these are kept for
   // backward compatibility so the existing /cohorts/networks endpoints
@@ -1245,18 +1292,13 @@ const createCohort = {
       const { cohort_ids } = request.body;
       const tenant = request.query.tenant || request.body.tenant;
 
-      const objectIds = cohort_ids.map((id) => new ObjectId(id));
-
-      // Identify which IDs exist in the DB
-      const existingCohorts = await CohortModel(tenant)
-        .find({ _id: { $in: objectIds } })
-        .select("_id visibility")
-        .lean();
-
-      const existingIds = new Set(
-        existingCohorts.map((c) => c._id.toString()),
+      // Resolves ObjectIds and/or cohort_slugs in one query — also gives
+      // us visibility directly, so no separate existence lookup is needed.
+      const { resolved: existingCohorts, notFound } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
       );
-      const notFound = cohort_ids.filter((id) => !existingIds.has(id));
+
       const alreadyPublic = existingCohorts
         .filter((c) => c.visibility === true)
         .map((c) => c._id.toString());
@@ -1628,10 +1670,18 @@ const createCohort = {
       // ✅ Get standard device filter from generateFilter
       const baseFilter = generateFilter.devices(request, next);
 
+      // Resolve ObjectIds and/or cohort_slugs to canonical ObjectIds —
+      // unresolvable entries are simply excluded, same as an unmatched
+      // ObjectId would contribute nothing to the $in filter.
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
+
       // ✅ Merge with cohort-specific filter
       const filter = {
         ...baseFilter,
-        cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) },
+        cohorts: { $in: cohortObjectIds },
       };
 
       // Get total count for pagination metadata before applying limit and skip
@@ -1947,8 +1997,11 @@ const createCohort = {
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
 
-      // Convert cohort_ids to ObjectIds
-      const cohortObjectIds = cohort_ids.map((id) => ObjectId(id));
+      // Resolve ObjectIds and/or cohort_slugs to canonical ObjectIds
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
 
       // Search should only apply to sites, not devices
       const deviceFilterRequest = {
@@ -2286,16 +2339,22 @@ const createCohort = {
         };
       }
 
-      const cohortObjectIds = cohort_ids
-        .filter((id) => ObjectId.isValid(id))
-        .map((id) => ObjectId(id));
+      // Resolves ObjectIds and/or cohort_slugs to canonical ObjectIds;
+      // unresolvable entries are simply excluded (not previously mongoose's
+      // ObjectId.isValid, which also accepts arbitrary 12-byte strings).
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
 
       if (!cohortObjectIds.length) {
         return {
           success: false,
           status: httpStatus.BAD_REQUEST,
           message: "No valid cohort_ids provided",
-          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+          errors: {
+            message: "cohort_ids must be valid MongoDB ObjectIds or cohort_slugs",
+          },
         };
       }
 
@@ -2424,16 +2483,22 @@ const createCohort = {
         };
       }
 
-      const cohortObjectIds = cohort_ids
-        .filter((id) => ObjectId.isValid(id))
-        .map((id) => ObjectId(id));
+      // Resolves ObjectIds and/or cohort_slugs to canonical ObjectIds;
+      // unresolvable entries are simply excluded (not previously mongoose's
+      // ObjectId.isValid, which also accepts arbitrary 12-byte strings).
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
 
       if (!cohortObjectIds.length) {
         return {
           success: false,
           status: httpStatus.BAD_REQUEST,
           message: "No valid cohort_ids provided",
-          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+          errors: {
+            message: "cohort_ids must be valid MongoDB ObjectIds or cohort_slugs",
+          },
         };
       }
 

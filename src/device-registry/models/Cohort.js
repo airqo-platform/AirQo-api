@@ -36,8 +36,14 @@ const cohortSchema = new Schema(
       trim: true,
       lowercase: true,
       match: [
-        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-        "cohort_slug can only contain lowercase letters, numbers and hyphens",
+        // Lowercase alphanumeric + hyphens, same as before, but the
+        // negative lookahead additionally rejects any value that is
+        // exactly 24 hex characters — that shape is indistinguishable
+        // from a MongoDB ObjectId by every dual-lookup check in this
+        // codebase, so a slug like that would never actually be
+        // reachable via its own cohort_slug.
+        /^(?![0-9a-f]{24}$)[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        "cohort_slug can only contain lowercase letters, numbers and hyphens, and cannot look like a 24-character MongoDB ObjectId",
       ],
     },
     description: {

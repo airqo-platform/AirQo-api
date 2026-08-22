@@ -63,12 +63,26 @@ async function slugExists(tenant, slug) {
   return Boolean(existing);
 }
 
+// A candidate that is exactly 24 lowercase hex characters is
+// indistinguishable from a MongoDB ObjectId by every dual-lookup check in
+// this codebase — it would always resolve via _id and never be reachable
+// through its own cohort_slug. Reject it here, at generation time, rather
+// than let it silently become unusable.
+const OBJECT_ID_SHAPE = /^[0-9a-f]{24}$/;
+
 function evaluateCandidate(candidate) {
   if (candidate.length < MIN_SLUG_LENGTH) {
     return {
       valid: false,
       reason: "too_short",
       message: `cohort_slug must be at least ${MIN_SLUG_LENGTH} characters after sanitization (got "${candidate}")`,
+    };
+  }
+  if (OBJECT_ID_SHAPE.test(candidate)) {
+    return {
+      valid: false,
+      reason: "objectid_shape",
+      message: `"${candidate}" looks like a MongoDB ObjectId (24 hex characters) and cannot be used as a cohort_slug — add a letter outside a-f or a hyphen`,
     };
   }
   if (RESERVED_COHORT_SLUGS.has(candidate)) {
