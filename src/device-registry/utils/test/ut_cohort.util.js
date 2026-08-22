@@ -224,9 +224,14 @@ describe("createCohort", () => {
 
   describe("assignOneDeviceToCohort", () => {
     it("should handle invalid cohort or device", async () => {
-      // Uses .exists() not .findById()
+      // Looks up the cohort via findOne (supports ObjectId or cohort_slug)
+      // and checks device existence separately.
       const ms = sandbox.stub(mongoose, "model");
-      ms.withArgs("cohorts").returns({ exists: sandbox.stub().resolves(false) });
+      ms.withArgs("cohorts").returns({
+        findOne: sandbox.stub().returns({
+          select: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        }),
+      });
       ms.withArgs("devices").returns({ exists: sandbox.stub().resolves(false) });
       const result = await createCohort.assignOneDeviceToCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
@@ -250,9 +255,10 @@ describe("createCohort", () => {
 
   describe("unAssignOneDeviceFromCohort", () => {
     it("should handle invalid cohort or device", async () => {
-      // Uses .findById() directly without .lean()
+      // Cohort lookup uses findOne (supports ObjectId or cohort_slug);
+      // device lookup is unchanged (findById, no .lean()).
       const ms = sandbox.stub(mongoose, "model");
-      ms.withArgs("cohorts").returns({ findById: sandbox.stub().resolves(null) });
+      ms.withArgs("cohorts").returns({ findOne: sandbox.stub().resolves(null) });
       ms.withArgs("devices").returns({ findById: sandbox.stub().resolves(null) });
       const result = await createCohort.unAssignOneDeviceFromCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
@@ -275,9 +281,9 @@ describe("createCohort", () => {
 
   describe("assignManyDevicesToCohort", () => {
     it("should handle invalid cohort", async () => {
-      // Uses .findById(id).lean()
+      // Uses .findOne(filter).lean() (supports ObjectId or cohort_slug)
       sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
-        findById: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
       });
       const result = await createCohort.assignManyDevicesToCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["did"] } },
@@ -301,9 +307,9 @@ describe("createCohort", () => {
 
   describe("unAssignManyDevicesFromCohort", () => {
     it("should handle invalid cohort", async () => {
-      // Uses findById on cohorts (no .lean())
+      // Uses findOne on cohorts (no .lean()) — supports ObjectId or cohort_slug
       sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
-        findById: sandbox.stub().resolves(null),
+        findOne: sandbox.stub().resolves(null),
       });
       const result = await createCohort.unAssignManyDevicesFromCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["did"] } },

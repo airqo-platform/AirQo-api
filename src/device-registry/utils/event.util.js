@@ -789,8 +789,10 @@ const getDevicesFromCohort = async ({
           status: httpStatus.BAD_REQUEST,
         };
       }
+      // device.cohorts stores ObjectIds; use the resolved cohortDetails._id
+      // rather than the raw cohort_id, which may be a cohort_slug string.
       const ownedDevices = await DeviceModel(tenant)
-        .find({ cohorts: cohort_id, owner_id: new ObjectId(user_id) })
+        .find({ cohorts: cohortDetails._id, owner_id: new ObjectId(user_id) })
         .select("_id")
         .lean();
       if (ownedDevices.length === 0) {

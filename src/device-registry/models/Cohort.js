@@ -26,6 +26,20 @@ const cohortSchema = new Schema(
       trim: true,
       unique: true,
     },
+    // Optional, user-chosen, immutable identifier that can be used
+    // interchangeably with _id in lookups (see cohort.util.js). Absent on
+    // cohorts created before this field existed and on any cohort whose
+    // creator didn't opt in — self-service ID generation is additive, not
+    // required.
+    cohort_slug: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        "cohort_slug can only contain lowercase letters, numbers and hyphens",
+      ],
+    },
     description: {
       type: String,
       trim: true,
@@ -94,7 +108,7 @@ cohortSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
-  this.cohort_codes = [this._id, this.name];
+  this.cohort_codes = [this._id, this.name, this.cohort_slug].filter(Boolean);
   return next();
 });
 
@@ -124,11 +138,15 @@ cohortSchema.plugin(uniqueValidator, {
 cohortSchema.index({ grp_id: 1 });
 cohortSchema.index({ geoHash: 1 });
 cohortSchema.index({ cohort_tags: 1 });
+// sparse: only enforced across documents that actually have a cohort_slug,
+// so existing cohorts (no cohort_slug) never collide with each other.
+cohortSchema.index({ cohort_slug: 1 }, { unique: true, sparse: true });
 
 cohortSchema.methods.toJSON = function() {
   const {
     _id,
     name,
+    cohort_slug,
     description,
     cohort_tags,
     cohort_codes,
@@ -140,6 +158,7 @@ cohortSchema.methods.toJSON = function() {
   return {
     _id,
     name,
+    cohort_slug,
     visibility,
     description,
     cohort_tags,
@@ -370,6 +389,9 @@ cohortSchema.statics.modify = async function(
     delete modifiedUpdateBody._id;
     delete modifiedUpdateBody.name;
     delete modifiedUpdateBody.cohort_codes;
+    // cohort_slug is immutable once set (like _id) so partner integrations
+    // that hardcode it never silently break; there is no update path for it.
+    delete modifiedUpdateBody.cohort_slug;
     // Normalize and deduplicate cohort_tags if they are being updated
     if (
       modifiedUpdateBody.cohort_tags &&
