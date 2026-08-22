@@ -30,6 +30,7 @@ const throttleUtil = require("./throttle.util");
 const LogThrottleManager = require("./log-throttle-manager.util");
 
 const { getSchedule } = require("./cron-schedule.util");
+const cohortSlugUtil = require("./cohort-slug.util");
 
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
@@ -77,4 +78,5 @@ module.exports = {
   generateFilter,
   handleResponse,
   computeTransmissionStatus,
+  cohortSlugUtil,
 };

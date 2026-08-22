@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const httpStatus = require("http-status");
 const createCohort = require("@utils/cohort.util");
 const networkUtil = require("@utils/network.util");
-const { generateFilter } = require("@utils/common");
+const { generateFilter, cohortSlugUtil } = require("@utils/common");
 
 const { expect } = chai;
 
@@ -94,6 +94,60 @@ describe("createCohort", () => {
       const next = sandbox.stub();
       await createCohort.create({ query: { tenant: "airqo" }, body: {} }, next);
       expect(next.calledOnce).to.be.true;
+    });
+
+    it("should generate and pass through a unique cohort_slug when one is provided", async () => {
+      const registerStub = sandbox.stub().resolves({
+        success: true,
+        data: { _id: "cid", name: "test", cohort_slug: "wri-nairobi" },
+      });
+      sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
+        register: registerStub,
+      });
+      sandbox.stub(cohortSlugUtil, "generateUniqueCohortSlug").resolves({
+        success: true,
+        slug: "wri-nairobi",
+      });
+
+      const result = await createCohort.create(
+        {
+          query: { tenant: "airqo" },
+          body: { name: "test", cohort_slug: "Nairobi!!", group_slug: "WRI" },
+        },
+        sandbox.stub(),
+      );
+
+      expect(result.success).to.be.true;
+      // The sanitized/uniqued slug from generateUniqueCohortSlug — not the
+      // raw request body value — is what gets persisted.
+      expect(registerStub.getCall(0).args[0].cohort_slug).to.equal(
+        "wri-nairobi",
+      );
+      expect(registerStub.getCall(0).args[0].group_slug).to.be.undefined;
+    });
+
+    it("should reject with a 400 and skip registration when cohort_slug is invalid or reserved", async () => {
+      const registerStub = sandbox.stub().resolves({ success: true });
+      sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
+        register: registerStub,
+      });
+      sandbox.stub(cohortSlugUtil, "generateUniqueCohortSlug").resolves({
+        success: false,
+        message: '"admin" is a reserved cohort_slug value, please choose another',
+      });
+
+      const result = await createCohort.create(
+        {
+          query: { tenant: "airqo" },
+          body: { name: "test", cohort_slug: "admin" },
+        },
+        sandbox.stub(),
+      );
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.include("reserved");
+      expect(registerStub.called).to.be.false;
     });
   });
 
@@ -224,9 +278,14 @@ describe("createCohort", () => {
 
   describe("assignOneDeviceToCohort", () => {
     it("should handle invalid cohort or device", async () => {
-      // Uses .exists() not .findById()
+      // Looks up the cohort via findOne (supports ObjectId or cohort_slug)
+      // and checks device existence separately.
       const ms = sandbox.stub(mongoose, "model");
-      ms.withArgs("cohorts").returns({ exists: sandbox.stub().resolves(false) });
+      ms.withArgs("cohorts").returns({
+        findOne: sandbox.stub().returns({
+          select: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        }),
+      });
       ms.withArgs("devices").returns({ exists: sandbox.stub().resolves(false) });
       const result = await createCohort.assignOneDeviceToCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
@@ -250,9 +309,10 @@ describe("createCohort", () => {
 
   describe("unAssignOneDeviceFromCohort", () => {
     it("should handle invalid cohort or device", async () => {
-      // Uses .findById() directly without .lean()
+      // Cohort lookup uses findOne (supports ObjectId or cohort_slug);
+      // device lookup is unchanged (findById, no .lean()).
       const ms = sandbox.stub(mongoose, "model");
-      ms.withArgs("cohorts").returns({ findById: sandbox.stub().resolves(null) });
+      ms.withArgs("cohorts").returns({ findOne: sandbox.stub().resolves(null) });
       ms.withArgs("devices").returns({ findById: sandbox.stub().resolves(null) });
       const result = await createCohort.unAssignOneDeviceFromCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
@@ -275,9 +335,9 @@ describe("createCohort", () => {
 
   describe("assignManyDevicesToCohort", () => {
     it("should handle invalid cohort", async () => {
-      // Uses .findById(id).lean()
+      // Uses .findOne(filter).lean() (supports ObjectId or cohort_slug)
       sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
-        findById: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
       });
       const result = await createCohort.assignManyDevicesToCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["did"] } },
@@ -301,9 +361,9 @@ describe("createCohort", () => {
 
   describe("unAssignManyDevicesFromCohort", () => {
     it("should handle invalid cohort", async () => {
-      // Uses findById on cohorts (no .lean())
+      // Uses findOne on cohorts (no .lean()) — supports ObjectId or cohort_slug
       sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
-        findById: sandbox.stub().resolves(null),
+        findOne: sandbox.stub().resolves(null),
       });
       const result = await createCohort.unAssignManyDevicesFromCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["did"] } },

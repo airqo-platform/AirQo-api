@@ -14,6 +14,12 @@ const httpStatus = require("http-status");
 const numeral = require("numeral");
 const Decimal = require("decimal.js");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not
+// mongoose's isValidObjectId, which also accepts arbitrary 12-byte
+// strings — a plausible-length cohort_slug (e.g. "nairobi-2026") would be
+// misclassified as an ObjectId and silently fail to resolve.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
 const countDecimalPlaces = (value) => {
   try {
     const decimal = new Decimal(value);
@@ -333,6 +339,35 @@ const commonValidations = {
       }),
   ],
 
+  // Accepts either a Mongo ObjectId (existing behaviour, unchanged) or a
+  // self-service cohort_slug (new, opt-in). Only used for cohort_id — the
+  // grid_id/device_id/etc callers of validObjectId above are untouched.
+  validCohortIdentifier: (field) => [
+    param(field)
+      .exists()
+      .withMessage(`${field} should be provided`)
+      .bail()
+      .notEmpty()
+      .withMessage(`the provided ${field} cannot be empty`)
+      .bail()
+      .trim()
+      .toLowerCase()
+      .custom((value) => {
+        if (isObjectIdShape(value)) {
+          return true;
+        }
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+          throw new Error(
+            `the ${field} must be a valid object ID or a valid cohort_slug (lowercase letters, numbers and hyphens)`,
+          );
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        return isObjectIdShape(value) ? ObjectId(value) : value;
+      }),
+  ],
+
   latLong: [
     param("latitude")
       .exists()
@@ -570,16 +605,16 @@ const measurementsValidations = {
   ],
   listHistoricalCohortMeasurements: [
     ...baseValidations,
-    commonValidations.validObjectId("cohort_id"),
+    commonValidations.validCohortIdentifier("cohort_id"),
   ],
 
   listRecentCohortMeasurements: [
     ...baseValidations,
-    commonValidations.validObjectId("cohort_id"),
+    commonValidations.validCohortIdentifier("cohort_id"),
   ],
   listCohortMeasurements: [
     ...baseValidations,
-    commonValidations.validObjectId("cohort_id"),
+    commonValidations.validCohortIdentifier("cohort_id"),
   ],
   listHistoricalDeviceMeasurements: [
     ...baseValidations,

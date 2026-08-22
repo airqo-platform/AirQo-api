@@ -215,6 +215,17 @@ const createCohort = {
       handleError(error, next);
     }
   },
+  checkSlug: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await createCohortUtil.checkSlug(request, next);
+      handleResponse({ res, result, key: "slug_check" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   listSummary: async (req, res, next) => {
     try {
       logText(".....................................");

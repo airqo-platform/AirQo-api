@@ -35,6 +35,14 @@ router.put(
 
 router.post("/", cohortValidations.createCohort, createCohortController.create);
 
+// Static route — must stay registered above the catch-all GET /:cohort_id
+// below, otherwise Express would match "check-slug" as a cohort_id value.
+router.get(
+  "/check-slug",
+  cohortValidations.checkCohortSlug,
+  createCohortController.checkSlug,
+);
+
 router.get(
   "/",
   pagination(),
