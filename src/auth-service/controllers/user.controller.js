@@ -186,6 +186,16 @@ const userController = {
       handleError(error, next);
     }
   },
+  getStatsBreakdown: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getStatsBreakdown(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   listLogs: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

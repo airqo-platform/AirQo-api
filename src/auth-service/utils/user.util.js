@@ -516,6 +516,19 @@ function buildAuthMethods(user) {
   };
 }
 
+// Extracted as a pure function (rather than inlined date math) so the
+// month-boundary arithmetic is independently unit-testable without needing
+// to fake the system clock: clamping to day 1 before subtracting months
+// avoids setMonth() overflowing into the following month when "now" falls
+// on the 29th-31st and the subtraction lands on a shorter month.
+const computeMonthRangeStart = (referenceDate, monthsBack) => {
+  const start = new Date(referenceDate);
+  start.setDate(1);
+  start.setMonth(start.getMonth() - (monthsBack - 1));
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
 const createUserModule = {
   _validatePassword: (password) => {
     if (!password || !constants.PASSWORD_REGEX.test(password)) {
@@ -695,6 +708,346 @@ const createUserModule = {
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  getStatsBreakdown: async (request, next) => {
+    try {
+      const { tenant, months: rawMonths, limit: rawLimit } = request.query;
+      const months = Number.isFinite(Number(rawMonths))
+        ? Math.min(36, Math.max(1, parseInt(rawMonths, 10)))
+        : 12;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.min(50, Math.max(1, parseInt(rawLimit, 10)))
+        : 8;
+
+      // Pure caching: a miss or Redis error just falls through to the live
+      // aggregation below, it never affects correctness of the response.
+      const cacheKey = `user_stats_breakdown_${tenant}_${months}_${limit}`;
+      try {
+        const cached = await redisGetAsync(cacheKey);
+        if (cached) {
+          return {
+            success: true,
+            message: "User statistics breakdown retrieved successfully",
+            data: JSON.parse(cached),
+            status: httpStatus.OK,
+          };
+        }
+      } catch (cacheError) {
+        logger.error(
+          `🐛🐛 Cache read error in getStatsBreakdown: ${cacheError.message}`,
+        );
+      }
+
+      const now = new Date();
+      const signupsRangeStart = computeMonthRangeStart(now, months);
+
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+      const aggregationPipeline = [
+        {
+          $facet: {
+            accountStatus: [
+              {
+                $group: {
+                  _id: { $ifNull: ["$isActive", false] },
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            verificationStatus: [
+              {
+                $group: {
+                  _id: { $ifNull: ["$verified", false] },
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            organizations: [
+              { $match: { organization: { $nin: [null, ""] } } },
+              { $group: { _id: "$organization", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+            ],
+            loginActivity: [
+              {
+                $bucket: {
+                  groupBy: { $ifNull: ["$loginCount", 0] },
+                  boundaries: [0, 1, 6, 11, 21],
+                  default: "21+",
+                  output: { count: { $sum: 1 } },
+                },
+              },
+            ],
+            signupsOverTime: [
+              { $match: { createdAt: { $gte: signupsRangeStart } } },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+            topGroups: [
+              { $unwind: "$group_roles" },
+              { $group: { _id: "$group_roles.group", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+              {
+                $lookup: {
+                  from: "groups",
+                  localField: "_id",
+                  foreignField: "_id",
+                  as: "groupInfo",
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  group: { $arrayElemAt: ["$groupInfo.grp_title", 0] },
+                  count: 1,
+                },
+              },
+            ],
+            newUsersLast30Days: [
+              { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+              { $count: "count" },
+            ],
+            newUsersPrevious30Days: [
+              {
+                $match: {
+                  createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
+                },
+              },
+              { $count: "count" },
+            ],
+            activeUsersLast30Days: [
+              { $match: { lastLogin: { $gte: thirtyDaysAgo } } },
+              { $count: "count" },
+            ],
+            activeUsersPrevious30Days: [
+              {
+                $match: {
+                  lastLogin: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
+                },
+              },
+              { $count: "count" },
+            ],
+            roles: [
+              {
+                $project: {
+                  roleIds: {
+                    $setUnion: [
+                      { $ifNull: ["$network_roles.role", []] },
+                      { $ifNull: ["$group_roles.role", []] },
+                    ],
+                  },
+                },
+              },
+              { $unwind: "$roleIds" },
+              {
+                $lookup: {
+                  from: "roles",
+                  localField: "roleIds",
+                  foreignField: "_id",
+                  as: "roleInfo",
+                },
+              },
+              {
+                $project: {
+                  role: { $arrayElemAt: ["$roleInfo.role_name", 0] },
+                },
+              },
+              { $match: { role: { $ne: null } } },
+              // Group by resolved role_name (not role _id) so the same role
+              // name defined per-network/per-group isn't split into
+              // duplicate rows or truncated by $limit before names merge.
+              { $group: { _id: "$role", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+              { $project: { _id: 0, role: "$_id", count: 1 } },
+            ],
+            geography: [
+              {
+                $group: {
+                  _id: {
+                    $cond: [
+                      { $in: [{ $ifNull: ["$country", ""] }, ["", null]] },
+                      "Unspecified",
+                      "$country",
+                    ],
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+            ],
+            verificationByCohort: [
+              { $match: { createdAt: { $gte: signupsRangeStart } } },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                  total: { $sum: 1 },
+                  verified: {
+                    $sum: { $cond: [{ $eq: ["$verified", true] }, 1, 0] },
+                  },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+            unverifiedAging: [
+              { $match: { verified: { $ne: true } } },
+              {
+                $bucket: {
+                  groupBy: {
+                    $divide: [
+                      { $subtract: [now, "$createdAt"] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                  boundaries: [0, 8, 31, 91],
+                  default: "90d+",
+                  output: { count: { $sum: 1 } },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      const results = await UserModel(tenant).aggregate(aggregationPipeline);
+      const facets = results[0] || {};
+
+      const accountStatus = { active: 0, inactive: 0 };
+      (facets.accountStatus || []).forEach((entry) => {
+        if (entry._id === true) accountStatus.active = entry.count;
+        else accountStatus.inactive = entry.count;
+      });
+
+      const verificationStatus = { verified: 0, unverified: 0 };
+      (facets.verificationStatus || []).forEach((entry) => {
+        if (entry._id === true) verificationStatus.verified = entry.count;
+        else verificationStatus.unverified = entry.count;
+      });
+
+      const organizations = (facets.organizations || []).map((entry) => ({
+        organization: entry._id,
+        count: entry.count,
+      }));
+
+      const bucketLabels = { 0: "0", 1: "1-5", 6: "6-10", 11: "11-20" };
+      const loginActivity = (facets.loginActivity || []).map((entry) => ({
+        range: bucketLabels[entry._id] || "21+",
+        count: entry.count,
+      }));
+
+      const signupsOverTime = (facets.signupsOverTime || []).map((entry) => ({
+        period: entry._id,
+        count: entry.count,
+      }));
+
+      const topGroups = (facets.topGroups || [])
+        .filter((entry) => entry.group)
+        .map((entry) => ({ group: entry.group, count: entry.count }));
+
+      const newUsersCurrent = facets.newUsersLast30Days?.[0]?.count || 0;
+      const newUsersPrevious = facets.newUsersPrevious30Days?.[0]?.count || 0;
+      const activeUsersCurrent = facets.activeUsersLast30Days?.[0]?.count || 0;
+      const activeUsersPrevious =
+        facets.activeUsersPrevious30Days?.[0]?.count || 0;
+
+      const percentChange = (current, previous) =>
+        previous > 0
+          ? ((current - previous) / previous) * 100
+          : current > 0
+            ? 100
+            : 0;
+
+      const growth = {
+        newUsers: {
+          current: newUsersCurrent,
+          previous: newUsersPrevious,
+          percentChange: percentChange(newUsersCurrent, newUsersPrevious),
+        },
+        activeUsers: {
+          current: activeUsersCurrent,
+          previous: activeUsersPrevious,
+          percentChange: percentChange(
+            activeUsersCurrent,
+            activeUsersPrevious,
+          ),
+        },
+      };
+
+      const roles = (facets.roles || [])
+        .filter((entry) => entry.role)
+        .map((entry) => ({ role: entry.role, count: entry.count }));
+
+      const geography = (facets.geography || []).map((entry) => ({
+        country: entry._id,
+        count: entry.count,
+      }));
+
+      const verificationByCohort = (facets.verificationByCohort || []).map(
+        (entry) => ({
+          period: entry._id,
+          total: entry.total,
+          verified: entry.verified,
+          verificationRate:
+            entry.total > 0 ? (entry.verified / entry.total) * 100 : 0,
+        }),
+      );
+
+      const agingLabels = { 0: "0-7d", 8: "8-30d", 31: "31-90d" };
+      const unverifiedAging = (facets.unverifiedAging || []).map((entry) => ({
+        range: agingLabels[entry._id] || "90d+",
+        count: entry.count,
+      }));
+
+      const data = {
+        accountStatus,
+        verificationStatus,
+        organizations,
+        loginActivity,
+        signupsOverTime,
+        topGroups,
+        growth,
+        roles,
+        geography,
+        verificationFunnel: {
+          byCohort: verificationByCohort,
+          unverifiedAging,
+        },
+      };
+
+      try {
+        await redisSetWithTTLAsync(cacheKey, JSON.stringify(data), 300);
+      } catch (cacheError) {
+        logger.error(
+          `🐛🐛 Cache write error in getStatsBreakdown: ${cacheError.message}`,
+        );
+      }
+
+      return {
+        success: true,
+        message: "User statistics breakdown retrieved successfully",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getStatsBreakdown: ${error.message}`,
+      );
       next(
         new HttpError(
           "Internal Server Error",
