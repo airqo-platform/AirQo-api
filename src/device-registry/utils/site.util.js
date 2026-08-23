@@ -37,6 +37,7 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 const mongoose = require("mongoose");
+const { resolveCohortObjectIds } = require("@utils/cohort.util");
 const { isValidObjectId } = mongoose;
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -46,11 +47,17 @@ const getSiteCountSummary = async (request, next) => {
     const filter = generateFilter.sites(request, next);
 
     if (cohort_id) {
-      const cohortObjectIds = cohort_id
+      // cohort_id may be a comma-separated mix of ObjectIds and
+      // cohort_slugs — resolve to canonical ObjectIds before matching the
+      // snapshot collection (which stores real ObjectIds).
+      const identifiers = cohort_id
         .split(",")
         .map((id) => id.trim())
-        .filter((id) => isValidObjectId(id))
-        .map((id) => ObjectId(id));
+        .filter(Boolean);
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        identifiers,
+      );
 
       if (cohortObjectIds.length === 0) {
         filter._id = { $in: [] };

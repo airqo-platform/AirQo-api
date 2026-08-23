@@ -166,7 +166,16 @@ describe("Grid Util", () => {
       const request = { query: { tenant: "airqo", cohort_id: cohortId } };
       const cohortSiteIds = [new mongoose.Types.ObjectId()];
 
-      listModelStub.withArgs("cohorts").returns({ aggregate: sandbox.stub().resolves([]) });
+      listModelStub.withArgs("cohorts").returns({
+        aggregate: sandbox.stub().resolves([]),
+        // resolveCohortObjectIds resolves cohort_id (ObjectId or slug) to
+        // the canonical cohort doc before it's used to filter devices.
+        find: sandbox.stub().returns({
+          select: sandbox.stub().returns({
+            lean: sandbox.stub().resolves([{ _id: new mongoose.Types.ObjectId(cohortId) }]),
+          }),
+        }),
+      });
       const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves(cohortSiteIds),
       });
@@ -193,6 +202,13 @@ describe("Grid Util", () => {
       const cohortId = new mongoose.Types.ObjectId().toString();
       const request = { query: { tenant: "airqo", cohort_id: cohortId } };
 
+      listModelStub.withArgs("cohorts").returns({
+        find: sandbox.stub().returns({
+          select: sandbox.stub().returns({
+            lean: sandbox.stub().resolves([{ _id: new mongoose.Types.ObjectId(cohortId) }]),
+          }),
+        }),
+      });
       const deviceFindStub = sandbox.stub().returns({
         distinct: sandbox.stub().resolves([]),
       });

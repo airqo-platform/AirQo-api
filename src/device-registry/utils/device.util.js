@@ -16,6 +16,10 @@ const {
   ActivityLogger,
   computeTransmissionStatus,
 } = require("@utils/common");
+const {
+  cohortLookupFilter,
+  resolveCohortObjectIds,
+} = require("@utils/cohort.util");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
@@ -522,7 +526,41 @@ const getDeviceCategoriesAddFieldsStage = () => {
 const deviceUtil = {
   getDeviceCountSummary: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, cohort_id } = request.query;
+
+      if (cohort_id) {
+        // cohort_id may be a comma-separated mix of ObjectIds and
+        // cohort_slugs — resolve to canonical ObjectIds before the
+        // synchronous generateFilter.devices() builds the Mongo filter.
+        const identifiers = cohort_id
+          .toString()
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+        const { resolvedIds } = await resolveCohortObjectIds(tenant, identifiers);
+
+        if (resolvedIds.length === 0) {
+          // None of the provided cohort identifiers exist — correctly
+          // report zero, rather than silently dropping the filter (which
+          // would return counts across ALL devices instead).
+          const emptySummary = {
+            total_monitors: 0,
+            operational: 0,
+            transmitting: 0,
+            not_transmitting: 0,
+            data_available: 0,
+          };
+          return {
+            success: true,
+            message: "Successfully retrieved network health summary.",
+            data: emptySummary,
+            status: httpStatus.OK,
+          };
+        }
+
+        request.query.cohort_id = resolvedIds.map((id) => id.toString()).join(",");
+      }
+
       const filter = generateFilter.devices(request, next);
 
       const pipeline = [
@@ -2136,15 +2174,10 @@ const deviceUtil = {
           let targetCohort;
 
           if (cohort_id) {
-            // Case A: A specific cohort is provided during import
-            if (!isValidObjectId(cohort_id)) {
-              throw new HttpError(
-                `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
-                httpStatus.BAD_REQUEST,
-              );
-            }
+            // Case A: A specific cohort is provided during import (ObjectId
+            // or cohort_slug)
             targetCohort = await CohortModel(tenant)
-              .findById(cohort_id)
+              .findOne(cohortLookupFilter(cohort_id))
               .lean();
             if (!targetCohort) {
               throw new HttpError(
@@ -3084,9 +3117,9 @@ const deviceUtil = {
       let targetCohort;
 
       if (cohort_id) {
-        // Case A: A specific cohort is provided
+        // Case A: A specific cohort is provided (ObjectId or cohort_slug)
         targetCohort = await CohortModel(tenant)
-          .findById(cohort_id)
+          .findOne(cohortLookupFilter(cohort_id))
           .lean();
 
         if (!targetCohort) {
@@ -3196,9 +3229,9 @@ const deviceUtil = {
 
       let targetCohort;
       if (cohort_id) {
-        // Case A: A specific cohort is provided
+        // Case A: A specific cohort is provided (ObjectId or cohort_slug)
         targetCohort = await CohortModel(tenant)
-          .findById(cohort_id)
+          .findOne(cohortLookupFilter(cohort_id))
           .lean();
 
         if (!targetCohort) {
@@ -5937,10 +5970,18 @@ const deviceUtil = {
           ).then((c) => c?._id),
         );
       }
-      if (cohort_id && isValidObjectId(cohort_id)) {
-        cohortQueries.push(
-          CohortModel(tenant).findById(cohort_id).lean().then((c) => c?._id),
-        );
+      // Tracked separately from the other queries so we can tell "the
+      // caller's explicit cohort_id didn't resolve" apart from "the
+      // personal/default cohort queries happened to return nothing" — the
+      // former must not be silently dropped (see below).
+      let explicitCohortQuery = null;
+      if (cohort_id) {
+        // cohort_id may be an ObjectId or a self-service cohort_slug.
+        explicitCohortQuery = CohortModel(tenant)
+          .findOne(cohortLookupFilter(cohort_id))
+          .lean()
+          .then((c) => c?._id);
+        cohortQueries.push(explicitCohortQuery);
       }
       cohortQueries.push(
         CohortModel(tenant)
@@ -5950,13 +5991,28 @@ const deviceUtil = {
           .then((c) => c?._id),
       );
       const resolved = await Promise.all(cohortQueries);
-      preResolvedCohortIds = resolved
-        .filter((id) => id && isValidObjectId(id.toString()))
-        .map((id) => ObjectId(id.toString()));
-      // Deduplicate
-      preResolvedCohortIds = [
-        ...new Map(preResolvedCohortIds.map((id) => [id.toString(), id])).values(),
-      ];
+
+      if (cohort_id && !(await explicitCohortQuery)) {
+        // The caller asked for a specific cohort and it doesn't exist.
+        // createOnPlatform's single-device path 404s on exactly this case
+        // — falling back to per-device resolution (preResolvedCohortIds
+        // stays null) instead of silently proceeding without it, which
+        // the batch fast path would otherwise do (it skips createOnPlatform's
+        // own cohort_id check whenever _preResolvedCohortIds is present at
+        // all, complete or not).
+        logger.warn(
+          `createDevicesBatch: explicit cohort_id "${cohort_id}" did not resolve to a cohort. Per-device fallback will be used so each device 404s consistently.`,
+        );
+        preResolvedCohortIds = null;
+      } else {
+        preResolvedCohortIds = resolved
+          .filter((id) => id && isValidObjectId(id.toString()))
+          .map((id) => ObjectId(id.toString()));
+        // Deduplicate
+        preResolvedCohortIds = [
+          ...new Map(preResolvedCohortIds.map((id) => [id.toString(), id])).values(),
+        ];
+      }
     } catch (cohortErr) {
       logger.warn(
         `createDevicesBatch: cohort pre-resolution failed: ${cohortErr.message}. Per-device fallback will be used.`,

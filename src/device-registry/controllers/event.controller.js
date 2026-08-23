@@ -911,10 +911,28 @@ const createEvent = {
         : req.query.tenant;
 
       logText("we are listing events...");
-      const { site_id, device_id, site, device } = {
-        ...req.params,
-        ...req.query,
-      };
+      const { site_id, site, cohort_id } = { ...req.params, ...req.query };
+
+      if (cohort_id) {
+        // Resolves cohort_id (ObjectId or cohort_slug) to its member
+        // devices and sets request.query.device_id — cohort_id was
+        // previously accepted by the validator but silently never
+        // consumed here.
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request,
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
+      }
+
+      const { device_id, device } = { ...req.params, ...req.query };
 
       if (!isEmpty(site_id) || !isEmpty(site)) {
         request.query.recent = "no";

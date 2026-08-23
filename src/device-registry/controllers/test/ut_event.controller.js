@@ -294,6 +294,45 @@ describe("Create Event Controller", () => {
       );
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
+
+    it("should resolve cohort_id (ObjectId or cohort_slug) to device_id before listing", async () => {
+      req = {
+        params: {},
+        query: { tenant: "custom", cohort_id: "wri-nairobi-2026" },
+      };
+      const processCohortIdsStub = sinon
+        .stub(createEventUtil, "processCohortIds")
+        .callsFake(async (cohort_id, request) => {
+          request.query.device_id = "device-1,device-2";
+          return { success: true };
+        });
+
+      await list(req, res, next);
+
+      expect(processCohortIdsStub).to.have.been.calledWith(
+        "wri-nairobi-2026",
+        req
+      );
+      expect(req.query.device_id).to.equal("device-1,device-2");
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("should stop and return the error when cohort_id resolution fails", async () => {
+      req = {
+        params: {},
+        query: { tenant: "custom", cohort_id: "does-not-exist" },
+      };
+      sinon.stub(createEventUtil, "processCohortIds").resolves({
+        success: false,
+        status: httpStatus.NOT_FOUND,
+        message: "No device IDs could be resolved from the provided Cohort IDs",
+      });
+
+      await list(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.NOT_FOUND);
+      expect(createEventUtil.list.called).to.be.false;
+    });
   });
 
   describe("fetchAndStoreData", () => {

@@ -7,7 +7,6 @@ const {
   validationResult,
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
-const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError, logText } = require("@utils/shared");
 const httpStatus = require("http-status");
@@ -19,6 +18,11 @@ const {
   validateCoordinates,
   TOLERANCE_LEVELS,
 } = require("@validators/common");
+
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// isValidObjectId, which also accepts arbitrary 12-byte strings and would
+// misclassify a short, non-ObjectId cohort_id as valid.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
 
 const validateCoordinate = (coordinate) => {
   const [longitude, latitude] = coordinate;
@@ -523,16 +527,27 @@ const gridsValidations = {
       .notEmpty()
       .withMessage("cohort_id cannot be empty if provided")
       .customSanitizer((value) => {
+        // Normalize case/whitespace so a cohort_slug matches what's
+        // actually stored (cohort_slug is always lowercase) — ObjectIds
+        // are unaffected by lowercasing.
         if (typeof value === "string" && value.includes(",")) {
-          return value.split(",").map((id) => id.trim());
+          return value.split(",").map((id) => id.trim().toLowerCase());
+        }
+        if (typeof value === "string") {
+          return value.trim().toLowerCase();
         }
         return value;
       })
       .custom((value) => {
         const ids = Array.isArray(value) ? value : [value];
-        return ids.every((id) => isValidObjectId(id));
+        return ids.every(
+          (id) =>
+            isObjectIdShape(id) ||
+            (typeof id === "string" &&
+              /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id.toLowerCase())),
+        );
       })
-      .withMessage("cohort_id must be valid ObjectId(s)"),
+      .withMessage("cohort_id must be valid ObjectId(s) or cohort_slug(s)"),
   ],
   deleteGrid: [
     ...commonValidations.tenant,
@@ -909,16 +924,27 @@ const gridsValidations = {
       .notEmpty()
       .withMessage("cohort_id cannot be empty if provided")
       .customSanitizer((value) => {
+        // Normalize case/whitespace so a cohort_slug matches what's
+        // actually stored (cohort_slug is always lowercase) — ObjectIds
+        // are unaffected by lowercasing.
         if (typeof value === "string" && value.includes(",")) {
-          return value.split(",").map((id) => id.trim());
+          return value.split(",").map((id) => id.trim().toLowerCase());
+        }
+        if (typeof value === "string") {
+          return value.trim().toLowerCase();
         }
         return value;
       })
       .custom((value) => {
         const ids = Array.isArray(value) ? value : [value];
-        return ids.every((id) => isValidObjectId(id));
+        return ids.every(
+          (id) =>
+            isObjectIdShape(id) ||
+            (typeof id === "string" &&
+              /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id.toLowerCase())),
+        );
       })
-      .withMessage("cohort_id must be valid ObjectId(s)"),
+      .withMessage("cohort_id must be valid ObjectId(s) or cohort_slug(s)"),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

@@ -6,6 +6,11 @@ const createSiteUtil = require("@utils/site.util");
 const Decimal = require("decimal.js");
 const { validateNetwork } = require("@validators/common");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// Types.ObjectId.isValid, which also accepts arbitrary 12-byte strings and
+// would misclassify a short, non-ObjectId id (e.g. a cohort_id slug) as valid.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
 const countDecimalPlaces = (value) => {
   try {
     const decimal = new Decimal(value);
@@ -499,9 +504,7 @@ const validateBulkUpdateSites = [
     })
     .bail()
     .custom((value) => {
-      const invalidIds = value.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id),
-      );
+      const invalidIds = value.filter((id) => !isObjectIdShape(id));
       if (invalidIds.length > 0) {
         throw new Error("All siteIds must be valid MongoDB ObjectIds");
       }
@@ -567,7 +570,12 @@ const validateGetSiteCountSummary = [
       if (value) {
         const ids = value.split(",");
         for (const id of ids) {
-          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+          const candidate = id.trim().toLowerCase();
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
             throw new Error(`Invalid cohort ID format: ${id.trim()}`);
           }
         }

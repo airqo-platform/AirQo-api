@@ -3554,4 +3554,72 @@ describe("create Event utils", function() {
       expect(result.data[0].distance).to.be.a("number");
     });
   });
+
+  // Regression coverage for a privacy gap: when every requested cohort_id
+  // resolves to a private cohort the caller can't see (no user_id bypass),
+  // processCohortIds must scope the query to "nothing", not leave
+  // request.query.device_id unset — which would fall through to an
+  // UNSCOPED query instead of an empty one.
+  describe("processCohortIds — suppressed (private) cohorts", () => {
+    const proxyquire = require("proxyquire");
+    let proxiedEventUtil;
+    let cohortListStub;
+
+    beforeEach(() => {
+      cohortListStub = sinon.stub();
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/Cohort": () => ({ list: cohortListStub }),
+      });
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("sets an unmatchable device_id, and does not error, when the only requested cohort is private with no bypass", async () => {
+      const cohortId = "60d5f77bcf86cd799439011";
+      cohortListStub.resolves({
+        data: [{ _id: cohortId, visibility: false }],
+      });
+
+      const request = { query: { tenant: "airqo" } };
+      const result = await proxiedEventUtil.processCohortIds(cohortId, request);
+
+      // Not an error response — suppression is a valid, silent outcome.
+      expect(result).to.be.undefined;
+      // But the query must now be scoped to match nothing, not left open.
+      expect(request.query.device_id).to.exist;
+      expect(request.query.device_id).to.not.be.empty;
+    });
+
+    it("still returns the real device set when a visible cohort is mixed with a suppressed one", async () => {
+      const visibleCohortId = "60d5f77bcf86cd799439012";
+      const privateCohortId = "60d5f77bcf86cd799439013";
+      // processCohortIds calls getDevicesFromCohort once per cohort_id, in
+      // array order — stub by call index rather than matching the filter
+      // object (generateFilter.cohorts casts the id to an ObjectId
+      // instance internally, so matching the raw string arg is brittle).
+      cohortListStub.onCall(0).resolves({
+        data: [
+          {
+            _id: visibleCohortId,
+            visibility: true,
+            devices: [{ _id: "device-1" }],
+          },
+        ],
+      });
+      cohortListStub
+        .onCall(1)
+        .resolves({ data: [{ _id: privateCohortId, visibility: false }] });
+
+      const request = { query: { tenant: "airqo" } };
+      const result = await proxiedEventUtil.processCohortIds(
+        [visibleCohortId, privateCohortId],
+        request
+      );
+
+      expect(result).to.be.undefined;
+      expect(request.query.device_id).to.equal("device-1");
+    });
+  });
 });
