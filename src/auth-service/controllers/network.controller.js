@@ -1,3 +1,9 @@
+/**
+ * @deprecated Networks are a retired org-membership concept, kept only for
+ * the vertex "Sensor Manufacturers" admin page (GET/POST /users/networks).
+ * See docs/access-control/NETWORK_DEPRECATION_GUIDE_VERTEX.md. Do not add
+ * new endpoints here.
+ */
 const httpStatus = require("http-status");
 const networkUtil = require("@utils/network.util");
 const {

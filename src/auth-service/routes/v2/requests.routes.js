@@ -34,13 +34,6 @@ router.post(
   createRequestController.acceptInvitation,
 );
 
-router.post(
-  "/networks/:net_id",
-  requestValidations.requestAccessToNetwork,
-  enhancedJWTAuth,
-  createRequestController.requestAccessToNetwork,
-);
-
 router.get(
   "/",
   requestValidations.list,
@@ -109,15 +102,6 @@ router.post(
   createRequestController.rejectPendingInvitation,
 );
 
-router.get(
-  "/networks",
-  requestValidations.list,
-  requestValidations.listForNetwork,
-  enhancedJWTAuth,
-  pagination(),
-  createRequestController.listAccessRequestsForNetwork,
-);
-
 router.delete(
   "/expired",
   requestValidations.cleanupExpired,
@@ -153,14 +137,6 @@ router.get(
   enhancedJWTAuth,
   pagination(),
   createRequestController.listAccessRequestsForGroup,
-);
-
-router.get(
-  "/networks/:net_id",
-  requestValidations.listAccessRequestsForNetwork,
-  enhancedJWTAuth,
-  pagination(),
-  createRequestController.listAccessRequestsForNetwork,
 );
 
 router.get(

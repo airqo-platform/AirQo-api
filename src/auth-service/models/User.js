@@ -60,6 +60,10 @@ function truncateProfilePicture(url) {
 }
 
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
+// @deprecated network_roles (below) is retired in favor of group_roles.
+// Kept only because nexus's roles-simplified RBAC response still reads it —
+// see docs/access-control/NETWORK_DEPRECATION_GUIDE_NEXUS.md. Do not assign
+// new network_roles; use group_roles instead.
 const networkRoleSchema = new Schema({
   network: {
     type: Schema.Types.ObjectId,

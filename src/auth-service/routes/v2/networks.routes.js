@@ -1,4 +1,6 @@
 // networks.routes.js
+// @deprecated Kept only for the vertex "Sensor Manufacturers" admin page.
+// See docs/access-control/NETWORK_DEPRECATION_GUIDE_VERTEX.md.
 const express = require("express");
 const router = express.Router();
 const createNetworkController = require("@controllers/network.controller");

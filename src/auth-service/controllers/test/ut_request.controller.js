@@ -61,40 +61,6 @@ describe("createAccessRequest()", () => {
     });
   });
 
-  describe("requestAccessToNetwork()", () => {
-    it("should handle a valid request and return a success response", async () => {
-      sinon.stub(createAccessRequestUtil, "requestAccessToNetwork").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Network access request created",
-        data: { _id: "req2" },
-      });
-
-      await createAccessRequest.requestAccessToNetwork(req, res, next);
-
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledWithMatch({ success: true })).to.be.true;
-    });
-
-    it("should handle a request with validation errors and return a bad request response", async () => {
-      createAccessRequest.__set__("extractErrorsFromRequest", mockBadRequest);
-
-      await createAccessRequest.requestAccessToNetwork(req, res, next);
-
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle an error from createAccessRequestUtil and return an internal server error response", async () => {
-      sinon.stub(createAccessRequestUtil, "requestAccessToNetwork").rejects(new Error("Test error"));
-
-      await createAccessRequest.requestAccessToNetwork(req, res, next);
-
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-    });
-  });
-
   describe("approveAccessRequest()", () => {
     it("should handle a valid request and return a success response", async () => {
       sinon.stub(createAccessRequestUtil, "approveAccessRequest").resolves({
@@ -225,40 +191,6 @@ describe("createAccessRequest()", () => {
       sinon.stub(createAccessRequestUtil, "list").rejects(new Error("Test error"));
 
       await createAccessRequest.listAccessRequestsForGroup(req, res, next);
-
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-    });
-  });
-
-  describe("listAccessRequestsForNetwork()", () => {
-    it("should handle a valid request and return a success response", async () => {
-      sinon.stub(createAccessRequestUtil, "list").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Network requests listed",
-        data: [],
-      });
-
-      await createAccessRequest.listAccessRequestsForNetwork(req, res, next);
-
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledWithMatch({ success: true })).to.be.true;
-    });
-
-    it("should handle a request with validation errors and return a bad request response", async () => {
-      createAccessRequest.__set__("extractErrorsFromRequest", mockBadRequest);
-
-      await createAccessRequest.listAccessRequestsForNetwork(req, res, next);
-
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle an error from createAccessRequestUtil.list and return an internal server error response", async () => {
-      sinon.stub(createAccessRequestUtil, "list").rejects(new Error("Test error"));
-
-      await createAccessRequest.listAccessRequestsForNetwork(req, res, next);
 
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);

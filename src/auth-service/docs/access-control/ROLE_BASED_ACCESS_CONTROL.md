@@ -4,6 +4,8 @@
 
 This RBAC system provides comprehensive role and permission management for applications with multi-tenant, multi-organization structures. It supports both Groups and Networks as organizational contexts, allowing users to have different roles and permissions in each.
 
+> **Networks are deprecated.** The org-membership "network" concept is retired in favor of "groups". Only the `GET`/`POST /users/networks` endpoints and the `networks[]` array in the roles-simplified response remain, kept solely for backward compatibility with the vertex and nexus frontends — see `NETWORK_DEPRECATION_GUIDE_VERTEX.md` and `NETWORK_DEPRECATION_GUIDE_NEXUS.md`. Do not build new features on `network_roles`/`NetworkModel`; use `group_roles`/`GroupModel` instead.
+
 ### Core Components
 
 1. **RBACService** (`services/rbac.service.js`): Core service handling all RBAC operations
