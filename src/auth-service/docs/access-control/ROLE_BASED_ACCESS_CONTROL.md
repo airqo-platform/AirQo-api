@@ -4,7 +4,7 @@
 
 This RBAC system provides comprehensive role and permission management for applications with multi-tenant, multi-organization structures. It supports both Groups and Networks as organizational contexts, allowing users to have different roles and permissions in each.
 
-> **Networks are deprecated.** The org-membership "network" concept is retired in favor of "groups". Only the `GET`/`POST /users/networks` endpoints and the `networks[]` array in the roles-simplified response remain, kept solely for backward compatibility with the vertex and nexus frontends — see `NETWORK_DEPRECATION_GUIDE_VERTEX.md` and `NETWORK_DEPRECATION_GUIDE_NEXUS.md`. Do not build new features on `network_roles`/`NetworkModel`; use `group_roles`/`GroupModel` instead.
+> **Networks are deprecated.** The org-membership "network" concept is retired in favor of "groups". The `GET`/`POST /users/networks` endpoints and the `networks[]` array in the roles-simplified response are the two paths kept solely for backward compatibility with the vertex and nexus frontends — see `NETWORK_DEPRECATION_GUIDE_VERTEX.md` and `NETWORK_DEPRECATION_GUIDE_NEXUS.md`. A few other legacy paths still touch `network_roles`/`NetworkModel` internally (not consumer-facing contracts, but not yet removed either): `GET /theme/effective/:user_id` still accepts `?network_id=` and resolves network-scoped theme/`NetworkModel` data, and role-assignment/access-request internals still branch on network-typed data for pre-existing records. Do not build new features on any of these; use `group_roles`/`GroupModel` instead.
 
 ### Core Components
 

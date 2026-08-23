@@ -22,11 +22,14 @@ Both continue to return the same shape you're consuming today:
 }
 ```
 
-In practice, `networks[]` is only populated for accounts that were assigned a
-legacy network role before the org migrated to groups — new users and new
-role assignments only ever produce `groups[]`. If your account/test data
-doesn't exercise legacy network roles, you may already be able to drop the
-`networks[]` merge without behavior change.
+In practice, `networks[]` is mostly populated for accounts that were assigned
+a legacy network role before the org migrated to groups. That said, it isn't
+fully frozen data: the still-live "Sensor Manufacturers" creation flow (kept
+for vertex, see `NETWORK_DEPRECATION_GUIDE_VERTEX.md`) does add a network role
+for whoever creates a network, and some legacy access-request handling can
+still write to it too. So we can't promise `networks[]` will only ever
+shrink — please don't assume it's safe to stop merging it without checking
+your own account/test data first.
 
 ## What we need from the nexus team
 

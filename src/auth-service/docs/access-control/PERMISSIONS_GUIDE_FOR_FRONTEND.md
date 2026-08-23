@@ -48,11 +48,13 @@ A permission is an uppercase string code in `SCOPE_ACTION` format, e.g. `USER_CR
 ### Network Management (deprecated)
 
 > **Deprecated.** `networks` is a retired org-membership concept, superseded
-> by `groups`. These permissions only still gate `GET`/`POST /users/networks`
-> (kept for vertex's "Sensor Manufacturers" admin page — see
-> `NETWORK_DEPRECATION_GUIDE_VERTEX.md`) and the `networks[]` array in the
-> roles-simplified response (kept for nexus — see
-> `NETWORK_DEPRECATION_GUIDE_NEXUS.md`). Don't build new features against them.
+> by `groups`. `NETWORK_VIEW`/`NETWORK_CREATE` still gate the retained network
+> routes (v3 GET and POST; v2 GET remains public with no permission check).
+> The roles-simplified `networks[]` array (kept for nexus — see
+> `NETWORK_DEPRECATION_GUIDE_NEXUS.md`) is returned by its authenticated
+> endpoint without a network-permission check. `NETWORK_MANAGEMENT`/
+> `NETWORK_EDIT` may still be consulted when processing pre-existing
+> network-type access requests. Don't build new features against any of them.
 
 | Permission | What it's for |
 |---|---|

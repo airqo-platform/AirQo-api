@@ -61,9 +61,14 @@ function truncateProfilePicture(url) {
 
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
 // @deprecated network_roles (below) is retired in favor of group_roles.
-// Kept only because nexus's roles-simplified RBAC response still reads it —
-// see docs/access-control/NETWORK_DEPRECATION_GUIDE_NEXUS.md. Do not assign
-// new network_roles; use group_roles instead.
+// Nexus's roles-simplified RBAC response reads it (see
+// docs/access-control/NETWORK_DEPRECATION_GUIDE_NEXUS.md). It is still
+// actively written, not just historical: creating a network via the
+// retained POST /users/networks auto-assigns the creator a network_roles
+// entry (network.util.js), and the general role-assignment endpoint
+// (assignUserToRole) can still add a network_roles entry for any user if a
+// network-scoped role is targeted. Do not build new features on it or add
+// new call sites; new organization work should use group_roles instead.
 const networkRoleSchema = new Schema({
   network: {
     type: Schema.Types.ObjectId,
