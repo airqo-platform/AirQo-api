@@ -88,18 +88,6 @@ const enhancedIdValidations = {
         return ObjectId(value);
       }),
   ],
-  networkId: [
-    param("network_id")
-      .exists()
-      .withMessage("Network ID is required")
-      .bail()
-      .isMongoId()
-      .withMessage("Network ID must be a valid MongoDB ObjectId")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ],
   optionalGroupId: [
     query("group_id")
       .optional()
@@ -1653,32 +1641,6 @@ const preferenceValidations = {
     ...themeValidations.theme,
   ],
 
-  // User network theme validations
-  getUserNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-    ...enhancedIdValidations.networkId,
-  ],
-
-  updateUserNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-    ...enhancedIdValidations.networkId,
-    ...themeValidations.theme,
-  ],
-
-  // User default network theme validations (no network_id param)
-  getUserDefaultNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-  ],
-
-  updateUserDefaultNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-    ...themeValidations.theme,
-  ],
-
   // ===========================================
   // ORGANIZATION THEME VALIDATIONS
   // ===========================================
@@ -1692,18 +1654,6 @@ const preferenceValidations = {
   updateGroupTheme: [
     ...commonValidations.tenant,
     ...enhancedIdValidations.groupId,
-    ...themeValidations.theme,
-  ],
-
-  // Network theme validations
-  getNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.networkId,
-  ],
-
-  updateNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.networkId,
     ...themeValidations.theme,
   ],
 

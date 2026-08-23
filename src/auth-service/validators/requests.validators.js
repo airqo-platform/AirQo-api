@@ -122,22 +122,6 @@ const acceptInvitation = [
   ],
 ];
 
-const requestAccessToNetwork = [
-  validateTenant,
-  [
-    param("net_id")
-      .exists()
-      .withMessage("the net_id should be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the net_id cannot be empty")
-      .bail()
-      .isMongoId()
-      .withMessage("the net_id is not a valid Object")
-      .trim(),
-  ],
-];
-
 const list = [validateTenant];
 
 const listPending = [validateTenant];
@@ -229,7 +213,6 @@ const cancelAccessRequest = [
 ];
 
 const listForGroup = [validateTenant];
-const listForNetwork = [validateTenant];
 
 const deleteRequest = [
   validateTenant,
@@ -296,22 +279,6 @@ const listAccessRequestsForGroup = [
   ],
 ];
 
-const listAccessRequestsForNetwork = [
-  validateTenant,
-  [
-    param("net_id")
-      .exists()
-      .withMessage("the net_id should be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("net_id should not be empty")
-      .bail()
-      .isMongoId()
-      .withMessage("the net_id should be an object ID")
-      .trim(),
-  ],
-];
-
 const getRequestId = [
   validateTenant,
   [
@@ -339,18 +306,15 @@ module.exports = {
   requestAccessToGroup,
   requestAccessToGroupByEmail,
   acceptInvitation,
-  requestAccessToNetwork,
   list,
   listPending,
   approveAccessRequest,
   rejectAccessRequest,
   cancelAccessRequest,
   listForGroup,
-  listForNetwork,
   deleteRequest,
   updateRequest,
   listAccessRequestsForGroup,
-  listAccessRequestsForNetwork,
   getRequestId,
   cleanupExpired,
 };

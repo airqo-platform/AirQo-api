@@ -266,126 +266,6 @@ const requireGroupPermissions = (
 };
 
 /**
- * Check if user has required permissions within a specific network context
- */
-const requireNetworkPermissions = (
-  requiredPermissions,
-  networkIdParam = "network_id",
-  options = {}
-) => {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-      const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-      const { requireAll = false } = options;
-
-      const networkId = req.params[networkIdParam] || req.body[networkIdParam];
-
-      if (!user || !user._id) {
-        return next(
-          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
-            message: "You must be logged in to access this resource",
-          })
-        );
-      }
-
-      if (!networkId) {
-        return next(
-          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
-            message: "Network identifier required",
-          })
-        );
-      }
-
-      const rbacService = getRBACService(tenant);
-
-      // Check if user is a member of the network first
-      const isNetworkMember = await rbacService.isNetworkMember(
-        user._id,
-        networkId
-      );
-      if (!isNetworkMember) {
-        return next(
-          new HttpError(
-            "Access denied: Not a network member",
-            httpStatus.FORBIDDEN,
-            {
-              message: "You are not a member of this network",
-            }
-          )
-        );
-      }
-
-      const normalizedRequiredPerms = normalizePerms(requiredPermissions);
-
-      const hasPermission = await rbacService.hasPermission(
-        user._id,
-        normalizedRequiredPerms,
-        requireAll,
-        networkId,
-        "network"
-      );
-
-      if (!hasPermission) {
-        const userPermissions = await rbacService.getUserPermissionsInContext(
-          user._id,
-          networkId,
-          "network"
-        );
-
-        logger.warn(
-          `Network permission denied for user ${user.email} (ID: ${
-            user._id
-          }) in network ${networkId}: Required ${normalizedRequiredPerms.join(
-            requireAll ? " AND " : " OR "
-          )}, but user has ${userPermissions.join(", ") || "none"}`
-        );
-
-        const requiredPermsString = normalizedRequiredPerms.join(
-          requireAll ? " and " : " or "
-        );
-
-        return next(
-          new HttpError(
-            `Access denied for this network. Required permissions: [${requiredPermsString}]`,
-            httpStatus.FORBIDDEN,
-            {
-              message:
-                "You don't have the required permissions in this network",
-              required: normalizedRequiredPerms,
-              userPermissions: userPermissions,
-              networkId: networkId,
-              requiresAll: requireAll,
-            }
-          )
-        );
-      }
-
-      // Store network context for use in controllers
-      req.networkContext = {
-        networkId,
-        userPermissions: await rbacService.getUserPermissionsInContext(
-          user._id,
-          networkId,
-          "network"
-        ),
-      };
-
-      next();
-    } catch (error) {
-      logger.error(`Network permission check error: ${error.message}`);
-      next(
-        new HttpError(
-          "Permission check failed",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  };
-};
-
-/**
  * Check if user has required roles
  */
 const requireRoles = (
@@ -563,104 +443,6 @@ const requireGroupManager = (groupIdParam = "grp_id") => {
 };
 
 /**
- * Check if user is a network member
- */
-const requireNetworkMembership = (networkIdParam = "network_id") => {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-      const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-      const networkId = req.params[networkIdParam] || req.body[networkIdParam];
-
-      if (!user || !user._id || !networkId) {
-        return next(
-          new HttpError(
-            "Access denied: Network membership required",
-            httpStatus.FORBIDDEN
-          )
-        );
-      }
-
-      const rbacService = getRBACService(tenant);
-
-      const isNetworkMember = await rbacService.isNetworkMember(
-        user._id,
-        networkId
-      );
-      const isSuperAdmin = await rbacService.hasRole(user._id, [
-        "SUPER_ADMIN",
-        "super_admin",
-      ]);
-
-      if (!isNetworkMember && !isSuperAdmin) {
-        return next(
-          new HttpError(
-            "Access denied: You are not a member of this network",
-            httpStatus.FORBIDDEN
-          )
-        );
-      }
-
-      next();
-    } catch (error) {
-      logger.error(`Network membership check error: ${error.message}`);
-      next(
-        new HttpError("Authorization error", httpStatus.INTERNAL_SERVER_ERROR)
-      );
-    }
-  };
-};
-
-/**
- * Check if user is a network manager
- */
-const requireNetworkManager = (networkIdParam = "network_id") => {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-      const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-      const networkId = req.params[networkIdParam] || req.body[networkIdParam];
-
-      if (!user || !user._id || !networkId) {
-        return next(
-          new HttpError(
-            "Access denied: Network manager access required",
-            httpStatus.FORBIDDEN
-          )
-        );
-      }
-
-      const rbacService = getRBACService(tenant);
-
-      const isNetworkManager = await rbacService.isNetworkManager(
-        user._id,
-        networkId
-      );
-      const isSuperAdmin = await rbacService.hasRole(user._id, [
-        "SUPER_ADMIN",
-        "super_admin",
-      ]);
-
-      if (!isNetworkManager && !isSuperAdmin) {
-        return next(
-          new HttpError(
-            "Access denied: Only network managers can perform this action",
-            httpStatus.FORBIDDEN
-          )
-        );
-      }
-
-      next();
-    } catch (error) {
-      logger.error(`Network manager check error: ${error.message}`);
-      next(
-        new HttpError("Authorization error", httpStatus.INTERNAL_SERVER_ERROR)
-      );
-    }
-  };
-};
-
-/**
  * Check resource ownership
  */
 const requireResourceOwnership = (resourceFetcher, ownerExtractor) => {
@@ -772,14 +554,11 @@ module.exports = {
   requirePermissions,
   requireAllPermissions,
   requireGroupPermissions,
-  requireNetworkPermissions,
   requireRoles,
 
   // Membership checking middleware
   requireGroupMembership,
   requireGroupManager,
-  requireNetworkMembership,
-  requireNetworkManager,
 
   // Resource access middleware
   requireResourceOwnership,

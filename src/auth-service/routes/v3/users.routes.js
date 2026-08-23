@@ -22,9 +22,7 @@ const {
   requirePermissions,
   requireAllPermissions,
   requireGroupPermissions,
-  requireNetworkPermissions,
   requireGroupMembership,
-  requireNetworkMembership,
   debugPermissions,
 } = require("@middleware/permissionAuth");
 

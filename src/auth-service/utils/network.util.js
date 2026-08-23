@@ -1,3 +1,8 @@
+/**
+ * @deprecated Only `list`/`create` are still reachable (via GET/POST
+ * /users/networks), kept for the vertex "Sensor Manufacturers" admin page.
+ * See docs/access-control/NETWORK_DEPRECATION_GUIDE_VERTEX.md.
+ */
 const constants = require("@config/constants");
 const NetworkModel = require("@models/Network");
 const PermissionModel = require("@models/Permission");
