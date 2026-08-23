@@ -16,6 +16,10 @@ const {
   ActivityLogger,
   computeTransmissionStatus,
 } = require("@utils/common");
+const {
+  cohortLookupFilter,
+  resolveCohortObjectIds,
+} = require("@utils/cohort.util");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
@@ -522,7 +526,41 @@ const getDeviceCategoriesAddFieldsStage = () => {
 const deviceUtil = {
   getDeviceCountSummary: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, cohort_id } = request.query;
+
+      if (cohort_id) {
+        // cohort_id may be a comma-separated mix of ObjectIds and
+        // cohort_slugs — resolve to canonical ObjectIds before the
+        // synchronous generateFilter.devices() builds the Mongo filter.
+        const identifiers = cohort_id
+          .toString()
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+        const { resolvedIds } = await resolveCohortObjectIds(tenant, identifiers);
+
+        if (resolvedIds.length === 0) {
+          // None of the provided cohort identifiers exist — correctly
+          // report zero, rather than silently dropping the filter (which
+          // would return counts across ALL devices instead).
+          const emptySummary = {
+            total_monitors: 0,
+            operational: 0,
+            transmitting: 0,
+            not_transmitting: 0,
+            data_available: 0,
+          };
+          return {
+            success: true,
+            message: "Successfully retrieved network health summary.",
+            data: emptySummary,
+            status: httpStatus.OK,
+          };
+        }
+
+        request.query.cohort_id = resolvedIds.map((id) => id.toString()).join(",");
+      }
+
       const filter = generateFilter.devices(request, next);
 
       const pipeline = [
@@ -2136,15 +2174,10 @@ const deviceUtil = {
           let targetCohort;
 
           if (cohort_id) {
-            // Case A: A specific cohort is provided during import
-            if (!isValidObjectId(cohort_id)) {
-              throw new HttpError(
-                `Invalid cohort_id: "${cohort_id}" is not a valid MongoDB ObjectId.`,
-                httpStatus.BAD_REQUEST,
-              );
-            }
+            // Case A: A specific cohort is provided during import (ObjectId
+            // or cohort_slug)
             targetCohort = await CohortModel(tenant)
-              .findById(cohort_id)
+              .findOne(cohortLookupFilter(cohort_id))
               .lean();
             if (!targetCohort) {
               throw new HttpError(
@@ -3084,9 +3117,9 @@ const deviceUtil = {
       let targetCohort;
 
       if (cohort_id) {
-        // Case A: A specific cohort is provided
+        // Case A: A specific cohort is provided (ObjectId or cohort_slug)
         targetCohort = await CohortModel(tenant)
-          .findById(cohort_id)
+          .findOne(cohortLookupFilter(cohort_id))
           .lean();
 
         if (!targetCohort) {
@@ -3196,9 +3229,9 @@ const deviceUtil = {
 
       let targetCohort;
       if (cohort_id) {
-        // Case A: A specific cohort is provided
+        // Case A: A specific cohort is provided (ObjectId or cohort_slug)
         targetCohort = await CohortModel(tenant)
-          .findById(cohort_id)
+          .findOne(cohortLookupFilter(cohort_id))
           .lean();
 
         if (!targetCohort) {
@@ -5937,9 +5970,13 @@ const deviceUtil = {
           ).then((c) => c?._id),
         );
       }
-      if (cohort_id && isValidObjectId(cohort_id)) {
+      if (cohort_id) {
+        // cohort_id may be an ObjectId or a self-service cohort_slug.
         cohortQueries.push(
-          CohortModel(tenant).findById(cohort_id).lean().then((c) => c?._id),
+          CohortModel(tenant)
+            .findOne(cohortLookupFilter(cohort_id))
+            .lean()
+            .then((c) => c?._id),
         );
       }
       cohortQueries.push(

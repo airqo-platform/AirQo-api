@@ -38,8 +38,13 @@ const commonValidations = {
       .bail()
       .trim()
       .toLowerCase()
-      .isMongoId()
-      .withMessage("cohort_id must be a valid MongoDB ObjectId")
+      .custom((value) => {
+        if (/^[0-9a-f]{24}$/.test(value)) return true;
+        if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return true;
+        throw new Error(
+          "cohort_id must be a valid MongoDB ObjectId or cohort_slug",
+        );
+      })
       .bail()
       .custom((value, { req }) => {
         if (req.query.network) {

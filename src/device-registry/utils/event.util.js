@@ -3037,8 +3037,33 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language, limit, skip },
+        query: { tenant, language, limit, skip, cohort_id },
       } = request;
+
+      if (cohort_id) {
+        // Resolves cohort_id (ObjectId or cohort_slug) to its member
+        // devices and sets request.query.device_id, which
+        // generateFilter.telemetry below already knows how to read.
+        const cohortProcessingResponse = await processCohortIds(
+          cohort_id,
+          request,
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          return {
+            success: false,
+            message: cohortProcessingResponse.message || "Bad Request Error",
+            errors:
+              cohortProcessingResponse.errors ||
+              { message: cohortProcessingResponse.message },
+            status: cohortProcessingResponse.status || httpStatus.BAD_REQUEST,
+            isCache: false,
+          };
+        }
+      }
+
       const filter = generateFilter.telemetry(request);
 
       try {
