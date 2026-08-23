@@ -188,6 +188,228 @@ describe("create-user-util", function () {
       expect(err.message).to.equal("Internal Server Error");
     });
   });
+  describe("getStatsBreakdown", function () {
+    let origUserModel;
+    let aggregateStub;
+
+    const buildRequest = (query = {}) => ({
+      query: { tenant: "airqo", ...query },
+    });
+
+    beforeEach(function () {
+      aggregateStub = sinon.stub();
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        aggregate: aggregateStub,
+      }));
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("normalizes an empty aggregation result with safe defaults", async function () {
+      aggregateStub.resolves([{}]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.success).to.be.true;
+      expect(result.data.accountStatus).to.deep.equal({
+        active: 0,
+        inactive: 0,
+      });
+      expect(result.data.verificationStatus).to.deep.equal({
+        verified: 0,
+        unverified: 0,
+      });
+      expect(result.data.organizations).to.deep.equal([]);
+      expect(result.data.loginActivity).to.deep.equal([]);
+      expect(result.data.signupsOverTime).to.deep.equal([]);
+      expect(result.data.topGroups).to.deep.equal([]);
+      expect(result.data.roles).to.deep.equal([]);
+      expect(result.data.geography).to.deep.equal([]);
+      expect(result.data.verificationFunnel).to.deep.equal({
+        byCohort: [],
+        unverifiedAging: [],
+      });
+      expect(result.data.growth.newUsers).to.deep.equal({
+        current: 0,
+        previous: 0,
+        percentChange: 0,
+      });
+    });
+
+    it("maps account status, verification status, and login activity bucket labels", async function () {
+      aggregateStub.resolves([
+        {
+          accountStatus: [
+            { _id: true, count: 7 },
+            { _id: false, count: 3 },
+          ],
+          verificationStatus: [
+            { _id: true, count: 4 },
+            { _id: false, count: 6 },
+          ],
+          loginActivity: [
+            { _id: 0, count: 2 },
+            { _id: 1, count: 5 },
+            { _id: 6, count: 1 },
+            { _id: 11, count: 0 },
+            { _id: "21+", count: 3 },
+          ],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.accountStatus).to.deep.equal({
+        active: 7,
+        inactive: 3,
+      });
+      expect(result.data.verificationStatus).to.deep.equal({
+        verified: 4,
+        unverified: 6,
+      });
+      expect(result.data.loginActivity).to.deep.equal([
+        { range: "0", count: 2 },
+        { range: "1-5", count: 5 },
+        { range: "6-10", count: 1 },
+        { range: "11-20", count: 0 },
+        { range: "21+", count: 3 },
+      ]);
+    });
+
+    it("maps resolved role/group/geography lookup rows and drops unresolved ones", async function () {
+      aggregateStub.resolves([
+        {
+          topGroups: [
+            { group: "airqo", count: 5 },
+            { group: null, count: 1 },
+          ],
+          roles: [
+            { role: "SUPER_ADMIN", count: 8 },
+            { role: undefined, count: 2 },
+          ],
+          geography: [
+            { _id: "Uganda", count: 9 },
+            { _id: "Unspecified", count: 1 },
+          ],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.topGroups).to.deep.equal([
+        { group: "airqo", count: 5 },
+      ]);
+      expect(result.data.roles).to.deep.equal([
+        { role: "SUPER_ADMIN", count: 8 },
+      ]);
+      expect(result.data.geography).to.deep.equal([
+        { country: "Uganda", count: 9 },
+        { country: "Unspecified", count: 1 },
+      ]);
+    });
+
+    it("computes verification funnel cohort rates and unverified aging labels", async function () {
+      aggregateStub.resolves([
+        {
+          verificationByCohort: [
+            { _id: "2026-01", total: 10, verified: 5 },
+            { _id: "2026-02", total: 0, verified: 0 },
+          ],
+          unverifiedAging: [
+            { _id: 0, count: 2 },
+            { _id: 8, count: 1 },
+            { _id: 31, count: 4 },
+            { _id: "90d+", count: 6 },
+          ],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.verificationFunnel.byCohort).to.deep.equal([
+        { period: "2026-01", total: 10, verified: 5, verificationRate: 50 },
+        { period: "2026-02", total: 0, verified: 0, verificationRate: 0 },
+      ]);
+      expect(result.data.verificationFunnel.unverifiedAging).to.deep.equal([
+        { range: "0-7d", count: 2 },
+        { range: "8-30d", count: 1 },
+        { range: "31-90d", count: 4 },
+        { range: "90d+", count: 6 },
+      ]);
+    });
+
+    it("computes growth percentChange, including the zero-previous-period case", async function () {
+      aggregateStub.resolves([
+        {
+          newUsersLast30Days: [{ count: 15 }],
+          newUsersPrevious30Days: [{ count: 10 }],
+          activeUsersLast30Days: [{ count: 5 }],
+          activeUsersPrevious30Days: [],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.growth.newUsers).to.deep.equal({
+        current: 15,
+        previous: 10,
+        percentChange: 50,
+      });
+      expect(result.data.growth.activeUsers).to.deep.equal({
+        current: 5,
+        previous: 0,
+        percentChange: 100,
+      });
+    });
+
+    it("clamps out-of-range months/limit query params instead of erroring", async function () {
+      aggregateStub.resolves([{}]);
+
+      await rewireCreateUser.getStatsBreakdown(
+        buildRequest({ months: "999", limit: "0" }),
+      );
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      const facet = pipeline[0].$facet;
+      const organizationsLimitStage = facet.organizations.find(
+        (stage) => stage.$limit,
+      );
+      expect(organizationsLimitStage.$limit).to.equal(1);
+    });
+
+    it("computeMonthRangeStart does not skip a month when the reference date overflows a shorter target month", function () {
+      // Regression test: subtracting months before clamping to day 1 can
+      // roll a 31st over into the following month (e.g. Mar 31 - 1 month
+      // lands on Mar ~2-3, not Feb), silently dropping a month from range.
+      const computeMonthRangeStart = rewireCreateUser.__get__(
+        "computeMonthRangeStart",
+      );
+      const referenceDate = new Date(2026, 2, 31); // Mar 31, 2026
+
+      const rangeStart = computeMonthRangeStart(referenceDate, 2);
+
+      expect(rangeStart.getFullYear()).to.equal(2026);
+      expect(rangeStart.getMonth()).to.equal(1); // February
+      expect(rangeStart.getDate()).to.equal(1);
+      expect(rangeStart.getHours()).to.equal(0);
+    });
+
+    it("should handle errors from UserModel.aggregate", async function () {
+      const next = sinon.stub();
+      aggregateStub.rejects(new Error("Aggregation failed"));
+
+      await rewireCreateUser.getStatsBreakdown(buildRequest(), next);
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.message).to.equal("Internal Server Error");
+    });
+  });
   describe("list", function () {
     let origUserModel;
     let listStub;

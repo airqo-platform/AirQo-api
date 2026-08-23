@@ -516,6 +516,19 @@ function buildAuthMethods(user) {
   };
 }
 
+// Extracted as a pure function (rather than inlined date math) so the
+// month-boundary arithmetic is independently unit-testable without needing
+// to fake the system clock: clamping to day 1 before subtracting months
+// avoids setMonth() overflowing into the following month when "now" falls
+// on the 29th-31st and the subtraction lands on a shorter month.
+const computeMonthRangeStart = (referenceDate, monthsBack) => {
+  const start = new Date(referenceDate);
+  start.setDate(1);
+  start.setMonth(start.getMonth() - (monthsBack - 1));
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
 const createUserModule = {
   _validatePassword: (password) => {
     if (!password || !constants.PASSWORD_REGEX.test(password)) {
@@ -715,10 +728,7 @@ const createUserModule = {
         : 8;
 
       const now = new Date();
-      const signupsRangeStart = new Date(now);
-      signupsRangeStart.setMonth(signupsRangeStart.getMonth() - (months - 1));
-      signupsRangeStart.setDate(1);
-      signupsRangeStart.setHours(0, 0, 0, 0);
+      const signupsRangeStart = computeMonthRangeStart(now, months);
 
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
@@ -825,24 +835,27 @@ const createUserModule = {
                 },
               },
               { $unwind: "$roleIds" },
-              { $group: { _id: "$roleIds", count: { $sum: 1 } } },
-              { $sort: { count: -1 } },
-              { $limit: limit },
               {
                 $lookup: {
                   from: "roles",
-                  localField: "_id",
+                  localField: "roleIds",
                   foreignField: "_id",
                   as: "roleInfo",
                 },
               },
               {
                 $project: {
-                  _id: 0,
                   role: { $arrayElemAt: ["$roleInfo.role_name", 0] },
-                  count: 1,
                 },
               },
+              { $match: { role: { $ne: null } } },
+              // Group by resolved role_name (not role _id) so the same role
+              // name defined per-network/per-group isn't split into
+              // duplicate rows or truncated by $limit before names merge.
+              { $group: { _id: "$role", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+              { $project: { _id: 0, role: "$_id", count: 1 } },
             ],
             geography: [
               {
