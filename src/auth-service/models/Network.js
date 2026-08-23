@@ -1,3 +1,10 @@
+/**
+ * @deprecated The "networks" org-membership concept is retired in favor of
+ * "groups". Only `list`/`create` remain wired to routes (kept for the
+ * vertex "Sensor Manufacturers" admin page — see
+ * docs/access-control/NETWORK_DEPRECATION_GUIDE_VERTEX.md). Do not extend
+ * this model further; new organization features belong on Group.
+ */
 const mongoose = require("mongoose");
 const ObjectId = mongoose.ObjectId;
 const { Schema } = mongoose;

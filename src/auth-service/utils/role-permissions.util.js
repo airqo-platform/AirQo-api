@@ -5911,7 +5911,10 @@ const rolePermissionUtil = {
         }
       }
 
-      // Manual population for network roles
+      // @deprecated Manual population for network roles. Kept only because
+      // nexus's useRBAC merges permissions from this response's `networks[]`
+      // array — see docs/access-control/NETWORK_DEPRECATION_GUIDE_NEXUS.md.
+      // Do not extend; new organization scoping belongs on group_roles.
       const networkRolesData = [];
       for (const networkRole of user.network_roles || []) {
         try {

@@ -246,36 +246,6 @@ router.put(
   preferenceController.updateUserDefaultGroupTheme
 );
 
-// User theme within network context
-router.get(
-  "/theme/user/:user_id/network/:network_id",
-  preferenceValidations.getUserNetworkTheme,
-  enhancedJWTAuth,
-  preferenceController.getUserNetworkTheme
-);
-
-router.put(
-  "/theme/user/:user_id/network/:network_id",
-  preferenceValidations.updateUserNetworkTheme,
-  enhancedJWTAuth,
-  preferenceController.updateUserNetworkTheme
-);
-
-// User theme within network context (using default network when no network_id provided)
-router.get(
-  "/theme/user/:user_id/network",
-  preferenceValidations.getUserDefaultNetworkTheme,
-  enhancedJWTAuth,
-  preferenceController.getUserDefaultNetworkTheme
-);
-
-router.put(
-  "/theme/user/:user_id/network",
-  preferenceValidations.updateUserDefaultNetworkTheme,
-  enhancedJWTAuth,
-  preferenceController.updateUserDefaultNetworkTheme
-);
-
 // ===========================================
 // ORGANIZATION THEME ROUTES
 // ===========================================
@@ -293,21 +263,6 @@ router.put(
   preferenceValidations.updateGroupTheme,
   enhancedJWTAuth,
   preferenceController.updateGroupTheme
-);
-
-// Network organization themes
-router.get(
-  "/theme/organization/network/:network_id",
-  preferenceValidations.getNetworkTheme,
-  enhancedJWTAuth,
-  preferenceController.getNetworkTheme
-);
-
-router.put(
-  "/theme/organization/network/:network_id",
-  preferenceValidations.updateNetworkTheme,
-  enhancedJWTAuth,
-  preferenceController.updateNetworkTheme
 );
 
 // ===========================================
