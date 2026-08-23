@@ -101,6 +101,17 @@ describe("Device Util", () => {
       };
       const filter = { network: "airqo", cohorts: { $in: [cohortId] } };
       generateFilterStub.returns(filter);
+      // resolveCohortObjectIds resolves cohort_id (ObjectId or slug) to the
+      // canonical cohort doc before generateFilter.devices() builds the
+      // filter. mongoose.model is already a stub from beforeEach — extend
+      // it with a "cohorts" case rather than re-stubbing.
+      mongoose.model.withArgs("cohorts").returns({
+        find: sandbox.stub().returns({
+          select: sandbox.stub().returns({
+            lean: sandbox.stub().resolves([{ _id: cohortId }]),
+          }),
+        }),
+      });
 
       aggregateStub.returns({ option: sandbox.stub().returns({ allowDiskUse: sandbox.stub().resolves([]) }) });
 
@@ -464,16 +475,12 @@ describe("Device Util", () => {
   });
   describe("createOnPlatform", () => {
     let sandbox;
-    let deviceRegisterStub,
-      cohortFindByIdStub,
-      cohortFindOneStub,
-      cohortFindOneAndUpdateStub;
+    let deviceRegisterStub, cohortFindOneStub, cohortFindOneAndUpdateStub;
 
     beforeEach(() => {
       sandbox = sinon.createSandbox();
       const deviceModelMock = { register: sandbox.stub() };
       const cohortModelMock = {
-        findById: sandbox.stub(),
         findOne: sandbox.stub(),
         findOneAndUpdate: sandbox.stub(),
       };
@@ -481,7 +488,6 @@ describe("Device Util", () => {
       ms.withArgs("devices").returns(deviceModelMock);
       ms.withArgs("cohorts").returns(cohortModelMock);
       deviceRegisterStub = deviceModelMock.register;
-      cohortFindByIdStub = cohortModelMock.findById;
       cohortFindOneStub = cohortModelMock.findOne;
       cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
     });
@@ -542,7 +548,12 @@ describe("Device Util", () => {
       const specificCohortMock = { _id: cohortId };
       const defaultCohortMock = { _id: new mongoose.Types.ObjectId() };
 
-      cohortFindByIdStub.returns({ lean: () => specificCohortMock });
+      // createOnPlatform now resolves the specific cohort via
+      // findOne(cohortLookupFilter(cohort_id)), same as the default-cohort
+      // lookup below — just a different filter shape.
+      cohortFindOneStub
+        .withArgs({ _id: cohortId.toString() })
+        .returns({ lean: () => specificCohortMock });
       cohortFindOneStub
         .withArgs({ name: constants.DEFAULT_COHORT_NAME })
         .returns({ select: () => ({ lean: () => defaultCohortMock }) });
@@ -592,7 +603,9 @@ describe("Device Util", () => {
       };
       const next = sinon.spy();
 
-      cohortFindByIdStub.returns({ lean: () => null }); // Simulate not found
+      cohortFindOneStub
+        .withArgs({ _id: nonExistentCohortId.toString() })
+        .returns({ lean: () => null }); // Simulate not found
 
       await deviceUtil.createOnPlatform(request, next);
 
@@ -624,7 +637,7 @@ describe("Device Util", () => {
       };
       const cohortModelMock = {
         findOneAndUpdate: sandbox.stub(),
-        findById: sandbox.stub(),
+        findOne: sandbox.stub(),
       };
       const ms = sandbox.stub(mongoose, "model");
       ms.withArgs("devices").returns(deviceModelMock);
@@ -634,7 +647,7 @@ describe("Device Util", () => {
       findOneStub = deviceModelMock.findOne;
       findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
       cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
-      cohortFindByIdStub = cohortModelMock.findById;
+      cohortFindByIdStub = cohortModelMock.findOne; // claimDevice calls findOne(cohortLookupFilter(...)) now
       updateOneStub = deviceModelMock.updateOne;
       createActivityStub = activityModelMock.create;
       cohortFindByIdStub.returns({
@@ -740,8 +753,8 @@ describe("Device Util", () => {
         claim_status: "unclaimed",
       });
 
-      cohortFindByIdStub // No need to access CohortModel directly anymore
-        .withArgs("60c7a3e5f7e4f1001f5e8e99")
+      cohortFindByIdStub // findOne(cohortLookupFilter(cohort_id)) now
+        .withArgs({ _id: "60c7a3e5f7e4f1001f5e8e99" })
         .returns({ lean: sinon.stub().resolves(null) });
 
       let error;
@@ -892,9 +905,10 @@ describe("Device Util", () => {
         updateOne: sandbox.stub().resolves({ modifiedCount: 1 }),
       };
       const cohortModelMock = {
-        // bulkClaim uses findOneAndUpdate().lean() and findById().lean()
+        // bulkClaim uses findOneAndUpdate().lean() and
+        // findOne(cohortLookupFilter(...)).lean()
         findOneAndUpdate: sandbox.stub().returns({ lean: sandbox.stub().resolves({ _id: "some_cohort_id" }) }),
-        findById: sandbox.stub(),
+        findOne: sandbox.stub(),
       };
 
       const ms = sandbox.stub(mongoose, "model");
@@ -905,7 +919,7 @@ describe("Device Util", () => {
       findStub = deviceModelMock.find;
       findOneAndUpdateStub = deviceModelMock.findOneAndUpdate;
       cohortFindOneAndUpdateStub = cohortModelMock.findOneAndUpdate;
-      cohortFindByIdStub = cohortModelMock.findById;
+      cohortFindByIdStub = cohortModelMock.findOne;
       updateOneStub = deviceModelMock.updateOne;
       createActivityStub = activityModelMock.create;
     });
@@ -2228,10 +2242,14 @@ describe("Device Util", () => {
       const mockDeviceFactory = () => ({ register: deviceRegisterStub });
       const mockCohortFactory = () => ({
         findOneAndUpdate: cohortFindOneAndUpdateStub,
+        // .findOne(...).select().lean() — the default-cohort lookup.
+        // .findOne(cohortLookupFilter(cohort_id)).lean() — the specific
+        // -cohort lookup (ObjectId or cohort_slug), reusing what used to be
+        // the findById().lean() stub.
         findOne: () => ({
           select: () => ({ lean: cohortDefaultCohortLeanStub }),
+          lean: cohortFindByIdLeanStub,
         }),
-        findById: () => ({ lean: cohortFindByIdLeanStub }),
       });
 
       proxiedDeviceUtil = proxyquire("../device.util", {
@@ -2386,8 +2404,11 @@ describe("Device Util", () => {
       expect(savedBody.serial_number).to.equal("SN_XYZ");
     });
 
-    // ── invalid cohort_id format ──────────────────────────────────────────────
-    it("returns BAD_REQUEST for a cohort_id that is not a valid ObjectId", async () => {
+    // ── cohort_id may be an ObjectId or a self-service cohort_slug ────────────
+    it("returns NOT_FOUND for a cohort_slug-shaped cohort_id that doesn't exist", async () => {
+      // "not-a-valid-objectid" is syntactically a valid cohort_slug — it's
+      // no longer rejected as a malformed ObjectId, it's just looked up and
+      // (per cohortFindByIdLeanStub's default) not found.
       const request = {
         query: { tenant: "airqo" },
         body: {
@@ -2402,7 +2423,30 @@ describe("Device Util", () => {
 
       expect(nextStub.calledOnce).to.be.true;
       const err = nextStub.getCall(0).args[0];
-      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
+      expect(err.statusCode).to.equal(httpStatus.NOT_FOUND);
+    });
+
+    it("resolves a valid ObjectId-shaped cohort_id via findOne(...).lean()", async () => {
+      const specificCohortId = new mongoose.Types.ObjectId();
+      cohortFindByIdLeanStub.resolves({ _id: specificCohortId });
+
+      const request = {
+        query: { tenant: "airqo" },
+        body: {
+          name: "test-device",
+          network: "airqo",
+          user_id: new mongoose.Types.ObjectId().toString(),
+          cohort_id: specificCohortId.toString(),
+        },
+      };
+
+      await proxiedDeviceUtil.createOnPlatform(request, nextStub);
+
+      expect(nextStub.called).to.be.false;
+      const savedBody = deviceRegisterStub.getCall(0).args[0];
+      expect(savedBody.cohorts.map(String)).to.include(
+        specificCohortId.toString(),
+      );
     });
 
     // ── airqo network bypasses adapter resolution ─────────────────────────────

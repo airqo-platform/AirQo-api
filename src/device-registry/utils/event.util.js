@@ -996,6 +996,15 @@ const processCohortIds = async (cohort_ids, request) => {
         message: "No device IDs could be resolved from the provided Cohort IDs",
       },
     };
+  } else if (isEmpty(flattened) && suppressedCount > 0) {
+    // Every requested cohort was private with no visible devices (no error
+    // — that's the correct, silent outcome for privacy). But leaving
+    // request.query.device_id unset here would let the caller fall through
+    // to an UNSCOPED query instead of an empty one — a real information
+    // leak, since "no cohort filter" and "cohort filter matched nothing"
+    // would otherwise look identical downstream. Force a device_id that
+    // cannot match anything real.
+    request.query.device_id = "__no_matching_device__";
   }
 };
 const isEventTimestampValid = (
@@ -3037,8 +3046,33 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language, limit, skip },
+        query: { tenant, language, limit, skip, cohort_id },
       } = request;
+
+      if (cohort_id) {
+        // Resolves cohort_id (ObjectId or cohort_slug) to its member
+        // devices and sets request.query.device_id, which
+        // generateFilter.telemetry below already knows how to read.
+        const cohortProcessingResponse = await processCohortIds(
+          cohort_id,
+          request,
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          return {
+            success: false,
+            message: cohortProcessingResponse.message || "Bad Request Error",
+            errors:
+              cohortProcessingResponse.errors ||
+              { message: cohortProcessingResponse.message },
+            status: cohortProcessingResponse.status || httpStatus.BAD_REQUEST,
+            isCache: false,
+          };
+        }
+      }
+
       const filter = generateFilter.telemetry(request);
 
       try {

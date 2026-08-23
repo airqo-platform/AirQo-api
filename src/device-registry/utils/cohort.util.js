@@ -47,19 +47,18 @@ function filterOutPrivateIDs(privateIds, randomIds) {
   return filteredIds;
 }
 
-// A cohort_id route param is, after validation, either a real ObjectId
-// instance (existing behaviour, untouched) or a plain lowercase
-// cohort_slug string (new, opt-in). This turns either into the right Mongo
-// filter/value so every lookup below works for both.
-const isCohortSlugIdentifier = (identifier) => typeof identifier === "string";
-
-const cohortLookupFilter = (identifier) =>
-  isCohortSlugIdentifier(identifier)
-    ? { cohort_slug: identifier }
-    : { _id: identifier };
-
 const isObjectIdShape = (identifier) =>
   /^[0-9a-fA-F]{24}$/.test(String(identifier));
+
+// A cohort_id is either a real ObjectId (instance, e.g. from a validator's
+// customSanitizer — or a raw 24-hex string, when this is called directly
+// without going through that validator) or a cohort_slug string. Checking
+// the actual shape rather than just typeof means this is safe to call from
+// anywhere, not only routes that ran paramCohortIdentifier first.
+const cohortLookupFilter = (identifier) =>
+  typeof identifier !== "string" || isObjectIdShape(identifier)
+    ? { _id: identifier }
+    : { cohort_slug: identifier };
 
 // Batch counterpart to cohortLookupFilter: resolves a mixed array of
 // cohort_ids (ObjectIds and/or cohort_slugs) to their canonical ObjectIds
@@ -2590,5 +2589,11 @@ const createCohort = {
     }
   },
 };
+
+// Exposed for reuse by other util files that filter by cohort_id/cohort_ids
+// against a different collection (Device, Site, NetworkStatusAlert, ...) —
+// see device.util.js, grid.util.js, site.util.js, network-status.util.js.
+createCohort.resolveCohortObjectIds = resolveCohortObjectIds;
+createCohort.cohortLookupFilter = cohortLookupFilter;
 
 module.exports = createCohort;
