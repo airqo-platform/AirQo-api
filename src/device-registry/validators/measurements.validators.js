@@ -7,7 +7,6 @@ const {
   validationResult,
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
-const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
@@ -290,7 +289,13 @@ const commonValidations = {
   // an ObjectId or a self-service cohort_slug. Used only for the cohort_id
   // query filter — grid_id/device_id/site_id keep using optionalObjectId
   // above, since they have no slug equivalent.
-  optionalCohortIdentifier: (field) => [
+  // Returns the bare validator chain (not wrapped in an array) — matches
+  // optionalObjectId's shape above; measurements.routes.js registers these
+  // via plain Express arrays, which flatten nested arrays fine, but a
+  // sibling copy of this same shape in readings/signals.validators.js broke
+  // on their hand-rolled route runner, which doesn't. Keep the shape
+  // consistent so this can't happen again if reused elsewhere.
+  optionalCohortIdentifier: (field) =>
     query(field)
       .optional()
       .custom((value) => {
@@ -317,7 +322,6 @@ const commonValidations = {
           .filter((v) => v)
           .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v));
       }),
-  ],
 
   checkConflictingParams: (
     param1,

@@ -570,7 +570,12 @@ const validateGetSiteCountSummary = [
       if (value) {
         const ids = value.split(",");
         for (const id of ids) {
-          if (!isObjectIdShape(id.trim())) {
+          const candidate = id.trim().toLowerCase();
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
             throw new Error(`Invalid cohort ID format: ${id.trim()}`);
           }
         }

@@ -416,8 +416,8 @@ function filterOutPrivateIDs(privateIds, randomIds) {
 const getSiteIdsFromCohort = async (tenant, cohort_id) => {
   try {
     const cohortIdArray = Array.isArray(cohort_id)
-      ? cohort_id
-      : cohort_id.split(",").map((id) => id.trim());
+      ? cohort_id.map((id) => String(id).trim().toLowerCase())
+      : cohort_id.split(",").map((id) => id.trim().toLowerCase());
 
     // cohortIdArray may be a mix of ObjectIds and cohort_slugs — resolve to
     // canonical ObjectIds before matching Device.cohorts (an ObjectId array).

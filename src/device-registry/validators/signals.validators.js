@@ -106,7 +106,13 @@ const commonValidations = {
   // cohort_id-only sibling of objectId: each entry may be an ObjectId or a
   // self-service cohort_slug. Not used for device_id, which has no slug
   // equivalent.
-  optionalCohortIdentifier: (field) => [
+  // NOTE: must return the bare validator chain, NOT an array — signals
+  // routes run their validation list through a hand-rolled runner
+  // (routes/v2/signals.routes.js `checkValidation`) that only recognizes
+  // a function or an object with `.run` at each position; a nested array
+  // is silently skipped, so cohort_id would never actually be
+  // validated/sanitized.
+  optionalCohortIdentifier: (field) =>
     query(field)
       .optional()
       .custom((value) => {
@@ -131,7 +137,6 @@ const commonValidations = {
           .filter((v) => v)
           .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v));
       }),
-  ],
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
     return (req, res, next) => {
       let limit = parseInt(req.query.limit, 10);

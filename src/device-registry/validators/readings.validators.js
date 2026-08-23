@@ -106,7 +106,13 @@ const commonValidations = {
   // cohort_id-only siblings of objectId/requiredObjectId: each entry may be
   // an ObjectId or a self-service cohort_slug. Not used for grid_id/device_id
   // /site_id, which have no slug equivalent.
-  optionalCohortIdentifier: (field) => [
+  // NOTE: must return the bare validator chain, NOT an array — readings
+  // routes run their validation list through a hand-rolled runner
+  // (routes/v2/readings.routes.js `checkValidation`) that only recognizes
+  // a function or an object with `.run` at each position; a nested array
+  // (like `objectId`'s siblings avoid) is silently skipped, so cohort_id
+  // would never actually be validated/sanitized.
+  optionalCohortIdentifier: (field) =>
     query(field)
       .optional()
       .custom((value) => {
@@ -131,7 +137,6 @@ const commonValidations = {
           .filter((v) => v)
           .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v));
       }),
-  ],
   requiredCohortIdentifier: (
     field,
     location = query,

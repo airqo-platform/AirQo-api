@@ -996,6 +996,15 @@ const processCohortIds = async (cohort_ids, request) => {
         message: "No device IDs could be resolved from the provided Cohort IDs",
       },
     };
+  } else if (isEmpty(flattened) && suppressedCount > 0) {
+    // Every requested cohort was private with no visible devices (no error
+    // — that's the correct, silent outcome for privacy). But leaving
+    // request.query.device_id unset here would let the caller fall through
+    // to an UNSCOPED query instead of an empty one — a real information
+    // leak, since "no cohort filter" and "cohort filter matched nothing"
+    // would otherwise look identical downstream. Force a device_id that
+    // cannot match anything real.
+    request.query.device_id = "__no_matching_device__";
   }
 };
 const isEventTimestampValid = (

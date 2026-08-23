@@ -527,8 +527,14 @@ const gridsValidations = {
       .notEmpty()
       .withMessage("cohort_id cannot be empty if provided")
       .customSanitizer((value) => {
+        // Normalize case/whitespace so a cohort_slug matches what's
+        // actually stored (cohort_slug is always lowercase) — ObjectIds
+        // are unaffected by lowercasing.
         if (typeof value === "string" && value.includes(",")) {
-          return value.split(",").map((id) => id.trim());
+          return value.split(",").map((id) => id.trim().toLowerCase());
+        }
+        if (typeof value === "string") {
+          return value.trim().toLowerCase();
         }
         return value;
       })
@@ -918,8 +924,14 @@ const gridsValidations = {
       .notEmpty()
       .withMessage("cohort_id cannot be empty if provided")
       .customSanitizer((value) => {
+        // Normalize case/whitespace so a cohort_slug matches what's
+        // actually stored (cohort_slug is always lowercase) — ObjectIds
+        // are unaffected by lowercasing.
         if (typeof value === "string" && value.includes(",")) {
-          return value.split(",").map((id) => id.trim());
+          return value.split(",").map((id) => id.trim().toLowerCase());
+        }
+        if (typeof value === "string") {
+          return value.trim().toLowerCase();
         }
         return value;
       })

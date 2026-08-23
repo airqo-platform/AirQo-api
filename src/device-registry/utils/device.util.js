@@ -5970,14 +5970,18 @@ const deviceUtil = {
           ).then((c) => c?._id),
         );
       }
+      // Tracked separately from the other queries so we can tell "the
+      // caller's explicit cohort_id didn't resolve" apart from "the
+      // personal/default cohort queries happened to return nothing" — the
+      // former must not be silently dropped (see below).
+      let explicitCohortQuery = null;
       if (cohort_id) {
         // cohort_id may be an ObjectId or a self-service cohort_slug.
-        cohortQueries.push(
-          CohortModel(tenant)
-            .findOne(cohortLookupFilter(cohort_id))
-            .lean()
-            .then((c) => c?._id),
-        );
+        explicitCohortQuery = CohortModel(tenant)
+          .findOne(cohortLookupFilter(cohort_id))
+          .lean()
+          .then((c) => c?._id);
+        cohortQueries.push(explicitCohortQuery);
       }
       cohortQueries.push(
         CohortModel(tenant)
@@ -5987,13 +5991,28 @@ const deviceUtil = {
           .then((c) => c?._id),
       );
       const resolved = await Promise.all(cohortQueries);
-      preResolvedCohortIds = resolved
-        .filter((id) => id && isValidObjectId(id.toString()))
-        .map((id) => ObjectId(id.toString()));
-      // Deduplicate
-      preResolvedCohortIds = [
-        ...new Map(preResolvedCohortIds.map((id) => [id.toString(), id])).values(),
-      ];
+
+      if (cohort_id && !(await explicitCohortQuery)) {
+        // The caller asked for a specific cohort and it doesn't exist.
+        // createOnPlatform's single-device path 404s on exactly this case
+        // — falling back to per-device resolution (preResolvedCohortIds
+        // stays null) instead of silently proceeding without it, which
+        // the batch fast path would otherwise do (it skips createOnPlatform's
+        // own cohort_id check whenever _preResolvedCohortIds is present at
+        // all, complete or not).
+        logger.warn(
+          `createDevicesBatch: explicit cohort_id "${cohort_id}" did not resolve to a cohort. Per-device fallback will be used so each device 404s consistently.`,
+        );
+        preResolvedCohortIds = null;
+      } else {
+        preResolvedCohortIds = resolved
+          .filter((id) => id && isValidObjectId(id.toString()))
+          .map((id) => ObjectId(id.toString()));
+        // Deduplicate
+        preResolvedCohortIds = [
+          ...new Map(preResolvedCohortIds.map((id) => [id.toString(), id])).values(),
+        ];
+      }
     } catch (cohortErr) {
       logger.warn(
         `createDevicesBatch: cohort pre-resolution failed: ${cohortErr.message}. Per-device fallback will be used.`,
