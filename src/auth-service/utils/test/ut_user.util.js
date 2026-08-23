@@ -190,6 +190,8 @@ describe("create-user-util", function () {
   });
   describe("getStatsBreakdown", function () {
     let origUserModel;
+    let origRedisGetAsync;
+    let origRedisSetWithTTLAsync;
     let aggregateStub;
 
     const buildRequest = (query = {}) => ({
@@ -202,10 +204,27 @@ describe("create-user-util", function () {
       rewireCreateUser.__set__("UserModel", () => ({
         aggregate: aggregateStub,
       }));
+      // Force every test through the live-aggregation path: a real cache
+      // hit here would make tests order-dependent (same tenant/months/limit
+      // cache key across tests).
+      origRedisGetAsync = rewireCreateUser.__get__("redisGetAsync");
+      origRedisSetWithTTLAsync = rewireCreateUser.__get__(
+        "redisSetWithTTLAsync",
+      );
+      rewireCreateUser.__set__("redisGetAsync", sinon.stub().resolves(null));
+      rewireCreateUser.__set__(
+        "redisSetWithTTLAsync",
+        sinon.stub().resolves(),
+      );
     });
 
     afterEach(function () {
       rewireCreateUser.__set__("UserModel", origUserModel);
+      rewireCreateUser.__set__("redisGetAsync", origRedisGetAsync);
+      rewireCreateUser.__set__(
+        "redisSetWithTTLAsync",
+        origRedisSetWithTTLAsync,
+      );
       sinon.restore();
     });
 

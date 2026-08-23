@@ -727,6 +727,25 @@ const createUserModule = {
         ? Math.min(50, Math.max(1, parseInt(rawLimit, 10)))
         : 8;
 
+      // Pure caching: a miss or Redis error just falls through to the live
+      // aggregation below, it never affects correctness of the response.
+      const cacheKey = `user_stats_breakdown_${tenant}_${months}_${limit}`;
+      try {
+        const cached = await redisGetAsync(cacheKey);
+        if (cached) {
+          return {
+            success: true,
+            message: "User statistics breakdown retrieved successfully",
+            data: JSON.parse(cached),
+            status: httpStatus.OK,
+          };
+        }
+      } catch (cacheError) {
+        logger.error(
+          `🐛🐛 Cache read error in getStatsBreakdown: ${cacheError.message}`,
+        );
+      }
+
       const now = new Date();
       const signupsRangeStart = computeMonthRangeStart(now, months);
 
@@ -995,24 +1014,34 @@ const createUserModule = {
         count: entry.count,
       }));
 
+      const data = {
+        accountStatus,
+        verificationStatus,
+        organizations,
+        loginActivity,
+        signupsOverTime,
+        topGroups,
+        growth,
+        roles,
+        geography,
+        verificationFunnel: {
+          byCohort: verificationByCohort,
+          unverifiedAging,
+        },
+      };
+
+      try {
+        await redisSetWithTTLAsync(cacheKey, JSON.stringify(data), 300);
+      } catch (cacheError) {
+        logger.error(
+          `🐛🐛 Cache write error in getStatsBreakdown: ${cacheError.message}`,
+        );
+      }
+
       return {
         success: true,
         message: "User statistics breakdown retrieved successfully",
-        data: {
-          accountStatus,
-          verificationStatus,
-          organizations,
-          loginActivity,
-          signupsOverTime,
-          topGroups,
-          growth,
-          roles,
-          geography,
-          verificationFunnel: {
-            byCohort: verificationByCohort,
-            unverifiedAging,
-          },
-        },
+        data,
         status: httpStatus.OK,
       };
     } catch (error) {
