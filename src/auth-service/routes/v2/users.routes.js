@@ -722,6 +722,15 @@ router.get(
 );
 
 router.get(
+  "/stats/breakdown",
+  userValidations.statsBreakdown,
+  validate,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userController.getStatsBreakdown,
+);
+
+router.get(
   "/cache",
   userValidations.cache,
   enhancedJWTAuth,

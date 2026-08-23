@@ -86,6 +86,28 @@ const validateTenant = oneOf([
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
+const statsBreakdown = [
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(constants.TENANTS)
+    .withMessage("the tenant value is not among the expected ones"),
+  query("months")
+    .optional()
+    .isInt({ min: 1, max: 36 })
+    .withMessage("months must be an integer between 1 and 36")
+    .toInt(),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage("limit must be an integer between 1 and 50")
+    .toInt(),
+];
+
 const validateAirqoTenantOnly = oneOf([
   query("tenant")
     .optional()
@@ -2003,6 +2025,7 @@ const updateOnboarding = [
 
 module.exports = {
   tenant: validateTenant,
+  statsBreakdown,
   AirqoTenantOnly: validateAirqoTenantOnly,
   pagination,
   deleteMobileUserData,
