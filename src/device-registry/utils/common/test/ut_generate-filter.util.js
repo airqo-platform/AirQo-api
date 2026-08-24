@@ -104,6 +104,20 @@ describe("generateFilter Util", () => {
       expect(result._id.$in).to.have.lengthOf(2);
     });
 
+    it("should trim whitespace on repeated site_ids query params too", () => {
+      const req = mockRequest({
+        site_ids: [" 507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012 "],
+      });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(2);
+      expect(result._id.$in[0].toString()).to.equal(
+        "507f1f77bcf86cd799439011"
+      );
+      expect(result._id.$in[1].toString()).to.equal(
+        "507f1f77bcf86cd799439012"
+      );
+    });
+
     it("should drop malformed IDs instead of throwing", () => {
       const req = mockRequest({
         site_ids: "507f1f77bcf86cd799439011,not-an-id",

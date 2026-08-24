@@ -200,19 +200,16 @@ function validateCategoryField(value) {
 const siteIdentifierChains = [
   createMongoIdValidation("id"),
   createMongoIdValidation("site_id", { isOptional: true }),
+  // Accepts either a comma-separated string or repeated query params;
+  // sanitizes down to well-formed ObjectIds and silently drops anything
+  // else rather than rejecting the whole request, matching how
+  // generateFilter.sites treats this same param downstream.
   query("site_ids")
     .optional()
     .customSanitizer((value) =>
-      Array.isArray(value)
-        ? value
-        : String(value)
-            .split(",")
-            .map((id) => id.trim())
-            .filter((id) => id.length > 0)
-    )
-    .custom((value) => value.every((id) => isObjectIdShape(id)))
-    .withMessage(
-      "site_ids must be a comma-separated list or repeated query parameter of valid MongoDB ObjectIds"
+      (Array.isArray(value) ? value : String(value).split(","))
+        .map((id) => String(id).trim())
+        .filter((id) => id.length > 0 && isObjectIdShape(id))
     ),
   query("name")
     .optional()

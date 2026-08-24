@@ -2009,12 +2009,12 @@ const generateFilter = {
     }
 
     if (!isEmpty(site_ids)) {
-      const rawSiteIds = Array.isArray(site_ids)
+      const rawSiteIds = (Array.isArray(site_ids)
         ? site_ids
-        : String(site_ids)
-            .split(",")
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0);
+        : String(site_ids).split(",")
+      )
+        .map((value) => String(value).trim())
+        .filter((value) => value.length > 0);
       const validSiteIds = rawSiteIds.filter((value) =>
         /^[0-9a-fA-F]{24}$/.test(String(value)),
       );
