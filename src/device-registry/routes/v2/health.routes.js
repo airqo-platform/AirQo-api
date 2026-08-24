@@ -7,6 +7,7 @@ const { headers } = require("@validators/common");
 router.use(headers);
 
 router.get("/", check, healthController.check);
+router.get("/ready", healthController.ready);
 
 const isDev = process.env.NODE_ENV === "development";
 if (isDev) {

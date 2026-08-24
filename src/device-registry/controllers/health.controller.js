@@ -28,6 +28,29 @@ const healthController = {
     }
   },
 
+  ready: async (req, res, next) => {
+    try {
+      const result = await healthUtil.getReadiness(req, next);
+      if (result && result.success) {
+        return res.status(result.status).json(result.data);
+      }
+
+      const status =
+        (result && result.status) || httpStatus.SERVICE_UNAVAILABLE;
+      return res.status(status).json(
+        (result && result.data) || { status: "not_ready" }
+      );
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   getJobMetrics: async (req, res, next) => {
     try {
       const result = await healthUtil.getJobMetrics(req, next);
