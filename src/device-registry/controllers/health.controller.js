@@ -31,15 +31,13 @@ const healthController = {
   ready: async (req, res, next) => {
     try {
       const result = await healthUtil.getReadiness(req, next);
-      if (result && result.success) {
-        return res.status(result.status).json(result.data);
+      // getReadiness calls next(err) itself on failure, so guard against
+      // acting on an undefined result and racing Express's error handler.
+      if (!result || res.headersSent) {
+        return;
       }
 
-      const status =
-        (result && result.status) || httpStatus.SERVICE_UNAVAILABLE;
-      return res.status(status).json(
-        (result && result.data) || { status: "not_ready" }
-      );
+      return res.status(result.status).json(result.data);
     } catch (error) {
       next(
         new HttpError(

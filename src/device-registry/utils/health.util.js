@@ -70,7 +70,7 @@ const healthUtil = {
         data: { status: "ready", database: dbStatus },
       };
     } catch (error) {
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
