@@ -1042,10 +1042,19 @@ const preferences = {
       // values untouched.
       const updates = { ...request.body };
       const nestedChartConfig = request.body.chartConfig || {};
-      if (isEmpty(updates.sites) && !isEmpty(nestedChartConfig.sites)) {
+      // isEmpty() would also treat an explicit `sites: []` (a deliberate
+      // clear) as "absent" and wrongly backfill it from chartConfig — check
+      // for a genuinely missing key instead.
+      if (
+        typeof updates.sites === "undefined" &&
+        !isEmpty(nestedChartConfig.sites)
+      ) {
         updates.sites = nestedChartConfig.sites;
       }
-      if (isEmpty(updates.devices) && !isEmpty(nestedChartConfig.devices)) {
+      if (
+        typeof updates.devices === "undefined" &&
+        !isEmpty(nestedChartConfig.devices)
+      ) {
         updates.devices = nestedChartConfig.devices;
       }
 

@@ -876,6 +876,59 @@ describe("preference chart UTIL", function() {
       expect(chart.sites).to.deep.equal([{ site_id: siteId, name: "Site A" }]);
     });
 
+    it("clears sites via an explicit empty array even when chartConfig.sites is also present in the body — an explicit [] must not be treated as \"absent\" and backfilled", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = {
+        _id: { toString: () => chartId },
+        device_ids: [deviceId],
+        site_ids: [siteId],
+        sites: [{ site_id: siteId, name: "Site A" }],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: {
+          tenant: "airqo",
+          device_ids: [deviceId],
+          sites: [],
+          chartConfig: { sites: [{ site_id: siteId, name: "Leftover" }] },
+        },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(true);
+      expect(saveStub.calledOnce).to.equal(true);
+      expect(chart.sites).to.deep.equal([]);
+    });
+
+    it("falls back to chartConfig.sites when sites is genuinely absent from the request body", async function() {
+      const saveStub = sinon.stub().resolves();
+      const chart = {
+        _id: { toString: () => chartId },
+        device_ids: [],
+        site_ids: [siteId],
+        sites: [],
+      };
+      const doc = { chartConfigurations: [chart], save: saveStub };
+      findOneStub.resolves(doc);
+      const request = {
+        body: {
+          tenant: "airqo",
+          chartConfig: { sites: [{ site_id: siteId, name: "Site A" }] },
+        },
+        params: { chartId },
+        user: { _id: userId },
+      };
+
+      const result = await rewirePreferenceUtil.updateChart(request);
+
+      expect(result.success).to.equal(true);
+      expect(chart.sites).to.deep.equal([{ site_id: siteId, name: "Site A" }]);
+    });
+
     it("backfills a missing period before saving — legacy preference docs created via upsert()/replace() (no runValidators there) can lack it, and save() always validates the whole document", async function() {
       const saveStub = sinon.stub().resolves();
       const chart = {
