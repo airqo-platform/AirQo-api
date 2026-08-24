@@ -194,6 +194,35 @@ describe("personal chart validators", () => {
       expect(res.status).to.equal(200);
     });
 
+    it("accepts sites/devices sent at the top level instead of nested in chartConfig — the updateChart shape, accepted here as a fallback", async () => {
+      const siteId = validId();
+      const deviceId = validId();
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: { fieldId: 1 },
+          sites: [{ site_id: siteId, name: "Site A" }],
+          devices: [{ device_id: deviceId, name: "Device A" }],
+          site_ids: [siteId],
+          device_ids: [deviceId],
+        });
+      expect(res.status).to.equal(200);
+    });
+
+    it("rejects a top-level sites entry with an invalid site_id", async () => {
+      const res = await request(app)
+        .post("/test/charts")
+        .send({
+          chartConfig: { fieldId: 1 },
+          sites: [{ site_id: "not-an-id", name: "Site A" }],
+          site_ids: [validId()],
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "sites[].site_id must be a valid ObjectId"
+      );
+    });
+
     it("rejects a chartConfig.sites entry with an invalid site_id", async () => {
       const res = await request(app)
         .post("/test/charts")
@@ -346,6 +375,29 @@ describe("personal chart validators", () => {
           sites: [{ site_id: siteId, name: "Site A" }],
         });
       expect(res.status).to.equal(200);
+    });
+
+    it("accepts sites/devices nested inside chartConfig instead of at the top level — the createChart shape, accepted here as a fallback", async () => {
+      const siteId = validId();
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({
+          site_ids: [siteId],
+          chartConfig: { sites: [{ site_id: siteId, name: "Site A" }] },
+        });
+      expect(res.status).to.equal(200);
+    });
+
+    it("rejects a chartConfig.sites entry with an invalid site_id on update", async () => {
+      const res = await request(app)
+        .put(`/test/charts/${validId()}`)
+        .send({
+          chartConfig: { sites: [{ site_id: "not-an-id", name: "Site A" }] },
+        });
+      expect(res.status).to.equal(422);
+      expect(JSON.stringify(res.body)).to.include(
+        "chartConfig.sites[].site_id must be a valid ObjectId"
+      );
     });
 
     it("rejects a sites entry with an invalid site_id", async () => {
