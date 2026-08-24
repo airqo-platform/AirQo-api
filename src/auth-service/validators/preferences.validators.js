@@ -1546,6 +1546,48 @@ const preferenceValidations = {
       .isInt({ min: 1, max: 8 })
       .withMessage("fieldId must be an integer between 1 and 8"),
     ...createNestedValidations("chartConfig"),
+    // updateChart accepts sites/devices at the request body's top level;
+    // accept that shape here too (as a fallback to chartConfig.sites/
+    // chartConfig.devices) so create and update behave the same way.
+    body("sites").optional().isArray().withMessage("sites must be an array"),
+    body("sites.*.site_id")
+      .exists()
+      .withMessage("sites[].site_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("sites[].site_id must be a valid ObjectId"),
+    body("sites.*.name")
+      .exists()
+      .withMessage("sites[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("sites[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("sites[].name must not exceed 200 characters"),
+    body("devices")
+      .optional()
+      .isArray()
+      .withMessage("devices must be an array"),
+    body("devices.*.device_id")
+      .exists()
+      .withMessage("devices[].device_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("devices[].device_id must be a valid ObjectId"),
+    body("devices.*.name")
+      .exists()
+      .withMessage("devices[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("devices[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("devices[].name must not exceed 200 characters"),
   ],
   updateChart: [
     ...commonValidations.tenant,
@@ -1558,6 +1600,57 @@ const preferenceValidations = {
     chartScopeNotBothClearedOnUpdate,
     // Use all validations from chartConfigValidation
     ...chartConfigValidation,
+    // createChart accepts sites/devices nested inside a chartConfig wrapper;
+    // accept that shape here too (as a fallback to the top-level sites/
+    // devices above) so create and update behave the same way.
+    body("chartConfig")
+      .optional()
+      .isObject()
+      .withMessage("chartConfig must be an object"),
+    body("chartConfig.sites")
+      .optional()
+      .isArray()
+      .withMessage("chartConfig.sites must be an array"),
+    body("chartConfig.sites.*.site_id")
+      .exists()
+      .withMessage("chartConfig.sites[].site_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("chartConfig.sites[].site_id must be a valid ObjectId"),
+    body("chartConfig.sites.*.name")
+      .exists()
+      .withMessage("chartConfig.sites[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("chartConfig.sites[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("chartConfig.sites[].name must not exceed 200 characters"),
+    body("chartConfig.devices")
+      .optional()
+      .isArray()
+      .withMessage("chartConfig.devices must be an array"),
+    body("chartConfig.devices.*.device_id")
+      .exists()
+      .withMessage("chartConfig.devices[].device_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("chartConfig.devices[].device_id must be a valid ObjectId"),
+    body("chartConfig.devices.*.name")
+      .exists()
+      .withMessage("chartConfig.devices[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("chartConfig.devices[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage(
+        "chartConfig.devices[].name must not exceed 200 characters"
+      ),
   ],
   deleteChart: [
     ...commonValidations.tenant,
