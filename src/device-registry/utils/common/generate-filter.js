@@ -1939,6 +1939,7 @@ const generateFilter = {
       division,
       sub_county,
       site_id,
+      site_ids,
       category,
       path,
       site_codes,
@@ -2005,6 +2006,21 @@ const generateFilter = {
 
     if (site_id) {
       filter["_id"] = ObjectId(site_id);
+    }
+
+    if (!isEmpty(site_ids)) {
+      const rawSiteIds = Array.isArray(site_ids)
+        ? site_ids
+        : String(site_ids)
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
+      const validSiteIds = rawSiteIds.filter((value) =>
+        /^[0-9a-fA-F]{24}$/.test(String(value)),
+      );
+      if (!isEmpty(validSiteIds)) {
+        filter["_id"] = { $in: validSiteIds.map((value) => ObjectId(value)) };
+      }
     }
 
     if (category) {

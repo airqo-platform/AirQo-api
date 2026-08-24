@@ -200,6 +200,20 @@ function validateCategoryField(value) {
 const siteIdentifierChains = [
   createMongoIdValidation("id"),
   createMongoIdValidation("site_id", { isOptional: true }),
+  query("site_ids")
+    .optional()
+    .customSanitizer((value) =>
+      Array.isArray(value)
+        ? value
+        : String(value)
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0)
+    )
+    .custom((value) => value.every((id) => isObjectIdShape(id)))
+    .withMessage(
+      "site_ids must be a comma-separated list or repeated query parameter of valid MongoDB ObjectIds"
+    ),
   query("name")
     .optional()
     .notEmpty()
