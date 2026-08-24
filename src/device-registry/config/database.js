@@ -158,6 +158,31 @@ const connectToMongoDB = () => {
   }
 };
 
+/**
+ * Reports whether the command, query, and snapshot connection pools are all
+ * fully connected (readyState 1). Used by the /health/ready endpoint so the
+ * k8s readinessProbe can hold traffic back from a pod until Mongo is actually
+ * reachable, instead of routing requests into the bufferTimeoutMS window.
+ */
+function getConnectionStatus() {
+  const describe = (db) => {
+    if (!db) return "not_initialized";
+    const states = ["disconnected", "connected", "connecting", "disconnecting"];
+    return states[db.readyState] || "unknown";
+  };
+
+  const command = describe(commandDB);
+  const query = describe(queryDB);
+  const snapshot = describe(snapshotDB);
+
+  return {
+    ready: command === "connected" && query === "connected" && snapshot === "connected",
+    command,
+    query,
+    snapshot,
+  };
+}
+
 function ensureModel(db, modelName, schema) {
   try {
     db.model(modelName);
@@ -282,6 +307,7 @@ module.exports = {
   getModelByTenant,
   getTenantDB,
   connectToMongoDB,
+  getConnectionStatus,
   getCommandModelByTenant,
   getQueryModelByTenant,
   getSnapshotModelByTenant,
