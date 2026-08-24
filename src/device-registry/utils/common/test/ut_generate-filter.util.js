@@ -66,6 +66,85 @@ describe("generateFilter Util", () => {
     });
   });
 
+  // Nexus follow-up: sites summary needed to filter by more than one site
+  // at a time (previously site_ids wasn't read at all, so multi-site
+  // requests silently fell back to the unfiltered fleet).
+  describe("sites — site_ids filtering", () => {
+    it("should return an empty filter if no query params are provided", () => {
+      const req = mockRequest();
+      const result = generateFilter.sites(req);
+      expect(result).to.be.an("object").that.is.empty;
+    });
+
+    it("should build an $in filter from repeated site_ids query params", () => {
+      const ids = ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"];
+      const req = mockRequest({ site_ids: ids });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(2);
+      result._id.$in.forEach((id, i) =>
+        expect(id.toString()).to.equal(ids[i])
+      );
+    });
+
+    it("should build an $in filter from a comma-separated site_ids string", () => {
+      const ids = ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"];
+      const req = mockRequest({ site_ids: ids.join(",") });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(2);
+      result._id.$in.forEach((id, i) =>
+        expect(id.toString()).to.equal(ids[i])
+      );
+    });
+
+    it("should trim whitespace around comma-separated site_ids", () => {
+      const req = mockRequest({
+        site_ids: " 507f1f77bcf86cd799439011 , 507f1f77bcf86cd799439012 ",
+      });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(2);
+    });
+
+    it("should trim whitespace on repeated site_ids query params too", () => {
+      const req = mockRequest({
+        site_ids: [" 507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012 "],
+      });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(2);
+      expect(result._id.$in[0].toString()).to.equal(
+        "507f1f77bcf86cd799439011"
+      );
+      expect(result._id.$in[1].toString()).to.equal(
+        "507f1f77bcf86cd799439012"
+      );
+    });
+
+    it("should drop malformed IDs instead of throwing", () => {
+      const req = mockRequest({
+        site_ids: "507f1f77bcf86cd799439011,not-an-id",
+      });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(1);
+      expect(result._id.$in[0].toString()).to.equal(
+        "507f1f77bcf86cd799439011"
+      );
+    });
+
+    it("should leave the filter untouched if every site_id is malformed", () => {
+      const req = mockRequest({ site_ids: "not-an-id,also-not-an-id" });
+      const result = generateFilter.sites(req);
+      expect(result._id).to.be.undefined;
+    });
+
+    it("should let site_ids take precedence over a singular site_id", () => {
+      const req = mockRequest({
+        site_id: "507f1f77bcf86cd799439099",
+        site_ids: "507f1f77bcf86cd799439011,507f1f77bcf86cd799439012",
+      });
+      const result = generateFilter.sites(req);
+      expect(result._id.$in).to.have.lengthOf(2);
+    });
+  });
+
   // Nexus follow-up: events/fetch's ?index=<category> filter now accepts an
   // optional trailing `resolved` config (see utils/aqi.util.js's
   // resolveActiveAqiRanges) so an admin-set custom AQI range narrows the
