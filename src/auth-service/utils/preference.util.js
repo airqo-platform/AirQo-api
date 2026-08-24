@@ -930,11 +930,19 @@ const preferences = {
         };
       }
 
-      const staleSite = findStaleMetadataEntry(
-        chartConfig.sites,
-        "site_id",
-        siteIds
-      );
+      // updateChart expects sites/devices at the request body's top level;
+      // accept that shape here too (falling back to it when chartConfig
+      // doesn't carry its own sites/devices) so create and update behave
+      // the same way instead of one silently dropping data the other
+      // would have accepted.
+      const chartSites = !isEmpty(chartConfig.sites)
+        ? chartConfig.sites
+        : request.body.sites;
+      const chartDevices = !isEmpty(chartConfig.devices)
+        ? chartConfig.devices
+        : request.body.devices;
+
+      const staleSite = findStaleMetadataEntry(chartSites, "site_id", siteIds);
       if (staleSite) {
         return {
           success: false,
@@ -943,7 +951,7 @@ const preferences = {
         };
       }
       const staleDevice = findStaleMetadataEntry(
-        chartConfig.devices,
+        chartDevices,
         "device_id",
         deviceIds
       );
@@ -965,6 +973,15 @@ const preferences = {
         device_ids: deviceIds,
         site_ids: siteIds,
       };
+      // Only set sites/devices when a value was actually resolved, so a
+      // request with neither the nested nor the top-level shape doesn't add
+      // stray `sites: undefined` / `devices: undefined` keys.
+      if (!isEmpty(chartSites)) {
+        chartToInsert.sites = chartSites;
+      }
+      if (!isEmpty(chartDevices)) {
+        chartToInsert.devices = chartDevices;
+      }
 
       // Atomically add this chart to the user's preference doc for this
       // group, creating the doc if it doesn't exist yet.
@@ -1014,8 +1031,32 @@ const preferences = {
       // isn't the convention this API validates against.
       const tenant = (request.query || {}).tenant || request.body.tenant;
       const { chartId } = request.params;
-      const updates = request.body;
       const userId = request.user._id;
+
+      // createChart accepts sites/devices nested inside a chartConfig
+      // wrapper; fall back to that shape here too when the top-level
+      // sites/devices aren't present, so create and update behave the same
+      // way instead of one silently dropping data the other would accept.
+      // Only fills in the field when it's genuinely absent, so a request
+      // that omits sites/devices entirely still leaves the chart's existing
+      // values untouched.
+      const updates = { ...request.body };
+      const nestedChartConfig = request.body.chartConfig || {};
+      // isEmpty() would also treat an explicit `sites: []` (a deliberate
+      // clear) as "absent" and wrongly backfill it from chartConfig — check
+      // for a genuinely missing key instead.
+      if (
+        typeof updates.sites === "undefined" &&
+        !isEmpty(nestedChartConfig.sites)
+      ) {
+        updates.sites = nestedChartConfig.sites;
+      }
+      if (
+        typeof updates.devices === "undefined" &&
+        !isEmpty(nestedChartConfig.devices)
+      ) {
+        updates.devices = nestedChartConfig.devices;
+      }
 
       // chartId (a subdocument _id) is globally unique on its own, so the
       // chart's parent preference doc can be found by user_id + chartId
