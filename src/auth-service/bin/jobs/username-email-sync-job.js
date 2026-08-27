@@ -46,6 +46,7 @@ const syncUsernamesToEmail = async () => {
 
     let totalUpdated = 0;
     let totalConflicts = 0;
+    let lastId = null;
 
     while (true) {
       if (global.isShuttingDown) {
@@ -55,14 +56,24 @@ const syncUsernamesToEmail = async () => {
         break;
       }
 
+      // Cursor on _id guarantees forward progress every iteration, even for a
+      // doc that keeps failing with a duplicate-key conflict — without this,
+      // a conflicted doc stays "dirty" forever and the same batch would be
+      // re-fetched on every loop, spinning indefinitely.
+      const cursorFilter = lastId
+        ? { ...DIRTY_FILTER, _id: { $gt: lastId } }
+        : DIRTY_FILTER;
+
       const batch = await UserModel(TENANT)
-        .find(DIRTY_FILTER)
+        .find(cursorFilter)
         .select("_id")
+        .sort({ _id: 1 })
         .limit(BATCH_SIZE)
         .lean();
 
       if (batch.length === 0) break;
 
+      lastId = batch[batch.length - 1]._id;
       const ids = batch.map((doc) => doc._id);
 
       // Re-check $expr per op (not just _id) so a doc that changed between the
@@ -82,19 +93,30 @@ const syncUsernamesToEmail = async () => {
       } catch (bulkError) {
         // With ordered:false, a duplicate-key conflict on one doc (some other
         // user already holds that email string as their userName) doesn't
-        // stop the rest of the batch — it's just skipped and logged.
+        // stop the rest of the batch — it's just skipped and logged. Any
+        // writeError with a different code is unexpected, so it's rethrown
+        // to stop the job rather than being silently swallowed as a conflict.
         const writeErrors = bulkError.writeErrors || [];
+        if (writeErrors.length === 0) {
+          throw bulkError;
+        }
+
+        const unexpected = writeErrors.filter((we) => we.code !== 11000);
+        if (unexpected.length > 0) {
+          throw bulkError;
+        }
+
         totalUpdated += (bulkError.result && bulkError.result.nModified) || 0;
         totalConflicts += writeErrors.length;
         writeErrors.forEach((writeError) => {
           const failedId = ids[writeError.index];
+          // Log only the _id and code — the driver's errmsg embeds the
+          // actual duplicate value (here, an email address), which must not
+          // land in logs.
           logger.warn(
-            `username-email-sync-job: skipped user _id=${failedId} — userName/email conflict: ${writeError.errmsg}`
+            `username-email-sync-job: skipped user _id=${failedId} — userName/email conflict (code ${writeError.code})`
           );
         });
-        if (writeErrors.length === 0) {
-          throw bulkError;
-        }
       }
 
       logger.debug(`Batch done: ${batch.length} record(s) processed`);
