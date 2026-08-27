@@ -144,6 +144,24 @@ const transactions = {
         tenant,
       ).register(creationBody, next);
 
+      // Paddle retries a webhook delivery until it receives a 2xx response.
+      // A duplicate paddle_transaction_id means this exact event was already
+      // recorded by an earlier delivery, so acknowledge the retry as success
+      // instead of erroring — otherwise Paddle keeps retrying indefinitely.
+      if (
+        responseFromRegisterTransaction.success === false &&
+        responseFromRegisterTransaction.errors?.paddle_transaction_id
+      ) {
+        logger.info(
+          `Duplicate webhook delivery for transaction ${paddleEventData.id} — already recorded, acknowledging`,
+        );
+        return {
+          success: true,
+          message: "Event already processed",
+          status: httpStatus.OK,
+        };
+      }
+
       // Log the registration for debugging
       logObject(
         "Transaction Registration Response",
