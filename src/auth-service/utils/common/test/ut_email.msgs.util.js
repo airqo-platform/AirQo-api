@@ -435,6 +435,33 @@ describe("email.msgs", () => {
     });
   });
 
+  describe("subscriptionPastDueReminder", () => {
+    const baseArgs = {
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "user@example.com",
+      subscriptionId: "sub_01hzxyz1234567890",
+    };
+
+    it("should return a string", () => {
+      expect(msgs.subscriptionPastDueReminder(baseArgs)).to.be.a("string");
+    });
+
+    it("should include the subscription id", () => {
+      const result = msgs.subscriptionPastDueReminder(baseArgs);
+      expect(result).to.include("sub_01hzxyz1234567890");
+    });
+
+    it("should HTML-escape a subscription id containing special characters", () => {
+      const result = msgs.subscriptionPastDueReminder({
+        ...baseArgs,
+        subscriptionId: '<img src=x onerror="alert(1)">',
+      });
+      expect(result).to.include("&lt;img src=x");
+      expect(result).to.include("&quot;alert(1)&quot;");
+    });
+  });
+
   describe("bypassExpired", () => {
     const baseArgs = {
       firstName: "Jane",

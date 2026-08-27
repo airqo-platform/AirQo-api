@@ -35,7 +35,7 @@ const checkSubscriptionStatuses = async () => {
         })
         .limit(batchSize)
         .skip(skip)
-        .select("_id email currentSubscriptionId")
+        .select("_id email firstName lastName currentSubscriptionId")
         .lean();
 
       if (users.length === 0) break;
@@ -60,6 +60,8 @@ const checkSubscriptionStatuses = async () => {
             // Send reminder email or notification
             await mailer.sendSubscriptionReminderEmail({
               email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
               subscriptionId: user.currentSubscriptionId,
             });
           }
