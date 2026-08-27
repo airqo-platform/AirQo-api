@@ -863,6 +863,30 @@ module.exports = {
     return constants.EMAIL_BODY({ email, content, name });
   },
 
+  subscriptionPastDueReminder: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    subscriptionId = "",
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We were unable to process the latest payment for your AirQo subscription${
+          subscriptionId ? ` (<code>${escapeHtml(subscriptionId)}</code>)` : ""
+        }.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#FFF3CD; border-left:4px solid #F59E0B; border-radius:4px;">
+          <p style="margin:0;">Your subscription is now past due. To avoid any interruption to your access, please update your payment details as soon as possible.</p>
+        </div>
+        <p>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a> and visit your billing settings to update your payment method.</p>
+        <p>If you believe this is a mistake or need help, contact us at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
   bypassExpired: ({
     firstName = "",
     lastName = "",

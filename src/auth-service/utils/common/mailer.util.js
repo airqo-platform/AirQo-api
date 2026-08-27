@@ -816,6 +816,7 @@ const getEmailSubject = (functionName, params) => {
         : "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
     autoSuspendedToken: "Security Alert: Your AirQo API Token Has Been Suspended",
     bypassExpiryReminder: "Action Required Soon: Your API Token's Security Exemption Is Expiring",
+    subscriptionPastDueReminder: "Action Required: Your AirQo Subscription Payment Failed",
     bypassExpired: "Security Alert: Your API Token's Security Exemption Has Expired",
     bypassReportDigest: "Weekly Security-Bypass Report",
 
@@ -962,6 +963,7 @@ const EMAIL_CATEGORIES = {
     "bypassReportDigest",
     "onboardingAccountSetup",
     "notifyGroupStatusChanged",
+    "subscriptionPastDueReminder",
   ],
 
   SENSOR_MANUFACTURER_MANAGEMENT: [
@@ -2555,6 +2557,17 @@ const mailer = {
         loginTime: params.loginTime,
       }),
     { cooldownDays: 1, enableCooldown: false },
+  ),
+  sendSubscriptionReminderEmail: createSecurityEmailFunction(
+    "subscriptionPastDueReminder", //
+    (params) =>
+      msgs.subscriptionPastDueReminder({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        subscriptionId: params.subscriptionId,
+      }),
+    { cooldownDays: 3, enableCooldown: true },
   ),
   updateProfileReminder: createMailerFunction(
     "updateProfileReminder", //
