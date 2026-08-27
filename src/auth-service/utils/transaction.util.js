@@ -144,13 +144,18 @@ const transactions = {
         tenant,
       ).register(creationBody, next);
 
-      // Paddle retries a webhook delivery until it receives a 2xx response.
-      // A duplicate paddle_transaction_id means this exact event was already
-      // recorded by an earlier delivery, so acknowledge the retry as success
-      // instead of erroring — otherwise Paddle keeps retrying indefinitely.
+      // Fallback for the race where two deliveries of the same webhook reach
+      // here concurrently, both passing the earlier existence check in
+      // processWebhook. Match only the exact duplicate-key message that
+      // TransactionModel.register() produces from a Mongo E11000 error (see
+      // models/Transaction.js) — not any validation error that happens to
+      // land on the paddle_transaction_id field (e.g. a missing/invalid id),
+      // which must still surface as a real failure.
       if (
         responseFromRegisterTransaction.success === false &&
-        responseFromRegisterTransaction.errors?.paddle_transaction_id
+        responseFromRegisterTransaction.status === httpStatus.CONFLICT &&
+        responseFromRegisterTransaction.errors?.paddle_transaction_id ===
+          "paddle_transaction_id must be unique"
       ) {
         logger.info(
           `Duplicate webhook delivery for transaction ${paddleEventData.id} — already recorded, acknowledging`,
@@ -748,6 +753,31 @@ const transactions = {
           event.data.details?.totals?.total || event.data.total,
         ) / 100,
       };
+
+      // Paddle redelivers a webhook until it receives a 2xx response. If this
+      // transaction was already recorded by an earlier delivery, acknowledge
+      // it immediately — before running any handler — so retries don't
+      // re-trigger business logic (tier/scope updates) or duplicate
+      // ops-alerts (e.g. repeated "payment failed" notifications).
+      if (
+        (event.eventType === "transaction.completed" ||
+          event.eventType === "transaction.payment_failed") &&
+        normalizedTransaction.id
+      ) {
+        const alreadyRecorded = await TransactionModel(tenant).exists({
+          paddle_transaction_id: normalizedTransaction.id,
+        });
+        if (alreadyRecorded) {
+          logger.info(
+            `Duplicate webhook delivery for transaction ${normalizedTransaction.id} — already recorded, acknowledging`,
+          );
+          return {
+            success: true,
+            message: "Event already processed",
+            status: httpStatus.OK,
+          };
+        }
+      }
 
       // Non-transaction events are acknowledged and returned early so
       // transactions.create is never reached for them.
