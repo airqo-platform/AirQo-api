@@ -861,4 +861,54 @@ describe("email.msgs", () => {
       expect(result).to.be.a("string");
     });
   });
+
+  describe("newDeviceLogin", () => {
+    const baseArgs = {
+      firstName: "John",
+      lastName: "Doe",
+      email: "user@example.com",
+      os: "macOS",
+      browser: "Chrome",
+      deviceType: "desktop",
+      loginTime: new Date("2026-01-01T00:00:00Z"),
+    };
+
+    it("should include the login-page line when LOGIN_PAGE is configured", () => {
+      const saved = constants.LOGIN_PAGE;
+      constants.LOGIN_PAGE = "https://nexus.airqo.net/user/login";
+      try {
+        const result = msgs.newDeviceLogin(baseArgs);
+        expect(result).to.include(
+          '<a href="https://nexus.airqo.net/user/login">click here</a>'
+        );
+      } finally {
+        constants.LOGIN_PAGE = saved;
+      }
+    });
+
+    it("should omit the login-page line when LOGIN_PAGE is not configured", () => {
+      const saved = constants.LOGIN_PAGE;
+      constants.LOGIN_PAGE = undefined;
+      try {
+        const result = msgs.newDeviceLogin(baseArgs);
+        expect(result).to.not.include("click here");
+        expect(result).to.not.include("href=\"undefined\"");
+      } finally {
+        constants.LOGIN_PAGE = saved;
+      }
+    });
+
+    it("should HTML-escape a LOGIN_PAGE value containing metacharacters", () => {
+      const saved = constants.LOGIN_PAGE;
+      constants.LOGIN_PAGE = '"><script>alert(1)</script>';
+      try {
+        const result = msgs.newDeviceLogin(baseArgs);
+        expect(result).to.not.include('href="">');
+        expect(result).to.not.include("<script>alert(1)</script>");
+        expect(result).to.include("&lt;script&gt;");
+      } finally {
+        constants.LOGIN_PAGE = saved;
+      }
+    });
+  });
 });
