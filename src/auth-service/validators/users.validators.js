@@ -1657,6 +1657,37 @@ const submitFeedback = [
 
 const getFeedbackUploadUrl = [validateTenant];
 
+const listEmailQueue = [
+  validateTenant,
+  query("status")
+    .optional()
+    .notEmpty()
+    .withMessage("status must not be empty if provided")
+    .bail()
+    .isIn(["pending", "processing", "failed"])
+    .withMessage("status must be one of: pending, processing, failed"),
+  query("email")
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage("email filter must be a valid email address"),
+  query("subject")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("subject must not be empty if provided")
+    .isLength({ max: 200 })
+    .withMessage("subject cannot exceed 200 characters"),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 500 })
+    .withMessage("limit must be between 1 and 500"),
+];
+
 const listFeedbackSubmissions = [
   validateTenant,
   query("status")
@@ -2074,6 +2105,7 @@ module.exports = {
   refreshPermissions,
   analyzeTokenStrategies,
   getContextPermissions,
+  listEmailQueue,
   debugPermissions,
   initiateAccountDeletion,
   confirmAccountDeletion,
