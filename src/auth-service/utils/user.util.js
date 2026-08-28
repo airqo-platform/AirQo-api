@@ -8,6 +8,7 @@ const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const EmailLogModel = require("@models/EmailLog");
+const EmailQueueModel = require("@models/EmailQueue");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -650,6 +651,113 @@ const createUserModule = {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: "Failed to retrieve enhanced profile" },
+      };
+    }
+  },
+
+  listKnownDevices: async ({ userId, tenant }, next) => {
+    try {
+      const user = await UserModel(tenant)
+        .findById(userId)
+        .select("knownDevices")
+        .lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      const knownDevices = [...(user.knownDevices || [])].sort(
+        (a, b) => new Date(b.lastSeenAt) - new Date(a.lastSeenAt),
+      );
+
+      return {
+        success: true,
+        message: "Known devices retrieved successfully",
+        data: knownDevices,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 listKnownDevices util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve known devices" },
+      };
+    }
+  },
+
+  listEmailQueue: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = query.tenant || constants.DEFAULT_TENANT;
+
+      const MAX_LIMIT = 500;
+      const rawSkip = parseInt(query.skip, 10);
+      const rawLimit = parseInt(query.limit, 10);
+      const skip = Number.isFinite(rawSkip) ? Math.max(0, rawSkip) : 0;
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(MAX_LIMIT, Math.max(1, rawLimit))
+        : 100;
+
+      const filter = {};
+      if (query.status) filter.status = query.status;
+      if (query.email) {
+        filter["mailOptions.to"] = query.email.toLowerCase().trim();
+      }
+      if (query.subject) {
+        const escapedSubject = query.subject
+          .trim()
+          .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        filter["mailOptions.subject"] = {
+          $regex: escapedSubject,
+          $options: "i",
+        };
+      }
+
+      const EmailQueue = EmailQueueModel(tenant);
+      const [jobs, total] = await Promise.all([
+        EmailQueue.find(filter)
+          .select("-mailOptions.html -mailOptions.attachments")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        EmailQueue.countDocuments(filter),
+      ]);
+
+      const data = jobs.map((job) => ({
+        _id: job._id,
+        status: job.status,
+        to: job.mailOptions && job.mailOptions.to,
+        subject: job.mailOptions && job.mailOptions.subject,
+        attempts: job.attempts,
+        lastAttemptAt: job.lastAttemptAt,
+        errorMessage: job.errorMessage,
+        metadata: job.metadata,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+      }));
+
+      return {
+        success: true,
+        message: "Email queue retrieved successfully",
+        data,
+        meta: { total, skip, limit },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 listEmailQueue util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve email queue" },
       };
     }
   },
@@ -6996,6 +7104,14 @@ const createUserModule = {
                 deviceType,
                 location,
                 loginTime: new Date(),
+                // "Queued" is not "delivered" — if the queued job later fails
+                // permanently, this tells the queue processor to undo the
+                // knownDevices insert so the next login from this device
+                // retries the notification instead of staying silently known.
+                rollbackKnownDevice: {
+                  userId: user._id.toString(),
+                  fingerprint,
+                },
               });
 
               if (!mailResult || mailResult.success === false) {

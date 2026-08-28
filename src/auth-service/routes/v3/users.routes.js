@@ -183,6 +183,33 @@ router.get(
   userController.getEnhancedProfile
 );
 
+/**
+ * @route GET /api/v3/users/known-devices
+ * @desc Get the authenticated user's known sign-in devices
+ * @access Private
+ */
+router.get(
+  "/known-devices",
+  enhancedJWTAuth,
+  userValidations.tenant,
+  validate,
+  userController.listKnownDevices
+);
+
+/**
+ * @route GET /api/v3/users/email-queue
+ * @desc Admin diagnostic view of the email queue (pending/processing/failed jobs)
+ * @access Private (SYSTEM_ADMIN)
+ */
+router.get(
+  "/email-queue",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listEmailQueue,
+  validate,
+  userController.listEmailQueue
+);
+
 // ================================
 // GROUP-SPECIFIC ROUTES
 // ================================

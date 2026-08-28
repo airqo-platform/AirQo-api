@@ -685,6 +685,9 @@ module.exports = {
     const locationLine = location
       ? `<p><strong>Location:</strong> ${escapeHtml(location)}</p>`
       : "";
+    const loginPageLine = constants.LOGIN_PAGE
+      ? `<p>If you are using the AirQo web platform, <a href="${escapeHtml(constants.LOGIN_PAGE)}">click here</a> to review your account security settings.</p>`
+      : "";
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -693,7 +696,7 @@ module.exports = {
         ${locationLine}
         <p><strong>Time:</strong> ${timeStr}</p>
         <p>If this was you, you can safely ignore this email. If you don't recognise this activity, please change your password immediately and contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
-        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">click here</a> to review your account security settings.</p>
+        ${loginPageLine}
       </td>
     </tr>
     `;
