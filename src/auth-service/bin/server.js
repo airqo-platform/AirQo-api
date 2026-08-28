@@ -116,6 +116,7 @@ const jobs = [
   "@bin/jobs/feedback-reminder-job",
   "@bin/jobs/transaction-amount-fix-job",
   "@bin/jobs/selfie-cleanup-job",
+  "@bin/jobs/username-email-sync-job",
 ];
 
 // Initialize log4js with SAFE configuration
