@@ -6627,6 +6627,185 @@ const createEvent = {
   },
 };
 
+// Reverse lookup: AQI_CATEGORIES label (e.g. "Moderate", as stored on
+// reading.aqi_category) -> its lowercase category key ("moderate"). The
+// comparisons contract's aqi.color_name is that lowercase key, not a color
+// word — so this derives it from the reading's own already-computed
+// aqi_category rather than recomputing from the raw concentration, which
+// would silently diverge if a custom admin-configured AQI range (see
+// aqiUtil.resolveActiveAqiRanges) was active when the reading was stored.
+const AQI_CATEGORY_LABEL_TO_KEY = Object.fromEntries(
+  Object.entries(constants.AQI_CATEGORIES).map(([key, label]) => [label, key]),
+);
+
+// POST /readings/comparisons — backs the Nexus comparison table. Returns
+// exactly one entry per requested (deduped) site_id: a real reading when the
+// ReadingModel has one, otherwise a has_reading:false placeholder built from
+// the Site collection (or, if the site itself no longer exists, an
+// all-null placeholder flagged with site.site_exists: false). The contract
+// requires the latest reading "regardless of age" — lookbackDays is set to
+// the full 14-day TTL ceiling (see Reading.js expireAfterSeconds) rather than
+// the tighter DIAGNOSTIC_WINDOW_DAYS default other /recent callers rely on,
+// since there is never older data to miss anyway.
+createEvent.compareSiteReadings = async (request, next) => {
+  try {
+    const { tenant } = request.query;
+    const { site_ids } = request.body;
+    const effectiveTenant = isEmpty(tenant)
+      ? constants.DEFAULT_TENANT || "airqo"
+      : tenant;
+
+    const uniqueSiteIds = [
+      ...new Set(site_ids.map((id) => String(id).trim())),
+    ];
+
+    const readingsResponse = await ReadingModel(effectiveTenant).recent({
+      filter: {
+        site_id: { $in: uniqueSiteIds.map((id) => ObjectId(id)) },
+      },
+      skip: 0,
+      limit: uniqueSiteIds.length,
+      lookbackDays: 14,
+    });
+
+    if (readingsResponse.success === false) {
+      return readingsResponse;
+    }
+
+    const readingsBySiteId = new Map();
+    for (const reading of readingsResponse.data || []) {
+      if (reading && reading.site_id) {
+        readingsBySiteId.set(reading.site_id.toString(), reading);
+      }
+    }
+
+    const missingIds = uniqueSiteIds.filter(
+      (id) => !readingsBySiteId.has(id),
+    );
+
+    let sitesById = new Map();
+    if (missingIds.length > 0) {
+      const sites = await SiteModel(effectiveTenant)
+        .find({ _id: { $in: missingIds.map((id) => ObjectId(id)) } })
+        .select("name location_name city country latitude longitude")
+        .lean();
+      sitesById = new Map(sites.map((s) => [s._id.toString(), s]));
+    }
+
+    const round1 = (value) =>
+      typeof value === "number" && !isNaN(value)
+        ? Math.round(value * 10) / 10
+        : null;
+
+    const now = Date.now();
+
+    const readings = uniqueSiteIds.map((siteId) => {
+      const reading = readingsBySiteId.get(siteId);
+
+      if (reading) {
+        const siteDetails = reading.siteDetails || {};
+        const pm2_5Value =
+          reading.pm2_5 && typeof reading.pm2_5.value === "number"
+            ? reading.pm2_5.value
+            : null;
+        const readingTime = reading.time ? new Date(reading.time) : null;
+
+        return {
+          site_id: siteId,
+          site: {
+            name: siteDetails.name || siteDetails.formatted_name || null,
+            location_name: siteDetails.location_name || null,
+            city: siteDetails.city || null,
+            country: siteDetails.country || null,
+            latitude:
+              typeof siteDetails.approximate_latitude === "number"
+                ? siteDetails.approximate_latitude
+                : null,
+            longitude:
+              typeof siteDetails.approximate_longitude === "number"
+                ? siteDetails.approximate_longitude
+                : null,
+          },
+          has_reading: true,
+          time: readingTime ? readingTime.toISOString() : null,
+          time_difference_hours: readingTime
+            ? round1((now - readingTime.getTime()) / 3600000)
+            : null,
+          aqi:
+            pm2_5Value !== null
+              ? {
+                  index:
+                    typeof reading.aqi_index === "number"
+                      ? reading.aqi_index
+                      : aqiUtil.calculatePm25Aqi(pm2_5Value),
+                  category:
+                    reading.aqi_category || constants.AQI_CATEGORIES.unknown,
+                  color_name:
+                    AQI_CATEGORY_LABEL_TO_KEY[reading.aqi_category] ||
+                    aqiUtil.categoryFromConcentration(pm2_5Value) ||
+                    "unknown",
+                  color: reading.aqi_color || constants.AQI_COLORS.unknown,
+                }
+              : null,
+          pollutants: {
+            pm2_5: { value: round1(pm2_5Value) },
+            pm10: { value: round1(reading.pm10 && reading.pm10.value) },
+            no2: { value: round1(reading.no2 && reading.no2.value) },
+          },
+        };
+      }
+
+      const site = sitesById.get(siteId);
+
+      return {
+        site_id: siteId,
+        site: site
+          ? {
+              name: site.name || null,
+              location_name: site.location_name || null,
+              city: site.city || null,
+              country: site.country || null,
+              latitude:
+                typeof site.latitude === "number" ? site.latitude : null,
+              longitude:
+                typeof site.longitude === "number" ? site.longitude : null,
+            }
+          : {
+              name: null,
+              location_name: null,
+              city: null,
+              country: null,
+              latitude: null,
+              longitude: null,
+              site_exists: false,
+            },
+        has_reading: false,
+        time: null,
+        time_difference_hours: null,
+        aqi: null,
+        pollutants: null,
+      };
+    });
+
+    return {
+      success: true,
+      message: "Successfully retrieved comparison readings",
+      data: readings,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error -- compareSiteReadings: ${error.message}`,
+    );
+    return {
+      success: false,
+      message: "Internal Server Error",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+};
+
 // Backward-compatible aliases — retained so any caller still using the old
 // versioned names continues to work without modification.
 createEvent.transformMeasurements_v2 = createEvent.normalizeMeasurements;

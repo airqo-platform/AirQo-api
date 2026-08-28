@@ -18,6 +18,7 @@ const {
   validateGetSiteCountSummary,
   validateBulkUpdateSites,
   validateGetMySites,
+  validateSitesPicker,
 } = require("@validators/site.validators");
 const { validate } = require("@validators/common");
 const { headers, pagination } = require("@validators/common");
@@ -31,6 +32,14 @@ router.get(
   validate,
   pagination(),
   siteController.getMySites
+);
+
+router.get(
+  "/picker",
+  validateTenant,
+  validateSitesPicker,
+  validate,
+  siteController.listForComparisonPicker
 );
 
 /****************************** create sites use-case *************** */

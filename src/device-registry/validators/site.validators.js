@@ -567,6 +567,38 @@ const validateGetMySites = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+// GET /sites/picker — the Nexus "Compare locations" site picker. Contract:
+// group_id required, limit default 6 capped at 80, sort_by restricted to the
+// fields the picker actually offers (Location/City/Country).
+const validateSitesPicker = [
+  query("group_id")
+    .exists()
+    .withMessage("group_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("group_id must be an object ID"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 80 })
+    .withMessage("limit must be between 1 and 80")
+    .toInt(),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be >= 0")
+    .toInt(),
+  query("search").optional().isString().withMessage("search must be a string").trim(),
+  query("sort_by")
+    .optional()
+    .isIn(["location", "city", "country"])
+    .withMessage("sort_by must be one of: location, city, country"),
+  query("sort_order")
+    .optional()
+    .isIn(["asc", "desc"])
+    .withMessage("sort_order must be one of: asc, desc"),
+];
+
 const validateGetSiteCountSummary = [
   query("group_id")
     .optional()
@@ -618,4 +650,5 @@ module.exports = {
   validateSiteIdParam,
   validateCategoryField,
   validateGetMySites,
+  validateSitesPicker,
 };

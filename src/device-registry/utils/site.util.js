@@ -2583,10 +2583,148 @@ const getMySites = async (request, next) => {
   }
 };
 
+// GET /sites/picker — the Nexus "Compare locations" site picker: paginated,
+// searchable, sortable, and scoped to a single group_id via the same
+// group -> cohort -> CohortSiteSnapshot -> site resolution getMySites uses
+// above (group_ids plural there vs. a single required group_id here, since
+// the picker is always scoped to the caller's one active group).
+const SITE_PICKER_SORT_FIELDS = {
+  location: "location_name",
+  city: "city",
+  country: "country",
+};
+
+const listForComparisonPicker = async (request, next) => {
+  try {
+    const { tenant } = request.query;
+    const {
+      group_id,
+      search,
+      sort_by = "location",
+      sort_order = "asc",
+    } = request.query;
+    const limit = Math.min(parseInt(request.query.limit, 10) || 6, 80);
+    const skip = Math.max(parseInt(request.query.skip, 10) || 0, 0);
+
+    const emptyResult = (message) => ({
+      success: true,
+      message,
+      data: [],
+      status: httpStatus.OK,
+      meta: {
+        total: 0,
+        total_pages: 0,
+        page: Math.floor(skip / limit) + 1,
+        skip,
+        limit,
+      },
+    });
+
+    // 1. Resolve group_id -> linked cohorts
+    const groupCohorts = await CohortModel(tenant)
+      .find({ grp_id: ObjectId(group_id) })
+      .select("_id")
+      .lean();
+    const cohortIds = groupCohorts.map((c) => c._id);
+
+    if (cohortIds.length === 0) {
+      return emptyResult("Sites retrieved successfully");
+    }
+
+    // 2. Resolve cohorts -> site_ids
+    const snapshots = await CohortSiteSnapshotModel(tenant)
+      .find({ cohort_id: { $in: cohortIds }, tenant })
+      .select("site_id")
+      .lean();
+    const siteIds = [
+      ...new Map(
+        snapshots.map((s) => [s.site_id.toString(), s.site_id]),
+      ).values(),
+    ];
+
+    if (siteIds.length === 0) {
+      return emptyResult("Sites retrieved successfully");
+    }
+
+    // 3. Paginated, searchable, sortable site fetch
+    const siteFilter = { _id: { $in: siteIds } };
+    const trimmedSearch = typeof search === "string" ? search.trim() : "";
+    if (!isEmpty(trimmedSearch)) {
+      const regex = new RegExp(
+        trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i",
+      );
+      siteFilter.$or = [
+        { name: regex },
+        { location_name: regex },
+        { city: regex },
+        { country: regex },
+      ];
+    }
+
+    const sortField = SITE_PICKER_SORT_FIELDS[sort_by] || "location_name";
+    const sortDirection = sort_order === "desc" ? -1 : 1;
+
+    const [total, sites] = await Promise.all([
+      SiteModel(tenant).countDocuments(siteFilter),
+      SiteModel(tenant)
+        .find(siteFilter)
+        .select("name location_name city country latitude longitude")
+        .sort({ [sortField]: sortDirection })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const data = sites.map((site) => ({
+      id: site._id.toString(),
+      name: site.name || null,
+      location: site.location_name || null,
+      city: site.city || null,
+      country: site.country || null,
+      latitude: typeof site.latitude === "number" ? site.latitude : null,
+      longitude: typeof site.longitude === "number" ? site.longitude : null,
+    }));
+
+    return {
+      success: true,
+      message: "Sites retrieved successfully",
+      data,
+      status: httpStatus.OK,
+      meta: {
+        total,
+        total_pages: Math.ceil(total / limit),
+        page: Math.floor(skip / limit) + 1,
+        skip,
+        limit,
+      },
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- listForComparisonPicker: ${error.message}`);
+
+    if (error.name === "CastError") {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "group_id has an invalid format" },
+      };
+    }
+
+    return {
+      success: false,
+      message: "Internal Server Error",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+};
+
 module.exports = {
   ...createSite,
   getSiteCountSummary,
   computeSiteDataProvider,
   refreshSiteDataProvider,
   getMySites,
+  listForComparisonPicker,
 };
