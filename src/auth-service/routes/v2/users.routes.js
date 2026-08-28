@@ -130,6 +130,15 @@ router.get(
   userController.listKnownDevices,
 );
 
+router.get(
+  "/email-queue",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listEmailQueue,
+  validate,
+  userController.listEmailQueue,
+);
+
 // ================================
 // GROUP-SPECIFIC ROUTES
 // ================================

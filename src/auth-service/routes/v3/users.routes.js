@@ -196,6 +196,20 @@ router.get(
   userController.listKnownDevices
 );
 
+/**
+ * @route GET /api/v3/users/email-queue
+ * @desc Admin diagnostic view of the email queue (pending/processing/failed jobs)
+ * @access Private (SYSTEM_ADMIN)
+ */
+router.get(
+  "/email-queue",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listEmailQueue,
+  validate,
+  userController.listEmailQueue
+);
+
 // ================================
 // GROUP-SPECIFIC ROUTES
 // ================================

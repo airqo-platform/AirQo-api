@@ -55,10 +55,10 @@ const MAX_ATTEMPTS = 3;
 let isProcessingQueue = false;
 let queueIntervalId = null;
 
-const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
+const addToEmailQueue = async (mailOptions, tenant = "airqo", metadata = {}) => {
   try {
     const EmailQueue = EmailQueueModel(tenant);
-    await new EmailQueue({ mailOptions }).save();
+    await new EmailQueue({ mailOptions, metadata }).save();
     // The background processor will pick this up
     return { success: true, message: "Email queued successfully." };
   } catch (error) {
@@ -66,6 +66,34 @@ const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
     // Even if queuing fails, we should probably still try to send for critical emails.
     // For now, we'll just log the error.
     return { success: false, error: error.message };
+  }
+};
+
+// When a queued email permanently fails, "queued successfully" earlier
+// deceived any caller that had already applied a side effect on the
+// assumption the notification would go out (e.g. recording a device as
+// known before the email confirming it to the user has actually sent).
+// A job can attach { rollbackKnownDevice: { userId, fingerprint } } as
+// metadata so that side effect is undone here, letting the next trigger
+// retry the notification instead of staying silently suppressed forever.
+const rollbackFailedJobSideEffect = async (emailJob, tenant) => {
+  const rollback = emailJob.metadata && emailJob.metadata.rollbackKnownDevice;
+  if (!rollback || !rollback.userId || !rollback.fingerprint) {
+    return;
+  }
+  try {
+    const UserModel = require("@models/User");
+    await UserModel(tenant).updateOne(
+      { _id: rollback.userId },
+      { $pull: { knownDevices: { fingerprint: rollback.fingerprint } } },
+    );
+    logger.info(
+      `Rolled back knownDevices fingerprint for user ${rollback.userId} after permanent email failure (job ${emailJob._id})`,
+    );
+  } catch (rollbackError) {
+    logger.error(
+      `Failed to roll back knownDevices fingerprint for user ${rollback.userId}: ${rollbackError.message}`,
+    );
   }
 };
 
@@ -142,6 +170,7 @@ const processEmailQueue = async () => {
           logger.warn(
             `Email job ${emailJob._id} failed permanently. Dedup key removed.`,
           );
+          await rollbackFailedJobSideEffect(emailJob, tenant);
         }
         await EmailQueueForTenant.findByIdAndUpdate(emailJob._id, {
           $set: { status: newStatus, errorMessage: error.message },
@@ -1034,7 +1063,18 @@ const createSecurityEmailFunction = (
     let tenant = "";
     try {
       let cooldownKey;
-      ({ email, tenant = "airqo", cooldownKey, ...otherParams } = params);
+      let rollbackKnownDevice;
+      ({
+        email,
+        tenant = "airqo",
+        cooldownKey,
+        rollbackKnownDevice,
+        ...otherParams
+      } = params);
+      const queueMetadata = {
+        functionName,
+        ...(rollbackKnownDevice ? { rollbackKnownDevice } : {}),
+      };
       // Optional per-call cooldown scoping. Without it, the cooldown/dedup
       // window is keyed only by (email, functionName) — fine for one-token
       // alerts, but for per-token notifications (e.g. bypass expiry) that
@@ -1158,7 +1198,11 @@ const createSecurityEmailFunction = (
           await emailDeduplicator.checkAndMarkEmail(baseMailOptions);
 
         if (shouldSend) {
-          const queueResult = await addToEmailQueue(baseMailOptions, tenant);
+          const queueResult = await addToEmailQueue(
+            baseMailOptions,
+            tenant,
+            queueMetadata,
+          );
           if (!queueResult.success) {
             throw new HttpError(
               "Internal Server Error",
@@ -1195,7 +1239,11 @@ const createSecurityEmailFunction = (
           `Email queue insertion failed after deduplication step: ${dbError.message}`,
           { email: baseMailOptions.to, subject: baseMailOptions.subject },
         );
-        const retryQueueResult = await addToEmailQueue(baseMailOptions, tenant);
+        const retryQueueResult = await addToEmailQueue(
+          baseMailOptions,
+          tenant,
+          queueMetadata,
+        );
         if (!retryQueueResult.success) {
           throw new HttpError(
             "Internal Server Error",

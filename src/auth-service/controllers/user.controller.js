@@ -1703,6 +1703,37 @@ const userController = {
     }
   },
 
+  /**
+   * Admin diagnostic view of the email queue (pending/processing/failed jobs)
+   * @route GET /api/v2/users/email-queue
+   */
+  listEmailQueue: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listEmailQueue(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          emailQueue: result.data,
+          meta: result.meta,
+        });
+      }
+      return res
+        .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "Internal Server Error" },
+        });
+    } catch (error) {
+      logger.error(`🐛 List email queue controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
   getEnhancedProfileForUser: async (req, res, next) => {
     try {
       logger.info("Enhanced profile for specific user endpoint called");
