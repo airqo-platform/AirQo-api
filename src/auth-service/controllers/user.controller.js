@@ -1678,6 +1678,7 @@ const userController = {
   /**
    * Get the authenticated user's known sign-in devices
    * @route GET /api/v2/users/known-devices
+   * @route GET /api/v3/users/known-devices
    */
   listKnownDevices: async (req, res, next) => {
     try {
@@ -1706,6 +1707,7 @@ const userController = {
   /**
    * Admin diagnostic view of the email queue (pending/processing/failed jobs)
    * @route GET /api/v2/users/email-queue
+   * @route GET /api/v3/users/email-queue
    */
   listEmailQueue: async (req, res, next) => {
     try {

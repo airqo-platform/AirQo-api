@@ -140,6 +140,98 @@ describe("create-user-util", function () {
       expect(err.message).to.equal("Internal Server Error");
     });
   });
+  describe("listKnownDevices", function () {
+    let origUserModel;
+    let findByIdStub;
+    let selectStub;
+    let leanStub;
+
+    beforeEach(function () {
+      leanStub = sinon.stub();
+      selectStub = sinon.stub().returns({ lean: leanStub });
+      findByIdStub = sinon.stub().returns({ select: selectStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findById: findByIdStub,
+      }));
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should return known devices sorted by lastSeenAt, most recent first", async function () {
+      leanStub.resolves({
+        knownDevices: [
+          {
+            fingerprint: "older",
+            os: "Windows",
+            lastSeenAt: new Date("2026-01-01T00:00:00Z"),
+          },
+          {
+            fingerprint: "newer",
+            os: "macOS",
+            lastSeenAt: new Date("2026-06-01T00:00:00Z"),
+          },
+        ],
+      });
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "user_id",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.be.an("array").with.lengthOf(2);
+      expect(result.data[0].fingerprint).to.equal("newer");
+      expect(result.data[1].fingerprint).to.equal("older");
+      sinon.assert.calledWith(findByIdStub, "user_id");
+      sinon.assert.calledWith(selectStub, "knownDevices");
+    });
+
+    it("should return an empty array when the user has no known devices", async function () {
+      leanStub.resolves({ knownDevices: [] });
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "user_id",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([]);
+    });
+
+    it("should return a 404 when the user is not found", async function () {
+      leanStub.resolves(null);
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "missing_user",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(result.message).to.equal("User not found");
+    });
+
+    it("should return a generic error message without leaking the raw exception", async function () {
+      leanStub.rejects(new Error("connection reset by peer"));
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "user_id",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.errors.message).to.equal(
+        "Failed to retrieve known devices"
+      );
+      expect(result.errors.message).to.not.include("connection reset");
+    });
+  });
   describe("listStatistics", function () {
     let origUserModel;
     let listStatisticsStub;

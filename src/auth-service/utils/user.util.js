@@ -687,7 +687,7 @@ const createUserModule = {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
+        errors: { message: "Failed to retrieve known devices" },
       };
     }
   },
@@ -757,7 +757,7 @@ const createUserModule = {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
+        errors: { message: "Failed to retrieve email queue" },
       };
     }
   },
