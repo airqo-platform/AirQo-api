@@ -686,7 +686,7 @@ module.exports = {
       ? `<p><strong>Location:</strong> ${escapeHtml(location)}</p>`
       : "";
     const loginPageLine = constants.LOGIN_PAGE
-      ? `<p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">click here</a> to review your account security settings.</p>`
+      ? `<p>If you are using the AirQo web platform, <a href="${escapeHtml(constants.LOGIN_PAGE)}">click here</a> to review your account security settings.</p>`
       : "";
     const content = `
     <tr>
