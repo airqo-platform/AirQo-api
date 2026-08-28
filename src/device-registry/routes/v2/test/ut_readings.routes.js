@@ -39,6 +39,7 @@ describe("readings.routes.js (mounted at /api/v2/devices/readings)", () => {
     "getAirQualityRankings",
     "getRepresentativeAirQualityForGrid",
     "getRepresentativeAirQualityForCohort",
+    "compareSiteReadings",
   ];
 
   let eventController;
@@ -173,6 +174,62 @@ describe("readings.routes.js (mounted at /api/v2/devices/readings)", () => {
       // validator) converts valid ObjectId strings to ObjectId instances —
       // ["String", "String"] here would mean POST skipped that sanitization.
       expect(res.body.siteIdTypes).to.deep.equal(["ObjectID", "ObjectID"]);
+    });
+  });
+
+  describe("POST /comparisons", () => {
+    it("reaches compareSiteReadings for a valid site_ids body array", async () => {
+      const app = buildApp();
+
+      const res = await request(app)
+        .post(`${BASE}/comparisons`)
+        .send({ site_ids: [validSiteId1, validSiteId2] });
+
+      expect(res.status).to.equal(200);
+      expect(eventController.compareSiteReadings).to.have.been.calledOnce;
+    });
+
+    it("returns 400 and never reaches the controller when site_ids is missing", async () => {
+      const app = buildApp();
+
+      const res = await request(app).post(`${BASE}/comparisons`).send({});
+
+      expect(res.status).to.equal(400);
+      expect(eventController.compareSiteReadings).to.not.have.been.called;
+    });
+
+    it("returns 400 for an empty site_ids array", async () => {
+      const app = buildApp();
+
+      const res = await request(app)
+        .post(`${BASE}/comparisons`)
+        .send({ site_ids: [] });
+
+      expect(res.status).to.equal(400);
+      expect(eventController.compareSiteReadings).to.not.have.been.called;
+    });
+
+    it("returns 400 when site_ids contains an invalid ObjectId", async () => {
+      const app = buildApp();
+
+      const res = await request(app)
+        .post(`${BASE}/comparisons`)
+        .send({ site_ids: [validSiteId1, "not-an-object-id"] });
+
+      expect(res.status).to.equal(400);
+      expect(eventController.compareSiteReadings).to.not.have.been.called;
+    });
+
+    it("returns 400 when site_ids exceeds the 100-entry cap", async () => {
+      const app = buildApp();
+      const tooMany = Array.from({ length: 101 }, () => validSiteId1);
+
+      const res = await request(app)
+        .post(`${BASE}/comparisons`)
+        .send({ site_ids: tooMany });
+
+      expect(res.status).to.equal(400);
+      expect(eventController.compareSiteReadings).to.not.have.been.called;
     });
   });
 

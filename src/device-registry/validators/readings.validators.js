@@ -842,6 +842,27 @@ const readingsValidations = {
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, next);
   },
+
+  // POST /readings/comparisons — latest reading per requested site, one
+  // entry guaranteed per id (site_ids.* not deduped here; the util layer
+  // dedupes server-side per the comparisons contract).
+  comparisons: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      body("site_ids")
+        .exists()
+        .withMessage("site_ids is required")
+        .bail()
+        .isArray({ min: 1, max: 100 })
+        .withMessage("site_ids must contain between 1 and 100 entries"),
+      body("site_ids.*")
+        .isMongoId()
+        .withMessage("each entry in site_ids must be a valid ObjectId"),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
 };
 
 const validateGetRepresentativeAQForGrid = [
