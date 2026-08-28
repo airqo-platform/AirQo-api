@@ -1222,6 +1222,57 @@ const createEvent = {
       return;
     }
   },
+  compareSiteReadings: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+        },
+      };
+
+      const result = await createEventUtil.compareSiteReadings(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          readings: result.data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
   listReadingAverages: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

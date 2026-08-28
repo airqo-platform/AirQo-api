@@ -143,6 +143,12 @@ const routes = [
     controller: "recentReadings",
   },
   {
+    method: "post",
+    path: "/comparisons",
+    middlewares: [checkValidation("comparisons")],
+    controller: "compareSiteReadings",
+  },
+  {
     method: "get",
     path: "/worst/devices",
     middlewares: [checkValidation("worstReadingForDevices")],
