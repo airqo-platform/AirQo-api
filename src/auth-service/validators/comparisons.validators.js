@@ -1,7 +1,5 @@
 // comparisons.validators.js
 const { query, body, param, oneOf } = require("express-validator");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
 const constants = require("@config/constants");
 
 const validateTenant = oneOf([
@@ -43,12 +41,16 @@ const sitesBody = (fieldPath = "sites") => [
     .optional()
     .isArray({ max: 80 })
     .withMessage(`${fieldPath} must be an array of at most 80 entries`),
+  // Not .optional(): the wildcard only matches entries that actually exist,
+  // so this has no effect when `sites` itself is absent — but any entry
+  // that IS present must carry a non-empty id, since buildSiteSnapshots()
+  // keys its lookup by id and silently drops entries without one.
   body(`${fieldPath}.*.id`)
-    .optional()
     .isString()
     .withMessage("each site snapshot entry must include a string id")
     .trim()
-    .notEmpty(),
+    .notEmpty()
+    .withMessage("site snapshot id must not be empty"),
   body(`${fieldPath}.*.name`).optional().isString().trim(),
   body(`${fieldPath}.*.location`).optional().isString().trim(),
   body(`${fieldPath}.*.city`).optional().isString().trim(),
@@ -115,7 +117,14 @@ const update = [
   validateTenant,
   ...comparisonIdParam,
   (req, res, next) => {
-    if (!Object.keys(req.body || {}).length) {
+    const body = req.body || {};
+    const hasName = typeof body.name === "string" && body.name.trim().length > 0;
+    const hasSiteIds = Array.isArray(body.site_ids);
+    // `sites` alone (no name/site_ids) is deliberately not enough here —
+    // update() only ever writes update.sites alongside update.site_ids, so
+    // a sites-only body would otherwise pass this check and then silently
+    // no-op against the database.
+    if (!hasName && !hasSiteIds) {
       return res.status(400).json({
         success: false,
         message: "bad request errors",
