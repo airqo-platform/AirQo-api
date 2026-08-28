@@ -937,6 +937,17 @@ describe("createSite Util Functions", () => {
       expect(result.meta.total_pages).to.equal(0);
     });
 
+    it("reports the actually-requested page (not always 1) on an empty result", async () => {
+      cohortLeanStub.resolves([]);
+
+      const result = await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ skip: 12, limit: 6 }),
+        next
+      );
+
+      expect(result.meta.page).to.equal(3);
+    });
+
     it("dedupes site_ids across snapshots and returns paginated, mapped site rows", async () => {
       cohortLeanStub.resolves([{ _id: cohortId1 }, { _id: cohortId2 }]);
       // Same site_id linked via two different cohorts — must be deduped

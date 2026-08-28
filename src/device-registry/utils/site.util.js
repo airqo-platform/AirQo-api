@@ -2614,7 +2614,7 @@ const listForComparisonPicker = async (request, next) => {
       meta: {
         total: 0,
         total_pages: 0,
-        page: 1,
+        page: Math.floor(skip / limit) + 1,
         skip,
         limit,
       },
