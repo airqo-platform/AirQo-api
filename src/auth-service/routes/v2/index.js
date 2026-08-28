@@ -113,6 +113,12 @@ const authRoutes = [
     description: "User favorites management",
   },
   {
+    path: "/comparisons",
+    route: "@routes/v2/comparisons.routes",
+    name: "comparisons",
+    description: "Saved site comparisons management",
+  },
+  {
     path: "/roles",
     route: "@routes/v2/roles.routes",
     name: "roles",
@@ -402,7 +408,7 @@ function getCategoryForRoute(routeName) {
     core: ["users", "roles", "permissions", "tokens"],
     oauth: ["clients", "scopes", "tokens"],
     management: ["networks", "departments", "groups", "tenant-settings"],
-    user_data: ["preferences", "favorites", "locationHistory", "searchHistory"],
+    user_data: ["preferences", "favorites", "comparisons", "locationHistory", "searchHistory"],
     system: ["analytics", "maintenances", "types", "defaults"],
     requests: [
       "requests",
