@@ -124,6 +124,8 @@ ClientSchema.statics = {
         delete filter.category;
       }
 
+      const totalCount = await this.countDocuments(filter).exec();
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -145,10 +147,21 @@ ClientSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      return createSuccessResponse("list", response, "client", {
+      const successResponse = createSuccessResponse("list", response, "client", {
         message: "successfully retrieved the client details",
         emptyMessage: "no clients exist",
       });
+
+      return {
+        ...successResponse,
+        meta: {
+          total: totalCount,
+          skip: skip ? skip : 0,
+          limit: limit ? limit : 100,
+          page: Math.floor((skip ? skip : 0) / (limit ? limit : 100)) + 1,
+          pages: Math.ceil(totalCount / (limit ? limit : 100)) || 1,
+        },
+      };
     } catch (error) {
       return createErrorResponse(error, "list", logger, "client");
     }

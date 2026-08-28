@@ -89,6 +89,36 @@ describe("createClient", () => {
       expect(res.json.calledWithMatch({ success: true, clients: sinon.match.array })).to.be.true;
     });
 
+    it("should forward pagination meta from the util layer", async () => {
+      const meta = { total: 192, skip: 0, limit: 100, page: 1, pages: 2 };
+      sinon.stub(clientUtil, "listClients").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Clients listed successfully",
+        data: [{ clientId: "client123" }],
+        meta,
+      });
+
+      await createClient.list(req, res, next);
+
+      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+      expect(res.json.calledWithMatch({ success: true, meta })).to.be.true;
+    });
+
+    it("should omit meta when the util layer doesn't provide it", async () => {
+      sinon.stub(clientUtil, "listClients").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Clients listed successfully",
+        data: [{ clientId: "client123" }],
+      });
+
+      await createClient.list(req, res, next);
+
+      const jsonArg = res.json.firstCall.args[0];
+      expect(jsonArg.meta).to.be.undefined;
+    });
+
     it("should handle client listing failure", async () => {
       sinon.stub(clientUtil, "listClients").resolves({
         success: false,
