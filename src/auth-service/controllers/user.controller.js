@@ -1675,6 +1675,34 @@ const userController = {
     }
   },
 
+  /**
+   * Get the authenticated user's known sign-in devices
+   * @route GET /api/v2/users/known-devices
+   */
+  listKnownDevices: async (req, res, next) => {
+    try {
+      const userId = req.user && req.user._id;
+      if (!userId) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            auth: "User must be authenticated to access known devices",
+          }),
+        );
+      }
+
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { tenant } = request.query;
+
+      const result = await userUtil.listKnownDevices({ userId, tenant }, next);
+
+      return sendResponse(res, result, "knownDevices");
+    } catch (error) {
+      logger.error(`🐛 List known devices controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
   getEnhancedProfileForUser: async (req, res, next) => {
     try {
       logger.info("Enhanced profile for specific user endpoint called");

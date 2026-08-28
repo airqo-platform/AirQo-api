@@ -654,6 +654,43 @@ const createUserModule = {
     }
   },
 
+  listKnownDevices: async ({ userId, tenant }, next) => {
+    try {
+      const user = await UserModel(tenant)
+        .findById(userId)
+        .select("knownDevices")
+        .lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      const knownDevices = [...(user.knownDevices || [])].sort(
+        (a, b) => new Date(b.lastSeenAt) - new Date(a.lastSeenAt),
+      );
+
+      return {
+        success: true,
+        message: "Known devices retrieved successfully",
+        data: knownDevices,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 listKnownDevices util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
   listLogs: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;

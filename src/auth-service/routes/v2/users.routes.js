@@ -122,6 +122,14 @@ router.get(
   userController.getEnhancedProfile,
 );
 
+router.get(
+  "/known-devices",
+  enhancedJWTAuth,
+  userValidations.tenant,
+  validate,
+  userController.listKnownDevices,
+);
+
 // ================================
 // GROUP-SPECIFIC ROUTES
 // ================================
