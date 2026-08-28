@@ -2613,8 +2613,9 @@ const listForComparisonPicker = async (request, next) => {
       status: httpStatus.OK,
       meta: {
         total: 0,
-        total_pages: 1,
+        total_pages: 0,
         page: 1,
+        skip,
         limit,
       },
     });
@@ -2647,8 +2648,12 @@ const listForComparisonPicker = async (request, next) => {
 
     // 3. Paginated, searchable, sortable site fetch
     const siteFilter = { _id: { $in: siteIds } };
-    if (!isEmpty(search)) {
-      const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const trimmedSearch = typeof search === "string" ? search.trim() : "";
+    if (!isEmpty(trimmedSearch)) {
+      const regex = new RegExp(
+        trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i",
+      );
       siteFilter.$or = [
         { name: regex },
         { location_name: regex },
@@ -2688,8 +2693,9 @@ const listForComparisonPicker = async (request, next) => {
       status: httpStatus.OK,
       meta: {
         total,
-        total_pages: Math.ceil(total / limit) || 1,
+        total_pages: Math.ceil(total / limit),
         page: Math.floor(skip / limit) + 1,
+        skip,
         limit,
       },
     };

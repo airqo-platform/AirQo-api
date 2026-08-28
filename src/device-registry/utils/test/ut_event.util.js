@@ -3622,4 +3622,226 @@ describe("create Event utils", function() {
       expect(request.query.device_id).to.equal("device-1");
     });
   });
+
+  // POST /readings/comparisons — one reading entry guaranteed per requested
+  // site_id, real reading or a has_reading:false placeholder.
+  describe("compareSiteReadings", () => {
+    const proxyquire = require("proxyquire");
+    let proxiedEventUtil;
+    let recentStub;
+    let siteFindStub;
+    let siteSelectStub;
+    let siteLeanStub;
+    let next;
+
+    const siteA = "624d2f9a994194001ddccbb6"; // has a reading
+    const siteB = "623d84340e8054001eaaaa13"; // no reading, site still exists
+    const siteC = "6a1b2c3d4e5f60718293a4b5"; // no reading, site no longer exists
+
+    beforeEach(() => {
+      recentStub = sinon.stub().resolves({ success: true, data: [] });
+      siteLeanStub = sinon.stub().resolves([]);
+      siteSelectStub = sinon.stub().returns({ lean: siteLeanStub });
+      siteFindStub = sinon.stub().returns({ select: siteSelectStub });
+
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/Reading": () => ({ recent: recentStub }),
+        "@models/Site": () => ({ find: siteFindStub }),
+      });
+      next = sinon.stub();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("dedupes repeated site_ids and returns exactly one entry per unique id, in first-occurrence order", async () => {
+      recentStub.resolves({ success: true, data: [] });
+      siteLeanStub.resolves([]);
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        {
+          query: { tenant: "airqo" },
+          body: { site_ids: [siteA, siteB, siteA, siteC] },
+        },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.have.lengthOf(3);
+      expect(result.data.map((r) => r.site_id)).to.deep.equal([
+        siteA,
+        siteB,
+        siteC,
+      ]);
+
+      // recent() must be asked for the full 14-day TTL window, not the
+      // tighter DIAGNOSTIC_WINDOW_DAYS default other /recent callers use.
+      expect(recentStub.calledOnce).to.be.true;
+      expect(recentStub.args[0][0].lookbackDays).to.equal(14);
+      expect(recentStub.args[0][0].filter.site_id.$in).to.have.lengthOf(3);
+    });
+
+    it("maps a matched reading to has_reading:true with rounded pollutants and a color_name derived from aqi_category, not the raw color name", async () => {
+      const readingTime = new Date(Date.now() - 24 * 60 * 1000); // 24 min ago
+      recentStub.resolves({
+        success: true,
+        data: [
+          {
+            site_id: siteA,
+            time: readingTime,
+            pm2_5: { value: 24.34 },
+            pm10: { value: 41.0 },
+            // no2 intentionally absent
+            siteDetails: {
+              name: "Mukono Health Centre III",
+              location_name: "Mukono",
+              city: "Mukono",
+              country: "Uganda",
+              approximate_latitude: 0.3533,
+              approximate_longitude: 32.7553,
+            },
+            aqi_index: 72,
+            aqi_category: "Moderate",
+            aqi_color: "ECAA06",
+          },
+        ],
+      });
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA] } },
+        next
+      );
+
+      const row = result.data[0];
+      expect(row.has_reading).to.equal(true);
+      expect(row.site).to.deep.equal({
+        name: "Mukono Health Centre III",
+        location_name: "Mukono",
+        city: "Mukono",
+        country: "Uganda",
+        latitude: 0.3533,
+        longitude: 32.7553,
+      });
+      expect(row.pollutants).to.deep.equal({
+        pm2_5: { value: 24.3 },
+        pm10: { value: 41 },
+        no2: { value: null },
+      });
+      expect(row.aqi.index).to.equal(72);
+      expect(row.aqi.category).to.equal("Moderate");
+      expect(row.aqi.color).to.equal("ECAA06");
+      // "Moderate" -> "moderate": the contract's color_name is the lowercase
+      // category key, not a human color word (AQI_COLOR_NAMES.moderate is
+      // "Yellow") — and it must come from this reading's own aqi_category,
+      // not a fresh recompute that could disagree under a custom AQI config.
+      expect(row.aqi.color_name).to.equal("moderate");
+      expect(row.time_difference_hours).to.be.closeTo(0.4, 0.05);
+    });
+
+    it("falls back to categoryFromConcentration for color_name when aqi_category is missing", async () => {
+      recentStub.resolves({
+        success: true,
+        data: [
+          {
+            site_id: siteA,
+            time: new Date(),
+            pm2_5: { value: 5 }, // within the "good" band
+            siteDetails: {},
+          },
+        ],
+      });
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA] } },
+        next
+      );
+
+      expect(result.data[0].aqi.color_name).to.equal("good");
+    });
+
+    it("returns a has_reading:false row backed by the Site collection when a site has no matching reading", async () => {
+      recentStub.resolves({ success: true, data: [] });
+      siteLeanStub.resolves([
+        {
+          _id: siteB,
+          name: "Bwaise Police Post",
+          location_name: "Bwaise",
+          city: "Kampala",
+          country: "Uganda",
+          latitude: 0.3512,
+          longitude: 32.5678,
+        },
+      ]);
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteB] } },
+        next
+      );
+
+      const row = result.data[0];
+      expect(row.has_reading).to.equal(false);
+      expect(row.time).to.be.null;
+      expect(row.aqi).to.be.null;
+      expect(row.pollutants).to.be.null;
+      expect(row.site).to.deep.equal({
+        name: "Bwaise Police Post",
+        location_name: "Bwaise",
+        city: "Kampala",
+        country: "Uganda",
+        latitude: 0.3512,
+        longitude: 32.5678,
+      });
+      expect(row.site.site_exists).to.be.undefined;
+    });
+
+    it("flags site.site_exists:false when a site has no reading and no longer exists in the Site collection", async () => {
+      recentStub.resolves({ success: true, data: [] });
+      siteLeanStub.resolves([]); // siteC not found anywhere
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteC] } },
+        next
+      );
+
+      const row = result.data[0];
+      expect(row.has_reading).to.equal(false);
+      expect(row.site.site_exists).to.equal(false);
+      expect(row.site.name).to.be.null;
+    });
+
+    it("only queries the Site collection for sites missing a reading, not for every requested site", async () => {
+      recentStub.resolves({
+        success: true,
+        data: [{ site_id: siteA, time: new Date(), pm2_5: { value: 10 }, siteDetails: {} }],
+      });
+      siteLeanStub.resolves([]);
+
+      await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA, siteB] } },
+        next
+      );
+
+      expect(siteFindStub.calledOnce).to.be.true;
+      const missingIdFilter = siteFindStub.args[0][0]._id.$in;
+      expect(missingIdFilter).to.have.lengthOf(1);
+      expect(missingIdFilter[0].toString()).to.equal(siteB);
+    });
+
+    it("returns an error result (without throwing) when ReadingModel.recent fails", async () => {
+      recentStub.resolves({
+        success: false,
+        status: 500,
+        message: "Internal Server Error",
+        errors: { message: "db unavailable" },
+      });
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA] } },
+        next
+      );
+
+      expect(result.success).to.equal(false);
+    });
+  });
 });

@@ -6627,6 +6627,17 @@ const createEvent = {
   },
 };
 
+// Reverse lookup: AQI_CATEGORIES label (e.g. "Moderate", as stored on
+// reading.aqi_category) -> its lowercase category key ("moderate"). The
+// comparisons contract's aqi.color_name is that lowercase key, not a color
+// word — so this derives it from the reading's own already-computed
+// aqi_category rather than recomputing from the raw concentration, which
+// would silently diverge if a custom admin-configured AQI range (see
+// aqiUtil.resolveActiveAqiRanges) was active when the reading was stored.
+const AQI_CATEGORY_LABEL_TO_KEY = Object.fromEntries(
+  Object.entries(constants.AQI_CATEGORIES).map(([key, label]) => [label, key]),
+);
+
 // POST /readings/comparisons — backs the Nexus comparison table. Returns
 // exactly one entry per requested (deduped) site_id: a real reading when the
 // ReadingModel has one, otherwise a has_reading:false placeholder built from
@@ -6730,7 +6741,9 @@ createEvent.compareSiteReadings = async (request, next) => {
                   category:
                     reading.aqi_category || constants.AQI_CATEGORIES.unknown,
                   color_name:
-                    aqiUtil.categoryFromConcentration(pm2_5Value) || "unknown",
+                    AQI_CATEGORY_LABEL_TO_KEY[reading.aqi_category] ||
+                    aqiUtil.categoryFromConcentration(pm2_5Value) ||
+                    "unknown",
                   color: reading.aqi_color || constants.AQI_COLORS.unknown,
                 }
               : null,
