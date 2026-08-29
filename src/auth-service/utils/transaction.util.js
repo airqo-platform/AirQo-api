@@ -14,6 +14,9 @@ const logger = log4js.getLogger(
 const opsLogger = log4js.getLogger("ops-alerts");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const { paddleClient, isPaddleConfigured } = require("@config/paddle");
+const {
+  opsAlertDeduplicator,
+} = require("@utils/common/ops-alert-dedup.util");
 
 // Standard response returned by any function that calls Paddle when credentials
 // are not configured. Lets the service start and all non-Paddle endpoints work.
@@ -575,13 +578,28 @@ const transactions = {
   sendTransactionCompletionNotification: async (_transactionMetadata) => {
     // Email notification not yet implemented.
   },
-  notifyAdminOfTransactionError: async (error, eventData) => {
+  notifyAdminOfTransactionError: async (error, eventData, tenant) => {
+    const transactionId = eventData?.id;
+
+    // A transaction that keeps failing to register (for a reason other than
+    // "already exists") has no persisted row for processWebhook's existence
+    // check to short-circuit on, so Paddle's ~20-25min webhook redelivery
+    // would otherwise re-fire this alert unchanged for hours. Cool down
+    // repeat alerts for the same transaction instead of paging on every retry.
+    const shouldAlert = transactionId
+      ? await opsAlertDeduplicator.shouldAlert(
+          `transaction-error:${transactionId}`,
+          { tenant },
+        )
+      : true;
+    if (!shouldAlert) return;
+
     opsLogger.error("TRANSACTION_COMPLETION_FAILED", {
       message: error.message,
-      transactionId: eventData?.id,
+      transactionId,
     });
   },
-  handleFailedTransaction: async (eventData) => {
+  handleFailedTransaction: async (eventData, tenant) => {
     try {
       logObject("Failed Transaction Event", eventData);
 
@@ -601,6 +619,7 @@ const transactions = {
       await transactions.notifyAdminOfTransactionError(
         new Error(`Payment failed for transaction ${eventData.id}`),
         eventData,
+        tenant,
       );
     } catch (error) {
       logger.error("Failed transaction processing error", {
@@ -660,7 +679,7 @@ const transactions = {
       });
 
       // You might want to implement retry logic or send an alert
-      await transactions.notifyAdminOfTransactionError(error, eventData);
+      await transactions.notifyAdminOfTransactionError(error, eventData, tenant);
     }
   },
 
@@ -789,7 +808,10 @@ const transactions = {
           );
           break;
         case "transaction.payment_failed":
-          await transactions.handleFailedTransaction(normalizedTransaction);
+          await transactions.handleFailedTransaction(
+            normalizedTransaction,
+            tenant,
+          );
           break;
         case "subscription.updated":
           await transactions.handleSubscriptionUpdated(event.data, tenant);

@@ -770,6 +770,7 @@ describe("transactions.getSubscriptionStatus", () => {
 describe("transactions.notifyAdminOfTransactionError", () => {
   let localTransactions;
   let opsLoggerErrorStub;
+  let shouldAlertStub;
 
   before(() => {
     // log4js.getLogger returns a new object per call, so we must intercept it
@@ -782,13 +783,26 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     delete require.cache[require.resolve("@utils/transaction.util")];
     localTransactions = require("@utils/transaction.util");
     getLoggerStub.restore();
+
+    // Same module instance transaction.util.js imports — stubbing it here
+    // reaches the code under test without touching MongoDB.
+    const {
+      opsAlertDeduplicator,
+    } = require("@utils/common/ops-alert-dedup.util");
+    shouldAlertStub = sinon.stub(opsAlertDeduplicator, "shouldAlert");
+  });
+
+  after(() => {
+    shouldAlertStub.restore();
   });
 
   afterEach(() => {
     opsLoggerErrorStub.resetHistory();
+    shouldAlertStub.reset();
   });
 
   it("logs TRANSACTION_COMPLETION_FAILED with message and transactionId via opsLogger", async () => {
+    shouldAlertStub.resolves(true);
     const error = new Error("Payment gateway timeout");
     const eventData = { id: "txn_abc123", customer_id: "cust_xyz" };
 
@@ -804,10 +818,23 @@ describe("transactions.notifyAdminOfTransactionError", () => {
   });
 
   it("uses undefined transactionId when eventData is absent", async () => {
+    shouldAlertStub.resolves(true);
+
     await localTransactions.notifyAdminOfTransactionError(new Error("Unknown failure"), undefined);
 
     sinon.assert.calledOnce(opsLoggerErrorStub);
     const [, payload] = opsLoggerErrorStub.firstCall.args;
     expect(payload.transactionId).to.be.undefined;
+  });
+
+  it("suppresses the alert when the same transaction was already alerted on recently", async () => {
+    shouldAlertStub.resolves(false);
+    const error = new Error("Payment gateway timeout");
+    const eventData = { id: "txn_repeat", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(error, eventData);
+
+    sinon.assert.calledWith(shouldAlertStub, "transaction-error:txn_repeat");
+    sinon.assert.notCalled(opsLoggerErrorStub);
   });
 });
