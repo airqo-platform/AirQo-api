@@ -14,6 +14,9 @@ const logger = log4js.getLogger(
 const opsLogger = log4js.getLogger("ops-alerts");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const { paddleClient, isPaddleConfigured } = require("@config/paddle");
+const {
+  opsAlertDeduplicator,
+} = require("@utils/common/ops-alert-dedup.util");
 
 // Standard response returned by any function that calls Paddle when credentials
 // are not configured. Lets the service start and all non-Paddle endpoints work.
@@ -576,9 +579,21 @@ const transactions = {
     // Email notification not yet implemented.
   },
   notifyAdminOfTransactionError: async (error, eventData) => {
+    const transactionId = eventData?.id;
+
+    // A transaction that keeps failing to register (for a reason other than
+    // "already exists") has no persisted row for processWebhook's existence
+    // check to short-circuit on, so Paddle's ~20-25min webhook redelivery
+    // would otherwise re-fire this alert unchanged for hours. Cool down
+    // repeat alerts for the same transaction instead of paging on every retry.
+    const shouldAlert = transactionId
+      ? await opsAlertDeduplicator.shouldAlert(`transaction-error:${transactionId}`)
+      : true;
+    if (!shouldAlert) return;
+
     opsLogger.error("TRANSACTION_COMPLETION_FAILED", {
       message: error.message,
-      transactionId: eventData?.id,
+      transactionId,
     });
   },
   handleFailedTransaction: async (eventData) => {
