@@ -578,7 +578,7 @@ const transactions = {
   sendTransactionCompletionNotification: async (_transactionMetadata) => {
     // Email notification not yet implemented.
   },
-  notifyAdminOfTransactionError: async (error, eventData) => {
+  notifyAdminOfTransactionError: async (error, eventData, tenant) => {
     const transactionId = eventData?.id;
 
     // A transaction that keeps failing to register (for a reason other than
@@ -587,7 +587,10 @@ const transactions = {
     // would otherwise re-fire this alert unchanged for hours. Cool down
     // repeat alerts for the same transaction instead of paging on every retry.
     const shouldAlert = transactionId
-      ? await opsAlertDeduplicator.shouldAlert(`transaction-error:${transactionId}`)
+      ? await opsAlertDeduplicator.shouldAlert(
+          `transaction-error:${transactionId}`,
+          { tenant },
+        )
       : true;
     if (!shouldAlert) return;
 
@@ -596,7 +599,7 @@ const transactions = {
       transactionId,
     });
   },
-  handleFailedTransaction: async (eventData) => {
+  handleFailedTransaction: async (eventData, tenant) => {
     try {
       logObject("Failed Transaction Event", eventData);
 
@@ -616,6 +619,7 @@ const transactions = {
       await transactions.notifyAdminOfTransactionError(
         new Error(`Payment failed for transaction ${eventData.id}`),
         eventData,
+        tenant,
       );
     } catch (error) {
       logger.error("Failed transaction processing error", {
@@ -675,7 +679,7 @@ const transactions = {
       });
 
       // You might want to implement retry logic or send an alert
-      await transactions.notifyAdminOfTransactionError(error, eventData);
+      await transactions.notifyAdminOfTransactionError(error, eventData, tenant);
     }
   },
 
@@ -804,7 +808,10 @@ const transactions = {
           );
           break;
         case "transaction.payment_failed":
-          await transactions.handleFailedTransaction(normalizedTransaction);
+          await transactions.handleFailedTransaction(
+            normalizedTransaction,
+            tenant,
+          );
           break;
         case "subscription.updated":
           await transactions.handleSubscriptionUpdated(event.data, tenant);

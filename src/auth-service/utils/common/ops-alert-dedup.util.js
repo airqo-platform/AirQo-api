@@ -38,11 +38,22 @@ class OpsAlertDeduplicator {
       const key = this.generateAlertKey(identifier);
       const OpsAlertLog = OpsAlertLogModel(tenant);
       const effectiveTtl = ttlSeconds ?? this.ttlSeconds;
-      const expiresAt = new Date(Date.now() + effectiveTtl * 1000);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + effectiveTtl * 1000);
 
-      // Atomic insert: succeeds only if `hash` is unique.
-      // A duplicate key error (11000) means this alert already fired recently.
-      await new OpsAlertLog({ hash: key, expiresAt }).save();
+      // Atomic renew-or-create: the filter only matches a document that
+      // doesn't exist yet, or whose cooldown has already logically expired.
+      // This doesn't rely on Mongo's TTL monitor having physically deleted
+      // the stale doc yet (that sweep runs periodically, e.g. every ~60s,
+      // and can lag behind `expiresAt`) — expiry is evaluated here instead.
+      // If a still-active document exists, the filter won't match it, so the
+      // upsert's insert attempt collides with the unique index instead;
+      // that E11000 is read as "still within cooldown, suppress".
+      await OpsAlertLog.findOneAndUpdate(
+        { hash: key, expiresAt: { $lte: now } },
+        { $set: { hash: key, createdAt: now, expiresAt } },
+        { upsert: true },
+      );
       return true;
     } catch (error) {
       if (error.code === 11000) {
