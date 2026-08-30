@@ -8,12 +8,19 @@ const {
   verifyAndBindResources,
   enforceCohortBinding,
 } = require("@middleware/token-resource-binding.middleware");
+const {
+  attachIdentityContext,
+} = require("@middleware/identity-context.middleware");
 
 router.use(headers);
 // Attach resource binding metadata to every request in this router.
 // No-op when ENABLE_RESOURCE_BINDING is false (default) so existing
 // behaviour is completely unchanged until the feature is explicitly enabled.
 router.use(verifyAndBindResources);
+// Attach req.identity from the gateway-forwarded X-Auth-User-* headers (see
+// identity-context.middleware.js). Always a no-op unless a route handler
+// reads req.identity and ENFORCE_COHORT_USER_GROUP_MEMBERSHIP is enabled.
+router.use(attachIdentityContext);
 
 router.delete(
   "/:cohort_id",
