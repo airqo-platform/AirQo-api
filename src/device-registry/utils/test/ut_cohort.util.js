@@ -484,6 +484,20 @@ describe("createCohort", () => {
         constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
       }
     });
+
+    it("should return a clean 400 instead of throwing when the device is deleted between the exists check and the fetch", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        device: null,
+        updatedDevice: null,
+      });
+      const result = await createCohort.assignOneDeviceToCohort(
+        { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+    });
   });
 
   describe("unAssignOneDeviceFromCohort", () => {

@@ -989,12 +989,15 @@ const createCohort = {
         : candidatesToAssign.map((d) => d._id);
 
       if (toAssign.length === 0) {
+        const noneAssignedMessage =
+          blockedGroupMismatch.length > 0 && alreadyAssigned.length > 0
+            ? `No devices were assigned: ${alreadyAssigned.length} already assigned, ${blockedGroupMismatch.length} blocked due to cohort/device group mismatch`
+            : blockedGroupMismatch.length > 0
+              ? "All provided devices were blocked due to cohort/device group mismatch"
+              : "All provided devices are already assigned to this cohort";
         return {
           success: true,
-          message:
-            blockedGroupMismatch.length > 0
-              ? "All provided devices were blocked due to cohort/device group mismatch"
-              : "All provided devices are already assigned to this cohort",
+          message: noneAssignedMessage,
           status: httpStatus.OK,
           data: {
             assigned: [],
@@ -1227,6 +1230,19 @@ const createCohort = {
       const device = await DeviceModel(tenant)
         .findById(device_id)
         .lean();
+
+      if (!device) {
+        // Narrow race: device existed at the .exists() check above but was
+        // removed before this fetch. Return the same clean 400 the initial
+        // existence check would have, instead of throwing inside
+        // _isGroupScopeAllowed below.
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Device ${device_id} not found` },
+        };
+      }
 
       logObject("device", device);
 
