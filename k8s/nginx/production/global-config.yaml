@@ -12,6 +12,10 @@ data:
   set-real-ip-from: "10.250.0.65"
   location-snippets: "
     auth_request /auth;
+    auth_request_set $auth_user_id $upstream_http_x_auth_user_id;
+    auth_request_set $auth_user_groups $upstream_http_x_auth_user_groups;
+    proxy_set_header X-Auth-User-Id $auth_user_id;
+    proxy_set_header X-Auth-User-Groups $auth_user_groups;
     error_page 500 = @custom_internal_server_error;
     error_page 404 = @custom_page_not_found;
     error_page 403 = @custom_access_denied;
