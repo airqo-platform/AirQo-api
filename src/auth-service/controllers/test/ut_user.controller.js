@@ -799,6 +799,43 @@ describe("createUserController", () => {
     });
   });
 
+  describe("verify", () => {
+    let origAttachIdentityHeaders;
+
+    beforeEach(() => {
+      origAttachIdentityHeaders = createUser.__get__("attachIdentityHeaders");
+      res.set = sinon.stub();
+    });
+
+    afterEach(() => {
+      createUser.__set__("attachIdentityHeaders", origAttachIdentityHeaders);
+    });
+
+    it("should attach identity headers and respond 200 with 'this token is valid'", async () => {
+      const attachStub = sinon.stub().resolves();
+      createUser.__set__("attachIdentityHeaders", attachStub);
+      req.user = { _id: "u1", group_roles: [] };
+
+      await createUser.verify(req, res, next);
+
+      expect(attachStub.calledOnce).to.be.true;
+      expect(attachStub.firstCall.args[1]).to.deep.equal(req.user);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.send).to.have.been.calledWith("this token is valid");
+    });
+
+    it("should not respond again when headers were already sent", async () => {
+      const attachStub = sinon.stub().resolves();
+      createUser.__set__("attachIdentityHeaders", attachStub);
+      res.headersSent = true;
+
+      await createUser.verify(req, res, next);
+
+      expect(attachStub.called).to.be.false;
+      expect(res.send.called).to.be.false;
+    });
+  });
+
   describe("verifyFirebaseCustomToken", () => {
     it("should return success response when token is verified", async () => {
       sinon.stub(createUserUtil, "verifyFirebaseCustomToken").resolves({

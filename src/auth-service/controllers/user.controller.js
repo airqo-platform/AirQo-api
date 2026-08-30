@@ -14,6 +14,7 @@ const constants = require("@config/constants");
 const { AbstractTokenFactory } = require("@services/atf.service");
 const log4js = require("log4js");
 const UserModel = require("@models/User");
+const { attachIdentityHeaders } = require("@utils/identity-headers.util");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user controller`);
 
 const handleRequest = (req, next) => {
@@ -444,6 +445,10 @@ const userController = {
   verify: async (req, res, next) => {
     try {
       if (!res.headersSent) {
+        const tenant = String(
+          req.query.tenant || req.body.tenant || constants.DEFAULT_TENANT || "airqo",
+        ).toLowerCase();
+        await attachIdentityHeaders(res, req.user, tenant);
         res.status(httpStatus.OK).send("this token is valid");
         return;
       }

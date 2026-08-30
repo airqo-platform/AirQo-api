@@ -1985,11 +1985,15 @@ const token = {
 
           // Return resource-binding data so downstream services (e.g.
           // device-registry) can enforce grid/cohort restrictions without a
-          // second DB call.
+          // second DB call. user_id (additive) lets the controller attach
+          // the same X-Auth-User-* identity headers the JWT verify path
+          // sets, so the gateway forwards identity for token-authenticated
+          // requests too.
           return createValidTokenResponse({
             allowed_grids:   accessToken.allowed_grids   || [],
             allowed_cohorts: accessToken.allowed_cohorts || [],
             permissions,
+            user_id: client.user_id || null,
           });
         }
       }
