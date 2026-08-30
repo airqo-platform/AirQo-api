@@ -289,7 +289,12 @@ const createAccessToken = {
         // Attach the same X-Auth-User-* identity headers the JWT verify
         // path sets, so the nginx gateway forwards identity for
         // token-authenticated requests too (see identity-headers.util.js).
+        // user_id is internal-only: read it here, then strip it from
+        // result.data below so it never reaches the public response body.
         const userId = result.data && result.data.user_id;
+        if (result.data && "user_id" in result.data) {
+          delete result.data.user_id;
+        }
         if (result.success && userId) {
           try {
             const tenant = String(

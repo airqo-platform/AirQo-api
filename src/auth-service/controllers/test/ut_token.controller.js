@@ -152,6 +152,38 @@ describe("tokenUtil", () => {
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
+
+    it("should attach identity headers but strip user_id from the response body", async () => {
+      sinon.stub(tokenUtil, "verifyToken").resolves({
+        success: true,
+        status: httpStatus.OK,
+        message: "Token valid",
+        data: { allowed_grids: [], allowed_cohorts: [], permissions: [], user_id: "u1" },
+      });
+      const origAttach = createAccessToken.__get__("attachIdentityHeaders");
+      const origUserModel = createAccessToken.__get__("UserModel");
+      const attachStub = sinon.stub().resolves();
+      const findByIdStub = sinon.stub().returns({
+        select: sinon.stub().returns({
+          lean: sinon.stub().resolves({ _id: "u1", group_roles: [] }),
+        }),
+      });
+      createAccessToken.__set__("attachIdentityHeaders", attachStub);
+      createAccessToken.__set__("UserModel", () => ({ findById: findByIdStub }));
+      res.set = sinon.stub();
+
+      try {
+        await createAccessToken.verify(req, res, next);
+
+        expect(attachStub.calledOnce).to.be.true;
+        expect(res.json.calledOnce).to.be.true;
+        const sentBody = res.json.firstCall.args[0];
+        expect(sentBody.data).to.not.have.property("user_id");
+      } finally {
+        createAccessToken.__set__("attachIdentityHeaders", origAttach);
+        createAccessToken.__set__("UserModel", origUserModel);
+      }
+    });
   });
 
   describe("delete", () => {

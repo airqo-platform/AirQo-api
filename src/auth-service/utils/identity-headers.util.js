@@ -11,8 +11,11 @@
  * backend services never call auth-service themselves and never store this
  * data; they just read the headers nginx attaches to the current request.
  *
- * This response is only ever read by nginx's internal subrequest, never
- * returned to a browser, so no Access-Control-Expose-Headers is needed.
+ * These headers are intended for nginx's internal auth_request subrequest.
+ * Both endpoints can also be called directly by clients (they're normal
+ * mounted routes, not internal-only), so the headers may be present on a
+ * direct response too — but no Access-Control-Expose-Headers is set, so a
+ * browser's JS cannot read them unless a route explicitly exposes them.
  */
 
 const GroupModel = require("@models/Group");
