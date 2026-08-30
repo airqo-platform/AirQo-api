@@ -83,6 +83,29 @@ function envConfig(env) {
       false,
     ),
 
+    // Cohort/device group-ownership scoping — when true, assigning a device
+    // to a cohort is rejected if they don't share a network/group (the
+    // "airqo" network/group is exempt). Default off: mismatches are only
+    // logged as warnings so we can confirm no legitimate cross-group
+    // assignment pattern exists before anything is actually blocked.
+    ENFORCE_COHORT_DEVICE_GROUP_SCOPE: parseBool(
+      process.env.ENFORCE_COHORT_DEVICE_GROUP_SCOPE,
+      false,
+    ),
+
+    // Cohort/user group-membership scoping — when true, assigning a device
+    // to a cohort is rejected if the requesting user's groups (forwarded by
+    // the nginx gateway as X-Auth-User-Groups, resolved from auth-service —
+    // device-registry never fetches or stores user data itself) don't
+    // overlap with the cohort's groups/network. Only enforced when identity
+    // headers are actually present; a request with no identity data is
+    // never blocked on that basis alone. Default off: mismatches are only
+    // logged as warnings until confirmed safe to enforce.
+    ENFORCE_COHORT_USER_GROUP_MEMBERSHIP: parseBool(
+      process.env.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP,
+      false,
+    ),
+
     // Integer (ms): maximum time the MongoDB driver waits for a response on an
     // open socket before aborting the operation.  Must be long enough to cover
     // the heaviest aggregation in the service — EventModel.fetch(recent=yes)

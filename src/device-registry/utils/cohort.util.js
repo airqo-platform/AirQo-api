@@ -30,6 +30,65 @@ const buildDeviceSetKey = (deviceIds) => {
     .join(",");
 };
 
+const AIRQO_NETWORK = "airqo";
+
+// A device may be assigned to a cohort only if they share network/group
+// ownership, unless either side is the "airqo" network/group — AirQo staff
+// legitimately manage cross-organization monitoring cohorts.
+function _isGroupScopeAllowed(device, cohort) {
+  const deviceNetwork = String(device.network || "").toLowerCase();
+  const cohortNetwork = String(cohort.network || "").toLowerCase();
+
+  if (deviceNetwork === AIRQO_NETWORK || cohortNetwork === AIRQO_NETWORK) {
+    return true;
+  }
+
+  const deviceGroups = (device.groups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+  const cohortGroups = (cohort.groups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+
+  if (
+    deviceGroups.includes(AIRQO_NETWORK) ||
+    cohortGroups.includes(AIRQO_NETWORK)
+  ) {
+    return true;
+  }
+
+  if (deviceNetwork && cohortNetwork && deviceNetwork === cohortNetwork) {
+    return true;
+  }
+
+  return deviceGroups.some((g) => cohortGroups.includes(g));
+}
+
+// A user may only assign/unassign devices on a cohort if they belong to a
+// group the cohort belongs to, or their groups include "airqo" (AirQo staff
+// manage cross-organization cohorts). identityGroups comes from the
+// gateway-forwarded X-Auth-User-Groups header (see
+// middleware/identity-context.middleware.js) — device-registry never fetches
+// or stores this data itself. Callers must treat an empty identityGroups
+// list as "unknown" and skip this check entirely rather than calling it.
+function _isUserGroupMembershipAllowed(identityGroups, cohort) {
+  const userGroups = (identityGroups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+  if (userGroups.includes(AIRQO_NETWORK)) return true;
+
+  const cohortNetwork = String(cohort.network || "").toLowerCase();
+  if (cohortNetwork === AIRQO_NETWORK) return true;
+  if (cohortNetwork && userGroups.includes(cohortNetwork)) return true;
+
+  const cohortGroups = (cohort.groups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+  if (cohortGroups.includes(AIRQO_NETWORK)) return true;
+
+  return userGroups.some((g) => cohortGroups.includes(g));
+}
+
 function filterOutPrivateIDs(privateIds, randomIds) {
   // Create a Set from the privateIds array
   const privateIdSet = new Set(privateIds);
@@ -849,10 +908,35 @@ const createCohort = {
       // raw route param (which may be a cohort_slug string).
       const resolvedCohortId = cohort._id;
 
+      // Identity-based check: is the caller a member of a group this cohort
+      // belongs to? Only evaluated when the gateway actually forwarded
+      // identity groups — a request with no identity data is never blocked
+      // on that basis alone.
+      const identityGroups = (request.identity && request.identity.groups) || [];
+      if (
+        identityGroups.length > 0 &&
+        !_isUserGroupMembershipAllowed(identityGroups, cohort)
+      ) {
+        logger.warn(
+          `Cohort/user group-membership mismatch on assign-devices — cohort=${resolvedCohortId.toString()} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) user=${request.identity.userId} userGroups=${identityGroups.join(",")} enforced=${constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP}`,
+        );
+        if (constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP) {
+          return {
+            success: false,
+            message: "Forbidden",
+            errors: {
+              message:
+                "You are not a member of a group that owns this cohort",
+            },
+            status: httpStatus.FORBIDDEN,
+          };
+        }
+      }
+
       // Batch fetch all devices at once to avoid N+1 queries
       const existingDevices = await DeviceModel(tenant)
         .find({ _id: { $in: device_ids } })
-        .select("_id cohorts")
+        .select("_id cohorts network groups")
         .lean();
 
       const foundIds = new Set(existingDevices.map((d) => d._id.toString()));
@@ -880,19 +964,48 @@ const createCohort = {
         )
         .map((d) => d._id);
 
-      const toAssign = existingDevices
-        .filter(
-          (d) =>
-            !d.cohorts || !d.cohorts.map(String).includes(cohortIdStr),
-        )
-        .map((d) => d._id);
+      const candidatesToAssign = existingDevices.filter(
+        (d) => !d.cohorts || !d.cohorts.map(String).includes(cohortIdStr),
+      );
+
+      const mismatched = candidatesToAssign.filter(
+        (d) => !_isGroupScopeAllowed(d, cohort),
+      );
+
+      if (mismatched.length > 0) {
+        logger.warn(
+          `Cohort/device group-scope mismatch on assign-devices — cohort=${cohortIdStr} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) devices=${mismatched.map((d) => d._id.toString()).join(",")} enforced=${constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE}`,
+        );
+      }
+
+      const blockedGroupMismatch = constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE
+        ? mismatched.map((d) => d._id)
+        : [];
+
+      const toAssign = constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE
+        ? candidatesToAssign
+            .filter((d) => _isGroupScopeAllowed(d, cohort))
+            .map((d) => d._id)
+        : candidatesToAssign.map((d) => d._id);
 
       if (toAssign.length === 0) {
+        const noneAssignedMessage =
+          blockedGroupMismatch.length > 0 && alreadyAssigned.length > 0
+            ? `No devices were assigned: ${alreadyAssigned.length} already assigned, ${blockedGroupMismatch.length} blocked due to cohort/device group mismatch`
+            : blockedGroupMismatch.length > 0
+              ? "All provided devices were blocked due to cohort/device group mismatch"
+              : "All provided devices are already assigned to this cohort";
         return {
           success: true,
-          message: "All provided devices are already assigned to this cohort",
+          message: noneAssignedMessage,
           status: httpStatus.OK,
-          data: { assigned: [], already_assigned: alreadyAssigned },
+          data: {
+            assigned: [],
+            already_assigned: alreadyAssigned,
+            ...(blockedGroupMismatch.length > 0 && {
+              blocked_group_mismatch: blockedGroupMismatch,
+            }),
+          },
         };
       }
 
@@ -909,10 +1022,19 @@ const createCohort = {
         .lean();
       const confirmedAssigned = confirmedDocs.map((d) => d._id);
 
+      const partialNotes = [];
+      if (alreadyAssigned.length > 0) {
+        partialNotes.push(
+          `${alreadyAssigned.length} device(s) were already assigned and skipped`,
+        );
+      }
+      if (blockedGroupMismatch.length > 0) {
+        partialNotes.push(
+          `${blockedGroupMismatch.length} device(s) were blocked due to cohort/device group mismatch`,
+        );
+      }
       const partialMessage =
-        alreadyAssigned.length > 0
-          ? `${alreadyAssigned.length} device(s) were already assigned and skipped`
-          : null;
+        partialNotes.length > 0 ? partialNotes.join("; ") : null;
 
       return {
         success: true,
@@ -920,7 +1042,13 @@ const createCohort = {
           ? `Partially successful: ${partialMessage}`
           : "Successfully assigned all provided devices to the cohort",
         status: httpStatus.OK,
-        data: { assigned: confirmedAssigned, already_assigned: alreadyAssigned },
+        data: {
+          assigned: confirmedAssigned,
+          already_assigned: alreadyAssigned,
+          ...(blockedGroupMismatch.length > 0 && {
+            blocked_group_mismatch: blockedGroupMismatch,
+          }),
+        },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1057,7 +1185,7 @@ const createCohort = {
       const deviceExists = await DeviceModel(tenant).exists({ _id: device_id });
       const cohort = await CohortModel(tenant)
         .findOne(cohortLookupFilter(cohort_id))
-        .select("_id")
+        .select("_id network groups")
         .lean();
 
       if (!deviceExists || !cohort) {
@@ -1074,11 +1202,65 @@ const createCohort = {
       // rather than the raw route param (which may be a cohort_slug string).
       const resolvedCohortId = cohort._id;
 
+      // Identity-based check: is the caller a member of a group this cohort
+      // belongs to? Only evaluated when the gateway actually forwarded
+      // identity groups — a request with no identity data is never blocked
+      // on that basis alone.
+      const identityGroups = (request.identity && request.identity.groups) || [];
+      if (
+        identityGroups.length > 0 &&
+        !_isUserGroupMembershipAllowed(identityGroups, cohort)
+      ) {
+        logger.warn(
+          `Cohort/user group-membership mismatch on assign-device — cohort=${resolvedCohortId.toString()} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) user=${request.identity.userId} userGroups=${identityGroups.join(",")} enforced=${constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP}`,
+        );
+        if (constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP) {
+          return {
+            success: false,
+            message: "Forbidden",
+            errors: {
+              message:
+                "You are not a member of a group that owns this cohort",
+            },
+            status: httpStatus.FORBIDDEN,
+          };
+        }
+      }
+
       const device = await DeviceModel(tenant)
         .findById(device_id)
         .lean();
 
+      if (!device) {
+        // Narrow race: device existed at the .exists() check above but was
+        // removed before this fetch. Return the same clean 400 the initial
+        // existence check would have, instead of throwing inside
+        // _isGroupScopeAllowed below.
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Device ${device_id} not found` },
+        };
+      }
+
       logObject("device", device);
+
+      if (!_isGroupScopeAllowed(device, cohort)) {
+        logger.warn(
+          `Cohort/device group-scope mismatch on assign-device — cohort=${resolvedCohortId.toString()} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) device=${device_id} enforced=${constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE}`,
+        );
+        if (constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Device ${device_id} cannot be assigned to Cohort ${cohort_id} — they do not share a network/group`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
 
       if (
         device.cohorts &&
