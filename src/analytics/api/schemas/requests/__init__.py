@@ -83,14 +83,14 @@ class BaseRequest(BaseModel):
 _VALID_POLLUTANTS = {"pm2_5", "pm10"}
 _VALID_META_FIELDS = {"latitude", "longitude", "site_id"}
 _VALID_WEATHER_FIELDS = {"temperature", "humidity"}
-_FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids")
+_FILTER_KEYS = {"sites", "device_ids", "device_names", "grid_ids", "cohort_ids"}
 
 
 class BaseFilterRequest(BaseRequest):
     """
     Common date-range and filter fields shared by data-export and dashboard
     requests.  Enforces:
-      - exactly one of sites / device_ids / device_names / grid_ids
+      - exactly one of sites / device_ids / device_names / grid_ids / cohort_ids
       - grid_ids currently capped at one ID per request
       - filter lists capped at MAX_FILTER_VALUES entries
       - end_date_time > start_date_time, within MAX_QUERY_DAYS
@@ -109,20 +109,25 @@ class BaseFilterRequest(BaseRequest):
     )
 
     # Filter fields — exactly one must be supplied
-    sites: Optional[List[str]] = Field(None, description="Site IDs to filter by")
+    sites: Optional[List[str]] = Field(
+        None, alias="sites", description="Site IDs to filter by"
+    )
     device_ids: Optional[List[str]] = Field(
         None, alias="device_ids", description="Device IDs to filter by"
     )
     device_names: Optional[List[str]] = Field(
         None, alias="device_names", description="Device names to filter by"
     )
-    # NOTE: `airqlouds` was removed here — the concept is deprecated in favour
-    # of grids. Requests still sending it now fail the "exactly one filter"
-    # check with a clear message rather than being silently ignored.
     grid_ids: Optional[List[str]] = Field(
-        None, description="Grid IDs to filter by (currently limited to one)"
+        None,
+        alias="grid_ids",
+        description="Grid IDs to filter by (currently limited to one)",
     )
-
+    cohort_ids: Optional[List[str]] = Field(
+        None,
+        alias="cohort_ids",
+        description="Cohort IDs to filter by (currently limited to one)",
+    )
     meta_data_fields: Optional[
         List[Literal["latitude", "longitude", "site_id"]]
     ] = Field(
@@ -175,12 +180,13 @@ class BaseFilterRequest(BaseRequest):
                 "device_ids": self.device_ids,
                 "device_names": self.device_names,
                 "grid_ids": self.grid_ids,
+                "cohort_ids": self.cohort_ids,
             }.items()
             if v is not None and len(v) > 0
         }
         if len(provided) == 0:
             raise ValueError(
-                "Provide exactly one of: sites, device_ids, device_names, grid_ids"
+                "Provide exactly one of: sites, device_ids, device_names, grid_ids, cohort_ids"
             )
         if len(provided) > 1:
             raise ValueError(
@@ -200,6 +206,8 @@ class BaseFilterRequest(BaseRequest):
         # number of devices, so cap requests to a single grid for now.
         if self.grid_ids is not None and len(self.grid_ids) > 1:
             raise ValueError("Only one grid ID is currently supported per request")
+        if self.cohort_ids is not None and len(self.cohort_ids) > 1:
+            raise ValueError("Only one cohort ID is currently supported per request")
 
         return self
 
@@ -531,8 +539,10 @@ class ScheduledExportRequest(BaseFilterRequest):
         # beat tick until its retries are exhausted.
         # Truthiness (not `is not None`): an empty list means "no grid
         # filter", same as the base validator treats it.
-        if self.grid_ids:
-            raise ValueError("grid_ids is not yet supported for scheduled exports")
+        if self.grid_ids or self.cohort_ids:
+            raise ValueError(
+                "grid_ids and cohort_ids are not yet supported for scheduled exports"
+            )
         return self
 
 

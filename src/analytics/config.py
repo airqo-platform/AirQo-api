@@ -163,7 +163,8 @@ class BaseConfig(BaseSettings):
 
     # External API settings
     airqo_api_base_url: str = Field(
-        default="https://api.airqo.africa", validation_alias="AIRQO_API_BASE_URL"
+        default="https://platform.airqo.net/api/v2",
+        validation_alias="AIRQO_API_BASE_URL",
     )
     airqo_api_token: SecretStr = Field(
         default="test-token", validation_alias="AIRQO_API_TOKEN"
@@ -175,7 +176,8 @@ class BaseConfig(BaseSettings):
         default=1.0, validation_alias="AIRQO_API_BACKOFF_FACTOR"
     )
     grid_url: str = Field(
-        default="https://grid.airqo.africa", validation_alias="GRID_URL_ID"
+        default="https://platform.airqo.net/api/v2/devices/grids",
+        validation_alias="GRID_URL_ID",
     )
 
     # MongoDB settings — legacy config selected the URI by environment:
@@ -298,7 +300,14 @@ class BaseConfig(BaseSettings):
         "site_ids": "site_id",
         "country": "country",
         "city": "city",
-        "grid_ids": "device_id",
+        "grid_ids": "device_id",  # Not exactly mapped to device_id but just points to the name of
+        # the column in the table that is used to filter the data. The actual
+        # filtering is done by joining with the grids_sites table and filtering
+        # on grid_id.
+        "cohort_ids": "device_id",  # Not exactly mapped to device_id but just points to the name of the
+        # column in the table that is used to filter the data. The actual
+        # filtering is done by joining with the cohorts_devices table and filtering
+        # on cohort_id.
     }
 
     @property

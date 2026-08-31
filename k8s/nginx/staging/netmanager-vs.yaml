@@ -8,7 +8,7 @@ spec:
   upstreams:
     - name: platform-ui
       service: airqo-stage-platform-frontend-svc
-      port: 80  
+      port: 80
     - name: auth-service
       service: airqo-stage-auth-api-svc
       port: 3000
@@ -29,16 +29,16 @@ spec:
       port: 8080
     - name: spatial
       service: airqo-stage-spatial-api-svc
-      port: 5000  
+      port: 5000
     - name: beacon
-      service: airqo-stage-beacon-api-svc 
-      port: 8000                     
+      service: airqo-stage-beacon-api-svc
+      port: 8000
   routes:
     - path: /
       action:
         redirect:
           url: https://staging-vertex.airqo.net
-          code: 301      
+          code: 301
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

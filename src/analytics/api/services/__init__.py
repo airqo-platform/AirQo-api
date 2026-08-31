@@ -73,6 +73,7 @@ from api.utils.data_formatters import (
     format_to_aqcsv,
     get_validated_filter,
 )
+from api.utils.messages import FILTER_MSG
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
@@ -152,7 +153,7 @@ async def _strip_private(filter_type: str, filter_value: List[str]) -> List[str]
 
 
 async def _filter_from_request(
-    data: Dict[str, Any], *, privacy: bool = True
+    data: Dict[str, Any], *, privacy: bool = False
 ) -> Tuple[str, List[str]]:
     """
     Extract filter_type and filter_value from a request dict, optionally
@@ -165,9 +166,10 @@ async def _filter_from_request(
     export paths only; dashboard and chart endpoints pass privacy=False
     (deliberate — revisit before public cutover).
     """
-    filter_type, filter_value, error_message = get_validated_filter(data)
-    if error_message:
-        raise HTTPException(status_code=400, detail=error_message)
+    filter_type, filter_value = get_validated_filter(data)
+
+    if not filter_type or not filter_value:
+        raise HTTPException(status_code=400, detail=FILTER_MSG)
 
     if privacy and filter_type in _PRIVACY_FILTERED_TYPES:
         filter_value = await _strip_private(filter_type, filter_value)

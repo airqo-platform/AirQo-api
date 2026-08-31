@@ -165,7 +165,7 @@ class TestDataExportService:
 
         with patch(
             "api.services.get_validated_filter",
-            return_value=("sites", None, "No valid filter provided"),
+            return_value=(None, []),
         ):
             with pytest.raises(HTTPException) as exc:
                 await svc.export_data(export_request)

@@ -34,6 +34,8 @@ class BigQueryApi:
         self.sites_table = Utils.table_name(Config.bigquery_sites_sites)
         self.devices_table = Utils.table_name(Config.bigquery_devices_devices)
         self.grids_sites_table = Utils.table_name(Config.bigquery_grids_sites)
+        self.cohorts_table = Utils.table_name(Config.bigquery_cohorts)
+        self.cohorts_devices_table = Utils.table_name(Config.bigquery_cohorts_devices)
         self.satellite_forecast_table = Utils.table_name(
             Config.bigquery_satellite_data_table
         )
@@ -153,8 +155,8 @@ class BigQueryApi:
             start_date (str): Start timestamp (inclusive) for filtering data.
             end_date (str): End timestamp (inclusive) for filtering data.
             frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
-            filter_type (str): "device_ids" (default) or "grid_ids" — selects which
-                WHERE condition below to apply.
+            filter_type (str): "device_ids" (default) or "grid_ids" or "cohort_ids" — selects
+            which WHERE condition below to apply.
 
         Returns:
             str: The fully constructed SQL query
@@ -166,6 +168,13 @@ class BigQueryApi:
                 f"{self.devices_table}.site_id IN ("
                 f"SELECT site_id FROM {self.grids_sites_table} "
                 f"WHERE grid_id IN UNNEST(@filter_value)"
+                f") "
+            )
+        elif filter_type == "cohort_ids":
+            filter_condition = (
+                f"{self.devices_table}.id IN ("
+                f"SELECT device_id FROM {self.cohorts_devices_table} "
+                f"WHERE cohort_id IN UNNEST(@filter_value)"
                 f") "
             )
         else:
@@ -324,41 +333,6 @@ class BigQueryApi:
         )
         return query
 
-    def _resolve_where_clause(
-        self,
-        where_fields: Dict[str, Union[str, int, List]],
-        valid_columns: List[str],
-        exclude_columns: List[str],
-    ) -> List[str]:
-        """
-        Convert where_fields into SQL-safe WHERE clause parts.
-
-        Returns:
-            List[str]: WHERE conditions (e.g., ["device_id = '123'"]).
-        """
-        clauses = []
-
-        for raw_key, value in where_fields.items():
-            key = self.field_mappings.get(raw_key, None)
-
-            if key in exclude_columns:
-                continue
-
-            if key not in valid_columns:
-                raise ValueError(
-                    f"Invalid table column: '{key}' not in {valid_columns}"
-                )
-
-            if isinstance(value, (str, int)):
-                clauses.append(f"{key} = '{value}'")
-            elif isinstance(value, list):
-                formatted_list = ", ".join(f"'{v}'" for v in value)
-                clauses.append(f"{key} IN ({formatted_list})")
-            else:
-                raise TypeError(f"Unsupported filter type for key: {key}")
-
-        return clauses
-
     @staticmethod
     def _build_filter_parameter(
         filter_value: Union[str, int, List],
@@ -465,14 +439,7 @@ class BigQueryApi:
                 device_category=device_category,
             )
 
-        if isinstance(filter_value, list):
-            query_parameters = [
-                bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
-            ]
-        else:
-            query_parameters = [
-                bigquery.ScalarQueryParameter("filter_value", "STRING", filter_value),
-            ]
+        query_parameters.append(self._build_filter_parameter(filter_value))
 
         job_config.use_query_cache = use_cache
 
@@ -748,7 +715,13 @@ class BigQueryApi:
                 "",
             )
 
-        if filter_type in {"devices", "device_ids", "device_names", "grid_ids"}:
+        if filter_type in {
+            "devices",
+            "device_ids",
+            "device_names",
+            "grid_ids",
+            "cohort_ids",
+        }:
             return self.get_device_query(
                 table,
                 filter_value,

@@ -74,7 +74,7 @@ on:
       kafka_connectors:
         description: "Deploy kafka connectors"
         required: false
-        type: boolean        
+        type: boolean
 
 env:
   REGISTRY_URL: eu.gcr.io
@@ -100,7 +100,6 @@ jobs:
           echo "build_id=prod-${sha}-${timestamp}" >>$GITHUB_OUTPUT
           echo "datetime=${datetime}" >>$GITHUB_OUTPUT
 
-          
   #### Kafka Connectors ######
   kafka-connectors:
     name: build-push-deploy-kafka-connectors
