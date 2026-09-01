@@ -662,22 +662,25 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       const needsGroupIdBackfill = !existingRole.group_id && !!roleData.group_id;
 
       if (!arePermissionsSynced || needsGroupIdBackfill) {
-        const update = {
-          role_description: roleData.role_description,
-          role_permissions: permissionIds,
-          role_status: "ACTIVE",
-          updatedAt: new Date(),
-        };
+        const update = { updatedAt: new Date() };
+
+        // Only touch permissions/status when they're actually out of sync —
+        // a group_id-only backfill must not force an otherwise-untouched
+        // role's status to ACTIVE (e.g. one that was deliberately set to
+        // INACTIVE).
+        if (!arePermissionsSynced) {
+          logObject(
+            `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`,
+          );
+          update.role_description = roleData.role_description;
+          update.role_permissions = permissionIds;
+          update.role_status = "ACTIVE";
+        }
         if (needsGroupIdBackfill) {
           logObject(
             `🔧 Role ${roleData.role_name} is missing group_id. Backfilling from resolved group...`,
           );
           update.group_id = roleData.group_id;
-        }
-        if (!arePermissionsSynced) {
-          logObject(
-            `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`,
-          );
         }
         const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
           existingRole._id,
@@ -688,9 +691,11 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           success: true,
           data: updatedRole,
           message: `Role ${roleData.role_name} ${
-            arePermissionsSynced
-              ? "group_id backfilled"
-              : "permissions synchronized"
+            !arePermissionsSynced && needsGroupIdBackfill
+              ? "permissions synchronized and group_id backfilled"
+              : needsGroupIdBackfill
+                ? "group_id backfilled"
+                : "permissions synchronized"
           }`,
           action: "updated",
           status: httpStatus.OK,

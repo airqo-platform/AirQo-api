@@ -339,11 +339,110 @@ describe("role-permissions util", () => {
         "group_id",
         "g1",
       );
+      // A group_id-only backfill must not force role_status/permissions —
+      // those are only touched when they're actually out of sync.
+      expect(findByIdAndUpdateStub.firstCall.args[1]).to.not.have.property(
+        "role_status",
+      );
       expect(result.action).to.equal("updated");
       expect(result.group_id_backfilled).to.equal(true);
+      expect(result.message).to.equal(
+        "Role AIRQO_SUPER_ADMIN group_id backfilled",
+      );
     });
 
-    it("should not touch group_id on an existing role that already has one", async () => {
+    it("should preserve an existing role's role_status when only backfilling group_id (not force ACTIVE)", async () => {
+      const findByIdAndUpdateStub = sinon.stub().callsFake((id, update) =>
+        Promise.resolve({
+          _id: "r1",
+          role_name: "AIRQO_SUPER_ADMIN",
+          role_status: "INACTIVE", // untouched by the update object
+          group_id: update.group_id,
+        }),
+      );
+
+      rewireRPU.__set__("RoleModel", () => ({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().resolves({
+            _id: "r1",
+            role_name: "AIRQO_SUPER_ADMIN",
+            role_code: "AIRQO_SUPER_ADMIN",
+            role_permissions: ["p1"],
+            role_status: "INACTIVE",
+            group_id: undefined,
+          }),
+        }),
+        findByIdAndUpdate: findByIdAndUpdateStub,
+      }));
+
+      rewireRPU.__set__("PermissionModel", () => ({
+        find: sinon.stub().returns({
+          select: sinon.stub().returns({
+            lean: sinon.stub().resolves([{ _id: "p1", permission: "SUPER_ADMIN" }]),
+          }),
+        }),
+      }));
+
+      const result = await createOrUpdateRoleWithPermissionSync("airqo", {
+        role_name: "AIRQO_SUPER_ADMIN",
+        role_code: "AIRQO_SUPER_ADMIN",
+        role_description: "desc",
+        permissions: ["SUPER_ADMIN"],
+        group_id: "g1",
+      });
+
+      expect(findByIdAndUpdateStub.firstCall.args[1]).to.not.have.property(
+        "role_status",
+      );
+      expect(result.data.role_status).to.equal("INACTIVE");
+    });
+
+    it("should not overwrite an existing group_id when only permissions are out of sync", async () => {
+      const findByIdAndUpdateStub = sinon.stub().resolves({
+        _id: "r1",
+        role_name: "AIRQO_SUPER_ADMIN",
+        group_id: "already-set-group-id",
+      });
+
+      rewireRPU.__set__("RoleModel", () => ({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().resolves({
+            _id: "r1",
+            role_name: "AIRQO_SUPER_ADMIN",
+            role_code: "AIRQO_SUPER_ADMIN",
+            role_permissions: [], // out of sync vs. expected ["p1"]
+            group_id: "already-set-group-id",
+          }),
+        }),
+        findByIdAndUpdate: findByIdAndUpdateStub,
+      }));
+
+      rewireRPU.__set__("PermissionModel", () => ({
+        find: sinon.stub().returns({
+          select: sinon.stub().returns({
+            lean: sinon.stub().resolves([{ _id: "p1", permission: "SUPER_ADMIN" }]),
+          }),
+        }),
+      }));
+
+      const result = await createOrUpdateRoleWithPermissionSync("airqo", {
+        role_name: "AIRQO_SUPER_ADMIN",
+        role_code: "AIRQO_SUPER_ADMIN",
+        role_description: "desc",
+        permissions: ["SUPER_ADMIN"],
+        group_id: "g1", // must NOT be applied — existingRole already has one
+      });
+
+      expect(findByIdAndUpdateStub.calledOnce).to.equal(true);
+      expect(findByIdAndUpdateStub.firstCall.args[1]).to.not.have.property(
+        "group_id",
+      );
+      expect(result.message).to.equal(
+        "Role AIRQO_SUPER_ADMIN permissions synchronized",
+      );
+    });
+
+    it("should remain unchanged when group_id and permissions are already correct", async () => {
       const findByIdAndUpdateStub = sinon.stub();
 
       rewireRPU.__set__("RoleModel", () => ({
