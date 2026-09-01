@@ -320,7 +320,7 @@ def filter_non_private_sites_devices(
 def get_validated_filter(json_data: Dict[str, Any]) -> tuple[Any, List[Any]]:
     """
     Validates that exactly one of 'sites', 'device_ids', 'device_names' or
-    'grid_ids' is provided in the request, and applies filtering if necessary.
+    'grid_ids' is provided in the request.
 
     Args:
         json_data (dict): JSON payload from the request.

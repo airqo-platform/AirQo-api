@@ -153,7 +153,7 @@ async def _strip_private(filter_type: str, filter_value: List[str]) -> List[str]
 
 
 async def _filter_from_request(
-    data: Dict[str, Any], *, privacy: bool = False
+    data: Dict[str, Any], *, privacy: bool = True
 ) -> Tuple[str, List[str]]:
     """
     Extract filter_type and filter_value from a request dict, optionally
