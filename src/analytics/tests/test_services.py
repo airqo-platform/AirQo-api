@@ -1066,6 +1066,38 @@ class TestPrivacyFiltering:
         assert kwargs["where_fields"] == {"grid_ids": ["g1"]}
 
     @pytest.mark.asyncio
+    async def test_cohort_ids_filter_bypasses_privacy_check(
+        self, valid_export_payload, sample_df
+    ):
+        """cohort_ids has the same gap as grid_ids, and a wider one: a cohort
+        resolves directly to devices, so a caller refused private devices via
+        `device_ids` can still reach them through a cohort containing them.
+        filterNonPrivateDevices screens device IDs, not cohort IDs, so closing
+        this needs the cohort expanded to devices first (or a registry
+        endpoint that screens cohorts). Documents the behaviour rather than
+        endorsing it."""
+        from api.schemas.requests import DataExportRequest
+
+        request = DataExportRequest(
+            **{**valid_export_payload, "sites": None, "cohort_ids": ["c1"]}
+        )
+        svc = DataExportService()
+        meta = {"total_count": 2, "has_more": False, "next": None}
+
+        with patch(
+            "api.services.filter_non_private_sites_devices"
+        ) as mock_filter, patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ) as mock_bq:
+            await svc.export_data(request)
+
+        mock_filter.assert_not_called()
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {"cohort_ids": ["c1"]}
+
+    @pytest.mark.asyncio
     async def test_dashboard_chart_bypasses_privacy_filter(
         self, dashboard_request, sample_df
     ):
@@ -1112,6 +1144,99 @@ class TestPrivacyFiltering:
 
         record = mock_model_cls.return_value.create_request.call_args.args[0]
         assert record.filter_value == []
+
+
+# ---------------------------------------------------------------------------
+# Grid / cohort parity across the request paths
+#
+# grid_ids and cohort_ids were added after the original sites/device filters.
+# The three services that accept a BaseFilterRequest must treat them
+# identically — same _filter_from_request call, same where_fields hand-off —
+# so a filter type cannot work on data-download but quietly not on raw-data
+# or the charts.  Query-level parity is pinned in
+# tests/test_bigquery_api_methods.py::TestFilterParityAcrossRequestPaths.
+# ---------------------------------------------------------------------------
+
+
+class TestGridCohortParity:
+    _EXPECTED = [("grid_ids", ["g1"]), ("cohort_ids", ["c1"])]
+
+    def _bq(self, sample_df):
+        meta = {"total_count": 2, "has_more": False, "next": None}
+        return patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("filter_type,filter_value", _EXPECTED)
+    async def test_data_download_forwards_filter(
+        self, valid_export_payload, sample_df, filter_type, filter_value
+    ):
+        from api.schemas.requests import DataExportRequest
+
+        request = DataExportRequest(
+            **{**valid_export_payload, "sites": None, filter_type: filter_value}
+        )
+        with self._bq(sample_df) as mock_bq:
+            await DataExportService().export_data(request)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {filter_type: filter_value}
+        assert kwargs["dynamic_query"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("filter_type,filter_value", _EXPECTED)
+    async def test_raw_data_forwards_filter(
+        self, valid_raw_payload, sample_df, filter_type, filter_value
+    ):
+        """Raw data differs from data-download only in dynamic_query (raw
+        pollutant columns vs averaged ones) — never in the filter."""
+        from api.schemas.requests import RawDataExportRequest
+
+        request = RawDataExportRequest(
+            **{**valid_raw_payload, "sites": None, filter_type: filter_value}
+        )
+        with self._bq(sample_df) as mock_bq:
+            await DataExportService().export_raw_data(request)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {filter_type: filter_value}
+        assert kwargs["dynamic_query"] is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("filter_type,filter_value", _EXPECTED)
+    async def test_chart_data_forwards_filter(
+        self, valid_dashboard_payload, sample_df, filter_type, filter_value
+    ):
+        """Both /dashboard/chart/data and /dashboard/chart/d3/data route to
+        get_chart_data, so this covers the pair."""
+        from api.schemas.requests import DashboardChartRequest
+
+        request = DashboardChartRequest(
+            **{**valid_dashboard_payload, "sites": None, filter_type: filter_value}
+        )
+        with self._bq(sample_df) as mock_bq:
+            await DashboardService().get_chart_data(request)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {filter_type: filter_value}
+
+    @pytest.mark.asyncio
+    async def test_scheduled_export_rejects_both_uniformly(self):
+        """The Celery worker's data_export_query only handles sites/devices,
+        so the schema refuses grids and cohorts together — the one path where
+        they are deliberately NOT at parity with the others."""
+        from pydantic import ValidationError
+        from api.schemas.requests import ScheduledExportRequest
+
+        for filter_type, filter_value in self._EXPECTED:
+            payload = _scheduled_export_request().model_dump(by_alias=True)
+            payload["sites"] = None
+            payload[filter_type] = filter_value
+            with pytest.raises(ValidationError, match="not yet supported"):
+                ScheduledExportRequest(**payload)
 
 
 # ---------------------------------------------------------------------------

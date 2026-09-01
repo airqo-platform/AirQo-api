@@ -174,6 +174,69 @@ class TestFilterQueryBuilders:
         assert grid_query.startswith("SELECT ") and "site_name" in grid_query
         assert device_query.startswith("SELECT ") and "site_name" in device_query
 
+    def test_get_device_query_cohort_filter_uses_devices_id_subquery(self, bq_api):
+        """filter_type="cohort_ids" must extract measurements for the devices
+        belonging to the given cohorts — resolved via a cohorts_devices
+        subquery, not a literal device_id list.
+
+        The join column differs from every other devices_devices join in the
+        codebase: cohorts_devices.device_id holds the device's `id`, so the
+        outer condition is devices_devices.id (not .device_id).  Grids join
+        the other way round — grids_sites.site_id matches devices.site_id."""
+        query = bq_api.get_device_query(
+            table="project.dataset.table",
+            filter_value=["cohort1", "cohort2"],
+            pollutants_query="SELECT pm2_5",
+            time_grouping="timestamp",
+            start_date="2025-01-01",
+            end_date="2025-01-04",
+            frequency=Frequency.HOURLY,
+            filter_type="cohort_ids",
+        )
+        assert f"{bq_api.devices_table}.id IN (" in query
+        assert "cohorts_devices" in query
+        assert "cohort_id IN UNNEST(@filter_value)" in query
+        # Must not fall back to the literal device_id filter
+        assert "device_id IN UNNEST(@filter_value)" not in query
+
+    def test_get_device_query_cohort_filter_reuses_device_measurement_shape(
+        self, bq_api
+    ):
+        """The cohort path must extract full device measurements — same
+        pollutants/device-info/site-join shape as the default device_ids and
+        the grid paths — not just a bare device-id lookup."""
+        cohort_query = bq_api.get_device_query(
+            table="project.dataset.table",
+            filter_value=["cohort1"],
+            pollutants_query="SELECT pm2_5",
+            time_grouping="timestamp",
+            start_date="2025-01-01",
+            end_date="2025-01-04",
+            frequency=Frequency.HOURLY,
+            filter_type="cohort_ids",
+        )
+        device_query = bq_api.get_device_query(
+            table="project.dataset.table",
+            filter_value=["d1"],
+            pollutants_query="SELECT pm2_5",
+            time_grouping="timestamp",
+            start_date="2025-01-01",
+            end_date="2025-01-04",
+            frequency=Frequency.HOURLY,
+        )
+        assert "SELECT pm2_5, timestamp" in cohort_query
+        assert cohort_query.startswith("SELECT ") and "site_name" in cohort_query
+        # Only the filter condition may differ from the device_ids shape.
+        assert (
+            cohort_query.replace(
+                f"{bq_api.devices_table}.id IN ("
+                f"SELECT device_id FROM {bq_api.cohorts_devices_table} "
+                f"WHERE cohort_id IN UNNEST(@filter_value)) ",
+                f"{bq_api.devices_table}.device_id IN UNNEST(@filter_value) ",
+            )
+            == device_query
+        )
+
     def test_get_site_query_uses_unnest_parameter(self, bq_api):
         query = bq_api.get_site_query(
             table="project.dataset.table",
@@ -265,6 +328,18 @@ class TestFilterQueryBuilders:
         )
         assert "grids_sites" in grid_q
         assert "site_id IN (" in grid_q
+
+        cohort_q = bq_api.build_filter_query(
+            table="project.dataset.table",
+            filter_type="cohort_ids",
+            filter_value=["c1"],
+            pollutants_query="SELECT pm2_5",
+            start_date="2025-01-01",
+            end_date="2025-01-04",
+            frequency=Frequency.HOURLY,
+        )
+        assert "cohorts_devices" in cohort_q
+        assert f"{bq_api.devices_table}.id IN (" in cohort_q
 
     def test_build_filter_query_rejects_unknown_filter_type(self, bq_api):
         with pytest.raises(ValueError, match="Invalid filter type"):
@@ -515,3 +590,185 @@ class TestAsyncDelegationContract:
         assert param.values == ["grid1", "grid2"]
         assert df.empty
         assert meta["total_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_query_data_async_supports_cohort_filter(self, monkeypatch):
+        """Same contract as the grid test above, for the cohort filter: it is
+        defined only in BigQueryApi.get_device_query and must reach the async
+        path — every request the API serves goes through query_data_async."""
+        import pandas as pd
+        from google.cloud import bigquery
+        from api.models import bigquery_api as bq_mod
+        from api.models.async_bigquery_api import AsyncBigQueryApi
+        from constants import DataType
+
+        captured = {}
+        orig_init = bq_mod.BigQueryApi.__init__
+
+        def patched_init(inner_self):
+            orig_init(inner_self)
+            client = MagicMock()
+
+            def fake_query(query=None, job_config=None, **kw):
+                captured["sql"] = query
+                captured["params"] = job_config.query_parameters if job_config else None
+                res = MagicMock()
+                res.result.return_value.to_dataframe.return_value = pd.DataFrame()
+                return res
+
+            client.query.side_effect = fake_query
+            inner_self.client = client
+
+        monkeypatch.setattr(bq_mod.BigQueryApi, "__init__", patched_init)
+
+        api = AsyncBigQueryApi()
+        df, meta = await api.query_data_async(
+            table="proj.ds.hourly",
+            start_date_time="2025-01-01",
+            end_date_time="2025-01-02",
+            device_category=DeviceCategory.LOWCOST,
+            frequency=Frequency.HOURLY,
+            data_type=DataType.CALIBRATED,
+            columns=["pm2_5"],
+            where_fields={"cohort_ids": ["cohort1"]},
+            dynamic_query=True,
+        )
+
+        assert "cohorts_devices" in captured["sql"]
+        assert "cohort_id IN UNNEST(@filter_value)" in captured["sql"]
+        param = captured["params"][0]
+        assert isinstance(param, bigquery.ArrayQueryParameter)
+        assert param.values == ["cohort1"]
+        assert df.empty
+        assert meta["total_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_pagination_orders_grid_and_cohort_by_device_id(self, monkeypatch):
+        """Grids and cohorts resolve to devices, so both must paginate on
+        device_id.  A filter type missing from FILTER_FIELD_MAPPING would
+        interpolate the literal "None" into the ORDER BY and fail at
+        BigQuery — after the query has already been billed."""
+        import pandas as pd
+        from api.models import bigquery_api as bq_mod
+        from api.models.async_bigquery_api import AsyncBigQueryApi
+        from constants import DataType
+
+        captured = {}
+        orig_init = bq_mod.BigQueryApi.__init__
+
+        def patched_init(inner_self):
+            orig_init(inner_self)
+            client = MagicMock()
+
+            def fake_query(query=None, job_config=None, **kw):
+                captured["sql"] = query
+                res = MagicMock()
+                res.result.return_value.to_dataframe.return_value = pd.DataFrame()
+                return res
+
+            client.query.side_effect = fake_query
+            inner_self.client = client
+
+        monkeypatch.setattr(bq_mod.BigQueryApi, "__init__", patched_init)
+
+        for filter_type, filter_value in (
+            ("grid_ids", ["g1"]),
+            ("cohort_ids", ["c1"]),
+        ):
+            api = AsyncBigQueryApi()
+            await api.query_data_async(
+                table="proj.ds.hourly",
+                start_date_time="2025-01-01",
+                end_date_time="2025-01-02",
+                device_category=DeviceCategory.LOWCOST,
+                frequency=Frequency.HOURLY,
+                data_type=DataType.CALIBRATED,
+                columns=["pm2_5"],
+                where_fields={filter_type: filter_value},
+                dynamic_query=True,
+            )
+            assert "order by timestamp, device_id" in captured["sql"], filter_type
+            assert "None" not in captured["sql"], filter_type
+
+
+# ---------------------------------------------------------------------------
+# raw-data / data-download / chart filter parity
+#
+#   export_raw_data -> _run_export(dynamic_query=False) -> compose_query
+#   export_data     -> _run_export(dynamic_query=True)  -> compose_dynamic_query
+#   get_chart_data  -> query_data_async(dynamic_query=True)
+#                                       -> compose_dynamic_query
+#
+# The two compose_* entry points differ only in how pollutant columns are
+# projected (raw columns vs rounded/averaged ones); both delegate filtering to
+# build_filter_query.  grid_ids and cohort_ids were added after the original
+# device/site filters, so these tests pin the parity: a filter type cannot be
+# wired into one request path and silently missed on the others.
+# ---------------------------------------------------------------------------
+
+
+class TestFilterParityAcrossRequestPaths:
+    def _raw_sql(self, bq_api, filter_type, filter_value):
+        """The raw-data path: _run_export(dynamic_query=False)."""
+        return bq_api.compose_query(
+            table="proj.ds.raw_measurements",
+            start_date_time="2025-01-01",
+            end_date_time="2025-01-02",
+            pollutants=["pm2_5"],
+            data_type=DataType.RAW,
+            data_filter={filter_type: filter_value},
+            device_category=DeviceCategory.LOWCOST,
+        )
+
+    def _dynamic_sql(self, bq_api, filter_type, filter_value, frequency):
+        """The data-download and chart paths: dynamic_query=True."""
+        return bq_api.compose_dynamic_query(
+            "proj.ds.hourly_measurements",
+            "2025-01-01",
+            "2025-01-02",
+            pollutants=["pm2_5"],
+            data_filter={filter_type: filter_value},
+            data_type=DataType.CALIBRATED,
+            frequency=frequency,
+            device_category=DeviceCategory.LOWCOST,
+        )
+
+    def _filter_condition(self, bq_api, sql):
+        """The `AND <condition>` the filter type contributes to the WHERE."""
+        marker = "AND "
+        assert marker in sql
+        return sql.split(marker, 1)[1]
+
+    @pytest.mark.parametrize(
+        "filter_type,filter_value",
+        [
+            ("device_ids", ["d1", "d2"]),
+            ("sites", ["s1"]),
+            ("grid_ids", ["g1"]),
+            ("cohort_ids", ["c1"]),
+        ],
+    )
+    def test_raw_and_download_apply_the_same_filter(
+        self, bq_api, filter_type, filter_value
+    ):
+        """Every filter type must narrow raw-data and data-download to the
+        same devices — the only intended difference between the paths is the
+        pollutant projection, never who the data is about."""
+        raw = self._filter_condition(
+            bq_api, self._raw_sql(bq_api, filter_type, filter_value)
+        )
+        download = self._filter_condition(
+            bq_api,
+            self._dynamic_sql(bq_api, filter_type, filter_value, Frequency.HOURLY),
+        )
+        assert raw == download
+
+    def test_every_schema_filter_key_is_queryable(self, bq_api):
+        """The request schema and the query builder must agree on the filter
+        vocabulary: a key accepted by BaseFilterRequest but unknown to
+        build_filter_query passes validation and then 500s at query time."""
+        from api.schemas.requests import _FILTER_KEYS
+
+        for filter_type in _FILTER_KEYS:
+            sql = self._dynamic_sql(bq_api, filter_type, ["x1"], Frequency.HOURLY)
+            assert "@filter_value" in sql, filter_type

@@ -120,7 +120,9 @@ def _resolve_table(datatype: str, device_category: str, frequency: str) -> str:
 
 
 # Filter types that device-registry can screen for private entries.
-# airqlouds/grid_ids have no filterNonPrivate* endpoint and pass through.
+# airqlouds/grid_ids/cohort_ids have no filterNonPrivate* endpoint and pass
+# through: the registry screens site and device IDs, not the containers that
+# resolve to them, so a grid or cohort reaches its private members unscreened.
 _PRIVACY_FILTERED_TYPES = {"sites", "device_ids", "device_names"}
 
 
@@ -296,7 +298,7 @@ class DataExportService(BaseService):
         """
         Data-completeness report over the devices-summary table (Flask
         /data/summary): hourly/calibrated/uncalibrated record counts and
-        percentages per device and per site, for one airqloud/grid/cohort.
+        percentages per device and per site, for one grid/cohort.
         """
         filter_kind, filter_id = request.entity()
         start = self._summary_hour(request.start_date_time)
