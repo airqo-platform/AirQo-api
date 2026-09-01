@@ -652,28 +652,56 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
         currentPermissionIds.length === expectedPermissionIds.length &&
         currentPermissionIds.every((id) => expectedPermissionIds.includes(id));
 
-      if (!arePermissionsSynced) {
-        logObject(
-          `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`,
-        );
+      // Legacy roles (created before the group-based RBAC model) can exist
+      // with no group_id at all — only a network_id. Backfill it here rather
+      // than only on creation, otherwise a role that already existed by name
+      // never gets migrated and silently stays invisible to any group_id
+      // filtered lookup. roleData.group_id is resolved by the caller from
+      // grp_title (see getOrCreateAirqoGroup), never a hardcoded ObjectId, so
+      // this stays correct across environments/migrations.
+      const needsGroupIdBackfill = !existingRole.group_id && !!roleData.group_id;
+
+      if (!arePermissionsSynced || needsGroupIdBackfill) {
+        const update = { updatedAt: new Date() };
+
+        // Only touch permissions/status when they're actually out of sync —
+        // a group_id-only backfill must not force an otherwise-untouched
+        // role's status to ACTIVE (e.g. one that was deliberately set to
+        // INACTIVE).
+        if (!arePermissionsSynced) {
+          logObject(
+            `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`,
+          );
+          update.role_description = roleData.role_description;
+          update.role_permissions = permissionIds;
+          update.role_status = "ACTIVE";
+        }
+        if (needsGroupIdBackfill) {
+          logObject(
+            `🔧 Role ${roleData.role_name} is missing group_id. Backfilling from resolved group...`,
+          );
+          update.group_id = roleData.group_id;
+        }
         const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
           existingRole._id,
-          {
-            role_description: roleData.role_description,
-            role_permissions: permissionIds,
-            role_status: "ACTIVE",
-            updatedAt: new Date(),
-          },
+          update,
           { new: true },
         );
         return {
           success: true,
           data: updatedRole,
-          message: `Role ${roleData.role_name} permissions synchronized`,
+          message: `Role ${roleData.role_name} ${
+            !arePermissionsSynced && needsGroupIdBackfill
+              ? "permissions synchronized and group_id backfilled"
+              : needsGroupIdBackfill
+                ? "group_id backfilled"
+                : "permissions synchronized"
+          }`,
           action: "updated",
           status: httpStatus.OK,
           role_name: roleData.role_name,
           permissions_synced: expectedPermissionIds.length,
+          group_id_backfilled: needsGroupIdBackfill,
         };
       } else {
         logObject(
