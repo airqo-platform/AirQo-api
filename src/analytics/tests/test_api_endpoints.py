@@ -7,7 +7,7 @@ cache patching.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from api.schemas.responses import (
@@ -534,9 +534,11 @@ class TestDashboardAggregationEndpoints:
 
 
 class TestPrivacyFilteringWiring:
-    """End-to-end proof that the privacy check runs on the request path
-    (not just in service unit tests) for both API versions, and that a
-    registry outage surfaces as the standard 503 error envelope."""
+    """End-to-end view of the privacy flag on the request path (not just in
+    service unit tests), for both API versions.  Asserts that the flag is
+    stated at the call site rather than which value it is set to — the flag's
+    own behaviour is covered on both settings in
+    tests/test_services.py::TestPrivacyFiltering."""
 
     def _patched_bq(self, sample_df):
         meta = {"total_count": 2, "has_more": False, "next": None}
@@ -546,43 +548,25 @@ class TestPrivacyFilteringWiring:
             return_value=(sample_df, meta),
         )
 
-    def test_v2_data_download_calls_privacy_filter(
-        self, client, valid_export_payload, sample_df
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/v2/analytics/data-download",
+            "/api/v3/public/analytics/data-download",
+        ],
+    )
+    def test_data_download_states_privacy_explicitly(
+        self, client, valid_export_payload, sample_df, path, privacy_kwarg
     ):
-        with patch(
-            "api.services.filter_non_private_sites_devices",
-            return_value={"status": "success", "data": ["site1"]},
-        ) as mock_filter, self._patched_bq(sample_df):
-            resp = client.post(
-                "/api/v2/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 200
-        mock_filter.assert_called_once_with("sites", ["site1", "site2"])
+        """Both versions share DataExportService, so both reach the flag the
+        same way."""
+        with self._patched_bq(sample_df) as mock_bq:
+            resp = client.post(path, json=valid_export_payload)
 
-    def test_v3_data_download_calls_privacy_filter(
-        self, client, valid_export_payload, sample_df
-    ):
-        with patch(
-            "api.services.filter_non_private_sites_devices",
-            return_value={"status": "success", "data": ["site1"]},
-        ) as mock_filter, self._patched_bq(sample_df):
-            resp = client.post(
-                "/api/v3/public/analytics/data-download", json=valid_export_payload
-            )
         assert resp.status_code == 200
-        mock_filter.assert_called_once()
-
-    def test_registry_outage_returns_503_error_envelope(
-        self, client, valid_export_payload
-    ):
-        with patch("api.services.filter_non_private_sites_devices", return_value=None):
-            resp = client.post(
-                "/api/v2/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 503
-        body = resp.json()
-        assert body["status"] == "error"
-        assert "privacy" in body["message"].lower()
+        assert privacy_kwarg == [{"privacy": ANY}]
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {"sites": ["site1", "site2"]}
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 import pandas as pd
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
 
@@ -989,61 +989,122 @@ class TestDashboardExceedances:
 
 
 class TestPrivacyFiltering:
-    """The device-registry privacy check must run for sites/device filters
-    on every service that queries by filter, and must fail closed: a
-    transport failure or error response yields 503, never unfiltered data.
+    """_filter_from_request takes a `privacy` flag deciding whether the
+    requested sites/devices are screened against device-registry, which knows
+    which of them are marked private.
+
+    privacy=True   the list is sent to device-registry and entries it reports
+                   as private are dropped; if the registry is unreachable or
+                   returns an error the request gets a 503, so a screened
+                   endpoint never serves an unscreened list.
+    privacy=False  the list is used as requested and device-registry is not
+                   called, so its availability has no bearing on the request.
+
+    Both settings are covered explicitly below, and the service-wiring tests
+    assert only that a service states the flag rather than which value it
+    states — so the suite holds whichever way a path is wired, and none of it
+    rides on the parameter's default.
     """
 
-    @pytest.mark.asyncio
-    async def test_filtered_list_reaches_bigquery(self, export_request, sample_df):
-        """Private IDs stripped by device-registry never reach the query."""
-        svc = DataExportService()
+    def _bq(self, sample_df):
         meta = {"total_count": 2, "has_more": False, "next": None}
+        return patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        )
+
+    # -- Each request path states the flag rather than inheriting it ---------
+
+    @pytest.mark.asyncio
+    async def test_data_download_states_privacy_explicitly(
+        self, export_request, sample_df, privacy_kwarg
+    ):
+        with self._bq(sample_df) as mock_bq:
+            await DataExportService().export_data(export_request)
+
+        assert privacy_kwarg == [{"privacy": ANY}]
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {"sites": ["site1", "site2"]}
+
+    @pytest.mark.asyncio
+    async def test_raw_data_states_privacy_explicitly(
+        self, raw_request, sample_df, privacy_kwarg
+    ):
+        with self._bq(sample_df) as mock_bq:
+            await DataExportService().export_raw_data(raw_request)
+
+        assert privacy_kwarg == [{"privacy": ANY}]
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {"sites": ["site1"]}
+
+    # -- Both flag settings, always passed explicitly ------------------------
+
+    @pytest.mark.asyncio
+    async def test_privacy_false_uses_the_list_as_requested(self):
+        """device-registry is not called, so what it would have returned —
+        here an unreachable registry — makes no difference."""
+        from api.services import _filter_from_request
+
+        with patch(
+            "api.services.filter_non_private_sites_devices", return_value=None
+        ) as mock_filter:
+            filter_type, filter_value = await _filter_from_request(
+                {"sites": ["site1", "site2"]}, privacy=False
+            )
+
+        mock_filter.assert_not_called()
+        assert (filter_type, filter_value) == ("sites", ["site1", "site2"])
+
+    @pytest.mark.asyncio
+    async def test_privacy_true_drops_private_ids(self):
+        """Entries device-registry reports as private are left out of the
+        list the query runs against."""
+        from api.services import _filter_from_request
 
         with patch(
             "api.services.filter_non_private_sites_devices",
             return_value={"status": "success", "data": ["site1"]},
-        ) as mock_filter, patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ) as mock_bq:
-            await svc.export_data(export_request)
+        ) as mock_filter:
+            filter_type, filter_value = await _filter_from_request(
+                {"sites": ["site1", "site2"]}, privacy=True
+            )
 
         mock_filter.assert_called_once_with("sites", ["site1", "site2"])
-        _, kwargs = mock_bq.call_args
-        assert kwargs["where_fields"] == {"sites": ["site1"]}
+        assert (filter_type, filter_value) == ("sites", ["site1"])
 
     @pytest.mark.asyncio
-    async def test_transport_failure_fails_closed_with_503(self, export_request):
-        """The helper swallows transport errors and returns None."""
-        svc = DataExportService()
+    async def test_privacy_true_returns_503_when_registry_unreachable(self):
+        """The helper swallows transport errors and returns None; with
+        screening requested there is no screened list to serve, so 503."""
+        from api.services import _filter_from_request
+
         with patch("api.services.filter_non_private_sites_devices", return_value=None):
             with pytest.raises(HTTPException) as exc:
-                await svc.export_data(export_request)
+                await _filter_from_request({"sites": ["site1"]}, privacy=True)
         assert exc.value.status_code == 503
 
     @pytest.mark.asyncio
-    async def test_error_status_fails_closed_with_503(self, export_request):
-        svc = DataExportService()
+    async def test_privacy_true_returns_503_on_registry_error_status(self):
+        from api.services import _filter_from_request
+
         with patch(
             "api.services.filter_non_private_sites_devices",
             return_value={"status": "error", "message": "registry down"},
         ):
             with pytest.raises(HTTPException) as exc:
-                await svc.export_data(export_request)
+                await _filter_from_request({"sites": ["site1"]}, privacy=True)
         assert exc.value.status_code == 503
 
     @pytest.mark.asyncio
     async def test_grid_ids_filter_bypasses_privacy_check(
         self, valid_export_payload, sample_df
     ):
-        """grid_ids has no filterNonPrivate counterpart, so it passes through
-        unscreened. That is a known gap: a grid resolves to the same sites, so
-        a caller refused private data via `sites` can still reach it via the
-        containing grid. Closing it needs a device-registry endpoint that can
-        screen grids; until then this test documents the behaviour rather than
-        endorsing it."""
+        """grid_ids is not in _PRIVACY_FILTERED_TYPES, so it is used as
+        requested even under privacy=True: device-registry screens site and
+        device IDs, not the containers that resolve to them, and a grid
+        resolves to sites.  Screening grids would need a device-registry
+        endpoint that accepts them."""
         from api.schemas.requests import DataExportRequest
 
         request = DataExportRequest(
@@ -1069,13 +1130,11 @@ class TestPrivacyFiltering:
     async def test_cohort_ids_filter_bypasses_privacy_check(
         self, valid_export_payload, sample_df
     ):
-        """cohort_ids has the same gap as grid_ids, and a wider one: a cohort
-        resolves directly to devices, so a caller refused private devices via
-        `device_ids` can still reach them through a cohort containing them.
-        filterNonPrivateDevices screens device IDs, not cohort IDs, so closing
-        this needs the cohort expanded to devices first (or a registry
-        endpoint that screens cohorts). Documents the behaviour rather than
-        endorsing it."""
+        """cohort_ids is not in _PRIVACY_FILTERED_TYPES either, for the same
+        reason as grid_ids — a cohort resolves to devices, and
+        filterNonPrivateDevices accepts device IDs, not cohort IDs.  Screening
+        cohorts would mean expanding the cohort to its devices first, or a
+        device-registry endpoint that accepts cohorts."""
         from api.schemas.requests import DataExportRequest
 
         request = DataExportRequest(
@@ -1098,52 +1157,31 @@ class TestPrivacyFiltering:
         assert kwargs["where_fields"] == {"cohort_ids": ["c1"]}
 
     @pytest.mark.asyncio
-    async def test_dashboard_chart_bypasses_privacy_filter(
-        self, dashboard_request, sample_df
+    async def test_dashboard_chart_states_privacy_explicitly(
+        self, dashboard_request, sample_df, privacy_kwarg
     ):
-        """Chart endpoints are deliberately NOT privacy-filtered (user
-        decision) — a registry outage must not affect them."""
-        svc = DashboardService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-        with patch(
-            "api.services.filter_non_private_sites_devices"
-        ) as mock_filter, patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ):
-            resp = await svc.get_chart_data(dashboard_request)
+        """Chart endpoints have always set the flag at the call site rather
+        than inheriting the default."""
+        with self._bq(sample_df) as mock_bq:
+            resp = await DashboardService().get_chart_data(dashboard_request)
 
-        mock_filter.assert_not_called()
+        assert privacy_kwarg == [{"privacy": ANY}]
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {"sites": ["site1"]}
         assert resp.status == "success"
 
     @pytest.mark.asyncio
-    async def test_scheduled_export_fails_closed_with_503(self):
+    async def test_scheduled_export_states_privacy_explicitly(self, privacy_kwarg):
+        """The Celery worker exports whatever filter_value the record holds,
+        so the list is resolved here, at registration time."""
         from api.services import ExportRequestService
 
-        svc = ExportRequestService()
-        with patch(
-            "api.services.filter_non_private_sites_devices", return_value=None
-        ), patch("api.services.DataExportModel") as mock_model_cls:
-            with pytest.raises(HTTPException) as exc:
-                await svc.create(_scheduled_export_request())
+        with patch("api.services.DataExportModel") as mock_model_cls:
+            await ExportRequestService().create(_scheduled_export_request())
 
-        assert exc.value.status_code == 503
-        mock_model_cls.return_value.create_request.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_scheduled_export_stores_filtered_list(self):
-        from api.services import ExportRequestService
-
-        svc = ExportRequestService()
-        with patch(
-            "api.services.filter_non_private_sites_devices",
-            return_value={"status": "success", "data": []},
-        ), patch("api.services.DataExportModel") as mock_model_cls:
-            await svc.create(_scheduled_export_request())
-
+        assert privacy_kwarg == [{"privacy": ANY}]
         record = mock_model_cls.return_value.create_request.call_args.args[0]
-        assert record.filter_value == []
+        assert record.filter_value == ["site1"]
 
 
 # ---------------------------------------------------------------------------

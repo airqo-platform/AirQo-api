@@ -425,7 +425,7 @@ class DataExportService(BaseService):
     ) -> Union[DataExportResponse, StreamingResponse]:
         """Shared export pipeline: filter → table → query → format response."""
         req_dict = request.model_dump(by_alias=False)
-        filter_type, filter_value = await _filter_from_request(req_dict)
+        filter_type, filter_value = await _filter_from_request(req_dict, privacy=False)
 
         table = _resolve_table(
             datatype=datatype,
@@ -1019,7 +1019,7 @@ class ExportRequestService(BaseService):
     async def create(self, request: ScheduledExportRequest) -> Dict[str, Any]:
         """Register a new export request (status SCHEDULED)."""
         req_dict = request.model_dump(by_alias=False)
-        filter_type, filter_value = await _filter_from_request(req_dict)
+        filter_type, filter_value = await _filter_from_request(req_dict, privacy=False)
 
         record = DataExportRecord(
             status=DataExportStatus.SCHEDULED,
