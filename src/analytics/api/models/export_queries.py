@@ -50,14 +50,6 @@ def data_export_query(
         devices = list(filter_value)
     elif filter_type == "sites":
         sites = list(filter_value)
-    elif filter_type == "airqlouds":
-        # Deprecated and removed from the API. Any request still carrying it
-        # predates the change; fail with a message that says so rather than a
-        # generic "unsupported filter type".
-        raise ValueError(
-            "The airqlouds filter is deprecated and no longer supported; "
-            "recreate this export using sites or devices"
-        )
     else:
         raise ValueError(f"Unsupported export filter type: {filter_type}")
 

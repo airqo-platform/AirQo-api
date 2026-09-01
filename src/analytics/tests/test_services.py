@@ -100,7 +100,7 @@ class TestDataExportService:
 
         assert resp.status == "success"
         assert resp.data == []
-        assert "No data found" in resp.message
+        assert "No data available for the selected period" in resp.message
 
     @pytest.mark.asyncio
     async def test_export_data_bigquery_error_raises_500(self, export_request):
@@ -299,7 +299,7 @@ class TestDataExportService:
 
     async def test_get_summary_cohort_branch_includes_site_columns(self):
         """Divergence-fix: the Flask cohort chain lacked site_id/site_name,
-        so compute_airqloud_summary's groupby KeyError'd — every cohort
+        so compute_entity_summary's groupby KeyError'd — every cohort
         request 500'd.  The ported query must carry both columns and the
         computation must succeed end to end."""
         from api.models.summary_queries import devices_summary_query
@@ -351,7 +351,7 @@ class TestDataExportService:
         request = DataSummaryRequest(
             startDateTime="2024-01-01T00:00:00",
             endDateTime="2024-01-05T00:00:00",
-            airqloud="aq-1",
+            grid="grid-1",
         )
         svc = DataExportService()
         with patch(
@@ -363,8 +363,8 @@ class TestDataExportService:
 
         assert resp["status"] == "success"
         assert resp["data"] == {}
-        assert "No data found for airqloud aq-1" in resp["message"]
-        assert "2024-01-01T00:00:00Z" in resp["message"]
+        assert "No data available for grid grid-1" in resp["message"]
+        assert "2024-01-01" in resp["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -1463,3 +1463,117 @@ class TestReportTemplateService:
             )
             resp = await svc.delete_monthly("march", "airqo")
         assert resp["message"] == "monthly report march deleted successfully"
+
+
+# ---------------------------------------------------------------------------
+# Oversized queries
+#
+# BigQuery refuses a job that would exceed maximum_bytes_billed while planning
+# it, so nothing is scanned and nothing is billed. Surfacing that as a 500
+# left the caller with BigQuery's raw byte counts and no idea what to change;
+# it is a 400 naming the lever that actually moves the figure — the window.
+# ---------------------------------------------------------------------------
+
+
+class TestOversizedQueryHandling:
+    _REJECTION = (
+        "Query exceeded limit for bytes billed: 1073741824. "
+        "5557452800 or higher required."
+    )
+
+    def _too_large(self):
+        from api.utils.exceptions import QueryTooLarge
+
+        return QueryTooLarge(limit_bytes=1073741824, required_bytes=5557452800)
+
+    @pytest.mark.asyncio
+    async def test_data_download_returns_400_not_500(self, export_request):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=self._too_large(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_message_names_the_window_and_the_sizes(self, export_request):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=self._too_large(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        detail = exc.value.detail
+        assert "date range is too large" in detail
+        assert "5.2 GB" in detail and "1.0 GB" in detail
+        # 5557452800 / 1073741824 rounds up to 6
+        assert "6x" in detail
+        assert "daily" in detail  # export_request is daily → frequency named
+
+    @pytest.mark.asyncio
+    async def test_fine_frequencies_are_offered_a_coarser_one(self, valid_raw_payload):
+        """Suggesting "use daily instead" only helps below daily."""
+        from api.schemas.requests import RawDataExportRequest
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=self._too_large(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_raw_data(
+                    RawDataExportRequest(**valid_raw_payload)
+                )
+
+        assert "coarser frequency" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_chart_data_returns_400(self, dashboard_request):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=self._too_large(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DashboardService().get_chart_data(dashboard_request)
+
+        assert exc.value.status_code == 400
+        assert "date range is too large" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_unparseable_rejection_still_gives_actionable_advice(
+        self, export_request
+    ):
+        """Without the byte figures there is no "Nx" to quote, but the
+        instruction to shorten the range still stands."""
+        from api.utils.exceptions import QueryTooLarge
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=QueryTooLarge(limit_bytes=1073741824),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        assert exc.value.status_code == 400
+        assert "Shorten the date range" in exc.value.detail
+        assert "x," not in exc.value.detail  # no bogus "by about Nx"
+
+    @pytest.mark.asyncio
+    async def test_other_query_failures_are_still_500(self, export_request):
+        """Only the size rejection is the caller's to fix."""
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("connection reset"),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        assert exc.value.status_code == 500

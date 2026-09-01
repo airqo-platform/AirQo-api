@@ -117,7 +117,7 @@ class TestFormatToAqcsv:
 class TestGetValidatedFilter:
     """
     Regression coverage: valid_filters previously only listed
-    "sites"/"device_ids"/"device_names", so an airqlouds-only request hit
+    "sites"/"device_ids"/"device_names", so an unrecognised-filter request hit
     `provided_filters[0]` on an empty list, raising an unhandled IndexError
     instead of the intended validation error. "grid_ids" is a newly added filter
     type that needs the same recognition.

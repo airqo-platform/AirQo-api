@@ -270,12 +270,6 @@ class BaseConfig(BaseSettings):
     bigquery_sites_sites: str = Field(
         default="sites", validation_alias="BIGQUERY_SITES_SITES"
     )
-    bigquery_airqlouds_sites: str = Field(
-        default="airqlouds_sites", validation_alias="BIGQUERY_AIRQLOUDS_SITES"
-    )
-    bigquery_airqlouds: str = Field(
-        default="airqlouds", validation_alias="BIGQUERY_AIRQLOUDS"
-    )
     bigquery_grids_sites: str = Field(
         default="grids_sites", validation_alias="BIGQUERY_GRIDS_SITES"
     )

@@ -433,31 +433,27 @@ class GridReportRequest(BaseRequest):
 class DataSummaryRequest(BaseRequest):
     """
     POST /data/summary — Flask wire contract: startDateTime/endDateTime plus
-    ONE of airqloud / grid / cohort.  (Flask marked all three optional and
-    crashed with a 500 when none was given — requiring exactly one turns
-    that into a clean 422.)
+    ONE of grid / cohort.  (Flask marked them optional and crashed with a 500
+    when none was given — requiring exactly one turns that into a clean 422.)
     """
 
     start_date_time: datetime = Field(..., alias="startDateTime")
     end_date_time: datetime = Field(..., alias="endDateTime")
-    airqloud: Optional[str] = None
     grid: Optional[str] = None
     cohort: Optional[str] = None
 
     @model_validator(mode="after")
     def exactly_one_entity(self) -> "DataSummaryRequest":
         provided = [
-            kind
-            for kind in ("airqloud", "grid", "cohort")
-            if (getattr(self, kind) or "").strip()
+            kind for kind in ("grid", "cohort") if (getattr(self, kind) or "").strip()
         ]
         if len(provided) != 1:
-            raise ValueError("Provide exactly one of: airqloud, grid, cohort")
+            raise ValueError("Provide exactly one of: grid, cohort")
         return self
 
     def entity(self) -> tuple:
         """(filter_kind, filter_id) for the summary query builder."""
-        for kind in ("airqloud", "grid", "cohort"):
+        for kind in ("grid", "cohort"):
             value = (getattr(self, kind) or "").strip()
             if value:
                 return kind, value

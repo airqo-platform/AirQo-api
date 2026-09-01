@@ -76,7 +76,7 @@ class TestV2DataEndpoints:
 
     def test_data_summary_200(self, client):
         """Flask wire contract: startDateTime/endDateTime + one of
-        airqloud/grid/cohort → completeness-report envelope."""
+        grid/cohort → completeness-report envelope."""
         envelope = {
             "status": "success",
             "message": "successful",
@@ -904,3 +904,79 @@ class TestMiddleware:
         assert any(
             "CORS" in n for n in middleware_names
         ), "CORSMiddleware should be configured"
+
+
+# ---------------------------------------------------------------------------
+# Response envelope contract
+#
+# Every response — success or error — carries the same four keys, so a client
+# branches on `status` alone and always finds `message` populated.
+# ---------------------------------------------------------------------------
+
+
+class TestResponseEnvelopeContract:
+    _ENVELOPE_KEYS = {"message", "status", "data", "metadata"}
+
+    def test_oversized_query_is_a_400_error_envelope(
+        self, client, valid_export_payload
+    ):
+        from api.utils.exceptions import QueryTooLarge
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=QueryTooLarge(
+                limit_bytes=1073741824, required_bytes=5557452800
+            ),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 400
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "error"
+        assert body["data"] is None
+        assert "date range is too large" in body["message"]
+
+    def test_empty_result_is_a_200_success_envelope(
+        self, client, valid_export_payload, empty_df
+    ):
+        """No data is not an error: the request was valid, the period simply
+        holds no measurements."""
+        meta = {"total_count": 0, "has_more": False, "next": None}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(empty_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "success"
+        assert body["data"] == []
+        assert "No data available for the selected period" in body["message"]
+
+    def test_unexpected_failure_is_a_500_error_envelope(
+        self, client, valid_export_payload
+    ):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("connection reset"),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 500
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "error"
+        # Internal detail must not leak to the caller
+        assert "connection reset" not in body["message"]

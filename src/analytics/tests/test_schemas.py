@@ -445,7 +445,7 @@ class TestDataSummaryRequest:
         from api.schemas.requests import DataSummaryRequest
 
         with pytest.raises(ValidationError, match="exactly one"):
-            DataSummaryRequest(**self._WINDOW, airqloud="a1", cohort="c1")
+            DataSummaryRequest(**self._WINDOW, grid="g1", cohort="c1")
 
     def test_whitespace_entity_treated_as_absent(self):
         """Flask treated '' as absent via .strip() — preserve."""
@@ -496,11 +496,4 @@ class TestScheduledExportRequest:
         tick until retries are exhausted."""
         payload = self._payload(sites=None, grid_ids=["g1"])
         with pytest.raises(ValidationError, match="not yet supported"):
-            ScheduledExportRequest(**payload)
-
-    def test_airqlouds_rejected(self):
-        """airqlouds is deprecated and removed; a request carrying only it now
-        has no valid filter at all."""
-        payload = self._payload(sites=None, airqlouds=["a1"])
-        with pytest.raises(ValidationError, match="Provide exactly one of"):
             ScheduledExportRequest(**payload)

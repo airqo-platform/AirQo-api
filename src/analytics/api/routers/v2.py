@@ -72,7 +72,7 @@ async def data_summary(
     request: DataSummaryRequest,
     service: DataExportService = Depends(),
 ) -> Dict[str, Any]:
-    """Data-completeness report for one airqloud/grid/cohort: hourly,
+    """Data-completeness report for one grid/cohort: hourly,
     calibrated, and uncalibrated record counts and percentages per site
     and device over the requested window."""
     return await service.get_summary(request)

@@ -65,17 +65,6 @@ class TestJoins:
         assert "RIGHT JOIN" in result
         assert "data.site_id = " in result
 
-    def test_airqloud_join_helpers_are_gone(self, bq_api):
-        """airqlouds is deprecated — its query builders were removed so a
-        stale caller fails loudly instead of silently building dead SQL."""
-        for removed in (
-            "airqloud_info_query",
-            "add_airqloud_join",
-            "add_device_join_to_airqlouds",
-            "get_airqloud_query",
-        ):
-            assert not hasattr(bq_api, removed), f"{removed} should be removed"
-
 
 class TestTimeGrouping:
     @pytest.mark.parametrize(

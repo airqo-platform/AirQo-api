@@ -72,9 +72,7 @@ def compute_devices_summary(data: pd.DataFrame) -> pd.DataFrame:
     return devices_summary
 
 
-def compute_airqloud_summary(
-    data: pd.DataFrame, start_date_time, end_date_time
-) -> dict:
+def compute_entity_summary(data: pd.DataFrame, start_date_time, end_date_time) -> dict:
     if len(data.index) == 0:
         return {}
 
@@ -168,24 +166,6 @@ def compute_airqloud_summary(
             return {
                 "grid": grid,
                 "grid_id": grid_id,
-                "hourly_records": hourly_records,
-                "calibrated_records": calibrated_records,
-                "uncalibrated_records": un_calibrated_records,
-                "calibrated_percentage": (calibrated_records / hourly_records) * 100,
-                "uncalibrated_percentage": (un_calibrated_records / hourly_records)
-                * 100,
-                "start_date_time": start_date_time,
-                "end_date_time": end_date_time,
-                "sites": sites,
-                "devices": devices,
-            }
-
-        elif "airqloud" in data.columns:
-            airqloud = data.iloc[0]["airqloud"]
-            airqloud_id = data.iloc[0]["airqloud_id"]
-            return {
-                "airqloud": airqloud,
-                "airqloud_id": airqloud_id,
                 "hourly_records": hourly_records,
                 "calibrated_records": calibrated_records,
                 "uncalibrated_records": un_calibrated_records,
