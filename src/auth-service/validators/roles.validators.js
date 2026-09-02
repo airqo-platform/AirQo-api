@@ -78,47 +78,25 @@ const listSummary = [validateTenant];
 
 const create = [
   validateTenant,
-  body().custom((value, { req }) => {
-    const { network_id, group_id } = req.body;
-
-    if (!network_id && !group_id) {
-      throw new Error("Either network_id or group_id must be provided");
-    }
-
-    if (network_id && group_id) {
-      throw new Error("Cannot provide both network_id and group_id");
-    }
-
-    return true;
-  }),
-  oneOf([
-    body("network_id")
-      .exists()
-      .withMessage(
-        "the organisation identifier is missing in request, consider using the network_id",
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    body("group_id")
-      .exists()
-      .withMessage(
-        "the organisation identifier is missing in request, consider using the group_id",
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("group_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
+  body("network_id")
+    .not()
+    .exists()
+    .withMessage(
+      "network_id is no longer supported — roles are always group-scoped, use group_id",
+    ),
+  body("group_id")
+    .exists()
+    .withMessage(
+      "the organisation identifier is missing in request, consider using the group_id",
+    )
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("group_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
 
   [
     body("role_code")
@@ -195,18 +173,6 @@ const update = [
       .isEmpty()
       .withMessage("the role_code should not be provided when updating")
       .trim(),
-    body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("network_id must not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
     body("group_id")
       .optional()
       .notEmpty()

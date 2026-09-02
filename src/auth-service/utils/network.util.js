@@ -1,10 +1,16 @@
 /**
  * @deprecated Only `list`/`create` are still reachable (via GET/POST
- * /users/networks), kept for the vertex "Sensor Manufacturers" admin page.
- * See docs/access-control/NETWORK_DEPRECATION_GUIDE_VERTEX.md.
+ * /users/networks), kept for the vertex "Sensor Manufacturers" admin page and
+ * its device/site/grid/cohort creation forms (see
+ * docs/access-control/NETWORK_DEPRECATION_GUIDE_VERTEX.md). `create`'s RBAC
+ * side effect is now backed by a Group instead of the (removed) network-scoped
+ * Role/User.network_roles model — see getOrCreateGroupForNetwork below — so
+ * the request/response contract is unchanged but no new network-scoped roles
+ * are produced.
  */
 const constants = require("@config/constants");
 const NetworkModel = require("@models/Network");
+const GroupModel = require("@models/Group");
 const PermissionModel = require("@models/Permission");
 const RoleModel = require("@models/Role");
 const UserModel = require("@models/User");
@@ -22,6 +28,31 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError } = require("@utils/shared");
+
+/**
+ * Networks no longer carry their own RBAC (Role.network_id/User.network_roles
+ * are being removed) — a network's admin role is now backed by a Group
+ * instead. This finds or creates a Group whose grp_title matches the
+ * network's acronym so the resulting role is a normal group-scoped role,
+ * while the Network document itself (and this endpoint's request/response
+ * contract) is unchanged for existing callers.
+ */
+const getOrCreateGroupForNetwork = async (tenant, netAcronym) => {
+  const grpTitle = netAcronym.toLowerCase();
+  const group = await GroupModel(tenant)
+    .findOneAndUpdate(
+      { grp_title: grpTitle },
+      {
+        $setOnInsert: {
+          grp_title: grpTitle,
+          grp_description: `Organization group for ${netAcronym}`,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    )
+    .lean();
+  return group;
+};
 
 const createNetwork = {
   extractOneAcronym: (request, next) => {
@@ -175,13 +206,18 @@ const createNetwork = {
           );
         }
 
+        const groupForNetwork = await getOrCreateGroupForNetwork(
+          tenant,
+          modifiedBody.net_acronym,
+        );
+
         let requestForRole = {};
         requestForRole.query = {};
         requestForRole.query.tenant = tenant;
         requestForRole.body = {
           role_code: "ADMIN",
           role_name: "ADMIN",
-          network_id: net_id,
+          group_id: groupForNetwork._id,
         };
 
         const responseFromCreateRole =
@@ -273,8 +309,8 @@ const createNetwork = {
               user._id,
               {
                 $addToSet: {
-                  network_roles: {
-                    network: net_id,
+                  group_roles: {
+                    group: groupForNetwork._id,
                     role: role_id,
                     userType: "user",
                   },

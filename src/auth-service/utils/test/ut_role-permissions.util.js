@@ -335,15 +335,11 @@ describe("role-permissions util", () => {
       });
 
       expect(findByIdAndUpdateStub.calledOnce).to.equal(true);
-      expect(findByIdAndUpdateStub.firstCall.args[1]).to.have.property(
-        "group_id",
-        "g1",
-      );
+      const updateOps = findByIdAndUpdateStub.firstCall.args[1];
+      expect(updateOps.$set).to.have.property("group_id", "g1");
       // A group_id-only backfill must not force role_status/permissions —
       // those are only touched when they're actually out of sync.
-      expect(findByIdAndUpdateStub.firstCall.args[1]).to.not.have.property(
-        "role_status",
-      );
+      expect(updateOps.$set).to.not.have.property("role_status");
       expect(result.action).to.equal("updated");
       expect(result.group_id_backfilled).to.equal(true);
       expect(result.message).to.equal(
@@ -351,13 +347,56 @@ describe("role-permissions util", () => {
       );
     });
 
+    it("should unset the legacy network_id when backfilling group_id, since networks are deprecated", async () => {
+      const findByIdAndUpdateStub = sinon.stub().resolves({
+        _id: "r1",
+        role_name: "AIRQO_SUPER_ADMIN",
+        group_id: "g1",
+      });
+
+      rewireRPU.__set__("RoleModel", () => ({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().resolves({
+            _id: "r1",
+            role_name: "AIRQO_SUPER_ADMIN",
+            role_code: "AIRQO_SUPER_ADMIN",
+            role_permissions: ["p1"],
+            group_id: undefined,
+            // legacy network association predating group-based RBAC
+            network_id: "legacy-network-id",
+          }),
+        }),
+        findByIdAndUpdate: findByIdAndUpdateStub,
+      }));
+
+      rewireRPU.__set__("PermissionModel", () => ({
+        find: sinon.stub().returns({
+          select: sinon.stub().returns({
+            lean: sinon.stub().resolves([{ _id: "p1", permission: "SUPER_ADMIN" }]),
+          }),
+        }),
+      }));
+
+      await createOrUpdateRoleWithPermissionSync("airqo", {
+        role_name: "AIRQO_SUPER_ADMIN",
+        role_code: "AIRQO_SUPER_ADMIN",
+        role_description: "desc",
+        permissions: ["SUPER_ADMIN"],
+        group_id: "g1",
+      });
+
+      const updateOps = findByIdAndUpdateStub.firstCall.args[1];
+      expect(updateOps.$set).to.have.property("group_id", "g1");
+      expect(updateOps.$unset).to.have.property("network_id", "");
+    });
+
     it("should preserve an existing role's role_status when only backfilling group_id (not force ACTIVE)", async () => {
-      const findByIdAndUpdateStub = sinon.stub().callsFake((id, update) =>
+      const findByIdAndUpdateStub = sinon.stub().callsFake((id, updateOps) =>
         Promise.resolve({
           _id: "r1",
           role_name: "AIRQO_SUPER_ADMIN",
           role_status: "INACTIVE", // untouched by the update object
-          group_id: update.group_id,
+          group_id: updateOps.$set.group_id,
         }),
       );
 
@@ -391,9 +430,9 @@ describe("role-permissions util", () => {
         group_id: "g1",
       });
 
-      expect(findByIdAndUpdateStub.firstCall.args[1]).to.not.have.property(
-        "role_status",
-      );
+      expect(
+        findByIdAndUpdateStub.firstCall.args[1].$set,
+      ).to.not.have.property("role_status");
       expect(result.data.role_status).to.equal("INACTIVE");
     });
 
@@ -434,9 +473,9 @@ describe("role-permissions util", () => {
       });
 
       expect(findByIdAndUpdateStub.calledOnce).to.equal(true);
-      expect(findByIdAndUpdateStub.firstCall.args[1]).to.not.have.property(
-        "group_id",
-      );
+      expect(
+        findByIdAndUpdateStub.firstCall.args[1].$set,
+      ).to.not.have.property("group_id");
       expect(result.message).to.equal(
         "Role AIRQO_SUPER_ADMIN permissions synchronized",
       );
@@ -476,6 +515,34 @@ describe("role-permissions util", () => {
 
       expect(findByIdAndUpdateStub.called).to.equal(false);
       expect(result.action).to.equal("unchanged");
+    });
+  });
+
+  describe("isGroupRoleOrNetworkRole()", () => {
+    const isGroupRoleOrNetworkRole = rewireRPU.__get__(
+      "isGroupRoleOrNetworkRole",
+    );
+
+    it('should return "group" when only group_id is set', () => {
+      expect(isGroupRoleOrNetworkRole({ group_id: "g1" })).to.equal("group");
+    });
+
+    it('should return "none" when neither is set', () => {
+      expect(isGroupRoleOrNetworkRole({})).to.equal("none");
+    });
+
+    it('should return "none" for a network-only legacy role — network-scoped roles are no longer supported', () => {
+      // Networks are fully removed from role assignment: a role with only
+      // network_id (never migrated to group_id) is no longer assignable.
+      // See docs/access-control/NETWORK_DEPRECATION_FOLLOWUP.md — this is
+      // why the migration tooling must run before this ships.
+      expect(isGroupRoleOrNetworkRole({ network_id: "n1" })).to.equal("none");
+    });
+
+    it('should return "group" when both group_id and network_id are set (a stale, unmigrated network_id must not block assignment)', () => {
+      expect(
+        isGroupRoleOrNetworkRole({ group_id: "g1", network_id: "n1" }),
+      ).to.equal("group");
     });
   });
 

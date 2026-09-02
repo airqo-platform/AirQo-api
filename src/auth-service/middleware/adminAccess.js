@@ -23,7 +23,7 @@ const getRBACService = (tenant = constants.DEFAULT_TENANT) =>
  */
 const adminCheck = (options = {}) => {
   const {
-    contextType = "group", // 'group' or 'network'
+    contextType = "group", // 'group' — the only supported context type
     idParam = "grp_id", // Parameter name for context ID
     fallbackIdParams = ["groupSlug", "grp_slug"], // Alternative parameter names
     requireSuperAdmin = true, // Whether to require SUPER_ADMIN role
@@ -90,10 +90,9 @@ const adminCheck = (options = {}) => {
         }
         targetContext = await GroupModel(tenant).findOne(lookupQuery).lean();
       } else {
-        // Add network lookup logic here when NetworkModel is available
         return next(
-          new HttpError("Not Implemented", httpStatus.NOT_IMPLEMENTED, {
-            message: "Network context not yet implemented",
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: `Unsupported contextType: ${contextType}`,
           })
         );
       }
@@ -107,10 +106,10 @@ const adminCheck = (options = {}) => {
       }
 
       // Check if user is a member of this context
-      const isMember =
-        contextType === "group"
-          ? await rbacService.isGroupMember(user._id, targetContext._id)
-          : await rbacService.isNetworkMember(user._id, targetContext._id);
+      const isMember = await rbacService.isGroupMember(
+        user._id,
+        targetContext._id
+      );
 
       if (!isMember) {
         return next(

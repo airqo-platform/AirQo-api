@@ -138,6 +138,9 @@ class RBACService {
   async _populateUserRoleData(user) {
     try {
       const populatedUser = { ...user };
+      // Raw network_roles data must not leak through unprocessed — this
+      // populated shape is group-only.
+      delete populatedUser.network_roles;
 
       const [directPermissions, populatedGroupRoles] = await Promise.all([
         this._populateDirectPermissions(user),
@@ -146,16 +149,15 @@ class RBACService {
 
       populatedUser.permissions = directPermissions;
       populatedUser.group_roles = populatedGroupRoles;
-      populatedUser.network_roles = [];
 
       return populatedUser;
     } catch (error) {
       console.error("Error in optimized manual population:", error);
+      const { network_roles, ...rest } = user;
       return {
-        ...user,
+        ...rest,
         permissions: [],
         group_roles: [],
-        network_roles: [],
       };
     }
   }
@@ -263,9 +265,7 @@ class RBACService {
         return {
           systemPermissions: [],
           groupPermissions: {},
-          networkPermissions: {},
           groupMemberships: [],
-          networkMemberships: [],
           isSuperAdmin: false,
         };
       }
@@ -403,15 +403,10 @@ class RBACService {
         }
       }
 
-      const networkPermissions = {};
-      const networkMemberships = [];
-
       const result = {
         systemPermissions: Array.from(systemPermissions),
         groupPermissions,
-        networkPermissions,
         groupMemberships,
-        networkMemberships,
         deactivatedGroupMemberships,
         isSuperAdmin,
       };
@@ -419,7 +414,6 @@ class RBACService {
       console.log("✅ Enhanced RBAC Context result:", {
         systemPermissionsCount: result.systemPermissions.length,
         groupCount: Object.keys(result.groupPermissions).length,
-        networkCount: Object.keys(result.networkPermissions).length,
         isSuperAdmin: result.isSuperAdmin,
       });
 
@@ -432,9 +426,7 @@ class RBACService {
       return {
         systemPermissions: [],
         groupPermissions: {},
-        networkPermissions: {},
         groupMemberships: [],
-        networkMemberships: [],
         deactivatedGroupMemberships: [],
         isSuperAdmin: false,
       };
@@ -447,9 +439,7 @@ class RBACService {
       allPermissions: [],
       systemPermissions: [],
       groupPermissions: {},
-      networkPermissions: {},
       groupMemberships: [],
-      networkMemberships: [],
       isSuperAdmin: false,
     };
 
@@ -471,16 +461,13 @@ class RBACService {
       const allPermissions = [
         ...contextData.systemPermissions,
         ...Object.values(contextData.groupPermissions).flat(),
-        ...Object.values(contextData.networkPermissions).flat(),
       ];
 
       const result = {
         allPermissions: [...new Set(allPermissions)],
         systemPermissions: contextData.systemPermissions,
         groupPermissions: contextData.groupPermissions,
-        networkPermissions: contextData.networkPermissions,
         groupMemberships: contextData.groupMemberships,
-        networkMemberships: contextData.networkMemberships,
         isSuperAdmin: contextData.isSuperAdmin,
       };
 
@@ -629,12 +616,13 @@ class RBACService {
             ...contextData.systemPermissions,
           ];
         } else if (contextType === "network") {
-          userPermissions = contextData.networkPermissions[contextId] || [];
-          // Also include system permissions for network context
-          userPermissions = [
-            ...userPermissions,
-            ...contextData.systemPermissions,
-          ];
+          // Networks carry no permissions of their own (RBAC has fully
+          // moved to groups) — deliberately kept as "system permissions
+          // only", not a fall-through to the user's full permission set,
+          // since this feeds requireNetworkManagerAccess's OR-composed
+          // manager check (middleware/groupNetworkAuth.js) and must not
+          // become more permissive than before.
+          userPermissions = [...contextData.systemPermissions];
         } else {
           userPermissions = await this.getUserPermissions(userId);
         }
@@ -761,29 +749,6 @@ class RBACService {
   }
 
   /**
-   * Batch populate network data
-   */
-  async _batchPopulateNetworks(networkIds) {
-    if (!networkIds || networkIds.length === 0) return new Map();
-
-    try {
-      const uniqueNetworkIds = [...new Set(networkIds.filter(Boolean))];
-
-      if (uniqueNetworkIds.length === 0) return new Map();
-
-      const networks = await this.getNetworkModel()
-        .find({ _id: { $in: uniqueNetworkIds } })
-        .select("net_name net_status net_acronym")
-        .lean();
-
-      return new Map(networks.map((n) => [n._id.toString(), n]));
-    } catch (error) {
-      console.warn("Could not batch populate networks:", error.message);
-      return new Map();
-    }
-  }
-
-  /**
    * Populate group roles with optimized batch fetching
    */
   async _populateGroupRoles(groupRoles) {
@@ -872,15 +837,6 @@ class RBACService {
             userRoles.push(gr.userType);
             if (gr.role && gr.role.role_name) {
               userRoles.push(gr.role.role_name);
-            }
-          });
-        }
-
-        if (populatedUser.network_roles) {
-          populatedUser.network_roles.forEach((nr) => {
-            userRoles.push(nr.userType);
-            if (nr.role && nr.role.role_name) {
-              userRoles.push(nr.role.role_name);
             }
           });
         }
@@ -980,13 +936,10 @@ class RBACService {
         }
       }
 
-      // Check 3: System admin role names in any group/network roles
-      const allRoles = [
-        ...(populatedUser.group_roles?.map((gr) => gr.role).filter(Boolean) ||
-          []),
-        ...(populatedUser.network_roles?.map((nr) => nr.role).filter(Boolean) ||
-          []),
-      ];
+      // Check 3: System admin role names in any group roles
+      const allRoles = populatedUser.group_roles
+        ?.map((gr) => gr.role)
+        .filter(Boolean) || [];
 
       for (const role of allRoles) {
         if (role && role.role_name) {
@@ -1076,11 +1029,6 @@ class RBACService {
           ...contextData.systemPermissions,
           ...(contextData.groupPermissions[contextId] || []),
         ];
-      } else if (contextType === "network") {
-        return [
-          ...contextData.systemPermissions,
-          ...(contextData.networkPermissions[contextId] || []),
-        ];
       }
 
       return contextData.systemPermissions;
@@ -1100,13 +1048,6 @@ class RBACService {
       if (contextType === "group") {
         const membership = contextData.groupMemberships.find(
           (m) => m.group.id === contextId.toString()
-        );
-        if (membership && membership.role) {
-          roles.push(membership.role.name);
-        }
-      } else if (contextType === "network") {
-        const membership = contextData.networkMemberships.find(
-          (m) => m.network.id === contextId.toString()
         );
         if (membership && membership.role) {
           roles.push(membership.role.name);
@@ -1164,14 +1105,11 @@ class RBACService {
         userId,
         systemPermissions: contextData.systemPermissions,
         groupPermissions: contextData.groupPermissions,
-        networkPermissions: contextData.networkPermissions,
         groupMemberships: contextData.groupMemberships,
-        networkMemberships: contextData.networkMemberships,
         isSuperAdmin: contextData.isSuperAdmin,
         allPermissions: [
           ...contextData.systemPermissions,
           ...Object.values(contextData.groupPermissions).flat(),
-          ...Object.values(contextData.networkPermissions).flat(),
         ],
       };
     } catch (error) {

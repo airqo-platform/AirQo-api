@@ -8,20 +8,11 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user-type-util`);
 const type = {
   assignUserType: async (request, next) => {
     try {
-      const { user_id, net_id, grp_id, user, user_type, tenant } = {
+      const { user_id, grp_id, user, user_type, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      if (!isEmpty(grp_id) && !isEmpty(net_id)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "You cannot provide both a network ID and a group ID, choose one organization type",
-          })
-        );
-      }
 
       if (!isEmpty(user) && !isEmpty(user_id)) {
         next(
@@ -33,7 +24,7 @@ const type = {
       }
 
       const userId = user || user_id;
-      const organisationId = net_id || grp_id;
+      const organisationId = grp_id;
 
       const userExists = await UserModel(tenant).exists({ _id: userId });
 
@@ -45,28 +36,23 @@ const type = {
         );
       }
 
-      const isNetworkType = isNetwork(net_id, grp_id);
-      const roleType = isNetworkType ? "network_roles" : "group_roles";
-
       const isAlreadyAssigned = await UserModel(tenant).exists({
         _id: userId,
-        [`${roleType}.${isNetworkType ? "network" : "group"}`]: organisationId,
+        "group_roles.group": organisationId,
       });
 
       if (!isAlreadyAssigned) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `User ${userId} is NOT assigned to the provided ${
-              isNetworkType ? "Network" : "Group"
-            } ${organisationId}`,
+            message: `User ${userId} is NOT assigned to the provided Group ${organisationId}`,
           })
         );
       }
 
       const updateQuery = {
         $set: {
-          [roleType]: {
-            [isNetworkType ? "network" : "group"]: organisationId,
+          group_roles: {
+            group: organisationId,
             userType: user_type,
           },
         },
@@ -75,7 +61,7 @@ const type = {
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userId },
         updateQuery,
-        { new: true, select: `${roleType}` }
+        { new: true, select: "group_roles" }
       );
 
       if (updatedUser) {
@@ -107,25 +93,15 @@ const type = {
   },
   assignManyUsersToUserType: async (request, next) => {
     try {
-      const { user_ids, user_type, net_id, grp_id, tenant } = {
+      const { user_ids, user_type, grp_id, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
 
       const userPromises = [];
-      const isNetwork = !isEmpty(net_id);
       const isGroup = !isEmpty(grp_id);
       let updateQuery = {};
-
-      if (isNetwork && isGroup) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "You cannot provide both a network ID and a group ID. Choose one organization type.",
-          })
-        );
-      }
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(user_id);
@@ -138,24 +114,7 @@ const type = {
           continue;
         }
 
-        if (isNetwork) {
-          const isAlreadyAssigned = user.network_roles.some(
-            (role) => role.network.toString() === net_id
-          );
-
-          if (!isAlreadyAssigned) {
-            userPromises.push({
-              success: false,
-              message: `User ${user_id} is NOT assigned to the provided Network ${net_id}`,
-            });
-            continue;
-          }
-          updateQuery.$set = updateQuery.$set || {};
-          updateQuery.$set.network_roles = {
-            network: net_id,
-            userType: user_type,
-          };
-        } else if (isGroup) {
+        if (isGroup) {
           const isAlreadyAssigned = user.group_roles.some(
             (role) => role.group.toString() === grp_id
           );
@@ -225,20 +184,11 @@ const type = {
   listUsersWithUserType: async (request, next) => {
     try {
       logText("listUsersWithUserType...");
-      const { user_type, net_id, grp_id, tenant } = {
+      const { user_type, grp_id, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      if (net_id && grp_id) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "You cannot provide both a network ID and a group ID; choose one organization type",
-          })
-        );
-      }
 
       let userTypeFilter = {};
 
@@ -310,20 +260,11 @@ const type = {
   listAvailableUsersForUserType: async (request, next) => {
     try {
       logText("listAvailableUsersForUserType...");
-      const { user_type, net_id, grp_id, tenant } = {
+      const { user_type, grp_id, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      if (net_id && grp_id) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "You cannot provide both a network ID and a group ID; choose one organization type",
-          })
-        );
-      }
 
       let userTypeFilter = {};
 

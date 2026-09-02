@@ -338,6 +338,114 @@ describe("createNetworkUtil", () => {
       rewireNetworkUtil.__set__("constants", origAdminSecret);
     });
 
+    it("should back the created network's admin role with a Group instead of a network-scoped role, and assign the creator via group_roles", async () => {
+      const next = sinon.stub();
+
+      findOneStub.returns({ lean: sinon.stub().resolves(null) }); // no existing network
+      rewireNetworkUtil.__set__("NetworkModel", () => ({
+        findOne: findOneStub,
+        register: sinon.stub().resolves({
+          success: true,
+          data: {
+            toJSON: () => ({ _id: "net1" }),
+            _doc: { _id: "net1" },
+          },
+        }),
+      }));
+
+      const origConstants = rewireNetworkUtil.__get__("constants");
+      rewireNetworkUtil.__set__(
+        "constants",
+        Object.assign({}, origConstants, {
+          ADMIN_SETUP_SECRET: "test-secret",
+          DEFAULTS: { DEFAULT_ADMIN: ["SOME_PERMISSION"] },
+        }),
+      );
+
+      const groupFindOneAndUpdateStub = sinon.stub().returns({
+        lean: sinon.stub().resolves({ _id: "group-for-net1" }),
+      });
+      rewireNetworkUtil.__set__("GroupModel", () => ({
+        findOneAndUpdate: groupFindOneAndUpdateStub,
+      }));
+
+      rewireNetworkUtil.__set__("PermissionModel", () => ({
+        find: () => ({
+          distinct: sinon.stub().resolves([]),
+        }),
+        insertMany: sinon.stub().resolves([{ _id: "perm1" }]),
+      }));
+
+      const origRolePermissionsUtil = rewireNetworkUtil.__get__(
+        "rolePermissionsUtil",
+      );
+      const createRoleStub = sinon
+        .stub()
+        .resolves({ success: true, data: { _id: "role1" } });
+      const assignPermissionsToRoleStub = sinon
+        .stub()
+        .resolves({ success: true });
+      rewireNetworkUtil.__set__("rolePermissionsUtil", {
+        createRole: createRoleStub,
+        assignPermissionsToRole: assignPermissionsToRoleStub,
+      });
+
+      rewireNetworkUtil.__set__("publishKafkaEvent", sinon.stub().resolves());
+
+      const userId = "507f1f77bcf86cd799439011";
+      const findByIdAndUpdateStub = sinon.stub().resolves({ _id: userId });
+      rewireNetworkUtil.__set__("UserModel", () => ({
+        findByIdAndUpdate: findByIdAndUpdateStub,
+      }));
+
+      const request = {
+        body: {
+          admin_secret: "test-secret",
+          net_website: "https://new.com",
+          net_email: "person@newco.com",
+        },
+        query: { tenant: "sample-tenant" },
+        user: {
+          _id: userId,
+          email: "a@b.com",
+          firstName: "J",
+          lastName: "D",
+        },
+      };
+
+      await rewireNetworkUtil.create(request, next);
+
+      // Group is found-or-created for the network (by acronym), not a
+      // network-scoped role/network_roles entry.
+      sinon.assert.calledOnce(groupFindOneAndUpdateStub);
+      sinon.assert.calledWithMatch(
+        groupFindOneAndUpdateStub,
+        { grp_title: "newco" },
+      );
+
+      sinon.assert.calledOnce(createRoleStub);
+      expect(createRoleStub.firstCall.args[0].body).to.have.property(
+        "group_id",
+        "group-for-net1",
+      );
+      expect(createRoleStub.firstCall.args[0].body).to.not.have.property(
+        "network_id",
+      );
+
+      sinon.assert.calledOnce(findByIdAndUpdateStub);
+      const userUpdate = findByIdAndUpdateStub.firstCall.args[1];
+      expect(userUpdate.$addToSet).to.have.property("group_roles");
+      expect(userUpdate.$addToSet).to.not.have.property("network_roles");
+      expect(userUpdate.$addToSet.group_roles).to.deep.include({
+        group: "group-for-net1",
+        role: "role1",
+        userType: "user",
+      });
+
+      rewireNetworkUtil.__set__("constants", origConstants);
+      rewireNetworkUtil.__set__("rolePermissionsUtil", origRolePermissionsUtil);
+    });
+
     // Add more test cases for different scenarios
   });
   describe.skip("assignUsersHybrid", () => {

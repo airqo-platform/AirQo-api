@@ -335,16 +335,7 @@ const convertToUpperCaseWithUnderscore = (inputString, next) => {
 };
 const isGroupRoleOrNetworkRole = (role) => {
   logObject("role", role);
-  if (role && (role.group_id || role.network_id)) {
-    if (role.group_id && !role.network_id) {
-      return "group";
-    } else if (!role.group_id && role.network_id) {
-      return "network";
-    } else {
-      return "none";
-    }
-  }
-  return "none";
+  return role && role.group_id ? "group" : "none";
 };
 const findAssociatedIdForRole = async ({
   role_id,
@@ -391,7 +382,6 @@ const findAssociatedIdForRole = async ({
     logObject("✅ [DEBUG] RoleDetails:", {
       id: RoleDetails._id,
       name: RoleDetails.role_name,
-      hasNetworkId: !!RoleDetails.network_id,
       hasGroupId: !!RoleDetails.group_id,
     });
 
@@ -399,27 +389,6 @@ const findAssociatedIdForRole = async ({
       if (!role) {
         logObject("⚠️ [DEBUG] Skipping undefined role in array");
         continue;
-      }
-
-      // Enhanced null checks and validation before comparison
-      if (role.network && RoleDetails.network_id) {
-        try {
-          // Validate both IDs before comparison
-          if (
-            mongoose.Types.ObjectId.isValid(role.network) &&
-            mongoose.Types.ObjectId.isValid(RoleDetails.network_id)
-          ) {
-            const roleNetworkId = role.network.toString();
-            const roleDetailsNetworkId = RoleDetails.network_id.toString();
-
-            if (roleNetworkId === roleDetailsNetworkId) {
-              logObject("✅ [DEBUG] Found matching network:", role.network);
-              return role.network;
-            }
-          }
-        } catch (error) {
-          logObject("❌ [DEBUG] Error comparing network IDs:", error.message);
-        }
       }
 
       if (role.group && RoleDetails.group_id) {
@@ -443,7 +412,7 @@ const findAssociatedIdForRole = async ({
       }
     }
 
-    logObject("❌ [DEBUG] No matching network or group found");
+    logObject("❌ [DEBUG] No matching group found");
     return null;
   } catch (error) {
     logObject("🐛 [DEBUG] Error in findAssociatedIdForRole:", error);
@@ -662,7 +631,8 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       const needsGroupIdBackfill = !existingRole.group_id && !!roleData.group_id;
 
       if (!arePermissionsSynced || needsGroupIdBackfill) {
-        const update = { updatedAt: new Date() };
+        const setFields = { updatedAt: new Date() };
+        const unsetFields = {};
 
         // Only touch permissions/status when they're actually out of sync —
         // a group_id-only backfill must not force an otherwise-untouched
@@ -672,19 +642,32 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           logObject(
             `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`,
           );
-          update.role_description = roleData.role_description;
-          update.role_permissions = permissionIds;
-          update.role_status = "ACTIVE";
+          setFields.role_description = roleData.role_description;
+          setFields.role_permissions = permissionIds;
+          setFields.role_status = "ACTIVE";
         }
         if (needsGroupIdBackfill) {
           logObject(
             `🔧 Role ${roleData.role_name} is missing group_id. Backfilling from resolved group...`,
           );
-          update.group_id = roleData.group_id;
+          setFields.group_id = roleData.group_id;
+          // Networks are deprecated in auth-service. A legacy role carrying
+          // only network_id must be fully migrated onto group_id, not left
+          // with both set — role-type resolution elsewhere in this file
+          // treats "both present" as an invalid/unassociated role.
+          if (existingRole.network_id) {
+            unsetFields.network_id = "";
+          }
         }
+
+        const updateOps = { $set: setFields };
+        if (!isEmpty(unsetFields)) {
+          updateOps.$unset = unsetFields;
+        }
+
         const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
           existingRole._id,
-          update,
+          updateOps,
           { new: true },
         );
         return {
@@ -2274,22 +2257,10 @@ const rolePermissionUtil = {
         }
         organizationName = normalizeName(group.grp_title);
         queryFilter = { group_id: body.group_id };
-      } else if (body.network_id) {
-        const NetworkModel = require("@models/Network");
-        const network = await NetworkModel(tenant).findById(body.network_id);
-        if (isEmpty(network)) {
-          return next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: `Provided network ${body.network_id} is invalid, please crosscheck`,
-            }),
-          );
-        }
-        organizationName = normalizeName(network.net_name);
-        queryFilter = { network_id: body.network_id };
       } else {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Either network_id or group_id must be provided",
+            message: "group_id must be provided",
           }),
         );
       }
@@ -2382,11 +2353,9 @@ const rolePermissionUtil = {
 
       newBody.role_name = finalRoleName;
 
-      // IMPORTANT: Ensure network_id is not set if we're using group_id
-      if (body.group_id && !body.network_id) {
-        newBody.network_id = undefined;
-        delete newBody.network_id;
-      }
+      // network_id is no longer an accepted role field — roles are always
+      // group-scoped now.
+      delete newBody.network_id;
 
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase(),
@@ -2431,14 +2400,11 @@ const rolePermissionUtil = {
         );
       }
 
-      const roleType = role.network_id ? "Network" : "Group";
-      const query = roleType === "Network" ? "network_roles" : "group_roles";
-
       const responseFromListAvailableUsers = await UserModel(tenant)
         .aggregate([
           {
             $match: {
-              [query]: {
+              group_roles: {
                 $not: {
                   $elemMatch: {
                     role: role_id,
@@ -2467,7 +2433,7 @@ const rolePermissionUtil = {
 
       return {
         success: true,
-        message: `Retrieved all available users for the ${roleType} role ${role_id}`,
+        message: `Retrieved all available users for the Group role ${role_id}`,
         data: responseFromListAvailableUsers,
       };
     } catch (error) {
@@ -2518,7 +2484,7 @@ const rolePermissionUtil = {
       if (roleType === "none") {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Role ${role_id.toString()} is not associated with any network or group`,
+            message: `Role ${role_id.toString()} is not associated with any group`,
           }),
         );
       }
@@ -2529,14 +2495,10 @@ const rolePermissionUtil = {
       logObject("Automatically determined userType:", determinedUserType);
       // --- END NEW LOGIC ---
 
-      const isNetworkRole = roleType === "network";
-
       // Get user without populate, then manually check roles
       const userObject = await UserModel(tenant).findById(userId).lean();
 
-      const userRoles = isNetworkRole
-        ? userObject.network_roles
-        : userObject.group_roles;
+      const userRoles = userObject.group_roles;
       logObject("userRoles", userRoles);
       const roles = userRoles || [];
       const isRoleAssigned = isRoleAlreadyAssigned(roles, role_id);
@@ -2560,9 +2522,7 @@ const rolePermissionUtil = {
       if (isEmpty(associatedId)) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `The ROLE ${role_id} is not associated with any of the ${
-              isNetworkRole ? "networks" : "groups"
-            } already assigned to USER ${userObject._id}`,
+            message: `The ROLE ${role_id} is not associated with any of the groups already assigned to USER ${userObject._id}`,
           }),
         );
       }
@@ -2584,18 +2544,14 @@ const rolePermissionUtil = {
       // Atomically remove any existing role for this context before adding the new one
       await UserModel(tenant).findByIdAndUpdate(userObject._id, {
         $pull: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            [isNetworkRole ? "network" : "group"]: associatedId,
-          },
+          group_roles: { group: associatedId },
         },
       });
 
       const updateQuery = {
         $addToSet: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            ...(isNetworkRole
-              ? { network: associatedId }
-              : { group: associatedId }),
+          group_roles: {
+            group: associatedId,
             role: role_id,
             userType: determinedUserType, // Use the determined userType
             createdAt: new Date(),
@@ -2656,13 +2612,12 @@ const rolePermissionUtil = {
       if (roleType === "none") {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Role ${role_id.toString()} is not associated with any network or group`,
+            message: `Role ${role_id.toString()} is not associated with any group`,
           }),
         );
       }
 
       const assignUserPromises = [];
-      const isNetworkRole = roleType === "network";
 
       // --- Automatically determine userType from role name ---
       const determinedUserType = determineUserTypeFromRoleName(
@@ -2684,7 +2639,7 @@ const rolePermissionUtil = {
           continue;
         }
 
-        const userRoles = isNetworkRole ? user.network_roles : user.group_roles;
+        const userRoles = user.group_roles;
 
         const roles = userRoles || [];
         logObject("roles", roles);
@@ -2714,9 +2669,7 @@ const rolePermissionUtil = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `The ROLE ${role_id} is not associated with any of the ${
-                isNetworkRole ? "networks" : "groups"
-              } already assigned to USER ${user._id}`,
+              message: `The ROLE ${role_id} is not associated with any of the groups already assigned to USER ${user._id}`,
             },
             status: httpStatus.BAD_REQUEST,
           });
@@ -2741,14 +2694,11 @@ const rolePermissionUtil = {
           continue;
         }
 
-        const roleArrayField = isNetworkRole ? "network_roles" : "group_roles";
-        const contextField = isNetworkRole ? "network" : "group";
-
         // Step 1: Remove any existing role for this context before assigning the new role
         await UserModel(tenant).updateOne(
           { _id: user._id },
           {
-            $pull: { [roleArrayField]: { [contextField]: associatedId } },
+            $pull: { group_roles: { group: associatedId } },
           },
         );
 
@@ -2757,8 +2707,8 @@ const rolePermissionUtil = {
           { _id: user._id },
           {
             $addToSet: {
-              [roleArrayField]: {
-                [contextField]: associatedId,
+              group_roles: {
+                group: associatedId,
                 role: role_id,
                 userType: determinedUserType,
                 createdAt: new Date(),
@@ -2906,13 +2856,13 @@ const rolePermissionUtil = {
       if (roleType === "none") {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Role ${role_id.toString()} is not associated with any network or group`,
+            message: `Role ${role_id.toString()} is not associated with any group`,
           }),
         );
       }
 
-      const { network_roles, group_roles } = userObject;
-      const roles = roleType === "network" ? network_roles : group_roles;
+      const { group_roles } = userObject;
+      const roles = group_roles;
 
       const associatedId = await findAssociatedIdForRole({
         role_id,
@@ -2923,7 +2873,7 @@ const rolePermissionUtil = {
       if (isEmpty(associatedId)) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `The ROLE ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to USER ${user_id}`,
+            message: `The ROLE ${role_id} is not associated with any of the GROUPs already assigned to USER ${user_id}`,
           }),
         );
       }
@@ -2954,10 +2904,10 @@ const rolePermissionUtil = {
 
       const filter = {
         _id: user_id,
-        [`${roleType}_roles.${roleType}`]: associatedId,
+        "group_roles.group": associatedId,
       };
       const update = {
-        $set: { [`${roleType}_roles.$[elem].role`]: null },
+        $set: { "group_roles.$[elem].role": null },
       };
 
       const arrayFilters = [{ "elem.role": role_id }];
@@ -2972,7 +2922,7 @@ const rolePermissionUtil = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
-              "User not found or not assigned to the specified Role in the Network or Group provided",
+              "User not found or not assigned to the specified Role in the Group provided",
           }),
         );
       }
@@ -3033,7 +2983,7 @@ const rolePermissionUtil = {
         // Get user without populate
         const userObject = await UserModel(tenant).findById(user_id).lean();
 
-        const { network_roles, group_roles } = userObject;
+        const { group_roles } = userObject;
         logObject("roleObject", roleObject);
         const roleType = isGroupRoleOrNetworkRole(roleObject);
         logObject("roleType", roleType);
@@ -3043,14 +2993,14 @@ const rolePermissionUtil = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Role ${role_id.toString()} is not associated with any network or group`,
+              message: `Role ${role_id.toString()} is not associated with any group`,
             },
             status: httpStatus.BAD_REQUEST,
           });
           continue;
         }
 
-        const roles = roleType === "network" ? network_roles : group_roles;
+        const roles = group_roles;
         const isRoleAssigned = isRoleAlreadyAssigned(roles, role_id);
 
         if (!isRoleAssigned) {
@@ -3076,7 +3026,7 @@ const rolePermissionUtil = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `The ROLE ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to USER ${user_id}`,
+              message: `The ROLE ${role_id} is not associated with any of the GROUPs already assigned to USER ${user_id}`,
             },
             status: httpStatus.BAD_REQUEST,
           });
@@ -3102,7 +3052,7 @@ const rolePermissionUtil = {
         }
 
         const updateQuery = {
-          $set: { [`${roleType}_roles.$[elem].role`]: null },
+          $set: { "group_roles.$[elem].role": null },
         };
 
         const updateResult = await UserModel(tenant).updateOne(
@@ -4165,31 +4115,11 @@ const rolePermissionUtil = {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        hasNetworkRoles: !!(
-          user.network_roles && user.network_roles.length > 0
-        ),
         hasGroupRoles: !!(user.group_roles && user.group_roles.length > 0),
-        networkRolesCount: user.network_roles?.length || 0,
         groupRolesCount: user.group_roles?.length || 0,
       });
 
       // Build roles with enhanced validation
-      const networkRoles = (user.network_roles || [])
-        .filter((nr) => nr && typeof nr === "object") // Filter out invalid entries
-        .map((nr) => ({
-          role_id:
-            nr.role && mongoose.Types.ObjectId.isValid(nr.role)
-              ? nr.role
-              : null,
-          network_id:
-            nr.network && mongoose.Types.ObjectId.isValid(nr.network)
-              ? nr.network
-              : null,
-          userType: nr.userType,
-          createdAt: nr.createdAt,
-        }))
-        .filter((nr) => nr.role_id && nr.network_id); // Only include valid entries
-
       const groupRoles = (user.group_roles || [])
         .filter((gr) => gr && typeof gr === "object") // Filter out invalid entries
         .map((gr) => ({
@@ -4208,23 +4138,16 @@ const rolePermissionUtil = {
 
       const summary = {
         user_id: userId,
-        network_roles: {
-          count: networkRoles.length,
-          limit: ORGANISATIONS_LIMIT,
-          remaining: Math.max(0, ORGANISATIONS_LIMIT - networkRoles.length),
-          roles: networkRoles,
-        },
         group_roles: {
           count: groupRoles.length,
           limit: ORGANISATIONS_LIMIT,
           remaining: Math.max(0, ORGANISATIONS_LIMIT - groupRoles.length),
           roles: groupRoles,
         },
-        total_roles: networkRoles.length + groupRoles.length,
+        total_roles: groupRoles.length,
       };
 
       logObject("✅ [DEBUG] Summary created successfully:", {
-        networkRolesCount: summary.network_roles.count,
         groupRolesCount: summary.group_roles.count,
         totalRoles: summary.total_roles,
       });
@@ -4317,15 +4240,12 @@ const rolePermissionUtil = {
       if (roleType === "none") {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Role ${role_id.toString()} is not associated with any network or group`,
+            message: `Role ${role_id.toString()} is not associated with any group`,
           }),
         );
       }
 
-      const isNetworkRole = roleType === "network";
-      const currentRoles = isNetworkRole
-        ? initialSummary.network_roles
-        : initialSummary.group_roles;
+      const currentRoles = initialSummary.group_roles;
 
       // Check if user has space for this role type
       if (currentRoles.count >= ORGANISATIONS_LIMIT) {
@@ -4383,9 +4303,7 @@ const rolePermissionUtil = {
         );
       }
 
-      const userRoles = isNetworkRole
-        ? userObject.network_roles
-        : userObject.group_roles;
+      const userRoles = userObject.group_roles;
       const associatedId = await findAssociatedIdForRole({
         role_id,
         roles: userRoles,
@@ -4395,9 +4313,7 @@ const rolePermissionUtil = {
       if (isEmpty(associatedId)) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `The role ${role_id} is not associated with any of the ${
-              isNetworkRole ? "networks" : "groups"
-            } already assigned to user ${userId}`,
+            message: `The role ${role_id} is not associated with any of the groups already assigned to user ${userId}`,
             current_state: {
               role_type: roleType,
               current_count: currentRoles.count,
@@ -4459,18 +4375,14 @@ const rolePermissionUtil = {
       // Atomically remove any existing role for this context before adding the new one
       await UserModel(actualTenant).findByIdAndUpdate(userObject._id, {
         $pull: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            [isNetworkRole ? "network" : "group"]: associatedId,
-          },
+          group_roles: { group: associatedId },
         },
       });
 
       const updateQuery = {
         $addToSet: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            ...(isNetworkRole
-              ? { network: associatedId }
-              : { group: associatedId }),
+          group_roles: {
+            group: associatedId,
             role: role_id,
             userType: determinedUserType,
             createdAt: new Date(),
@@ -4625,17 +4537,14 @@ const rolePermissionUtil = {
       if (roleType === "none") {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Role ${role_id.toString()} is not associated with any network or group`,
+            message: `Role ${role_id.toString()} is not associated with any group`,
           }),
         );
       }
 
-      const { network_roles, group_roles } = userObject;
-      const roles = roleType === "network" ? network_roles : group_roles;
-      const currentRoles =
-        roleType === "network"
-          ? initialSummary.network_roles
-          : initialSummary.group_roles;
+      const { group_roles } = userObject;
+      const roles = group_roles;
+      const currentRoles = initialSummary.group_roles;
 
       logObject("📋 [DEBUG] Current roles for user:", {
         roleType,
@@ -4674,7 +4583,7 @@ const rolePermissionUtil = {
       if (isEmpty(associatedId)) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `The role ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to user ${user_id}`,
+            message: `The role ${role_id} is not associated with any of the GROUPs already assigned to user ${user_id}`,
           }),
         );
       }
@@ -4709,10 +4618,10 @@ const rolePermissionUtil = {
       // Fix 5: Safer database update operation
       const filter = {
         _id: user_id,
-        [`${roleType}_roles.${roleType}`]: associatedId,
+        "group_roles.group": associatedId,
       };
       const update = {
-        $set: { [`${roleType}_roles.$[elem].role`]: null },
+        $set: { "group_roles.$[elem].role": null },
       };
       const arrayFilters = [{ "elem.role": role_id }];
 
@@ -5939,77 +5848,10 @@ const rolePermissionUtil = {
         }
       }
 
-      // @deprecated Manual population for network roles. Kept only because
-      // nexus's useRBAC merges permissions from this response's `networks[]`
-      // array — see docs/access-control/NETWORK_DEPRECATION_GUIDE_NEXUS.md.
-      // Do not extend; new organization scoping belongs on group_roles.
-      const networkRolesData = [];
-      for (const networkRole of user.network_roles || []) {
-        try {
-          // For network, we might not have a NetworkModel, so we'll handle it gracefully
-          let network = null;
-          if (networkRole.network) {
-            try {
-              // Try to get network details if NetworkModel exists
-              // Since NetworkModel might not exist, we'll create a placeholder
-              network = {
-                _id: networkRole.network,
-                net_name: "Network", // Placeholder name
-              };
-            } catch (networkError) {
-              logger.warn(
-                `Could not fetch network details: ${networkError.message}`,
-              );
-            }
-          }
-
-          // Fetch role details without populate, then manually populate permissions
-          let role = null;
-          let permissions = [];
-
-          if (networkRole.role) {
-            try {
-              role = await RoleModel(tenant).findById(networkRole.role).lean();
-              if (role) {
-                const populatedRole = await manuallyPopulateRolePermissions(
-                  role,
-                  tenant,
-                );
-                role = populatedRole;
-                permissions = (role.role_permissions || []).map(
-                  (p) => p.permission,
-                );
-              }
-            } catch (roleError) {
-              logger.error(`Error fetching network role: ${roleError.message}`);
-            }
-          }
-
-          networkRolesData.push({
-            network_id: network?._id,
-            network_name: network?.net_name,
-            role_id: role?._id,
-            role_name: role?.role_name,
-            permissions: permissions,
-          });
-        } catch (error) {
-          logger.error(`Error processing network role: ${error.message}`);
-          // Continue with next role even if one fails
-          networkRolesData.push({
-            network_id: networkRole.network,
-            network_name: "Unknown Network",
-            role_id: networkRole.role,
-            role_name: "Unknown Role",
-            permissions: [],
-          });
-        }
-      }
-
       // Simplified structure
       const responseData = {
         user_id: user._id,
         groups: groupRolesData,
-        networks: networkRolesData,
       };
 
       return {
@@ -6165,13 +6007,14 @@ const rolePermissionUtil = {
         );
       }
 
+      // Includes roles that already have a group_id AND a stale network_id —
+      // the same shape as the AIRQO_SUPER_ADMIN bug this migration tool was
+      // originally built after. A role in that state already resolves
+      // correctly (group_id takes priority), but the leftover network_id
+      // should still be dropped rather than left invisible to this tool.
       const rolesWithNetwork = await RoleModel(actualTenant)
         .find({
           network_id: { $exists: true, $ne: null },
-          $or: [
-            { group_id: { $exists: false } },
-            { group_id: null },
-          ],
         })
         .lean();
 
@@ -6180,6 +6023,7 @@ const rolePermissionUtil = {
         migrated: 0,
         redirected: 0,
         deleted: 0,
+        cleaned: 0,
         skipped: 0,
         dry_run: isDryRun,
         details: [],
@@ -6187,6 +6031,27 @@ const rolePermissionUtil = {
 
       for (const role of rolesWithNetwork) {
         try {
+          const hasGroupId = role.group_id !== undefined && role.group_id !== null;
+
+          if (hasGroupId) {
+            // Already group-scoped; just drop the stale legacy field.
+            if (!isDryRun) {
+              await RoleModel(actualTenant).findByIdAndUpdate(role._id, {
+                $unset: { network_id: "" },
+              });
+            }
+            results.cleaned++;
+            results.details.push({
+              role_id: role._id,
+              role_name: role.role_name,
+              group_id: role.group_id,
+              action: isDryRun
+                ? "would_clean_stale_network_id"
+                : "cleaned_stale_network_id",
+            });
+            continue;
+          }
+
           // Count users who reference this role in either roles array
           const userCount = await UserModel(actualTenant).countDocuments({
             $or: [
@@ -6327,8 +6192,8 @@ const rolePermissionUtil = {
       return {
         success: true,
         message: isDryRun
-          ? `Dry run: ${results.migrated} roles would be migrated, ${results.redirected} would be redirected to equivalent, ${results.deleted} would be deleted`
-          : `Migration complete: ${results.migrated} roles migrated, ${results.redirected} redirected to equivalent, ${results.deleted} deleted`,
+          ? `Dry run: ${results.migrated} roles would be migrated, ${results.redirected} would be redirected to equivalent, ${results.deleted} would be deleted, ${results.cleaned} would have a stale network_id cleaned`
+          : `Migration complete: ${results.migrated} roles migrated, ${results.redirected} redirected to equivalent, ${results.deleted} deleted, ${results.cleaned} had a stale network_id cleaned`,
         status: httpStatus.OK,
         data: results,
       };

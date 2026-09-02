@@ -282,7 +282,7 @@ describe("Roles Router API Tests", () => {
       );
     });
 
-    it("should return a 400 error when both network_id and group_id are provided", async () => {
+    it("should return a 400 error when network_id is provided — roles are always group-scoped now", async () => {
       createImpl = (req, res) =>
         res.status(201).json({ success: true, created_role: {} });
 
@@ -297,7 +297,9 @@ describe("Roles Router API Tests", () => {
 
       expect(
         response.body.errors.some(
-          (e) => e.message === "Cannot provide both network_id and group_id"
+          (e) =>
+            e.message ===
+            "network_id is no longer supported — roles are always group-scoped, use group_id"
         )
       ).to.equal(true);
     });

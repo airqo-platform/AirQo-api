@@ -6,13 +6,22 @@ The `networks` concept in the AirQo Auth Service (the "Sensor Manufacturers" adm
 page in vertex) is deprecated. It has been superseded by `groups` across the
 platform, and is no longer being developed or fixed.
 
-**Nothing is being removed yet.** The two endpoints vertex currently calls are
-still live and unchanged:
+**The two endpoints vertex calls are still live, with the same request/response
+contract** — but we've updated an important correction to this doc: these
+aren't only used by the Admin > Networks page. `useNetworks()` is also a
+required dropdown in grid creation, cohort creation (both variants), site
+creation, and device import/deploy. That's a much bigger dependency than
+originally scoped here, so please don't treat this as an isolated admin-page
+migration.
 
 - `GET /api/v2/users/networks` (and the v3 equivalent) — used by `useNetworks()`
-  to populate the network dropdowns and the Admin > Networks list.
+  to populate the network dropdowns across the forms listed above.
 - `POST /api/v2/users/networks` — used by the "Create Network" form via your
-  `/api/network` proxy route.
+  `/api/network` proxy route. **Internal change, no contract change:** this
+  endpoint's RBAC side effect now provisions a group-scoped admin role instead
+  of a network-scoped one (networks are being fully retired from RBAC
+  elsewhere in this service) — the request body, response shape, and created
+  Network record you get back are unchanged.
 
 Everything else in the old `Network` CRUD surface (assign/unassign users, set
 manager, list roles for a network, get-by-id, delete, update, refresh) was
@@ -24,16 +33,19 @@ deprecation.
 
 ## What we need from the vertex team
 
-There's no deadline yet, but please plan to migrate the Admin > Networks
-("Sensor Manufacturers") page off these two endpoints. Once vertex no longer
-calls them, we'll do a final removal pass.
+There's no deadline yet, but please plan to migrate `useNetworks()` and every
+form listed above off these two endpoints. Given the broader surface than
+originally documented, this is a bigger migration than "one admin page" —
+please scope it accordingly. Once vertex no longer calls them, we'll do a
+final removal pass.
 
 Recommended path:
-- If the "Sensor Manufacturers" feature is still needed, we'd like to talk
-  about modeling it as a `group` instead — groups are the actively maintained
-  organization-membership concept and get ongoing features/fixes.
-- If the feature is no longer used in practice, removing the Admin > Networks
-  page entirely may be the simpler path — worth confirming usage first.
+- If networks are still needed as a concept for grids/cohorts/sites/devices,
+  we'd like to talk about modeling it as a `group` instead — groups are the
+  actively maintained organization concept and get ongoing features/fixes.
+- If some of these forms no longer need the network dropdown in practice,
+  narrowing scope first may be the simpler path — worth confirming usage per
+  form before committing to a full migration.
 
 ## Timeline
 

@@ -7183,16 +7183,11 @@ const createUserModule = {
         // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
-        hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
 
         // Context info
         defaultGroup:
           loginPermissions.groupMemberships.length > 0
             ? loginPermissions.groupMemberships[0].group.id
-            : null,
-        defaultNetwork:
-          loginPermissions.networkMemberships.length > 0
-            ? loginPermissions.networkMemberships[0].network.id
             : null,
 
         // Login metadata
@@ -7212,13 +7207,6 @@ const createUserModule = {
                 groups: Object.keys(loginPermissions.groupPermissions).reduce(
                   (sum, groupId) =>
                     sum + loginPermissions.groupPermissions[groupId].length,
-                  0,
-                ),
-                networks: Object.keys(
-                  loginPermissions.networkPermissions,
-                ).reduce(
-                  (sum, networkId) =>
-                    sum + loginPermissions.networkPermissions[networkId].length,
                   0,
                 ),
               },
