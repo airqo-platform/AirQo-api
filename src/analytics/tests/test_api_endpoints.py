@@ -688,47 +688,95 @@ class TestObservability:
 # ---------------------------------------------------------------------------
 
 
-class TestGridReportEndpoints:
-    _payload = {
-        "grid_id": "grid-1",
+class TestAirQualityReportEndpoint:
+    """/data/report serves grids and cohorts; the body names which, the same
+    way /data/summary does."""
+
+    _WINDOW = {
         "start_time": "2024-01-01T00:00:00",
         "end_time": "2024-02-01T00:00:00",
     }
+    _PATH = "/api/v2/analytics/data/report"
 
     def test_grid_report_200(self, client):
         report = {"airquality": {"status": "success", "grid_id": "grid-1"}}
         with patch(
-            "api.services.GridReportService.get_report",
+            "api.services.AirQualityReportService.get_report",
             new_callable=AsyncMock,
             return_value=report,
         ):
-            resp = client.post("/api/v2/analytics/grid/report", json=self._payload)
+            resp = client.post(self._PATH, json={"grid_id": "grid-1", **self._WINDOW})
         assert resp.status_code == 200
         assert resp.json()["airquality"]["grid_id"] == "grid-1"
 
-    def test_grid_report_diurnal_200(self, client):
-        report = {"airquality": {"status": "success", "diurnal": []}}
+    def test_cohort_report_200(self, client):
+        report = {"airquality": {"status": "success", "cohort_id": "cohort-1"}}
         with patch(
-            "api.services.GridReportService.get_diurnal_report",
+            "api.services.AirQualityReportService.get_report",
             new_callable=AsyncMock,
             return_value=report,
         ):
             resp = client.post(
-                "/api/v2/analytics/grid/report/diurnal", json=self._payload
+                self._PATH, json={"cohort_id": "cohort-1", **self._WINDOW}
             )
         assert resp.status_code == 200
+        assert resp.json()["airquality"]["cohort_id"] == "cohort-1"
+
+    def test_entity_reaches_the_builder(self, client):
+        """The kind is derived from the body, not the path."""
+        with patch(
+            "api.services.build_entity_report", return_value={"airquality": {}}
+        ) as mock_build:
+            client.post(self._PATH, json={"cohort_id": "cohort-1", **self._WINDOW})
+
+        assert mock_build.call_args.args[:2] == ("cohort", "cohort-1")
 
     def test_equal_dates_returns_422(self, client):
         resp = client.post(
-            "/api/v2/analytics/grid/report",
-            json={**self._payload, "end_time": self._payload["start_time"]},
+            self._PATH,
+            json={
+                "grid_id": "grid-1",
+                "start_time": self._WINDOW["start_time"],
+                "end_time": self._WINDOW["start_time"],
+            },
         )
         assert resp.status_code == 422
 
-    def test_missing_grid_id_returns_422(self, client):
-        payload = {k: v for k, v in self._payload.items() if k != "grid_id"}
-        resp = client.post("/api/v2/analytics/grid/report", json=payload)
+    def test_no_entity_returns_422(self, client):
+        resp = client.post(self._PATH, json=dict(self._WINDOW))
         assert resp.status_code == 422
+
+    def test_both_entities_returns_422(self, client):
+        resp = client.post(
+            self._PATH,
+            json={"grid_id": "g1", "cohort_id": "c1", **self._WINDOW},
+        )
+        assert resp.status_code == 422
+
+    def test_oversized_window_is_a_400_error_envelope(self, client):
+        from api.utils.exceptions import QueryTooLarge
+
+        with patch(
+            "api.services.build_entity_report",
+            side_effect=QueryTooLarge(
+                limit_bytes=1073741824, required_bytes=5557452800
+            ),
+        ):
+            resp = client.post(self._PATH, json={"grid_id": "grid-1", **self._WINDOW})
+
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body["status"] == "error"
+        assert "date range is too large" in body["message"]
+
+    def test_old_entity_paths_are_gone(self, client):
+        """/grid/report and /cohort/report merged into /data/report."""
+        for path in (
+            "/api/v2/analytics/grid/report",
+            "/api/v2/analytics/cohort/report",
+        ):
+            resp = client.post(path, json={"grid_id": "g1", **self._WINDOW})
+            assert resp.status_code == 404, path
 
 
 # ---------------------------------------------------------------------------

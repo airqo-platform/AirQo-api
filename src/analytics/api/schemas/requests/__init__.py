@@ -162,7 +162,7 @@ class BaseFilterRequest(BaseRequest):
 
         # Window cap. BigQuery prunes by the timestamp partition, so an
         # unbounded window is a full-table scan — billable, and reachable
-        # unauthenticated on v3. GridReportRequest has always capped its own
+        # unauthenticated on v3. The report request has always capped its own
         # window; this applies the same discipline to every filter request.
         if start and end:
             max_days = settings.max_query_days
@@ -394,22 +394,35 @@ class DeviceExceedancesRequest(_ExceedancesBase):
 # ---------------------------------------------------------------------------
 
 
-class GridReportRequest(BaseRequest):
+class AirQualityReportRequest(BaseRequest):
     """
-    Request model for the grid air-quality report endpoints
-    (POST /grid/report and /grid/report/diurnal).
+    POST /data/report — PM aggregates for ONE grid or cohort.
 
-    Wire contract is inherited from the original Flask API: snake_case body
-    keys ``grid_id``, ``start_time``, ``end_time`` (ISO datetimes), window
-    must be non-zero and at most 12 months.
+    Wire contract carries over from the original Flask grid report: snake_case
+    ``start_time`` / ``end_time`` (ISO datetimes), window non-zero and within
+    MAX_QUERY_DAYS — the same ceiling the download and chart paths enforce,
+    rather than the hardcoded 12 months the original used.
+
+    The entity is chosen in the body rather than by path, matching
+    DataSummaryRequest: grids and cohorts differ only in how membership
+    resolves, so one endpoint serves both.
     """
 
-    grid_id: str = Field(..., min_length=1, description="Grid identifier")
+    grid_id: Optional[str] = Field(None, description="Grid identifier")
+    cohort_id: Optional[str] = Field(None, description="Cohort identifier")
     start_time: datetime = Field(..., description="Start of the reporting window")
     end_time: datetime = Field(..., description="End of the reporting window")
 
     @model_validator(mode="after")
-    def validate_window(self) -> "GridReportRequest":
+    def validate_entity_and_window(self) -> "AirQualityReportRequest":
+        provided = [
+            kind
+            for kind, value in (("grid", self.grid_id), ("cohort", self.cohort_id))
+            if (value or "").strip()
+        ]
+        if len(provided) != 1:
+            raise ValueError("Provide exactly one of: grid_id, cohort_id")
+
         # Normalise mixed naive/aware datetimes so the subtraction below (and
         # all downstream comparisons) can't raise TypeError.
         if (self.start_time.tzinfo is None) != (self.end_time.tzinfo is None):
@@ -420,9 +433,23 @@ class GridReportRequest(BaseRequest):
 
         if self.start_time == self.end_time:
             raise ValueError("start_time and end_time cannot be the same")
-        if (self.end_time - self.start_time).days > 365:
-            raise ValueError("Time range must not exceed 12 months")
+        # Mirrors BaseFilterRequest's end <= start rule. Without it a reversed
+        # window made the day count below negative, slipping past the cap and
+        # returning a 404 "no data" rather than a 422.
+        if self.end_time < self.start_time:
+            raise ValueError("end_time must be after start_time")
+        max_days = settings.max_query_days
+        if (self.end_time - self.start_time).days > max_days:
+            raise ValueError(f"Time range must not exceed {max_days} days")
         return self
+
+    def entity(self) -> tuple:
+        """(kind, entity_id) for the report builder — mirrors DataSummaryRequest."""
+        for kind, value in (("grid", self.grid_id), ("cohort", self.cohort_id)):
+            cleaned = (value or "").strip()
+            if cleaned:
+                return kind, cleaned
+        raise ValueError("No report entity provided")  # unreachable post-validation
 
 
 # ---------------------------------------------------------------------------

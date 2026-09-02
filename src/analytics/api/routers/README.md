@@ -3,8 +3,8 @@
 Reference for the AirQo Analytics data endpoints: request formats, response
 structures and usage examples.
 
-This document covers the four data endpoints below. The service exposes further
-routes — scheduled exports, grid reports, report templates and other dashboard
+This document covers the data and report endpoints below. The service exposes
+further routes — scheduled exports, report templates and other dashboard
 aggregations — which are not documented here yet; consult the generated OpenAPI
 schema at `/docs` for those.
 
@@ -23,6 +23,7 @@ For running the service locally, configuration and deployment, see the
 - [Data Download](#data-download)
 - [Raw Data](#raw-data)
 - [Dashboard Charts](#dashboard-charts)
+- [Air-Quality Report](#air-quality-report)
 - [Response Format](#response-format)
 - [Pagination](#pagination)
 - [Error Handling](#error-handling)
@@ -38,6 +39,7 @@ sensors. The endpoints documented here let callers:
 - Download processed data at several frequencies (hourly, daily and up)
 - Query raw sensor measurements
 - Retrieve chart-ready aggregations for dashboards
+- Generate PM aggregate reports for a grid or a cohort
 
 ## API Versioning
 
@@ -78,20 +80,22 @@ configured value until Redis returns.
 
 ## Endpoints Covered
 
-| Method | Path                                        | Notes                         |
-| ------ | ------------------------------------------- | ----------------------------- |
-| POST   | `/api/v2/analytics/data-download`           | Processed data, JSON or CSV   |
-| POST   | `/api/v3/public/analytics/data-download`    | Same body, stricter rate cap  |
-| POST   | `/api/v2/analytics/raw-data`                | Raw measurements, JSON or CSV |
-| POST   | `/api/v3/public/analytics/raw-data`         | Same body, stricter rate cap  |
-| POST   | `/api/v2/analytics/dashboard/chart/data`    | Chart-ready series            |
-| POST   | `/api/v2/analytics/dashboard/chart/d3/data` | D3-shaped series              |
+| Method | Path                                        | Notes                              |
+| ------ | ------------------------------------------- | ---------------------------------- |
+| POST   | `/api/v2/analytics/data-download`           | Processed data, JSON or CSV        |
+| POST   | `/api/v3/public/analytics/data-download`    | Same body, stricter rate cap       |
+| POST   | `/api/v2/analytics/raw-data`                | Raw measurements, JSON or CSV      |
+| POST   | `/api/v3/public/analytics/raw-data`         | Same body, stricter rate cap       |
+| POST   | `/api/v2/analytics/dashboard/chart/data`    | Chart-ready series                 |
+| POST   | `/api/v2/analytics/dashboard/chart/d3/data` | D3-shaped series                   |
+| POST   | `/api/v2/analytics/data/report`             | PM aggregates for a grid or cohort |
 
 ## Shared Request Fields
 
-All six endpoints accept the fields below. **Field names are case-sensitive and
-deliberately mixed** — dates and output options are camelCase, filters are
-snake_case.
+The download and chart endpoints accept the fields below. **Field names are
+case-sensitive and deliberately mixed** — dates and output options are
+camelCase, filters are snake_case. The report endpoints take a different body;
+see [Air-Quality Report](#air-quality-report).
 
 | JSON field        | Type              | Required            | Default   | Notes                                                     |
 | ----------------- | ----------------- | ------------------- | --------- | --------------------------------------------------------- |
@@ -261,6 +265,114 @@ The record shape depends on `chartType`:
 For `pie`, `label` is the **site name** by default. It is only the site ID if
 you explicitly request it via `"metaDataFields": ["site_id"]`, since the
 cleaning pipeline otherwise strips that column.
+
+## Air-Quality Report
+
+`POST /api/v2/analytics/data/report`
+
+PM2.5/PM10 aggregates over a window for **one grid or one cohort**, computed
+server-side and returned in a single response. This does not paginate, and
+takes a different body from the endpoints above:
+
+| JSON field   | Type              | Required            | Notes                   |
+| ------------ | ----------------- | ------------------- | ----------------------- |
+| `grid_id`    | string            | one entity required | Report on a grid        |
+| `cohort_id`  | string            | one entity required | Report on a cohort      |
+| `start_time` | ISO 8601 datetime | **yes**             | Non-zero window         |
+| `end_time`   | ISO 8601 datetime | **yes**             | Within `MAX_QUERY_DAYS` |
+
+Supply **exactly one** of `grid_id` / `cohort_id` — zero or both is a 422. The
+entity lives in the body rather than the path, the same way
+[`/data/summary`](#endpoints-covered) selects between a grid and a cohort.
+
+Both kinds share one pipeline and differ only in how membership resolves: a
+grid resolves to its **sites**, a cohort to its **devices**, both read from
+BigQuery metadata rather than an external service. The response reflects that —
+a grid report carries `sites: {site_ids, number_of_sites, ...}`, a cohort report
+carries `devices: {device_ids, number_of_devices, ...}`.
+
+### Sample request
+
+```bash
+curl -X POST http://localhost:5000/api/v2/analytics/data/report \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grid_id": "64b5f7c2d4a1e80013f9a2b1",
+    "start_time": "2024-01-01T00:00:00Z",
+    "end_time": "2024-03-31T23:59:59Z"
+  }'
+```
+
+For a cohort, swap the identifier — everything else is identical:
+
+```json
+{
+  "cohort_id": "65a1c9e4b2f7d30014e8c3d2",
+  "start_time": "2024-01-01T00:00:00Z",
+  "end_time": "2024-03-31T23:59:59Z"
+}
+```
+
+### Sample response
+
+Abridged — every `*_pm` key holds a list of records:
+
+```json
+{
+  "airquality": {
+    "status": "success",
+    "grid_id": "64b5f7c2d4a1e80013f9a2b1",
+    "sites": {
+      "site_ids": ["64a1...", "64a2..."],
+      "number_of_sites": 2,
+      "grid name": ["Kampala"]
+    },
+    "period": {
+      "startTime": "2024-01-01T00:00:00+00:00",
+      "endTime": "2024-03-31T23:59:59+00:00"
+    },
+    "daily_mean_pm": [
+      {
+        "date": "2024-01-01",
+        "pm2_5_calibrated_value": 34.21,
+        "pm10_calibrated_value": 52.08
+      }
+    ],
+    "diurnal": [{ "hour": 0, "pm2_5_calibrated_value": 41.55 }],
+    "mean_pm_by_day_hour": [
+      { "day": "Monday", "hour": 0, "pm2_5_calibrated_value": 39.7 }
+    ],
+    "annual_pm": [{ "year": 2024, "pm2_5_calibrated_value": 33.9 }],
+    "monthly_pm": [{ "month": 1, "pm2_5_calibrated_value": 34.2 }],
+    "site_mean_pm": [
+      { "site_name": "Makerere", "pm2_5_calibrated_value": 30.1 }
+    ],
+    "mean_pm_by_city": [{ "city": "Kampala", "pm2_5_calibrated_value": 34.0 }],
+    "mean_pm_by_country": [
+      { "country": "Uganda", "pm2_5_calibrated_value": 34.0 }
+    ],
+    "mean_pm_by_region": [
+      { "region": "Central", "pm2_5_calibrated_value": 34.0 }
+    ],
+    "mean_pm_by_day_of_week": [
+      { "day": "Monday", "pm2_5_calibrated_value": 35.4 }
+    ]
+  }
+}
+```
+
+A cohort report replaces `grid_id`/`sites` with `cohort_id`/`devices`; the
+aggregate keys are the same.
+
+`diurnal` and `mean_pm_by_day_hour` are part of this response — there is no
+separate hour-of-day endpoint. For raw hourly series, use
+[Data Download](#data-download) or the [chart endpoints](#dashboard-charts).
+
+This reads hourly consolidated data, so a wide window can exceed the byte
+ceiling and return the 400 described in [Error Handling](#error-handling);
+around three months is a realistic ceiling at the default 1 GiB.
+
+`404` means either the entity has no members or the window holds no data.
 
 ## Response Format
 

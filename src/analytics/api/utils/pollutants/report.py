@@ -1,6 +1,11 @@
 import pandas as pd
 from google.cloud import bigquery
-from api.utils.bigquery_jobs import query_job_config, shared_bigquery_client
+from api.utils.bigquery_jobs import (
+    log_cost_rejections,
+    query_job_config,
+    shared_bigquery_client,
+)
+from api.utils.exceptions import QueryTooLarge
 import numpy as np
 from timezonefinder import TimezoneFinder
 import pytz
@@ -44,55 +49,123 @@ def fetch_grid_sites(grid_id) -> list:
     """
     grids_sites_table = Utils.table_name(settings.bigquery_grids_sites)
     query = f"SELECT DISTINCT site_id FROM {grids_sites_table} WHERE grid_id = @grid_id"
-    job_config = query_job_config(
-        query_parameters=[bigquery.ScalarQueryParameter("grid_id", "STRING", grid_id)]
+    return _fetch_membership(
+        query,
+        bigquery.ScalarQueryParameter("grid_id", "STRING", grid_id),
+        column="site_id",
+        context=f"grid {grid_id}",
     )
 
+
+def fetch_cohort_devices(cohort_id) -> list:
+    """
+    Resolves a cohort ID to its device IDs from the cohorts_devices table.
+
+    Args:
+        cohort_id(str): The cohort identifier.
+
+    Returns:
+        list: Device IDs belonging to the cohort; empty on query failure.
+    """
+    cohorts_devices_table = Utils.table_name(settings.bigquery_cohorts_devices)
+    devices_table = Utils.table_name(settings.bigquery_devices_devices)
+    query = (
+        f"SELECT DISTINCT {devices_table}.device_id "
+        f"FROM {devices_table} "
+        f"WHERE {devices_table}.id IN ("
+        f"SELECT device_id FROM {cohorts_devices_table} "
+        f"WHERE cohort_id = @cohort_id)"
+    )
+    return _fetch_membership(
+        query,
+        bigquery.ScalarQueryParameter("cohort_id", "STRING", cohort_id),
+        column="device_id",
+        context=f"cohort {cohort_id}",
+    )
+
+
+def _fetch_membership(query, parameter, column: str, context: str) -> list:
+    """
+    Run a membership lookup and return one column as a list.
+
+    These scan two narrow ID columns of a metadata table — a few megabytes at
+    most, under BigQuery's 10 MB minimum billing — so in practice they sit far
+    below the ceiling. They are still subject to it (query_job_config applies
+    maximum_bytes_billed to every job), so the rejection is surfaced rather
+    than swallowed: reporting "no members found" for a query that was refused
+    on cost would send the caller looking for a membership problem that does
+    not exist. Every other failure degrades to an empty list, which the report
+    builders turn into a 404.
+    """
+    job_config = query_job_config(query_parameters=[parameter])
     try:
-        data = (
-            shared_bigquery_client().query(query, job_config=job_config).to_dataframe()
-        )
-        return data["site_id"].tolist()
+        with log_cost_rejections(f"membership lookup for {context}"):
+            data = (
+                shared_bigquery_client()
+                .query(query, job_config=job_config)
+                .to_dataframe()
+            )
+        return data[column].tolist()
+    except QueryTooLarge:
+        raise
     except Exception:
-        logger.exception(f"Error fetching grid sites for grid {grid_id}")
+        logger.exception(f"Error fetching membership for {context}")
         return []
 
 
-def query_bigquery(site_ids, start_time, end_time):
-    """
-    Fetches hourly consolidated PM measurements for the given sites/window.
+# Membership resolves to sites for a grid and to devices for a cohort; the
+# consolidated table carries both columns, so only the predicate differs.
+_REPORT_FILTER_COLUMNS = {"site_id", "device_id"}
 
-    All user-derived values (site IDs, timestamps) are bound as query
-    parameters — never interpolated into the SQL text.
+
+def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id"):
+    """
+    Fetches hourly consolidated PM measurements for the given members/window.
+
+    All user-derived values (member IDs, timestamps) are bound as query
+    parameters — never interpolated into the SQL text. ``id_column`` selects
+    the predicate and is checked against a fixed set, since it is the one
+    part that reaches the SQL text.
+
+    Args:
+        entity_ids: Site IDs (grid reports) or device IDs (cohort reports).
+        start_time: Start of the reporting window.
+        end_time: End of the reporting window.
+        id_column: "site_id" or "device_id".
 
     Returns:
         pd.DataFrame with timestamps localised per site, or None when no data.
+
+    Raises:
+        QueryTooLarge: If the query exceeds the bytes-billed ceiling.
     """
+    if id_column not in _REPORT_FILTER_COLUMNS:
+        raise ValueError(f"Invalid report filter column: {id_column}")
+
     table = Utils.table_name(settings.bigquery_hourly_consolidated)
     query = f"""
         SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5_raw_value,
         pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value, country, region, city, county
         FROM {table}
-        WHERE site_id IN UNNEST(@site_ids)
+        WHERE {id_column} IN UNNEST(@entity_ids)
         AND timestamp BETWEEN @start_time AND @end_time
         AND NOT pm2_5_raw_value IS NULL
     """
     job_config = query_job_config(
         query_parameters=[
-            bigquery.ArrayQueryParameter("site_ids", "STRING", list(site_ids)),
+            bigquery.ArrayQueryParameter("entity_ids", "STRING", list(entity_ids)),
             bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
             bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
         ]
     )
 
     try:
-        data = (
-            shared_bigquery_client().query(query, job_config=job_config).to_dataframe()
-        )
-        if data.empty:
-            logger.info("No consolidated data for the given sites/window.")
-            return None
-
+        with log_cost_rejections("grid/cohort report data"):
+            data = (
+                shared_bigquery_client()
+                .query(query, job_config=job_config)
+                .to_dataframe()
+            )
         if (
             np.isnan(data["site_latitude"]).any()
             or np.isnan(data["site_longitude"]).any()
@@ -101,14 +174,27 @@ def query_bigquery(site_ids, start_time, end_time):
                 ~np.isnan(data["site_latitude"]) & ~np.isnan(data["site_longitude"])
             ]
 
+        # Emptiness is checked after the coordinate filter, not before: rows
+        # without coordinates cannot be localised or aggregated, so a frame
+        # left empty by that filter is as much "no data" as an empty result
+        # set. Checking first returned an empty frame the caller treated as a
+        # success, yielding a 200 full of empty aggregates instead of a 404.
+        if data.empty:
+            logger.info("No consolidated data for the given members/window.")
+            return None
+
         # Convert timestamp to local time based on latitude and longitude
         data["timestamp"] = convert_utc_to_local(
             data["timestamp"], data["site_latitude"], data["site_longitude"]
         )
 
         return data
+    except QueryTooLarge:
+        # A window too wide to scan is the caller's to fix; swallowing it here
+        # would report "no data" for a query that was never run.
+        raise
     except Exception:
-        logger.exception("Error querying BigQuery for grid report data")
+        logger.exception("Error querying BigQuery for report data")
         return None
 
 

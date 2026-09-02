@@ -4,6 +4,7 @@ import json
 from typing import Dict
 
 from api.utils.messages import RATE_LIMIT_ERROR
+from config import TABLE_NAME_RE
 
 import logging
 
@@ -47,9 +48,18 @@ class Utils:
         special characters like dots (`.`).
 
         Args:
-            table (str): Fully-qualified BigQuery table name in the form 'project.dataset.table'.
+            table (str): BigQuery table name, bare or 'project.dataset.table'.
 
         Returns:
             str: The table name wrapped in backticks (e.g., '`project.dataset.table`').
+
+        Raises:
+            ValueError: If the name is empty or contains anything outside
+                letters, digits, underscore, hyphen and up to two dots.
         """
+        if not table or not TABLE_NAME_RE.fullmatch(table):
+            raise ValueError(
+                f"Invalid BigQuery table name: {table!r}. Expected 'table', "
+                "'dataset.table' or 'project.dataset.table'."
+            )
         return f"`{table}`"

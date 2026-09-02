@@ -31,10 +31,7 @@ from api.utils.bigquery_jobs import query_job_config
 
 from api.models.async_bigquery_api import AsyncBigQueryApi
 from api.models.exceedances_repo import ExceedanceRepository
-from api.models.base.data_processing import (
-    build_grid_diurnal_report,
-    build_grid_report,
-)
+from api.models.base.data_processing import build_entity_report
 from api.models.data_export import (
     DataExportModel,
     DataExportRequest as DataExportRecord,
@@ -45,12 +42,12 @@ from api.schemas.requests import (
     DailyAveragesRequest,
     DashboardChartRequest,
     DataExportRequest,
+    AirQualityReportRequest,
     DataSummaryRequest,
     DeviceDailyAveragesRequest,
     DeviceExceedancesRequest,
     ExceedancesRequest,
     ForecastDataExportRequest,
-    GridReportRequest,
     MonitoringSiteRequest,
     RawDataExportRequest,
     ReportRequest,
@@ -1039,9 +1036,9 @@ class MonitoringService(BaseService):
 # ---------------------------------------------------------------------------
 
 
-class GridReportService(BaseService):
+class AirQualityReportService(BaseService):
     """
-    Handles the grid air-quality report endpoints.
+    Handles the air-quality report endpoint for grids and cohorts.
 
     The heavy lifting (BigQuery queries, pandas aggregation) lives in
     framework-free functions in
@@ -1049,28 +1046,32 @@ class GridReportService(BaseService):
     to HTTP status codes and keeps the blocking work off the event loop.
     """
 
-    async def get_report(self, request: GridReportRequest) -> Dict[str, Any]:
-        """Full grid report: daily/monthly/annual + site/city/region aggregates."""
-        return await self._run(build_grid_report, request)
+    async def get_report(self, request: AirQualityReportRequest) -> Dict[str, Any]:
+        """
+        PM aggregates for one grid or cohort: daily/monthly/annual plus
+        site/city/country/region breakdowns.
 
-    async def get_diurnal_report(self, request: GridReportRequest) -> Dict[str, Any]:
-        """Diurnal grid report: hour-of-day and day/hour aggregates only."""
-        return await self._run(build_grid_diurnal_report, request)
-
-    async def _run(self, builder, request: GridReportRequest) -> Dict[str, Any]:
-        """Shared execution path: thread off the blocking builder, map errors."""
+        The two kinds share a pipeline; the request names which one.
+        """
+        kind, entity_id = request.entity()
         try:
             return await asyncio.to_thread(
-                builder, request.grid_id, request.start_time, request.end_time
+                build_entity_report,
+                kind,
+                entity_id,
+                request.start_time,
+                request.end_time,
             )
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc, Frequency.HOURLY) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
-            self.logger.exception("Grid report generation failed")
+            self.logger.exception("Report generation failed")
             raise HTTPException(
-                status_code=500, detail="Failed to generate grid report"
+                status_code=500, detail="Failed to generate report"
             ) from exc
 
 

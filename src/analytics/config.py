@@ -3,11 +3,21 @@ Application settings, resolved from the environment via pydantic-settings.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Any, Set
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AliasChoices, Field, field_validator, SecretStr
 from constants import DataType, DeviceCategory, Frequency
+
+# BigQuery identifiers: letters, digits, underscore and hyphen (project IDs
+# carry hyphens), in one to three dot-separated parts. Shared with
+# api.utils.utils.Utils.table_name so the startup check and the interpolation
+# site agree on what is acceptable.
+# The legacy ``project:dataset.table`` separator is accepted alongside the
+# standard dotted form: rejecting it would turn a validly-configured
+# deployment into a startup failure that takes down every endpoint.
+TABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+([.:][A-Za-z0-9_-]+){0,2}")
 
 
 class BaseConfig(BaseSettings):
@@ -279,6 +289,41 @@ class BaseConfig(BaseSettings):
     devices_summary_table: str = Field(
         default="devices_summary", validation_alias="DEVICES_SUMMARY_TABLE"
     )
+
+    # Table names are interpolated into SQL rather than bound as parameters
+    # (BigQuery has no parameter form for identifiers), so their shape is
+    # checked here — at startup, where a bad value is obvious and fixable —
+    # rather than surfacing as a syntax error on whichever endpoint hits it
+    # first. Applies to every bigquery_* string setting plus the summary
+    # table; the numeric bigquery_* settings are skipped.
+    @field_validator(
+        "bigquery_raw_data",
+        "bigquery_hourly_data",
+        "bigquery_daily_data",
+        "bigquery_hourly_consolidated",
+        "bigquery_raw_bam_data_table",
+        "bigquery_bam_hourly_data",
+        "bigquery_mobile_raw_data",
+        "bigquery_mobile_hourly_table",
+        "bigquery_latest_events",
+        "bigquery_satellite_data_table",
+        "bigquery_devices_devices",
+        "bigquery_sites_sites",
+        "bigquery_grids_sites",
+        "bigquery_grids",
+        "bigquery_cohorts_devices",
+        "bigquery_cohorts",
+        "devices_summary_table",
+    )
+    @classmethod
+    def validate_table_name(cls, v: str, info: Any) -> str:
+        if not v or not TABLE_NAME_RE.fullmatch(v):
+            raise ValueError(
+                f"{info.field_name}={v!r} is not a valid BigQuery table name. "
+                "Expected 'table', 'dataset.table' or 'project.dataset.table' "
+                "using letters, digits, underscores and hyphens."
+            )
+        return v
 
     # Filter field name mapping (API filter key → BigQuery column name)
     FILTER_FIELD_MAPPING: Dict[str, str] = {

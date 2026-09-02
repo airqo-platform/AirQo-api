@@ -30,12 +30,12 @@ without a local Redis, and is what the Kubernetes readiness probe keys on.
 
 ### Runtime dependencies
 
-| Service         | Used for                             | Required to boot?            |
-| --------------- | ------------------------------------ | ---------------------------- |
-| BigQuery        | All measurement queries              | No — fails per request       |
-| Redis           | Rate limiting, and the Celery broker | No, but see below            |
-| MongoDB         | Scheduled exports                    | No — fails per request       |
-| device-registry | Privacy filtering on download/export | No — those routes return 503 |
+| Service         | Used for                             | Required to boot?      |
+| --------------- | ------------------------------------ | ---------------------- |
+| BigQuery        | All measurement queries              | No — fails per request |
+| Redis           | Rate limiting, and the Celery broker | No, but see below      |
+| MongoDB         | Scheduled exports                    | No — fails per request |
+| device-registry | Privacy filtering (currently off)    | No — not called        |
 
 Redis is the one worth understanding. While it is unreachable the API keeps
 serving: rate limiting falls back to **per-process counters** and logs a
@@ -109,7 +109,8 @@ diagnose from the symptom. The rest have sane defaults.
 | `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                                                                                                                                                                                                                        |
 | `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                                                                                                                                                                                                                             |
 | `BIGQUERY_MAX_BYTES_BILLED` | 1 GiB                  | Deliberately tight. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 saying how much to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 1 GiB is only a couple of weeks across a few thousand devices — raise it once the logs show the real distribution. |
-| `MAX_QUERY_DAYS`            | `365`                  | Requests with a wider window are rejected with 422.                                                                                                                                                                                                                                                                                                                      |
+| `MAX_QUERY_DAYS`            | `365`                  | Requests with a wider window are rejected with 422. Applies to downloads, charts and the grid/cohort reports alike.                                                                                                                                                                                                                                                      |
+| `BIGQUERY_*` table names    | bare names             | Validated at startup — a malformed value (`bad name`, four dotted parts, a backtick) **stops the app** rather than failing as a syntax error on the first request that touches the table.                                                                                                                                                                                |
 | `MAX_FILTER_VALUES`         | `1000`                 | Requests with more sites/devices are rejected with 422.                                                                                                                                                                                                                                                                                                                  |
 | `TRUSTED_PROXIES`           | RFC1918                | `X-Forwarded-For` is honoured only from these peers. Set it empty and every caller shares one rate-limit bucket, because the peer is always the ingress pod.                                                                                                                                                                                                             |
 | `REQUIRE_GATEWAY_IDENTITY`  | `false`                | **Leave off.** Turning it on today is an auth bypass — see [Identity](#identity-not-yet-active).                                                                                                                                                                                                                                                                         |
@@ -130,6 +131,7 @@ diagnose from the symptom. The rest have sane defaults.
 | GET                | `/dashboard/sites`                                                                     |
 | POST               | `/dashboard/historical/daily-averages`, `/dashboard/historical/daily-averages-devices` |
 | POST               | `/dashboard/exceedances`, `/dashboard/exceedances-devices`                             |
+| POST               | `/data/report`                                                                         |
 | POST / GET / PATCH | `/data-export` (scheduled exports)                                                     |
 
 ### v3 — `/api/v3/public/analytics`
@@ -145,6 +147,8 @@ stricter per-route limit (10/min) on top of the global 100/min middleware.
   `grid_ids` or `cohort_ids`. `grid_ids` and `cohort_ids` are each currently
   capped at one ID.
 - `/data/summary` takes exactly one of `grid` or `cohort`.
+- `/data/report` takes exactly one of `grid_id` or `cohort_id`; membership
+  resolves from BigQuery (`grids_sites` / `cohorts_devices`), not an external API.
 - `?network=` replaced the deprecated `?tenant=`.
 - Success and error responses share one envelope (`status`, `message`, `data`,
   `metadata`); a query matching nothing is a 200 with empty `data`, not an

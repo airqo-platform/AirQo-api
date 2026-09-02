@@ -8,6 +8,8 @@ BigQuery is patched per-test via unittest.mock.patch.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 import pandas as pd
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
@@ -507,87 +509,103 @@ class TestMonitoringService:
 
 
 # ---------------------------------------------------------------------------
-# GridReportService
+# AirQualityReportService
 # ---------------------------------------------------------------------------
 
 
-def _grid_request():
-    from api.schemas.requests import GridReportRequest
+def _report_request(**entity):
+    """entity is grid_id=... or cohort_id=..."""
+    from api.schemas.requests import AirQualityReportRequest
 
-    return GridReportRequest(
-        grid_id="grid-1",
+    return AirQualityReportRequest(
         start_time="2024-01-01T00:00:00",
         end_time="2024-02-01T00:00:00",
+        **entity,
     )
 
 
-class TestGridReportService:
-    @pytest.mark.asyncio
-    async def test_get_report_success(self):
-        from api.services import GridReportService
+class TestAirQualityReportService:
+    """One endpoint serves grids and cohorts; the request body names which,
+    and the service dispatches on request.entity()."""
 
+    def _svc(self):
+        from api.services import AirQualityReportService
+
+        return AirQualityReportService()
+
+    @pytest.mark.asyncio
+    async def test_grid_request_builds_a_grid_report(self):
         report = {"airquality": {"status": "success", "grid_id": "grid-1"}}
-        svc = GridReportService()
-
-        with patch("api.services.build_grid_report", return_value=report) as mock_build:
-            resp = await svc.get_report(_grid_request())
-
-        assert resp == report
-        args = mock_build.call_args.args
-        assert args[0] == "grid-1"
-
-    @pytest.mark.asyncio
-    async def test_get_diurnal_report_success(self):
-        from api.services import GridReportService
-
-        report = {"airquality": {"status": "success", "diurnal": []}}
-        svc = GridReportService()
-
-        with patch("api.services.build_grid_diurnal_report", return_value=report):
-            resp = await svc.get_diurnal_report(_grid_request())
-
-        assert resp == report
-
-    @pytest.mark.asyncio
-    async def test_no_sites_maps_to_404(self):
-        from api.services import GridReportService
-
-        svc = GridReportService()
         with patch(
-            "api.services.build_grid_report",
+            "api.services.build_entity_report", return_value=report
+        ) as mock_build:
+            resp = await self._svc().get_report(_report_request(grid_id="grid-1"))
+
+        assert resp == report
+        assert mock_build.call_args.args[:2] == ("grid", "grid-1")
+
+    @pytest.mark.asyncio
+    async def test_cohort_request_builds_a_cohort_report(self):
+        report = {"airquality": {"status": "success", "cohort_id": "cohort-1"}}
+        with patch(
+            "api.services.build_entity_report", return_value=report
+        ) as mock_build:
+            resp = await self._svc().get_report(_report_request(cohort_id="cohort-1"))
+
+        assert resp == report
+        assert mock_build.call_args.args[:2] == ("cohort", "cohort-1")
+
+    @pytest.mark.asyncio
+    async def test_no_members_maps_to_404(self):
+        with patch(
+            "api.services.build_entity_report",
             side_effect=LookupError("No site IDs found for the given parameters."),
         ):
             with pytest.raises(HTTPException) as exc:
-                await svc.get_report(_grid_request())
+                await self._svc().get_report(_report_request(grid_id="grid-1"))
 
         assert exc.value.status_code == 404
         assert "No site IDs" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_invalid_dates_map_to_400(self):
-        from api.services import GridReportService
-
-        svc = GridReportService()
         with patch(
-            "api.services.build_grid_report",
-            side_effect=ValueError("Time range exceeded 12 months."),
+            "api.services.build_entity_report",
+            side_effect=ValueError("Time range must not exceed 365 days."),
         ):
             with pytest.raises(HTTPException) as exc:
-                await svc.get_report(_grid_request())
+                await self._svc().get_report(_report_request(grid_id="grid-1"))
 
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_unexpected_error_maps_to_sanitized_500(self):
-        from api.services import GridReportService
+    async def test_oversized_window_maps_to_400_not_404(self):
+        """query_bigquery used to swallow the cost rejection and return None,
+        which the builder turned into "No data available" — a 404 for a query
+        that was never run."""
+        from api.utils.exceptions import QueryTooLarge
 
-        svc = GridReportService()
         with patch(
-            "api.services.build_grid_report",
+            "api.services.build_entity_report",
+            side_effect=QueryTooLarge(
+                limit_bytes=1073741824, required_bytes=5557452800
+            ),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await self._svc().get_report(_report_request(grid_id="grid-1"))
+
+        assert exc.value.status_code == 400
+        assert "date range is too large" in exc.value.detail
+        assert "6x" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_unexpected_error_maps_to_sanitized_500(self):
+        with patch(
+            "api.services.build_entity_report",
             side_effect=RuntimeError("bigquery exploded: secret detail"),
         ):
             with pytest.raises(HTTPException) as exc:
-                await svc.get_report(_grid_request())
+                await self._svc().get_report(_report_request(grid_id="grid-1"))
 
         assert exc.value.status_code == 500
         assert "secret detail" not in exc.value.detail
@@ -1577,3 +1595,170 @@ class TestOversizedQueryHandling:
                 await DataExportService().export_data(export_request)
 
         assert exc.value.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# Cohort reports and report cost handling
+#
+# Grid and cohort reports share one pipeline: membership resolves to sites for
+# a grid and to devices for a cohort, and only the consolidated column the
+# measurement query filters on differs. These pin that both kinds route to the
+# right resolver/column, and that an oversized window reaches the caller as the
+# actionable 400 rather than the "no data" 404 it used to produce.
+# ---------------------------------------------------------------------------
+
+
+class TestReportEntityPipeline:
+    """The builders themselves: membership resolver and filter column."""
+
+    def _frame(self):
+        return pd.DataFrame(
+            {
+                "site_id": ["s1", "s1"],
+                "timestamp": pd.to_datetime(["2024-01-01T00:00:00Z"] * 2),
+                "site_name": ["A", "A"],
+                "site_latitude": [0.3, 0.3],
+                "site_longitude": [32.5, 32.5],
+                "pm2_5_raw_value": [10.0, 12.0],
+                "pm2_5_calibrated_value": [9.0, 11.0],
+                "pm10_raw_value": [20.0, 22.0],
+                "pm10_calibrated_value": [19.0, 21.0],
+                "country": ["Uganda", "Uganda"],
+                "region": ["Central", "Central"],
+                "city": ["Kampala", "Kampala"],
+                "county": ["Kampala", "Kampala"],
+            }
+        )
+
+    def test_grid_report_filters_by_site_id(self):
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ) as mock_resolve, patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ) as mock_query:
+            resp = build_entity_report(
+                "grid", "grid-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        mock_resolve.assert_called_once_with("grid-1")
+        assert mock_query.call_args.kwargs["id_column"] == "site_id"
+        air = resp["airquality"]
+        assert air["grid_id"] == "grid-1"
+        assert air["sites"]["site_ids"] == ["s1", "s2"]
+        assert air["sites"]["number_of_sites"] == 2
+
+    def test_cohort_report_filters_by_device_id(self):
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_cohort_devices",
+            return_value=["d1", "d2", "d3"],
+        ) as mock_resolve, patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ) as mock_query:
+            resp = build_entity_report(
+                "cohort", "cohort-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        mock_resolve.assert_called_once_with("cohort-1")
+        assert mock_query.call_args.kwargs["id_column"] == "device_id"
+        air = resp["airquality"]
+        assert air["cohort_id"] == "cohort-1"
+        # Cohort membership is devices, so the response names them as such.
+        assert air["devices"]["device_ids"] == ["d1", "d2", "d3"]
+        assert air["devices"]["number_of_devices"] == 3
+        assert "sites" not in air
+
+    def test_empty_membership_raises_lookuperror(self):
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_cohort_devices", return_value=[]
+        ):
+            with pytest.raises(LookupError, match="No device IDs"):
+                build_entity_report(
+                    "cohort", "cohort-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+                )
+
+    def test_window_cap_follows_max_query_days(self):
+        from api.models.base.data_processing import validate_dates
+        from config import settings
+
+        over = datetime(2024, 1, 1), datetime(2024, 1, 1) + timedelta(
+            days=settings.max_query_days + 1
+        )
+        with pytest.raises(ValueError, match="must not exceed"):
+            validate_dates(*over)
+
+    def test_frame_emptied_by_the_coordinate_filter_is_no_data(self):
+        """Rows without coordinates cannot be localised or aggregated. The
+        emptiness check ran before that filter, so a frame it emptied was
+        treated as a result and produced a 200 full of empty aggregates."""
+        from api.utils.pollutants.report import query_bigquery
+        from unittest.mock import MagicMock
+        import numpy as np
+
+        no_coords = pd.DataFrame(
+            {
+                "site_id": ["s1", "s2"],
+                "timestamp": pd.to_datetime(["2024-01-01T00:00:00Z"] * 2),
+                "site_name": ["A", "B"],
+                "site_latitude": [np.nan, np.nan],
+                "site_longitude": [np.nan, np.nan],
+                "pm2_5_raw_value": [10.0, 11.0],
+                "pm2_5_calibrated_value": [9.0, 10.0],
+                "pm10_raw_value": [20.0, 21.0],
+                "pm10_calibrated_value": [19.0, 20.0],
+                "country": ["Uganda"] * 2,
+                "region": ["Central"] * 2,
+                "city": ["Kampala"] * 2,
+                "county": ["Kampala"] * 2,
+            }
+        )
+        client = MagicMock()
+        client.query.return_value.to_dataframe.return_value = no_coords
+
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            result = query_bigquery(
+                ["s1", "s2"], datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        assert result is None
+
+    def test_membership_cost_rejection_is_not_a_missing_entity(self):
+        """A lookup refused on cost must not read as "this grid has no sites" —
+        it reaches the caller as the 400, like the measurement query."""
+        from google.api_core.exceptions import Forbidden
+        from api.utils.exceptions import QueryTooLarge
+        from api.utils.pollutants.report import fetch_grid_sites
+        from unittest.mock import MagicMock
+
+        client = MagicMock()
+        client.query.side_effect = Forbidden(
+            "Query exceeded limit for bytes billed: 1073741824. "
+            "5557452800 or higher required.",
+            errors=[{"reason": "bytesBilledLimitExceeded"}],
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(QueryTooLarge):
+                fetch_grid_sites("grid-1")
+
+    def test_other_membership_failures_still_degrade_to_empty(self):
+        from api.utils.pollutants.report import fetch_cohort_devices
+        from unittest.mock import MagicMock
+
+        client = MagicMock()
+        client.query.side_effect = RuntimeError("transient")
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            assert fetch_cohort_devices("cohort-1") == []

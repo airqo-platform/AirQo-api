@@ -1,28 +1,34 @@
 """
-Grid air-quality report processing.
+Grid and cohort air-quality report processing.
 
 Framework-free port of the Flask grid-report feature (outer analytics
-``/api/v2/analytics/grid/report`` and ``/grid/report/diurnal``): every function
-here takes plain arguments and returns dicts / raises exceptions — no Flask
-``request``/``jsonify``. HTTP concerns (status codes, request parsing) live in
-``GridReportService`` (api/services) and the v2 router.
+``/api/v2/analytics/grid/report``, now ``/data/report``), extended to cohorts:
+every function here takes plain arguments and returns dicts / raises exceptions
+— no Flask ``request``/``jsonify``. HTTP concerns (status codes, request
+parsing) live in ``AirQualityReportService`` (api/services) and the v2 router.
 
-Pipeline (both report variants):
-1. Resolve grid_id -> site IDs from the BigQuery grids_sites table
-   (``fetch_grid_sites``, api/utils/pollutants/report.py).
-2. Query hourly consolidated PM data for those sites from BigQuery
+Grids and cohorts share one pipeline; only membership resolution and the
+measurement filter column differ (see ``_ENTITY_KINDS``).
+
+Pipeline (both entity kinds):
+1. Resolve the entity to its members from BigQuery metadata — a grid to its
+   site IDs via grids_sites, a cohort to its device IDs via cohorts_devices
+   (``fetch_grid_sites`` / ``fetch_cohort_devices``, api/utils/pollutants/report.py).
+2. Query hourly consolidated PM data for those members from BigQuery
    (``query_bigquery``, parameterized).
 3. Enrich into a DataFrame with date/hour/month breakdown columns
    (``results_to_dataframe``).
 4. Aggregate with ``PManalysis`` and shape the response dict.
 
 Everything here is blocking I/O + pandas; callers on the event loop must run
-these via ``asyncio.to_thread`` (GridReportService does).
+these via ``asyncio.to_thread`` (AirQualityReportService does).
 
 Raises:
-    ValueError: invalid date range (equal start/end, or span > 12 months).
-    LookupError: no sites found for the grid, or no data for the window —
+    ValueError: invalid date range (equal start/end, or span > MAX_QUERY_DAYS).
+    LookupError: no members found for the entity, or no data for the window —
         mapped to HTTP 404 by the service layer.
+    QueryTooLarge: window too wide to scan within the byte ceiling — mapped to
+        HTTP 400 by the service layer.
 """
 
 from datetime import datetime
@@ -30,8 +36,10 @@ from typing import Any, Dict, List
 
 import numpy as np
 
+from config import settings
 from api.utils.pollutants.report import (
     PManalysis,
+    fetch_cohort_devices,
     fetch_grid_sites,
     query_bigquery,
     results_to_dataframe,
@@ -46,27 +54,86 @@ def validate_dates(start: datetime, end: datetime) -> None:
     """
     Validate a reporting window.
 
-    Rules (unchanged from the original API contract):
+    Rules:
     - Start time cannot equal end time.
-    - The range must not exceed 12 months (365 days).
+    - The range must not exceed MAX_QUERY_DAYS, the same ceiling the download
+      and chart paths enforce. The original contract hardcoded 12 months.
 
     Raises:
         ValueError: When either rule is violated.
     """
     if start == end:
         raise ValueError("Start time and end time cannot be the same.")
-    if (end - start).days > 365:
-        raise ValueError("Time range exceeded 12 months.")
+    max_days = settings.max_query_days
+    if (end - start).days > max_days:
+        raise ValueError(f"Time range must not exceed {max_days} days.")
 
 
-def build_grid_report(
-    grid_id: str, start_time: datetime, end_time: datetime
+# Each entity kind differs only in how membership resolves and which column
+# the measurement query filters on; everything downstream is shared.
+#   id_column    -> the consolidated column those members match
+#   members_key  -> response key holding them ("sites" / "devices")
+#   member_ids_key / count_key -> the nested keys inside it
+_ENTITY_KINDS = {
+    "grid": {
+        "id_column": "site_id",
+        "id_key": "grid_id",
+        "members_key": "sites",
+        "member_ids_key": "site_ids",
+        "count_key": "number_of_sites",
+        "name_key": "grid name",
+        "missing": "No site IDs found for the given parameters.",
+    },
+    "cohort": {
+        "id_column": "device_id",
+        "id_key": "cohort_id",
+        "members_key": "devices",
+        "member_ids_key": "device_ids",
+        "count_key": "number_of_devices",
+        "name_key": "cohort name",
+        "missing": "No device IDs found for the given parameters.",
+    },
+}
+
+
+def _resolve_members(kind: str, entity_id: str) -> List[str]:
+    """
+    Membership lookup for one entity kind, or LookupError when empty.
+
+    Dispatched by name rather than held in _ENTITY_KINDS: a function object
+    stored in that dict would bind at import time, so the resolver could never
+    be substituted afterwards.
+    """
+    if kind == "grid":
+        members: List[str] = fetch_grid_sites(entity_id)
+    else:
+        members = fetch_cohort_devices(entity_id)
+    if not members:
+        raise LookupError(_ENTITY_KINDS[kind]["missing"])
+    return members
+
+
+def _members_block(kind: str, members: List[str], name: Any) -> Dict[str, Any]:
+    """The `sites`/`devices` block of the response for one entity kind."""
+    spec = _ENTITY_KINDS[kind]
+    return {
+        spec["members_key"]: {
+            spec["member_ids_key"]: members,
+            spec["count_key"]: len(members),
+            spec["name_key"]: name,
+        }
+    }
+
+
+def build_entity_report(
+    kind: str, entity_id: str, start_time: datetime, end_time: datetime
 ) -> Dict[str, Any]:
     """
-    Build the full grid air-quality report.
+    Build the full air-quality report for a grid or cohort.
 
     Args:
-        grid_id: The grid identifier.
+        kind: "grid" or "cohort".
+        entity_id: The grid or cohort identifier.
         start_time: Start of the reporting window.
         end_time: End of the reporting window.
 
@@ -76,15 +143,15 @@ def build_grid_report(
 
     Raises:
         ValueError: Invalid date range.
-        LookupError: No sites for the grid, or no data for the window.
+        LookupError: No members for the entity, or no data for the window.
+        QueryTooLarge: Window too wide to scan within the byte ceiling.
     """
     validate_dates(start_time, end_time)
+    spec = _ENTITY_KINDS[kind]
 
-    site_ids: List[str] = fetch_grid_sites(grid_id)
-    if not site_ids:
-        raise LookupError("No site IDs found for the given parameters.")
+    members = _resolve_members(kind, entity_id)
 
-    results = query_bigquery(site_ids, start_time, end_time)
+    results = query_bigquery(members, start_time, end_time, id_column=spec["id_column"])
     if results is None:
         raise LookupError("No data available for the given time frame.")
 
@@ -99,17 +166,13 @@ def build_grid_report(
         "timestamp"
     ].dt.strftime("%Y-%m-%d %H:%M %Z")
 
-    logger.info("Successfully processed air quality data for grid_id %s", grid_id)
+    logger.info("Successfully processed air quality data for %s %s", kind, entity_id)
 
     response_data: Dict[str, Any] = {
         "airquality": {
             "status": "success",
-            "grid_id": grid_id,
-            "sites": {
-                "site_ids": site_ids,
-                "number_of_sites": len(site_ids),
-                "grid name": aggregated_pm["grid_name"],
-            },
+            spec["id_key"]: entity_id,
+            **_members_block(kind, members, aggregated_pm["grid_name"]),
             "period": {
                 "startTime": start_time.isoformat(),
                 "endTime": end_time.isoformat(),
@@ -118,40 +181,6 @@ def build_grid_report(
         }
     }
     return replace_nan_with_null(response_data)
-
-
-def build_grid_diurnal_report(
-    grid_id: str, start_time: datetime, end_time: datetime
-) -> Dict[str, Any]:
-    """
-    Build the diurnal (hourly-pattern) grid air-quality report.
-
-    Same pipeline as :func:`build_grid_report`, but aggregates only the
-    hour-of-day and day/hour breakdowns.
-
-    Raises:
-        ValueError: Invalid date range.
-        LookupError: No sites for the grid, or no data for the window.
-    """
-    validate_dates(start_time, end_time)
-
-    site_ids: List[str] = fetch_grid_sites(grid_id)
-    if not site_ids:
-        raise LookupError("No site IDs found for the given parameters.")
-
-    results = query_bigquery(site_ids, start_time, end_time)
-    if results is None:
-        raise LookupError("No data available for the given time frame.")
-
-    processed_data = results_to_dataframe(results)
-    computed_data = compute_pm_aggregates_diurnal(
-        processed_data, start_time, end_time, grid_id, site_ids
-    )
-
-    logger.info(
-        "Successfully processed diurnal air quality data for grid_id %s", grid_id
-    )
-    return replace_nan_with_null(computed_data)
 
 
 def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
@@ -206,49 +235,6 @@ def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
             "mean_pm_by_day_of_week": mean_pm_by_day_of_week.to_dict(orient="records"),
             "mean_pm_by_day_hour": mean_pm_by_day_hour.to_dict(orient="records"),
         },
-    }
-
-
-def compute_pm_aggregates_diurnal(
-    processed_data: Any,
-    start_time: datetime,
-    end_time: datetime,
-    grid_id: str,
-    site_ids: List[str],
-) -> Dict[str, Any]:
-    """
-    Compute the diurnal aggregates and shape the diurnal response dict.
-
-    Args:
-        processed_data: DataFrame from ``results_to_dataframe``.
-        start_time: Start of the reporting window (echoed in the response).
-        end_time: End of the reporting window (echoed in the response).
-        grid_id: Grid identifier (echoed in the response).
-        site_ids: Sites included (echoed in the response).
-
-    Returns:
-        The ``{"airquality": {...}}`` diurnal response dict.
-    """
-    hour_mean_pm2_5 = PManalysis.mean_pm2_5_by_hour(processed_data)
-    mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
-    grid_name = PManalysis.gridname(processed_data)
-
-    return {
-        "airquality": {
-            "status": "success",
-            "grid_id": grid_id,
-            "sites": {
-                "site_ids": site_ids,
-                "number_of_sites": len(site_ids),
-                "grid name": grid_name,
-            },
-            "period": {
-                "startTime": start_time.isoformat(),
-                "endTime": end_time.isoformat(),
-            },
-            "diurnal": hour_mean_pm2_5.to_dict(orient="records"),
-            "mean_pm_by_day_hour": mean_pm_by_day_hour.to_dict(orient="records"),
-        }
     }
 
 
