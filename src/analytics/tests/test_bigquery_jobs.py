@@ -140,7 +140,9 @@ class TestByteFormatting:
             (5557452800, "5.2 GB"),
             (1536, "1.5 KB"),
             (512, "512 bytes"),
+            (0, "0 bytes"),
             (None, "an unknown amount"),
+            (-1, "an unknown amount"),
         ],
     )
     def test_renders_sizes_a_person_can_read(self, num_bytes, expected):

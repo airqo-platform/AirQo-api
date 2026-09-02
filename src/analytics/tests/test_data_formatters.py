@@ -152,3 +152,14 @@ class TestGetValidatedFilter:
         filter_type, filter_value = get_validated_filter({"cohort_ids": ["c1", "c2"]})
         assert filter_type == "cohort_ids"
         assert filter_value == ["c1", "c2"]
+
+    def test_multiple_filters_resolve_by_precedence(self):
+        """The request schema enforces exactly one filter, so this input is
+        unreachable through the API — but _FILTER_KEYS was once a set, which
+        made the [0] pick vary between runs for a caller that bypassed the
+        schema. The tuple pins the documented precedence: sites first."""
+        filter_type, filter_value = get_validated_filter(
+            {"cohort_ids": ["c1"], "device_ids": ["d1"], "sites": ["s1"]}
+        )
+        assert filter_type == "sites"
+        assert filter_value == ["s1"]

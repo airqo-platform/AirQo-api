@@ -1043,8 +1043,8 @@ class GridReportService(BaseService):
     """
     Handles the grid air-quality report endpoints.
 
-    The heavy lifting (external Grid API call, BigQuery query, pandas
-    aggregation) lives in framework-free functions in
+    The heavy lifting (BigQuery queries, pandas aggregation) lives in
+    framework-free functions in
     api/models/base/data_processing.py; this service maps their exceptions
     to HTTP status codes and keeps the blocking work off the event loop.
     """

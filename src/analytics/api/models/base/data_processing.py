@@ -8,8 +8,8 @@ here takes plain arguments and returns dicts / raises exceptions — no Flask
 ``GridReportService`` (api/services) and the v2 router.
 
 Pipeline (both report variants):
-1. Resolve grid_id -> site IDs via the external Grid API
-   (``fetch_air_quality_data``, api/utils/pollutants/report.py).
+1. Resolve grid_id -> site IDs from the BigQuery grids_sites table
+   (``fetch_grid_sites``, api/utils/pollutants/report.py).
 2. Query hourly consolidated PM data for those sites from BigQuery
    (``query_bigquery``, parameterized).
 3. Enrich into a DataFrame with date/hour/month breakdown columns
@@ -32,7 +32,7 @@ import numpy as np
 
 from api.utils.pollutants.report import (
     PManalysis,
-    fetch_air_quality_data,
+    fetch_grid_sites,
     query_bigquery,
     results_to_dataframe,
 )
@@ -80,7 +80,7 @@ def build_grid_report(
     """
     validate_dates(start_time, end_time)
 
-    site_ids: List[str] = fetch_air_quality_data(grid_id, start_time, end_time)
+    site_ids: List[str] = fetch_grid_sites(grid_id)
     if not site_ids:
         raise LookupError("No site IDs found for the given parameters.")
 
@@ -135,7 +135,7 @@ def build_grid_diurnal_report(
     """
     validate_dates(start_time, end_time)
 
-    site_ids: List[str] = fetch_air_quality_data(grid_id, start_time, end_time)
+    site_ids: List[str] = fetch_grid_sites(grid_id)
     if not site_ids:
         raise LookupError("No site IDs found for the given parameters.")
 

@@ -1,4 +1,3 @@
-import requests
 import pandas as pd
 from google.cloud import bigquery
 from api.utils.bigquery_jobs import query_job_config, shared_bigquery_client
@@ -29,36 +28,32 @@ def convert_utc_to_local(timestamps, site_latitude, site_longitude):
     return local_times
 
 
-def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
+def fetch_grid_sites(grid_id) -> list:
     """
-    Resolves a grid ID to its site IDs via the external Grid API.
+    Resolves a grid ID to its site IDs from the BigQuery grids_sites table.
+
+    Replaces the external Grid API round trip — grid membership already lands
+    in BigQuery via the metadata sync, and this is the same table the download
+    path's grid_ids filter joins against.
 
     Args:
         grid_id(str): The grid identifier.
-        start_time(datetime): Start of the reporting window.
-        end_time(datetime): End of the reporting window.
 
     Returns:
-        list: Site IDs within the grid for the window; empty on API failure.
+        list: Site IDs belonging to the grid; empty on query failure.
     """
-    grid_params = {
-        "token": settings.airqo_api_token.get_secret_value(),
-        "startTime": start_time.isoformat() + "Z",
-        "endTime": end_time.isoformat() + "Z",
-        "recent": "no",
-    }
-
-    grid_url = f"{settings.grid_url}{grid_id}"
+    grids_sites_table = Utils.table_name(settings.bigquery_grids_sites)
+    query = f"SELECT DISTINCT site_id FROM {grids_sites_table} WHERE grid_id = @grid_id"
+    job_config = query_job_config(
+        query_parameters=[bigquery.ScalarQueryParameter("grid_id", "STRING", grid_id)]
+    )
 
     try:
-        grid_response = requests.get(grid_url, params=grid_params, timeout=60)
-        grid_response.raise_for_status()
-
-        data = grid_response.json()
-        return [
-            measurement.get("site_id") for measurement in data.get("measurements", [])
-        ]
-    except requests.exceptions.RequestException:
+        data = (
+            shared_bigquery_client().query(query, job_config=job_config).to_dataframe()
+        )
+        return data["site_id"].tolist()
+    except Exception:
         logger.exception(f"Error fetching grid sites for grid {grid_id}")
         return []
 

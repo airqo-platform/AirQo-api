@@ -175,10 +175,6 @@ class BaseConfig(BaseSettings):
     airqo_api_backoff_factor: float = Field(
         default=1.0, validation_alias="AIRQO_API_BACKOFF_FACTOR"
     )
-    grid_url: str = Field(
-        default="https://platform.airqo.net/api/v2/devices/grids",
-        validation_alias="GRID_URL_ID",
-    )
 
     # MongoDB settings — legacy config selected the URI by environment:
     # development uses MONGO_LOCAL_URI, staging/production use MONGO_GCE_URI.

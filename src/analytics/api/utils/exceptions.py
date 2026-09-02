@@ -14,7 +14,7 @@ class ExportRequestNotFound(Exception):
 
 def format_bytes(num_bytes: Optional[int]) -> str:
     """Render a byte count as a short human-readable size (e.g. "5.2 GB")."""
-    if not num_bytes or num_bytes < 0:
+    if num_bytes is None or num_bytes < 0:
         return "an unknown amount"
     units = ("bytes", "KB", "MB", "GB", "TB")
     idx = 0

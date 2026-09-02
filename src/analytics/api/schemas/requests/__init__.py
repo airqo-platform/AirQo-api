@@ -83,7 +83,7 @@ class BaseRequest(BaseModel):
 _VALID_POLLUTANTS = {"pm2_5", "pm10"}
 _VALID_META_FIELDS = {"latitude", "longitude", "site_id"}
 _VALID_WEATHER_FIELDS = {"temperature", "humidity"}
-_FILTER_KEYS = {"sites", "device_ids", "device_names", "grid_ids", "cohort_ids"}
+_FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids", "cohort_ids")
 
 
 class BaseFilterRequest(BaseRequest):
