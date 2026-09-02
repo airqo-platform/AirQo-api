@@ -194,15 +194,6 @@ describe("generate-filter util", function () {
       });
     });
 
-    it("should wrap network_id in an ObjectId", function () {
-      const networkId = "507f191e810c19729de860ea";
-      const req = { body: {}, query: { network_id: networkId }, params: {} };
-
-      const result = generateFilter.candidates(req);
-
-      expect(result).to.deep.equal({ network_id: ObjectId(networkId) });
-    });
-
     it("should let email_address win over email since it is applied later", function () {
       const req = {
         body: { email: "first@example.com" },
@@ -230,18 +221,6 @@ describe("generate-filter util", function () {
       expect(result).to.deep.equal({ _id: ObjectId(paramsId) });
     });
 
-    it("should call next with an Internal Server Error when network_id is not a valid ObjectId", function () {
-      const next = sinon.stub();
-      const req = { body: {}, query: { network_id: "not-a-valid-id" }, params: {} };
-
-      const result = generateFilter.candidates(req, next);
-
-      expect(result).to.be.undefined;
-      expectNextCalledWithInternalServerError(
-        next,
-        "Argument passed in must be a single String of 12 bytes or a string of 24 hex characters"
-      );
-    });
   });
 
   // NOTE: the old file had a "filter users" describe block that called
@@ -406,60 +385,6 @@ describe("generate-filter util", function () {
       expectNextCalledWithInternalServerError(
         next,
         "Argument passed in must be a single String of 12 bytes or a string of 24 hex characters"
-      );
-    });
-  });
-
-  describe("networks", function () {
-    it("should generate a filter for networks, wrapping net_id in an ObjectId", function () {
-      const netId = "507f1f77bcf86cd799439011";
-      const req = {
-        query: {
-          net_email: "example@example.com",
-          net_category: "example_category",
-          net_tenant: "airqo",
-          net_status: "active",
-          net_phoneNumber: "123456789",
-          net_website: "https://www.example.com",
-          net_acronym: "NET",
-          category: "example_category",
-        },
-        params: { net_id: netId },
-      };
-
-      const result = generateFilter.networks(req);
-
-      expect(result).to.deep.equal({
-        net_email: "example@example.com",
-        category: "example_category",
-        net_category: "example_category",
-        _id: ObjectId(netId),
-        net_tenant: "airqo",
-        net_acronym: "NET",
-        net_phoneNumber: "123456789",
-        net_website: "https://www.example.com",
-        net_status: "active",
-      });
-    });
-
-    it("should return an empty filter when no query or params are provided", function () {
-      const req = { query: {}, params: {} };
-
-      const result = generateFilter.networks(req);
-
-      expect(result).to.deep.equal({});
-    });
-
-    it("should call next with an Internal Server Error when net_email is not a string", function () {
-      const next = sinon.stub();
-      const req = { query: { net_email: 12345 }, params: {} };
-
-      const result = generateFilter.networks(req, next);
-
-      expect(result).to.be.undefined;
-      expectNextCalledWithInternalServerError(
-        next,
-        "net_email.toLowerCase is not a function"
       );
     });
   });

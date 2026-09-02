@@ -49,7 +49,6 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
         },
         { privilege: { $exists: true } },
         { "group_roles.role": { $in: deprecatedRoleIds } },
-        { "network_roles.role": { $in: deprecatedRoleIds } },
       ],
     };
 
@@ -63,7 +62,6 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
       },
       $pull: {
         group_roles: { role: { $in: deprecatedRoleIds } },
-        network_roles: { role: { $in: deprecatedRoleIds } },
       },
     };
 

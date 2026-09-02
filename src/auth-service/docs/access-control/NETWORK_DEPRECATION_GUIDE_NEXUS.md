@@ -29,8 +29,8 @@ failure would have flagged it.
 
 **Also check `GET /users/:id`** (and the users-list endpoint) if nexus reads
 `.networks` from those responses to render a "Network" scope row or seed a
-role-picker default — that field's source data is being migrated off users
-next and will empty out.
+role-picker default — the underlying `User.network_roles` field has now
+been removed entirely, so that field will always be empty going forward.
 
 ## Status
 

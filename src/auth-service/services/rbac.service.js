@@ -117,11 +117,6 @@ class RBACService {
     return GroupModel(this.tenant);
   }
 
-  getNetworkModel() {
-    const NetworkModel = require("@models/Network");
-    return NetworkModel(this.tenant);
-  }
-
   getRoleModel() {
     const RoleModel = require("@models/Role");
     return RoleModel(this.tenant);
@@ -573,7 +568,6 @@ class RBACService {
         constants.DASHBOARD_VIEW,
         constants.USER_VIEW,
         constants.GROUP_VIEW,
-        constants.NETWORK_VIEW,
         constants.DATA_VIEW,
         constants.REPORT_GENERATE,
       ],
@@ -615,14 +609,6 @@ class RBACService {
             ...userPermissions,
             ...contextData.systemPermissions,
           ];
-        } else if (contextType === "network") {
-          // Networks carry no permissions of their own (RBAC has fully
-          // moved to groups) — deliberately kept as "system permissions
-          // only", not a fall-through to the user's full permission set,
-          // since this feeds requireNetworkManagerAccess's OR-composed
-          // manager check (middleware/groupNetworkAuth.js) and must not
-          // become more permissive than before.
-          userPermissions = [...contextData.systemPermissions];
         } else {
           userPermissions = await this.getUserPermissions(userId);
         }
@@ -818,17 +804,6 @@ class RBACService {
               userRoles.push(groupRole.role.role_name);
             }
           }
-        } else if (contextType === "network" && user.network_roles) {
-          const networkRole = user.network_roles.find(
-            (nr) =>
-              (nr.network._id || nr.network).toString() === contextId.toString()
-          );
-          if (networkRole) {
-            userRoles.push(networkRole.userType);
-            if (networkRole.role && networkRole.role.role_name) {
-              userRoles.push(networkRole.role.role_name);
-            }
-          }
         }
       } else {
         // Global role check - include all roles
@@ -976,21 +951,6 @@ class RBACService {
     }
   }
 
-  async isNetworkMember(userId, networkId) {
-    try {
-      const user = await this.getUserModel().findById(userId).lean();
-      if (!user || !user.network_roles) return false;
-
-      return user.network_roles.some(
-        (nr) =>
-          (nr.network._id || nr.network).toString() === networkId.toString()
-      );
-    } catch (error) {
-      logger.error(`Error checking network membership: ${error.message}`);
-      return false;
-    }
-  }
-
   async isGroupManager(userId, groupId) {
     try {
       const group = await this.getGroupModel().findById(groupId).lean();
@@ -1001,21 +961,6 @@ class RBACService {
       );
     } catch (error) {
       logger.error(`Error checking group manager status: ${error.message}`);
-      return false;
-    }
-  }
-
-  async isNetworkManager(userId, networkId) {
-    try {
-      const network = await this.getNetworkModel().findById(networkId).lean();
-      if (!network) return false;
-
-      return (
-        network.net_manager &&
-        network.net_manager.toString() === userId.toString()
-      );
-    } catch (error) {
-      logger.error(`Error checking network manager status: ${error.message}`);
       return false;
     }
   }

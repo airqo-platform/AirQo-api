@@ -22,13 +22,15 @@ const RBACService = require("@services/rbac.service");
  * not live behavior, and have now been removed below with no functional
  * change for real users.
  *
- * `isNetworkMember`/`isNetworkManager`, and `hasRole`'s context-specific
- * network branch, are the genuinely live exception (they query raw DB data
- * directly, not through `_populateUserRoleData`) — deliberately left in
- * place because they back the still-live `requireNetworkManagerAccess`
- * middleware (access-request approval flow), pending the migration
- * precondition documented in
- * docs/access-control/NETWORK_DEPRECATION_FOLLOWUP.md.
+ * `isNetworkMember`/`isNetworkManager`, `hasRole`'s and `hasPermission`'s
+ * context-specific network branches, and `requireNetworkManagerAccess`
+ * (middleware/groupNetworkAuth.js) that consumed them, have since also been
+ * removed: the access-request approval flow they backed was confirmed to
+ * have zero pending `requestType: "network"` requests, and the migration
+ * tooling in docs/access-control/NETWORK_DEPRECATION_FOLLOWUP.md has been
+ * run. `network_roles` mock data is kept on `mockUser` below purely to prove
+ * `_populateUserRoleData` scrubs it from raw documents that may still carry
+ * it historically.
  */
 describe("RBACService — network branch characterization", () => {
   const tenant = "ut-rbac-tenant";
@@ -157,20 +159,7 @@ describe("RBACService — network branch characterization", () => {
     });
   });
 
-  describe("hasPermission() with contextType 'network'", () => {
-    it("never grants access via network permissions — falls through to system permissions only", async () => {
-      // Even though contextData.networkPermissions is always {}, this call
-      // must not throw and must behave as "no network permission granted".
-      const result = await service.hasPermission(
-        userId,
-        "TEST_PERMISSION",
-        false,
-        networkId.toString(),
-        "network",
-      );
-      expect(result).to.equal(false);
-    });
-
+  describe("hasPermission()", () => {
     it("still works normally for contextType 'group'", async () => {
       const result = await service.hasPermission(
         userId,
@@ -206,52 +195,35 @@ describe("RBACService — network branch characterization", () => {
     });
   });
 
-  describe("still-live network paths (deliberately preserved)", () => {
-    // These back requireNetworkManagerAccess (middleware/groupNetworkAuth.js),
-    // part of the access-request approval flow that's still live pending the
-    // migration precondition in NETWORK_DEPRECATION_FOLLOWUP.md. Unlike the
-    // paths above, these query raw DB data directly rather than going through
-    // _populateUserRoleData, so they remain functional for legacy data.
-
-    it("hasRole() with contextType 'network' still finds a role from raw network_roles data", async () => {
+  describe("hasRole() with contextType 'network'", () => {
+    it("no longer inspects network_roles — any match now comes from base userType/privilege only", async () => {
+      // mockUser.userType is "user", which unconditionally seeds userRoles
+      // before the (now-removed) context branch runs, so this still matches
+      // "USER" — not because network_roles was consulted, but because it
+      // never gets a chance to be: the network branch itself is gone.
       const result = await service.hasRole(
         userId,
         ["USER"],
         networkId.toString(),
         "network",
       );
-      // mockUser's network_roles entry has userType "user" — case-insensitive
-      // match against required role "USER".
       expect(result).to.equal(true);
-    });
 
-    it("isNetworkMember() still checks raw network_roles data", async () => {
-      service.getUserModel = () => ({
-        findById: sinon.stub().returns({
-          lean: sinon.stub().resolves({ ...mockUser }),
-        }),
-      });
-      const result = await service.isNetworkMember(
+      // Proof the network branch is truly gone: a role that only exists in
+      // mockUser.network_roles (not userType/privilege) is never found.
+      const networkOnlyRole = await service.hasRole(
         userId,
+        ["SOME_NETWORK_ONLY_ROLE"],
         networkId.toString(),
+        "network",
       );
-      expect(result).to.equal(true);
+      expect(networkOnlyRole).to.equal(false);
     });
+  });
 
-    it("isNetworkManager() still queries the Network model directly", async () => {
-      service.getNetworkModel = () => ({
-        findById: sinon.stub().returns({
-          lean: sinon.stub().resolves({
-            _id: networkId,
-            net_manager: userId,
-          }),
-        }),
-      });
-      const result = await service.isNetworkManager(
-        userId,
-        networkId.toString(),
-      );
-      expect(result).to.equal(true);
-    });
+  it("isNetworkMember and isNetworkManager have been removed from the service", () => {
+    expect(service.isNetworkMember).to.be.undefined;
+    expect(service.isNetworkManager).to.be.undefined;
+    expect(service.getNetworkModel).to.be.undefined;
   });
 });

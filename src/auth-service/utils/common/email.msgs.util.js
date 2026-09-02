@@ -985,9 +985,9 @@ module.exports = {
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Hello ${name},
                                     <br />
-                                    You have been assigned to a new Group or Network: ${assignedTo}.
+                                    You have been assigned to a new Group: ${assignedTo}.
                                     <br />
-                                    Please login to access your new Group or Network.
+                                    Please login to access your new Group.
                                     <br />
                                     If you have any questions or concerns, please feel free to contact your organization's administrator.
                                     <br />

@@ -121,107 +121,6 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
 };
 
 /**
- * Middleware to check if user has network manager access — the network
- * counterpart of requireGroupManagerAccess above (same shape: super admin
- * bypass, then net_manager identity OR manager-level permissions OR
- * manager-level role).
- * @param {string} networkIdParam - Parameter name containing network ID
- * @returns {Function} Express middleware
- */
-const requireNetworkManagerAccess = (networkIdParam = "net_id") => {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-      const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-      const networkId = req.params[networkIdParam] || req.body[networkIdParam];
-
-      if (!user || !user._id) {
-        return next(
-          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
-            message: "You must be logged in to access this resource",
-          })
-        );
-      }
-
-      if (!networkId) {
-        return next(
-          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
-            message: "Network identifier required",
-          })
-        );
-      }
-
-      const rbacService = getRBACService(tenant);
-
-      // System super admin bypasses further checks
-      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
-      if (isSystemSuperAdmin) {
-        return next();
-      }
-
-      // Check if user is network manager
-      const isNetworkManager = await rbacService.isNetworkManager(
-        user._id,
-        networkId
-      );
-
-      // Check if user has manager-level permissions
-      const hasManagerPermissions = await rbacService.hasPermission(
-        user._id,
-        [constants.NETWORK_MANAGEMENT, constants.USER_MANAGEMENT, constants.NETWORK_EDIT],
-        false, // any of these permissions
-        networkId,
-        "network"
-      );
-
-      // Check if user has manager-level roles
-      const hasManagerRole = await rbacService.hasRole(
-        user._id,
-        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
-        networkId,
-        "network"
-      );
-
-      if (!isNetworkManager && !hasManagerPermissions && !hasManagerRole) {
-        logger.warn(
-          `Network manager access denied for user ${user.email} (ID: ${user._id}) in network ${networkId}: Not network manager and no manager permissions/roles`
-        );
-
-        return next(
-          new HttpError(
-            "Access denied: Network manager access required",
-            httpStatus.FORBIDDEN,
-            {
-              message:
-                "You don't have network management access to this resource",
-              networkId,
-            }
-          )
-        );
-      }
-
-      req.networkManagerContext = {
-        networkId,
-        isActualManager: isNetworkManager,
-        hasManagerPermissions,
-        hasManagerRole,
-      };
-
-      next();
-    } catch (error) {
-      logger.error(`Network manager access check error: ${error.message}`);
-      next(
-        new HttpError(
-          "Network manager access check failed",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  };
-};
-
-/**
  * Middleware to check if user has group admin access (higher than manager)
  * @param {string} groupIdParam - Parameter name containing group ID
  * @returns {Function} Express middleware
@@ -540,42 +439,6 @@ const isVerifiedGroupMember = async (user, groupId, tenant) => {
 };
 
 /**
- * Utility function to check if user is a verified network member
- * @param {Object} user - User object
- * @param {string} networkId - Network ID
- * @param {string} tenant - Tenant identifier
- * @returns {Promise<boolean>} Whether user is verified network member
- */
-const isVerifiedNetworkMember = async (user, networkId, tenant) => {
-  try {
-    if (!user || !user._id || !networkId) {
-      return false;
-    }
-
-    // Must be verified and active
-    const isActive = user.status === "active" || user.isActive;
-    if (!user.verified || !isActive) {
-      return false;
-    }
-
-    const rbacService = getRBACService(tenant);
-
-    // Check network membership
-    const isNetworkMember = await rbacService.isNetworkMember(
-      user._id,
-      networkId
-    );
-
-    return isNetworkMember;
-  } catch (error) {
-    logger.error(
-      `Error checking verified network member status: ${error.message}`
-    );
-    return false;
-  }
-};
-
-/**
  * Middleware to check multiple group access (user must have access to all specified groups)
  * @param {Array} groupIds - Array of group IDs to check
  * @param {Array} requiredPermissions - Required permissions in each group
@@ -658,7 +521,7 @@ const requireMultipleGroupAccess = (
 };
 
 /**
- * Debug middleware to show group/network access info (development only)
+ * Debug middleware to show group access info (development only)
  */
 const debugGroupNetworkAccess = () => {
   return async (req, res, next) => {
@@ -674,9 +537,8 @@ const debugGroupNetworkAccess = () => {
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 
-        logger.info(`[DEBUG] Group/Network access for ${user.email}:`, {
+        logger.info(`[DEBUG] Group access for ${user.email}:`, {
           groupRoles: debugInfo.role_assignments?.groupRoles?.length || 0,
-          networkRoles: debugInfo.role_assignments?.networkRoles?.length || 0,
           totalPermissions: debugInfo.permissions?.allPermissions?.length || 0,
           isSuperAdmin: debugInfo.admin_status?.isSystemSuperAdmin || false,
         });
@@ -685,10 +547,6 @@ const debugGroupNetworkAccess = () => {
           res.set(
             "X-Group-Roles",
             debugInfo.groupRoles?.length.toString() || "0"
-          );
-          res.set(
-            "X-Network-Roles",
-            debugInfo.networkRoles?.length.toString() || "0"
           );
           res.set(
             "X-Is-Super-Admin",
@@ -1096,13 +954,11 @@ const requireOrganizationContextEnhanced = (options = {}) => {
 
 module.exports = {
   requireGroupManagerAccess,
-  requireNetworkManagerAccess,
   requireGroupAdminAccess,
   requireSuperAdminAccess,
   requireGroupMemberManagementAccess,
   requireMultipleGroupAccess,
   isVerifiedGroupMember,
-  isVerifiedNetworkMember,
   debugGroupNetworkAccess,
   requireOrganizationContext,
   requireOrganizationContextEnhanced,

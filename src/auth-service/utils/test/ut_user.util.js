@@ -41,7 +41,6 @@ const rewire = require("rewire");
 const rewireCreateUser = rewire("@utils/user.util");
 const UserModel = require("@models/User");
 const LogModel = require("@models/log");
-const NetworkModel = require("@models/Network");
 const RoleModel = require("@models/Role");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");

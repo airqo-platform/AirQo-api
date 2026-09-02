@@ -1432,8 +1432,8 @@ const getContextPermissions = [
       .withMessage("contextId must be a valid Mongo ID"),
     query("contextType")
       .optional()
-      .isIn(["group", "network"])
-      .withMessage("contextType must be either 'group' or 'network'"),
+      .isIn(["group"])
+      .withMessage("contextType must be 'group'"),
   ],
 ];
 

@@ -74,7 +74,7 @@ const adminCheck = (options = {}) => {
       const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
       if (isSystemSuperAdmin) return next();
 
-      // Find the target group/network
+      // Find the target group
       let targetContext;
       if (contextType === "group") {
         let lookupQuery = {};
@@ -429,7 +429,6 @@ const debugAdminAccess = () => {
         logger.info(`[DEBUG] Admin access info for ${user.email}:`, {
           isSuperAdmin: debugInfo.isSuperAdmin,
           groupRoles: debugInfo.groupRoles?.slice(0, 3), // First 3 group roles
-          networkRoles: debugInfo.networkRoles?.slice(0, 3), // First 3 network roles
           allPermissions: debugInfo.allPermissions?.slice(0, 10), // First 10 permissions
         });
 
@@ -439,7 +438,6 @@ const debugAdminAccess = () => {
             JSON.stringify({
               isSuperAdmin: debugInfo.isSuperAdmin,
               totalGroupRoles: debugInfo.groupRoles?.length || 0,
-              totalNetworkRoles: debugInfo.networkRoles?.length || 0,
               totalPermissions: debugInfo.allPermissions?.length || 0,
             })
           );

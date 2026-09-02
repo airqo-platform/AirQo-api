@@ -28,21 +28,6 @@ const pagination = (req, res, next) => {
   next();
 };
 
-const validateNetworkId = oneOf([
-  query("network_id")
-    .optional()
-    .notEmpty()
-    .withMessage("network_id must not be empty if provided")
-    .bail()
-    .trim()
-    .isMongoId()
-    .withMessage("network_id must be an object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
-]);
-
 const validateGroupId = oneOf([
   query("group_id")
     .optional()
@@ -72,7 +57,7 @@ const validateRoleIdParam = oneOf([
     }),
 ]);
 
-const list = [validateTenant, validateNetworkId, validateGroupId];
+const list = [validateTenant, validateGroupId];
 
 const listSummary = [validateTenant];
 
@@ -362,11 +347,6 @@ const getUserRolesWithFilters = [
     .isMongoId()
     .withMessage("group_id must be a valid MongoDB ObjectId"),
 
-  query("network_id")
-    .optional()
-    .isMongoId()
-    .withMessage("network_id must be a valid MongoDB ObjectId"),
-
   query("include_all_groups")
     .optional()
     .isIn(["true", "false"])
@@ -645,11 +625,6 @@ const getUserRoles = [
     .isMongoId()
     .withMessage("group_id must be a valid MongoDB ObjectId"),
 
-  query("network_id")
-    .optional()
-    .isMongoId()
-    .withMessage("network_id must be a valid MongoDB ObjectId"),
-
   query("include_deprecated")
     .optional()
     .isIn(["true", "false"])
@@ -771,52 +746,6 @@ const bulkRoleOperations = [
   ],
 ];
 
-const cleanupUserNetworkRoles = [
-  validateTenant,
-  query("dry_run")
-    .optional()
-    .isIn(["true", "false"])
-    .withMessage("dry_run must be 'true' or 'false' if provided"),
-];
-
-const migrateNetworkRolesToGroup = [
-  validateTenant,
-  query("dry_run")
-    .optional()
-    .isIn(["true", "false"])
-    .withMessage("dry_run must be 'true' or 'false' if provided"),
-  query("action")
-    .optional()
-    .isIn(["delete_zero_user"])
-    .withMessage("action must be 'delete_zero_user' if provided"),
-];
-
-const repairUserRoleAssignment = [
-  validateTenant,
-  param("role_id")
-    .exists()
-    .withMessage("role_id param is required")
-    .bail()
-    .notEmpty()
-    .withMessage("role_id cannot be empty")
-    .bail()
-    .isMongoId()
-    .withMessage("role_id must be a valid MongoDB ObjectId")
-    .bail()
-    .customSanitizer((value) => ObjectId(value)),
-  param("user_id")
-    .exists()
-    .withMessage("user_id param is required")
-    .bail()
-    .notEmpty()
-    .withMessage("user_id cannot be empty")
-    .bail()
-    .isMongoId()
-    .withMessage("user_id must be a valid MongoDB ObjectId")
-    .bail()
-    .customSanitizer((value) => ObjectId(value)),
-];
-
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -848,7 +777,4 @@ module.exports = {
   getUserPermissionsForGroup,
   bulkPermissionsCheck,
   checkUserPermissionsForActions,
-  cleanupUserNetworkRoles,
-  migrateNetworkRolesToGroup,
-  repairUserRoleAssignment,
 };

@@ -1,129 +1,146 @@
-# Network Deprecation — Status and Remaining Follow-Up
+# Network Removal — Final Status
 
-Tracking doc for auth-service engineers. Started after fixing a live bug where
-a role (`AIRQO_SUPER_ADMIN`) ended up with both `group_id` and a stale
-`network_id` set, which broke role assignment. Expanded into a full removal
-of network-based RBAC from this service. See the `fix-role-group` branch for
-all of this.
+Tracking doc for auth-service engineers. Started after fixing a live bug
+where a role (`AIRQO_SUPER_ADMIN`) ended up with both `group_id` and a stale
+`network_id` set, which broke role assignment. Expanded into a **complete
+removal** of the network concept from auth-service — including the two
+endpoints (`GET`/`POST /users/networks`) and the `Network` model itself,
+which were initially kept as a deliberate exception for Vertex and have now
+also been removed on explicit instruction, accepting the breaking impact on
+Vertex described below.
 
 ## Done
 
-**Initial bug fix + hardening:**
-- `createOrUpdateRoleWithPermissionSync` now `$unset`s `network_id` when
-  backfilling `group_id` on a role missing it, instead of leaving both set.
-- `isGroupRoleOrNetworkRole` now returns only `"group"`/`"none"` — the
-  network branch is fully removed (previously it preferred `group_id` when
-  both were set; now `network_id` alone is not a valid role association at
-  all). All 6 assign/unassign call sites simplified to group-only.
-- `migrateNetworkRolesToGroup` (`POST /roles/admin/migrate-network-to-group`)
-  also catches roles that already have `group_id` set alongside a stale
-  `network_id` and cleans the leftover field.
-- `Role.toJSON()` no longer drops `group_id` from its output.
-- Deleted `migrations/rbac-migration.util.js` (orphaned, actively regressive
-  if ever wired up).
+**RBAC role/permission layer — fully group-only:**
+- `createOrUpdateRoleWithPermissionSync`, `isGroupRoleOrNetworkRole` (now
+  only returns `"group"`/`"none"`), all 6 role assign/unassign call sites,
+  `createRole`/`POST /roles` (rejects `network_id` outright), and
+  `listAvailableUsersForRole` — all group-only now.
+- `utils/user-type.util.js` — all `net_id` branches removed.
+- `getUserRolesSimplified`/`getUserRoleSummary`/login response no longer
+  return any network fields.
+- `preference.util.js`'s `getEffectiveTheme` — network-scoped theme
+  resolution and the `network_id` query param removed.
 
-**Architecture decision — `POST /users/networks` redirected, not removed:**
-`useNetworks()`/`GET+POST /users/networks` turned out to be a much bigger
-Vertex dependency than originally scoped (required in grid/cohort/site
-creation and device import/deploy, not just an admin page — see the updated
-`NETWORK_DEPRECATION_GUIDE_VERTEX.md`). Rather than delete these endpoints,
-`utils/network.util.js`'s `create()` now provisions a **group-scoped** admin
-role (via a new `getOrCreateGroupForNetwork` helper) instead of a
-network-scoped one. The request/response contract for Vertex is unchanged;
-internally, no new network-scoped roles or `User.network_roles` entries are
-produced by this path anymore.
+**`services/rbac.service.js` — the core permission-resolution engine.**
+Had zero existing test coverage despite running on every authenticated
+request, so characterization tests were written first
+(`services/test/ut_rbac.service.js`) before any change. Key finding:
+`networkPermissions`/`networkMemberships` were **hardcoded to `{}`/`[]`
+literals**, never actually computed — dead in practice for any real user,
+confirmed safe to remove. `isNetworkMember`, `isNetworkManager`,
+`getNetworkModel`, and the `contextType === "network"` branches in
+`hasPermission`/`hasRole`/`getUserPermissionsInContext`/
+`getUserRolesInContext` are gone.
 
-**Role assignment (Phase 2) — fully group-only now:**
-- `createRole`/`POST /roles` no longer accepts `network_id` at all —
-  `group_id` is required. Validator updated to explicitly reject `network_id`
-  with a clear error rather than silently ignoring it.
-- `listAvailableUsersForRole` always queries `group_roles`.
-- `utils/user-type.util.js` (`assignUserType`, `assignManyUsersToUserType`,
-  `listUsersWithUserType`, `listAvailableUsersForUserType`) — all `net_id`
-  branches removed, group-only. (Note: `assignUserType` had a pre-existing
-  bug — it called an undefined `isNetwork()` function, so it was already
-  broken for any invocation before this cleanup; fixing that was incidental.)
+**Access-request flow — removed.** Confirmed zero pending `AccessRequest`
+documents with `requestType: "network"` in any tenant before touching this.
+`requireNetworkManagerAccess`/`isVerifiedNetworkMember`
+(`middleware/groupNetworkAuth.js`) and every `requestType === "network"`
+branch in `utils/request.util.js` are gone — the `AccessRequest.requestType`
+schema enum is now `["group"]` only. (Also found: two dead calls to
+`createNetworkUtil.assignOneUser`/`unAssignUser` inside that removed code —
+methods that never existed on that module, so the network access-request
+flow was **already silently broken**, 500s swallowed by try/catch, before
+this removal.)
 
-**Response-shape changes (Phase 3 — the actual breaking change):**
-- `getUserRolesSimplified` (backs `.../roles-simplified`) no longer returns
-  `networks[]` at all.
-- `getUserRoleSummary` (backs `.../role-summary`) no longer returns
-  `network_roles`.
-- Login response (`enhancedLogin`) no longer returns `hasNetworkAccess` or
-  `defaultNetwork`.
-- `preference.util.js`'s `getEffectiveTheme` — removed the three
-  network-scoped theme-resolution priorities (user network-scoped theme,
-  network organization theme, primary network theme) and the `network_id`
-  query param. This was client-reachable (`?network_id=`), not dead code —
-  confirmed no test coverage existed for it.
-- Updated `NETWORK_DEPRECATION_GUIDE_NEXUS.md` to a final notice (the
-  breaking change already shipped) and `_VERTEX.md` to reflect the
-  redirect-to-groups decision and the corrected, larger dependency scope.
+**One-time migration ops run, then tooling deleted.**
+`POST /roles/admin/migrate-network-to-group` and
+`POST /roles/admin/cleanup-user-network-roles` were run and verified per
+tenant. `migrateNetworkRolesToGroup`, `cleanupUserNetworkRoles`,
+`repairUserRoleAssignment` and their controller/validator/route wiring are
+deleted.
 
-**`services/rbac.service.js` — the core permission-resolution engine (done, carefully).**
-This file had zero existing test coverage despite being used on every
-authenticated request, so characterization tests were written first
-(`services/test/ut_rbac.service.js`) to lock in behavior before touching
-anything. Key finding: `networkPermissions`/`networkMemberships` were
-**hardcoded to `{}`/`[]` literals**, not actually computed — `_batchPopulateNetworks`
-was defined but never called anywhere. So the network branches in
-`getUserPermissionsByContext`, `getUserPermissionsForLogin`, `hasPermission`,
-`getUserPermissionsInContext`, `getUserRolesInContext`, and `_populateUserRoleData`
-were already dead in practice for any real user — removed with confirmed zero
-behavioral change (see the test file's docstring for the full explanation).
+**Schema fields removed:** `Role.network_id`, `User.network_roles` (+ its two
+dead schema variants `networkRoleSchema`/`openNetworkRoleSchema`),
+`Permission.network_id`, `TenantSettings.defaultNetwork`/
+`defaultNetworkRole`, `Defaults.network_id`, `Preference.network_id`/
+`network_ids`, `Candidate.network_id`. Cascaded into every consumer:
+`Role.list()`'s network fallback `$lookup`, `Permission.list()`'s `networks`
+`$lookup`, `Candidate.list()`'s `networks` `$lookup`, `User`'s pre-save hook
+(no longer fetches `TenantSettings` at all — that fetch existed only to seed
+`network_roles`, so user registration no longer depends on a
+`TenantSettings` document existing), dead `User` statics
+(`assignUserToNetwork`, `addNetworkRole`), `User.toJSON()`,
+`getEnhancedUserDetails`, every `network_roles`-derived stat/flag across
+`role-permissions.util.js`/`user.util.js`/`admin.util.js`, two live cron jobs
+(`token-strategy-migration-job.js`, `guest-user-init-job.js`,
+`preferences-update-job.js`), `db-projections.js`'s network exclusion
+entries, and every relevant validator
+(`roles`/`permissions`/`tenant-settings`/`defaults`/`preferences`/
+`candidates`.validators.js — the `tenant-settings` one was **load-bearing**:
+`defaultNetwork`/`defaultNetworkRole` were `.exists()`-required on `create`,
+so leaving that unfixed would have made tenant-settings creation permanently
+impossible to satisfy once the fields were gone).
 
-One near-miss worth flagging for anyone touching this file again: an early
-pass removed `hasPermission`'s `contextType === "network"` branch entirely,
-which would have made it fall through to the user's *full* global permission
-set instead of staying empty — this silently widens
-`requireNetworkManagerAccess` (`middleware/groupNetworkAuth.js`), an
-OR-composed access check, making it **more permissive**, not a no-op. Fixed
-by keeping that branch explicit (system permissions only), not deleting it.
-Any future change to this file should grep for every caller of the function
-being touched before assuming a "dead" branch is actually unreachable in
-composition with other checks.
+**`Network` model and the last live endpoints — now fully removed.**
+Deleted `models/Network.js`, `controllers/network.controller.js`,
+`utils/network.util.js`, `routes/v2/networks.routes.js`,
+`routes/v3/networks.routes.js`, and their test files; unmounted `/networks`
+from both `routes/v2/index.js` and `routes/v3/index.js`. Also removed:
+`constants.DEFAULT_NETWORK`/`DEFAULT_NETWORK_ROLE`/`NETWORK_EVENTS_TOPIC`
+(env vars — **not** `NETWORK_CREATION_*_TOPIC`, which back device-registry's
+unrelated "Sensor Manufacturer" Kafka flow and were deliberately left
+alone), the `NETWORK_*` permission definitions in `config/core/permissions.js`
+(confirmed non-cascading — `setupDefaultPermissions` is additive-only, so
+this doesn't delete any existing `Permission` document or role assignment,
+just stops re-affirming them), `cascadeUserDeletion`'s network-manager
+cleanup, `profile-picture-update-job.js`'s network branch, and the now-dead
+`generateFilter.networks`/`candidates`'s `network_id` filter.
 
-**Deliberately still live, left untouched:** `isNetworkMember`, `isNetworkManager`,
-and `hasRole`'s context-specific `contextType === "network"` branch — these
-query raw DB data directly (not through `_populateUserRoleData`) and back
-`requireNetworkManagerAccess`, part of the still-live access-request approval
-flow below. Covered by characterization tests confirming they still work.
+**Two real bugs found and fixed as a direct result of this removal:**
+1. `enhancedLogin`'s debug log did
+   `Object.keys(loginPermissions.networkPermissions).length` with no guard —
+   threw on every login once `getUserPermissionsForLogin` stopped returning
+   that key.
+2. `services/atf.service.js` (zero prior test coverage) — `StandardToken
+   Strategy.generateToken` unconditionally did
+   `Object.values(permissionData.networkPermissions).flat()` — threw on every
+   token generation for any user on the STANDARD token strategy, for the same
+   reason. Added `services/test/ut_atf.service.js` as a regression test.
+   Also caught and reverted a near-miss in `hasPermission`'s network branch:
+   an early edit would have made it fall through to the user's *full* global
+   permission set instead of staying empty, silently widening
+   `requireNetworkManagerAccess`'s OR-composed access check before that
+   function was itself removed.
 
-## Remaining — not yet done in this pass
+**Explicitly out of scope, confirmed unrelated:** `models/Scope.js` (OAuth
+token-scope tiering, cosmetic FK, nothing authorizes on it),
+`models/Department.js` (`dep_network_id` — feature already unreachable, zero
+routes mounted), `models/AccessToken.js` (one harmless orphaned projection
+key), device-registry's own independent `network` field on
+Site/Device/Comparison/Inquiry models (device connectivity grouping,
+unrelated to RBAC), `bin/jobs/kafka-consumer.js`'s Sensor Manufacturer
+handlers and `NETWORK_CREATION_REQUESTS_TOPIC`/`_APPROVED_TOPIC`/
+`_DENIED_TOPIC` (a completely different, still-live device-registry feature
+that happens to share the word "network" in its Kafka topic names).
+`services/atf.service.js`'s `getAllPermissions()` bit-position array still
+lists `NETWORK_*` permission names — **deliberately left untouched**: it's
+an independent, hardcoded, positionally-encoded list (array index → bit
+position) used to decode already-issued compressed tokens; removing entries
+would shift every subsequent bit position and corrupt in-flight tokens.
 
-**Access-request flow.** `utils/request.util.js` and
-`middleware/accessRequestAuth.js` still have live `requestType === "network"`
-branches for approving/rejecting/cancelling pre-existing network-type access
-requests. **Before touching this**, confirm there are zero pending
-`AccessRequest` documents with `requestType: "network"` in any tenant —
-otherwise those requests become permanently unapprovable. `middleware/
-groupNetworkAuth.js`'s `requireNetworkManagerAccess`/`isVerifiedNetworkMember`
-back this same flow.
+Full test suite passes (2172 tests) except the one pre-existing, unrelated
+`getDifferenceInMonths` timing flake in `utils/common/test/ut_date.util.js`.
 
-**Schema/model fields** (`Role.network_id`, `User.network_roles` and its
-schema variants, `Permission.network_id`, `TenantSettings.defaultNetwork`/
-`defaultNetworkRole`) are all still present — intentionally not removed yet,
-since historical data may still reference them and the migration tooling
-below needs to run first. `models/Network.js` itself must stay indefinitely
-now, per the redirect-to-groups decision — it's still a live, routed model.
+## Breaking changes to communicate before staging
 
-**One-time ops run, then delete the tools.** Run
-`POST /roles/admin/migrate-network-to-group` (dry-run first) then
-`POST /roles/admin/cleanup-user-network-roles` per tenant — safe to run now
-that `getUserRolesSimplified`/`getUserRoleSummary` no longer read
-`network_roles`. After that, `migrateNetworkRolesToGroup`,
-`cleanupUserNetworkRoles`, and `repairUserRoleAssignment` (and their routes in
-`routes/v2/roles.routes.js`) become purposeless and can be deleted.
+This is now a genuine breaking change for:
+- **Vertex** — `GET`/`POST /users/networks` are gone entirely. Their
+  `useNetworks()` hook (used in grid creation, cohort creation (both
+  variants), site creation, and device import/deploy — not just the Admin >
+  Networks page) will start failing immediately on deploy. No fallback data
+  source exists today.
+- **Nexus** — already communicated and shipped in an earlier phase
+  (`networks[]` removed from `roles-simplified`, etc.) — no new impact here.
+- **Analytics / workflows** (Nicholas's area) — `validate_network()` /
+  `get_networks()` call `GET /users/networks`; both were already confirmed
+  dead code with no live callers, but will now hard-fail if anyone resurrects
+  them.
+- **vertex-template** — has its own copy of the same `/users/networks`
+  coupling; their own internal audit doc already flags this as planned for
+  removal, but timeline may not be in sync with this change.
 
-**Landmines, still relevant:** `models/Defaults.js` and `models/Preference.js`
-both set a schema-level default for `network_id` from
-`constants.DEFAULT_NETWORK` (evaluated at schema-load time); `models/
-Candidate.js` hard-fails registration with a 500 if `network_id` is absent
-and `DEFAULT_NETWORK` is empty. None of these can be touched until/unless
-`DEFAULT_NETWORK` itself is retired — which now looks unlikely to ever fully
-happen, since `models/Network.js` remains live for Vertex.
-
-**Not urgent:** `routes/v2/networks.routes.js`'s `GET /networks` has no auth
-middleware while the v3 equivalent requires `enhancedJWTAuth` + `NETWORK_VIEW`
-— worth confirming intentionally. `models/Permission.js`'s `network_id` field
-is read-only/legacy.
+See `NETWORK_DEPRECATION_GUIDE_VERTEX.md` and `NETWORK_DEPRECATION_GUIDE_NEXUS.md`
+for the team-facing notices — the Vertex one needs a final update to reflect
+that the exception it documented no longer holds.

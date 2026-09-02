@@ -17,8 +17,6 @@ const {
 
 const TenantSettingsSchema = new Schema({
   tenant: { type: String, required: true, unique: true },
-  defaultNetwork: { type: Schema.Types.ObjectId, ref: "Network" },
-  defaultNetworkRole: { type: Schema.Types.ObjectId, ref: "Role" },
   defaultGroup: { type: Schema.Types.ObjectId, ref: "Group" },
   defaultGroupRole: { type: Schema.Types.ObjectId, ref: "Role" },
 });

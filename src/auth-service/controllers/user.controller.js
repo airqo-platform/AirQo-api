@@ -1552,7 +1552,7 @@ const userController = {
   },
 
   /**
-   * Get user permissions in a specific context (group/network)
+   * Get user permissions in a specific context (group)
    * @route GET /api/v2/users/contextPermissions
    */
   getContextPermissions: async (req, res, next) => {
@@ -1918,7 +1918,6 @@ const userController = {
           // Enhanced fields (optional for clients that can handle them)
           permissions: result.data.permissions,
           groupMemberships: result.data.groupMemberships,
-          networkMemberships: result.data.networkMemberships,
           isSuperAdmin: result.data.isSuperAdmin,
         };
 

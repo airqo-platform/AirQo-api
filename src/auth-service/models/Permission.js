@@ -22,10 +22,6 @@ const PermissionSchema = new mongoose.Schema(
       required: [true, "permission is required"],
       unique: true,
     },
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-    },
     group_id: {
       type: ObjectId,
       ref: "group",
@@ -43,7 +39,6 @@ PermissionSchema.pre("update", function (next) {
   return next();
 });
 
-PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
 PermissionSchema.index({ permission: 1, group_id: 1 }, { unique: true });
 PermissionSchema.index({ permission: 1 }, { unique: true });
 
@@ -93,12 +88,6 @@ PermissionSchema.statics = {
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
-          from: "networks",
-          localField: "network_id",
-          foreignField: "_id",
-          as: "network",
-        })
-        .lookup({
           from: "groups",
           localField: "group_id",
           foreignField: "_id",
@@ -108,13 +97,7 @@ PermissionSchema.statics = {
           _id: 1,
           permission: 1,
           description: 1,
-          network: { $arrayElemAt: ["$network", 0] },
           group: { $arrayElemAt: ["$group", 0] },
-        })
-        .project({
-          "network.__v": 0,
-          "network.createdAt": 0,
-          "network.updatedAt": 0,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)

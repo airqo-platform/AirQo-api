@@ -64,7 +64,6 @@ const roleControllerStub = {
   bulkPermissionsCheck: notImplemented,
   bulkRoleOperations: notImplemented,
   checkUserPermissionsForActions: notImplemented,
-  cleanupUserNetworkRoles: notImplemented,
   enhancedAssignUserToRole: notImplemented,
   enhancedUnAssignUserFromRole: notImplemented,
   getCurrentUserPermissionsForGroup: notImplemented,
@@ -84,8 +83,6 @@ const roleControllerStub = {
   listAvailableUsersForRole: notImplemented,
   listPermissionsForRole: notImplemented,
   listUsersWithRole: notImplemented,
-  migrateNetworkRolesToGroup: notImplemented,
-  repairUserRoleAssignment: notImplemented,
   unAssignManyPermissionsFromRole: notImplemented,
   unAssignManyUsersFromRole: notImplemented,
   updateRolePermissions: notImplemented,
@@ -207,21 +204,16 @@ describe("Roles Router API Tests", () => {
       );
     });
 
-    it("should return a 400 error for a malformed network_id", async () => {
+    it("ignores network_id entirely — roles are always group-scoped now", async () => {
       listImpl = (req, res) =>
         res.status(200).json({ success: true, roles: [] });
 
-      const response = await request
+      // network_id is no longer a recognized query filter, so a malformed
+      // value is simply not validated — the request succeeds.
+      await request
         .get("/")
         .query({ network_id: "not-a-mongo-id" })
-        .expect(400);
-
-      const networkIdError = response.body.errors.find(
-        (e) => e.param === "network_id"
-      );
-      expect(networkIdError.message).to.equal(
-        "network_id must be an object ID"
-      );
+        .expect(200);
     });
   });
 

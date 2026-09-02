@@ -182,66 +182,6 @@ const filter = {
       );
     }
   },
-  networks: (req, next) => {
-    try {
-      const {
-        net_id,
-        net_email,
-        net_category,
-        net_tenant,
-        net_status,
-        net_phoneNumber,
-        net_website,
-        net_acronym,
-        category,
-      } = { ...req.query, ...req.params };
-
-      let filter = {};
-      if (net_email) {
-        filter["net_email"] = net_email.toLowerCase().trim();
-      }
-      if (category) {
-        filter["category"] = category;
-      }
-
-      if (net_category) {
-        filter["net_category"] = net_category;
-      }
-
-      if (net_id) {
-        filter["_id"] = ObjectId(net_id);
-      }
-
-      if (net_tenant) {
-        filter["net_tenant"] = net_tenant;
-      }
-      if (net_acronym) {
-        filter["net_acronym"] = net_acronym;
-      }
-
-      if (net_phoneNumber) {
-        filter["net_phoneNumber"] = net_phoneNumber;
-      }
-      if (net_website) {
-        filter["net_website"] = net_website;
-      }
-      if (net_status) {
-        filter["net_status"] = net_status;
-      }
-      return filter;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-    }
-  },
   transactions: (req, next) => {
     try {
       const {
@@ -420,7 +360,7 @@ const filter = {
   },
   candidates: (req, next) => {
     try {
-      let { category, id, email_address, email, network_id } = {
+      let { category, id, email_address, email } = {
         ...req.body,
         ...req.query,
         ...req.params,
@@ -428,9 +368,6 @@ const filter = {
       let filter = {};
       if (email) {
         filter["email"] = email.toLowerCase().trim();
-      }
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
       }
       if (email_address) {
         filter["email"] = email_address.toLowerCase().trim();
