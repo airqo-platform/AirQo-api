@@ -7,8 +7,6 @@ from api.utils.bigquery_jobs import (
 )
 from api.utils.exceptions import QueryTooLarge
 import numpy as np
-from timezonefinder import TimezoneFinder
-import pytz
 
 from api.utils.utils import Utils
 from config import settings
@@ -16,21 +14,6 @@ from config import settings
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def convert_utc_to_local(timestamps, site_latitude, site_longitude):
-    tf = TimezoneFinder()
-    local_times = []
-
-    for timestamp, latitude, longitude in zip(
-        timestamps, site_latitude, site_longitude
-    ):
-        timezone_str = tf.timezone_at(lat=latitude, lng=longitude)
-        timezone = pytz.timezone(timezone_str)
-        local_time = timestamp.astimezone(timezone)
-        local_times.append(local_time)
-
-    return local_times
 
 
 def fetch_grid_sites(grid_id) -> list:
@@ -134,7 +117,7 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
         id_column: "site_id" or "device_id".
 
     Returns:
-        pd.DataFrame with timestamps localised per site, or None when no data.
+        pd.DataFrame of UTC-timestamped rows, or None when no data.
 
     Raises:
         QueryTooLarge: If the query exceeds the bytes-billed ceiling.
@@ -175,18 +158,11 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
             ]
 
         # Emptiness is checked after the coordinate filter, not before: rows
-        # without coordinates cannot be localised or aggregated, so a frame
-        # left empty by that filter is as much "no data" as an empty result
-        # set. Checking first returned an empty frame the caller treated as a
-        # success, yielding a 200 full of empty aggregates instead of a 404.
+        # without coordinates cannot be aggregated by site, so a frame left
+        # empty by that filter is as much "no data" as an empty result set.
         if data.empty:
             logger.info("No consolidated data for the given members/window.")
             return None
-
-        # Convert timestamp to local time based on latitude and longitude
-        data["timestamp"] = convert_utc_to_local(
-            data["timestamp"], data["site_latitude"], data["site_longitude"]
-        )
 
         return data
     except QueryTooLarge:
@@ -199,9 +175,18 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
 
 
 def results_to_dataframe(results):
+    """
+    Add the date/hour/month breakdown columns the aggregations group on.
+
+    Timestamps stay in UTC, matching every other endpoint in this service.
+    ``utc=True`` is required rather than cosmetic: without it pandas refuses a
+    tz-aware column with "Tz-aware datetime.datetime cannot be converted to
+    datetime64 unless utc=True". Every breakdown below — hour, day name, month
+    — therefore reads as UTC.
+    """
     df = (
         pd.DataFrame(results)
-        .assign(timestamp=lambda x: pd.to_datetime(x["timestamp"]))
+        .assign(timestamp=lambda x: pd.to_datetime(x["timestamp"], utc=True))
         .assign(
             dates=lambda x: x["timestamp"].dt.date.astype(str),
             date=lambda x: pd.to_datetime(x["dates"]),

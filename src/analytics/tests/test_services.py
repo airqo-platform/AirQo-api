@@ -8,7 +8,7 @@ BigQuery is patched per-test via unittest.mock.patch.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pandas as pd
@@ -1603,8 +1603,10 @@ class TestOversizedQueryHandling:
 # Grid and cohort reports share one pipeline: membership resolves to sites for
 # a grid and to devices for a cohort, and only the consolidated column the
 # measurement query filters on differs. These pin that both kinds route to the
-# right resolver/column, and that an oversized window reaches the caller as the
-# actionable 400 rather than the "no data" 404 it used to produce.
+# right resolver/column, that an oversized window reaches the caller as an
+# actionable 400, and that the three empty-ish outcomes stay distinct: an
+# unresolvable entity is a 404, an empty window is a 200, and a refused query
+# is neither.
 # ---------------------------------------------------------------------------
 
 
@@ -1685,6 +1687,75 @@ class TestReportEntityPipeline:
                     "cohort", "cohort-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
                 )
 
+    def test_no_data_window_is_a_success_not_a_lookuperror(self):
+        """An unresolvable entity and an empty window are different answers.
+        The entity resolved here, so the request was valid and the period is
+        simply empty — a success body with the standard message, not a 404."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch("api.models.base.data_processing.query_bigquery", return_value=None):
+            resp = build_entity_report(
+                "grid", "grid-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        air = resp["airquality"]
+        assert air["status"] == "success"
+        assert air["message"] == (
+            "No data available for grid grid-1 for the selected period "
+            "(2024-01-01 to 2024-02-01)."
+        )
+        # Membership resolved, so the caller still learns what was searched.
+        assert air["grid_id"] == "grid-1"
+        assert air["sites"]["site_ids"] == ["s1", "s2"]
+        assert air["period"]["startTime"] == "2024-01-01T00:00:00"
+
+    def test_no_data_report_carries_every_aggregate_key(self):
+        """Empty lists rather than absent keys: a client iterating any
+        aggregate must not have to check the key exists first. Pins
+        _AGGREGATE_KEYS against what the populated path actually emits."""
+        from api.models.base.data_processing import (
+            _AGGREGATE_KEYS,
+            build_entity_report,
+            compute_pm_aggregates,
+        )
+        from api.utils.pollutants.report import results_to_dataframe
+
+        populated = compute_pm_aggregates(results_to_dataframe(self._frame()))
+        assert set(_AGGREGATE_KEYS) == set(populated["final_dict"])
+
+        with patch(
+            "api.models.base.data_processing.fetch_cohort_devices", return_value=["d1"]
+        ), patch("api.models.base.data_processing.query_bigquery", return_value=None):
+            resp = build_entity_report(
+                "cohort", "cohort-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        air = resp["airquality"]
+        for key in _AGGREGATE_KEYS:
+            assert air[key] == [], key
+
+    def test_mixed_offset_timestamps_do_not_break_the_frame(self):
+        """Reproduces the reported failure: "Tz-aware datetime.datetime cannot
+        be converted to datetime64 unless utc=True". Rows carried per-site
+        local offsets, which pandas cannot hold in one datetime64 column."""
+        from api.utils.pollutants.report import results_to_dataframe
+
+        frame = self._frame()
+        frame["timestamp"] = [
+            datetime(2024, 1, 1, 3, tzinfo=timezone(timedelta(hours=3))),
+            datetime(2024, 1, 1, 1, tzinfo=timezone(timedelta(hours=1))),
+        ]
+
+        df = results_to_dataframe(frame)
+
+        assert str(df["timestamp"].dt.tz) == "UTC"
+        # Both rows are the same instant, so both land on the same UTC hour.
+        assert df["hour"].tolist() == [0, 0]
+        assert df["day"].tolist() == ["Monday", "Monday"]
+
     def test_window_cap_follows_max_query_days(self):
         from api.models.base.data_processing import validate_dates
         from config import settings
@@ -1696,9 +1767,9 @@ class TestReportEntityPipeline:
             validate_dates(*over)
 
     def test_frame_emptied_by_the_coordinate_filter_is_no_data(self):
-        """Rows without coordinates cannot be localised or aggregated. The
-        emptiness check ran before that filter, so a frame it emptied was
-        treated as a result and produced a 200 full of empty aggregates."""
+        """Rows without coordinates cannot be aggregated by site. The emptiness
+        check ran before that filter, so a frame it emptied was treated as a
+        result and skipped the no-data answer."""
         from api.utils.pollutants.report import query_bigquery
         from unittest.mock import MagicMock
         import numpy as np

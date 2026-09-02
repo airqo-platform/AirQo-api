@@ -70,7 +70,7 @@ from api.utils.data_formatters import (
     format_to_aqcsv,
     get_validated_filter,
 )
-from api.utils.messages import FILTER_MSG
+from api.utils.messages import FILTER_MSG, no_data_message
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
@@ -174,24 +174,6 @@ async def _filter_from_request(
         filter_value = await _strip_private(filter_type, filter_value)
 
     return filter_type, filter_value
-
-
-def _no_data_message(
-    start: datetime, end: datetime, entity: Optional[str] = None
-) -> str:
-    """
-    The one wording every endpoint uses when a query succeeds but matches
-    nothing, so a client can treat "no data" the same way everywhere.
-
-    An empty result is a success envelope (200, status="success", empty data)
-    rather than an error: the request was valid, the period simply holds no
-    measurements.
-    """
-    subject = f" for {entity}" if entity else ""
-    return (
-        f"No data available{subject} for the selected period "
-        f"({start:%Y-%m-%d} to {end:%Y-%m-%d})."
-    )
 
 
 def _too_large_error(
@@ -374,7 +356,7 @@ class DataExportService(BaseService):
                 "status": "success",
                 # Flask interpolated the (possibly empty) grid value here —
                 # use the requested entity id for a more useful message.
-                "message": _no_data_message(
+                "message": no_data_message(
                     request.start_date_time,
                     request.end_date_time,
                     entity=f"{filter_kind} {filter_id}",
@@ -448,7 +430,7 @@ class DataExportService(BaseService):
         if df.empty:
             return DataExportResponse(
                 status="success",
-                message=_no_data_message(
+                message=no_data_message(
                     request.start_date_time, request.end_date_time, entity="forecasts"
                 ),
                 data=[],
@@ -526,9 +508,7 @@ class DataExportService(BaseService):
         if df.empty:
             return DataExportResponse(
                 status="success",
-                message=_no_data_message(
-                    request.start_date_time, request.end_date_time
-                ),
+                message=no_data_message(request.start_date_time, request.end_date_time),
                 data=[],
                 metadata={**metadata, "total_count": 0},
             )
@@ -621,9 +601,7 @@ class DashboardService(BaseService):
         if df.empty:
             return DashboardChartResponse(
                 status="success",
-                message=_no_data_message(
-                    request.start_date_time, request.end_date_time
-                ),
+                message=no_data_message(request.start_date_time, request.end_date_time),
                 chart_type=request.chart_type,
                 data=[],
                 metadata={**metadata, "total_count": 0},
@@ -733,7 +711,7 @@ class DashboardService(BaseService):
             status="success",
             message="daily averages successfully fetched"
             if values
-            else _no_data_message(request.start_date, request.end_date),
+            else no_data_message(request.start_date, request.end_date),
             data=DailyAveragesData(
                 average_values=values, labels=labels, background_colors=colors
             ),
@@ -761,7 +739,7 @@ class DashboardService(BaseService):
             status="success",
             message="daily averages successfully fetched"
             if values
-            else _no_data_message(request.start_date, request.end_date),
+            else no_data_message(request.start_date, request.end_date),
             data=DailyAveragesData(
                 average_values=values, labels=labels, background_colors=colors
             ),
@@ -901,7 +879,7 @@ class DashboardService(BaseService):
             status="success",
             message="exceedance data successfully fetched"
             if docs
-            else _no_data_message(request.start_date, request.end_date),
+            else no_data_message(request.start_date, request.end_date),
             data=docs,
         )
 
@@ -962,7 +940,7 @@ class DashboardService(BaseService):
             status="success",
             message="exceedance data successfully fetched"
             if data
-            else _no_data_message(request.start_date, request.end_date),
+            else no_data_message(request.start_date, request.end_date),
             data=data,
         )
 

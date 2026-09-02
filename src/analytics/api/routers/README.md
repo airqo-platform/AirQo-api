@@ -372,7 +372,37 @@ This reads hourly consolidated data, so a wide window can exceed the byte
 ceiling and return the 400 described in [Error Handling](#error-handling);
 around three months is a realistic ceiling at the default 1 GiB.
 
-`404` means either the entity has no members or the window holds no data.
+`404` means the entity could not be resolved — the `grid_id` or `cohort_id` has
+no members in BigQuery metadata. That is the same rule everywhere else: an
+identifier that does not resolve is a `404`.
+
+A window that resolves but holds no measurements is **not** a `404`. It is a
+`200` in the usual shape, with `message` naming the period and every aggregate
+present but empty, so you can iterate any of them without a key check:
+
+```json
+{
+  "airquality": {
+    "status": "success",
+    "message": "No data available for grid 64b5f7c2d4a1e80013f9a2b1 for the selected period (2024-01-01 to 2024-03-31).",
+    "grid_id": "64b5f7c2d4a1e80013f9a2b1",
+    "sites": {
+      "site_ids": ["64a1...", "64a2..."],
+      "number_of_sites": 2,
+      "grid name": []
+    },
+    "period": { "startTime": "...", "endTime": "..." },
+    "daily_mean_pm": [],
+    "diurnal": []
+  }
+}
+```
+
+### Timestamps
+
+Report timestamps are UTC, matching the download and chart endpoints. The
+`diurnal`, `mean_pm_by_day_hour` and `mean_pm_by_day_of_week` breakdowns are
+therefore UTC hours and UTC day names, not site-local ones.
 
 ## Response Format
 

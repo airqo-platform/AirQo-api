@@ -1,12 +1,6 @@
 """
 Grid and cohort air-quality report processing.
 
-Framework-free port of the Flask grid-report feature (outer analytics
-``/api/v2/analytics/grid/report``, now ``/data/report``), extended to cohorts:
-every function here takes plain arguments and returns dicts / raises exceptions
-— no Flask ``request``/``jsonify``. HTTP concerns (status codes, request
-parsing) live in ``AirQualityReportService`` (api/services) and the v2 router.
-
 Grids and cohorts share one pipeline; only membership resolution and the
 measurement filter column differ (see ``_ENTITY_KINDS``).
 
@@ -23,20 +17,26 @@ Pipeline (both entity kinds):
 Everything here is blocking I/O + pandas; callers on the event loop must run
 these via ``asyncio.to_thread`` (AirQualityReportService does).
 
+An entity that cannot be resolved and a window that holds no data are
+different outcomes and answer differently: the first is a 404, the second is a
+200 carrying the standard no-data message and empty aggregates, matching how
+every other endpoint answers an empty result.
+
 Raises:
     ValueError: invalid date range (equal start/end, or span > MAX_QUERY_DAYS).
-    LookupError: no members found for the entity, or no data for the window —
-        mapped to HTTP 404 by the service layer.
+    LookupError: no members found for the entity — mapped to HTTP 404 by the
+        service layer.
     QueryTooLarge: window too wide to scan within the byte ceiling — mapped to
         HTTP 400 by the service layer.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from config import settings
+from api.utils.messages import no_data_message
 from api.utils.pollutants.report import (
     PManalysis,
     fetch_cohort_devices,
@@ -125,6 +125,63 @@ def _members_block(kind: str, members: List[str], name: Any) -> Dict[str, Any]:
     }
 
 
+# Every aggregate key the report emits. A no-data window returns all of them as
+# empty lists rather than omitting them, so a client can iterate any aggregate
+# without first checking the key exists. Kept in step with compute_pm_aggregates
+# by test_no_data_report_carries_every_aggregate_key.
+_AGGREGATE_KEYS = (
+    "daily_mean_pm",
+    "datetime_mean_pm",
+    "diurnal",
+    "annual_pm",
+    "monthly_pm",
+    "pm_by_month_year",
+    "pm_by_month_name",
+    "site_monthly_mean_pm",
+    "site_annual_mean_pm",
+    "site_mean_pm",
+    "mean_pm_by_city",
+    "mean_pm_by_country",
+    "mean_pm_by_region",
+    "mean_pm_by_day_of_week",
+    "mean_pm_by_day_hour",
+)
+
+
+def _report_envelope(
+    kind: str,
+    entity_id: str,
+    members: List[str],
+    name: Any,
+    start_time: datetime,
+    end_time: datetime,
+    aggregates: Dict[str, Any],
+    message: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Assemble the response body shared by the populated and no-data cases.
+
+    Both carry the same keys, so a client parses one shape either way; only
+    `message` and the contents of the aggregates differ.
+    """
+    spec = _ENTITY_KINDS[kind]
+    airquality: Dict[str, Any] = {"status": "success"}
+    if message:
+        airquality["message"] = message
+    airquality.update(
+        {
+            spec["id_key"]: entity_id,
+            **_members_block(kind, members, name),
+            "period": {
+                "startTime": start_time.isoformat(),
+                "endTime": end_time.isoformat(),
+            },
+            **aggregates,
+        }
+    )
+    return {"airquality": airquality}
+
+
 def build_entity_report(
     kind: str, entity_id: str, start_time: datetime, end_time: datetime
 ) -> Dict[str, Any]:
@@ -140,10 +197,12 @@ def build_entity_report(
     Returns:
         The ``{"airquality": {...}}`` response dict with daily/monthly/annual,
         site/city/country/region-level PM aggregates (NaN already nullified).
+        A window holding no measurements returns the same shape with every
+        aggregate empty and a ``message`` naming the period.
 
     Raises:
         ValueError: Invalid date range.
-        LookupError: No members for the entity, or no data for the window.
+        LookupError: No members for the entity.
         QueryTooLarge: Window too wide to scan within the byte ceiling.
     """
     validate_dates(start_time, end_time)
@@ -153,7 +212,21 @@ def build_entity_report(
 
     results = query_bigquery(members, start_time, end_time, id_column=spec["id_column"])
     if results is None:
-        raise LookupError("No data available for the given time frame.")
+        # The entity resolved and the query ran; the period simply holds no
+        # measurements. That is a valid request with an empty answer, so it
+        # returns a success body rather than the 404 an unresolvable entity
+        # gets.
+        logger.info("No air quality data for %s %s in the window", kind, entity_id)
+        return _report_envelope(
+            kind,
+            entity_id,
+            members,
+            [],
+            start_time,
+            end_time,
+            {key: [] for key in _AGGREGATE_KEYS},
+            message=no_data_message(start_time, end_time, f"{kind} {entity_id}"),
+        )
 
     processed_data = results_to_dataframe(results)
     aggregated_pm = compute_pm_aggregates(processed_data)
@@ -168,19 +241,17 @@ def build_entity_report(
 
     logger.info("Successfully processed air quality data for %s %s", kind, entity_id)
 
-    response_data: Dict[str, Any] = {
-        "airquality": {
-            "status": "success",
-            spec["id_key"]: entity_id,
-            **_members_block(kind, members, aggregated_pm["grid_name"]),
-            "period": {
-                "startTime": start_time.isoformat(),
-                "endTime": end_time.isoformat(),
-            },
-            **aggregated_pm["final_dict"],
-        }
-    }
-    return replace_nan_with_null(response_data)
+    return replace_nan_with_null(
+        _report_envelope(
+            kind,
+            entity_id,
+            members,
+            aggregated_pm["grid_name"],
+            start_time,
+            end_time,
+            aggregated_pm["final_dict"],
+        )
+    )
 
 
 def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
