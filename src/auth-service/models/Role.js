@@ -37,6 +37,7 @@ const RoleSchema = new mongoose.Schema(
     group_id: {
       type: ObjectId,
       ref: "group",
+      required: [true, "group_id is required"],
     },
     role_permissions: [
       {

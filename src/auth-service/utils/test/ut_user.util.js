@@ -3145,3 +3145,63 @@ describe("computeUserOnboardingChecklist (personal onboarding checklist logic)",
     expect(result.completed_steps).to.include("invite-team");
   });
 });
+
+describe("_getEnhancedProfile", () => {
+  let userModelStub;
+  let findByIdStub;
+  let createUserModuleRef;
+  let getUserContextPermissionsStub;
+
+  beforeEach(() => {
+    createUserModuleRef = rewireCreateUser.__get__("createUserModule");
+    getUserContextPermissionsStub = sinon
+      .stub(createUserModuleRef, "getUserContextPermissions")
+      .resolves({
+        success: true,
+        data: {
+          permissions: {
+            allPermissions: ["VIEW_DASHBOARD"],
+            groupMemberships: [],
+            isSuperAdmin: false,
+          },
+        },
+      });
+
+    findByIdStub = sinon.stub();
+    userModelStub = sinon.stub().returns({ findById: findByIdStub });
+    rewireCreateUser.__set__("UserModel", userModelStub);
+  });
+
+  afterEach(() => {
+    getUserContextPermissionsStub.restore();
+    rewireCreateUser.__set__("UserModel", UserModel);
+  });
+
+  it("strips legacy network_roles data left over on the raw user document", async () => {
+    findByIdStub.returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({
+          _id: "u1",
+          email: "u1@example.com",
+          group_roles: [],
+          network_roles: [{ network: "legacyNetworkId", role: "legacyRoleId" }],
+          networks: ["legacyNetworkId"],
+          my_networks: ["legacyNetworkId"],
+        }),
+      }),
+    });
+
+    const _getEnhancedProfile = rewireCreateUser.__get__(
+      "createUserModule",
+    )._getEnhancedProfile;
+    const result = await _getEnhancedProfile(
+      { userId: "u1", tenant: "airqo" },
+      sinon.stub(),
+    );
+
+    expect(result.success).to.equal(true);
+    expect(result.data).to.not.have.property("network_roles");
+    expect(result.data).to.not.have.property("networks");
+    expect(result.data).to.not.have.property("my_networks");
+  });
+});

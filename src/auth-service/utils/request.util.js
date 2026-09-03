@@ -862,6 +862,19 @@ const createAccessRequest = {
         };
       }
 
+      // Legacy access requests may still carry a pre-removal "network" requestType;
+      // reject before any user creation or membership mutation happens.
+      if (accessRequest.requestType !== "group") {
+        return {
+          success: false,
+          message: "This invitation type is no longer supported.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Unsupported request type: '${accessRequest.requestType}'. Only group invitations can be accepted.`,
+          },
+        };
+      }
+
       // If using token auth, the user's email comes from the access request itself.
       let invitationEmail = email;
       if (token && accessRequest) {
@@ -1264,6 +1277,19 @@ const createAccessRequest = {
             message: "This invitation has expired and cannot be approved",
             expired_at: accessRequest.expires_at,
             request_id: accessRequest._id,
+          },
+        };
+      }
+
+      // Legacy access requests may still carry a pre-removal "network" requestType;
+      // reject before the status is mutated to "approved".
+      if (accessRequest.requestType !== "group") {
+        return {
+          success: false,
+          message: "This request type is no longer supported.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Unsupported request type: '${accessRequest.requestType}'. Only group requests can be approved.`,
           },
         };
       }

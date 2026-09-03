@@ -3,9 +3,12 @@
 ## What changed
 
 The Auth Service's `GET /users/networks` endpoint has been **removed
-entirely** (404 as of this change reaching staging/production) as part of a
-full removal of the legacy `networks` org-membership concept, superseded by
-`groups`.
+entirely** as part of a full removal of the legacy `networks` org-membership
+concept, superseded by `groups`. Since the dedicated route is gone, the
+request now falls through to the generic `GET /users/:user_id` route instead
+of hitting a router-level 404 — expect a 400 validation error ("the user ID
+must be an object ID"), not a 404, as of this change reaching
+staging/production.
 
 Two dead call sites were found calling it:
 - `validate_network()` in `api/utils/data_formatters.py` (analytics)

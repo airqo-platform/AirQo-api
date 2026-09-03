@@ -537,7 +537,7 @@ const debugGroupNetworkAccess = () => {
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 
-        logger.info(`[DEBUG] Group access for ${user.email}:`, {
+        logger.info(`[DEBUG] Group access for ${user._id}:`, {
           groupRoles: debugInfo.role_assignments?.groupRoles?.length || 0,
           totalPermissions: debugInfo.permissions?.allPermissions?.length || 0,
           isSuperAdmin: debugInfo.admin_status?.isSystemSuperAdmin || false,

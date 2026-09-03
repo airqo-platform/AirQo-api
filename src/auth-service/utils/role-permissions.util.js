@@ -4257,7 +4257,7 @@ const rolePermissionUtil = {
         );
       }
 
-      logObject("🔍 [DEBUG] Assigning with userType:", assignedUserType);
+      logObject("🔍 [DEBUG] Assigning with userType:", determinedUserType);
 
       // Validate associatedId before database operation
       if (!mongoose.Types.ObjectId.isValid(associatedId)) {

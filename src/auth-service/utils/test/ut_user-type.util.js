@@ -26,14 +26,20 @@ const rewireUserType = rewire("@utils/user-type.util");
  *   `updateOne({ _id }, {})` — a no-op-at-best, disguised-as-success update.
  */
 describe("user-type.util — assignment bug regressions", () => {
+  let revertUserModel;
+
   afterEach(() => {
     sinon.restore();
+    if (revertUserModel) {
+      revertUserModel();
+      revertUserModel = undefined;
+    }
   });
 
   describe("assignUserType()", () => {
     it("rejects with 400 when grp_id is missing, without touching the database", async () => {
       const findByIdAndUpdateStub = sinon.stub();
-      rewireUserType.__set__("UserModel", () => ({
+      revertUserModel = rewireUserType.__set__("UserModel", () => ({
         exists: sinon.stub().resolves(true),
         findOneAndUpdate: findByIdAndUpdateStub,
       }));
@@ -55,7 +61,7 @@ describe("user-type.util — assignment bug regressions", () => {
         _id: "u1",
         group_roles: [{ group: "g1", userType: "admin" }],
       });
-      rewireUserType.__set__("UserModel", () => ({
+      revertUserModel = rewireUserType.__set__("UserModel", () => ({
         exists: sinon.stub().resolves(true),
         findOneAndUpdate: findOneAndUpdateStub,
       }));
@@ -93,7 +99,7 @@ describe("user-type.util — assignment bug regressions", () => {
   describe("assignManyUsersToUserType()", () => {
     it("rejects with 400 when grp_id is missing, without attempting any user update", async () => {
       const updateOneStub = sinon.stub();
-      rewireUserType.__set__("UserModel", () => ({
+      revertUserModel = rewireUserType.__set__("UserModel", () => ({
         findById: sinon.stub(),
         updateOne: updateOneStub,
       }));
@@ -118,7 +124,7 @@ describe("user-type.util — assignment bug regressions", () => {
 
     it("updates each assigned user's matching group_roles entry via a positional update", async () => {
       const updateOneStub = sinon.stub().resolves({});
-      rewireUserType.__set__("UserModel", () => ({
+      revertUserModel = rewireUserType.__set__("UserModel", () => ({
         findById: sinon.stub().resolves({
           _id: "u1",
           group_roles: [{ group: "g1", userType: "user" }],

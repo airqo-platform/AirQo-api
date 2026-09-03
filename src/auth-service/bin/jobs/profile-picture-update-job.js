@@ -91,18 +91,26 @@ async function updateProfilePictures() {
     const startTime = Date.now();
     logger.info("🚀 Starting profile picture update process");
 
-    // Update Groups
-    let skip = 0;
+    // Update Groups. Cursor-paginate by _id rather than skip: since each
+    // processed group drops out of the filter (its grp_profile_picture gets
+    // set), a skip-based offset would silently miss groups as the matching
+    // set shrinks out from under it.
+    let lastId = null;
     while (true) {
+      const filter = {
+        $or: [
+          { grp_profile_picture: { $exists: false } },
+          { grp_profile_picture: null },
+        ],
+      };
+      if (lastId) {
+        filter._id = { $gt: lastId };
+      }
+
       const groups = await GroupModel("airqo")
-        .find({
-          $or: [
-            { grp_profile_picture: { $exists: false } },
-            { grp_profile_picture: null },
-          ],
-        })
+        .find(filter)
+        .sort({ _id: 1 })
         .limit(BATCH_SIZE)
-        .skip(skip)
         .select("_id grp_title grp_profile_picture")
         .lean();
 
@@ -110,7 +118,7 @@ async function updateProfilePictures() {
 
       const results = await processBatch(groups, updateGroupProfilePicture);
       stats.groups.processed += groups.length;
-      skip += BATCH_SIZE;
+      lastId = groups[groups.length - 1]._id;
     }
 
     const duration = (Date.now() - startTime) / 1000;
