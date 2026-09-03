@@ -35,8 +35,8 @@ theoretical "check `GET /users/:id`":
 Both read `user.networks` from `GET /users/:id` to render a "Current Access"
 panel. It's optional-chained on your side, so this won't throw — but the
 "Networks" section of that panel will now permanently show
-**"No network roles assigned"** for every user, since `User.network_roles`
-has been removed from auth-service entirely. This is a UI cleanup item
+**"No network roles assigned"** for every user, since `GET /users/:id` no
+longer returns `network_roles` in its response. This is a UI cleanup item
 (remove the now-permanently-empty section), not an urgent break, but it
 should get on the backlog since it'll otherwise sit there confusing whoever
 looks at it.

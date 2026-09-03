@@ -7194,8 +7194,8 @@ const createUserModule = {
 
       logObject("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: (authResponse.permissions || []).length,
-        groupMemberships: (authResponse.groupMemberships || []).length,
+        permissionsCount: (loginPermissions.allPermissions || []).length,
+        groupMemberships: (loginPermissions.groupMemberships || []).length,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
