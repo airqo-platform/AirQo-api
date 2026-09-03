@@ -158,6 +158,12 @@ const update = [
       .isEmpty()
       .withMessage("the role_code should not be provided when updating")
       .trim(),
+    body("network_id")
+      .not()
+      .exists()
+      .withMessage(
+        "network_id is no longer supported — roles are always group-scoped, use group_id",
+      ),
     body("group_id")
       .optional()
       .notEmpty()

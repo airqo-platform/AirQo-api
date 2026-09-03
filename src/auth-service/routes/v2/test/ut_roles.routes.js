@@ -355,6 +355,31 @@ describe("Roles Router API Tests", () => {
       );
       expect(roleIdError.message).to.equal("the role ID must be an object ID");
     });
+
+    it("should return a 400 error when network_id is provided on update — roles are always group-scoped now", async () => {
+      // Regression: update() previously had no network_id handling at all,
+      // so a client could still set a stale network_id on an existing role
+      // via PUT — the exact bug this change was meant to close off.
+      updateImpl = (req, res) =>
+        res.status(200).json({ success: true, updated_role: {} });
+
+      const response = await request
+        .put(`/${roleId}`)
+        .send({
+          ...baseUpdateBody,
+          role_status: "ACTIVE",
+          network_id: "60d21b4667d0d8992e610c99",
+        })
+        .expect(400);
+
+      expect(
+        response.body.errors.some(
+          (e) =>
+            e.message ===
+            "network_id is no longer supported — roles are always group-scoped, use group_id"
+        )
+      ).to.equal(true);
+    });
   });
 
   describe("DELETE /:role_id", () => {

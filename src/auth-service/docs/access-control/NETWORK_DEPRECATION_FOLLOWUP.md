@@ -1,5 +1,48 @@
 # Network Removal — Final Status
 
+## Post-review fixes (2026-09-03)
+
+A PR review (Copilot + a second reviewer) came in after the removal above had
+already shipped further than the review's own diff snapshot — several
+findings were already moot (e.g. suggestions to fix `utils/network.util.js`
+or re-add auth to `routes/v2/networks.routes.js`, both fully deleted by the
+time the review landed). What was still genuinely valid and fixed:
+
+- **`validators/roles.validators.js`'s `update` validator accepted
+  `network_id` silently** (only `create` rejected it) — re-opened the exact
+  bug this whole effort started from: a client could set a stale
+  `network_id` on an existing role via `PUT`. The schema field removal
+  already prevented it from persisting (Mongoose strict-mode strips unknown
+  paths), but there was no explicit rejection or client-facing error. Now
+  rejects the same way `create` does.
+- **`createOrUpdateRoleWithPermissionSync`'s stale-`network_id` cleanup was
+  gated behind `needsGroupIdBackfill`** — a role that already had `group_id`
+  set (no backfill needed) but still carried a leftover `network_id` was
+  never cleaned up by the startup sync. Decoupled into its own
+  `hasStaleNetworkId` condition; also fixed the stale inline comment this
+  same code had (Copilot correctly flagged it as inaccurate once group_id
+  priority was already in place elsewhere in this file).
+- **`utils/user-type.util.js` — found broken independent of this review**:
+  `UserModel`/`GroupModel` were used throughout but never `require()`d (a bug
+  predating this whole effort, confirmed via `git show` on the original
+  commit) — every function in this file threw `ReferenceError` on any real
+  invocation. While fixing that to actually verify the review's other
+  findings: `assignUserType`/`assignManyUsersToUserType` did
+  `$set: { group_roles: {...} }`, replacing a user's entire `group_roles`
+  array with a single bare object instead of updating one entry — fixed to a
+  positional `"group_roles.$.userType"` update. Also added a missing
+  `grp_id` guard (previously would run `updateOne({_id}, {})`, a
+  disguised-as-success no-op) and `return` before early `next(...)` calls
+  that were missing it. Added `utils/test/ut_user-type.util.js` — this file
+  had zero prior coverage.
+
+Confirmed already resolved / no longer applicable by the time of review:
+`atf.service.js`'s `networkPermissions` crash (already fixed), `user.util.js`'s
+login-path crash (already fixed), `getDetailedUserRolesAndPermissions`'s
+network fields (already removed, zero remaining references), and every
+`network.util.js`/`routes/v2/networks.routes.js`-targeted suggestion (both
+fully deleted).
+
 Tracking doc for auth-service engineers. Started after fixing a live bug
 where a role (`AIRQO_SUPER_ADMIN`) ended up with both `group_id` and a stale
 `network_id` set, which broke role assignment. Expanded into a **complete

@@ -516,6 +516,60 @@ describe("role-permissions util", () => {
       expect(findByIdAndUpdateStub.called).to.equal(false);
       expect(result.action).to.equal("unchanged");
     });
+
+    it("should clean up a stale network_id even when group_id is already set and permissions are already synced", async () => {
+      // Regression: cleanup was previously gated behind needsGroupIdBackfill,
+      // so a role that already had group_id set (not needing backfill) but
+      // still carried a leftover network_id from before the group migration
+      // was never cleaned up.
+      const findByIdAndUpdateStub = sinon.stub().resolves({
+        _id: "r1",
+        role_name: "AIRQO_SUPER_ADMIN",
+        group_id: "already-set-group-id",
+      });
+
+      rewireRPU.__set__("RoleModel", () => ({
+        findOne: sinon.stub().returns({
+          lean: sinon.stub().resolves({
+            _id: "r1",
+            role_name: "AIRQO_SUPER_ADMIN",
+            role_code: "AIRQO_SUPER_ADMIN",
+            role_permissions: ["p1"],
+            group_id: "already-set-group-id",
+            network_id: "stale-legacy-network-id",
+          }),
+        }),
+        findByIdAndUpdate: findByIdAndUpdateStub,
+      }));
+
+      rewireRPU.__set__("PermissionModel", () => ({
+        find: sinon.stub().returns({
+          select: sinon.stub().returns({
+            lean: sinon.stub().resolves([{ _id: "p1", permission: "SUPER_ADMIN" }]),
+          }),
+        }),
+      }));
+
+      const result = await createOrUpdateRoleWithPermissionSync("airqo", {
+        role_name: "AIRQO_SUPER_ADMIN",
+        role_code: "AIRQO_SUPER_ADMIN",
+        role_description: "desc",
+        permissions: ["SUPER_ADMIN"],
+        group_id: "g1",
+      });
+
+      expect(findByIdAndUpdateStub.calledOnce).to.equal(true);
+      const updateOps = findByIdAndUpdateStub.firstCall.args[1];
+      expect(updateOps.$unset).to.have.property("network_id", "");
+      // group_id must not be touched — it was already correct.
+      expect(updateOps.$set).to.not.have.property("group_id");
+      expect(result.action).to.equal("updated");
+      expect(result.network_id_removed).to.equal(true);
+      expect(result.group_id_backfilled).to.equal(false);
+      expect(result.message).to.equal(
+        "Role AIRQO_SUPER_ADMIN stale network_id removed",
+      );
+    });
   });
 
   describe("isGroupRoleOrNetworkRole()", () => {

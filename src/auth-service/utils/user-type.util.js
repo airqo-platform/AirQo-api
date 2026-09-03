@@ -2,6 +2,8 @@ const httpStatus = require("http-status");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const UserModel = require("@models/User");
+const GroupModel = require("@models/Group");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user-type-util`);
 
@@ -15,7 +17,7 @@ const type = {
       };
 
       if (!isEmpty(user) && !isEmpty(user_id)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide the user ID using query params and query body; choose one approach",
@@ -26,10 +28,18 @@ const type = {
       const userId = user || user_id;
       const organisationId = grp_id;
 
+      if (isEmpty(organisationId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "grp_id must be provided",
+          })
+        );
+      }
+
       const userExists = await UserModel(tenant).exists({ _id: userId });
 
       if (!userExists) {
-        next(
+        return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${userId} not found`,
           })
@@ -42,24 +52,24 @@ const type = {
       });
 
       if (!isAlreadyAssigned) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${userId} is NOT assigned to the provided Group ${organisationId}`,
           })
         );
       }
 
+      // Update the userType on the existing matching group_roles entry —
+      // must be a positional update, not a whole-field $set, or it would
+      // replace the entire group_roles array with a single bare object.
       const updateQuery = {
         $set: {
-          group_roles: {
-            group: organisationId,
-            userType: user_type,
-          },
+          "group_roles.$.userType": user_type,
         },
       };
 
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        { _id: userId },
+        { _id: userId, "group_roles.group": organisationId },
         updateQuery,
         { new: true, select: "group_roles" }
       );
@@ -99,9 +109,15 @@ const type = {
         ...request.params,
       };
 
+      if (isEmpty(grp_id)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "grp_id must be provided",
+          })
+        );
+      }
+
       const userPromises = [];
-      const isGroup = !isEmpty(grp_id);
-      let updateQuery = {};
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(user_id);
@@ -114,23 +130,25 @@ const type = {
           continue;
         }
 
-        if (isGroup) {
-          const isAlreadyAssigned = user.group_roles.some(
-            (role) => role.group.toString() === grp_id
-          );
+        const isAlreadyAssigned = user.group_roles.some(
+          (role) => role.group.toString() === grp_id
+        );
 
-          if (!isAlreadyAssigned) {
-            userPromises.push({
-              success: false,
-              message: `User ${user_id} is NOT assigned to provided Group ${grp_id}`,
-            });
-            continue;
-          }
-          updateQuery.$set = updateQuery.$set || {};
-          updateQuery.$set.group_roles = { group: grp_id, userType: user_type };
+        if (!isAlreadyAssigned) {
+          userPromises.push({
+            success: false,
+            message: `User ${user_id} is NOT assigned to provided Group ${grp_id}`,
+          });
+          continue;
         }
 
-        await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
+        // Positional update — must not $set the whole group_roles array to a
+        // single bare object, which would destroy the user's other group
+        // memberships.
+        await UserModel(tenant).updateOne(
+          { _id: user_id, "group_roles.group": grp_id },
+          { $set: { "group_roles.$.userType": user_type } }
+        );
 
         userPromises.push({
           success: true,

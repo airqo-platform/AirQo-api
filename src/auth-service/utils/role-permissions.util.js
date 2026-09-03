@@ -629,8 +629,16 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       // grp_title (see getOrCreateAirqoGroup), never a hardcoded ObjectId, so
       // this stays correct across environments/migrations.
       const needsGroupIdBackfill = !existingRole.group_id && !!roleData.group_id;
+      // A stale network_id must be cleaned up whenever the role resolves to
+      // a group — whether group_id was already present or is only now being
+      // backfilled — not just on the backfill path. group_id already takes
+      // priority everywhere role type is resolved, so this is a hygiene fix,
+      // not a behavior change, but it must not be skipped just because the
+      // role already had group_id set.
+      const hasStaleNetworkId =
+        !!existingRole.network_id && !!(existingRole.group_id || needsGroupIdBackfill);
 
-      if (!arePermissionsSynced || needsGroupIdBackfill) {
+      if (!arePermissionsSynced || needsGroupIdBackfill || hasStaleNetworkId) {
         const setFields = { updatedAt: new Date() };
         const unsetFields = {};
 
@@ -651,13 +659,12 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
             `🔧 Role ${roleData.role_name} is missing group_id. Backfilling from resolved group...`,
           );
           setFields.group_id = roleData.group_id;
-          // Networks are deprecated in auth-service. A legacy role carrying
-          // only network_id must be fully migrated onto group_id, not left
-          // with both set — role-type resolution elsewhere in this file
-          // treats "both present" as an invalid/unassociated role.
-          if (existingRole.network_id) {
-            unsetFields.network_id = "";
-          }
+        }
+        if (hasStaleNetworkId) {
+          logObject(
+            `🧹 Role ${roleData.role_name} has a stale network_id alongside group_id. Removing it...`,
+          );
+          unsetFields.network_id = "";
         }
 
         const updateOps = { $set: setFields };
@@ -670,21 +677,22 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           updateOps,
           { new: true },
         );
+
+        const messageParts = [];
+        if (!arePermissionsSynced) messageParts.push("permissions synchronized");
+        if (needsGroupIdBackfill) messageParts.push("group_id backfilled");
+        if (hasStaleNetworkId) messageParts.push("stale network_id removed");
+
         return {
           success: true,
           data: updatedRole,
-          message: `Role ${roleData.role_name} ${
-            !arePermissionsSynced && needsGroupIdBackfill
-              ? "permissions synchronized and group_id backfilled"
-              : needsGroupIdBackfill
-                ? "group_id backfilled"
-                : "permissions synchronized"
-          }`,
+          message: `Role ${roleData.role_name} ${messageParts.join(" and ")}`,
           action: "updated",
           status: httpStatus.OK,
           role_name: roleData.role_name,
           permissions_synced: expectedPermissionIds.length,
           group_id_backfilled: needsGroupIdBackfill,
+          network_id_removed: hasStaleNetworkId,
         };
       } else {
         logObject(
