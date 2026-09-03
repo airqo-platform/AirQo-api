@@ -27,12 +27,28 @@ on `groups[]` only, those code paths will now silently see `undefined`/empty
 data instead of throwing — please audit for that rather than assuming a hard
 failure would have flagged it.
 
-**Also check `GET /users/:id`** (and the users-list endpoint) if nexus reads
-`.networks` from those responses to render a "Network" scope row or seed a
-role-picker default — the underlying `User.network_roles` field has now
-been removed entirely, so that field will always be empty going forward.
+**Confirmed via a full audit — two specific pages are affected**, not just a
+theoretical "check `GET /users/:id`":
+- `src/app/(dashboard)/system/users/[id]/page.tsx`
+- `src/app/(dashboard)/system/team-members/[memberId]/page.tsx`
+
+Both read `user.networks` from `GET /users/:id` to render a "Current Access"
+panel. It's optional-chained on your side, so this won't throw — but the
+"Networks" section of that panel will now permanently show
+**"No network roles assigned"** for every user, since `User.network_roles`
+has been removed from auth-service entirely. This is a UI cleanup item
+(remove the now-permanently-empty section), not an urgent break, but it
+should get on the backlog since it'll otherwise sit there confusing whoever
+looks at it.
+
+Also confirmed: `useRBAC.ts`'s `hasPermissionInNetwork`, `hasRoleInNetwork`,
+and `getUserNetworks` have **zero call sites anywhere in nexus** — dead
+exports, safe to delete whenever convenient, no live behavior depends on them.
 
 ## Status
 
-Done. No further coordination needed on this specific change — reach out to
-the AirQo Auth Service team if nexus finds a code path that broke.
+The auth-service side is done — no further coordination needed there. What's
+now on nexus: the two "Current Access" panels above will need their Networks
+section removed as a follow-up cleanup (not urgent), and the three dead
+`useRBAC` exports can be deleted whenever convenient. Reach out to the AirQo
+Auth Service team if nexus finds any other code path that broke.

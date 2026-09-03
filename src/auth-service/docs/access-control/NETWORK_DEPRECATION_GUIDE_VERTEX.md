@@ -1,5 +1,10 @@
 # Networks API Removed — URGENT Breaking Change Notice for the vertex team
 
+**This notice now also applies to `vertex-template`** (the internal
+white-label fork) — confirmed via a full audit to have the identical
+coupling to every endpoint/hook named below, at nearly the same file paths.
+Whoever owns that fork needs this too, not just the vertex team.
+
 ## What changed
 
 **`GET /api/v2/users/networks` and `POST /api/v2/users/networks` (and the v3
@@ -29,6 +34,32 @@ already unreachable before this change and remains so. The Sensor Manufacturer
 *request* workflow (`/devices/network-creation-requests`, on device-registry)
 is unaffected — unrelated service, unrelated feature, despite the similar name.
 
+## Second, more serious issue: a silent permission-loss risk, not just a 404
+
+Independent of the six forms above, `core/permissions/permissionService.ts`
+(in both vertex and vertex-template) reads `user.networks` as a parallel
+source to `user.groups` in `getEffectivePermissions`, `isSuperAdmin`,
+`getUserRole`, `getOrganizationPermissions`, and `getUserRoles`. Since
+`user.networks` will now always be empty, **any user whose permissions or
+SUPER_ADMIN status came only from a legacy network-role — never mirrored to
+a group-role — will silently lose that access, with no error shown
+anywhere.** This is a bigger risk than the six forms 404ing, precisely
+because it fails silently instead of visibly.
+
+**This needs a code fix, not just a data workaround**: `permissionService.ts`
+should stop reading `user.networks` entirely and compute everything from
+`user.groups` alone — the network concept doesn't exist anywhere in
+auth-service's responses anymore, so this branch is now permanently dead
+code, not a fallback worth keeping. We're not making this change ourselves
+(it's a frontend change, out of our scope), but please prioritize it — on
+our side, we've confirmed there's no way to retroactively fix any users this
+may have already silently affected (the underlying data was already cleared
+before we could check), so removing this read path prevents any *further*
+silent loss but can't undo what may have already happened. If anyone reports
+unexpected missing access after this ships, the fix on our end is a quick,
+targeted re-grant via the existing role-assignment endpoints — no bulk
+operation needed, just let us know which account.
+
 ## What we need from the vertex team
 
 This needs to be treated as urgent, pre-staging work, not a background
@@ -46,6 +77,9 @@ migration item:
 3. If any of the six forms don't actually need this dropdown in practice,
    confirm and drop it — narrower scope may be faster than a full
    groups-based migration.
+4. Remove the `user.networks` read path from `permissionService.ts` (see
+   above) — treat this as higher priority than the six forms, since it's a
+   silent access issue rather than a visible one.
 
 ## Timeline
 

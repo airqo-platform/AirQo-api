@@ -383,7 +383,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -459,7 +458,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -541,7 +539,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 

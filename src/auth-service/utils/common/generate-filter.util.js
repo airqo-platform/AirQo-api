@@ -467,7 +467,6 @@ const filter = {
         grid,
         cohort,
         group_id,
-        network_id,
       } = {
         ...req.query,
         ...req.params,
@@ -495,10 +494,6 @@ const filter = {
 
       if (group_id) {
         filter["group_id"] = ObjectId(group_id);
-      }
-
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
       }
 
       if (site) {
@@ -685,8 +680,6 @@ const filter = {
         role_id,
         role_name,
         role_code,
-        network_id,
-        net_id,
         grp_id,
         group_id,
         role_status,
@@ -701,9 +694,6 @@ const filter = {
 
       if (id || role_id) {
         filter["_id"] = ObjectId(id || role_id);
-      }
-      if (network_id || net_id) {
-        filter["network_id"] = ObjectId(network_id || net_id);
       }
       if (grp_id || group_id) {
         filter["group_id"] = ObjectId(grp_id || group_id);
@@ -753,8 +743,8 @@ const filter = {
   permissions: (req, next) => {
     try {
       const { query, params } = req;
-      const { id, network, permission } = query;
-      const { permission_id, network_id } = params;
+      const { id, permission } = query;
+      const { permission_id } = params;
       let filter = {};
 
       if (id) {
@@ -763,14 +753,6 @@ const filter = {
 
       if (permission_id) {
         filter["permission"] = permission_id;
-      }
-
-      if (network) {
-        filter["network_id"] = ObjectId(network);
-      }
-
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
       }
 
       if (permission) {

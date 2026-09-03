@@ -1,5 +1,107 @@
 # Network Removal — Final Status
 
+## Cross-repo verification + critical open risk (2026-09-03)
+
+Prompted by a direct "is this totally removed, and does it only break Vertex?"
+check, ran two passes: (1) one more self-review of auth-service itself, (2) a
+full re-audit of every app in `airqo-frontend/src/` and every service in
+`AirQo-api/src/` (not just the previously-checked Vertex/workflows).
+
+**Auth-service — 3 more leftover references found and fixed:**
+- `utils/preference.util.js` still listed `network_ids` in three
+  `$addToSet`-field arrays (dead since `Preference.network_ids` no longer
+  exists as a schema field, but inconsistent with everything else removed).
+- `utils/common/generate-filter.util.js`'s `roles` and `permissions` filter
+  builders — backing `GET /roles` and `GET /permissions`, the exact
+  endpoints this whole effort is about — still accepted `network_id`/
+  `net_id`/`network` query params. Also cleaned the `defaults` filter's
+  `network_id` param for the same reason.
+- One leftover "or network" phrase in the group-assignment notification
+  email (`utils/common/email.msgs.util.js`).
+
+All fixed with test coverage; full suite still green.
+
+**Backend re-audit (every service under `AirQo-api/src/`): confirmed clean.**
+No service besides auth-service calls any removed endpoint, reads any removed
+response field, or sends `network_id`/`contextType=network`/
+`requestType: "network"` to auth-service. `analytics`'s `validate_network()`
+and `workflows`' `get_networks()` are re-confirmed dead code (zero live
+callers). device-registry's own "network" concept (device/site connectivity)
+is fully independent and unaffected, including one inert
+`Network.auth_service_id` field that no live code path touches.
+
+**Frontend re-audit: NOT limited to Vertex.**
+- **`vertex-template`** (the internal white-label fork of Vertex) has the
+  **identical** live coupling to `/users/networks` and will break the same
+  way — this was previously only flagged as "worth a heads-up," now
+  confirmed as an active break requiring the same urgency as Vertex itself.
+- **Nexus** — not a hard break, but a real regression the earlier
+  "already migrated" note missed: `src/app/(dashboard)/system/users/[id]/page.tsx`
+  and `.../team-members/[memberId]/page.tsx` read `user.networks` from
+  `GET /users/:id` to render a "Current Access" panel. It's optional-chained
+  (no crash), but will now permanently show "No network roles assigned" for
+  every user. `useRBAC.ts`'s `hasPermissionInNetwork`/`hasRoleInNetwork`/
+  `getUserNetworks` are confirmed to have zero call sites anywhere in nexus —
+  dead code, no live regression there.
+- **beacon, mobile, website, docs-website, calibrate, vertex-desktop**:
+  confirmed no impact — all "network" hits are either an unrelated
+  device-registry concept or already-dead fields.
+
+**CRITICAL — silent, security-relevant permission loss risk (Vertex + vertex-template):**
+Both apps' `core/permissions/permissionService.ts` (`getEffectivePermissions`,
+`isSuperAdmin`, `getUserRole`, `getOrganizationPermissions`, `getUserRoles`)
+read `user.networks` as a parallel source alongside `user.groups`. Since
+`user.networks` is now permanently empty, **any user whose permissions or
+SUPER_ADMIN status were granted only via a legacy network-role — never
+mirrored to a group-role — silently loses that access, with no error shown
+anywhere.**
+
+Traced whether the migration tooling we ran before deleting `network_roles`
+(`migrateNetworkRolesToGroup`) actually prevented this, by reading its
+deleted source via `git show`. Finding: **it did not, for the common case.**
+- When an equivalent group-scoped role already existed by name, it correctly
+  redirected affected users' role arrays to it (this path is fine).
+- When no equivalent existed, it only converted the **Role document itself**
+  (`$set: {group_id}, $unset: {network_id}`) — it never touched any **User**
+  document. A user whose only assignment of that role lived in their own
+  `network_roles` array would keep it sitting there, unmigrated, until
+  `cleanupUserNetworkRoles` later wiped `network_roles` to `[]` — at which
+  point that assignment was gone, with the role itself (now correctly
+  group-scoped) never having been added to that user's `group_roles`.
+
+**This cannot be fixed by writing more code.** `cleanupUserNetworkRoles` set
+`network_roles: []` on affected users *before* the schema field was removed
+— the actual data, not just its schema definition, is gone from the live
+database. A job or script can only act on data that still exists; there is
+none left to reconcile from. Checked for an alternative signal (an audit/
+activity log of historical role assignments) — doesn't exist either:
+`ActivityLogSchema.group_id` is a **required** field by design, and
+`utils/request.util.js` explicitly skips logging entirely for network-type
+events ("ActivityLog is group-specific — only log for group-type"). So
+there's no retained record anywhere of which users had network-only role
+assignments.
+
+**Decision (2026-09-03): a database backup restore was available but
+deliberately not pursued**, to avoid an infra-level, large-scale DB
+operation for a risk of unknown/likely-small scope. **Mitigation is
+reactive, not proactive**: if a real user reports unexpectedly missing
+access, re-grant the correct group-scoped role directly via the existing,
+already-working role-assignment endpoints — a two-minute, single-account
+fix, not a bulk operation. No code changes were made for this finding
+specifically; it's tracked here as an accepted, open risk. Likely exposure
+is small: the roles this session specifically verified via API earlier
+(`AIRQO_SUPER_ADMIN`, `AIRQO_ADMIN`, `AIRQO_DEFAULT_USER`) already had
+matching group-scoped equivalents by the time of migration, meaning they'd
+have gone through the "redirect to existing equivalent" path, which
+did work correctly.
+
+**Frontend fix needed (not made here — out of scope, documented for the
+Vertex team instead):** `permissionService.ts` in both Vertex and
+vertex-template should stop reading `user.networks` entirely and rely solely
+on `user.groups` — the network concept no longer exists anywhere in
+auth-service, so this is now permanently-dead code that should be removed,
+not fixed. See `NETWORK_DEPRECATION_GUIDE_VERTEX.md`.
+
 ## Post-review fixes (2026-09-03)
 
 A PR review (Copilot + a second reviewer) came in after the removal above had

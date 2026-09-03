@@ -994,7 +994,7 @@ module.exports = {
                                     If you are using the AirQo web platform, Click here to log in: ${constants.LOGIN_PAGE}
                                     <br />
                                     <br />
-                                    If you are using the AirQo mobile app, you can view your new group or network directly within the app.
+                                    If you are using the AirQo mobile app, you can view your new group directly within the app.
                                     <br />
                                     <br />
                                 </td>
