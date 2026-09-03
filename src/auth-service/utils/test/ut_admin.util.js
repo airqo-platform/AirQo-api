@@ -88,7 +88,6 @@ describe("admin util", () => {
           firstName: "U",
           lastName: "Ser",
           group_roles: [{ role: "r1" }],
-          network_roles: [],
           role: null,
           privilege: null,
           organization: null,

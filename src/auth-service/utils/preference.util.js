@@ -1,7 +1,6 @@
 const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
 const GroupModel = require("@models/Group");
-const NetworkModel = require("@models/Network");
 const SelectedSiteModel = require("@models/SelectedSite");
 const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
@@ -384,7 +383,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -460,7 +458,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -542,7 +539,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -1726,12 +1722,12 @@ const preferences = {
   getEffectiveTheme: async (request, next) => {
     try {
       const { user_id } = request.params;
-      const { tenant, group_id, network_id } = request.query;
+      const { tenant, group_id } = request.query;
 
-      // Get user with their group roles and network associations
+      // Get user with their group roles
       const user = await UserModel(tenant)
         .findById(user_id)
-        .select("theme group_roles network_roles")
+        .select("theme group_roles")
         .lean();
 
       if (!user) {
@@ -1792,48 +1788,6 @@ const preferences = {
         }
       }
 
-      // 3. User network-scoped theme (if network_id provided and user belongs to network)
-      if (network_id) {
-        // Validate user belongs to the specified network
-        const userBelongsToNetwork =
-          user.network_roles &&
-          user.network_roles.some(
-            (role) =>
-              role.network && role.network.toString() === network_id.toString()
-          );
-
-        if (!userBelongsToNetwork) {
-          return next(
-            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-              message: "User does not belong to the specified network",
-            })
-          );
-        }
-
-        // Check for user's network-scoped theme
-        const userNetworkPreference = await PreferenceModel(tenant)
-          .findOne({
-            user_id: user_id,
-            network_ids: { $in: [network_id] },
-          })
-          .select("theme")
-          .lean();
-
-        if (
-          userNetworkPreference &&
-          hasValidTheme(userNetworkPreference.theme)
-        ) {
-          return {
-            success: true,
-            data: mergeWithDefaults(userNetworkPreference.theme),
-            source: "user_network_context",
-            networkId: network_id,
-            message: "User network-scoped theme retrieved successfully",
-            status: httpStatus.OK,
-          };
-        }
-      }
-
       // 4. Group organization theme (if group_id provided and user belongs to group)
       if (group_id) {
         const groupExists = await GroupModel(tenant)
@@ -1849,26 +1803,6 @@ const preferences = {
             groupId: groupExists._id,
             groupTitle: groupExists.grp_title,
             message: `Group organization theme retrieved successfully for group: ${groupExists.grp_title}`,
-            status: httpStatus.OK,
-          };
-        }
-      }
-
-      // 5. Network organization theme (if network_id provided and user belongs to network)
-      if (network_id) {
-        const networkExists = await NetworkModel(tenant)
-          .findById(network_id)
-          .select("_id net_name theme")
-          .lean();
-
-        if (networkExists && hasValidTheme(networkExists.theme)) {
-          return {
-            success: true,
-            data: mergeWithDefaults(networkExists.theme),
-            source: "network_organization",
-            networkId: networkExists._id,
-            networkName: networkExists.net_name,
-            message: `Network organization theme retrieved successfully for network: ${networkExists.net_name}`,
             status: httpStatus.OK,
           };
         }
@@ -1922,62 +1856,6 @@ const preferences = {
               groupTitle: primaryGroup.grp_title,
               message:
                 "Primary group organization theme retrieved successfully",
-              status: httpStatus.OK,
-            };
-          }
-        }
-      }
-
-      // 7. User's primary network theme (no specific network_id provided)
-      if (!network_id && user.network_roles && user.network_roles.length > 0) {
-        // Get the primary network (first one or default network)
-        let primaryNetworkRole =
-          user.network_roles.find(
-            (role) =>
-              role.network &&
-              role.network.toString() === constants.DEFAULT_NETWORK
-          ) || user.network_roles[0];
-
-        if (primaryNetworkRole) {
-          // Check for user's primary network-scoped theme first
-          const userPrimaryNetworkPreference = await PreferenceModel(tenant)
-            .findOne({
-              user_id: user_id,
-              network_ids: { $in: [primaryNetworkRole.network] },
-            })
-            .select("theme")
-            .lean();
-
-          if (
-            userPrimaryNetworkPreference &&
-            hasValidTheme(userPrimaryNetworkPreference.theme)
-          ) {
-            return {
-              success: true,
-              data: mergeWithDefaults(userPrimaryNetworkPreference.theme),
-              source: "user_primary_network_context",
-              networkId: primaryNetworkRole.network,
-              message:
-                "User primary network-scoped theme retrieved successfully",
-              status: httpStatus.OK,
-            };
-          }
-
-          // Then check for primary network organization theme
-          const primaryNetwork = await NetworkModel(tenant)
-            .findById(primaryNetworkRole.network)
-            .select("theme net_name")
-            .lean();
-
-          if (primaryNetwork && hasValidTheme(primaryNetwork.theme)) {
-            return {
-              success: true,
-              data: mergeWithDefaults(primaryNetwork.theme),
-              source: "primary_network_organization",
-              networkId: primaryNetwork._id,
-              networkName: primaryNetwork.net_name,
-              message:
-                "Primary network organization theme retrieved successfully",
               status: httpStatus.OK,
             };
           }

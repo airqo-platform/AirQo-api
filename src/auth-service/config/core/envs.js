@@ -65,8 +65,6 @@ const envs = {
   MOBILE_APP_USERS_TOPIC: process.env.MOBILE_APP_USERS_TOPIC,
   DEPLOY_TOPIC: process.env.DEPLOY_TOPIC,
   RECALL_TOPIC: process.env.RECALL_TOPIC,
-  NETWORK_EVENTS_TOPIC:
-    process.env.NETWORK_EVENTS_TOPIC || "network-events-topic",
   NETWORK_CREATION_REQUESTS_TOPIC:
     process.env.NETWORK_CREATION_REQUESTS_TOPIC ||
     "network-creation-requests-topic",
@@ -258,9 +256,7 @@ const envs = {
   // ── Platform defaults ──────────────────────────────────────────────────────
   NODE_ENV: process.env.NODE_ENV,
   DEFAULT_GROUP: process.env.DEFAULT_GROUP,
-  DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_GROUP_ROLE: process.env.DEFAULT_GROUP_ROLE,
-  DEFAULT_NETWORK_ROLE: process.env.DEFAULT_NETWORK_ROLE,
   DEFAULT_AIRQLOUD: process.env.DEFAULT_AIRQLOUD,
   DEFAULT_GRID: process.env.DEFAULT_GRID,
   TIMEZONE: process.env.TIMEZONE,
