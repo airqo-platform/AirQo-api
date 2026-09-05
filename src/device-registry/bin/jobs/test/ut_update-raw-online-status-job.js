@@ -7,6 +7,7 @@ const {
 } = require("@bin/jobs/update-raw-online-status-job");
 const constants = require("@config/constants");
 const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
 const createDeviceUtil = require("@utils/device.util");
 const createFeedUtil = require("@utils/feed.util");
 
@@ -49,6 +50,10 @@ describe("updateRawOnlineStatusJob", () => {
     decryptKeyStub = sinon.stub(createDeviceUtil, "decryptKey");
     fetchThingspeakDataStub = sinon.stub(createFeedUtil, "fetchThingspeakData");
     sinon.stub(DeviceModel("airqo"), "estimatedDocumentCount").resolves(1);
+    // updateRawOnlineStatus now also flushes best-effort DeviceUptime
+    // samples (see flushUptimeSamples) — stub it so tests never issue a
+    // real insertMany, matching the pattern for every other model call above.
+    sinon.stub(DeviceUptimeModel("airqo"), "insertMany").resolves([]);
   });
 
   afterEach(() => {

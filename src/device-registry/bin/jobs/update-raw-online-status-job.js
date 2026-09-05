@@ -196,7 +196,7 @@ const mockNext = (error) => {
   logger.error(`Error passed to mock 'next' function in job: ${error.message}`);
 };
 
-const processDeviceBatch = async (devices, processor) => {
+const processDeviceBatch = async (devices, processor, uptimeSampleSink) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
 
   // 1. Get device numbers for airqo devices only — ThingSpeak channels only
@@ -240,13 +240,6 @@ const processDeviceBatch = async (devices, processor) => {
       return 0;
     }
   }
-
-  // Accumulates one online/offline sample per device across every chunk in
-  // this batch (up to BATCH_SIZE devices), flushed in a single insertMany
-  // after the chunk loop below — one DB round trip per batch instead of one
-  // per 5-device chunk, matching the bulk-write batching already used for
-  // the other writes in this job.
-  const uptimeSamples = [];
 
   // 3. Process devices in smaller, concurrent chunks with yielding
   for (let i = 0; i < devices.length; i += CONCURRENCY_LIMIT) {
@@ -300,10 +293,11 @@ const processDeviceBatch = async (devices, processor) => {
     const bulkOps = batchResult.results.filter(Boolean);
 
     // Record each device's just-computed raw online/offline status, keyed by
-    // network, into the batch-level accumulator (flushed once below). This is
-    // the ONE place in the codebase that checks every device's live status
-    // regardless of network — via ThingSpeak for "airqo" devices, via the
-    // network adapter's online_check_via_feed for external manufacturers
+    // network, into the caller-owned sink (flushed periodically across the
+    // whole job run — see updateRawOnlineStatus). This is the ONE place in
+    // the codebase that checks every device's live status regardless of
+    // network — via ThingSpeak for "airqo" devices, via the network
+    // adapter's online_check_via_feed for external manufacturers
     // (AirGradient, IQAir, etc.), and via stale-data fallback otherwise — so
     // it is what makes online-status data (and therefore the leaderboard/
     // verified-partner status) exist for non-AirQo networks at all, not just
@@ -311,23 +305,25 @@ const processDeviceBatch = async (devices, processor) => {
     // threading a new field through every return branch above, so the
     // online/offline determination logic itself is untouched — this only
     // observes its output.
-    const deviceById = new Map(chunk.map((d) => [String(d._id), d]));
-    bulkOps.forEach((op) => {
-      const device = deviceById.get(String(op.updateOne.filter._id));
-      const rawOnlineStatus = op.updateOne.update?.$set?.rawOnlineStatus;
-      if (!device || !device.name || rawOnlineStatus === undefined) {
-        return;
-      }
-      uptimeSamples.push({
-        created_at: new Date(),
-        device_name: device.name,
-        network: device.network,
-        channel_id: device.device_number || undefined,
-        uptime: rawOnlineStatus ? 100 : 0,
-        downtime: rawOnlineStatus ? 0 : 100,
-        status: rawOnlineStatus ? "online" : "offline",
+    if (constants.ENABLE_ONLINE_STATUS_UPTIME_SAMPLING && uptimeSampleSink) {
+      const deviceById = new Map(chunk.map((d) => [String(d._id), d]));
+      bulkOps.forEach((op) => {
+        const device = deviceById.get(String(op.updateOne.filter._id));
+        const rawOnlineStatus = op.updateOne.update?.$set?.rawOnlineStatus;
+        if (!device || !device.name || rawOnlineStatus === undefined) {
+          return;
+        }
+        uptimeSampleSink.push({
+          created_at: new Date(),
+          device_name: device.name,
+          network: device.network,
+          channel_id: device.device_number || undefined,
+          uptime: rawOnlineStatus ? 100 : 0,
+          downtime: rawOnlineStatus ? 0 : 100,
+          status: rawOnlineStatus ? "online" : "offline",
+        });
       });
-    });
+    }
 
     if (bulkOps.length > 0) {
       try {
@@ -399,30 +395,32 @@ const processDeviceBatch = async (devices, processor) => {
     // Yield between chunks
     await processor.yieldControl();
   }
+};
 
-  // Single flush for the whole batch (all chunks above), rather than one
-  // insertMany per 5-device chunk — cuts DB round trips for this write by
-  // roughly CONCURRENCY_LIMIT-fold. Timeout-guarded and non-fatal like the
-  // other bulk writes in this job: a slow/failed insert here never blocks or
-  // fails the actual status update, it only means that batch's samples are
-  // missing from the uptime leaderboard/verification data.
-  if (uptimeSamples.length > 0) {
-    try {
-      const BULK_TIMEOUT = 15000;
-      await Promise.race([
-        DeviceUptimeModel("airqo").insertMany(uptimeSamples, {
-          ordered: false,
-        }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Uptime sample insert timeout")),
-            BULK_TIMEOUT,
-          ),
+// Flushes accumulated uptime samples in one insertMany. Non-fatal and
+// best-effort by design: a slow/failed insert here never blocks or fails the
+// actual device status update above — it only means those samples are
+// missing from the uptime leaderboard/verification data. Logged at `warn`,
+// not `error`, precisely because it's a known-non-critical write; the
+// underlying database health should be judged on the primary status-update
+// writes (DeviceModel/SiteModel bulkWrite), not on this one.
+const flushUptimeSamples = async (samples) => {
+  if (!samples || samples.length === 0) return;
+  try {
+    const BULK_TIMEOUT = 15000;
+    await Promise.race([
+      DeviceUptimeModel("airqo").insertMany(samples, { ordered: false }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Uptime sample insert timeout")),
+          BULK_TIMEOUT,
         ),
-      ]);
-    } catch (error) {
-      logger.error(`Uptime sample insert error in batch: ${error.message}`);
-    }
+      ),
+    ]);
+  } catch (error) {
+    logger.warn(
+      `Uptime sample insert error (${samples.length} sample(s) dropped): ${error.message}`,
+    );
   }
 };
 
@@ -1200,6 +1198,19 @@ const updateRawOnlineStatus = async () => {
     let errorCount = 0;
     const MAX_ERRORS = 50; // Stop if too many errors
 
+    // Uptime samples accumulate here across every batch in this run and are
+    // flushed periodically (not per-batch) — for a fleet of a few thousand
+    // devices that cuts DB round trips for this write from ~1 per 50 devices
+    // down to ~1 per 1000, which matters a lot more now that this job checks
+    // every device every hour instead of a narrow subset every 2h.
+    const pendingUptimeSamples = [];
+    const UPTIME_SAMPLE_FLUSH_THRESHOLD = 1000;
+    const maybeFlushUptimeSamples = async () => {
+      if (pendingUptimeSamples.length < UPTIME_SAMPLE_FLUSH_THRESHOLD) return;
+      const toFlush = pendingUptimeSamples.splice(0);
+      await flushUptimeSamples(toFlush);
+    };
+
     try {
       for await (const device of cursor) {
         if (processor.shouldStopExecution()) {
@@ -1211,7 +1222,7 @@ const updateRawOnlineStatus = async () => {
 
         if (batch.length >= BATCH_SIZE) {
           try {
-            await processDeviceBatch(batch, processor);
+            await processDeviceBatch(batch, processor, pendingUptimeSamples);
             totalProcessed += batch.length;
 
             logText(
@@ -1234,6 +1245,7 @@ const updateRawOnlineStatus = async () => {
           }
 
           batch = [];
+          await maybeFlushUptimeSamples();
 
           // Yield between batches to prevent blocking
           await processor.yieldControl();
@@ -1244,17 +1256,32 @@ const updateRawOnlineStatus = async () => {
       }
     } finally {
       await cursor.close();
-    }
 
-    // Process the final batch if it's not empty
-    if (batch.length > 0 && !processor.shouldStopExecution()) {
+      // Handle the final (possibly partial) batch and flush any pending
+      // uptime samples here, inside the finally, so both still run even if
+      // cursor iteration above threw — otherwise an error mid-stream would
+      // discard up to UPTIME_SAMPLE_FLUSH_THRESHOLD-1 collected samples
+      // when it propagates. Same effective position/order as before on the
+      // success path; this only adds coverage for the error path. Own
+      // try/catch so a failure here can't mask an original error that's
+      // already propagating out of the try block above.
       try {
-        await processDeviceBatch(batch, processor);
-        totalProcessed += batch.length;
-        logText(`Final batch processed. Total: ${totalProcessed}`);
-      } catch (finalBatchError) {
+        if (batch.length > 0 && !processor.shouldStopExecution()) {
+          try {
+            await processDeviceBatch(batch, processor, pendingUptimeSamples);
+            totalProcessed += batch.length;
+            logText(`Final batch processed. Total: ${totalProcessed}`);
+          } catch (finalBatchError) {
+            logger.error(
+              `Final batch processing error: ${finalBatchError.message}`,
+            );
+          }
+        }
+
+        await flushUptimeSamples(pendingUptimeSamples.splice(0));
+      } catch (cleanupError) {
         logger.error(
-          `Final batch processing error: ${finalBatchError.message}`,
+          `Error finalizing batch/uptime-sample flush: ${cleanupError.message}`,
         );
       }
     }
