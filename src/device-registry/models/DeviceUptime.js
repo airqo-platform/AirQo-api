@@ -205,7 +205,11 @@ deviceUptimeSchema.statics = {
               $gte: startDate,
               $lt: endDate,
             },
-            network: { $nin: [null, ""] },
+            // $nin (like $ne) matches documents where the field is absent,
+            // not just null/empty — without $exists:true, pre-existing
+            // records written before `network` was added to this schema
+            // would be grouped into a bogus null-network bucket.
+            network: { $exists: true, $nin: [null, ""] },
           },
         },
         {
