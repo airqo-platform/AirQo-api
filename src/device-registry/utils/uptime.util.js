@@ -651,11 +651,11 @@ const createUptime = {
   // it start being sampled by device-uptime-job / network-analysis-uptime-job.
   getNetworkUptimeLeaderboard: async (params, next) => {
     try {
-      const { tenant, startDate, endDate, limit } = params;
+      const { tenant, startDate, endDate, limit, skip } = params;
 
       const result = await DeviceUptimeModel(tenant).getNetworkContributionStats(
         tenant,
-        { startDate, endDate, limit }
+        { startDate, endDate, limit, skip }
       );
 
       return result;

@@ -3816,7 +3816,7 @@ const deviceUtil = {
       const devices = await DeviceModel(tenant)
         .find({ owner_id: new ObjectId(user_id) })
         .select(
-          "name long_name claim_status isOnline isActive network claimed_at",
+          "name long_name claim_status status isOnline isActive network claimed_at",
         )
         .lean();
 
@@ -3848,27 +3848,32 @@ const deviceUtil = {
       const uptimeByDevice = new Map();
       if (deviceNames.length > 0) {
         try {
-          const uptimeRecords = await DeviceUptimeModel(tenant)
-            .find({
-              device_name: { $in: deviceNames },
-              created_at: { $gte: startDate, $lt: endDate },
-            })
-            .select("device_name uptime downtime")
-            .lean();
+          // Aggregate server-side (sum per device_name) instead of pulling
+          // every raw sample into memory — with hourly sampling that's up to
+          // ~720 docs/device/month, which doesn't scale for an owner with
+          // many devices.
+          const uptimeSums = await DeviceUptimeModel(tenant).aggregate([
+            {
+              $match: {
+                device_name: { $in: deviceNames },
+                created_at: { $gte: startDate, $lt: endDate },
+              },
+            },
+            {
+              $group: {
+                _id: "$device_name",
+                uptime: { $sum: "$uptime" },
+                downtime: { $sum: "$downtime" },
+              },
+            },
+          ]);
 
-          const sums = new Map();
-          uptimeRecords.forEach((r) => {
-            const entry = sums.get(r.device_name) || {
-              uptime: 0,
-              downtime: 0,
-            };
-            entry.uptime += r.uptime || 0;
-            entry.downtime += r.downtime || 0;
-            sums.set(r.device_name, entry);
-          });
-          sums.forEach((v, k) => {
-            const total = v.uptime + v.downtime;
-            uptimeByDevice.set(k, total > 0 ? (v.uptime / total) * 100 : null);
+          uptimeSums.forEach((row) => {
+            const total = (row.uptime || 0) + (row.downtime || 0);
+            uptimeByDevice.set(
+              row._id,
+              total > 0 ? (row.uptime / total) * 100 : null,
+            );
           });
         } catch (uptimeError) {
           logger.warn(
@@ -3910,9 +3915,11 @@ const deviceUtil = {
           total_devices: devices.length,
           claimed_devices: devices.filter((d) => d.claim_status === "claimed")
             .length,
-          deployed_devices: devices.filter(
-            (d) => d.claim_status === "deployed",
-          ).length,
+          // Matches the existing deployed_devices convention used elsewhere
+          // in this file (e.g. getMyDevices, shipping-status summary): the
+          // device's operational `status` field, not claim_status.
+          deployed_devices: devices.filter((d) => d.status === "deployed")
+            .length,
           active_devices: devices.filter((d) => d.isActive).length,
           online_devices: devices.filter((d) => d.isOnline).length,
           average_uptime_percentage: averageUptime,

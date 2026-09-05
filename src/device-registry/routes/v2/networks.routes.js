@@ -30,7 +30,7 @@ router.get(
 router.get(
   "/directory",
   networkValidators.getNetworkDirectory,
-  pagination(),
+  pagination(100, 200),
   networkController.getNetworkDirectory
 );
 

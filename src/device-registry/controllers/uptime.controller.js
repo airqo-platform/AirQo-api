@@ -288,7 +288,7 @@ const uptime = {
         ? defaultTenant
         : req.query.tenant;
 
-      const { startDate, endDate, limit } = request.query;
+      const { startDate, endDate, limit, skip } = request.query;
 
       const result = await createUptimeUtil.getNetworkUptimeLeaderboard(
         {
@@ -296,6 +296,7 @@ const uptime = {
           startDate,
           endDate,
           limit,
+          skip,
         },
         next
       );

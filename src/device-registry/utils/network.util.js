@@ -343,12 +343,18 @@ const getNetworkDirectory = async (request, next) => {
     );
 
     let contributionStats = [];
+    // Tracks whether the stats call itself failed, as opposed to succeeding
+    // with no/insufficient data for a given network — these are very
+    // different situations for a consumer of this endpoint and must not be
+    // reported identically.
+    let statsLoadFailed = false;
     try {
       const statsResponse = await DeviceUptimeModel(
         tenant
       ).getNetworkContributionStats(tenant, { startDate, endDate });
       contributionStats = statsResponse?.data || [];
     } catch (statsError) {
+      statsLoadFailed = true;
       logger.warn(
         `getNetworkDirectory: could not load contribution stats: ${statsError.message}`
       );
@@ -367,7 +373,15 @@ const getNetworkDirectory = async (request, next) => {
       const meetsSampleSize =
         stats && stats.total_records >= VERIFICATION_MIN_SAMPLE_RECORDS;
 
-      const verification = !meetsSampleSize
+      const verification = statsLoadFailed
+        ? {
+            is_verified: false,
+            reason: "verification_unavailable",
+            uptime_percentage: null,
+            device_count: null,
+            sample_size_days: VERIFICATION_WINDOW_DAYS,
+          }
+        : !meetsSampleSize
         ? {
             is_verified: false,
             reason: "insufficient_uptime_data",

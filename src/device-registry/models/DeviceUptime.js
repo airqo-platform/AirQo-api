@@ -16,7 +16,11 @@ const deviceUptimeSchema = new Schema(
     created_at: {
       type: Date,
       required: true,
-      index: true,
+      // No field-level `index: true` here — the TTL index declared below
+      // (deviceUptimeSchema.index({created_at:1}, {expireAfterSeconds:...}))
+      // already covers this key. Mongo rejects two indexes with the same key
+      // pattern but different options, so defining both would fail index
+      // creation and silently drop the TTL.
     },
     device_name: {
       type: String,
@@ -181,8 +185,19 @@ deviceUptimeSchema.statics = {
   // manufacturer's network) instead of per device. This is the basis for
   // both the network leaderboard and the "verified partner" status check:
   // both need the same per-network uptime%/device-count/sample-size numbers.
-  async getNetworkContributionStats(tenant, { startDate, endDate, limit = null }) {
+  async getNetworkContributionStats(
+    tenant,
+    { startDate, endDate, limit = null, skip = null }
+  ) {
     try {
+      // A network with only a handful of samples can show a misleadingly
+      // high (or low) uptime_percentage — e.g. one lucky check reads as
+      // 100%. Require a minimum sample size before a network is even
+      // ranked, so the leaderboard reflects sustained performance rather
+      // than noise. Matches the sample-size floor getNetworkDirectory
+      // already applies when deciding "verified" status.
+      const MIN_SAMPLE_RECORDS = 7;
+
       const pipeline = [
         {
           $match: {
@@ -204,6 +219,7 @@ deviceUptimeSchema.statics = {
             last_seen: { $max: "$created_at" },
           },
         },
+        { $match: { total_records: { $gte: MIN_SAMPLE_RECORDS } } },
         {
           $addFields: {
             uptime_percentage: {
@@ -218,6 +234,10 @@ deviceUptimeSchema.statics = {
         { $project: { devices: 0 } },
         { $sort: { uptime_percentage: -1 } },
       ];
+
+      if (skip) {
+        pipeline.push({ $skip: parseInt(skip) });
+      }
 
       if (limit) {
         pipeline.push({ $limit: parseInt(limit) });
