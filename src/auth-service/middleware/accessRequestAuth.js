@@ -4,14 +4,11 @@ const mongoose = require("mongoose");
 const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const AccessRequestModel = require("@models/AccessRequest");
-const {
-  requireGroupManagerAccess,
-  requireNetworkManagerAccess,
-} = require("@middleware/groupNetworkAuth");
+const { requireGroupManagerAccess } = require("@middleware/groupNetworkAuth");
 
 /**
  * Resolves :request_id to its underlying AccessRequest, then authorizes the
- * caller against the request's target group or network before allowing
+ * caller against the request's target group before allowing
  * approve/reject/cancel/update/delete.
  * @param {string} requestIdParam - Parameter name containing the access request ID
  * @returns {Function} Express middleware
@@ -64,11 +61,6 @@ const requireAccessRequestManagerAccess = (requestIdParam = "request_id") => {
       if (accessRequest.requestType === "group") {
         req.params.grp_id = accessRequest.targetId.toString();
         return requireGroupManagerAccess("grp_id")(req, res, next);
-      }
-
-      if (accessRequest.requestType === "network") {
-        req.params.net_id = accessRequest.targetId.toString();
-        return requireNetworkManagerAccess("net_id")(req, res, next);
       }
 
       return next(

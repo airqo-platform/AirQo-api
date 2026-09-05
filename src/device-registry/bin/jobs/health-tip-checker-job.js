@@ -11,7 +11,7 @@ const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
 const JOB_NAME = "health-tip-checker-job";
-const JOB_SCHEDULE = "0 */2 * * *"; // At minute 0 of every 2nd hour
+const JOB_SCHEDULE = "17 */2 * * *"; // At minute 17 of every 2nd hour (staggered off :00, shared by several other every-2h jobs and the hourly device-status-hourly-check-job)
 
 // ============================================================================
 // EXTRACTED BUSINESS LOGIC FUNCTIONS (Easily testable)

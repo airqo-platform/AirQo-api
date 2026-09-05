@@ -42,6 +42,13 @@ router.get(
   uptime.getDeviceUptimeLeaderboard
 );
 
+router.get(
+  "/leaderboard/network",
+  uptimeValidations.getUptime,
+  pagination(),
+  uptime.getNetworkUptimeLeaderboard
+);
+
 router.get("/health", pagination(), (req, res) => {
   console.info("health status OK");
   return res.status(200).json({

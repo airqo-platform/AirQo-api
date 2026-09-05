@@ -2338,7 +2338,6 @@ const groupUtil = {
           },
           {
             $project: {
-              "role_permissions.network_id": 0,
               "role_permissions.description": 0,
               "role_permissions.createdAt": 0,
               "role_permissions.updatedAt": 0,

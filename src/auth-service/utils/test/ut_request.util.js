@@ -6,7 +6,6 @@ const createAccessRequest = require("@utils/request.util");
 const rewireAccessRequest = require("rewire")("@utils/request.util");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
-const NetworkModel = require("@models/Network");
 const UserModel = require("@models/User");
 const { mailer } = require("@utils/common");
 const constants = require("@config/constants");

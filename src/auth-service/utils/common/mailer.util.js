@@ -904,7 +904,7 @@ const getEmailSubject = (functionName, params) => {
       params.entity_title ? processString(params.entity_title) : "the team"
     }!`,
     user: "Welcome to Your AirQo Account",
-    assign: "Welcome to Your New Group/Network at Your AirQo Account",
+    assign: "Welcome to Your New Group at Your AirQo Account",
     update: "Your AirQo Account Updated",
     existingUserAccessRequest:
       "Your AirQo Account: Existing User Access Request",

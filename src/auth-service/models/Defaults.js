@@ -79,11 +79,6 @@ const DefaultsSchema = new mongoose.Schema(
       type: ObjectId,
       ref: "cohort",
     },
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-    },
     group_id: {
       type: ObjectId,
       ref: "group",
@@ -132,7 +127,6 @@ DefaultsSchema.methods = {
       chartSubTitle: this.chartSubTitle,
       sites: this.sites,
       devices: this.devices,
-      network_id: this.network_id,
       period: this.period,
       createdAt: this.createdAt,
     };

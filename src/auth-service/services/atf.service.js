@@ -266,7 +266,6 @@ class StandardTokenStrategy extends TokenStrategy {
       const allPermissions = [
         ...permissionData.systemPermissions,
         ...Object.values(permissionData.groupPermissions).flat(),
-        ...Object.values(permissionData.networkPermissions).flat(),
       ];
 
       const tokenPayload = {
@@ -279,9 +278,7 @@ class StandardTokenStrategy extends TokenStrategy {
         organization: user.organization,
         systemPermissions: permissionData.systemPermissions,
         groupPermissions: permissionData.groupPermissions,
-        networkPermissions: permissionData.networkPermissions,
         groupMemberships: permissionData.groupMemberships,
-        networkMemberships: permissionData.networkMemberships,
         allPermissions: [...new Set(allPermissions)],
         isSuperAdmin: permissionData.isSuperAdmin,
         expiresAt: expiresAtISO,
@@ -459,9 +456,7 @@ class CompressedTokenStrategy extends TokenStrategy {
         p: permissionData.allPermissions,
         sp: permissionData.systemPermissions,
         gp: permissionData.groupPermissions,
-        np: permissionData.networkPermissions,
         gm: permissionData.groupMemberships,
-        nm: permissionData.networkMemberships,
         sa: permissionData.isSuperAdmin,
         fn: user.firstName,
         ln: user.lastName,
@@ -490,9 +485,7 @@ class CompressedTokenStrategy extends TokenStrategy {
       permissions: decoded.p,
       systemPermissions: decoded.sp,
       groupPermissions: decoded.gp,
-      networkPermissions: decoded.np,
       groupMemberships: decoded.gm,
-      networkMemberships: decoded.nm,
       isSuperAdmin: decoded.sa,
       firstName: decoded.fn,
       lastName: decoded.ln,
@@ -672,7 +665,6 @@ class BitFlagsTokenStrategy extends TokenStrategy {
         id: user._id,
         spf: JSON.stringify(permissionData.systemPermissions),
         gpf: JSON.stringify(permissionData.groupPermissions),
-        npf: JSON.stringify(permissionData.networkPermissions),
         expiresAt: expiresAtISO,
       };
 
@@ -690,11 +682,9 @@ class BitFlagsTokenStrategy extends TokenStrategy {
   async decodeToken(decoded, tenant) {
     const systemPermissions = JSON.parse(decoded.spf || "[]");
     const groupPermissions = JSON.parse(decoded.gpf || "{}");
-    const networkPermissions = JSON.parse(decoded.npf || "{}");
     const allPermissions = [
       ...systemPermissions,
       ...Object.values(groupPermissions).flat(),
-      ...Object.values(networkPermissions).flat(),
     ];
 
     return {
@@ -702,7 +692,6 @@ class BitFlagsTokenStrategy extends TokenStrategy {
       permissions: [...new Set(allPermissions)],
       systemPermissions,
       groupPermissions,
-      networkPermissions,
     };
   }
 }
@@ -891,18 +880,10 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
           permissionData.groupPermissions[groupId]
         );
       }
-      const networkFlags = {};
-      for (const networkId in permissionData.networkPermissions) {
-        networkFlags[networkId] = this.encodePermissions(
-          permissionData.networkPermissions[networkId]
-        );
-      }
-
       const payload = {
         id: user._id,
         sf: systemFlags,
         gf: groupFlags,
-        nf: networkFlags,
         expiresAt: expiresAtISO,
       };
 
@@ -925,17 +906,9 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
     for (const groupId in decoded.gf) {
       groupPermissions[groupId] = this.decodePermissions(decoded.gf[groupId]);
     }
-    const networkPermissions = {};
-    for (const networkId in decoded.nf) {
-      networkPermissions[networkId] = this.decodePermissions(
-        decoded.nf[networkId]
-      );
-    }
-
     const allPermissions = [
       ...systemPermissions,
       ...Object.values(groupPermissions).flat(),
-      ...Object.values(networkPermissions).flat(),
     ];
 
     return {
@@ -943,7 +916,6 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
       permissions: [...new Set(allPermissions)],
       systemPermissions,
       groupPermissions,
-      networkPermissions,
     };
   }
 }
