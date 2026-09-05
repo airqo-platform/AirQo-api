@@ -19,7 +19,7 @@ from api.schemas.requests import (
     DeviceDailyAveragesRequest,
     DeviceExceedancesRequest,
     ExceedancesRequest,
-    GridReportRequest,
+    AirQualityReportRequest,
     RawDataExportRequest,
     ReportRequest,
     ReportUpdateRequest,
@@ -33,10 +33,10 @@ from api.schemas.responses import (
     MonitoringSiteResponse,
 )
 from api.services import (
+    AirQualityReportService,
     DashboardService,
     DataExportService,
     ExportRequestService,
-    GridReportService,
     MonitoringService,
     ReportTemplateService,
 )
@@ -72,7 +72,7 @@ async def data_summary(
     request: DataSummaryRequest,
     service: DataExportService = Depends(),
 ) -> Dict[str, Any]:
-    """Data-completeness report for one airqloud/grid/cohort: hourly,
+    """Data-completeness report for one grid/cohort: hourly,
     calibrated, and uncalibrated record counts and percentages per site
     and device over the requested window."""
     return await service.get_summary(request)
@@ -154,36 +154,25 @@ async def exceedances_devices(
 
 
 # ---------------------------------------------------------------------------
-# Grid air-quality report
+# Air-quality report
 # ---------------------------------------------------------------------------
 
 
-@router.post("/grid/report")
-async def grid_report(
-    request: GridReportRequest,
-    service: GridReportService = Depends(),
+@router.post("/data/report")
+async def air_quality_report(
+    request: AirQualityReportRequest,
+    service: AirQualityReportService = Depends(),
 ) -> Dict[str, Any]:
     """
-    Full air-quality report for a grid: daily/monthly/annual PM aggregates
-    plus site, city, country and region-level statistics.
+    Air-quality report for one grid or cohort: daily/monthly/annual PM
+    aggregates plus site, city, country and region-level statistics, and the
+    hour-of-day pattern.
 
-    Body: {"grid_id": "...", "start_time": ISO, "end_time": ISO} (max 12 months).
+    Body: exactly one of {"grid_id": "..."} or {"cohort_id": "..."}, plus
+    "start_time" and "end_time" (ISO). Mirrors /data/summary, which selects
+    its entity the same way.
     """
     return await service.get_report(request)
-
-
-@router.post("/grid/report/diurnal")
-async def grid_report_diurnal(
-    request: GridReportRequest,
-    service: GridReportService = Depends(),
-) -> Dict[str, Any]:
-    """
-    Diurnal (hour-of-day) air-quality report for a grid.
-
-    Same request contract as /grid/report; response contains only the
-    hourly-pattern aggregates.
-    """
-    return await service.get_diurnal_report(request)
 
 
 # ---------------------------------------------------------------------------

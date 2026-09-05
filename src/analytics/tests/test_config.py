@@ -181,3 +181,68 @@ class TestApiDocsGating:
             BaseConfig(FLASK_ENV="development", EXPOSE_API_DOCS=False).expose_api_docs
             is False
         )
+
+
+class TestTableNameGuard:
+    """Table names are interpolated into SQL rather than bound — BigQuery has
+    no parameter form for identifiers — so a malformed setting must fail at
+    startup, not as a syntax error on whichever endpoint reaches it first."""
+
+    def test_malformed_table_name_rejected_at_startup(self):
+        import pytest
+        from pydantic import ValidationError
+
+        for bad in ("devices; DROP TABLE x", "tab le", "a.b.c.d", "table`", ""):
+            with pytest.raises(
+                ValidationError, match="not a valid BigQuery table name"
+            ):
+                BaseConfig(
+                    FLASK_ENV="development",
+                    SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                    BIGQUERY_GRIDS=bad,
+                )
+
+    def test_bare_and_qualified_names_accepted(self):
+        for good in ("grids", "metadata.grids", "airqo-250220.metadata.grids"):
+            config = BaseConfig(
+                FLASK_ENV="development",
+                SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                BIGQUERY_GRIDS=good,
+            )
+            assert config.bigquery_grids == good
+
+    def test_error_names_the_offending_setting(self):
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="bigquery_hourly_consolidated"):
+            BaseConfig(
+                FLASK_ENV="development",
+                SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                BIGQUERY_HOURLY_CONSOLIDATED="bad name",
+            )
+
+    def test_legacy_colon_separator_accepted(self):
+        """BigQuery's `project:dataset.table` form is valid inside backticks.
+        Rejecting it would turn a working deployment into a startup failure
+        that takes down every endpoint, not just the affected table."""
+        config = BaseConfig(
+            FLASK_ENV="development",
+            SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+            BIGQUERY_GRIDS="airqo-250220:metadata.grids",
+        )
+        assert config.bigquery_grids == "airqo-250220:metadata.grids"
+
+    def test_colon_form_still_rejects_injection_shapes(self):
+        import pytest
+        from pydantic import ValidationError
+
+        for bad in ("proj:ds.tbl; DROP TABLE x", "proj:ds.tbl`", "proj:ds tbl"):
+            with pytest.raises(
+                ValidationError, match="not a valid BigQuery table name"
+            ):
+                BaseConfig(
+                    FLASK_ENV="development",
+                    SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                    BIGQUERY_GRIDS=bad,
+                )

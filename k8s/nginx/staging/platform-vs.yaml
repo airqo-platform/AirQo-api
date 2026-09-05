@@ -77,7 +77,6 @@ spec:
           upstream: kubecost
           rewritePath: /$1
 
-
 ---
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
@@ -121,7 +120,7 @@ spec:
       route: staging/docs
     - path: /website
       route: staging/website
-    - path: /kubecost             
+    - path: /kubecost
       route: monitoring/kubecost
     - path: /
       action:

@@ -16,6 +16,7 @@ accepts the same keyword arguments and simply layers the guards on top.
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any
@@ -23,6 +24,7 @@ from typing import Any
 from google.api_core.exceptions import Forbidden
 from google.cloud import bigquery, storage
 
+from api.utils.exceptions import QueryTooLarge
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,12 @@ def shared_storage_client() -> storage.Client:
 # reason is bytesBilledLimitExceeded.
 _BYTES_LIMIT_REASONS = {"bytesBilledLimitExceeded", "billingTierLimitExceeded"}
 
+# "Query exceeded limit for bytes billed: 1073741824. 5557452800 or higher
+# required." — the second figure is what the job would have scanned.
+_BYTES_BILLED_RE = re.compile(
+    r"bytes billed:\s*(\d+)\D+?(\d+)\s+or higher required", re.IGNORECASE
+)
+
 
 def _is_bytes_limit_error(exc: Forbidden) -> bool:
     return (
@@ -60,13 +68,27 @@ def _is_bytes_limit_error(exc: Forbidden) -> bool:
             for error in (exc.errors or [])
         )
         or "maximum bytes billed" in str(exc).lower()
+        or "limit for bytes billed" in str(exc).lower()
     )
+
+
+def _parse_byte_figures(message: str) -> tuple[int | None, int | None]:
+    """Pull (limit, required) out of BigQuery's rejection message."""
+    match = _BYTES_BILLED_RE.search(message)
+    if not match:
+        return None, None
+    return int(match.group(1)), int(match.group(2))
 
 
 @contextmanager
 def log_cost_rejections(context: str):
     """
-    Log queries rejected for exceeding the byte ceiling, then re-raise.
+    Translate queries rejected for exceeding the byte ceiling into
+    QueryTooLarge, which callers render as a 400 telling the requester to
+    narrow the window.  Everything else propagates untouched.
+
+    BigQuery applies `maximum_bytes_billed` while planning the job, so a
+    rejection here means nothing was scanned and nothing was billed.
 
     The cap starts deliberately tight, so these log lines are the signal for
     where to set it: each one names the query that was refused and the limit
@@ -75,14 +97,18 @@ def log_cost_rejections(context: str):
     try:
         yield
     except Forbidden as exc:
-        if _is_bytes_limit_error(exc):
-            logger.warning(
-                "bigquery cost limit exceeded (%s): limit=%s bytes — "
-                "raise BIGQUERY_MAX_BYTES_BILLED if this query is legitimate",
-                context,
-                settings.bigquery_max_bytes_billed,
-            )
-        raise
+        if not _is_bytes_limit_error(exc):
+            raise
+        limit, required = _parse_byte_figures(str(exc))
+        limit = limit or settings.bigquery_max_bytes_billed
+        logger.warning(
+            "bigquery cost limit exceeded (%s): limit=%s bytes, required=%s bytes — "
+            "raise BIGQUERY_MAX_BYTES_BILLED if this query is legitimate",
+            context,
+            limit,
+            required,
+        )
+        raise QueryTooLarge(limit_bytes=limit, required_bytes=required) from exc
 
 
 def query_job_config(**kwargs: Any) -> bigquery.QueryJobConfig:

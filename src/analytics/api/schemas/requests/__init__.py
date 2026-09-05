@@ -83,14 +83,14 @@ class BaseRequest(BaseModel):
 _VALID_POLLUTANTS = {"pm2_5", "pm10"}
 _VALID_META_FIELDS = {"latitude", "longitude", "site_id"}
 _VALID_WEATHER_FIELDS = {"temperature", "humidity"}
-_FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids")
+_FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids", "cohort_ids")
 
 
 class BaseFilterRequest(BaseRequest):
     """
     Common date-range and filter fields shared by data-export and dashboard
     requests.  Enforces:
-      - exactly one of sites / device_ids / device_names / grid_ids
+      - exactly one of sites / device_ids / device_names / grid_ids / cohort_ids
       - grid_ids currently capped at one ID per request
       - filter lists capped at MAX_FILTER_VALUES entries
       - end_date_time > start_date_time, within MAX_QUERY_DAYS
@@ -109,20 +109,25 @@ class BaseFilterRequest(BaseRequest):
     )
 
     # Filter fields — exactly one must be supplied
-    sites: Optional[List[str]] = Field(None, description="Site IDs to filter by")
+    sites: Optional[List[str]] = Field(
+        None, alias="sites", description="Site IDs to filter by"
+    )
     device_ids: Optional[List[str]] = Field(
         None, alias="device_ids", description="Device IDs to filter by"
     )
     device_names: Optional[List[str]] = Field(
         None, alias="device_names", description="Device names to filter by"
     )
-    # NOTE: `airqlouds` was removed here — the concept is deprecated in favour
-    # of grids. Requests still sending it now fail the "exactly one filter"
-    # check with a clear message rather than being silently ignored.
     grid_ids: Optional[List[str]] = Field(
-        None, description="Grid IDs to filter by (currently limited to one)"
+        None,
+        alias="grid_ids",
+        description="Grid IDs to filter by (currently limited to one)",
     )
-
+    cohort_ids: Optional[List[str]] = Field(
+        None,
+        alias="cohort_ids",
+        description="Cohort IDs to filter by (currently limited to one)",
+    )
     meta_data_fields: Optional[
         List[Literal["latitude", "longitude", "site_id"]]
     ] = Field(
@@ -157,7 +162,7 @@ class BaseFilterRequest(BaseRequest):
 
         # Window cap. BigQuery prunes by the timestamp partition, so an
         # unbounded window is a full-table scan — billable, and reachable
-        # unauthenticated on v3. GridReportRequest has always capped its own
+        # unauthenticated on v3. The report request has always capped its own
         # window; this applies the same discipline to every filter request.
         if start and end:
             max_days = settings.max_query_days
@@ -175,12 +180,13 @@ class BaseFilterRequest(BaseRequest):
                 "device_ids": self.device_ids,
                 "device_names": self.device_names,
                 "grid_ids": self.grid_ids,
+                "cohort_ids": self.cohort_ids,
             }.items()
             if v is not None and len(v) > 0
         }
         if len(provided) == 0:
             raise ValueError(
-                "Provide exactly one of: sites, device_ids, device_names, grid_ids"
+                "Provide exactly one of: sites, device_ids, device_names, grid_ids, cohort_ids"
             )
         if len(provided) > 1:
             raise ValueError(
@@ -200,6 +206,8 @@ class BaseFilterRequest(BaseRequest):
         # number of devices, so cap requests to a single grid for now.
         if self.grid_ids is not None and len(self.grid_ids) > 1:
             raise ValueError("Only one grid ID is currently supported per request")
+        if self.cohort_ids is not None and len(self.cohort_ids) > 1:
+            raise ValueError("Only one cohort ID is currently supported per request")
 
         return self
 
@@ -386,22 +394,35 @@ class DeviceExceedancesRequest(_ExceedancesBase):
 # ---------------------------------------------------------------------------
 
 
-class GridReportRequest(BaseRequest):
+class AirQualityReportRequest(BaseRequest):
     """
-    Request model for the grid air-quality report endpoints
-    (POST /grid/report and /grid/report/diurnal).
+    POST /data/report — PM aggregates for ONE grid or cohort.
 
-    Wire contract is inherited from the original Flask API: snake_case body
-    keys ``grid_id``, ``start_time``, ``end_time`` (ISO datetimes), window
-    must be non-zero and at most 12 months.
+    Wire contract carries over from the original Flask grid report: snake_case
+    ``start_time`` / ``end_time`` (ISO datetimes), window non-zero and within
+    MAX_QUERY_DAYS — the same ceiling the download and chart paths enforce,
+    rather than the hardcoded 12 months the original used.
+
+    The entity is chosen in the body rather than by path, matching
+    DataSummaryRequest: grids and cohorts differ only in how membership
+    resolves, so one endpoint serves both.
     """
 
-    grid_id: str = Field(..., min_length=1, description="Grid identifier")
+    grid_id: Optional[str] = Field(None, description="Grid identifier")
+    cohort_id: Optional[str] = Field(None, description="Cohort identifier")
     start_time: datetime = Field(..., description="Start of the reporting window")
     end_time: datetime = Field(..., description="End of the reporting window")
 
     @model_validator(mode="after")
-    def validate_window(self) -> "GridReportRequest":
+    def validate_entity_and_window(self) -> "AirQualityReportRequest":
+        provided = [
+            kind
+            for kind, value in (("grid", self.grid_id), ("cohort", self.cohort_id))
+            if (value or "").strip()
+        ]
+        if len(provided) != 1:
+            raise ValueError("Provide exactly one of: grid_id, cohort_id")
+
         # Normalise mixed naive/aware datetimes so the subtraction below (and
         # all downstream comparisons) can't raise TypeError.
         if (self.start_time.tzinfo is None) != (self.end_time.tzinfo is None):
@@ -412,9 +433,23 @@ class GridReportRequest(BaseRequest):
 
         if self.start_time == self.end_time:
             raise ValueError("start_time and end_time cannot be the same")
-        if (self.end_time - self.start_time).days > 365:
-            raise ValueError("Time range must not exceed 12 months")
+        # Mirrors BaseFilterRequest's end <= start rule. Without it a reversed
+        # window made the day count below negative, slipping past the cap and
+        # returning a 404 "no data" rather than a 422.
+        if self.end_time < self.start_time:
+            raise ValueError("end_time must be after start_time")
+        max_days = settings.max_query_days
+        if (self.end_time - self.start_time).days > max_days:
+            raise ValueError(f"Time range must not exceed {max_days} days")
         return self
+
+    def entity(self) -> tuple:
+        """(kind, entity_id) for the report builder — mirrors DataSummaryRequest."""
+        for kind, value in (("grid", self.grid_id), ("cohort", self.cohort_id)):
+            cleaned = (value or "").strip()
+            if cleaned:
+                return kind, cleaned
+        raise ValueError("No report entity provided")  # unreachable post-validation
 
 
 # ---------------------------------------------------------------------------
@@ -425,31 +460,27 @@ class GridReportRequest(BaseRequest):
 class DataSummaryRequest(BaseRequest):
     """
     POST /data/summary — Flask wire contract: startDateTime/endDateTime plus
-    ONE of airqloud / grid / cohort.  (Flask marked all three optional and
-    crashed with a 500 when none was given — requiring exactly one turns
-    that into a clean 422.)
+    ONE of grid / cohort.  (Flask marked them optional and crashed with a 500
+    when none was given — requiring exactly one turns that into a clean 422.)
     """
 
     start_date_time: datetime = Field(..., alias="startDateTime")
     end_date_time: datetime = Field(..., alias="endDateTime")
-    airqloud: Optional[str] = None
     grid: Optional[str] = None
     cohort: Optional[str] = None
 
     @model_validator(mode="after")
     def exactly_one_entity(self) -> "DataSummaryRequest":
         provided = [
-            kind
-            for kind in ("airqloud", "grid", "cohort")
-            if (getattr(self, kind) or "").strip()
+            kind for kind in ("grid", "cohort") if (getattr(self, kind) or "").strip()
         ]
         if len(provided) != 1:
-            raise ValueError("Provide exactly one of: airqloud, grid, cohort")
+            raise ValueError("Provide exactly one of: grid, cohort")
         return self
 
     def entity(self) -> tuple:
         """(filter_kind, filter_id) for the summary query builder."""
-        for kind in ("airqloud", "grid", "cohort"):
+        for kind in ("grid", "cohort"):
             value = (getattr(self, kind) or "").strip()
             if value:
                 return kind, value
@@ -531,8 +562,10 @@ class ScheduledExportRequest(BaseFilterRequest):
         # beat tick until its retries are exhausted.
         # Truthiness (not `is not None`): an empty list means "no grid
         # filter", same as the base validator treats it.
-        if self.grid_ids:
-            raise ValueError("grid_ids is not yet supported for scheduled exports")
+        if self.grid_ids or self.cohort_ids:
+            raise ValueError(
+                "grid_ids and cohort_ids are not yet supported for scheduled exports"
+            )
         return self
 
 

@@ -117,40 +117,49 @@ class TestFormatToAqcsv:
 class TestGetValidatedFilter:
     """
     Regression coverage: valid_filters previously only listed
-    "sites"/"device_ids"/"device_names", so an airqlouds-only request hit
+    "sites"/"device_ids"/"device_names", so an unrecognised-filter request hit
     `provided_filters[0]` on an empty list, raising an unhandled IndexError
     instead of the intended validation error. "grid_ids" is a newly added filter
     type that needs the same recognition.
+
+    Note: Assurance of exactly one filter is provided is enforced by the request schema, so
+          this function only needs to validate that the provided filter is recognized and return it.
     """
 
     def test_sites_recognized(self):
-        filter_type, filter_value, error = get_validated_filter({"sites": ["s1"]})
+        filter_type, filter_value = get_validated_filter({"sites": ["s1"]})
         assert filter_type == "sites"
         assert filter_value == ["s1"]
-        assert error == ""
 
     def test_device_ids_recognized(self):
-        filter_type, filter_value, error = get_validated_filter({"device_ids": ["d1"]})
+        filter_type, filter_value = get_validated_filter({"device_ids": ["d1"]})
         assert filter_type == "device_ids"
         assert filter_value == ["d1"]
 
-    def test_airqlouds_no_longer_recognized(self):
-        """airqlouds is deprecated and removed from valid_filters."""
-        filter_type, filter_value, error = get_validated_filter({"airqlouds": ["a1"]})
-        assert filter_type is None
-        assert filter_value is None
-        assert error
-
-    def test_no_recognized_filter_returns_error_not_indexerror(self):
+    def test_no_recognized_filter_returns_error_not_valueerror(self):
         """Indexing an empty provided_filters list raised IndexError, which
         surfaced as a 500 instead of the intended 400."""
-        filter_type, filter_value, error = get_validated_filter({"unknown": ["x"]})
+        filter_type, filter_value = get_validated_filter({"unknown": ["x"]})
         assert filter_type is None
-        assert error
+        assert filter_value == []
 
     def test_grid_recognized(self):
-        filter_type, filter_value, error = get_validated_filter(
-            {"grid_ids": ["g1", "g2"]}
-        )
+        filter_type, filter_value = get_validated_filter({"grid_ids": ["g1", "g2"]})
         assert filter_type == "grid_ids"
         assert filter_value == ["g1", "g2"]
+
+    def test_cohort_recognized(self):
+        filter_type, filter_value = get_validated_filter({"cohort_ids": ["c1", "c2"]})
+        assert filter_type == "cohort_ids"
+        assert filter_value == ["c1", "c2"]
+
+    def test_multiple_filters_resolve_by_precedence(self):
+        """The request schema enforces exactly one filter, so this input is
+        unreachable through the API — but _FILTER_KEYS was once a set, which
+        made the [0] pick vary between runs for a caller that bypassed the
+        schema. The tuple pins the documented precedence: sites first."""
+        filter_type, filter_value = get_validated_filter(
+            {"cohort_ids": ["c1"], "device_ids": ["d1"], "sites": ["s1"]}
+        )
+        assert filter_type == "sites"
+        assert filter_value == ["s1"]

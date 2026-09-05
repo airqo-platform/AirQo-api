@@ -18,7 +18,7 @@ from api.schemas.requests import (
     DeviceDailyAveragesRequest,
     DeviceExceedancesRequest,
     ExceedancesRequest,
-    GridReportRequest,
+    AirQualityReportRequest,
     MonitoringSiteRequest,
     RawDataExportRequest,
     ScheduledExportRequest,
@@ -306,12 +306,13 @@ class TestResponseModels:
         assert len(resp.data) == 1
 
 
-class TestGridReportRequest:
-    """Wire contract inherited from the Flask grid-report endpoints:
-    snake_case keys, window non-zero and at most 12 months."""
+class TestAirQualityReportRequest:
+    """Wire contract carried over from the Flask grid-report endpoint:
+    snake_case keys, window non-zero and within MAX_QUERY_DAYS. The entity is
+    chosen in the body — exactly one of grid_id / cohort_id."""
 
     def test_valid_request(self):
-        req = GridReportRequest(
+        req = AirQualityReportRequest(
             grid_id="grid-123",
             start_time="2024-01-01T00:00:00",
             end_time="2024-02-01T00:00:00",
@@ -320,23 +321,36 @@ class TestGridReportRequest:
 
     def test_equal_start_end_rejected(self):
         with pytest.raises(ValidationError, match="cannot be the same"):
-            GridReportRequest(
+            AirQualityReportRequest(
                 grid_id="g",
                 start_time="2024-01-01T00:00:00",
                 end_time="2024-01-01T00:00:00",
             )
 
-    def test_over_12_months_rejected(self):
-        with pytest.raises(ValidationError, match="12 months"):
-            GridReportRequest(
+    def test_over_the_window_cap_rejected(self):
+        """The report window follows MAX_QUERY_DAYS, the same ceiling the
+        download and chart paths use — it was a hardcoded 12 months."""
+        from config import settings
+
+        with pytest.raises(ValidationError, match="must not exceed"):
+            AirQualityReportRequest(
                 grid_id="g",
                 start_time="2023-01-01T00:00:00",
                 end_time="2024-06-01T00:00:00",
             )
 
+        req = AirQualityReportRequest(
+            grid_id="g",
+            start_time=(
+                datetime.now(tz=timezone.utc) - timedelta(days=settings.max_query_days)
+            ).isoformat(),
+            end_time=_now(),
+        )
+        assert req.grid_id == "g"
+
     def test_empty_grid_id_rejected(self):
         with pytest.raises(ValidationError):
-            GridReportRequest(
+            AirQualityReportRequest(
                 grid_id="",
                 start_time="2024-01-01T00:00:00",
                 end_time="2024-02-01T00:00:00",
@@ -344,7 +358,7 @@ class TestGridReportRequest:
 
     def test_mixed_naive_aware_datetimes_normalised(self):
         """A naive start with an aware end must not TypeError in validation."""
-        req = GridReportRequest(
+        req = AirQualityReportRequest(
             grid_id="g",
             start_time="2024-01-01T00:00:00",
             end_time="2024-02-01T00:00:00+00:00",
@@ -445,7 +459,7 @@ class TestDataSummaryRequest:
         from api.schemas.requests import DataSummaryRequest
 
         with pytest.raises(ValidationError, match="exactly one"):
-            DataSummaryRequest(**self._WINDOW, airqloud="a1", cohort="c1")
+            DataSummaryRequest(**self._WINDOW, grid="g1", cohort="c1")
 
     def test_whitespace_entity_treated_as_absent(self):
         """Flask treated '' as absent via .strip() — preserve."""
@@ -498,9 +512,45 @@ class TestScheduledExportRequest:
         with pytest.raises(ValidationError, match="not yet supported"):
             ScheduledExportRequest(**payload)
 
-    def test_airqlouds_rejected(self):
-        """airqlouds is deprecated and removed; a request carrying only it now
-        has no valid filter at all."""
-        payload = self._payload(sites=None, airqlouds=["a1"])
-        with pytest.raises(ValidationError, match="Provide exactly one of"):
-            ScheduledExportRequest(**payload)
+
+class TestAirQualityReportEntitySelection:
+    """The entity moved from the URL into the body when /grid/report and
+    /cohort/report merged into /data/report, matching DataSummaryRequest."""
+
+    _WINDOW = {
+        "start_time": "2024-01-01T00:00:00",
+        "end_time": "2024-02-01T00:00:00",
+    }
+
+    def test_grid_only_resolves_to_grid(self):
+        req = AirQualityReportRequest(grid_id="g1", **self._WINDOW)
+        assert req.entity() == ("grid", "g1")
+
+    def test_cohort_only_resolves_to_cohort(self):
+        req = AirQualityReportRequest(cohort_id="c1", **self._WINDOW)
+        assert req.entity() == ("cohort", "c1")
+
+    def test_neither_rejected(self):
+        with pytest.raises(ValidationError, match="exactly one"):
+            AirQualityReportRequest(**self._WINDOW)
+
+    def test_both_rejected(self):
+        with pytest.raises(ValidationError, match="exactly one"):
+            AirQualityReportRequest(grid_id="g1", cohort_id="c1", **self._WINDOW)
+
+    def test_whitespace_entity_treated_as_absent(self):
+        """Same .strip() handling as DataSummaryRequest."""
+        req = AirQualityReportRequest(grid_id="  ", cohort_id="c1", **self._WINDOW)
+        assert req.entity() == ("cohort", "c1")
+
+    def test_reversed_window_rejected(self):
+        """A reversed window makes the day count negative, so it slipped past
+        the MAX_QUERY_DAYS cap and reached BigQuery — matching zero rows and
+        returning a 404 rather than a 422. BaseFilterRequest already had this
+        rule; the report model did not."""
+        with pytest.raises(ValidationError, match="end_time must be after"):
+            AirQualityReportRequest(
+                grid_id="g1",
+                start_time="2024-02-01T00:00:00",
+                end_time="2024-01-01T00:00:00",
+            )

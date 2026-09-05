@@ -34,6 +34,8 @@ class BigQueryApi:
         self.sites_table = Utils.table_name(Config.bigquery_sites_sites)
         self.devices_table = Utils.table_name(Config.bigquery_devices_devices)
         self.grids_sites_table = Utils.table_name(Config.bigquery_grids_sites)
+        self.cohorts_table = Utils.table_name(Config.bigquery_cohorts)
+        self.cohorts_devices_table = Utils.table_name(Config.bigquery_cohorts_devices)
         self.satellite_forecast_table = Utils.table_name(
             Config.bigquery_satellite_data_table
         )
@@ -134,8 +136,8 @@ class BigQueryApi:
         """
         Constructs a SQL query to extract device measurements, including standard and BAM measurements when applicable.
 
-        Handles two filter shapes against the same measurement-extraction
-        query, since both ultimately just narrow down which devices'
+        Handles three filter shapes against the same measurement-extraction
+        query, since all three ultimately just narrow down which devices'
         measurements to return:
         - "devices"/"device_ids"/"device_names" (default): filter_value is a
           literal list of device IDs -> WHERE device_id IN UNNEST(@filter_value).
@@ -144,17 +146,23 @@ class BigQueryApi:
           devices_table.site_id is reused directly here (no need to re-join
           devices_devices/sites_sites — it's already the same site ID space
           add_site_join joins against below).
+        - "cohort_ids": filter_value is a list of cohort IDs -> WHERE the device
+          belongs to one of those cohorts, resolved via a cohorts_devices
+          subquery.  Note the join column: cohorts_devices.device_id holds the
+          device's `id`, so this matches devices_table.id — not .device_id as
+          every other devices_devices join in this module does.
 
         Args:
             table (str): Name of the table containing the primary device measurements.
-            filter_value (list): List of device IDs, or (when filter_type="grid_ids") grid IDs.
+            filter_value (list): List of device IDs, or (when filter_type is
+            "grid_ids"/"cohort_ids") grid or cohort IDs.
             pollutants_query (str): SQL fragment for selecting standard pollutants.
             time_grouping (str): SQL expression for time-based grouping (e.g., by hour, day).
             start_date (str): Start timestamp (inclusive) for filtering data.
             end_date (str): End timestamp (inclusive) for filtering data.
             frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
-            filter_type (str): "device_ids" (default) or "grid_ids" — selects which
-                WHERE condition below to apply.
+            filter_type (str): "device_ids" (default) or "grid_ids" or "cohort_ids" — selects
+            which WHERE condition below to apply.
 
         Returns:
             str: The fully constructed SQL query
@@ -166,6 +174,13 @@ class BigQueryApi:
                 f"{self.devices_table}.site_id IN ("
                 f"SELECT site_id FROM {self.grids_sites_table} "
                 f"WHERE grid_id IN UNNEST(@filter_value)"
+                f") "
+            )
+        elif filter_type == "cohort_ids":
+            filter_condition = (
+                f"{self.devices_table}.id IN ("
+                f"SELECT device_id FROM {self.cohorts_devices_table} "
+                f"WHERE cohort_id IN UNNEST(@filter_value)"
                 f") "
             )
         else:
@@ -324,41 +339,6 @@ class BigQueryApi:
         )
         return query
 
-    def _resolve_where_clause(
-        self,
-        where_fields: Dict[str, Union[str, int, List]],
-        valid_columns: List[str],
-        exclude_columns: List[str],
-    ) -> List[str]:
-        """
-        Convert where_fields into SQL-safe WHERE clause parts.
-
-        Returns:
-            List[str]: WHERE conditions (e.g., ["device_id = '123'"]).
-        """
-        clauses = []
-
-        for raw_key, value in where_fields.items():
-            key = self.field_mappings.get(raw_key, None)
-
-            if key in exclude_columns:
-                continue
-
-            if key not in valid_columns:
-                raise ValueError(
-                    f"Invalid table column: '{key}' not in {valid_columns}"
-                )
-
-            if isinstance(value, (str, int)):
-                clauses.append(f"{key} = '{value}'")
-            elif isinstance(value, list):
-                formatted_list = ", ".join(f"'{v}'" for v in value)
-                clauses.append(f"{key} IN ({formatted_list})")
-            else:
-                raise TypeError(f"Unsupported filter type for key: {key}")
-
-        return clauses
-
     @staticmethod
     def _build_filter_parameter(
         filter_value: Union[str, int, List],
@@ -417,7 +397,7 @@ class BigQueryApi:
             frequency (Frequency, optional): The frequency of the data (raw, hourly, daily, etc.).
             data_type (DataType, optional): Type of data (raw, calibrated, etc.).
             columns (List[str], optional): A list of column names (pollutants) to include in the query.
-            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"grid_ids": ["grid1"]}.
+            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"grid_ids": ["grid1"]}, {"cohort_ids": ["cohort1"]}.
             dynamic_query (bool, optional): Whether to use dynamic query generation. Defaults to False.
             use_cache (bool, optional): Whether to use cached query results. Defaults to True.
             cursor_token (str, optional): Token for cursor-based pagination from a previous query. Defaults to None.
@@ -465,14 +445,7 @@ class BigQueryApi:
                 device_category=device_category,
             )
 
-        if isinstance(filter_value, list):
-            query_parameters = [
-                bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
-            ]
-        else:
-            query_parameters = [
-                bigquery.ScalarQueryParameter("filter_value", "STRING", filter_value),
-            ]
+        query_parameters.append(self._build_filter_parameter(filter_value))
 
         job_config.use_query_cache = use_cache
 
@@ -727,7 +700,7 @@ class BigQueryApi:
 
         Args:
             data_table(str): The table name containing the main data records.
-            filter_type(str): Type of filter (e.g., devices, sites, grid_ids).
+            filter_type(str): Type of filter (e.g., devices, sites, grid_ids, cohort_ids).
             filter_value(list): Filter values corresponding to the filter type.
             pollutants_query(str): Query for pollutant data.
             start_date(str): Start date for data retrieval.
@@ -748,7 +721,13 @@ class BigQueryApi:
                 "",
             )
 
-        if filter_type in {"devices", "device_ids", "device_names", "grid_ids"}:
+        if filter_type in {
+            "devices",
+            "device_ids",
+            "device_names",
+            "grid_ids",
+            "cohort_ids",
+        }:
             return self.get_device_query(
                 table,
                 filter_value,
@@ -832,7 +811,7 @@ class BigQueryApi:
         Retrieves data from BigQuery with specified filters, frequency, pollutants, and weather fields.
 
         Args:
-            filter_type (str): Type of filter to apply (e.g., 'devices', 'sites', 'grid_ids').
+            filter_type (str): Type of filter to apply (e.g., 'devices', 'sites', 'grid_ids', 'cohort_ids').
             filter_value (list): Filter values (IDs or names) for the selected filter type.
             start_date (str): Start date for the data query.
             end_date (str): End date for the data query.
