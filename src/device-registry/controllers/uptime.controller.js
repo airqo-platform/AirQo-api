@@ -271,6 +271,52 @@ const uptime = {
       );
     }
   },
+
+  getNetworkUptimeLeaderboard: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const { startDate, endDate, limit, skip } = request.query;
+
+      const result = await createUptimeUtil.getNetworkUptimeLeaderboard(
+        {
+          tenant: request.query.tenant,
+          startDate,
+          endDate,
+          limit,
+          skip,
+        },
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = uptime;

@@ -621,6 +621,55 @@ const createUptime = {
       );
     }
   },
+
+  getDeviceUptimeLeaderboard: async (params, next) => {
+    try {
+      const { tenant, startDate, endDate, limit } = params;
+
+      const result = await DeviceUptimeModel(tenant).getUptimeLeaderboard(
+        tenant,
+        { startDate, endDate, limit }
+      );
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // Rolls the same uptime data up to partner-network level, so an external
+  // manufacturer's network can be ranked/compared the same way an individual
+  // device can. Only networks that the uptime jobs actually poll will show up
+  // here — today that is "airqo" only; a network only appears once devices on
+  // it start being sampled by device-uptime-job / network-analysis-uptime-job.
+  getNetworkUptimeLeaderboard: async (params, next) => {
+    try {
+      const { tenant, startDate, endDate, limit, skip } = params;
+
+      const result = await DeviceUptimeModel(tenant).getNetworkContributionStats(
+        tenant,
+        { startDate, endDate, limit, skip }
+      );
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createUptime;

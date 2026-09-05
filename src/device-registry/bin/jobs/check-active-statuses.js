@@ -11,7 +11,7 @@ const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
 
 const JOB_NAME = "check-active-statuses-job";
-const JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
+const JOB_SCHEDULE = getSchedule("22 */2 * * *", constants.ENVIRONMENT); // At minute 22 (or offset) of every 2nd hour (staggered off :30, shared by several other every-2h jobs and the every-hour precompute-activities-job)
 const TIMEZONE = moment.tz.guess();
 const LOG_TYPE = "ACTIVE_STATUSES_CHECK";
 
