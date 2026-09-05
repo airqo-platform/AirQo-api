@@ -43,6 +43,15 @@ const deviceUptimeSchema = new Schema(
       type: String,
       index: true,
     },
+    // The owning network/manufacturer (mirrors Device.network) — populated by
+    // the uptime jobs so contribution can be rolled up per partner network.
+    // Optional/absent on records written before this field existed.
+    network: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      index: true,
+    },
     sensor_one_pm2_5: {
       type: Number,
       min: 0,
@@ -67,6 +76,15 @@ const deviceUptimeSchema = new Schema(
 // Add compound indexes for common queries
 deviceUptimeSchema.index({ device_name: 1, created_at: -1 });
 deviceUptimeSchema.index({ channel_id: 1, created_at: -1 });
+deviceUptimeSchema.index({ network: 1, created_at: -1 });
+// update-raw-online-status-job now samples every device hourly (not just
+// "airqo" devices every 2h), which materially raises write volume. TTL keeps
+// this collection bounded — 90 days comfortably covers the 30-day windows
+// used by the leaderboard/verification aggregations.
+deviceUptimeSchema.index(
+  { created_at: 1 },
+  { expireAfterSeconds: 90 * 24 * 60 * 60 }
+);
 
 // Add virtuals
 deviceUptimeSchema.virtual("uptimePercentage").get(function() {
@@ -147,6 +165,74 @@ deviceUptimeSchema.statics = {
       };
     } catch (error) {
       logger.error("Error retrieving device uptime leaderboard:", error);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message: error.message,
+          details: error.stack,
+        }
+      );
+    }
+  },
+
+  // Rolls device-level uptime records up to the partner-network level —
+  // one row per distinct `network` value (e.g. "airqo", or an external
+  // manufacturer's network) instead of per device. This is the basis for
+  // both the network leaderboard and the "verified partner" status check:
+  // both need the same per-network uptime%/device-count/sample-size numbers.
+  async getNetworkContributionStats(tenant, { startDate, endDate, limit = null }) {
+    try {
+      const pipeline = [
+        {
+          $match: {
+            created_at: {
+              $gte: startDate,
+              $lt: endDate,
+            },
+            network: { $nin: [null, ""] },
+          },
+        },
+        {
+          $group: {
+            _id: "$network",
+            network: { $first: "$network" },
+            downtime: { $avg: "$downtime" },
+            uptime: { $avg: "$uptime" },
+            devices: { $addToSet: "$device_name" },
+            total_records: { $sum: 1 },
+            last_seen: { $max: "$created_at" },
+          },
+        },
+        {
+          $addFields: {
+            uptime_percentage: {
+              $multiply: [
+                { $divide: ["$uptime", { $add: ["$uptime", "$downtime"] }] },
+                100,
+              ],
+            },
+            device_count: { $size: "$devices" },
+          },
+        },
+        { $project: { devices: 0 } },
+        { $sort: { uptime_percentage: -1 } },
+      ];
+
+      if (limit) {
+        pipeline.push({ $limit: parseInt(limit) });
+      }
+
+      const results = await this.aggregate(pipeline);
+
+      return {
+        success: true,
+        message: "Successfully retrieved network contribution statistics",
+        data: results,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error("Error retrieving network contribution statistics:", error);
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,

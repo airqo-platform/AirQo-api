@@ -1,5 +1,6 @@
 "use strict";
 const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
 const ActivityModel = require("@models/Activity");
 const CohortModel = require("@models/Cohort");
 const ShippingBatchModel = require("@models/ShippingBatch");
@@ -3782,6 +3783,145 @@ const deviceUtil = {
         };
       }
 
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  // Aggregate, per-owner "impact" summary — total sensors claimed, how many
+  // are currently active/online, and (where uptime data exists) average
+  // uptime over the trailing window. Backs an "impact report" for
+  // individually-owned/claimed devices, e.g. "your sensors averaged 96%
+  // uptime this month" — reads only data already collected via the
+  // owner_id/claim_status device-claim flow and the uptime jobs, no new data
+  // source required.
+  getMyImpact: async (request, next) => {
+    try {
+      const { user_id, tenant } = request.query;
+
+      if (!user_id || !isValidObjectId(user_id)) {
+        return {
+          success: false,
+          message: "A valid user_id is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id must be a valid MongoDB ObjectId" },
+        };
+      }
+
+      const devices = await DeviceModel(tenant)
+        .find({ owner_id: new ObjectId(user_id) })
+        .select(
+          "name long_name claim_status isOnline isActive network claimed_at",
+        )
+        .lean();
+
+      if (isEmpty(devices)) {
+        return {
+          success: true,
+          message: "No claimed devices found for this user",
+          status: httpStatus.OK,
+          data: {
+            total_devices: 0,
+            claimed_devices: 0,
+            deployed_devices: 0,
+            active_devices: 0,
+            online_devices: 0,
+            average_uptime_percentage: null,
+            uptime_sample_size_days: 30,
+            devices: [],
+          },
+        };
+      }
+
+      const WINDOW_DAYS = 30;
+      const endDate = new Date();
+      const startDate = new Date(
+        endDate.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000,
+      );
+      const deviceNames = devices.map((d) => d.name).filter(Boolean);
+
+      const uptimeByDevice = new Map();
+      if (deviceNames.length > 0) {
+        try {
+          const uptimeRecords = await DeviceUptimeModel(tenant)
+            .find({
+              device_name: { $in: deviceNames },
+              created_at: { $gte: startDate, $lt: endDate },
+            })
+            .select("device_name uptime downtime")
+            .lean();
+
+          const sums = new Map();
+          uptimeRecords.forEach((r) => {
+            const entry = sums.get(r.device_name) || {
+              uptime: 0,
+              downtime: 0,
+            };
+            entry.uptime += r.uptime || 0;
+            entry.downtime += r.downtime || 0;
+            sums.set(r.device_name, entry);
+          });
+          sums.forEach((v, k) => {
+            const total = v.uptime + v.downtime;
+            uptimeByDevice.set(k, total > 0 ? (v.uptime / total) * 100 : null);
+          });
+        } catch (uptimeError) {
+          logger.warn(
+            `getMyImpact: could not load uptime data: ${uptimeError.message}`,
+          );
+        }
+      }
+
+      const deviceSummaries = devices.map((d) => ({
+        name: d.name,
+        long_name: d.long_name,
+        claim_status: d.claim_status,
+        network: d.network,
+        isOnline: d.isOnline,
+        isActive: d.isActive,
+        claimed_at: d.claimed_at,
+        uptime_percentage_30d: uptimeByDevice.has(d.name)
+          ? Math.round(uptimeByDevice.get(d.name) * 100) / 100
+          : null,
+      }));
+
+      const uptimeValues = deviceSummaries
+        .map((d) => d.uptime_percentage_30d)
+        .filter((v) => v !== null);
+
+      const averageUptime =
+        uptimeValues.length > 0
+          ? Math.round(
+              (uptimeValues.reduce((a, b) => a + b, 0) / uptimeValues.length) *
+                100,
+            ) / 100
+          : null;
+
+      return {
+        success: true,
+        message: "Successfully retrieved impact summary",
+        status: httpStatus.OK,
+        data: {
+          total_devices: devices.length,
+          claimed_devices: devices.filter((d) => d.claim_status === "claimed")
+            .length,
+          deployed_devices: devices.filter(
+            (d) => d.claim_status === "deployed",
+          ).length,
+          active_devices: devices.filter((d) => d.isActive).length,
+          online_devices: devices.filter((d) => d.isOnline).length,
+          average_uptime_percentage: averageUptime,
+          uptime_sample_size_days: WINDOW_DAYS,
+          devices: deviceSummaries,
+        },
+      };
+    } catch (error) {
+      logger.error(`🪲🪲 Get My Impact Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

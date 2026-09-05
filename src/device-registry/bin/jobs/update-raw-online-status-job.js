@@ -5,6 +5,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`,
 );
 const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
 const SiteModel = require("@models/Site");
 const createFeedUtil = require("@utils/feed.util");
 const { getNetworkAdapter } = require("@utils/network.util");
@@ -240,6 +241,13 @@ const processDeviceBatch = async (devices, processor) => {
     }
   }
 
+  // Accumulates one online/offline sample per device across every chunk in
+  // this batch (up to BATCH_SIZE devices), flushed in a single insertMany
+  // after the chunk loop below — one DB round trip per batch instead of one
+  // per 5-device chunk, matching the bulk-write batching already used for
+  // the other writes in this job.
+  const uptimeSamples = [];
+
   // 3. Process devices in smaller, concurrent chunks with yielding
   for (let i = 0; i < devices.length; i += CONCURRENCY_LIMIT) {
     if (processor.shouldStopExecution()) {
@@ -290,6 +298,37 @@ const processDeviceBatch = async (devices, processor) => {
 
     // Perform bulk write for STATUS updates (no conditional PM2.5 filter)
     const bulkOps = batchResult.results.filter(Boolean);
+
+    // Record each device's just-computed raw online/offline status, keyed by
+    // network, into the batch-level accumulator (flushed once below). This is
+    // the ONE place in the codebase that checks every device's live status
+    // regardless of network — via ThingSpeak for "airqo" devices, via the
+    // network adapter's online_check_via_feed for external manufacturers
+    // (AirGradient, IQAir, etc.), and via stale-data fallback otherwise — so
+    // it is what makes online-status data (and therefore the leaderboard/
+    // verified-partner status) exist for non-AirQo networks at all, not just
+    // "airqo". Read back from the already-built bulkOps rather than
+    // threading a new field through every return branch above, so the
+    // online/offline determination logic itself is untouched — this only
+    // observes its output.
+    const deviceById = new Map(chunk.map((d) => [String(d._id), d]));
+    bulkOps.forEach((op) => {
+      const device = deviceById.get(String(op.updateOne.filter._id));
+      const rawOnlineStatus = op.updateOne.update?.$set?.rawOnlineStatus;
+      if (!device || !device.name || rawOnlineStatus === undefined) {
+        return;
+      }
+      uptimeSamples.push({
+        created_at: new Date(),
+        device_name: device.name,
+        network: device.network,
+        channel_id: device.device_number || undefined,
+        uptime: rawOnlineStatus ? 100 : 0,
+        downtime: rawOnlineStatus ? 0 : 100,
+        status: rawOnlineStatus ? "online" : "offline",
+      });
+    });
+
     if (bulkOps.length > 0) {
       try {
         const BULK_TIMEOUT = 15000; // 15 seconds
@@ -359,6 +398,31 @@ const processDeviceBatch = async (devices, processor) => {
 
     // Yield between chunks
     await processor.yieldControl();
+  }
+
+  // Single flush for the whole batch (all chunks above), rather than one
+  // insertMany per 5-device chunk — cuts DB round trips for this write by
+  // roughly CONCURRENCY_LIMIT-fold. Timeout-guarded and non-fatal like the
+  // other bulk writes in this job: a slow/failed insert here never blocks or
+  // fails the actual status update, it only means that batch's samples are
+  // missing from the uptime leaderboard/verification data.
+  if (uptimeSamples.length > 0) {
+    try {
+      const BULK_TIMEOUT = 15000;
+      await Promise.race([
+        DeviceUptimeModel("airqo").insertMany(uptimeSamples, {
+          ordered: false,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Uptime sample insert timeout")),
+            BULK_TIMEOUT,
+          ),
+        ),
+      ]);
+    } catch (error) {
+      logger.error(`Uptime sample insert error in batch: ${error.message}`);
+    }
   }
 };
 

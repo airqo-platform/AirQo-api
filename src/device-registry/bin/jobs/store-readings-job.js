@@ -435,7 +435,7 @@ async function fetchAndStoreReadings() {
 }
 
 const JOB_NAME = "store-readings-job";
-const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+const JOB_SCHEDULE = "20 * * * *"; // At minute 20 of every hour (staggered off :30, which precompute-activities-job/store-signals-job also used)
 
 let isJobRunning = false;
 let currentJobPromise = null;

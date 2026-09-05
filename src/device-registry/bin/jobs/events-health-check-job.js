@@ -23,7 +23,7 @@ const TIMEZONE = constants.TIMEZONE || "Africa/Kampala";
 const THRESHOLD_HOURS = constants.EVENTS_STALENESS_THRESHOLD_HOURS;
 
 const JOB_NAME = "events-health-check-job";
-const JOB_SCHEDULE = "0 */2 * * *"; // Every 2 hours
+const JOB_SCHEDULE = "12 */2 * * *"; // Every 2 hours, at minute 12 (staggered off :00, shared by several other every-2h jobs and the hourly device-status-hourly-check-job)
 
 async function checkEventsHealth() {
   try {
