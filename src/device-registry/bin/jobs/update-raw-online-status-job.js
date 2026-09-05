@@ -1256,23 +1256,35 @@ const updateRawOnlineStatus = async () => {
       }
     } finally {
       await cursor.close();
-    }
 
-    // Process the final batch if it's not empty
-    if (batch.length > 0 && !processor.shouldStopExecution()) {
+      // Handle the final (possibly partial) batch and flush any pending
+      // uptime samples here, inside the finally, so both still run even if
+      // cursor iteration above threw — otherwise an error mid-stream would
+      // discard up to UPTIME_SAMPLE_FLUSH_THRESHOLD-1 collected samples
+      // when it propagates. Same effective position/order as before on the
+      // success path; this only adds coverage for the error path. Own
+      // try/catch so a failure here can't mask an original error that's
+      // already propagating out of the try block above.
       try {
-        await processDeviceBatch(batch, processor, pendingUptimeSamples);
-        totalProcessed += batch.length;
-        logText(`Final batch processed. Total: ${totalProcessed}`);
-      } catch (finalBatchError) {
+        if (batch.length > 0 && !processor.shouldStopExecution()) {
+          try {
+            await processDeviceBatch(batch, processor, pendingUptimeSamples);
+            totalProcessed += batch.length;
+            logText(`Final batch processed. Total: ${totalProcessed}`);
+          } catch (finalBatchError) {
+            logger.error(
+              `Final batch processing error: ${finalBatchError.message}`,
+            );
+          }
+        }
+
+        await flushUptimeSamples(pendingUptimeSamples.splice(0));
+      } catch (cleanupError) {
         logger.error(
-          `Final batch processing error: ${finalBatchError.message}`,
+          `Error finalizing batch/uptime-sample flush: ${cleanupError.message}`,
         );
       }
     }
-
-    // Flush whatever's left under the periodic threshold above.
-    await flushUptimeSamples(pendingUptimeSamples.splice(0));
 
     // Cleanup pass: find sites that have rawOnlineStatus: true but no active
     // device currently assigned. These are sites recalled before the recall
