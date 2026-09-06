@@ -25,7 +25,7 @@ from app.db.session import Base
 from sqlmodel import SQLModel
 
 # Import all your models here so their metadata is collected
-from app.models import firmware, sync, device_data, operations, webrtc
+from app.models import vendor, firmware, sync, device_data, operations, webrtc, device_schema, diagnostics, health
 
 # Dynamically merge SQLModel.metadata tables into Base.metadata
 # to avoid duplicate table keys or unresolved foreign keys across multiple metadata objects.

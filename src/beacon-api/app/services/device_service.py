@@ -10,12 +10,13 @@ from app.models.device_data import SyncRawDeviceData
 from app.models.sync import (
     SyncDevice,
     SyncSite,
-    Category,
     SyncMetadataValues,
     SyncConfigValues,
     SyncCohortDevice,
 )
+from app.models.device_schema import DeviceProfile
 from typing import List, Dict, Any, Tuple, Optional
+from uuid import UUID
 from app.utils.performance import PerformanceAnalysis
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,18 @@ def _apply_non_authoritative_update(
     return updated
 
 
+def _resolve_profile_id(db: Session, category_str: Optional[str]) -> Optional[UUID]:
+    """Resolves a DeviceProfile ID from the category string (lowcost, gas, bam)."""
+    cat_lower = (category_str or "lowcost").strip().lower()
+    profile = db.query(DeviceProfile).filter(func.lower(DeviceProfile.name) == cat_lower).first()
+    if not profile:
+        if cat_lower == "gas":
+            profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+        elif cat_lower in ("lowcost", "airqo-v5-dualpm"):
+            profile = db.query(DeviceProfile).filter(DeviceProfile.name.in_(["lowcost", "AirQo-v5-DualPM"])).first()
+    return profile.id if profile else None
+
+
 def upsert_device_to_sync(
     db: Session,
     dev: Dict[str, Any],
@@ -199,6 +212,7 @@ def upsert_device_to_sync(
 
     site_id, status = _resolve_site_id(dev)
     values = _build_field_values(dev, read_key, site_id)
+    profile_id = _resolve_profile_id(db, values.get("category"))
 
     db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
 
@@ -214,6 +228,7 @@ def upsert_device_to_sync(
             device_name=values["device_name"],
             network_id=values["network_id"],
             category=values["category"],
+            profile_id=profile_id,
             site_id=initial_site_id,
             device_number=values["device_number"],
             writeKey=values["writeKey"],
@@ -225,8 +240,14 @@ def upsert_device_to_sync(
 
     if is_authoritative:
         updated = _apply_authoritative_update(db_device, values)
+        if profile_id and db_device.profile_id != profile_id:
+            db_device.profile_id = profile_id
+            updated = True
     else:
         updated = _apply_non_authoritative_update(db_device, values, status)
+        if not db_device.profile_id and profile_id:
+            db_device.profile_id = profile_id
+            updated = True
 
     if updated:
         db.add(db_device)
@@ -498,6 +519,7 @@ def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
     return {
         "network_id": db_device.network_id,
         "site_id": db_device.site_id,
+        "profile_id": str(db_device.profile_id) if db_device.profile_id else None,
         "current_firmware": db_device.current_firmware,
         "previous_firmware": db_device.previous_firmware,
         "file_upload_state": db_device.file_upload_state,
@@ -528,6 +550,7 @@ def _serialize_synced_device(db_device: SyncDevice) -> Dict[str, Any]:
         "network": db_device.network_id,
         "status": db_device.status,
         "category": db_device.category,
+        "profile_id": str(db_device.profile_id) if db_device.profile_id else None,
         "device_number": db_device.device_number,
         "writeKey": db_device.writeKey,
         "readKey": db_device.readKey,
@@ -956,44 +979,55 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
     return platform_data
 
 async def get_device_metadata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
-    # 1. Fetch category details
-    db_cat = db.query(Category).filter(Category.name == category_name).first()
-    if not db_cat:
+    # 1. Fetch profile/category details
+    db_profile = db.query(DeviceProfile).filter(
+        or_(
+            DeviceProfile.name.ilike(category_name),
+            DeviceProfile.category.ilike(category_name),
+        )
+    ).first()
+    if not db_profile and category_name.lower() == "gas":
+        db_profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+
+    if not db_profile:
         return {
             "success": False,
-            "message": f"Category {category_name} not found",
+            "message": f"Profile/Category '{category_name}' not found",
             "status_code": 404
         }
-    
+
     # 2. Fetch metadata values for the device
     query = db.query(SyncMetadataValues).filter(SyncMetadataValues.device_id == device_id)
     total = query.count()
     metadata_values = query.order_by(SyncMetadataValues.created_at.desc()).offset(skip).limit(limit).all()
-    
-    # 3. Format metadata based on category mapping
+
+    # 3. Format metadata based on profile mapping
+    meta_mappings = db_profile.metadata_mappings or {}
+    telemetry_mappings = db_profile.telemetry_mappings or {}
+
     cat_details = {
-        "name": db_cat.name,
-        "level": db_cat.level,
-        "description": db_cat.description,
+        "name": db_profile.name,
+        "level": db_profile.category,
+        "description": db_profile.description,
     }
-    # Include metadata and field mappings in category details
     for i in range(1, 16):
-        cat_details[f"metadata{i}"] = getattr(db_cat, f"metadata{i}")
-        cat_details[f"field{i}"] = getattr(db_cat, f"field{i}")
-    
+        m_info = meta_mappings.get(f"metadata{i}")
+        cat_details[f"metadata{i}"] = m_info.get("label") if isinstance(m_info, dict) else (m_info or None)
+        f_info = telemetry_mappings.get(f"field{i}")
+        cat_details[f"field{i}"] = f_info.get("label") if isinstance(f_info, dict) else (f_info or None)
+
     metadata_list = []
     for mv in metadata_values:
         data = {"created_at": mv.created_at.isoformat() if mv.created_at else None}
         for i in range(1, 16):
             attr_name = f"metadata{i}"
-            label = getattr(db_cat, attr_name)
+            label = cat_details.get(attr_name)
             if label:
                 data[label] = getattr(mv, attr_name)
-        # Handle field15 specifically if it has a mapping
-        if db_cat.field15:
-            data[db_cat.field15] = mv.field15
+        if cat_details.get("field15"):
+            data[cat_details["field15"]] = mv.field15
         metadata_list.append(data)
-    
+
     return {
         "success": True,
         "message": "Metadata fetched successfully",
@@ -1008,33 +1042,46 @@ async def get_device_metadata(db: Session, device_id: str, category_name: str, s
         }
     }
 
+
 async def get_device_configdata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
-    # 1. Fetch category details
-    db_cat = db.query(Category).filter(Category.name == category_name).first()
-    if not db_cat:
+    # 1. Fetch profile/category details
+    db_profile = db.query(DeviceProfile).filter(
+        or_(
+            DeviceProfile.name.ilike(category_name),
+            DeviceProfile.category.ilike(category_name),
+        )
+    ).first()
+    if not db_profile and category_name.lower() == "gas":
+        db_profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+
+    if not db_profile:
         return {
             "success": False,
-            "message": f"Category {category_name} not found",
+            "message": f"Profile/Category '{category_name}' not found",
             "status_code": 404
         }
-    
+
     # 2. Fetch config values for the device
     query = db.query(SyncConfigValues).filter(SyncConfigValues.device_id == device_id)
     total = query.count()
     config_values = query.order_by(SyncConfigValues.created_at.desc()).offset(skip).limit(limit).all()
-    
-    # 3. Format config based on category mapping
+
+    # 3. Format config based on profile mapping
+    config_mappings = db_profile.config_mappings or {}
+    telemetry_mappings = db_profile.telemetry_mappings or {}
+
     cat_details = {
-        "name": db_cat.name,
-        "level": db_cat.level,
-        "description": db_cat.description,
+        "name": db_profile.name,
+        "level": db_profile.category,
+        "description": db_profile.description,
     }
-    # Include config and field mappings in category details
     for i in range(1, 11):
-        cat_details[f"config{i}"] = getattr(db_cat, f"config{i}")
+        c_info = config_mappings.get(f"config{i}")
+        cat_details[f"config{i}"] = c_info.get("label") if isinstance(c_info, dict) else (c_info or None)
     for i in range(1, 16):
-        cat_details[f"field{i}"] = getattr(db_cat, f"field{i}")
-    
+        f_info = telemetry_mappings.get(f"field{i}")
+        cat_details[f"field{i}"] = f_info.get("label") if isinstance(f_info, dict) else (f_info or None)
+
     config_list = []
     for cv in config_values:
         data = {
@@ -1043,11 +1090,11 @@ async def get_device_configdata(db: Session, device_id: str, category_name: str,
         }
         for i in range(1, 11):
             attr_name = f"config{i}"
-            label = getattr(db_cat, attr_name)
+            label = cat_details.get(attr_name)
             if label:
                 data[label] = getattr(cv, attr_name)
         config_list.append(data)
-    
+
     return {
         "success": True,
         "message": "Config data fetched successfully",
@@ -1163,9 +1210,19 @@ async def _ensure_device(db: Session, device_id: str) -> SyncDevice:
 async def create_device_metadata(db: Session, device_id: str, category_name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     try:
         await _ensure_device(db, device_id)
-        category = db.query(Category).filter(Category.name == category_name).first()
-        if not category:
-            return {"success": False, "message": f"Category '{category_name}' not found", "status_code": 404}
+        profile = db.query(DeviceProfile).filter(
+            or_(
+                DeviceProfile.name.ilike(category_name),
+                DeviceProfile.category.ilike(category_name),
+            )
+        ).first()
+        if not profile and category_name.lower() == "gas":
+            profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+
+        if not profile:
+            return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
+
+        meta_mappings = profile.metadata_mappings or {}
 
         # Build insert payload mapping label -> metadataN or direct metadataN keys
         insert_kwargs: Dict[str, Any] = {"device_id": device_id}
@@ -1174,9 +1231,10 @@ async def create_device_metadata(db: Session, device_id: str, category_name: str
             key = f"metadata{i}"
             if key in values:
                 insert_kwargs[key] = values.get(key)
-        # Map category labels -> columns
+        # Map profile metadata labels -> columns
         for i in range(1, 16):
-            label = getattr(category, f"metadata{i}")
+            m_info = meta_mappings.get(f"metadata{i}")
+            label = m_info.get("label") if isinstance(m_info, dict) else (m_info or None)
             if label and label in values:
                 insert_kwargs[f"metadata{i}"] = values[label]
 
@@ -1193,9 +1251,19 @@ async def create_device_metadata(db: Session, device_id: str, category_name: str
 async def create_device_configdata(db: Session, device_id: str, category_name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     try:
         await _ensure_device(db, device_id)
-        category = db.query(Category).filter(Category.name == category_name).first()
-        if not category:
-            return {"success": False, "message": f"Category '{category_name}' not found", "status_code": 404}
+        profile = db.query(DeviceProfile).filter(
+            or_(
+                DeviceProfile.name.ilike(category_name),
+                DeviceProfile.category.ilike(category_name),
+            )
+        ).first()
+        if not profile and category_name.lower() == "gas":
+            profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+
+        if not profile:
+            return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
+
+        config_mappings = profile.config_mappings or {}
 
         insert_kwargs: Dict[str, Any] = {"device_id": device_id}
         # Accept direct configN keys
@@ -1203,9 +1271,10 @@ async def create_device_configdata(db: Session, device_id: str, category_name: s
             key = f"config{i}"
             if key in values:
                 insert_kwargs[key] = values.get(key)
-        # Map category labels -> columns
+        # Map profile config labels -> columns
         for i in range(1, 11):
-            label = getattr(category, f"config{i}")
+            c_info = config_mappings.get(f"config{i}")
+            label = c_info.get("label") if isinstance(c_info, dict) else (c_info or None)
             if label and label in values:
                 insert_kwargs[f"config{i}"] = values[label]
 
@@ -1274,27 +1343,22 @@ async def _fetch_all_platform_devices(
 
 
 def _sync_category_record(db: Session, cat: Dict[str, Any]) -> None:
-    """Upsert a single category row from a category_hierarchy entry."""
+    """Upsert a single DeviceProfile row from a category_hierarchy entry if not already present."""
     cat_name = cat.get("category")
     if not cat_name:
         return
-    db_cat = db.query(Category).filter(Category.name == cat_name).first()
-    if not db_cat:
-        db.add(Category(
-            name=cat_name,
-            level=cat.get("level"),
+    db_profile = db.query(DeviceProfile).filter(
+        or_(
+            DeviceProfile.name.ilike(cat_name),
+            DeviceProfile.category.ilike(cat_name),
+        )
+    ).first()
+    if not db_profile:
+        db.add(DeviceProfile(
+            name=cat_name.lower(),
+            category=cat.get("level") or "general",
             description=cat.get("description"),
         ))
-        return
-    cat_updated = False
-    if db_cat.level != cat.get("level"):
-        db_cat.level = cat.get("level")
-        cat_updated = True
-    if db_cat.description != cat.get("description"):
-        db_cat.description = cat.get("description")
-        cat_updated = True
-    if cat_updated:
-        db.add(db_cat)
 
 
 def _sync_device_categories_from_payload(

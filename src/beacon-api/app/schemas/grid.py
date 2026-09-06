@@ -70,6 +70,7 @@ class GridSyncResponse(BaseModel):
 class SyncedGridSiteDevice(BaseModel):
     device_id: str
     device_name: Optional[str] = None
+    device_number: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_active: bool = False
