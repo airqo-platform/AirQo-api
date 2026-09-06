@@ -308,6 +308,7 @@ def _build_grid_site_devices(
         devices.append({
             "device_id": j.device_id,
             "device_name": sync_dev.device_name if sync_dev else None,
+            "device_number": sync_dev.device_number if sync_dev else None,
             "latitude": site_latitude,
             "longitude": site_longitude,
             "network_id": sync_dev.network_id if sync_dev else None,
@@ -579,6 +580,7 @@ def _build_mirror_cohort_from_grid(
             mirror_dev = {
                 "_id": device_id,
                 "name": synced_dev.get("device_name") or device_id,
+                "device_number": synced_dev.get("device_number"),
                 "isActive": bool(synced_dev.get("is_active")),
             }
             mirror_devices.append(mirror_dev)
