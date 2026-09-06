@@ -77,11 +77,17 @@ async def fetch_thingspeak_data_bulk(
                     response.raise_for_status()
                     data = response.json()
                 except httpx.HTTPStatusError as e:
-                    logger.error(
-                        "[ThingSpeak] Failed to fetch channel %s: HTTP %s",
-                        channel_id,
-                        e.response.status_code,
-                    )
+                    if e.response.status_code == 404:
+                        logger.info(
+                            "[ThingSpeak] Failed to fetch channel %s: HTTP 404",
+                            channel_id,
+                        )
+                    else:
+                        logger.error(
+                            "[ThingSpeak] Failed to fetch channel %s: HTTP %s",
+                            channel_id,
+                            e.response.status_code,
+                        )
                     break
                 except httpx.RequestError as e:
                     logger.error(
@@ -89,7 +95,6 @@ async def fetch_thingspeak_data_bulk(
                         channel_id,
                         e.__class__.__name__,
                     )
-                    break
                     break
 
                 feeds = data.get("feeds", [])
