@@ -197,6 +197,10 @@ const uptimeValidations = {
     ...commonValidations.rounding,
     commonValidations.errorChecker,
   ],
+  getDiagnostics: [
+    ...commonValidations.tenant,
+    commonValidations.errorChecker,
+  ],
 };
 
 module.exports = uptimeValidations;

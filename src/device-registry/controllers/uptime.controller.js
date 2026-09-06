@@ -317,6 +317,43 @@ const uptime = {
       );
     }
   },
+
+  getDeviceUptimeDiagnostics: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createUptimeUtil.getDeviceUptimeDiagnostics(
+        { tenant },
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = uptime;

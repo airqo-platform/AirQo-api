@@ -49,6 +49,16 @@ router.get(
   uptime.getNetworkUptimeLeaderboard
 );
 
+// Read-only diagnostics for the device_uptimes buffering-timeout
+// investigation — reports migration status + real current indexes on
+// device_uptimes, straight from the raw driver. Temporary/investigative;
+// safe to remove once the underlying issue is confirmed resolved.
+router.get(
+  "/diagnostics",
+  uptimeValidations.getDiagnostics,
+  uptime.getDeviceUptimeDiagnostics
+);
+
 router.get("/health", pagination(), (req, res) => {
   console.info("health status OK");
   return res.status(200).json({
