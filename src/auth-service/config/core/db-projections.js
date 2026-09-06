@@ -1,69 +1,6 @@
 const mongoose = require("mongoose");
 
 const dbProjections = {
-  NETWORKS_INCLUSION_PROJECTION: {
-    _id: 1,
-    net_email: 1,
-    net_website: 1,
-    net_category: 1,
-    net_profile_picture: 1,
-    net_status: 1,
-    net_phoneNumber: 1,
-    net_name: 1,
-    net_description: 1,
-    net_acronym: 1,
-    net_data_source: 1,
-    net_api_key: 1,
-    createdAt: {
-      $dateToString: {
-        format: "%Y-%m-%d %H:%M:%S",
-        date: "$_id",
-      },
-    },
-    net_manager: { $arrayElemAt: ["$net_manager", 0] },
-    net_users: "$net_users",
-    net_permissions: "$net_permissions",
-    net_roles: "$net_roles",
-    net_groups: "$net_groups",
-    net_departments: "$net_departments",
-  },
-  NETWORKS_EXCLUSION_PROJECTION: function (category) {
-    const initialProjection = {
-      net_users: 0,
-      net_manager: 0,
-      net_permissions: 0,
-      net_roles: 0,
-      net_groups: 0,
-      net_departments: 0,
-      net_phoneNumber: 0,
-    };
-    let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
-      projection = Object.assign(
-        {},
-        {
-          net_status: 0,
-          net_email: 0,
-          net_phoneNumber: 0,
-          net_category: 0,
-          net_profile_picture: 0,
-          net_website: 0,
-          net_acronym: 0,
-          createdAt: 0,
-          net_users: 0,
-          net_permissions: 0,
-          net_groups: 0,
-          net_departments: 0,
-          net_data_source: 0,
-          net_api_key: 0,
-          net_manager: 0,
-          net_roles: 0,
-        },
-      );
-    }
-
-    return projection;
-  },
   ROLES_INCLUSION_PROJECTION: {
     role_name: 1,
     role_description: 1,
@@ -77,12 +14,10 @@ const dbProjections = {
   },
   ROLES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      network_id: 0,
       "role_permissions.description": 0,
       "role_permissions.createdAt": 0,
       "role_permissions.updatedAt": 0,
       "role_permissions.__v": 0,
-      "role_permissions.network_id": 0,
     };
 
     let projection = Object.assign({}, initialProjection);
@@ -93,12 +28,10 @@ const dbProjections = {
         {
           role_description: 0,
           role_code: 0,
-          network_id: 0,
           "role_permissions.description": 0,
           "role_permissions.createdAt": 0,
           "role_permissions.updatedAt": 0,
           "role_permissions.__v": 0,
-          "role_permissions.network_id": 0,
           createdAt: 0,
           updatedAt: 0,
         },
@@ -202,7 +135,6 @@ const dbProjections = {
       "access_tokens.createdAt": 0,
       "access_tokens.updatedAt": 0,
       "permissions.__v": 0,
-      "permissions.network_id": 0,
       "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
@@ -222,21 +154,6 @@ const dbProjections = {
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
-    }
-
-    if (category === "networks") {
-      projection = {
-        verified: 0,
-        analyticsVersion: 0,
-        privilege: 0,
-        profilePicture: 0,
-        phoneNumber: 0,
-        updatedAt: 0,
-        "networks.role": 0,
-        clients: 0,
-        permissions: 0,
-        my_groups: 0,
-      };
     }
 
     return projection;
@@ -297,7 +214,6 @@ const dbProjections = {
       "user.long_organization": 0,
       "user.groups": 0,
       "user.permissions": 0,
-      "user.network_roles": 0,
       "user.group_roles": 0,
       "user.verified": 0,
       "users.analyticsVersion": 0,
@@ -332,7 +248,6 @@ const dbProjections = {
     updatedAt: 1,
     country: 1,
     existing_user: { $arrayElemAt: ["$user", 0] },
-    network: { $arrayElemAt: ["$network", 0] },
   },
   CANDIDATES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
@@ -361,7 +276,6 @@ const dbProjections = {
       "existing_user.permissions": 0,
       "existing_user.userName": 0,
       "existing_user.country": 0,
-      network: 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -442,7 +356,6 @@ const dbProjections = {
       "grp_users.role": 0,
       "grp_users.profilePicture": 0,
       "grp_users.long_organization": 0,
-      "grp_users.network_roles": 0,
       "grp_users.group_roles": 0,
       "grp_manager.__v": 0,
       "grp_manager.notifications": 0,
@@ -456,7 +369,6 @@ const dbProjections = {
       "grp_manager.password": 0,
       "grp_manager.duration": 0,
       "grp_manager.group_roles": 0,
-      "grp_manager.network_roles": 0,
       "grp_manager.long_organization": 0,
       "grp_manager.createdAt": 0,
       "grp_manager.updatedAt": 0,
@@ -694,7 +606,6 @@ const dbProjections = {
       "user.resetPasswordToken": 0,
       "user.website": 0,
       "user.category": 0,
-      "user.network_roles": 0,
       "user.group_roles": 0,
       "user.isActive": 0,
       "user.lastLogin": 0,
@@ -762,7 +673,6 @@ const dbProjections = {
       "users.role": 0,
       "users.resetPasswordExpires": 0,
       "users.resetPasswordToken": 0,
-      "users.network_roles": 0,
       "users.group_roles": 0,
       "users.isActive": 0,
       "users.groups": 0,
@@ -821,27 +731,11 @@ const dbProjections = {
     name: 1,
     user: { $arrayElemAt: ["$user", 0] },
     description: 1,
-    networks: "$networks",
     access_token: { $arrayElemAt: ["$access_token", 0] },
     requireClientSecret: { $ifNull: ["$requireClientSecret", false] },
   },
   CLIENTS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      "networks.__v": 0,
-      "networks.net_status": 0,
-      "networks.net_acronym": 0,
-      "networks.createdAt": 0,
-      "networks.updatedAt": 0,
-      "networks.net_clients": 0,
-      "networks.net_roles": 0,
-      "networks.net_groups": 0,
-      "networks.net_description": 0,
-      "networks.net_departments": 0,
-      "networks.net_permissions": 0,
-      "networks.net_email": 0,
-      "networks.net_category": 0,
-      "networks.net_phoneNumber": 0,
-      "networks.net_manager": 0,
       "user._id": 0,
       "user.notifications": 0,
       "user.emailConfirmed": 0,
@@ -856,7 +750,6 @@ const dbProjections = {
       "user.updatedAt": 0,
       "user.__v": 0,
       "user.role": 0,
-      "user.network_roles": 0,
       "user.isActive": 0,
       "user.verified": 0,
       "user.analyticsVersion": 0,
@@ -1101,7 +994,6 @@ const dbProjections = {
       "user.duration": 0,
       "user.networks": 0,
       "user.groups": 0,
-      "user.network_roles": 0,
       "user.group_roles": 0,
       "user.permissions": 0,
       "user.role": 0,

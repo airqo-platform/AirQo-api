@@ -11,7 +11,7 @@ const { logObject, logText } = require("@utils/shared");
 
 const TIMEZONE = constants.TIMEZONE || "Africa/Kampala";
 const JOB_NAME = "refresh-grids-job";
-const JOB_SCHEDULE = "0 0,12 * * *"; // Twice a day (midnight and noon)
+const JOB_SCHEDULE = "47 0,12 * * *"; // Twice a day, at :47 past midnight and noon (staggered off :00, shared by many other jobs at those hours)
 const BATCH_SIZE = constants.BATCH_SIZE_FOR_GRID_REFRESH || 50;
 const MAX_EXECUTION_TIME =
   constants.MAX_EXECUTION_TIME_FOR_GRID_REFRESH || 55 * 60 * 1000; // 55 minutes

@@ -15,7 +15,8 @@ const WARNING_FREQUENCY_HOURS = 6; // Change this value to adjust frequency
 
 //job identification
 const JOB_NAME = "check-duplicate-site-fields-job";
-const JOB_SCHEDULE = `45 */${WARNING_FREQUENCY_HOURS} * * *`;
+// Minute staggered off :45, shared by the hourly update-online-status-job.
+const JOB_SCHEDULE = `26 */${WARNING_FREQUENCY_HOURS} * * *`;
 
 // Helper function to group sites by field value
 const groupSitesByFieldValue = (sites, fieldName) => {

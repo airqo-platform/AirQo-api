@@ -194,15 +194,6 @@ describe("generate-filter util", function () {
       });
     });
 
-    it("should wrap network_id in an ObjectId", function () {
-      const networkId = "507f191e810c19729de860ea";
-      const req = { body: {}, query: { network_id: networkId }, params: {} };
-
-      const result = generateFilter.candidates(req);
-
-      expect(result).to.deep.equal({ network_id: ObjectId(networkId) });
-    });
-
     it("should let email_address win over email since it is applied later", function () {
       const req = {
         body: { email: "first@example.com" },
@@ -230,18 +221,6 @@ describe("generate-filter util", function () {
       expect(result).to.deep.equal({ _id: ObjectId(paramsId) });
     });
 
-    it("should call next with an Internal Server Error when network_id is not a valid ObjectId", function () {
-      const next = sinon.stub();
-      const req = { body: {}, query: { network_id: "not-a-valid-id" }, params: {} };
-
-      const result = generateFilter.candidates(req, next);
-
-      expect(result).to.be.undefined;
-      expectNextCalledWithInternalServerError(
-        next,
-        "Argument passed in must be a single String of 12 bytes or a string of 24 hex characters"
-      );
-    });
   });
 
   // NOTE: the old file had a "filter users" describe block that called
@@ -351,10 +330,9 @@ describe("generate-filter util", function () {
       const grid = "5f43a6220b7e2f001f6b8a2b";
       const cohort = "60c72b2f9b1e8a001c8e4d3a";
       const group_id = "60c72b2f9b1e8a001c8e4d3b";
-      const network_id = "60c72b2f9b1e8a001c8e4d3c";
       const id = "60c72b2f9b1e8a001c8e4d3d";
       const req = {
-        query: { site, airqloud, grid, cohort, group_id, network_id, id },
+        query: { site, airqloud, grid, cohort, group_id, id },
         params: {},
       };
 
@@ -365,10 +343,20 @@ describe("generate-filter util", function () {
         grid: ObjectId(grid),
         cohort: ObjectId(cohort),
         group_id: ObjectId(group_id),
-        network_id: ObjectId(network_id),
         site: ObjectId(site),
         airqloud: ObjectId(airqloud),
       });
+    });
+
+    it("ignores network_id entirely — Defaults are always group-scoped now", function () {
+      const req = {
+        query: { network_id: "60c72b2f9b1e8a001c8e4d3c" },
+        params: {},
+      };
+
+      const result = generateFilter.defaults(req);
+
+      expect(result).to.not.have.property("network_id");
     });
 
     it("should let user_id win over user for the user field, since it is applied later", function () {
@@ -410,60 +398,6 @@ describe("generate-filter util", function () {
     });
   });
 
-  describe("networks", function () {
-    it("should generate a filter for networks, wrapping net_id in an ObjectId", function () {
-      const netId = "507f1f77bcf86cd799439011";
-      const req = {
-        query: {
-          net_email: "example@example.com",
-          net_category: "example_category",
-          net_tenant: "airqo",
-          net_status: "active",
-          net_phoneNumber: "123456789",
-          net_website: "https://www.example.com",
-          net_acronym: "NET",
-          category: "example_category",
-        },
-        params: { net_id: netId },
-      };
-
-      const result = generateFilter.networks(req);
-
-      expect(result).to.deep.equal({
-        net_email: "example@example.com",
-        category: "example_category",
-        net_category: "example_category",
-        _id: ObjectId(netId),
-        net_tenant: "airqo",
-        net_acronym: "NET",
-        net_phoneNumber: "123456789",
-        net_website: "https://www.example.com",
-        net_status: "active",
-      });
-    });
-
-    it("should return an empty filter when no query or params are provided", function () {
-      const req = { query: {}, params: {} };
-
-      const result = generateFilter.networks(req);
-
-      expect(result).to.deep.equal({});
-    });
-
-    it("should call next with an Internal Server Error when net_email is not a string", function () {
-      const next = sinon.stub();
-      const req = { query: { net_email: 12345 }, params: {} };
-
-      const result = generateFilter.networks(req, next);
-
-      expect(result).to.be.undefined;
-      expectNextCalledWithInternalServerError(
-        next,
-        "net_email.toLowerCase is not a function"
-      );
-    });
-  });
-
   describe("inquiry", function () {
     it("should generate a filter for inquiry (id is kept as-is, NOT wrapped in an ObjectId)", function () {
       const req = {
@@ -497,14 +431,13 @@ describe("generate-filter util", function () {
   describe("roles", () => {
     // roles() reads `{ ...params, ...query }` - i.e. QUERY wins over params on a
     // key collision, the opposite of most other filter functions in this module.
-    it("should build a filter from id/network/group aliases", () => {
+    it("should build a filter from id/group aliases, ignoring net_id/network_id entirely", () => {
       const id = "507f1f77bcf86cd799439011";
-      const networkId = "507f191e810c19729de860ea";
       const groupId = "5f43a6220b7e2f001f6b8a2b";
       const req = {
         query: {
           role_id: id,
-          net_id: networkId,
+          net_id: "507f191e810c19729de860ea",
           group_id: groupId,
           category: "category",
           role_name: "role_name",
@@ -518,7 +451,6 @@ describe("generate-filter util", function () {
 
       expect(filter).to.deep.equal({
         _id: ObjectId(id),
-        network_id: ObjectId(networkId),
         group_id: ObjectId(groupId),
         category: "category",
         role_name: "role_name",
@@ -579,18 +511,16 @@ describe("generate-filter util", function () {
 
   describe("permissions", function () {
     // permissions() does NOT merge query and params. It reads
-    // `{ id, network, permission } = query` and
-    // `{ permission_id, network_id } = params` separately, then applies them to
-    // the filter in this fixed order: id, permission_id, network, network_id,
-    // permission. So when both permission (query) and permission_id (params) are
-    // present, permission (query) wins because it's applied last - even though
-    // permission_id comes from params.
-    it("should generate a filter, with query's `permission` winning over params' `permission_id`", function () {
+    // `{ id, permission } = query` and `{ permission_id } = params`
+    // separately, then applies them to the filter in this fixed order: id,
+    // permission_id, permission. So when both permission (query) and
+    // permission_id (params) are present, permission (query) wins because
+    // it's applied last - even though permission_id comes from params.
+    it("should generate a filter, with query's `permission` winning over params' `permission_id`, ignoring network/network_id entirely", function () {
       const id = "507f1f77bcf86cd799439011";
-      const networkId = "507f191e810c19729de860ea";
       const req = {
-        query: { id, permission: "example_permission" },
-        params: { permission_id: "example_permission_id", network_id: networkId },
+        query: { id, permission: "example_permission", network: "507f191e810c19729de860ea" },
+        params: { permission_id: "example_permission_id", network_id: "507f191e810c19729de860ea" },
       };
 
       const result = generateFilter.permissions(req);
@@ -598,7 +528,6 @@ describe("generate-filter util", function () {
       expect(result).to.deep.equal({
         _id: ObjectId(id),
         permission: "example_permission",
-        network_id: ObjectId(networkId),
       });
     });
 

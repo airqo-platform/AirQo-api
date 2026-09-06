@@ -3,7 +3,6 @@ const UserModel = require("@models/User");
 const crypto = require("crypto");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
-const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const validator = require("validator");
 const httpStatus = require("http-status");
@@ -14,7 +13,6 @@ const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`,
 );
-const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
 const RoleModel = require("@models/Role");
 const RBACService = require("@services/rbac.service");
@@ -864,6 +862,19 @@ const createAccessRequest = {
         };
       }
 
+      // Legacy access requests may still carry a pre-removal "network" requestType;
+      // reject before any user creation or membership mutation happens.
+      if (accessRequest.requestType !== "group") {
+        return {
+          success: false,
+          message: "This invitation type is no longer supported.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Unsupported request type: '${accessRequest.requestType}'. Only group invitations can be accepted.`,
+          },
+        };
+      }
+
       // If using token auth, the user's email comes from the access request itself.
       let invitationEmail = email;
       if (token && accessRequest) {
@@ -908,21 +919,6 @@ const createAccessRequest = {
               status: httpStatus.BAD_REQUEST,
               errors: {
                 message: "User is already a member of this organization",
-              },
-            };
-          }
-        } else if (requestType === "network") {
-          const isAlreadyAssigned = existingUser.network_roles?.some(
-            (nr) => nr.network.toString() === accessRequest.targetId.toString(),
-          );
-
-          if (isAlreadyAssigned) {
-            return {
-              success: false,
-              message: "User is already a member of this network",
-              status: httpStatus.BAD_REQUEST,
-              errors: {
-                message: "User is already a member of this network",
               },
             };
           }
@@ -1072,92 +1068,6 @@ const createAccessRequest = {
             },
           };
         }
-      } else if (requestType === "network") {
-        const network = await NetworkModel(tenant)
-          .findById(accessRequest.targetId)
-          .lean();
-        if (!network) {
-          return {
-            success: false,
-            message: "Network not found",
-            status: httpStatus.NOT_FOUND,
-            errors: {
-              message: "Network not found",
-            },
-          };
-        }
-
-        entity_title = network.net_name;
-
-        const assignUserRequest = {
-          params: {
-            net_id: accessRequest.targetId,
-            user_id: user._id,
-          },
-          query: { tenant: tenant },
-        };
-
-        try {
-          assignmentResult = await createNetworkUtil.assignOneUser(
-            assignUserRequest,
-            next,
-          );
-
-          if (!assignmentResult || !assignmentResult.success) {
-            if (isNewUser) {
-              await UserModel(tenant).findByIdAndDelete(user._id);
-            }
-            await AccessRequestModel(tenant).modify(
-              {
-                filter: { _id: accessRequest._id },
-                update: {
-                  status: "pending",
-                  user_id: null,
-                  invitationToken: originalInvitationToken,
-                },
-              },
-              next,
-            );
-
-            return {
-              success: false,
-              message: `Failed to assign user to network: ${
-                assignmentResult?.message || "Unknown error"
-              }`,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: {
-                message: `Failed to assign user to network: ${
-                  assignmentResult?.message || "Unknown error"
-                }`,
-              },
-            };
-          }
-        } catch (assignmentError) {
-          logger.error(`Network assignment error: ${assignmentError.message}`);
-          if (isNewUser) {
-            await UserModel(tenant).findByIdAndDelete(user._id);
-          }
-          await AccessRequestModel(tenant).modify(
-            {
-              filter: { _id: accessRequest._id },
-              update: {
-                status: "pending",
-                user_id: null,
-                invitationToken: originalInvitationToken,
-              },
-            },
-            next,
-          );
-
-          return {
-            success: false,
-            message: `Network assignment failed: ${assignmentError.message}`,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: {
-              message: `Network assignment failed: ${assignmentError.message}`,
-            },
-          };
-        }
       }
 
       if (assignmentResult && assignmentResult.success === true) {
@@ -1187,20 +1097,12 @@ const createAccessRequest = {
           );
 
           let rollbackErrorOccurred = null;
-          // Rollback: Remove user from the group/network
+          // Rollback: Remove user from the group
           try {
             if (requestType === "group") {
               await createGroupUtil.unAssignUser(
                 {
                   params: { grp_id: accessRequest.targetId, user_id: user._id },
-                  query: { tenant },
-                },
-                next,
-              );
-            } else if (requestType === "network") {
-              await createNetworkUtil.unAssignUser(
-                {
-                  params: { net_id: accessRequest.targetId, user_id: user._id },
                   query: { tenant },
                 },
                 next,
@@ -1379,6 +1281,19 @@ const createAccessRequest = {
         };
       }
 
+      // Legacy access requests may still carry a pre-removal "network" requestType;
+      // reject before the status is mutated to "approved".
+      if (accessRequest.requestType !== "group") {
+        return {
+          success: false,
+          message: "This request type is no longer supported.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Unsupported request type: '${accessRequest.requestType}'. Only group requests can be approved.`,
+          },
+        };
+      }
+
       // Handle case where user_id might not exist (email invitations)
       let user;
       if (accessRequest.user_id) {
@@ -1438,22 +1353,6 @@ const createAccessRequest = {
             status: httpStatus.BAD_REQUEST,
             errors: {
               message: "User is already a member of this group",
-            },
-          };
-        }
-      } else if (accessRequest.requestType === "network") {
-        const isAlreadyMember =
-          user.network_roles &&
-          user.network_roles.some(
-            (nr) => nr.network.toString() === accessRequest.targetId.toString(),
-          );
-        if (isAlreadyMember) {
-          return {
-            success: false,
-            message: "User is already a member of this network",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
-              message: "User is already a member of this network",
             },
           };
         }
@@ -1543,55 +1442,6 @@ const createAccessRequest = {
               logger.error(`Rollback failed: ${rollbackError.message}`);
             }
             return responseFromAssignUserToGroup;
-          }
-        } else if (accessRequest.requestType === "network") {
-          const assignUserRequest = {
-            params: {
-              net_id: accessRequest.targetId,
-              user_id: user._id,
-            },
-            query: { tenant: tenant },
-          };
-          const responseFromAssignUserToNetwork =
-            await createNetworkUtil.assignOneUser(assignUserRequest, next);
-
-          if (responseFromAssignUserToNetwork.success === true) {
-            const updatedUserDetails = { networks: 1 };
-            const responseFromSendEmail = await mailer.update(
-              { email, firstName, lastName, updatedUserDetails },
-              next,
-            );
-
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: "Access request approved successfully",
-                status: httpStatus.OK,
-                data: responseFromUpdateAccessRequest.data,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              logger.error(
-                `Failed to send approval email: ${responseFromSendEmail.message}`,
-              );
-              // Don't fail the entire operation if email fails
-              return {
-                success: true,
-                message:
-                  "Access request approved successfully (email notification failed)",
-                status: httpStatus.OK,
-                data: responseFromUpdateAccessRequest.data,
-              };
-            }
-          } else if (responseFromAssignUserToNetwork.success === false) {
-            // Rollback the status update
-            await AccessRequestModel(tenant).modify(
-              {
-                filter: { _id: ObjectId(accessRequest._id) },
-                update: { status: "pending" },
-              },
-              next,
-            );
-            return responseFromAssignUserToNetwork;
           }
         }
       } else if (responseFromUpdateAccessRequest.success === false) {
@@ -1714,19 +1564,6 @@ const createAccessRequest = {
           } catch (groupError) {
             logger.error(
               `Failed to fetch group details: ${groupError.message}`,
-            );
-          }
-        } else if (accessRequest.requestType === "network") {
-          try {
-            const network = await NetworkModel(tenant)
-              .findById(accessRequest.targetId)
-              .select("net_name");
-            if (network) {
-              entityName = network.net_name;
-            }
-          } catch (networkError) {
-            logger.error(
-              `Failed to fetch network details: ${networkError.message}`,
             );
           }
         }
@@ -2129,7 +1966,7 @@ const createAccessRequest = {
         };
       }
 
-      // Enrich invitations with organization/network details
+      // Enrich invitations with organization details
       const enrichedInvitations = await Promise.all(
         pendingInvitations.map(async (invitation) => {
           let entityDetails = null;
@@ -2146,19 +1983,6 @@ const createAccessRequest = {
                 description: group.grp_description,
                 slug: group.organization_slug,
                 type: "organization",
-              };
-            }
-          } else if (invitation.requestType === "network") {
-            const network = await NetworkModel(tenant)
-              .findById(invitation.targetId)
-              .select("net_name net_description")
-              .lean();
-
-            if (network) {
-              entityDetails = {
-                name: network.net_name,
-                description: network.net_description,
-                type: "network",
               };
             }
           }

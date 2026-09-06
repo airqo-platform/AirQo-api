@@ -153,11 +153,11 @@ router.put(
 
 /**
  * @route GET /api/v2/users/context-permissions
- * @desc Get user permissions in specific context (group/network)
+ * @desc Get user permissions in specific context (group)
  * @access Private
  * @query {string} [userId] - User ID (defaults to authenticated user)
- * @query {string} [contextId] - Context ID (group/network ID)
- * @query {string} [contextType] - Context type ('group' or 'network')
+ * @query {string} [contextId] - Context ID (group ID)
+ * @query {string} [contextType] - Context type ('group')
  */
 router.get(
   "/context-permissions",

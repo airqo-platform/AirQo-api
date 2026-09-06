@@ -131,18 +131,6 @@ const update = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the provided network_id should not be empty IF provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
     body("chartTitle")
       .optional()
       .notEmpty()
@@ -296,18 +284,6 @@ const create = [
       .trim()
       .isMongoId()
       .withMessage("the airqloud must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the provided network_id should not be empty IF provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the network_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);

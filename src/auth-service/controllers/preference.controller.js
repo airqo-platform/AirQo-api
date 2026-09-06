@@ -1254,9 +1254,7 @@ const preferences = {
         data: result.data,
         source: result.source,
         groupId: result.groupId,
-        networkId: result.networkId,
         groupTitle: result.groupTitle,
-        networkName: result.networkName,
         reason: result.reason,
       });
     } catch (error) {

@@ -95,13 +95,6 @@ const routeStatus = {
 // Define all auth service routes - NOTE: paths are relative to /api/v3
 const authRoutes = [
   {
-    path: "/networks",
-    route: "@routes/v3/networks.routes",
-    name: "networks",
-    description: "Network management operations",
-  },
-
-  {
     path: "/org-requests",
     route: "@routes/v3/organization-requests.routes",
     name: "org-requests",
@@ -215,7 +208,7 @@ function getCategoryForRoute(routeName) {
   const categories = {
     core: ["users", "roles", "permissions", "tokens"],
     oauth: ["clients", "scopes", "tokens"],
-    management: ["networks", "departments", "groups", "tenant-settings"],
+    management: ["departments", "groups", "tenant-settings"],
     user_data: ["preferences", "favorites", "locationHistory", "searchHistory"],
     system: ["analytics", "maintenances", "types", "defaults"],
     requests: [

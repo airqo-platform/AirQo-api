@@ -23,6 +23,17 @@ router.get(
   networkController.listNetworks
 );
 
+// GET    /networks/directory     — public partner directory (active networks,
+//                                   safe fields only, plus computed verified-
+//                                   partner status). Must be registered before
+//                                   the /:net_id route below.
+router.get(
+  "/directory",
+  networkValidators.getNetworkDirectory,
+  pagination(100, 200),
+  networkController.getNetworkDirectory
+);
+
 // GET    /networks/:net_id       — get a single network
 router.get(
   "/:net_id",

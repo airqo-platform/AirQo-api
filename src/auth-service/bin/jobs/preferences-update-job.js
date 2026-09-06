@@ -25,7 +25,6 @@ const validateDefaultValues = () => {
     { key: "DEFAULT_GROUP", value: constants.DEFAULT_GROUP },
     { key: "DEFAULT_AIRQLOUD", value: constants.DEFAULT_AIRQLOUD },
     { key: "DEFAULT_GRID", value: constants.DEFAULT_GRID },
-    { key: "DEFAULT_NETWORK", value: constants.DEFAULT_NETWORK },
   ];
 
   const missingDefaults = criticalDefaults.filter(
@@ -60,7 +59,6 @@ const defaultPreference = {
   },
   airqloud_id: constants.DEFAULT_AIRQLOUD,
   grid_id: constants.DEFAULT_GRID,
-  network_id: constants.DEFAULT_NETWORK,
   group_id: constants.DEFAULT_GROUP,
 };
 

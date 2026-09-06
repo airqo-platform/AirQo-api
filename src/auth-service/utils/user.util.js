@@ -6,7 +6,6 @@ const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
-const NetworkModel = require("@models/Network");
 const EmailLogModel = require("@models/EmailLog");
 const EmailQueueModel = require("@models/EmailQueue");
 const bcrypt = require("bcrypt");
@@ -158,25 +157,6 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
       );
     }
 
-    const updatedNetwork = await NetworkModel(dbTenant).updateMany(
-      { net_manager: userId },
-      {
-        $set: {
-          net_manager: null,
-          net_manager_username: null,
-          net_manager_firstname: null,
-          net_manager_lastname: null,
-        },
-      },
-    );
-
-    if (!isEmpty(updatedNetwork.err)) {
-      logger.error(
-        `error while attempting to delete User from the corresponding Network ${stringify(
-          updatedNetwork.err,
-        )}`,
-      );
-    }
 
     return {
       success: true,
@@ -611,9 +591,9 @@ const createUserModule = {
         }
       }
 
-      populatedUser.network_roles = [];
       delete populatedUser.networks;
       delete populatedUser.my_networks;
+      delete populatedUser.network_roles;
 
       // Compute authMethods while password hash is still present, then
       // destructure it out so it is never included in the API response.
@@ -631,8 +611,6 @@ const createUserModule = {
             permissionsResult.data.permissions?.allPermissions?.length || 0,
           groupMemberships:
             permissionsResult.data.permissions?.groupMemberships?.length || 0,
-          networkMemberships:
-            permissionsResult.data.permissions?.networkMemberships?.length || 0,
           isSuperAdmin:
             permissionsResult.data.permissions?.isSuperAdmin || false,
         },
@@ -953,12 +931,7 @@ const createUserModule = {
             roles: [
               {
                 $project: {
-                  roleIds: {
-                    $setUnion: [
-                      { $ifNull: ["$network_roles.role", []] },
-                      { $ifNull: ["$group_roles.role", []] },
-                    ],
-                  },
+                  roleIds: { $ifNull: ["$group_roles.role", []] },
                 },
               },
               { $unwind: "$roleIds" },
@@ -6944,7 +6917,6 @@ const createUserModule = {
         allCount: loginPermissions.allPermissions?.length || 0,
         systemCount: loginPermissions.systemPermissions?.length || 0,
         groupCount: Object.keys(loginPermissions.groupPermissions).length,
-        networkCount: Object.keys(loginPermissions.networkPermissions).length,
         isSuperAdmin: loginPermissions.isSuperAdmin,
       });
 
@@ -7176,23 +7148,16 @@ const createUserModule = {
         // permissions: loginPermissions.allPermissions,
         // systemPermissions: loginPermissions.systemPermissions,
         // groupPermissions: loginPermissions.groupPermissions,
-        // networkPermissions: loginPermissions.networkPermissions,
         // groupMemberships: loginPermissions.groupMemberships,
-        // networkMemberships: loginPermissions.networkMemberships,
 
         // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
-        hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
 
         // Context info
         defaultGroup:
           loginPermissions.groupMemberships.length > 0
             ? loginPermissions.groupMemberships[0].group.id
-            : null,
-        defaultNetwork:
-          loginPermissions.networkMemberships.length > 0
-            ? loginPermissions.networkMemberships[0].network.id
             : null,
 
         // Login metadata
@@ -7214,13 +7179,6 @@ const createUserModule = {
                     sum + loginPermissions.groupPermissions[groupId].length,
                   0,
                 ),
-                networks: Object.keys(
-                  loginPermissions.networkPermissions,
-                ).reduce(
-                  (sum, networkId) =>
-                    sum + loginPermissions.networkPermissions[networkId].length,
-                  0,
-                ),
               },
               tokenCompressionRatio:
                 strategy !== constants.TOKEN_STRATEGIES.LEGACY
@@ -7236,9 +7194,8 @@ const createUserModule = {
 
       logObject("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: (authResponse.permissions || []).length,
-        groupMemberships: (authResponse.groupMemberships || []).length,
-        networkMemberships: (authResponse.networkMemberships || []).length,
+        permissionsCount: (loginPermissions.allPermissions || []).length,
+        groupMemberships: (loginPermissions.groupMemberships || []).length,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
@@ -7413,8 +7370,6 @@ const createUserModule = {
         }));
       }
 
-      userObj.network_roles = [];
-
       return userObj;
     } catch (error) {
       console.error("❌ Error in manual population:", error);
@@ -7422,7 +7377,6 @@ const createUserModule = {
         ...(user.toObject ? user.toObject() : user),
         permissions: user.permissions || [],
         group_roles: user.group_roles || [],
-        network_roles: [],
       };
     }
   },

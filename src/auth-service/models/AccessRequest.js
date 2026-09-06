@@ -36,7 +36,7 @@ const AccessRequestSchema = new Schema(
     },
     requestType: {
       type: String,
-      enum: ["network", "group"],
+      enum: ["group"],
       required: [true, "Request type is required"],
     },
     targetId: {

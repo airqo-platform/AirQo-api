@@ -1,6 +1,5 @@
 const UserModel = require("@models/User");
 const CandidateModel = require("@models/Candidate");
-const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -32,28 +31,11 @@ const createCandidate = {
             "Please contact support@airqo.net, Candidates are deprecated",
         },
       };
-      const { firstName, lastName, email, tenant, network_id } = {
+      const { firstName, lastName, email, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      if (!isEmpty(network_id)) {
-        const networkExists = await NetworkModel(tenant).exists({
-          _id: ObjectId(network_id),
-        });
-        if (!networkExists) {
-          logger.error(
-            `Network ${network_id} not found in System, crosscheck or make another request`
-          );
-          next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: "The provided network does not exist",
-              [network_id]: `Network ID not found`,
-            })
-          );
-        }
-      }
 
       const userExists = await UserModel(tenant).exists({ email });
       const candidateExists = await CandidateModel(tenant).exists({ email });
@@ -224,28 +206,12 @@ const createCandidate = {
             "Please contact support@airqo.net, Candidates are deprecated",
         },
       };
-      const { tenant, firstName, lastName, email, network_id } = {
+      const { tenant, firstName, lastName, email } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
 
-      if (!isEmpty(network_id)) {
-        const networkExists = await NetworkModel(tenant).exists({
-          _id: ObjectId(network_id),
-        });
-        if (!networkExists) {
-          logger.error(
-            `Network ${network_id} not found in System, crosscheck or make another request`
-          );
-          next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: `Network ${network_id} not found`,
-              [network_id]: "the provided network does not exist",
-            })
-          );
-        }
-      }
       const candidateExists = await CandidateModel(tenant).exists({
         email,
       });

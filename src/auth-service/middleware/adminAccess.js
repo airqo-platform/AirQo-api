@@ -23,7 +23,7 @@ const getRBACService = (tenant = constants.DEFAULT_TENANT) =>
  */
 const adminCheck = (options = {}) => {
   const {
-    contextType = "group", // 'group' or 'network'
+    contextType = "group", // 'group' — the only supported context type
     idParam = "grp_id", // Parameter name for context ID
     fallbackIdParams = ["groupSlug", "grp_slug"], // Alternative parameter names
     requireSuperAdmin = true, // Whether to require SUPER_ADMIN role
@@ -74,7 +74,7 @@ const adminCheck = (options = {}) => {
       const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
       if (isSystemSuperAdmin) return next();
 
-      // Find the target group/network
+      // Find the target group
       let targetContext;
       if (contextType === "group") {
         let lookupQuery = {};
@@ -90,10 +90,9 @@ const adminCheck = (options = {}) => {
         }
         targetContext = await GroupModel(tenant).findOne(lookupQuery).lean();
       } else {
-        // Add network lookup logic here when NetworkModel is available
         return next(
-          new HttpError("Not Implemented", httpStatus.NOT_IMPLEMENTED, {
-            message: "Network context not yet implemented",
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: `Unsupported contextType: ${contextType}`,
           })
         );
       }
@@ -107,10 +106,10 @@ const adminCheck = (options = {}) => {
       }
 
       // Check if user is a member of this context
-      const isMember =
-        contextType === "group"
-          ? await rbacService.isGroupMember(user._id, targetContext._id)
-          : await rbacService.isNetworkMember(user._id, targetContext._id);
+      const isMember = await rbacService.isGroupMember(
+        user._id,
+        targetContext._id
+      );
 
       if (!isMember) {
         return next(
@@ -430,7 +429,6 @@ const debugAdminAccess = () => {
         logger.info(`[DEBUG] Admin access info for ${user.email}:`, {
           isSuperAdmin: debugInfo.isSuperAdmin,
           groupRoles: debugInfo.groupRoles?.slice(0, 3), // First 3 group roles
-          networkRoles: debugInfo.networkRoles?.slice(0, 3), // First 3 network roles
           allPermissions: debugInfo.allPermissions?.slice(0, 10), // First 10 permissions
         });
 
@@ -440,7 +438,6 @@ const debugAdminAccess = () => {
             JSON.stringify({
               isSuperAdmin: debugInfo.isSuperAdmin,
               totalGroupRoles: debugInfo.groupRoles?.length || 0,
-              totalNetworkRoles: debugInfo.networkRoles?.length || 0,
               totalPermissions: debugInfo.allPermissions?.length || 0,
             })
           );

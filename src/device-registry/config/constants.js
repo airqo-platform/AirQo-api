@@ -83,6 +83,16 @@ function envConfig(env) {
       false,
     ),
 
+    // update-raw-online-status-job's best-effort DeviceUptime sampling
+    // (leaderboard/verification data). Non-critical — a failure here never
+    // blocks the actual device status update. Kill-switch for turning it off
+    // instantly via env var (no redeploy) if it's ever implicated in DB load
+    // issues, without touching the job's core status-check logic.
+    ENABLE_ONLINE_STATUS_UPTIME_SAMPLING: parseBool(
+      process.env.ENABLE_ONLINE_STATUS_UPTIME_SAMPLING,
+      true,
+    ),
+
     // Cohort/device group-ownership scoping — when true, assigning a device
     // to a cohort is rejected if they don't share a network/group (the
     // "airqo" network/group is exempt). Default off: mismatches are only

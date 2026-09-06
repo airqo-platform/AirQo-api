@@ -11,7 +11,7 @@ const moment = require("moment-timezone");
 
 const TIMEZONE = "Africa/Nairobi";
 const JOB_NAME = "rate-limit-digest-job";
-const JOB_SCHEDULE = "0 12 * * *"; // 12:00 PM EAT every day
+const JOB_SCHEDULE = "19 12 * * *"; // 12:19 PM EAT every day (minute staggered off :00, shared by several other jobs at noon)
 
 const LOG_TYPE = "rate-limit-digest";
 const logThrottleManager = new LogThrottleManager();

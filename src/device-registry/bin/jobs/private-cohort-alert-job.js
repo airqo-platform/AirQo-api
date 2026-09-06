@@ -27,7 +27,7 @@ const redisClient = require("@config/redis");
 
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const JOB_NAME = "private-cohort-alert-job";
-const JOB_SCHEDULE = "0 6,14,22 * * *"; // 06:00, 14:00, 22:00 UTC
+const JOB_SCHEDULE = "13 6,14,22 * * *"; // 06:13, 14:13, 22:13 UTC (minute staggered off :00, shared by several other jobs at those hours)
 const MIN_OPERATIONAL = 2; // alert threshold: more than this many operational devices
 
 const ENV_SLUG = (constants.ENVIRONMENT || "unknown")

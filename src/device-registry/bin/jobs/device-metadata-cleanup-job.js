@@ -57,8 +57,8 @@ const logger = log4js.getLogger(
 // ── Configuration ─────────────────────────────────────────────────────────────
 
 const JOB_NAME = "device-metadata-cleanup-job";
-// Three times a day: 02:00, 10:00, 18:00
-const JOB_SCHEDULE = getSchedule("0 2,10,18 * * *", constants.ENVIRONMENT);
+// Three times a day: 02:09, 10:09, 18:09 (minute staggered off :00, shared by several other jobs at those hours)
+const JOB_SCHEDULE = getSchedule("9 2,10,18 * * *", constants.ENVIRONMENT);
 const TIMEZONE = constants.TIMEZONE || moment.tz.guess();
 const POD_ID = process.env.HOSTNAME || os.hostname();
 const LOCK_TTL_SECONDS = 30 * 60;        // 30 min initial grant

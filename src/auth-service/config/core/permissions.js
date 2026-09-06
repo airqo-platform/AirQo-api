@@ -39,13 +39,6 @@ const PERMISSION_DEFINITIONS = [
   { name: "GROUP_MANAGEMENT", description: "Full group management access" },
   { name: "GROUP_SETTINGS", description: "Manage group-specific settings" },
 
-  // Network Management
-  { name: "NETWORK_VIEW", description: "View network information" },
-  { name: "NETWORK_CREATE", description: "Create new networks" },
-  { name: "NETWORK_EDIT", description: "Edit network settings" },
-  { name: "NETWORK_DELETE", description: "Delete networks" },
-  { name: "NETWORK_MANAGEMENT", description: "Full network management access" },
-
   // User & Member Management
   { name: "USER_VIEW", description: "View user information" },
   { name: "USER_CREATE", description: "Create new users" },
@@ -55,7 +48,7 @@ const PERMISSION_DEFINITIONS = [
   { name: "USER_INVITE", description: "Invite new users" },
   {
     name: "ORG_USER_ASSIGN",
-    description: "Assign users to organizations (groups/networks)",
+    description: "Assign users to organizations (groups)",
   },
   { name: "MEMBER_VIEW", description: "View group members" },
   { name: "MEMBER_INVITE", description: "Invite new members to group" },
@@ -131,36 +124,6 @@ const PERMISSION_DEFINITIONS = [
 
   // Legacy Permissions (to be phased out)
   {
-    name: "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
-    description: generateDescription(
-      "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
-    ),
-  },
-  {
-    name: "CREATE_UPDATE_AND_DELETE_NETWORK_SITES",
-    description: generateDescription("CREATE_UPDATE_AND_DELETE_NETWORK_SITES"),
-  },
-  {
-    name: "VIEW_AIR_QUALITY_FOR_NETWORK",
-    description: generateDescription("VIEW_AIR_QUALITY_FOR_NETWORK"),
-  },
-  {
-    name: "CREATE_UPDATE_AND_DELETE_NETWORK_ROLES",
-    description: generateDescription("CREATE_UPDATE_AND_DELETE_NETWORK_ROLES"),
-  },
-  {
-    name: "CREATE_UPDATE_AND_DELETE_NETWORK_USERS",
-    description: generateDescription("CREATE_UPDATE_AND_DELETE_NETWORK_USERS"),
-  },
-  {
-    name: "MANAGE_NETWORK_SETTINGS",
-    description: generateDescription("MANAGE_NETWORK_SETTINGS"),
-  },
-  {
-    name: "VIEW_NETWORK_DASHBOARD",
-    description: generateDescription("VIEW_NETWORK_DASHBOARD"),
-  },
-  {
     name: "CREATE_UPDATE_AND_DELETE_GROUP_DEVICES",
     description: generateDescription("CREATE_UPDATE_AND_DELETE_GROUP_DEVICES"),
   },
@@ -219,7 +182,7 @@ const DEFAULT_ROLE_DEFINITIONS = {
     role_name: "AIRQO_SUPER_ADMIN",
     role_code: "AIRQO_SUPER_ADMIN",
     role_description:
-      "AirQo Super Administrator with system-wide privileges across all groups and networks",
+      "AirQo Super Administrator with system-wide privileges across all groups",
     permissions: ALL_PERMISSIONS.filter(
       (p) => !["ACCESS_PLATFORM"].includes(p),
     ),
@@ -392,20 +355,6 @@ const VALID_USER_TYPES = Object.freeze([
   "moderator",
 ]);
 
-const DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
-  PERMISSIONS.DASHBOARD_VIEW,
-  PERMISSIONS.DATA_VIEW,
-  PERMISSIONS.ANALYTICS_VIEW,
-  PERMISSIONS.DATA_EXPORT,
-  PERMISSIONS.SITE_VIEW,
-  PERMISSIONS.DEVICE_VIEW,
-  PERMISSIONS.DEVICE_CLAIM,
-  PERMISSIONS.DEVICE_DEPLOY,
-  PERMISSIONS.NETWORK_VIEW,
-  PERMISSIONS.API_ACCESS,
-  PERMISSIONS.TOKEN_GENERATE,
-];
-
 const DEFAULT_MEMBER_PERMISSIONS = [
   PERMISSIONS.GROUP_VIEW,
   PERMISSIONS.MEMBER_VIEW,
@@ -438,7 +387,6 @@ const permissionsExport = {
   PERMISSION_DEFINITIONS,
   DEFAULT_ROLE_DEFINITIONS,
   DEFAULTS,
-  DEFAULT_NETWORK_MEMBER_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
   VALID_USER_TYPES,
   DEPRECATED_ROLE_NAMES,
@@ -462,7 +410,6 @@ const RBAC_CONSTANTS = {
   MAX_GROUP_MEMBERSHIPS: 50,
   CONTEXT_TYPES: {
     GROUP: "group",
-    NETWORK: "network",
     SYSTEM: "system",
   },
   PERMISSION_STRATEGIES: {
@@ -478,7 +425,6 @@ module.exports = {
     PERMISSION_DEFINITIONS,
     DEFAULT_ROLE_DEFINITIONS,
     DEFAULTS,
-    DEFAULT_NETWORK_MEMBER_PERMISSIONS,
     DEFAULT_MEMBER_PERMISSIONS,
     VALID_USER_TYPES,
     DEPRECATED_ROLE_NAMES,

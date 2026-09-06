@@ -98,16 +98,6 @@ const enhancedIdValidations = {
         return ObjectId(value);
       }),
   ],
-  optionalNetworkId: [
-    query("network_id")
-      .optional()
-      .isMongoId()
-      .withMessage("Network ID must be a valid MongoDB ObjectId")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ],
 };
 
 const createNestedValidations = (prefix) => {
@@ -1104,7 +1094,6 @@ const commonValidations = {
   ...validateArrayOfObjectIds("grid_ids"),
   ...validateArrayOfObjectIds("site_ids"),
   ...validateArrayOfObjectIds("device_ids"),
-  ...validateArrayOfObjectIds("network_ids"),
   ...validateArrayOfObjectIds("group_ids"),
 
   //  validations with specific required fields
@@ -1758,7 +1747,6 @@ const preferenceValidations = {
     ...commonValidations.tenant,
     ...enhancedIdValidations.userId,
     ...enhancedIdValidations.optionalGroupId,
-    ...enhancedIdValidations.optionalNetworkId,
   ],
 };
 

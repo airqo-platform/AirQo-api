@@ -35,8 +35,6 @@ const {
   getRoleById,
   pagination,
   bulkRoleOperations,
-  cleanupUserNetworkRoles,
-  migrateNetworkRolesToGroup,
 } = require("@validators/roles.validators");
 
 const mongoose = require("mongoose");
@@ -448,52 +446,4 @@ describe("roles validators", () => {
     });
   });
 
-  describe("cleanupUserNetworkRoles validators", () => {
-    it("should pass with valid tenant and dry_run=true", async () => {
-      const app = buildApp(cleanupUserNetworkRoles);
-      const response = await request(app)
-        .get("/test")
-        .query({ tenant: "airqo", dry_run: "true" });
-
-      expect(response.status).to.equal(200);
-    });
-
-    it("should fail with invalid dry_run value", async () => {
-      const app = buildApp(cleanupUserNetworkRoles);
-      const response = await request(app)
-        .get("/test")
-        .query({ tenant: "airqo", dry_run: "yes" });
-
-      expect(response.status).to.equal(422);
-    });
-  });
-
-  describe("migrateNetworkRolesToGroup validators", () => {
-    it("should pass with valid tenant and dry_run", async () => {
-      const app = buildApp(migrateNetworkRolesToGroup);
-      const response = await request(app)
-        .get("/test")
-        .query({ tenant: "airqo", dry_run: "false" });
-
-      expect(response.status).to.equal(200);
-    });
-
-    it("should fail with invalid action value", async () => {
-      const app = buildApp(migrateNetworkRolesToGroup);
-      const response = await request(app)
-        .get("/test")
-        .query({ tenant: "airqo", action: "invalid_action" });
-
-      expect(response.status).to.equal(422);
-    });
-
-    it("should pass with valid action=delete_zero_user", async () => {
-      const app = buildApp(migrateNetworkRolesToGroup);
-      const response = await request(app)
-        .get("/test")
-        .query({ tenant: "airqo", action: "delete_zero_user" });
-
-      expect(response.status).to.equal(200);
-    });
-  });
 });
