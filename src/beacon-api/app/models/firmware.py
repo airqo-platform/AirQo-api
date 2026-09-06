@@ -18,6 +18,7 @@ class FirmwareBase(SQLModel):
     firmware_string_bootloader: Optional[str] = Field(default=None, max_length=100)
     firmware_type: Optional[FirmwareType] = Field(default=FirmwareType.beta)
     description: Optional[str] = Field(default=None, max_length=255)
+    vendor_id: Optional[uuid_pkg.UUID] = Field(default=None, index=True, nullable=True)
     crc32: Optional[str] = Field(default=None, max_length=100)  # firmware CRC32 checksum
     firmware_bin_size: Optional[int] = Field(default=None)  # firmware binary size in bytes
     change1: Optional[str] = Field(default=None, max_length=255)
