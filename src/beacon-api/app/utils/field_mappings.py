@@ -10,6 +10,42 @@ Each device profile/category interprets those slots dynamically from the databas
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, Optional
+import json
+
+
+def ensure_dict(val: Any) -> Dict[str, Any]:
+    """
+    Ensures a value (whether None, JSON string, double-encoded string, or dict) is returned as a dict.
+    Guards against SQLite TEXT storage or JSON string scalars in PostgreSQL.
+    """
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        val = val.strip()
+        if not val:
+            return {}
+        try:
+            parsed = json.loads(val)
+            if isinstance(parsed, dict):
+                return parsed
+            if isinstance(parsed, str):
+                parsed2 = json.loads(parsed)
+                if isinstance(parsed2, dict):
+                    return parsed2
+        except Exception:
+            return {}
+    return {}
+
+
+def extract_label(info: Any) -> Optional[str]:
+    """Extracts human-readable label or key string from a field/meta/config mapping slot."""
+    if isinstance(info, dict):
+        label = info.get("label") or info.get("key")
+        return str(label) if label is not None else None
+    elif info is not None:
+        return str(info)
+    return None
+
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +270,7 @@ def map_record_from_profile(
             return out
         return map_record(record, category="lowcost", drop_unmapped=drop_unmapped)
 
-    telemetry_map = getattr(profile, "telemetry_mappings", None) or {}
+    telemetry_map = ensure_dict(getattr(profile, "telemetry_mappings", None))
     if not telemetry_map and hasattr(profile, "category"):
         if use_keys:
             out = {}

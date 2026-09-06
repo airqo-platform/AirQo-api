@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.device_schema import DeviceProfile
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryRead
+from app.utils.field_mappings import ensure_dict, extract_label
 
 
 def profile_to_category_read(profile: DeviceProfile) -> CategoryRead:
     """Dynamically converts a DeviceProfile instance into the legacy CategoryRead schema."""
-    telemetry_map = profile.telemetry_mappings or {}
-    config_map = profile.config_mappings or {}
-    meta_map = profile.metadata_mappings or {}
+    telemetry_map = ensure_dict(profile.telemetry_mappings)
+    config_map = ensure_dict(profile.config_mappings)
+    meta_map = ensure_dict(profile.metadata_mappings)
 
     cat_dict = {
         "name": profile.name,
@@ -19,16 +20,16 @@ def profile_to_category_read(profile: DeviceProfile) -> CategoryRead:
         "updated_at": profile.updated_at or datetime.now(timezone.utc),
     }
     for i in range(1, 16):
-        f_info = telemetry_map.get(f"field{i}")
-        if f_info:
-            cat_dict[f"field{i}"] = f_info.get("label") if isinstance(f_info, dict) else str(f_info)
-        m_info = meta_map.get(f"metadata{i}")
-        if m_info:
-            cat_dict[f"metadata{i}"] = m_info.get("label") if isinstance(m_info, dict) else str(m_info)
+        f_label = extract_label(telemetry_map.get(f"field{i}"))
+        if f_label is not None:
+            cat_dict[f"field{i}"] = f_label
+        m_label = extract_label(meta_map.get(f"metadata{i}"))
+        if m_label is not None:
+            cat_dict[f"metadata{i}"] = m_label
     for i in range(1, 11):
-        c_info = config_map.get(f"config{i}")
-        if c_info:
-            cat_dict[f"config{i}"] = c_info.get("label") if isinstance(c_info, dict) else str(c_info)
+        c_label = extract_label(config_map.get(f"config{i}"))
+        if c_label is not None:
+            cat_dict[f"config{i}"] = c_label
 
     return CategoryRead(**cat_dict)
 

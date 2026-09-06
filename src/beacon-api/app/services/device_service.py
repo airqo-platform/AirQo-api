@@ -18,6 +18,7 @@ from app.models.device_schema import DeviceProfile
 from typing import List, Dict, Any, Tuple, Optional
 from uuid import UUID
 from app.utils.performance import PerformanceAnalysis
+from app.utils.field_mappings import ensure_dict
 
 logger = logging.getLogger(__name__)
 
@@ -1002,8 +1003,8 @@ async def get_device_metadata(db: Session, device_id: str, category_name: str, s
     metadata_values = query.order_by(SyncMetadataValues.created_at.desc()).offset(skip).limit(limit).all()
 
     # 3. Format metadata based on profile mapping
-    meta_mappings = db_profile.metadata_mappings or {}
-    telemetry_mappings = db_profile.telemetry_mappings or {}
+    meta_mappings = ensure_dict(db_profile.metadata_mappings)
+    telemetry_mappings = ensure_dict(db_profile.telemetry_mappings)
 
     cat_details = {
         "name": db_profile.name,
@@ -1067,8 +1068,8 @@ async def get_device_configdata(db: Session, device_id: str, category_name: str,
     config_values = query.order_by(SyncConfigValues.created_at.desc()).offset(skip).limit(limit).all()
 
     # 3. Format config based on profile mapping
-    config_mappings = db_profile.config_mappings or {}
-    telemetry_mappings = db_profile.telemetry_mappings or {}
+    config_mappings = ensure_dict(db_profile.config_mappings)
+    telemetry_mappings = ensure_dict(db_profile.telemetry_mappings)
 
     cat_details = {
         "name": db_profile.name,
@@ -1222,7 +1223,7 @@ async def create_device_metadata(db: Session, device_id: str, category_name: str
         if not profile:
             return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
 
-        meta_mappings = profile.metadata_mappings or {}
+        meta_mappings = ensure_dict(profile.metadata_mappings)
 
         # Build insert payload mapping label -> metadataN or direct metadataN keys
         insert_kwargs: Dict[str, Any] = {"device_id": device_id}
@@ -1263,7 +1264,7 @@ async def create_device_configdata(db: Session, device_id: str, category_name: s
         if not profile:
             return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
 
-        config_mappings = profile.config_mappings or {}
+        config_mappings = ensure_dict(profile.config_mappings)
 
         insert_kwargs: Dict[str, Any] = {"device_id": device_id}
         # Accept direct configN keys
