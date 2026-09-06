@@ -1,24 +1,32 @@
-// migrations/network-status-indexes.js
+// migrations/device-uptime-index-fix.js
+//
+// Fixes a stale index on device_uptimes.created_at left over from before the
+// TTL index was added correctly (see models/DeviceUptime.js). MongoDB will
+// not create a new index that shares a key pattern with an existing one that
+// has different options — if an earlier deploy ever got as far as creating a
+// plain, non-TTL {created_at:1} index, every later attempt by Mongoose to
+// auto-create the current {created_at:1, expireAfterSeconds:...} index keeps
+// failing with an IndexOptionsConflict. Because Mongoose gates ALL buffered
+// operations behind Model.init() (which includes index sync), a stuck index
+// sync makes every operation against this model — reads and writes alike —
+// fail with "buffering timed out", regardless of what the operation itself
+// is doing. This migration finds and drops any conflicting created_at index
+// and creates the correct one directly via the raw driver, so it isn't
+// itself blocked by whatever is currently stuck on the Mongoose-level model.
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- network-status-migration`
+  `${constants.ENVIRONMENT} -- device-uptime-index-fix-migration`
 );
 const MigrationTrackerModel = require("@models/MigrationTracker");
-const {
-  getRawTenantDB, // Use the new function
-  connectToMongoDB,
-} = require("@config/database");
+const { getRawTenantDB, connectToMongoDB } = require("@config/database");
 
-const MIGRATION_NAME = "network-status-indexes-v1";
+const MIGRATION_NAME = "device-uptime-index-fix-v1";
+const TTL_SECONDS = 90 * 24 * 60 * 60;
 // This service only ever runs against one tenant — the real multi-tenant
 // design was abandoned; "airqo" is the database's permanent identity, not a
 // placeholder. No tenant loop/array here on purpose (see project memory on
-// tenant handling — future changes to this file should not reintroduce a
-// `constants.TENANTS` loop). Note: `constants.TENANTS` defaults to `[]`
-// (falsy-looking but truthy) when unset, not `undefined` — `constants.TENANTS
-// || ["airqo"]` silently no-ops instead of falling back, which is exactly the
-// kind of bug this single-tenant constant avoids entirely.
+// tenant handling) — a single direct run against the default tenant.
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 
 async function checkMigrationStatus() {
@@ -29,7 +37,6 @@ async function checkMigrationStatus() {
     });
 
     if (!tracker) {
-      // Create new migration record
       await MigrationTrackerModel(TENANT).create({
         name: MIGRATION_NAME,
         tenant: TENANT,
@@ -48,7 +55,7 @@ async function checkMigrationStatus() {
 async function updateMigrationStatus(status, error = null) {
   try {
     const update = {
-      status: status,
+      status,
       ...(status === "running" && { startedAt: new Date() }),
       ...(status === "completed" && { completedAt: new Date() }),
       ...(error && { error: error.message }),
@@ -65,60 +72,88 @@ async function updateMigrationStatus(status, error = null) {
   }
 }
 
-async function createIndexes() {
+async function fixIndexes() {
   try {
-    // Use getRawTenantDB to get database access without model registration
     const tenantDB = getRawTenantDB(TENANT);
-    const collectionName = "networkstatusalerts";
+    const collectionName = "device_uptimes";
 
-    // Check if collection exists
     const collections = await tenantDB.db
       .listCollections({ name: collectionName })
       .toArray();
-
     if (collections.length === 0) {
+      logger.info(
+        `device_uptimes collection does not exist yet; nothing to fix.`
+      );
       return;
     }
 
     const collection = tenantDB.db.collection(collectionName);
+    const existingIndexes = await collection.indexes();
 
-    // Create indexes in parallel for better performance
-    const indexPromises = [
-      collection.createIndex({ checked_at: -1 }),
-      collection.createIndex({ status: 1 }),
-      collection.createIndex({ tenant: 1, checked_at: -1 }),
-      collection.createIndex({ offline_percentage: 1 }),
-      collection.createIndex({ threshold_exceeded: 1 }),
-      collection.createIndex({ day_of_week: 1, hour_of_day: 1 }),
-      collection.createIndex(
-        { createdAt: 1 },
-        { expireAfterSeconds: 90 * 24 * 60 * 60 }
-      ),
-    ];
-    await Promise.all(indexPromises);
-    logger.info(`Indexes created/ensured`);
+    // Only target the standalone {created_at:1} index — never touch the
+    // compound indexes (device_name+created_at, channel_id+created_at,
+    // network+created_at), which have a different key pattern and are not
+    // part of this conflict.
+    const isSingleCreatedAtKey = (idx) => {
+      const keys = Object.keys(idx.key);
+      return keys.length === 1 && keys[0] === "created_at";
+    };
+
+    // Stale means "any standalone created_at index that isn't exactly the
+    // TTL we want" — not just a missing expireAfterSeconds. A leftover index
+    // created with some other TTL value would conflict with createIndex
+    // below just as much as a fully non-TTL one would.
+    const staleIndexes = existingIndexes.filter(
+      (idx) =>
+        isSingleCreatedAtKey(idx) && idx.expireAfterSeconds !== TTL_SECONDS
+    );
+
+    for (const staleIndex of staleIndexes) {
+      logger.warn(
+        `Dropping stale non-TTL created_at index "${staleIndex.name}" on ${collectionName}`
+      );
+      await collection.dropIndex(staleIndex.name);
+    }
+
+    const alreadyCorrect = existingIndexes.some(
+      (idx) =>
+        isSingleCreatedAtKey(idx) && idx.expireAfterSeconds === TTL_SECONDS
+    );
+
+    if (!alreadyCorrect) {
+      await collection.createIndex(
+        { created_at: 1 },
+        { expireAfterSeconds: TTL_SECONDS }
+      );
+      logger.info(`Created correct TTL index on ${collectionName}.created_at`);
+    }
+
+    // Re-assert the other indexes this schema expects too, in case the
+    // model's own init() never got far enough to create them while stuck.
+    await Promise.all([
+      collection.createIndex({ device_name: 1, created_at: -1 }),
+      collection.createIndex({ channel_id: 1, created_at: -1 }),
+      collection.createIndex({ network: 1, created_at: -1 }),
+    ]);
+
+    logger.info(`device_uptimes indexes verified`);
   } catch (error) {
-    logger.error(`🐛🐛 Error creating indexes: ${error.message}`);
+    logger.error(
+      `🐛🐛 Error fixing device_uptimes indexes: ${error.message}`
+    );
     throw error;
   }
 }
 
 async function runMigration() {
   try {
-    // Check if migration already completed
     const status = await checkMigrationStatus();
-
     if (status === "completed") {
       return;
     }
 
-    // Update status to running
     await updateMigrationStatus("running");
-
-    // Create indexes
-    await createIndexes();
-
-    // Update status to completed
+    await fixIndexes();
     await updateMigrationStatus("completed");
   } catch (error) {
     logger.error(`🐛🐛 Migration failed: ${error.message}`);
@@ -127,7 +162,6 @@ async function runMigration() {
   }
 }
 
-// Manual execution function
 async function executeMigration() {
   try {
     await runMigration();
@@ -144,10 +178,9 @@ module.exports = {
   MIGRATION_NAME,
 };
 
-// This is a special case for when the script is run directly via CLI
-// It will NOT interfere with the application when imported as a module
+// Special case for running this script directly via CLI — does not
+// interfere with the application when imported as a module.
 if (require.main === module) {
-  // Initialize DB connections explicitly. This sets the module-level variables in database.js
   const { commandDB, queryDB } = connectToMongoDB();
 
   const run = async () => {
@@ -174,7 +207,6 @@ if (require.main === module) {
     }
   };
 
-  // Wait for the database connection to be ready before running the migration
   if (queryDB.readyState === 1) {
     logger.info("MongoDB connection is ready. Running migration...");
     run();
