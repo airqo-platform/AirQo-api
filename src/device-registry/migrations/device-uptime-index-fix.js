@@ -23,18 +23,23 @@ const { getRawTenantDB, connectToMongoDB } = require("@config/database");
 
 const MIGRATION_NAME = "device-uptime-index-fix-v1";
 const TTL_SECONDS = 90 * 24 * 60 * 60;
+// This service only ever runs against one tenant — the real multi-tenant
+// design was abandoned; "airqo" is the database's permanent identity, not a
+// placeholder. No tenant loop/array here on purpose (see project memory on
+// tenant handling) — a single direct run against the default tenant.
+const TENANT = constants.DEFAULT_TENANT || "airqo";
 
-async function checkMigrationStatus(tenant) {
+async function checkMigrationStatus() {
   try {
-    const tracker = await MigrationTrackerModel(tenant).findOne({
+    const tracker = await MigrationTrackerModel(TENANT).findOne({
       name: MIGRATION_NAME,
-      tenant,
+      tenant: TENANT,
     });
 
     if (!tracker) {
-      await MigrationTrackerModel(tenant).create({
+      await MigrationTrackerModel(TENANT).create({
         name: MIGRATION_NAME,
-        tenant,
+        tenant: TENANT,
         status: "pending",
       });
       return "pending";
@@ -47,7 +52,7 @@ async function checkMigrationStatus(tenant) {
   }
 }
 
-async function updateMigrationStatus(tenant, status, error = null) {
+async function updateMigrationStatus(status, error = null) {
   try {
     const update = {
       status,
@@ -56,8 +61,8 @@ async function updateMigrationStatus(tenant, status, error = null) {
       ...(error && { error: error.message }),
     };
 
-    await MigrationTrackerModel(tenant).findOneAndUpdate(
-      { name: MIGRATION_NAME, tenant },
+    await MigrationTrackerModel(TENANT).findOneAndUpdate(
+      { name: MIGRATION_NAME, tenant: TENANT },
       update,
       { new: true }
     );
@@ -67,9 +72,9 @@ async function updateMigrationStatus(tenant, status, error = null) {
   }
 }
 
-async function fixIndexesForTenant(tenant) {
+async function fixIndexes() {
   try {
-    const tenantDB = getRawTenantDB(tenant);
+    const tenantDB = getRawTenantDB(TENANT);
     const collectionName = "device_uptimes";
 
     const collections = await tenantDB.db
@@ -77,7 +82,7 @@ async function fixIndexesForTenant(tenant) {
       .toArray();
     if (collections.length === 0) {
       logger.info(
-        `device_uptimes collection does not exist yet for tenant ${tenant}; nothing to fix.`
+        `device_uptimes collection does not exist yet; nothing to fix.`
       );
       return;
     }
@@ -94,13 +99,18 @@ async function fixIndexesForTenant(tenant) {
       return keys.length === 1 && keys[0] === "created_at";
     };
 
+    // Stale means "any standalone created_at index that isn't exactly the
+    // TTL we want" — not just a missing expireAfterSeconds. A leftover index
+    // created with some other TTL value would conflict with createIndex
+    // below just as much as a fully non-TTL one would.
     const staleIndexes = existingIndexes.filter(
-      (idx) => isSingleCreatedAtKey(idx) && idx.expireAfterSeconds === undefined
+      (idx) =>
+        isSingleCreatedAtKey(idx) && idx.expireAfterSeconds !== TTL_SECONDS
     );
 
     for (const staleIndex of staleIndexes) {
       logger.warn(
-        `Dropping stale non-TTL created_at index "${staleIndex.name}" on ${collectionName} (tenant ${tenant})`
+        `Dropping stale non-TTL created_at index "${staleIndex.name}" on ${collectionName}`
       );
       await collection.dropIndex(staleIndex.name);
     }
@@ -115,9 +125,7 @@ async function fixIndexesForTenant(tenant) {
         { created_at: 1 },
         { expireAfterSeconds: TTL_SECONDS }
       );
-      logger.info(
-        `Created correct TTL index on ${collectionName}.created_at (tenant ${tenant})`
-      );
+      logger.info(`Created correct TTL index on ${collectionName}.created_at`);
     }
 
     // Re-assert the other indexes this schema expects too, in case the
@@ -128,39 +136,35 @@ async function fixIndexesForTenant(tenant) {
       collection.createIndex({ network: 1, created_at: -1 }),
     ]);
 
-    logger.info(`device_uptimes indexes verified for tenant ${tenant}`);
+    logger.info(`device_uptimes indexes verified`);
   } catch (error) {
     logger.error(
-      `🐛🐛 Error fixing device_uptimes indexes for tenant ${tenant}: ${error.message}`
+      `🐛🐛 Error fixing device_uptimes indexes: ${error.message}`
     );
     throw error;
   }
 }
 
-async function runMigration(tenants = ["airqo"]) {
-  for (const tenant of tenants) {
-    try {
-      const status = await checkMigrationStatus(tenant);
-      if (status === "completed") {
-        continue;
-      }
-
-      await updateMigrationStatus(tenant, "running");
-      await fixIndexesForTenant(tenant);
-      await updateMigrationStatus(tenant, "completed");
-    } catch (error) {
-      logger.error(
-        `🐛🐛 Migration failed for tenant ${tenant}: ${error.message}`
-      );
-      await updateMigrationStatus(tenant, "failed", error);
+async function runMigration() {
+  try {
+    const status = await checkMigrationStatus();
+    if (status === "completed") {
+      return;
     }
+
+    await updateMigrationStatus("running");
+    await fixIndexes();
+    await updateMigrationStatus("completed");
+  } catch (error) {
+    logger.error(`🐛🐛 Migration failed: ${error.message}`);
+    await updateMigrationStatus("failed", error);
+    throw error;
   }
 }
 
 async function executeMigration() {
   try {
-    const tenants = constants.TENANTS || ["airqo"];
-    await runMigration(tenants);
+    await runMigration();
     return true;
   } catch (error) {
     logger.error(`🐛🐛 Migration error: ${error.message}`);
