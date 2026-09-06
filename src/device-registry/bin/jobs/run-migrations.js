@@ -6,6 +6,7 @@ const SiteModel = require("@models/Site");
 
 // Import all migrations
 const networkStatusMigration = require("@migrations/network-status-indexes");
+const deviceUptimeIndexFixMigration = require("@migrations/device-uptime-index-fix");
 
 // One-time cleanup: remove geocoding failure tracking fields that were made
 // obsolete when the backfill job was simplified to use isOnline + createdAt
@@ -59,6 +60,14 @@ async function runStartupMigrations() {
     await networkStatusMigration.executeMigration();
   } catch (error) {
     logger.error(`🐛🐛 networkStatusMigration failed: ${error.message}`);
+  }
+
+  try {
+    await deviceUptimeIndexFixMigration.executeMigration();
+  } catch (error) {
+    logger.error(
+      `🐛🐛 deviceUptimeIndexFixMigration failed: ${error.message}`
+    );
   }
 
   try {
