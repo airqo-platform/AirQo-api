@@ -679,7 +679,7 @@ const createUptime = {
   // real index list on device_uptimes straight from the raw driver — so this
   // can be checked over HTTP without DB shell or pod-log access. Two
   // independent lookups, each wrapped so one failing doesn't hide the other.
-  getDeviceUptimeDiagnostics: async (params, next) => {
+  getDeviceUptimeDiagnostics: async (params) => {
     const tenant = params.tenant || constants.DEFAULT_TENANT || "airqo";
 
     let migration;
