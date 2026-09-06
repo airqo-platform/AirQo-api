@@ -253,7 +253,7 @@ def _resolve_profile(db: Session, profile_id: Optional[str] = None, device_id: O
                 all_profiles = crud_diagnostics.list_profiles(db, limit=50)
                 for p in all_profiles:
                     p_slug = p.name.lower().replace("_", "").replace("-", "")
-                    if p_slug in slug or slug in p_slug:
+                    if p_slug == slug:
                         profile = p
                         break
         if not profile and device_id:
@@ -296,11 +296,15 @@ def evaluate_custom_payload(
     profile = _resolve_profile(db, profile_id=request.profile_id, device_id=request.device_id)
     prepared_telemetry = _prepare_telemetry_for_evaluation(telemetry, profile)
 
+    eval_context = dict(request.context or {})
+    if profile is not None and "profile" not in eval_context:
+        eval_context["profile"] = profile
+
     result = evaluator.evaluate_telemetry(
         device_id=device_id,
         telemetry_records=prepared_telemetry,
         candidate_causes=candidate_causes,
-        context=request.context,
+        context=eval_context,
         window_hours=request.window_hours,
     )
     return result
@@ -323,11 +327,15 @@ def evaluate_device(
     profile = _resolve_profile(db, profile_id=req.profile_id, device_id=device_id)
     prepared_telemetry = _prepare_telemetry_for_evaluation(telemetry, profile)
 
+    eval_context = dict(req.context or {})
+    if profile is not None and "profile" not in eval_context:
+        eval_context["profile"] = profile
+
     result = evaluator.evaluate_telemetry(
         device_id=device_id,
         telemetry_records=prepared_telemetry,
         candidate_causes=candidate_causes,
-        context=req.context,
+        context=eval_context,
         window_hours=req.window_hours,
     )
 

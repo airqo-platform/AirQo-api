@@ -185,20 +185,21 @@ class FeatureExtractor:
         sorted_records = sorted(records, key=get_ts)
         timestamps = [get_ts(r) for r in sorted_records]
 
-        # Collect time-series per key
-        series_by_key: Dict[str, List[float]] = {}
+        # Collect time-series per key with source timestamp
+        series_by_key: Dict[str, List[Tuple[float, float]]] = {}
         for r in sorted_records:
+            r_ts = get_ts(r)
             for k, v in r.items():
                 if k in ("created_at_ts", "datetime", "timestamp", "time", "device_id", "channel_id", "id"):
                     continue
                 if isinstance(v, (int, float)) and not math.isnan(v):
-                    series_by_key.setdefault(k, []).append(float(v))
+                    series_by_key.setdefault(k, []).append((float(v), r_ts))
 
         # Calculate time duration
         first_ts = timestamps[0] if timestamps else 0
         last_ts = timestamps[-1] if timestamps else 0
         duration_minutes = max(1.0, (last_ts - first_ts) / 60.0) if (last_ts > first_ts) else 60.0
-        expected_records = max(1, int(duration_minutes / expected_frequency_minutes))
+        expected_records = max(1, int(duration_minutes / expected_frequency_minutes) + 1)
         actual_records = len(sorted_records)
         missing_rate = cls.calculate_missing_rate(actual_records, expected_records)
 
@@ -210,10 +211,12 @@ class FeatureExtractor:
             "metrics": {},
         }
 
-        for key, vals in series_by_key.items():
+        for key, pairs in series_by_key.items():
+            vals = [p[0] for p in pairs]
+            ts_list = [p[1] for p in pairs]
             stats = cls.calculate_variance_and_spikes(vals)
-            gradient = cls.calculate_discharge_gradient(vals, timestamps) if len(vals) == len(timestamps) else 0.0
-            steepest_discharge = cls.calculate_steepest_discharge_gradient(vals, timestamps) if len(vals) == len(timestamps) else 0.0
+            gradient = cls.calculate_discharge_gradient(vals, ts_list)
+            steepest_discharge = cls.calculate_steepest_discharge_gradient(vals, ts_list)
             feature_map["metrics"][key] = {
                 **stats,
                 "gradient_per_hour": gradient,
@@ -222,24 +225,22 @@ class FeatureExtractor:
             }
 
         # Check for Dual PM sensors (pm2_5_sensor1 & pm2_5_sensor2 or field1 & field3)
-        pm1_series = (
-            series_by_key.get("pm2_5_sensor1")
-            or series_by_key.get("pm2_5_sensor_1")
-            or series_by_key.get("pm2_5")
-            or series_by_key.get("field1")
-            or []
-        )
-        pm2_series = (
-            series_by_key.get("pm2_5_sensor2")
-            or series_by_key.get("pm2_5_sensor_2")
-            or series_by_key.get("field3")
-            or []
-        )
+        # Build PM pairs only from records containing both sensor values at the same timestamp
+        pm1_keys = ("pm2_5_sensor1", "pm2_5_sensor_1", "pm2_5", "field1")
+        pm2_keys = ("pm2_5_sensor2", "pm2_5_sensor_2", "field3")
+        pm1_paired: List[float] = []
+        pm2_paired: List[float] = []
 
-        if pm1_series and pm2_series:
-            min_len = min(len(pm1_series), len(pm2_series))
+        for r in sorted_records:
+            v1 = next((float(r[k]) for k in pm1_keys if k in r and isinstance(r[k], (int, float)) and not math.isnan(r[k])), None)
+            v2 = next((float(r[k]) for k in pm2_keys if k in r and isinstance(r[k], (int, float)) and not math.isnan(r[k])), None)
+            if v1 is not None and v2 is not None:
+                pm1_paired.append(v1)
+                pm2_paired.append(v2)
+
+        if pm1_paired and pm2_paired:
             feature_map["pm_sensor_agreement"] = cls.calculate_cross_sensor_agreement(
-                pm1_series[:min_len], pm2_series[:min_len]
+                pm1_paired, pm2_paired
             )
 
         return feature_map

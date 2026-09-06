@@ -183,3 +183,124 @@ class TestCategoryReadAndEndpoints(unittest.TestCase):
         self.assertEqual(res_keys, {"pm2_5_custom": 15.2})
         res_labels = map_record_from_profile(record, profile, use_keys=False, drop_unmapped=True)
         self.assertEqual(res_labels, {"Custom PM2.5": 15.2})
+
+    def test_crud_category_update_persists_all_fields(self):
+        from app.schemas.category import CategoryUpdate
+
+        p = DeviceProfile(
+            id=uuid.uuid4(),
+            name="full_update_profile",
+            category="initial_category",
+            description="initial description",
+            telemetry_mappings={},
+            config_mappings={},
+            metadata_mappings={},
+        )
+        self.db.add(p)
+        self.db.commit()
+
+        initial_cat = category_crud.get_by_name(self.db, name="full_update_profile")
+        self.assertIsNotNone(initial_cat)
+
+        update_dict = {
+            "level": "updated_category",
+            "description": "updated description",
+        }
+        for i in range(1, 16):
+            update_dict[f"field{i}"] = f"Sensor Field {i}"
+            update_dict[f"metadata{i}"] = f"Meta Property {i}"
+        for i in range(1, 11):
+            update_dict[f"config{i}"] = f"Config Param {i}"
+
+        update_obj = CategoryUpdate(**update_dict)
+        updated_cat = category_crud.update(self.db, db_obj=initial_cat, obj_in=update_obj)
+
+        self.assertEqual(updated_cat.level, "updated_category")
+        self.assertEqual(updated_cat.description, "updated description")
+        for i in range(1, 16):
+            self.assertEqual(getattr(updated_cat, f"field{i}"), f"Sensor Field {i}")
+            self.assertEqual(getattr(updated_cat, f"metadata{i}"), f"Meta Property {i}")
+        for i in range(1, 11):
+            self.assertEqual(getattr(updated_cat, f"config{i}"), f"Config Param {i}")
+
+        # Verify persisted in database
+        db_p = self.db.query(DeviceProfile).filter(DeviceProfile.name == "full_update_profile").first()
+        self.assertEqual(db_p.category, "updated_category")
+        self.assertEqual(db_p.description, "updated description")
+        self.assertEqual(ensure_dict(db_p.telemetry_mappings)["field1"]["label"], "Sensor Field 1")
+        self.assertEqual(ensure_dict(db_p.metadata_mappings)["metadata1"]["label"], "Meta Property 1")
+        self.assertEqual(ensure_dict(db_p.config_mappings)["config1"]["label"], "Config Param 1")
+
+    def test_crud_category_update_clear_description_and_fields(self):
+        from app.schemas.category import CategoryUpdate
+
+        p = DeviceProfile(
+            id=uuid.uuid4(),
+            name="clear_profile",
+            category="air_quality",
+            description="Has description",
+            telemetry_mappings={"field1": {"label": "PM2.5"}, "field2": {"label": "PM10"}},
+            config_mappings={"config1": {"label": "Interval"}},
+            metadata_mappings={"metadata1": {"label": "Revision"}},
+        )
+        self.db.add(p)
+        self.db.commit()
+
+        initial_cat = category_crud.get_by_name(self.db, name="clear_profile")
+
+        # Clear description to None, and clear field1
+        update_obj = CategoryUpdate(description=None, field1=None)
+        updated_cat = category_crud.update(self.db, db_obj=initial_cat, obj_in=update_obj)
+
+        self.assertIsNone(updated_cat.description)
+        self.assertIsNone(updated_cat.field1)
+        self.assertEqual(updated_cat.field2, "PM10")
+        self.assertEqual(updated_cat.config1, "Interval")
+
+        # Test clearing description to empty string
+        update_obj_empty = CategoryUpdate(description="")
+        updated_cat_2 = category_crud.update(self.db, db_obj=updated_cat, obj_in=update_obj_empty)
+        self.assertEqual(updated_cat_2.description, "")
+
+    def test_crud_category_update_unsupported_fields_rejected(self):
+        p = DeviceProfile(
+            id=uuid.uuid4(),
+            name="unsupported_profile",
+            category="air_quality",
+        )
+        self.db.add(p)
+        self.db.commit()
+
+        initial_cat = category_crud.get_by_name(self.db, name="unsupported_profile")
+
+        with self.assertRaises(ValueError) as ctx:
+            category_crud.update(self.db, db_obj=initial_cat, obj_in={"invalid_col": "value", "description": "test"})
+        self.assertIn("Unsupported field(s)", str(ctx.exception))
+        self.assertIn("invalid_col", str(ctx.exception))
+
+    def test_api_put_category_endpoint(self):
+        p = DeviceProfile(
+            id=uuid.uuid4(),
+            name="api_update_profile",
+            category="air_quality",
+            description="Before API update",
+            telemetry_mappings={"field1": {"label": "Old Field"}},
+        )
+        self.db.add(p)
+        self.db.commit()
+
+        payload = {
+            "description": "After API update",
+            "level": "cold_chain",
+            "field1": "New Sensor Label",
+            "config1": "New Config Label",
+        }
+        res = self.client.put("/api/v1/categories/api_update_profile", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["name"], "api_update_profile")
+        self.assertEqual(data["description"], "After API update")
+        self.assertEqual(data["level"], "cold_chain")
+        self.assertEqual(data["field1"], "New Sensor Label")
+        self.assertEqual(data["config1"], "New Config Label")
+

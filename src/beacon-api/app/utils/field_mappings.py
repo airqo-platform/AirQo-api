@@ -195,7 +195,7 @@ def normalize_and_unpack_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
     if field8_csv_val:
         parts = field8_csv_val.split(",")
-        for idx, part in enumerate(parts):
+        for idx, part in enumerate(parts[:13]):
             slot_key = f"field{8 + idx}"
             if slot_key not in normalized or normalized[slot_key] is None:
                 val = _safe_float(part.strip())

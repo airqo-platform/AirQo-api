@@ -241,7 +241,7 @@ def upsert_device_to_sync(
 
     if is_authoritative:
         updated = _apply_authoritative_update(db_device, values)
-        if profile_id and db_device.profile_id != profile_id:
+        if db_device.profile_id != profile_id:
             db_device.profile_id = profile_id
             updated = True
     else:
@@ -979,16 +979,27 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
     
     return platform_data
 
-async def get_device_metadata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
-    # 1. Fetch profile/category details
-    db_profile = db.query(DeviceProfile).filter(
+def _lookup_profile(db: Session, category_name: Optional[str]) -> Optional[DeviceProfile]:
+    """Helper to look up a DeviceProfile by exact lowercased name or category."""
+    if not category_name:
+        return None
+    cleaned = category_name.strip().lower()
+    if not cleaned:
+        return None
+    profile = db.query(DeviceProfile).filter(
         or_(
-            DeviceProfile.name.ilike(category_name),
-            DeviceProfile.category.ilike(category_name),
+            func.lower(DeviceProfile.name) == cleaned,
+            func.lower(DeviceProfile.category) == cleaned,
         )
     ).first()
-    if not db_profile and category_name.lower() == "gas":
-        db_profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+    if not profile and cleaned == "gas":
+        profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+    return profile
+
+
+async def get_device_metadata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
+    # 1. Fetch profile/category details
+    db_profile = _lookup_profile(db, category_name)
 
     if not db_profile:
         return {
@@ -1046,14 +1057,7 @@ async def get_device_metadata(db: Session, device_id: str, category_name: str, s
 
 async def get_device_configdata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
     # 1. Fetch profile/category details
-    db_profile = db.query(DeviceProfile).filter(
-        or_(
-            DeviceProfile.name.ilike(category_name),
-            DeviceProfile.category.ilike(category_name),
-        )
-    ).first()
-    if not db_profile and category_name.lower() == "gas":
-        db_profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+    db_profile = _lookup_profile(db, category_name)
 
     if not db_profile:
         return {
@@ -1211,14 +1215,7 @@ async def _ensure_device(db: Session, device_id: str) -> SyncDevice:
 async def create_device_metadata(db: Session, device_id: str, category_name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     try:
         await _ensure_device(db, device_id)
-        profile = db.query(DeviceProfile).filter(
-            or_(
-                DeviceProfile.name.ilike(category_name),
-                DeviceProfile.category.ilike(category_name),
-            )
-        ).first()
-        if not profile and category_name.lower() == "gas":
-            profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+        profile = _lookup_profile(db, category_name)
 
         if not profile:
             return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
@@ -1252,14 +1249,7 @@ async def create_device_metadata(db: Session, device_id: str, category_name: str
 async def create_device_configdata(db: Session, device_id: str, category_name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     try:
         await _ensure_device(db, device_id)
-        profile = db.query(DeviceProfile).filter(
-            or_(
-                DeviceProfile.name.ilike(category_name),
-                DeviceProfile.category.ilike(category_name),
-            )
-        ).first()
-        if not profile and category_name.lower() == "gas":
-            profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+        profile = _lookup_profile(db, category_name)
 
         if not profile:
             return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
@@ -1348,12 +1338,7 @@ def _sync_category_record(db: Session, cat: Dict[str, Any]) -> None:
     cat_name = cat.get("category")
     if not cat_name:
         return
-    db_profile = db.query(DeviceProfile).filter(
-        or_(
-            DeviceProfile.name.ilike(cat_name),
-            DeviceProfile.category.ilike(cat_name),
-        )
-    ).first()
+    db_profile = _lookup_profile(db, cat_name)
     if not db_profile:
         db.add(DeviceProfile(
             name=cat_name.lower(),

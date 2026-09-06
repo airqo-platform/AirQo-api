@@ -106,9 +106,11 @@ class DiagnosticEvaluator:
             lifecycle_state = "HEALTHY"
         elif overall_score >= 70.0:
             lifecycle_state = "DEGRADING"
+        elif top_diagnoses and top_diagnoses[0]["confidence_percentage"] >= 85.0:
+            lifecycle_state = "LIKELY_FAILURE"
         elif overall_score >= 50.0 or (top_diagnoses and top_diagnoses[0]["confidence_percentage"] >= 70.0):
             lifecycle_state = "SUSPICIOUS"
-        elif overall_score >= 20.0 or (top_diagnoses and top_diagnoses[0]["confidence_percentage"] >= 85.0):
+        elif overall_score >= 20.0:
             lifecycle_state = "LIKELY_FAILURE"
         else:
             lifecycle_state = "FAILED"

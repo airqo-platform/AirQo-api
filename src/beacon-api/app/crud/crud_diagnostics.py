@@ -3,7 +3,13 @@ from typing import List, Optional, Dict, Any, Union
 from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from app.models.device_schema import DeviceProfile, ComponentDefinition, MetricDefinition, ComponentRelationship
+from app.models.device_schema import (
+    DeviceProfile,
+    ComponentDefinition,
+    MetricDefinition,
+    ComponentRelationship,
+    Vendor,
+)
 from app.models.diagnostics import (
     DiagnosticTemplate,
     SymptomDefinition,

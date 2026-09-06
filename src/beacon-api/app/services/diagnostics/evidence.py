@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
+from app.utils.field_mappings import ensure_dict, FIELD_MAPPINGS
 
 
 @dataclass
@@ -84,8 +85,56 @@ class EvidenceEngine:
         # =========================================================================
         # 2. SOLAR HARVESTING EVALUATION
         # =========================================================================
-        solar_v_stats = metrics.get("solar_voltage") or metrics.get("solar_v") or metrics.get("field8") or {}
-        solar_i_stats = metrics.get("solar_current") or metrics.get("solar_i") or metrics.get("field9") or {}
+        active_profile = context.get("profile") or context.get("active_profile") or context.get("device_profile")
+        telemetry_map = None
+        if active_profile is not None:
+            if isinstance(active_profile, str):
+                telemetry_map = FIELD_MAPPINGS.get(active_profile.lower())
+            else:
+                telemetry_map = ensure_dict(getattr(active_profile, "telemetry_mappings", None))
+                if not telemetry_map and isinstance(active_profile, dict):
+                    telemetry_map = ensure_dict(active_profile.get("telemetry_mappings") or active_profile)
+                if not telemetry_map and hasattr(active_profile, "category") and active_profile.category:
+                    telemetry_map = FIELD_MAPPINGS.get(str(active_profile.category).lower())
+        elif "telemetry_mappings" in context:
+            telemetry_map = ensure_dict(context["telemetry_mappings"])
+        elif "category" in context and isinstance(context["category"], str):
+            telemetry_map = FIELD_MAPPINGS.get(context["category"].lower())
+
+        def _is_gps_field(field_key: str) -> bool:
+            if not telemetry_map or field_key not in telemetry_map:
+                return False
+            meta = telemetry_map[field_key]
+            text = f"{meta.get('key', '')} {meta.get('label', '')}".lower() if isinstance(meta, dict) else str(meta).lower()
+            return any(k in text for k in ("latitude", "longitude", "lat", "lon", "gps")) and "solar" not in text
+
+        def _is_solar_field(field_key: str, kind: str) -> bool:
+            if not telemetry_map or field_key not in telemetry_map:
+                return False
+            meta = telemetry_map[field_key]
+            text = f"{meta.get('key', '')} {meta.get('label', '')}".lower() if isinstance(meta, dict) else str(meta).lower()
+            if "solar" not in text:
+                return False
+            if kind == "voltage":
+                return any(k in text for k in ("voltage", "volt", "v"))
+            elif kind == "current":
+                return any(k in text for k in ("current", "curr", "i", "amp"))
+            return True
+
+        solar_v_stats = metrics.get("solar_voltage") or metrics.get("solar_v")
+        solar_i_stats = metrics.get("solar_current") or metrics.get("solar_i")
+
+        if not solar_v_stats and "field8" in metrics:
+            if telemetry_map and not _is_gps_field("field8") and _is_solar_field("field8", "voltage"):
+                solar_v_stats = metrics["field8"]
+
+        if not solar_i_stats and "field9" in metrics:
+            if telemetry_map and not _is_gps_field("field9") and _is_solar_field("field9", "current"):
+                solar_i_stats = metrics["field9"]
+
+        has_solar_current = bool(solar_i_stats) or any(k in metrics for k in ("solar_current", "solar_i"))
+        solar_v_stats = solar_v_stats or {}
+        solar_i_stats = solar_i_stats or {}
         cloud_cover = context.get("cloud_cover_percentage", 0.0)
         is_raining = context.get("is_raining", False)
 
@@ -95,7 +144,7 @@ class EvidenceEngine:
 
             # If daytime and weather is clear, check if solar is generating normally
             if not is_raining and cloud_cover < 40.0:
-                if solar_v_mean > 14.0 and (solar_i_mean > 0.3 or "solar_current" not in metrics):
+                if solar_v_mean > 14.0 and (solar_i_mean > 0.3 or not has_solar_current):
                     evidences.append(
                         EvidenceFact(
                             code="EVID_SOLAR_INPUT_NORMAL",
@@ -105,7 +154,7 @@ class EvidenceEngine:
                             value=solar_v_mean,
                         )
                     )
-                elif solar_v_mean > 14.0 and solar_i_mean < 0.05 and "solar_current" in metrics:
+                elif solar_v_mean > 14.0 and solar_i_mean < 0.05 and has_solar_current:
                     evidences.append(
                         EvidenceFact(
                             code="EVID_SOLAR_VOLTAGE_HIGH_CURRENT_ZERO",

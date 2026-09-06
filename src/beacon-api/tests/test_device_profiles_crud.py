@@ -398,3 +398,31 @@ class TestDeviceProfilesCRUD(unittest.TestCase):
         self.assertEqual(del_comp_res.status_code, 200)
         self.assertTrue(del_comp_res.json()["success"])
 
+    def test_update_profile_vendor_fallback_lookups(self):
+        # 1. Create two test vendors
+        vendor_1 = Vendor(id=uuid.uuid4(), name="Vendor Alpha", description="Alpha vendor")
+        vendor_2 = Vendor(id=uuid.uuid4(), name="Vendor Beta", description="Beta vendor")
+        self.db.add_all([vendor_1, vendor_2])
+        self.db.commit()
+
+        # 2. Create a test profile
+        profile = DeviceProfile(
+            id=uuid.uuid4(),
+            name="vendor-fallback-test-profile",
+            category="air_quality",
+            vendor_id=None,
+        )
+        self.db.add(profile)
+        self.db.commit()
+
+        # 3. Test fallback via vendor_id string (non-UUID string matching Vendor.name)
+        update_schema_1 = SchemaFromDiag(vendor_id="Vendor Alpha")
+        updated_prof_1 = crud_diagnostics.update_profile(self.db, db_obj=profile, obj_in=update_schema_1)
+        self.assertEqual(updated_prof_1.vendor_id, vendor_1.id)
+
+        # 4. Test fallback via vendor string (vendor_id is None, vendor="Vendor Beta")
+        update_schema_2 = SchemaFromDiag(vendor="Vendor Beta")
+        updated_prof_2 = crud_diagnostics.update_profile(self.db, db_obj=profile, obj_in=update_schema_2)
+        self.assertEqual(updated_prof_2.vendor_id, vendor_2.id)
+
+

@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import numpy as np
 from datetime import datetime, timezone, timedelta
 from fastapi.testclient import TestClient
@@ -41,6 +42,58 @@ class TestDiagnosticsFeatureExtractor(unittest.TestCase):
         missing_rate = FeatureExtractor.calculate_missing_rate(actual_records=90, expected_records=120)
         self.assertEqual(missing_rate, 0.25)
 
+    def test_extract_all_features_expected_records_endpoint_counting(self):
+        # 6 records evenly spaced over a 10-minute span (every 2 minutes: t=0, 2, 4, 6, 8, 10 min)
+        base_ts = 1700000000
+        records = [
+            {"datetime": base_ts + (i * 120), "battery_voltage": 12.5}
+            for i in range(6)
+        ]
+        features = FeatureExtractor.extract_all_features(records, expected_frequency_minutes=2)
+        # Interval span is 10 min / 2 min = 5 intervals. Including initial sample, expected is 5 + 1 = 6 records.
+        self.assertEqual(features["record_count"], 6)
+        self.assertEqual(features["expected_records"], 6)
+        self.assertEqual(features["missing_rate"], 0.0)
+
+    def test_sparse_metric_discharge_gradient_alignment(self):
+        # 5 total records, but battery_voltage is only present in 3 records at t=0, t=1h, t=2h
+        base_ts = 1700000000
+        records = [
+            {"datetime": base_ts + 0, "battery_voltage": 13.0, "temperature": 25.0},
+            {"datetime": base_ts + 1800, "temperature": 25.5},  # missing battery_voltage
+            {"datetime": base_ts + 3600, "battery_voltage": 12.5, "temperature": 26.0},
+            {"datetime": base_ts + 5400, "temperature": 26.5},  # missing battery_voltage
+            {"datetime": base_ts + 7200, "battery_voltage": 12.0, "temperature": 27.0},
+        ]
+        features = FeatureExtractor.extract_all_features(records)
+        batt_metrics = features["metrics"]["battery_voltage"]
+        # Gradient should be -0.5 V/hr (drops 1.0 V over 2 hours)
+        self.assertAlmostEqual(batt_metrics["gradient_per_hour"], -0.5, places=2)
+        self.assertEqual(batt_metrics["count"], 3)
+
+    def test_dual_pm_pairs_timestamp_alignment(self):
+        # pm2_5_sensor1 and pm2_5_sensor2 should only pair when both are present at same timestamp
+        base_ts = 1700000000
+        records = [
+            # Both present: 20.0 and 20.1
+            {"datetime": base_ts + 0, "pm2_5_sensor1": 20.0, "pm2_5_sensor2": 20.1},
+            # Only sensor1 present: 500.0 (anomalous spike on sensor1 only)
+            {"datetime": base_ts + 120, "pm2_5_sensor1": 500.0},
+            # Only sensor2 present: 500.0 (anomalous spike on sensor2 only)
+            {"datetime": base_ts + 240, "pm2_5_sensor2": 500.0},
+            # Both present: 25.0 and 25.2
+            {"datetime": base_ts + 360, "pm2_5_sensor1": 25.0, "pm2_5_sensor2": 25.2},
+            # Both present: 30.0 and 30.1
+            {"datetime": base_ts + 480, "pm2_5_sensor1": 30.0, "pm2_5_sensor2": 30.1},
+        ]
+        features = FeatureExtractor.extract_all_features(records)
+        agreement = features.get("pm_sensor_agreement")
+        self.assertIsNotNone(agreement)
+        # The 3 valid co-located pairs are (20.0, 20.1), (25.0, 25.2), (30.0, 30.1)
+        self.assertEqual(agreement["valid_pairs"], 3)
+        self.assertGreaterEqual(agreement["correlation"], 0.99)
+        self.assertLess(agreement["mean_absolute_error"], 0.3)
+
 
 class TestDiagnosticsEvidenceEngine(unittest.TestCase):
     def setUp(self):
@@ -72,6 +125,80 @@ class TestDiagnosticsEvidenceEngine(unittest.TestCase):
         evidences = self.engine.evaluate(features, context=context)
         codes = [e.code for e in evidences]
         self.assertIn("EVID_SOLAR_INPUT_NORMAL", codes)
+
+    def test_solar_metric_selection_ignores_gps_field8_field9(self):
+        # field8 is latitude (~0.35) and field9 is longitude (~32.58)
+        features = {
+            "metrics": {
+                "field8": {"mean": 0.3475},
+                "field9": {"mean": 32.5825},
+                "battery_voltage": {"mean": 12.8, "min": 12.5, "max": 13.0, "gradient_per_hour": 0.0},
+            }
+        }
+        # 1. Profile mapping field8/field9 to GPS latitude and longitude
+        context = {
+            "profile": {
+                "telemetry_mappings": {
+                    "field8": {"key": "latitude_gps", "label": "GPS Latitude"},
+                    "field9": {"key": "longitude_gps", "label": "GPS Longitude"},
+                }
+            },
+            "cloud_cover_percentage": 5.0,
+            "is_raining": False,
+        }
+        evidences = self.engine.evaluate(features, context=context)
+        codes = [e.code for e in evidences]
+        # Must NOT treat GPS coordinates as solar readings, which would falsely emit EVID_SOLAR_UNDERPERFORMING_CLEAR_SKY
+        self.assertNotIn("EVID_SOLAR_UNDERPERFORMING_CLEAR_SKY", codes)
+        self.assertNotIn("EVID_SOLAR_INPUT_NORMAL", codes)
+
+    def test_solar_metric_selection_accepts_solar_mapped_field8_field9(self):
+        features = {
+            "metrics": {
+                "field8": {"mean": 18.5},
+                "field9": {"mean": 0.85},
+            }
+        }
+        context = {
+            "profile": {
+                "telemetry_mappings": {
+                    "field8": {"key": "solar_voltage", "label": "Solar Panel Voltage"},
+                    "field9": {"key": "solar_current", "label": "Solar Panel Current"},
+                }
+            },
+            "cloud_cover_percentage": 5.0,
+            "is_raining": False,
+        }
+        evidences = self.engine.evaluate(features, context=context)
+        codes = [e.code for e in evidences]
+        self.assertIn("EVID_SOLAR_INPUT_NORMAL", codes)
+
+    def test_solar_metric_selection_ignores_unmapped_field8_field9(self):
+        features = {
+            "metrics": {
+                "field8": {"mean": 0.3475},
+                "field9": {"mean": 32.5825},
+            }
+        }
+        # No profile provided: fallback set is restricted to semantic solar keys
+        context = {"cloud_cover_percentage": 5.0, "is_raining": False}
+        evidences = self.engine.evaluate(features, context=context)
+        codes = [e.code for e in evidences]
+        self.assertNotIn("EVID_SOLAR_UNDERPERFORMING_CLEAR_SKY", codes)
+
+    def test_solar_open_circuit_with_solar_i_alias(self):
+        # High solar voltage (> 14V) with low current (< 0.05A) using solar_i alias
+        features = {
+            "metrics": {
+                "solar_voltage": {"mean": 18.2},
+                "solar_i": {"mean": 0.01},
+            }
+        }
+        context = {"cloud_cover_percentage": 10.0, "is_raining": False}
+        evidences = self.engine.evaluate(features, context=context)
+        codes = [e.code for e in evidences]
+        self.assertIn("EVID_SOLAR_VOLTAGE_HIGH_CURRENT_ZERO", codes)
+        self.assertNotIn("EVID_SOLAR_INPUT_NORMAL", codes)
 
 
 class TestDiagnosticReasoner(unittest.TestCase):
@@ -200,10 +327,81 @@ class TestEndToEndEvaluatorMultiDomain(unittest.TestCase):
         self.assertEqual(result["lifecycle_state"], "HEALTHY")
         self.assertEqual(len(result["top_diagnoses"]), 0)
 
+    def test_lifecycle_state_high_confidence_in_suspicious_range(self):
+        """
+        Verify that a diagnosis with confidence >= 85.0 results in LIKELY_FAILURE
+        even when the overall health score is in the suspicious range (50.0 - 70.0).
+        Also verifies that medium confidence (70.0 - 85.0) remains SUSPICIOUS.
+        """
+        with patch.object(self.evaluator.evidence_engine, "evaluate") as mock_ev, \
+             patch.object(self.evaluator.reasoner, "diagnose") as mock_diag:
+            mock_ev.return_value = [
+                EvidenceFact("EVID_COLD_CHAIN_TEMPERATURE_BREACH", "cooling", "temp high", 0.65, 5.0)
+            ]
+
+            # 1. High confidence >= 85.0 with score in suspicious range -> LIKELY_FAILURE
+            mock_diag.return_value = [{"cause_code": "CAUSE_COOLING_FAIL", "confidence_percentage": 90.0}]
+            res1 = self.evaluator.evaluate_telemetry(
+                "dev1", [{"refrigerator_temp": 5.0}], [], subsystem_weights={"cooling": 1.0, "connectivity": 0.0}
+            )
+            self.assertGreaterEqual(res1["overall_health_score"], 50.0)
+            self.assertLess(res1["overall_health_score"], 70.0)
+            self.assertEqual(res1["lifecycle_state"], "LIKELY_FAILURE")
+
+            # 2. Medium confidence (>= 70.0, < 85.0) with score in suspicious range -> SUSPICIOUS
+            mock_diag.return_value = [{"cause_code": "CAUSE_COOLING_FAIL", "confidence_percentage": 75.0}]
+            res2 = self.evaluator.evaluate_telemetry(
+                "dev1", [{"refrigerator_temp": 5.0}], [], subsystem_weights={"cooling": 1.0, "connectivity": 0.0}
+            )
+            self.assertEqual(res2["lifecycle_state"], "SUSPICIOUS")
+
+            # 3. No diagnoses with score in suspicious range -> SUSPICIOUS
+            mock_diag.return_value = []
+            res3 = self.evaluator.evaluate_telemetry(
+                "dev1", [{"refrigerator_temp": 5.0}], [], subsystem_weights={"cooling": 1.0, "connectivity": 0.0}
+            )
+            self.assertEqual(res3["lifecycle_state"], "SUSPICIOUS")
+
 
 class TestDiagnosticsAPI(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy.pool import StaticPool
+        from sqlalchemy.ext.compiler import compiles
+        from sqlalchemy.dialects.postgresql import JSONB
+        from app.db.session import Base
+
+        @compiles(JSONB, "sqlite")
+        def compile_jsonb_sqlite(type_, compiler, **kw):
+            return "JSON"
+
+        cls.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(cls.engine)
+        cls.Session = sessionmaker(bind=cls.engine)
+
     def setUp(self):
+        from app.db.session import get_db
+
+        def override_get_db():
+            db = self.Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[get_db] = override_get_db
         self.client = TestClient(app)
+
+    def tearDown(self):
+        from app.db.session import get_db
+
+        app.dependency_overrides.pop(get_db, None)
 
     def test_evaluate_payload_api(self):
         payload = {
@@ -223,6 +421,38 @@ class TestDiagnosticsAPI(unittest.TestCase):
         self.assertEqual(data["device_id"], "api_test_device")
         self.assertIn("overall_health_score", data)
         self.assertIn("top_diagnoses", data)
+
+    def test_evaluate_payload_resolves_profile_from_test_db(self):
+        from app.models.device_schema import DeviceProfile
+
+        db = self.Session()
+        profile = DeviceProfile(
+            name="AirQo-v5-Test",
+            category="air_quality",
+            telemetry_mappings={"field8": {"key": "solar_voltage", "label": "Solar Voltage"}},
+            config_mappings={},
+            metadata_mappings={},
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+
+        try:
+            payload = {
+                "device_id": "api_test_device_with_profile",
+                "profile_id": "airqo_v5_test",
+                "telemetry_window": [
+                    {"field8": 18.0, "datetime": "2026-08-23T10:00:00Z"},
+                ],
+            }
+            response = self.client.post("/api/v1/diagnostics/evaluate-payload", json=payload)
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["device_id"], "api_test_device_with_profile")
+        finally:
+            db.delete(profile)
+            db.commit()
+            db.close()
 
 
 class TestDynamicFieldMappings(unittest.TestCase):
@@ -353,6 +583,15 @@ class TestDynamicFieldMappings(unittest.TestCase):
         self.assertEqual(unpacked["field15"], 70.0) # device humidity
         self.assertEqual(unpacked["field20"], 4.167)
 
+        # Ensure capping at 13 values (field8..field20) ignores field21+
+        raw_overflow = {
+            "field_8": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",
+        }
+        unpacked_overflow = normalize_and_unpack_record(raw_overflow)
+        self.assertEqual(unpacked_overflow["field20"], 12.0)
+        self.assertNotIn("field21", unpacked_overflow)
+        self.assertNotIn("field22", unpacked_overflow)
+
     def test_map_record_from_profile_with_fallback(self):
         from app.utils.field_mappings import normalize_and_unpack_record, map_record_from_profile
 
@@ -406,6 +645,71 @@ class TestDynamicFieldMappings(unittest.TestCase):
         self.assertIn("power", result["subsystem_scores"])
         self.assertIn("active_evidences", result)
         self.assertIn("top_diagnoses", result)
+
+    def test_resolve_profile_exact_match_fallback(self):
+        from unittest.mock import MagicMock, patch
+        from app.api.v1.diagnostics import _resolve_profile
+
+        mock_db = MagicMock()
+        profile_match = MagicMock()
+        profile_match.name = "AirQo-v5_DualPM"
+
+        profile_other = MagicMock()
+        profile_other.name = "AirQo-v5"
+
+        with patch("app.api.v1.diagnostics.crud_diagnostics") as mock_crud:
+            mock_crud.get_profile.return_value = None
+            mock_crud.list_profiles.return_value = [profile_other, profile_match]
+
+            # 1. Exact match with different casing and separators
+            resolved = _resolve_profile(mock_db, profile_id="airqo_v5_dualpm")
+            self.assertEqual(resolved, profile_match)
+
+            # 2. Substring query should NOT match
+            resolved_substring = _resolve_profile(mock_db, profile_id="AirQo")
+            self.assertIsNone(resolved_substring)
+
+            # 3. Superstring query should NOT match
+            resolved_superstring = _resolve_profile(mock_db, profile_id="AirQo-v5-extra")
+            self.assertIsNone(resolved_superstring)
+
+    def test_symptom_definition_evaluation_logic_validation(self):
+        from pydantic import ValidationError
+        from app.schemas.diagnostics import SymptomDefinitionCreate
+
+        # 1. Valid JSON string parses to dict
+        valid_json = '{"metric": "battery_voltage", "threshold": 3.4}'
+        symptom = SymptomDefinitionCreate(
+            code="SYM_BATT_LOW",
+            name="Battery Voltage Low",
+            evaluation_logic=valid_json,
+        )
+        self.assertEqual(symptom.evaluation_logic, {"metric": "battery_voltage", "threshold": 3.4})
+
+        # 2. Existing dict is preserved
+        symptom_dict = SymptomDefinitionCreate(
+            code="SYM_BATT_LOW",
+            name="Battery Voltage Low",
+            evaluation_logic={"metric": "battery_voltage", "threshold": 3.4},
+        )
+        self.assertEqual(symptom_dict.evaluation_logic, {"metric": "battery_voltage", "threshold": 3.4})
+
+        # 3. None is preserved
+        symptom_none = SymptomDefinitionCreate(
+            code="SYM_BATT_LOW",
+            name="Battery Voltage Low",
+            evaluation_logic=None,
+        )
+        self.assertIsNone(symptom_none.evaluation_logic)
+
+        # 4. Invalid JSON string raises ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            SymptomDefinitionCreate(
+                code="SYM_BATT_LOW",
+                name="Battery Voltage Low",
+                evaluation_logic="not valid json {",
+            )
+        self.assertIn("Invalid JSON in evaluation_logic", str(ctx.exception))
 
 
 if __name__ == "__main__":

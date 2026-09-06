@@ -57,8 +57,8 @@ class SymptomDefinitionBase(BaseModel):
         if isinstance(v, str):
             try:
                 return json.loads(v)
-            except Exception:
-                return {}
+            except Exception as e:
+                raise ValueError(f"Invalid JSON in evaluation_logic: {e}")
         return v
 
 

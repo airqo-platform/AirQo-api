@@ -69,7 +69,7 @@ Introduced visual canvas coordinates on hardware component definitions for devic
 <summary><strong>Telemetry Normalization & CSV Stream Unpacking</strong></summary>
 
 - **Updated `app/utils/field_mappings.py`**:
-  - `normalize_and_unpack_record`: Normalizes `field_N` keys to `fieldN` and unpacks CSV-encoded sensor streams (e.g. `field8` containing comma-separated sensor readings) into discrete slots (`field8`..`field22`).
+  - `normalize_and_unpack_record`: Normalizes `field_N` keys to `fieldN` and unpacks CSV-encoded sensor streams (e.g. `field8` containing comma-separated sensor readings) into discrete slots (`field8`..`field20`).
   - `map_record_from_profile`: Dynamic telemetry mapping supporting both human-readable labels and semantic key output (`use_keys=True`).
   - Expanded static fallback `FIELD_MAPPINGS` dictionaries for `lowcost`, `lowcost_gas`, and `bam`.
 
