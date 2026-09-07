@@ -19,6 +19,8 @@ from constants import DataType, DeviceCategory, Frequency
 # deployment into a startup failure that takes down every endpoint.
 TABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+([.:][A-Za-z0-9_-]+){0,2}")
 
+_WHITESPACE_RE = re.compile(r"\s+")
+
 
 def normalize_table_name(table: str, label: Optional[str] = None) -> str:
     """
@@ -30,10 +32,6 @@ def normalize_table_name(table: str, label: Optional[str] = None) -> str:
     quoting is removed here rather than rejected, leaving one canonical bare
     form for the quoting site to wrap exactly once.
 
-    Only a matched outer pair comes off. Per-part quoting such as
-    ``proj.`ds`.table`` stays a rejection: it is malformed, not a quoting
-    convention.
-
     Args:
         table: The configured name, with or without surrounding backticks.
         label: Setting name to attribute the failure to, when there is one.
@@ -44,9 +42,9 @@ def normalize_table_name(table: str, label: Optional[str] = None) -> str:
     Raises:
         ValueError: If the name is empty or outside the accepted shape.
     """
-    cleaned = (table or "").strip()
+    cleaned = _WHITESPACE_RE.sub("", table or "")
     if len(cleaned) > 1 and cleaned.startswith("`") and cleaned.endswith("`"):
-        cleaned = cleaned[1:-1].strip()
+        cleaned = cleaned[1:-1]
     if not cleaned or not TABLE_NAME_RE.fullmatch(cleaned):
         subject = f"{label}={table!r}" if label else f"{table!r}"
         raise ValueError(

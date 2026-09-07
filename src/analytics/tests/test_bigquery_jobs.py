@@ -171,21 +171,23 @@ class TestTableNameValidation:
         assert Utils.table_name(name) == f"`{name}`"
 
     @pytest.mark.parametrize(
-        "name",
+        "name,expected",
         [
-            "`measurements`",
-            "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
-            "  `metadata.devices`  ",
+            ("`measurements`", "`measurements`"),
+            (
+                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
+                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
+            ),
+            ("  `metadata.devices`  ", "`metadata.devices`"),
+            ("` metadata.devices `", "`metadata.devices`"),
         ],
     )
-    def test_wrapping_an_already_quoted_name_is_idempotent(self, name):
+    def test_wrapping_an_already_quoted_name_is_idempotent(self, name, expected):
         """Some deployments configure the backticks into the value itself.
         Wrapping again would emit ``name`` and fail the query."""
         from api.utils.utils import Utils
 
-        wrapped = Utils.table_name(name)
-        assert wrapped == f"`{name.strip().strip('`').strip()}`"
-        assert not wrapped.startswith("``")
+        assert Utils.table_name(name) == expected
 
     @pytest.mark.parametrize(
         "name",
@@ -196,7 +198,8 @@ class TestTableNameValidation:
             "table`",  # would close the backtick quoting
             "`table",  # unmatched, so the pair is not stripped
             "``",
-            "tab le",
+            "tab$le",
+            "   ",  # whitespace-only collapses to empty
             "proj.`ds`.table",
             "`proj.`ds`.table`",
         ],
