@@ -7,7 +7,7 @@ cache patching.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from api.schemas.responses import (
@@ -76,7 +76,7 @@ class TestV2DataEndpoints:
 
     def test_data_summary_200(self, client):
         """Flask wire contract: startDateTime/endDateTime + one of
-        airqloud/grid/cohort → completeness-report envelope."""
+        grid/cohort → completeness-report envelope."""
         envelope = {
             "status": "success",
             "message": "successful",
@@ -534,9 +534,11 @@ class TestDashboardAggregationEndpoints:
 
 
 class TestPrivacyFilteringWiring:
-    """End-to-end proof that the privacy check runs on the request path
-    (not just in service unit tests) for both API versions, and that a
-    registry outage surfaces as the standard 503 error envelope."""
+    """End-to-end view of the privacy flag on the request path (not just in
+    service unit tests), for both API versions.  Asserts that the flag is
+    stated at the call site rather than which value it is set to — the flag's
+    own behaviour is covered on both settings in
+    tests/test_services.py::TestPrivacyFiltering."""
 
     def _patched_bq(self, sample_df):
         meta = {"total_count": 2, "has_more": False, "next": None}
@@ -546,43 +548,25 @@ class TestPrivacyFilteringWiring:
             return_value=(sample_df, meta),
         )
 
-    def test_v2_data_download_calls_privacy_filter(
-        self, client, valid_export_payload, sample_df
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/v2/analytics/data-download",
+            "/api/v3/public/analytics/data-download",
+        ],
+    )
+    def test_data_download_states_privacy_explicitly(
+        self, client, valid_export_payload, sample_df, path, privacy_kwarg
     ):
-        with patch(
-            "api.services.filter_non_private_sites_devices",
-            return_value={"status": "success", "data": ["site1"]},
-        ) as mock_filter, self._patched_bq(sample_df):
-            resp = client.post(
-                "/api/v2/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 200
-        mock_filter.assert_called_once_with("sites", ["site1", "site2"])
+        """Both versions share DataExportService, so both reach the flag the
+        same way."""
+        with self._patched_bq(sample_df) as mock_bq:
+            resp = client.post(path, json=valid_export_payload)
 
-    def test_v3_data_download_calls_privacy_filter(
-        self, client, valid_export_payload, sample_df
-    ):
-        with patch(
-            "api.services.filter_non_private_sites_devices",
-            return_value={"status": "success", "data": ["site1"]},
-        ) as mock_filter, self._patched_bq(sample_df):
-            resp = client.post(
-                "/api/v3/public/analytics/data-download", json=valid_export_payload
-            )
         assert resp.status_code == 200
-        mock_filter.assert_called_once()
-
-    def test_registry_outage_returns_503_error_envelope(
-        self, client, valid_export_payload
-    ):
-        with patch("api.services.filter_non_private_sites_devices", return_value=None):
-            resp = client.post(
-                "/api/v2/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 503
-        body = resp.json()
-        assert body["status"] == "error"
-        assert "privacy" in body["message"].lower()
+        assert privacy_kwarg == [{"privacy": ANY}]
+        _, kwargs = mock_bq.call_args
+        assert kwargs["where_fields"] == {"sites": ["site1", "site2"]}
 
 
 # ---------------------------------------------------------------------------
@@ -704,47 +688,95 @@ class TestObservability:
 # ---------------------------------------------------------------------------
 
 
-class TestGridReportEndpoints:
-    _payload = {
-        "grid_id": "grid-1",
+class TestAirQualityReportEndpoint:
+    """/data/report serves grids and cohorts; the body names which, the same
+    way /data/summary does."""
+
+    _WINDOW = {
         "start_time": "2024-01-01T00:00:00",
         "end_time": "2024-02-01T00:00:00",
     }
+    _PATH = "/api/v2/analytics/data/report"
 
     def test_grid_report_200(self, client):
         report = {"airquality": {"status": "success", "grid_id": "grid-1"}}
         with patch(
-            "api.services.GridReportService.get_report",
+            "api.services.AirQualityReportService.get_report",
             new_callable=AsyncMock,
             return_value=report,
         ):
-            resp = client.post("/api/v2/analytics/grid/report", json=self._payload)
+            resp = client.post(self._PATH, json={"grid_id": "grid-1", **self._WINDOW})
         assert resp.status_code == 200
         assert resp.json()["airquality"]["grid_id"] == "grid-1"
 
-    def test_grid_report_diurnal_200(self, client):
-        report = {"airquality": {"status": "success", "diurnal": []}}
+    def test_cohort_report_200(self, client):
+        report = {"airquality": {"status": "success", "cohort_id": "cohort-1"}}
         with patch(
-            "api.services.GridReportService.get_diurnal_report",
+            "api.services.AirQualityReportService.get_report",
             new_callable=AsyncMock,
             return_value=report,
         ):
             resp = client.post(
-                "/api/v2/analytics/grid/report/diurnal", json=self._payload
+                self._PATH, json={"cohort_id": "cohort-1", **self._WINDOW}
             )
         assert resp.status_code == 200
+        assert resp.json()["airquality"]["cohort_id"] == "cohort-1"
+
+    def test_entity_reaches_the_builder(self, client):
+        """The kind is derived from the body, not the path."""
+        with patch(
+            "api.services.build_entity_report", return_value={"airquality": {}}
+        ) as mock_build:
+            client.post(self._PATH, json={"cohort_id": "cohort-1", **self._WINDOW})
+
+        assert mock_build.call_args.args[:2] == ("cohort", "cohort-1")
 
     def test_equal_dates_returns_422(self, client):
         resp = client.post(
-            "/api/v2/analytics/grid/report",
-            json={**self._payload, "end_time": self._payload["start_time"]},
+            self._PATH,
+            json={
+                "grid_id": "grid-1",
+                "start_time": self._WINDOW["start_time"],
+                "end_time": self._WINDOW["start_time"],
+            },
         )
         assert resp.status_code == 422
 
-    def test_missing_grid_id_returns_422(self, client):
-        payload = {k: v for k, v in self._payload.items() if k != "grid_id"}
-        resp = client.post("/api/v2/analytics/grid/report", json=payload)
+    def test_no_entity_returns_422(self, client):
+        resp = client.post(self._PATH, json=dict(self._WINDOW))
         assert resp.status_code == 422
+
+    def test_both_entities_returns_422(self, client):
+        resp = client.post(
+            self._PATH,
+            json={"grid_id": "g1", "cohort_id": "c1", **self._WINDOW},
+        )
+        assert resp.status_code == 422
+
+    def test_oversized_window_is_a_400_error_envelope(self, client):
+        from api.utils.exceptions import QueryTooLarge
+
+        with patch(
+            "api.services.build_entity_report",
+            side_effect=QueryTooLarge(
+                limit_bytes=1073741824, required_bytes=5557452800
+            ),
+        ):
+            resp = client.post(self._PATH, json={"grid_id": "grid-1", **self._WINDOW})
+
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body["status"] == "error"
+        assert "date range is too large" in body["message"]
+
+    def test_old_entity_paths_are_gone(self, client):
+        """/grid/report and /cohort/report merged into /data/report."""
+        for path in (
+            "/api/v2/analytics/grid/report",
+            "/api/v2/analytics/cohort/report",
+        ):
+            resp = client.post(path, json={"grid_id": "g1", **self._WINDOW})
+            assert resp.status_code == 404, path
 
 
 # ---------------------------------------------------------------------------
@@ -920,3 +952,79 @@ class TestMiddleware:
         assert any(
             "CORS" in n for n in middleware_names
         ), "CORSMiddleware should be configured"
+
+
+# ---------------------------------------------------------------------------
+# Response envelope contract
+#
+# Every response — success or error — carries the same four keys, so a client
+# branches on `status` alone and always finds `message` populated.
+# ---------------------------------------------------------------------------
+
+
+class TestResponseEnvelopeContract:
+    _ENVELOPE_KEYS = {"message", "status", "data", "metadata"}
+
+    def test_oversized_query_is_a_400_error_envelope(
+        self, client, valid_export_payload
+    ):
+        from api.utils.exceptions import QueryTooLarge
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=QueryTooLarge(
+                limit_bytes=1073741824, required_bytes=5557452800
+            ),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 400
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "error"
+        assert body["data"] is None
+        assert "date range is too large" in body["message"]
+
+    def test_empty_result_is_a_200_success_envelope(
+        self, client, valid_export_payload, empty_df
+    ):
+        """No data is not an error: the request was valid, the period simply
+        holds no measurements."""
+        meta = {"total_count": 0, "has_more": False, "next": None}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(empty_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "success"
+        assert body["data"] == []
+        assert "No data available for the selected period" in body["message"]
+
+    def test_unexpected_failure_is_a_500_error_envelope(
+        self, client, valid_export_payload
+    ):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("connection reset"),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 500
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "error"
+        # Internal detail must not leak to the caller
+        assert "connection reset" not in body["message"]

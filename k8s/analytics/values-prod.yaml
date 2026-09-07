@@ -1,7 +1,7 @@
 # Currently not used.
 namespace: production
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api

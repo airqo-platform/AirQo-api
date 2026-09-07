@@ -121,7 +121,6 @@ spec:
           upstream: kubecost
           rewritePath: /$1
 
-
 ---
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
@@ -171,7 +170,7 @@ spec:
       route: production/zabbix
     - path: /zabbix
       route: production/zabbix
-    - path: /kubecost             
+    - path: /kubecost
       route: monitoring/kubecost
     - path: /
       action:

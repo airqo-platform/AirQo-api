@@ -92,7 +92,7 @@ class DataExportModel(FastAPIPyMongoModel):
     def doc_to_data_export_request(doc) -> DataExportRequest:
         # New documents store filter_type/filter_value (written by the
         # FastAPI /data-export service).  Legacy documents stored separate
-        # devices/sites/airqlouds lists — derive the pair from whichever is
+        # devices/sites lists — derive the pair from whichever is
         # populated so pre-migration requests still process.  (The old code
         # constructed the dataclass with devices=/sites= kwargs that don't
         # exist, so every request raised and was silently skipped.)
@@ -101,7 +101,7 @@ class DataExportModel(FastAPIPyMongoModel):
             filter_value = doc.get("filter_value") or []
         else:
             filter_type, filter_value = "devices", []
-            for legacy_key in ("devices", "sites", "airqlouds"):
+            for legacy_key in ("devices", "sites"):
                 if doc.get(legacy_key):
                     filter_type, filter_value = legacy_key, doc[legacy_key]
                     break

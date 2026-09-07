@@ -30,12 +30,12 @@ without a local Redis, and is what the Kubernetes readiness probe keys on.
 
 ### Runtime dependencies
 
-| Service         | Used for                             | Required to boot?            |
-| --------------- | ------------------------------------ | ---------------------------- |
-| BigQuery        | All measurement queries              | No — fails per request       |
-| Redis           | Rate limiting, and the Celery broker | No, but see below            |
-| MongoDB         | Scheduled exports                    | No — fails per request       |
-| device-registry | Privacy filtering on download/export | No — those routes return 503 |
+| Service         | Used for                             | Required to boot?      |
+| --------------- | ------------------------------------ | ---------------------- |
+| BigQuery        | All measurement queries              | No — fails per request |
+| Redis           | Rate limiting, and the Celery broker | No, but see below      |
+| MongoDB         | Scheduled exports                    | No — fails per request |
+| device-registry | Privacy filtering (currently off)    | No — not called        |
 
 Redis is the one worth understanding. While it is unreachable the API keeps
 serving: rate limiting falls back to **per-process counters** and logs a
@@ -104,19 +104,20 @@ to apply.
 These either stop the service or change behaviour in ways that are hard to
 diagnose from the symptom. The rest have sane defaults.
 
-| Variable                    | Default                | What goes wrong                                                                                                                                                         |
-| --------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                       |
-| `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                            |
-| `BIGQUERY_MAX_BYTES_BILLED` | 1 GiB                  | Deliberately tight. Legitimate large queries are **rejected by BigQuery**, logged as `bigquery cost limit exceeded`. Raise it once the logs show the real distribution. |
-| `MAX_QUERY_DAYS`            | `365`                  | Requests with a wider window are rejected with 422.                                                                                                                     |
-| `MAX_FILTER_VALUES`         | `1000`                 | Requests with more sites/devices are rejected with 422.                                                                                                                 |
-| `TRUSTED_PROXIES`           | RFC1918                | `X-Forwarded-For` is honoured only from these peers. Set it empty and every caller shares one rate-limit bucket, because the peer is always the ingress pod.            |
-| `REQUIRE_GATEWAY_IDENTITY`  | `false`                | **Leave off.** Turning it on today is an auth bypass — see [Identity](#identity-not-yet-active).                                                                        |
-| `EXPOSE_API_DOCS`           | unset                  | `/docs`, `/redoc` and `/openapi.json` return 404 in production unless this is `true`.                                                                                   |
-| `DATA_EXPORT_LOCATION`      | `EU`                   | Must match the BigQuery dataset's region, or export jobs fail.                                                                                                          |
-| `AIRQO_API_TIMEOUT`         | `10.0`                 | Without a timeout urllib3 waits forever and parks a shared worker thread.                                                                                               |
-| `CACHE_KEY_PREFIX`          | `Analytics-production` | Namespaces Redis keys. Two environments sharing a Redis without distinct prefixes will share rate-limit counters.                                                       |
+| Variable                    | Default                | What goes wrong                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                                                                                                                                                                                                                        |
+| `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                                                                                                                                                                                                                             |
+| `BIGQUERY_MAX_BYTES_BILLED` | 1 GiB                  | Deliberately tight. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 saying how much to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 1 GiB is only a couple of weeks across a few thousand devices — raise it once the logs show the real distribution. |
+| `MAX_QUERY_DAYS`            | `365`                  | Requests with a wider window are rejected with 422. Applies to downloads, charts and the grid/cohort reports alike.                                                                                                                                                                                                                                                      |
+| `BIGQUERY_*` table names    | bare names             | Validated at startup — a malformed value (`bad name`, four dotted parts, a backtick) **stops the app** rather than failing as a syntax error on the first request that touches the table.                                                                                                                                                                                |
+| `MAX_FILTER_VALUES`         | `1000`                 | Requests with more sites/devices are rejected with 422.                                                                                                                                                                                                                                                                                                                  |
+| `TRUSTED_PROXIES`           | RFC1918                | `X-Forwarded-For` is honoured only from these peers. Set it empty and every caller shares one rate-limit bucket, because the peer is always the ingress pod.                                                                                                                                                                                                             |
+| `REQUIRE_GATEWAY_IDENTITY`  | `false`                | **Leave off.** Turning it on today is an auth bypass — see [Identity](#identity-not-yet-active).                                                                                                                                                                                                                                                                         |
+| `EXPOSE_API_DOCS`           | unset                  | `/docs`, `/redoc` and `/openapi.json` return 404 in production unless this is `true`.                                                                                                                                                                                                                                                                                    |
+| `DATA_EXPORT_LOCATION`      | `EU`                   | Must match the BigQuery dataset's region, or export jobs fail.                                                                                                                                                                                                                                                                                                           |
+| `AIRQO_API_TIMEOUT`         | `10.0`                 | Without a timeout urllib3 waits forever and parks a shared worker thread.                                                                                                                                                                                                                                                                                                |
+| `CACHE_KEY_PREFIX`          | `Analytics-production` | Namespaces Redis keys. Two environments sharing a Redis without distinct prefixes will share rate-limit counters.                                                                                                                                                                                                                                                        |
 
 ## API endpoints
 
@@ -130,6 +131,7 @@ diagnose from the symptom. The rest have sane defaults.
 | GET                | `/dashboard/sites`                                                                     |
 | POST               | `/dashboard/historical/daily-averages`, `/dashboard/historical/daily-averages-devices` |
 | POST               | `/dashboard/exceedances`, `/dashboard/exceedances-devices`                             |
+| POST               | `/data/report`                                                                         |
 | POST / GET / PATCH | `/data-export` (scheduled exports)                                                     |
 
 ### v3 — `/api/v3/public/analytics`
@@ -141,15 +143,23 @@ stricter per-route limit (10/min) on top of the global 100/min middleware.
 
 - Request bodies are camelCase (`startDateTime`), though several filter
   fields are snake_case (`device_ids`). The OpenAPI schema is authoritative.
-- Exactly one filter per request: `sites`, `device_ids`, `device_names` or
-  `grid_ids`. `grid_ids` is currently capped at one grid.
+- Exactly one filter per request: `sites`, `device_ids`, `device_names`,
+  `grid_ids` or `cohort_ids`. `grid_ids` and `cohort_ids` are each currently
+  capped at one ID.
+- `/data/summary` takes exactly one of `grid` or `cohort`.
+- `/data/report` takes exactly one of `grid_id` or `cohort_id`; membership
+  resolves from BigQuery (`grids_sites` / `cohorts_devices`), not an external API.
 - `?network=` replaced the deprecated `?tenant=`.
-- The `airqlouds` filter has been removed in favour of grids.
+- Success and error responses share one envelope (`status`, `message`, `data`,
+  `metadata`); a query matching nothing is a 200 with empty `data`, not an
+  error. A window that would scan past `BIGQUERY_MAX_BYTES_BILLED` is refused
+  with a 400 saying how much to shorten it — see
+  [the API docs](api/routers/README.md#error-handling).
 
 ## Testing
 
 ```bash
-python -m pytest tests/          # 399 tests
+python -m pytest tests/
 python -m pytest tests/test_health.py
 python -m pytest -k cursor
 ```

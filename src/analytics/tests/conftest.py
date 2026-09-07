@@ -127,6 +127,28 @@ def mock_privacy_filter(monkeypatch):
     monkeypatch.setattr("api.services.filter_non_private_sites_devices", _passthrough)
 
 
+@pytest.fixture
+def privacy_kwarg(monkeypatch):
+    """Records the keyword arguments each service hands _filter_from_request,
+    then delegates to the real one.
+
+    Lets a test assert that a service states the `privacy` flag without
+    pinning which value it states, so the suite holds whichever way a path is
+    wired and never rides on the parameter's default.
+    """
+    import api.services as services
+
+    real = services._filter_from_request
+    calls = []
+
+    async def spy(data, **kwargs):
+        calls.append(kwargs)
+        return await real(data, **kwargs)
+
+    monkeypatch.setattr(services, "_filter_from_request", spy)
+    return calls
+
+
 @pytest.fixture(autouse=True)
 def clear_cache():
     """Reset the in-memory cache before every test."""

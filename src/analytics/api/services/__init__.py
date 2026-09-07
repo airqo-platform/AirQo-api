@@ -31,10 +31,7 @@ from api.utils.bigquery_jobs import query_job_config
 
 from api.models.async_bigquery_api import AsyncBigQueryApi
 from api.models.exceedances_repo import ExceedanceRepository
-from api.models.base.data_processing import (
-    build_grid_diurnal_report,
-    build_grid_report,
-)
+from api.models.base.data_processing import build_entity_report
 from api.models.data_export import (
     DataExportModel,
     DataExportRequest as DataExportRecord,
@@ -45,12 +42,12 @@ from api.schemas.requests import (
     DailyAveragesRequest,
     DashboardChartRequest,
     DataExportRequest,
+    AirQualityReportRequest,
     DataSummaryRequest,
     DeviceDailyAveragesRequest,
     DeviceExceedancesRequest,
     ExceedancesRequest,
     ForecastDataExportRequest,
-    GridReportRequest,
     MonitoringSiteRequest,
     RawDataExportRequest,
     ReportRequest,
@@ -68,15 +65,16 @@ from api.schemas.responses import (
 )
 from api.utils.data_cleaning import CleaningContext, build_download_pipeline
 from api.utils.data_formatters import (
-    compute_airqloud_summary,
+    compute_entity_summary,
     filter_non_private_sites_devices,
     format_to_aqcsv,
     get_validated_filter,
 )
+from api.utils.messages import FILTER_MSG, no_data_message
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
-from api.utils.exceptions import ExportRequestNotFound
+from api.utils.exceptions import ExportRequestNotFound, QueryTooLarge, format_bytes
 from config import settings
 from constants import (
     DataExportFormat,
@@ -119,7 +117,9 @@ def _resolve_table(datatype: str, device_category: str, frequency: str) -> str:
 
 
 # Filter types that device-registry can screen for private entries.
-# airqlouds/grid_ids have no filterNonPrivate* endpoint and pass through.
+# grid_ids/cohort_ids have no filterNonPrivate* endpoint and pass
+# through: the registry screens site and device IDs, not the containers that
+# resolve to them, so a grid or cohort reaches its private members unscreened.
 _PRIVACY_FILTERED_TYPES = {"sites", "device_ids", "device_names"}
 
 
@@ -165,14 +165,39 @@ async def _filter_from_request(
     export paths only; dashboard and chart endpoints pass privacy=False
     (deliberate — revisit before public cutover).
     """
-    filter_type, filter_value, error_message = get_validated_filter(data)
-    if error_message:
-        raise HTTPException(status_code=400, detail=error_message)
+    filter_type, filter_value = get_validated_filter(data)
+
+    if not filter_type or not filter_value:
+        raise HTTPException(status_code=400, detail=FILTER_MSG)
 
     if privacy and filter_type in _PRIVACY_FILTERED_TYPES:
         filter_value = await _strip_private(filter_type, filter_value)
 
     return filter_type, filter_value
+
+
+def _too_large_error(
+    exc: QueryTooLarge, frequency: Optional[Frequency] = None
+) -> HTTPException:
+    """
+    Turn a refused-for-size query into a 400 the requester can act on.
+
+    Bytes are billed per partition scanned, so the window is the lever that
+    moves the figure — say so, and say by how much, rather than returning the
+    raw BigQuery text.
+    """
+    for_frequency = f" for {frequency.value} data" if frequency else ""
+    factor = exc.reduction_factor
+    by_how_much = f" by about {factor}x" if factor else ""
+    detail = (
+        f"The requested date range is too large{for_frequency}: it would scan "
+        f"{format_bytes(exc.required_bytes)} of data, above the "
+        f"{format_bytes(exc.limit_bytes)} limit for a single request. "
+        f"Shorten the date range{by_how_much}"
+    )
+    if frequency in (Frequency.RAW, Frequency.HOURLY):
+        detail += ", or request a coarser frequency such as daily"
+    return HTTPException(status_code=400, detail=detail + ", then try again.")
 
 
 def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -294,7 +319,7 @@ class DataExportService(BaseService):
         """
         Data-completeness report over the devices-summary table (Flask
         /data/summary): hourly/calibrated/uncalibrated record counts and
-        percentages per device and per site, for one airqloud/grid/cohort.
+        percentages per device and per site, for one grid/cohort.
         """
         filter_kind, filter_id = request.entity()
         start = self._summary_hour(request.start_date_time)
@@ -308,6 +333,8 @@ class DataExportService(BaseService):
             df = await bq.execute_query_async(
                 query, query_job_config(query_parameters=params)
             )
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during data summary")
             raise HTTPException(
@@ -316,7 +343,7 @@ class DataExportService(BaseService):
 
         try:
             summary = await asyncio.to_thread(
-                compute_airqloud_summary, df, start_str, end_str
+                compute_entity_summary, df, start_str, end_str
             )
         except Exception as exc:
             self.logger.exception("Summary computation failed")
@@ -329,8 +356,11 @@ class DataExportService(BaseService):
                 "status": "success",
                 # Flask interpolated the (possibly empty) grid value here —
                 # use the requested entity id for a more useful message.
-                "message": f"No data found for {filter_kind} {filter_id} "
-                f"from {start_str} to {end_str}",
+                "message": no_data_message(
+                    request.start_date_time,
+                    request.end_date_time,
+                    entity=f"{filter_kind} {filter_id}",
+                ),
                 "data": {},
                 "metadata": None,
             }
@@ -374,6 +404,8 @@ class DataExportService(BaseService):
                 dynamic_query=False,
                 use_cache=True,
             )
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc, Frequency.HOURLY) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during forecast data export")
             raise HTTPException(
@@ -398,7 +430,9 @@ class DataExportService(BaseService):
         if df.empty:
             return DataExportResponse(
                 status="success",
-                message="No forecast data found for the specified criteria.",
+                message=no_data_message(
+                    request.start_date_time, request.end_date_time, entity="forecasts"
+                ),
                 data=[],
                 metadata={**metadata, "total_count": 0},
             )
@@ -421,7 +455,7 @@ class DataExportService(BaseService):
     ) -> Union[DataExportResponse, StreamingResponse]:
         """Shared export pipeline: filter → table → query → format response."""
         req_dict = request.model_dump(by_alias=False)
-        filter_type, filter_value = await _filter_from_request(req_dict)
+        filter_type, filter_value = await _filter_from_request(req_dict, privacy=False)
 
         table = _resolve_table(
             datatype=datatype,
@@ -447,6 +481,8 @@ class DataExportService(BaseService):
                 use_cache=True,
                 cursor_token=request.cursor,
             )
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc, frequency) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during data export")
             raise HTTPException(
@@ -472,7 +508,7 @@ class DataExportService(BaseService):
         if df.empty:
             return DataExportResponse(
                 status="success",
-                message="No data found for the specified criteria.",
+                message=no_data_message(request.start_date_time, request.end_date_time),
                 data=[],
                 metadata={**metadata, "total_count": 0},
             )
@@ -537,6 +573,8 @@ class DashboardService(BaseService):
                 dynamic_query=True,
                 use_cache=True,
             )
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc, Frequency(request.frequency)) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during get_chart_data")
             raise HTTPException(
@@ -563,7 +601,7 @@ class DashboardService(BaseService):
         if df.empty:
             return DashboardChartResponse(
                 status="success",
-                message="No data found for the specified criteria.",
+                message=no_data_message(request.start_date_time, request.end_date_time),
                 chart_type=request.chart_type,
                 data=[],
                 metadata={**metadata, "total_count": 0},
@@ -671,7 +709,9 @@ class DashboardService(BaseService):
         )
         return DailyAveragesResponse(
             status="success",
-            message="daily averages successfully fetched",
+            message="daily averages successfully fetched"
+            if values
+            else no_data_message(request.start_date, request.end_date),
             data=DailyAveragesData(
                 average_values=values, labels=labels, background_colors=colors
             ),
@@ -697,7 +737,9 @@ class DashboardService(BaseService):
         )
         return DailyAveragesResponse(
             status="success",
-            message="daily averages successfully fetched",
+            message="daily averages successfully fetched"
+            if values
+            else no_data_message(request.start_date, request.end_date),
             data=DailyAveragesData(
                 average_values=values, labels=labels, background_colors=colors
             ),
@@ -735,6 +777,8 @@ class DashboardService(BaseService):
         bq = AsyncBigQueryApi()
         try:
             return await bq.execute_query_async(query, job_config)
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc, Frequency.HOURLY) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during daily averages")
             raise HTTPException(
@@ -833,7 +877,9 @@ class DashboardService(BaseService):
 
         return ExceedancesResponse(
             status="success",
-            message="exceedance data successfully fetched",
+            message="exceedance data successfully fetched"
+            if docs
+            else no_data_message(request.start_date, request.end_date),
             data=docs,
         )
 
@@ -875,6 +921,8 @@ class DashboardService(BaseService):
         bq = AsyncBigQueryApi()
         try:
             df = await bq.execute_query_async(query, job_config)
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during device exceedances")
             raise HTTPException(
@@ -890,7 +938,9 @@ class DashboardService(BaseService):
         ]
         return ExceedancesResponse(
             status="success",
-            message="exceedance data successfully fetched",
+            message="exceedance data successfully fetched"
+            if data
+            else no_data_message(request.start_date, request.end_date),
             data=data,
         )
 
@@ -911,6 +961,8 @@ class MonitoringService(BaseService):
         try:
             site_ids = request.site_ids if request else None
             df = await bq.get_sites_async(site_ids=site_ids)
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during get_sites")
             raise HTTPException(
@@ -962,38 +1014,42 @@ class MonitoringService(BaseService):
 # ---------------------------------------------------------------------------
 
 
-class GridReportService(BaseService):
+class AirQualityReportService(BaseService):
     """
-    Handles the grid air-quality report endpoints.
+    Handles the air-quality report endpoint for grids and cohorts.
 
-    The heavy lifting (external Grid API call, BigQuery query, pandas
-    aggregation) lives in framework-free functions in
+    The heavy lifting (BigQuery queries, pandas aggregation) lives in
+    framework-free functions in
     api/models/base/data_processing.py; this service maps their exceptions
     to HTTP status codes and keeps the blocking work off the event loop.
     """
 
-    async def get_report(self, request: GridReportRequest) -> Dict[str, Any]:
-        """Full grid report: daily/monthly/annual + site/city/region aggregates."""
-        return await self._run(build_grid_report, request)
+    async def get_report(self, request: AirQualityReportRequest) -> Dict[str, Any]:
+        """
+        PM aggregates for one grid or cohort: daily/monthly/annual plus
+        site/city/country/region breakdowns.
 
-    async def get_diurnal_report(self, request: GridReportRequest) -> Dict[str, Any]:
-        """Diurnal grid report: hour-of-day and day/hour aggregates only."""
-        return await self._run(build_grid_diurnal_report, request)
-
-    async def _run(self, builder, request: GridReportRequest) -> Dict[str, Any]:
-        """Shared execution path: thread off the blocking builder, map errors."""
+        The two kinds share a pipeline; the request names which one.
+        """
+        kind, entity_id = request.entity()
         try:
             return await asyncio.to_thread(
-                builder, request.grid_id, request.start_time, request.end_time
+                build_entity_report,
+                kind,
+                entity_id,
+                request.start_time,
+                request.end_time,
             )
+        except QueryTooLarge as exc:
+            raise _too_large_error(exc, Frequency.HOURLY) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
-            self.logger.exception("Grid report generation failed")
+            self.logger.exception("Report generation failed")
             raise HTTPException(
-                status_code=500, detail="Failed to generate grid report"
+                status_code=500, detail="Failed to generate report"
             ) from exc
 
 
@@ -1015,7 +1071,7 @@ class ExportRequestService(BaseService):
     async def create(self, request: ScheduledExportRequest) -> Dict[str, Any]:
         """Register a new export request (status SCHEDULED)."""
         req_dict = request.model_dump(by_alias=False)
-        filter_type, filter_value = await _filter_from_request(req_dict)
+        filter_type, filter_value = await _filter_from_request(req_dict, privacy=False)
 
         record = DataExportRecord(
             status=DataExportStatus.SCHEDULED,

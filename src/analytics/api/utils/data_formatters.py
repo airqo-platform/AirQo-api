@@ -12,6 +12,7 @@ from api.utils.pollutants.pm_25 import (
     BQ_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
+from api.schemas.requests import _FILTER_KEYS
 from api.utils.http import AirQoRequests
 from api.utils.messages import FILTER_MSG
 from constants import Frequency
@@ -71,9 +72,7 @@ def compute_devices_summary(data: pd.DataFrame) -> pd.DataFrame:
     return devices_summary
 
 
-def compute_airqloud_summary(
-    data: pd.DataFrame, start_date_time, end_date_time
-) -> dict:
+def compute_entity_summary(data: pd.DataFrame, start_date_time, end_date_time) -> dict:
     if len(data.index) == 0:
         return {}
 
@@ -179,24 +178,6 @@ def compute_airqloud_summary(
                 "devices": devices,
             }
 
-        elif "airqloud" in data.columns:
-            airqloud = data.iloc[0]["airqloud"]
-            airqloud_id = data.iloc[0]["airqloud_id"]
-            return {
-                "airqloud": airqloud,
-                "airqloud_id": airqloud_id,
-                "hourly_records": hourly_records,
-                "calibrated_records": calibrated_records,
-                "uncalibrated_records": un_calibrated_records,
-                "calibrated_percentage": (calibrated_records / hourly_records) * 100,
-                "uncalibrated_percentage": (un_calibrated_records / hourly_records)
-                * 100,
-                "start_date_time": start_date_time,
-                "end_date_time": end_date_time,
-                "sites": sites,
-                "devices": devices,
-            }
-
 
 def format_to_aqcsv(
     data: List, pollutants: List, frequency: Frequency
@@ -271,31 +252,6 @@ def format_to_aqcsv(
     return dataframe.to_dict("records")
 
 
-def validate_network(network_name: str) -> bool:
-    """
-    Validate if a given network name exists in the list of networks.
-
-    Args:
-        network_name (str): The name of the network to validate.
-
-    Returns:
-        bool: True if the network name exists, False otherwise.
-    """
-    if not network_name:
-        return False
-
-    endpoint: str = "/users/networks"
-    airqo_requests = AirQoRequests()
-    response = airqo_requests.request(endpoint=endpoint, method="get")
-
-    if response and "networks" in response:
-        networks = response["networks"]
-        # TODO Could add an active network filter
-        return any(network.get("net_name") == network_name for network in networks)
-
-    return False
-
-
 def filter_non_private_sites_devices(
     filter_type: str, filter_value: List[str]
 ) -> Dict[str, Any]:
@@ -341,10 +297,10 @@ def filter_non_private_sites_devices(
         logger.exception(f"Error while filtering non private {filter_type}: {e}")
 
 
-def get_validated_filter(json_data):
+def get_validated_filter(json_data: Dict[str, Any]) -> tuple[Any, List[Any]]:
     """
     Validates that exactly one of 'sites', 'device_ids', 'device_names' or
-    'grid_ids' is provided in the request, and applies filtering if necessary.
+    'grid_ids' is provided in the request.
 
     Args:
         json_data (dict): JSON payload from the request.
@@ -353,52 +309,17 @@ def get_validated_filter(json_data):
         tuple: The name of the filter ("sites", "device_ids", "device_names"
         or "grid_ids") and its validated value if valid.
 
-    Raises:
-        ValueError: If more than one or none of the filters are provided.
+    Note: Assurance of exactly one filter is provided is enforced by the request schema, so
+    this function only needs to validate that the provided filter is recognized and return it.
     """
     filter_type: str = None
-    validated_value: Dict[str, Any] = None
     validated_data: List[str] = None
-    error_message: str = ""
 
-    # TODO Lias with device registry to cleanup this makeshift implementation
-    devices = ["device_ids", "device_names"]
-    sites = [
-        "sites",
-    ]
-    # "airqlouds" was removed — the concept is deprecated in favour of grids.
-    valid_filters = [
-        "sites",
-        "device_ids",
-        "device_names",
-        "grid_ids",
-    ]
-
-    provided_filters = [key for key in valid_filters if json_data.get(key)]
+    provided_filters = [key for key in _FILTER_KEYS if json_data.get(key)]
     if not provided_filters:
-        # Indexing straight into an empty list raised IndexError, which
-        # surfaced as an unhandled 500 rather than the intended 400. Request
-        # schemas normally catch this first, but callers that bypass them
-        # (or send a since-removed filter such as `airqlouds`) reach here.
-        return None, None, FILTER_MSG
+        return None, []
 
     filter_type = provided_filters[0]
-    filter_value = json_data.get(filter_type)
+    validated_data = json_data.get(filter_type, [])
 
-    # TODO Uncomment when proper access control is implemented in device registry.
-    # TODO Filter/validate device names/ids existence.
-    # if filter_type in sites:
-    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
-    # elif filter_type in devices:
-    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
-
-    # if validated_value and validated_value.get("status") == "success":
-    #     validated_data = validated_value.get("data", [])
-    # else:
-    #     error_message = validated_value.get("message", "Data filter validation failed")
-    #     logger.warning(f"The supplied {filter_type} might be private")
-
-    # TODO Delete
-    validated_data = filter_value
-
-    return filter_type, validated_data, error_message
+    return filter_type, validated_data

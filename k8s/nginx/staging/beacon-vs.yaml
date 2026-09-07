@@ -8,7 +8,7 @@ spec:
   upstreams:
     - name: beacon-ui
       service: airqo-stage-beacon-svc
-      port: 3000  
+      port: 3000
     - name: auth-service
       service: airqo-stage-auth-api-svc
       port: 3000
@@ -26,13 +26,13 @@ spec:
       port: 4001
     - name: view
       service: airqo-stage-view-api-svc
-      port: 8080  
+      port: 8080
     - name: spatial
       service: airqo-stage-spatial-api-svc
-      port: 5000   
+      port: 5000
     - name: beacon
-      service: airqo-stage-beacon-api-svc 
-      port: 8000                    
+      service: airqo-stage-beacon-api-svc
+      port: 8000
   routes:
     - path: /
       action:
@@ -111,4 +111,3 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-                  
