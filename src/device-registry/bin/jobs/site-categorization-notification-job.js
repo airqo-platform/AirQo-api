@@ -11,7 +11,7 @@ const { logObject, logText } = require("@utils/shared");
 
 // Job configuration
 const JOB_NAME = "site-categorization-notification-job";
-const JOB_SCHEDULE = "15 */5 * * *"; // Every 5 hours at 15 minutes past (offset from categorization job)
+const JOB_SCHEDULE = "21 */5 * * *"; // Every 5 hours at 21 minutes past (offset from site-categorization-job's hours; minute also staggered off :15, shared by the hourly cohort-snapshot-job and update-duplicate-site-fields-job)
 const TIMEZONE = "Africa/Nairobi"; // East Africa Time
 
 // Notification thresholds

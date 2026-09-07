@@ -367,17 +367,6 @@ const PreferenceSchema = new mongoose.Schema(
         ref: "cohort",
       },
     ],
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-    },
-    network_ids: [
-      {
-        type: ObjectId,
-        ref: "network",
-      },
-    ],
     group_id: {
       type: ObjectId,
       ref: "group",
@@ -496,7 +485,6 @@ PreferenceSchema.pre(
         "airqloud_ids",
         "grid_ids",
         "cohort_ids",
-        "network_ids",
         "site_ids",
         "device_ids",
         "group_ids",
@@ -555,9 +543,7 @@ PreferenceSchema.methods = {
       chartSubTitle: this.chartSubTitle,
       site_ids: this.site_ids,
       device_ids: this.device_ids,
-      network_id: this.network_id,
       group_id: this.group_id,
-      network_ids: this.network_ids,
       group_ids: this.group_ids,
       period: this.period,
       createdAt: this.createdAt,
@@ -751,7 +737,6 @@ PreferenceSchema.statics = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 

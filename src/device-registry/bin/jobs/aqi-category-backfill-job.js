@@ -52,7 +52,7 @@ const aqiUtil = require("@utils/aqi.util");
 
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const JOB_NAME = "aqi-category-backfill";
-const JOB_SCHEDULE = "0 5 * * *"; // Daily 05:00 — safety net; the real trigger is event-driven (see runAqiCategoryBackfillJob's caller in aqi.controller.js)
+const JOB_SCHEDULE = "5 5 * * *"; // Daily 05:05 — safety net; the real trigger is event-driven (see runAqiCategoryBackfillJob's caller in aqi.controller.js); minute staggered off :00, shared by the hourly device-status-hourly-check-job
 const BATCH_SIZE = 200;
 const LOCK_TTL_SECONDS = 30 * 60;
 const POD_ID = process.env.HOSTNAME || os.hostname();

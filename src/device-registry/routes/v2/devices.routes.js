@@ -118,6 +118,16 @@ router.get(
   deviceController.getMyDevices
 );
 
+// GET /devices/my-impact — per-owner claimed-device summary (counts +
+// trailing-30-day uptime), the data behind an "impact report" incentive.
+router.get(
+  "/my-impact",
+  validateTenant,
+  validateGetMyDevices,
+  validate,
+  deviceController.getMyImpact
+);
+
 router.get(
   "/check-availability/:deviceName",
   validateTenant,

@@ -1,9 +1,11 @@
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Union, Dict, Any
 
 class DeviceBase(BaseModel):
     device_id: str
     network_id: Optional[str] = None
+    profile_id: Optional[Union[UUID, str]] = None
     current_firmware: Optional[str] = None
     previous_firmware: Optional[str] = None
     file_upload_state: Optional[bool] = False
@@ -15,6 +17,7 @@ class DeviceBase(BaseModel):
 class DeviceBeaconData(BaseModel):
     network_id: Optional[str] = None
     site_id: Optional[str] = None
+    profile_id: Optional[Union[UUID, str]] = None
     current_firmware: Optional[str] = None
     previous_firmware: Optional[str] = None
     file_upload_state: Optional[bool] = False

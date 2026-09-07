@@ -12,7 +12,7 @@ const { logObject, logText } = require("@utils/shared");
 
 // Job configuration
 const JOB_NAME = "site-categorization-job";
-const JOB_SCHEDULE = "0 2,14 * * *"; // Twice daily at 02:00 and 14:00 EAT
+const JOB_SCHEDULE = "11 2,14 * * *"; // Twice daily at 02:11 and 14:11 EAT (minute staggered off :00, shared by several other jobs at those hours)
 const TIMEZONE = "Africa/Nairobi"; // East Africa Time
 
 // Processing configuration

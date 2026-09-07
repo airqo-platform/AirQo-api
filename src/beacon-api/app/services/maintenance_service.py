@@ -220,8 +220,8 @@ def get_synced_map_view(
             cohorts, db, start_dt, end_dt, frequency=frequency,
         )
 
-    device_map, name_to_channel = _build_map_view_devices(cohorts)
-    _override_last_active_from_local(device_map, name_to_channel)
+    device_map, name_to_channel = _build_map_view_devices(cohorts, db=db)
+    _override_last_active_from_local(device_map, name_to_channel, db=db)
 
     output = []
     for d in device_map.values():
@@ -234,6 +234,7 @@ def get_synced_map_view(
 
 def _build_map_view_devices(
     cohorts: List[Dict[str, Any]],
+    db: Optional[Any] = None,
 ) -> tuple:
     """Build the device_map + name->channel index from a list of cohorts."""
     device_map: Dict[str, Dict[str, Any]] = {}
@@ -265,11 +266,14 @@ def _build_map_view_devices(
     # Link path: SyncDevice.site_id -> SyncGridSite.site_id -> SyncGrid
     if name_to_device_id:
         device_ids = list(set(name_to_device_id.values()))
-        db = SessionLocal()
-        try:
+        if db is not None:
             device_grids = _fetch_grids_by_device_ids(db, device_ids)
-        finally:
-            db.close()
+        else:
+            session = SessionLocal()
+            try:
+                device_grids = _fetch_grids_by_device_ids(session, device_ids)
+            finally:
+                session.close()
         for d_name, d_id in name_to_device_id.items():
             if d_name in device_map:
                 device_map[d_name]["grids"] = device_grids.get(d_id, [])
@@ -283,6 +287,7 @@ def _make_map_view_entry(dev: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "device_id": dev.get("_id", ""),
         "device_name": dev.get("name"),
+        "device_number": dev.get("device_number"),
         "latitude": dev.get("latitude"),
         "longitude": dev.get("longitude"),
         "last_active": dev.get("lastActive"),
@@ -297,16 +302,20 @@ def _make_map_view_entry(dev: Dict[str, Any]) -> Dict[str, Any]:
 def _override_last_active_from_local(
     device_map: Dict[str, Dict[str, Any]],
     name_to_channel: Dict[str, str],
+    db: Optional[Any] = None,
 ) -> None:
     """Replace last_active timestamps with the latest local raw record per channel."""
     if not name_to_channel:
         return
 
-    db = SessionLocal()
-    try:
+    if db is not None:
         latest_by_channel = get_latest_raw_timestamps(db, name_to_channel.values())
-    finally:
-        db.close()
+    else:
+        session = SessionLocal()
+        try:
+            latest_by_channel = get_latest_raw_timestamps(session, name_to_channel.values())
+        finally:
+            session.close()
 
     for d_name, ch_id in name_to_channel.items():
         ts = latest_by_channel.get(ch_id)
@@ -377,23 +386,28 @@ def _enrich_single_cohort(
         return False
 
 
-def _resolve_stream_last_active(dev: Dict[str, Any]) -> Optional[str]:
+def _resolve_stream_last_active(dev: Dict[str, Any], db: Optional[Any] = None) -> Optional[str]:
     """Return the latest raw timestamp for a device, falling back to lastActive."""
     last_active = dev.get("lastActive")
     dn = dev.get("device_number")
     if dn is None:
         return last_active
 
-    db = SessionLocal()
-    try:
+    if db is not None:
         latest = get_latest_raw_timestamps(db, [str(dn)])
-    finally:
-        db.close()
+    else:
+        session = SessionLocal()
+        try:
+            latest = get_latest_raw_timestamps(session, [str(dn)])
+        finally:
+            session.close()
     ts = latest.get(str(dn))
     return ts.isoformat() if ts is not None else last_active
 
 
-def _build_stream_device_event(dev: Dict[str, Any], cohort_name: str) -> Dict[str, Any]:
+def _build_stream_device_event(
+    dev: Dict[str, Any], cohort_name: str, db: Optional[Any] = None
+) -> Dict[str, Any]:
     """Build an SSE 'device' event payload for a freshly-seen device."""
     err = _error_margin_from_averages(dev.get("averages") or {})
     return {
@@ -401,9 +415,10 @@ def _build_stream_device_event(dev: Dict[str, Any], cohort_name: str) -> Dict[st
         "data": {
             "device_id": dev.get("_id", ""),
             "device_name": dev.get("name"),
+            "device_number": dev.get("device_number"),
             "latitude": dev.get("latitude"),
             "longitude": dev.get("longitude"),
-            "last_active": _resolve_stream_last_active(dev),
+            "last_active": _resolve_stream_last_active(dev, db=db),
             "uptime": sanitize_metric(dev.get("uptime")),
             "data_completeness": sanitize_metric(dev.get("data_completeness")),
             "error_margin": sanitize_metric(err),

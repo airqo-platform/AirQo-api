@@ -41,7 +41,7 @@ const { logText } = require("@utils/shared");
 const cron = require("node-cron");
 
 const JOB_NAME = "backfill-api-code-job";
-const JOB_SCHEDULE = "0 3 * * *"; // 03:00 daily — low-traffic window
+const JOB_SCHEDULE = "6 3 * * *"; // 03:06 daily — low-traffic window; runs after audit-api-code-job (02:03); minute staggered off :00, shared by events-retention-job's 03:00 run
 const BATCH_SIZE = 100;
 
 let isJobRunning = false;

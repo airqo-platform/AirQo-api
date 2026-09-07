@@ -68,7 +68,7 @@ const { logText } = require("@utils/shared");
 const cron = require("node-cron");
 
 const JOB_NAME = "audit-api-code-job";
-const JOB_SCHEDULE = "0 2 * * *"; // 02:00 daily — before backfill-api-code-job at 03:00
+const JOB_SCHEDULE = "3 2 * * *"; // 02:03 daily — before backfill-api-code-job at 03:06; minute staggered off :00, shared by several other 02:00 jobs
 const BATCH_SIZE = 100;
 const SAMPLE_LIMIT = 10; // max device names printed per category in the report
 const DRY_RUN = process.env.AUDIT_API_CODE_DRY_RUN === "true";

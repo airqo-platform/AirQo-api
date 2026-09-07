@@ -19,7 +19,7 @@ function normalizePerms(perms) {
 }
 
 /**
- * Check if user has required permissions (global across all groups/networks)
+ * Check if user has required permissions (global across all groups)
  */
 const requirePermissions = (requiredPermissions, options = {}) => {
   return async (req, res, next) => {
@@ -522,10 +522,6 @@ const debugPermissions = () => {
           res.set(
             "X-User-Group-Roles",
             JSON.stringify(debugInfo.groupMemberships)
-          );
-          res.set(
-            "X-User-Network-Roles",
-            JSON.stringify(debugInfo.networkMemberships)
           );
           res.set(
             "X-Token-Strategy",

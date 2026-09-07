@@ -52,7 +52,7 @@ const AirQualitySummaryModel = require("@models/AirQualitySummary");
 
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const JOB_NAME = "air-quality-rollup-job";
-const JOB_SCHEDULE = "0 4 * * *"; // Daily at 04:00 — a >10x safety margin under the 14-day TTL
+const JOB_SCHEDULE = "4 4 * * *"; // Daily at 04:04 — a >10x safety margin under the 14-day TTL; minute staggered off :00, shared by several other jobs at 04:00
 const RAW_DATA_RETENTION_MS = 14 * 24 * 60 * 60 * 1000; // matches Reading's TTL indexes
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000; // first-run default window
 

@@ -15,8 +15,10 @@ const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
 const WARNING_FREQUENCY_HOURS = 4; // Change this value to adjust frequency
 
 const JOB_NAME = "update-duplicate-site-fields-job";
+// Minute staggered off :15, shared by the hourly cohort-snapshot-job and
+// site-categorization-notification-job's every-5h run.
 const JOB_SCHEDULE = getSchedule(
-  `15 */${WARNING_FREQUENCY_HOURS} * * *`,
+  `24 */${WARNING_FREQUENCY_HOURS} * * *`,
   constants.ENVIRONMENT,
 );
 

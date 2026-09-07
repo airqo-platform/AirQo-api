@@ -106,7 +106,7 @@ describe("RoleSchema instance method", () => {
   describe("toJSON method", () => {
     it("should return the JSON representation of the role", () => {
       const roleId = new mongoose.Types.ObjectId();
-      const networkId = new mongoose.Types.ObjectId();
+      const groupId = new mongoose.Types.ObjectId();
       const permId1 = new mongoose.Types.ObjectId();
       const permId2 = new mongoose.Types.ObjectId();
 
@@ -117,19 +117,23 @@ describe("RoleSchema instance method", () => {
         role_status: "ACTIVE",
         role_permissions: [permId1, permId2],
         role_description: "Some description",
-        network_id: networkId,
+        group_id: groupId,
       });
 
       const result = role.toJSON();
 
       // toJSON returns: _id, role_name, role_code, role_status, role_permissions,
-      // role_description, network_id — no role_users
+      // role_description, group_id — no role_users, no network_id (removed)
       expect(result._id.toString()).to.equal(roleId.toString());
       expect(result).to.have.property("role_name", "Role 1");
       expect(result).to.have.property("role_code", "ROLE001");
       expect(result).to.have.property("role_status", "ACTIVE");
       expect(result).to.have.property("role_description", "Some description");
       expect(result.role_permissions).to.be.an("array").with.lengthOf(2);
+      // Regression: group_id must not be silently dropped like it was before
+      // — the same asymmetric-field trap that caused the AIRQO_SUPER_ADMIN bug.
+      expect(result.group_id.toString()).to.equal(groupId.toString());
+      expect(result).to.not.have.property("network_id");
     });
   });
 });

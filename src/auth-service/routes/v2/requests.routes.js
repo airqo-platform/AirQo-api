@@ -111,10 +111,10 @@ router.delete(
 );
 
 // Both routes below previously had no authorization beyond "is logged in" —
-// any authenticated user could modify/delete any group's or network's
-// AccessRequest by guessing a request_id. requireAccessRequestManagerAccess()
-// resolves the request's target group and requires manager access to it,
-// matching /approve and /reject.
+// any authenticated user could modify/delete any group's AccessRequest by
+// guessing a request_id. requireAccessRequestManagerAccess() resolves the
+// request's target group and requires manager access to it, matching
+// /approve and /reject.
 router.delete(
   "/:request_id",
   requestValidations.deleteRequest,

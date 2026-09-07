@@ -23,12 +23,10 @@ describe("CandidateModel - Statics", () => {
 
   describe("register", () => {
     it("should create a new candidate and return success response", async () => {
-      const networkId = new mongoose.Types.ObjectId();
       const args = {
         email: "test@example.com",
         firstName: "John",
         lastName: "Doe",
-        network_id: networkId,
         jobTitle: "Test Job Title",
         category: "Test Category",
         country: "Test Country",
@@ -148,7 +146,6 @@ describe("CandidateModel - Methods", () => {
   describe("toJSON", () => {
     it("should return the JSON representation of the candidate object", () => {
       const candidateId = new mongoose.Types.ObjectId();
-      const networkId = new mongoose.Types.ObjectId();
 
       const candidate = new (CandidateModel("airqo"))({
         _id: candidateId,
@@ -160,7 +157,6 @@ describe("CandidateModel - Methods", () => {
         long_organization: "Test Long Organization",
         jobTitle: "Test Job Title",
         website: "https://www.example.com",
-        network_id: networkId,
         status: "pending",
         country: "Test Country",
       });

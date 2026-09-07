@@ -306,6 +306,7 @@ alembic stamp head
 ## Related Documentation
 
 - [API Endpoints Reference](API_ENDPOINTS.md) - Detailed endpoint documentation
+- [Changelog](CHANGELOG.md) - Release history, database migrations, and features
 
 ## License
 
