@@ -807,4 +807,74 @@ describe("createCohort", () => {
       expect(next.calledOnce).to.be.true;
     });
   });
+
+  describe("listCachedDevices", () => {
+    const proxyquire = require("proxyquire");
+    const cohortObjectId = new mongoose.Types.ObjectId();
+
+    // Wires @models/Cohort and @models/CohortDeviceSnapshot to in-memory
+    // stubs so the search-regex behavior can be exercised without a real
+    // DB connection. `capture` records the filter passed to find()/
+    // countDocuments() so the test can assert on the escaped $regex value.
+    const buildProxiedCohortUtil = ({ coveredCohortIds, capture }) =>
+      proxyquire("../cohort.util", {
+        "@models/Cohort": () => ({
+          find: () => ({
+            select: () => ({
+              lean: () =>
+                Promise.resolve([
+                  { _id: cohortObjectId, cohort_slug: "test-cohort" },
+                ]),
+            }),
+          }),
+        }),
+        "@models/CohortDeviceSnapshot": () => ({
+          distinct: () => ({
+            maxTimeMS: () => Promise.resolve(coveredCohortIds),
+          }),
+          countDocuments: (filter) => {
+            capture.countFilter = filter;
+            return { maxTimeMS: () => Promise.resolve(0) };
+          },
+          find: (filter) => {
+            capture.findFilter = filter;
+            return {
+              skip: () => ({
+                limit: () => ({
+                  select: () => ({
+                    lean: () => ({
+                      maxTimeMS: () => Promise.resolve([]),
+                    }),
+                  }),
+                }),
+              }),
+            };
+          },
+        }),
+      });
+
+    it("should escape regex metacharacters in search instead of throwing", async () => {
+      const capture = {};
+      const proxiedCohortUtil = buildProxiedCohortUtil({
+        coveredCohortIds: [cohortObjectId],
+        capture,
+      });
+      const next = sinon.stub();
+
+      const result = await proxiedCohortUtil.listCachedDevices(
+        {
+          body: { cohort_ids: [cohortObjectId.toString()] },
+          // Trailing backslash previously reproduced:
+          // "Regular expression is invalid: \ at end of pattern"
+          query: { tenant: "airqo", search: "sensor\\" },
+        },
+        next
+      );
+
+      expect(next.called).to.be.false;
+      expect(result.success).to.be.true;
+      expect(capture.findFilter.name.$regex).to.equal("sensor\\\\");
+      expect(capture.countFilter.name.$regex).to.equal("sensor\\\\");
+    });
+  });
 });
