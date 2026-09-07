@@ -192,7 +192,7 @@ class TestTableNameGuard:
         import pytest
         from pydantic import ValidationError
 
-        for bad in ("devices; DROP TABLE x", "tab le", "a.b.c.d", "table`", ""):
+        for bad in ("devices; DROP TABLE x", "tab$le", "a.b.c.d", "table`", ""):
             with pytest.raises(
                 ValidationError, match="not a valid BigQuery table name"
             ):
@@ -219,7 +219,7 @@ class TestTableNameGuard:
             BaseConfig(
                 FLASK_ENV="development",
                 SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
-                BIGQUERY_HOURLY_CONSOLIDATED="bad name",
+                BIGQUERY_HOURLY_CONSOLIDATED="bad/name",
             )
 
     def test_legacy_colon_separator_accepted(self):
@@ -237,7 +237,62 @@ class TestTableNameGuard:
         import pytest
         from pydantic import ValidationError
 
-        for bad in ("proj:ds.tbl; DROP TABLE x", "proj:ds.tbl`", "proj:ds tbl"):
+        for bad in ("proj:ds.tbl; DROP TABLE x", "proj:ds.tbl`", "proj:ds.tbl*"):
+            with pytest.raises(
+                ValidationError, match="not a valid BigQuery table name"
+            ):
+                BaseConfig(
+                    FLASK_ENV="development",
+                    SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                    BIGQUERY_GRIDS=bad,
+                )
+
+    def test_already_backticked_setting_is_accepted_and_unwrapped(self):
+        """Deployed configmaps carry the backticks, because the name used to be
+        pasted straight into SQL. Rejecting those took the whole service down at
+        startup. The quoting comes off so the quoting site can add it back once."""
+        config = BaseConfig(
+            FLASK_ENV="development",
+            SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+            BIGQUERY_HOURLY_CONSOLIDATED=(
+                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`"
+            ),
+        )
+        assert config.bigquery_hourly_consolidated == (
+            "airqo-250220.consolidated_data_stage.hourly_device_measurements"
+        )
+
+    def test_whitespace_is_removed_wherever_it_appears(self):
+        """A BigQuery table name cannot contain whitespace, so any that shows
+        up — around the value, inside the quoting, or from a wrapped configmap
+        line — is not part of the name."""
+        for spaced in (
+            "  metadata.grids  ",
+            "  ` metadata.grids `  ",
+            "metadata.\n  grids",
+            "\tmetadata.grids\n",
+        ):
+            config = BaseConfig(
+                FLASK_ENV="development",
+                SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                BIGQUERY_GRIDS=spaced,
+            )
+            assert config.bigquery_grids == "metadata.grids"
+
+    def test_stripping_the_quotes_does_not_admit_malformed_names(self):
+        """Only a matched outer pair comes off — the contents still have to be
+        a valid identifier, so quoting cannot smuggle anything through."""
+        import pytest
+        from pydantic import ValidationError
+
+        for bad in (
+            "`grids; DROP TABLE x`",
+            "`a.b.c.d`",
+            "`grids",
+            "grids`",
+            "``",
+            "`proj.`ds`.table`",
+        ):
             with pytest.raises(
                 ValidationError, match="not a valid BigQuery table name"
             ):

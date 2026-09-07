@@ -19,6 +19,41 @@ from constants import DataType, DeviceCategory, Frequency
 # deployment into a startup failure that takes down every endpoint.
 TABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+([.:][A-Za-z0-9_-]+){0,2}")
 
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def normalize_table_name(table: str, label: Optional[str] = None) -> str:
+    """
+    Strip a configured table name down to the bare identifier and check it.
+
+    Deployed configmaps carry values already wrapped in backticks —
+    ``BIGQUERY_HOURLY_CONSOLIDATED=`proj.dataset.table``` — because the name
+    used to be pasted straight into SQL. Those are valid deployments, so the
+    quoting is removed here rather than rejected, leaving one canonical bare
+    form for the quoting site to wrap exactly once.
+
+    Args:
+        table: The configured name, with or without surrounding backticks.
+        label: Setting name to attribute the failure to, when there is one.
+
+    Returns:
+        str: The bare identifier.
+
+    Raises:
+        ValueError: If the name is empty or outside the accepted shape.
+    """
+    cleaned = _WHITESPACE_RE.sub("", table or "")
+    if len(cleaned) > 1 and cleaned.startswith("`") and cleaned.endswith("`"):
+        cleaned = cleaned[1:-1]
+    if not cleaned or not TABLE_NAME_RE.fullmatch(cleaned):
+        subject = f"{label}={table!r}" if label else f"{table!r}"
+        raise ValueError(
+            f"{subject} is not a valid BigQuery table name. "
+            "Expected 'table', 'dataset.table' or 'project.dataset.table' "
+            "using letters, digits, underscores and hyphens."
+        )
+    return cleaned
+
 
 class BaseConfig(BaseSettings):
     """Base configuration shared across all environments."""
@@ -296,6 +331,9 @@ class BaseConfig(BaseSettings):
     # rather than surfacing as a syntax error on whichever endpoint hits it
     # first. Applies to every bigquery_* string setting plus the summary
     # table; the numeric bigquery_* settings are skipped.
+    #
+    # This runs once, when BaseConfig is constructed at import; the stored
+    # value is the normalized one, so reads pay nothing.
     @field_validator(
         "bigquery_raw_data",
         "bigquery_hourly_data",
@@ -317,13 +355,7 @@ class BaseConfig(BaseSettings):
     )
     @classmethod
     def validate_table_name(cls, v: str, info: Any) -> str:
-        if not v or not TABLE_NAME_RE.fullmatch(v):
-            raise ValueError(
-                f"{info.field_name}={v!r} is not a valid BigQuery table name. "
-                "Expected 'table', 'dataset.table' or 'project.dataset.table' "
-                "using letters, digits, underscores and hyphens."
-            )
-        return v
+        return normalize_table_name(v, label=info.field_name)
 
     # Filter field name mapping (API filter key → BigQuery column name)
     FILTER_FIELD_MAPPING: Dict[str, str] = {

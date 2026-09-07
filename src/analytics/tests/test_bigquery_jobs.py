@@ -171,20 +171,43 @@ class TestTableNameValidation:
         assert Utils.table_name(name) == f"`{name}`"
 
     @pytest.mark.parametrize(
+        "name,expected",
+        [
+            ("`measurements`", "`measurements`"),
+            (
+                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
+                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
+            ),
+            ("  `metadata.devices`  ", "`metadata.devices`"),
+            ("` metadata.devices `", "`metadata.devices`"),
+        ],
+    )
+    def test_wrapping_an_already_quoted_name_is_idempotent(self, name, expected):
+        """Some deployments configure the backticks into the value itself.
+        Wrapping again would emit ``name`` and fail the query."""
+        from api.utils.utils import Utils
+
+        assert Utils.table_name(name) == expected
+
+    @pytest.mark.parametrize(
         "name",
         [
             "",
             "a.b.c.d",  # four parts
             "table; DROP TABLE x",
             "table`",  # would close the backtick quoting
-            "tab le",
+            "`table",  # unmatched, so the pair is not stripped
+            "``",
+            "tab$le",
+            "   ",  # whitespace-only collapses to empty
             "proj.`ds`.table",
+            "`proj.`ds`.table`",
         ],
     )
     def test_rejects_malformed_names(self, name):
         from api.utils.utils import Utils
 
-        with pytest.raises(ValueError, match="Invalid BigQuery table name"):
+        with pytest.raises(ValueError, match="not a valid BigQuery table name"):
             Utils.table_name(name)
 
     def test_every_configured_table_passes(self):
