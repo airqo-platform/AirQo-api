@@ -4,7 +4,7 @@ import json
 from typing import Dict
 
 from api.utils.messages import RATE_LIMIT_ERROR
-from config import TABLE_NAME_RE
+from config import normalize_table_name
 
 import logging
 
@@ -47,6 +47,9 @@ class Utils:
         table name is correctly interpreted by BigQuery, especially if it contains
         special characters like dots (`.`).
 
+        Wrapping is idempotent: a name that already carries backticks — some
+        deployments configure them that way — comes back with one pair, not two.
+
         Args:
             table (str): BigQuery table name, bare or 'project.dataset.table'.
 
@@ -57,9 +60,4 @@ class Utils:
             ValueError: If the name is empty or contains anything outside
                 letters, digits, underscore, hyphen and up to two dots.
         """
-        if not table or not TABLE_NAME_RE.fullmatch(table):
-            raise ValueError(
-                f"Invalid BigQuery table name: {table!r}. Expected 'table', "
-                "'dataset.table' or 'project.dataset.table'."
-            )
-        return f"`{table}`"
+        return f"`{normalize_table_name(table)}`"

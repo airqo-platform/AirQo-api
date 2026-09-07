@@ -246,3 +246,49 @@ class TestTableNameGuard:
                     SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
                     BIGQUERY_GRIDS=bad,
                 )
+
+    def test_already_backticked_setting_is_accepted_and_unwrapped(self):
+        """Deployed configmaps carry the backticks, because the name used to be
+        pasted straight into SQL. Rejecting those took the whole service down at
+        startup. The quoting comes off so the quoting site can add it back once."""
+        config = BaseConfig(
+            FLASK_ENV="development",
+            SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+            BIGQUERY_HOURLY_CONSOLIDATED=(
+                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`"
+            ),
+        )
+        assert config.bigquery_hourly_consolidated == (
+            "airqo-250220.consolidated_data_stage.hourly_device_measurements"
+        )
+
+    def test_surrounding_whitespace_is_tolerated(self):
+        config = BaseConfig(
+            FLASK_ENV="development",
+            SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+            BIGQUERY_GRIDS="  ` metadata.grids `  ",
+        )
+        assert config.bigquery_grids == "metadata.grids"
+
+    def test_stripping_the_quotes_does_not_admit_malformed_names(self):
+        """Only a matched outer pair comes off — the contents still have to be
+        a valid identifier, so quoting cannot smuggle anything through."""
+        import pytest
+        from pydantic import ValidationError
+
+        for bad in (
+            "`grids; DROP TABLE x`",
+            "`a.b.c.d`",
+            "`grids",
+            "grids`",
+            "``",
+            "`proj.`ds`.table`",
+        ):
+            with pytest.raises(
+                ValidationError, match="not a valid BigQuery table name"
+            ):
+                BaseConfig(
+                    FLASK_ENV="development",
+                    SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
+                    BIGQUERY_GRIDS=bad,
+                )
