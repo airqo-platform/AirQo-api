@@ -32,6 +32,9 @@ const buildDeviceSetKey = (deviceIds) => {
 
 const AIRQO_NETWORK = "airqo";
 
+const escapeRegex = (str) =>
+  String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // A device may be assigned to a cohort only if they share network/group
 // ownership, unless either side is the "airqo" network/group — AirQo staff
 // legitimately manage cross-organization monitoring cohorts.
@@ -2560,7 +2563,7 @@ const createCohort = {
         tenant,
       };
       if (search) {
-        filter.name = { $regex: search, $options: "i" };
+        filter.name = { $regex: escapeRegex(search), $options: "i" };
       }
       if (status) {
         filter.status = status;
