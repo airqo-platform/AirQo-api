@@ -1069,7 +1069,7 @@ siteSchema.statics = {
       }
 
       const pipeline = await this.aggregate()
-        .match({ ...filter, network: "airqo" })
+        .match({ ...filter })
         .lookup({
           from: "devices",
           localField: "_id",
@@ -1384,3 +1384,8 @@ const SiteModel = (tenant) => {
 };
 
 module.exports = SiteModel;
+// Exposed so tests can call a static directly (e.g.
+// SiteModel.statics.listAirQoActive.call(fakeModel, args, next)) against a
+// plain mocked `this` — no mongoose model compilation or DB connection
+// needed, unlike SiteModel(tenant) which requires one via getModelByTenant.
+module.exports.statics = siteSchema.statics;

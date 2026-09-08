@@ -2208,7 +2208,7 @@ const createSite = {
   },
   findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant } = {
+      let { radius, latitude, longitude, tenant, online_status, limit } = {
         ...request.body,
         ...request.query,
         ...request.params,
@@ -2226,6 +2226,13 @@ const createSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
+            if (online_status === "online" && site.isOnline !== true) {
+              return;
+            }
+            if (online_status === "offline" && site.isOnline !== false) {
+              return;
+            }
+
             const distanceBetweenTwoPoints = distance.calculateDistance(
               {
                 latitude1: latitude,
@@ -2237,11 +2244,16 @@ const createSite = {
             );
 
             if (distanceBetweenTwoPoints < radius) {
-              site["distance"] = distanceBetweenTwoPoints;
+              site["distance_km"] = distanceBetweenTwoPoints;
               nearest_sites.push(site);
             }
           }
         });
+
+        nearest_sites.sort((a, b) => a["distance_km"] - b["distance_km"]);
+
+        const maxResults = Math.min(Number(limit) || 20, 100);
+        nearest_sites = nearest_sites.slice(0, maxResults);
 
         logObject("nearest_sites", nearest_sites);
 
