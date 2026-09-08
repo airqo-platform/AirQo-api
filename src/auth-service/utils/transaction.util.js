@@ -1498,6 +1498,7 @@ const transactions = {
    */
   getSubscriptionStatus: async (request) => {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    let freshUser;
     try {
       const tenant =
         (request.query && request.query.tenant) ||
@@ -1506,7 +1507,7 @@ const transactions = {
 
       // Re-fetch from DB: request.user is decoded from the JWT and may predate
       // the webhook that wrote currentSubscriptionId onto the user document.
-      const freshUser = await UserModel(tenant)
+      freshUser = await UserModel(tenant)
         .findById(request.user._id)
         .select("currentSubscriptionId subscriptionStatus")
         .lean();
@@ -1543,7 +1544,9 @@ const transactions = {
         },
       };
     } catch (error) {
-      logger.error(`getSubscriptionStatus error --- ${stringify(error)}`);
+      logger.error(
+        `getSubscriptionStatus error for user ${request.user._id}, subscriptionId ${freshUser && freshUser.currentSubscriptionId} --- ${stringify(error)}`,
+      );
       return {
         success: false,
         message: "Internal Server Error",
