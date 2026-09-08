@@ -482,8 +482,8 @@ const validateNearestSite = [
     .withMessage("the radius is missing in request")
     .bail()
     .trim()
-    .isFloat()
-    .withMessage("the radius must be a number")
+    .isFloat({ min: 0 })
+    .withMessage("the radius must be a non-negative number")
     .bail()
     .toFloat(),
   query("online_status")
