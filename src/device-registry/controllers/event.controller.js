@@ -311,11 +311,22 @@ const processGridIds = async (grid_ids, request) => {
       logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
 
       if (responseFromGetSitesOfGrid.success === false) {
-        logger.error(
-          `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfGrid,
-          )}`,
-        );
+        if (
+          responseFromGetSitesOfGrid.status >=
+          httpStatus.INTERNAL_SERVER_ERROR
+        ) {
+          logger.error(
+            `🐛🐛 Internal Server Error --- ${JSON.stringify(
+              responseFromGetSitesOfGrid,
+            )}`,
+          );
+        } else {
+          logger.warn(
+            `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(
+              responseFromGetSitesOfGrid,
+            )}`,
+          );
+        }
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.warn(
