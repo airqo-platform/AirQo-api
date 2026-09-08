@@ -7,6 +7,7 @@ const SiteModel = require("@models/Site");
 // Import all migrations
 const networkStatusMigration = require("@migrations/network-status-indexes");
 const deviceUptimeIndexFixMigration = require("@migrations/device-uptime-index-fix");
+const siteLocationGeospatialIndexMigration = require("@migrations/site-location-geospatial-index");
 
 // One-time cleanup: remove geocoding failure tracking fields that were made
 // obsolete when the backfill job was simplified to use isOnline + createdAt
@@ -74,6 +75,14 @@ async function runStartupMigrations() {
     await resetGeocodingExclusionFields();
   } catch (error) {
     logger.error(`🐛🐛 resetGeocodingExclusionFields failed: ${error.message}`);
+  }
+
+  try {
+    await siteLocationGeospatialIndexMigration.executeMigration();
+  } catch (error) {
+    logger.error(
+      `🐛🐛 siteLocationGeospatialIndexMigration failed: ${error.message}`
+    );
   }
 }
 

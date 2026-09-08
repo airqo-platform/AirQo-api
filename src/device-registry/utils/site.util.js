@@ -2208,52 +2208,27 @@ const createSite = {
   },
   findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant } = {
+      let { radius, latitude, longitude, tenant, limit } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-      const responseFromListSites = await createSite.listAirQoActive(
-        request,
+      const filter = generateFilter.sites(request, next);
+
+      const responseFromFindNearestSites = await SiteModel(
+        tenant,
+      ).findNearestSites(
+        {
+          longitude,
+          latitude,
+          radius,
+          filter,
+          limit,
+        },
         next,
       );
 
-      if (responseFromListSites.success === true) {
-        let sites = responseFromListSites.data;
-        let status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        let nearest_sites = [];
-        sites.forEach((site) => {
-          if ("latitude" in site && "longitude" in site) {
-            const distanceBetweenTwoPoints = distance.calculateDistance(
-              {
-                latitude1: latitude,
-                longitude1: longitude,
-                latitude2: site["latitude"],
-                longitude2: site["longitude"],
-              },
-              next,
-            );
-
-            if (distanceBetweenTwoPoints < radius) {
-              site["distance"] = distanceBetweenTwoPoints;
-              nearest_sites.push(site);
-            }
-          }
-        });
-
-        logObject("nearest_sites", nearest_sites);
-
-        return {
-          success: true,
-          data: nearest_sites,
-          message: "successfully retrieved the nearest sites",
-          status,
-        };
-      } else if (responseFromListSites.success === false) {
-        return responseFromListSites;
-      }
+      return responseFromFindNearestSites;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

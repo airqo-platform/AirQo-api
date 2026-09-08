@@ -3,11 +3,56 @@ Application settings, resolved from the environment via pydantic-settings.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Any, Set
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AliasChoices, Field, field_validator, SecretStr
 from constants import DataType, DeviceCategory, Frequency
+
+# BigQuery identifiers: letters, digits, underscore and hyphen (project IDs
+# carry hyphens), in one to three dot-separated parts. Shared with
+# api.utils.utils.Utils.table_name so the startup check and the interpolation
+# site agree on what is acceptable.
+# The legacy ``project:dataset.table`` separator is accepted alongside the
+# standard dotted form: rejecting it would turn a validly-configured
+# deployment into a startup failure that takes down every endpoint.
+TABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+([.:][A-Za-z0-9_-]+){0,2}")
+
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def normalize_table_name(table: str, label: Optional[str] = None) -> str:
+    """
+    Strip a configured table name down to the bare identifier and check it.
+
+    Deployed configmaps carry values already wrapped in backticks —
+    ``BIGQUERY_HOURLY_CONSOLIDATED=`proj.dataset.table``` — because the name
+    used to be pasted straight into SQL. Those are valid deployments, so the
+    quoting is removed here rather than rejected, leaving one canonical bare
+    form for the quoting site to wrap exactly once.
+
+    Args:
+        table: The configured name, with or without surrounding backticks.
+        label: Setting name to attribute the failure to, when there is one.
+
+    Returns:
+        str: The bare identifier.
+
+    Raises:
+        ValueError: If the name is empty or outside the accepted shape.
+    """
+    cleaned = _WHITESPACE_RE.sub("", table or "")
+    if len(cleaned) > 1 and cleaned.startswith("`") and cleaned.endswith("`"):
+        cleaned = cleaned[1:-1]
+    if not cleaned or not TABLE_NAME_RE.fullmatch(cleaned):
+        subject = f"{label}={table!r}" if label else f"{table!r}"
+        raise ValueError(
+            f"{subject} is not a valid BigQuery table name. "
+            "Expected 'table', 'dataset.table' or 'project.dataset.table' "
+            "using letters, digits, underscores and hyphens."
+        )
+    return cleaned
 
 
 class BaseConfig(BaseSettings):
@@ -163,7 +208,8 @@ class BaseConfig(BaseSettings):
 
     # External API settings
     airqo_api_base_url: str = Field(
-        default="https://api.airqo.africa", validation_alias="AIRQO_API_BASE_URL"
+        default="https://platform.airqo.net/api/v2",
+        validation_alias="AIRQO_API_BASE_URL",
     )
     airqo_api_token: SecretStr = Field(
         default="test-token", validation_alias="AIRQO_API_TOKEN"
@@ -173,9 +219,6 @@ class BaseConfig(BaseSettings):
     airqo_api_retries: int = Field(default=2, validation_alias="AIRQO_API_RETRIES")
     airqo_api_backoff_factor: float = Field(
         default=1.0, validation_alias="AIRQO_API_BACKOFF_FACTOR"
-    )
-    grid_url: str = Field(
-        default="https://grid.airqo.africa", validation_alias="GRID_URL_ID"
     )
 
     # MongoDB settings — legacy config selected the URI by environment:
@@ -268,12 +311,6 @@ class BaseConfig(BaseSettings):
     bigquery_sites_sites: str = Field(
         default="sites", validation_alias="BIGQUERY_SITES_SITES"
     )
-    bigquery_airqlouds_sites: str = Field(
-        default="airqlouds_sites", validation_alias="BIGQUERY_AIRQLOUDS_SITES"
-    )
-    bigquery_airqlouds: str = Field(
-        default="airqlouds", validation_alias="BIGQUERY_AIRQLOUDS"
-    )
     bigquery_grids_sites: str = Field(
         default="grids_sites", validation_alias="BIGQUERY_GRIDS_SITES"
     )
@@ -288,6 +325,38 @@ class BaseConfig(BaseSettings):
         default="devices_summary", validation_alias="DEVICES_SUMMARY_TABLE"
     )
 
+    # Table names are interpolated into SQL rather than bound as parameters
+    # (BigQuery has no parameter form for identifiers), so their shape is
+    # checked here — at startup, where a bad value is obvious and fixable —
+    # rather than surfacing as a syntax error on whichever endpoint hits it
+    # first. Applies to every bigquery_* string setting plus the summary
+    # table; the numeric bigquery_* settings are skipped.
+    #
+    # This runs once, when BaseConfig is constructed at import; the stored
+    # value is the normalized one, so reads pay nothing.
+    @field_validator(
+        "bigquery_raw_data",
+        "bigquery_hourly_data",
+        "bigquery_daily_data",
+        "bigquery_hourly_consolidated",
+        "bigquery_raw_bam_data_table",
+        "bigquery_bam_hourly_data",
+        "bigquery_mobile_raw_data",
+        "bigquery_mobile_hourly_table",
+        "bigquery_latest_events",
+        "bigquery_satellite_data_table",
+        "bigquery_devices_devices",
+        "bigquery_sites_sites",
+        "bigquery_grids_sites",
+        "bigquery_grids",
+        "bigquery_cohorts_devices",
+        "bigquery_cohorts",
+        "devices_summary_table",
+    )
+    @classmethod
+    def validate_table_name(cls, v: str, info: Any) -> str:
+        return normalize_table_name(v, label=info.field_name)
+
     # Filter field name mapping (API filter key → BigQuery column name)
     FILTER_FIELD_MAPPING: Dict[str, str] = {
         "devices": "device_id",
@@ -298,7 +367,14 @@ class BaseConfig(BaseSettings):
         "site_ids": "site_id",
         "country": "country",
         "city": "city",
-        "grid_ids": "device_id",
+        "grid_ids": "device_id",  # Not exactly mapped to device_id but just points to the name of
+        # the column in the table that is used to filter the data. The actual
+        # filtering is done by joining with the grids_sites table and filtering
+        # on grid_id.
+        "cohort_ids": "device_id",  # Not exactly mapped to device_id but just points to the name of the
+        # column in the table that is used to filter the data. The actual
+        # filtering is done by joining with the cohorts_devices table and filtering
+        # on cohort_id.
     }
 
     @property

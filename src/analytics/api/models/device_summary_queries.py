@@ -59,7 +59,7 @@ def save_devices_summary_data(data: pd.DataFrame) -> None:
     job_config = bigquery.LoadJobConfig(schema=schema)
     job = shared_bigquery_client().load_table_from_dataframe(
         dataframe=data,
-        destination=Utils.table_name(settings.devices_summary_table),
+        destination=settings.devices_summary_table,
         job_config=job_config,
     )
     job.result()

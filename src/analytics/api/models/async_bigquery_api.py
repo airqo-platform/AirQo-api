@@ -8,7 +8,7 @@ worker thread (``asyncio.to_thread``) so queries never block the event loop.
 Design contract
 ---------------
 ``BigQueryApi`` (api/models/bigquery_api.py) is the **single source of truth**
-for query building — all filter types (sites, devices, airqlouds, grid,
+for query building — all filter types (sites, devices, grid, cohort,
 country/city), pollutant column selection, pagination, and cursor logic live
 there. This class deliberately contains no query-building logic of its own:
 ``query_data_async`` delegates 1:1 to ``BigQueryApi.query_data()``, so any

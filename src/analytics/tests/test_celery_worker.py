@@ -56,14 +56,14 @@ class TestDocToDataExportRequest:
         assert request.frequency == Frequency.HOURLY
 
     def test_legacy_doc_devices_shimmed(self):
-        """Pre-migration docs stored separate devices/sites/airqlouds lists."""
-        doc = _base_doc(devices=["d1"], sites=[], airqlouds=[])
+        """Pre-migration docs stored separate devices/sites lists."""
+        doc = _base_doc(devices=["d1"], sites=[])
         request = DataExportModel.doc_to_data_export_request(doc)
         assert request.filter_type == "devices"
         assert request.filter_value == ["d1"]
 
     def test_legacy_doc_sites_shimmed(self):
-        doc = _base_doc(devices=[], sites=["s1"], airqlouds=[])
+        doc = _base_doc(devices=[], sites=["s1"])
         request = DataExportModel.doc_to_data_export_request(doc)
         assert request.filter_type == "sites"
         assert request.filter_value == ["s1"]
@@ -225,18 +225,6 @@ class TestDataExportQuery:
         )
         assert ".id IN UNNEST(['s1'])" in query
         assert "UNION ALL" not in query
-
-    def test_airqlouds_rejected_with_actionable_message(self):
-        """airqlouds is deprecated and its branch removed. Records queued
-        before the change must fail with an explanation, not a generic
-        "unsupported filter type"."""
-        with pytest.raises(ValueError, match="deprecated"):
-            data_export_query(
-                filter_type="airqlouds",
-                filter_value=["a1"],
-                frequency=Frequency.HOURLY,
-                **self._ARGS,
-            )
 
     def test_unsupported_filter_type_raises(self):
         with pytest.raises(ValueError, match="Unsupported export filter"):
