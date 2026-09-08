@@ -2208,64 +2208,27 @@ const createSite = {
   },
   findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant, online_status, limit } = {
+      let { radius, latitude, longitude, tenant, limit } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-      const responseFromListSites = await createSite.listAirQoActive(
-        request,
+      const filter = generateFilter.sites(request, next);
+
+      const responseFromFindNearestSites = await SiteModel(
+        tenant,
+      ).findNearestSites(
+        {
+          longitude,
+          latitude,
+          radius,
+          filter,
+          limit,
+        },
         next,
       );
 
-      if (responseFromListSites.success === true) {
-        let sites = responseFromListSites.data;
-        let status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        let nearest_sites = [];
-        sites.forEach((site) => {
-          if ("latitude" in site && "longitude" in site) {
-            if (online_status === "online" && site.isOnline !== true) {
-              return;
-            }
-            if (online_status === "offline" && site.isOnline !== false) {
-              return;
-            }
-
-            const distanceBetweenTwoPoints = distance.calculateDistance(
-              {
-                latitude1: latitude,
-                longitude1: longitude,
-                latitude2: site["latitude"],
-                longitude2: site["longitude"],
-              },
-              next,
-            );
-
-            if (distanceBetweenTwoPoints < radius) {
-              site["distance_km"] = distanceBetweenTwoPoints;
-              nearest_sites.push(site);
-            }
-          }
-        });
-
-        nearest_sites.sort((a, b) => a["distance_km"] - b["distance_km"]);
-
-        const maxResults = Math.min(Number(limit) || 20, 100);
-        nearest_sites = nearest_sites.slice(0, maxResults);
-
-        logObject("nearest_sites", nearest_sites);
-
-        return {
-          success: true,
-          data: nearest_sites,
-          message: "successfully retrieved the nearest sites",
-          status,
-        };
-      } else if (responseFromListSites.success === false) {
-        return responseFromListSites;
-      }
+      return responseFromFindNearestSites;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
