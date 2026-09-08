@@ -486,6 +486,17 @@ const validateNearestSite = [
     .withMessage("the radius must be a number")
     .bail()
     .toFloat(),
+  query("online_status")
+    .optional()
+    .notEmpty()
+    .withMessage("the online_status should not be empty if provided")
+    .bail()
+    .trim()
+    .toLowerCase()
+    .isIn(["online", "offline"])
+    .withMessage(
+      "the online_status value is not among the expected ones which include: online, offline",
+    ),
 ];
 
 const validateBulkUpdateSites = [

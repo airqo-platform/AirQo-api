@@ -223,4 +223,60 @@ describe("the Site Model", function() {
         : done();
     });
   });
+
+  // listAirQoActive is a plain async function living on siteSchema.statics
+  // that only ever touches `this.aggregate()`. Rather than going through
+  // mongoose at all, call it with .call() against a bare mocked `this` —
+  // ordinary function mocking, no schema compilation, no DB connection.
+  describe("listAirQoActive", function() {
+    function buildAggregateChain(response) {
+      const captured = { matchCalls: [] };
+      const chain = {};
+      chain.match = sinon.stub().callsFake((query) => {
+        captured.matchCalls.push(query);
+        return chain;
+      });
+      ["lookup", "unwind", "addFields", "sort", "project", "skip", "limit", "allowDiskUse"].forEach(
+        (method) => {
+          chain[method] = sinon.stub().callsFake(() => chain);
+        }
+      );
+      chain.then = (resolve) => resolve(response);
+      return { chain, captured };
+    }
+
+    function fakeModel(response) {
+      const { chain, captured } = buildAggregateChain(response);
+      return { model: { aggregate: sinon.stub().returns(chain) }, captured };
+    }
+
+    it("does not restrict results to the airqo network", async function() {
+      const { model, captured } = fakeModel([]);
+      const next = sinon.stub();
+
+      const result = await SiteSchema.statics.listAirQoActive.call(
+        model,
+        { filter: {} },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      const [siteMatchStage] = captured.matchCalls;
+      expect(siteMatchStage).to.not.have.property("network");
+    });
+
+    it("preserves an explicit partner-network filter instead of overriding it to airqo", async function() {
+      const { model, captured } = fakeModel([]);
+      const next = sinon.stub();
+
+      await SiteSchema.statics.listAirQoActive.call(
+        model,
+        { filter: { network: "partner_network" } },
+        next
+      );
+
+      const [siteMatchStage] = captured.matchCalls;
+      expect(siteMatchStage).to.deep.equal({ network: "partner_network" });
+    });
+  });
 });

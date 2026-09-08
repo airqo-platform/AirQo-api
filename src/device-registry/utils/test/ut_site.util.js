@@ -747,6 +747,16 @@ describe("createSite Util Functions", () => {
   });
 
   describe("findNearestSitesByCoordinates", () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it("should find nearest sites", async () => {
       const radius = 10;
       const latitude = 0.1;
@@ -780,6 +790,156 @@ describe("createSite Util Functions", () => {
 
       // On DB error, the catch block calls next(HttpError) without returning
       expect(result !== undefined || next.called).to.be.true;
+    });
+
+    // Mock @models/Site via proxyquire (same approach as listForComparisonPicker
+    // below) rather than stubbing SiteModel(tenant) directly — the latter requires
+    // a live mongoose connection lookup and throws "Query database connection not
+    // established" in this test environment.
+    describe("with a mocked site model", () => {
+      const proxyquire = require("proxyquire");
+      let proxiedSiteUtil;
+      let listAirQoActiveStub;
+      let next;
+
+      beforeEach(() => {
+        listAirQoActiveStub = sinon.stub();
+        proxiedSiteUtil = proxyquire("../site.util", {
+          "@models/Site": () => ({
+            listAirQoActive: listAirQoActiveStub,
+          }),
+        });
+        next = sinon.stub();
+      });
+
+      afterEach(() => {
+        sinon.restore();
+      });
+
+      it("sorts results by distance ascending and tags them with distance_km", async () => {
+        const sites = [
+          { _id: "far", latitude: 5, longitude: 5, isOnline: true },
+          { _id: "near", latitude: 0.01, longitude: 0.01, isOnline: true },
+          { _id: "mid", latitude: 1, longitude: 1, isOnline: true },
+        ];
+        listAirQoActiveStub.resolves({
+          success: true,
+          data: sites,
+          status: httpStatus.OK,
+        });
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: { radius: 10000, latitude: 0, longitude: 0, tenant: "airqo" },
+            params: {},
+          },
+          next
+        );
+
+        expect(result.success).to.equal(true);
+        expect(result.data.map((s) => s._id)).to.deep.equal([
+          "near",
+          "mid",
+          "far",
+        ]);
+        result.data.forEach((s) => {
+          expect(s).to.have.property("distance_km");
+          expect(s).to.not.have.property("distance");
+        });
+      });
+
+      it("filters by online_status when provided", async () => {
+        const sites = [
+          { _id: "onlineSite", latitude: 0.01, longitude: 0.01, isOnline: true },
+          {
+            _id: "offlineSite",
+            latitude: 0.02,
+            longitude: 0.02,
+            isOnline: false,
+          },
+        ];
+        listAirQoActiveStub.resolves({
+          success: true,
+          data: sites,
+          status: httpStatus.OK,
+        });
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: {
+              radius: 10000,
+              latitude: 0,
+              longitude: 0,
+              tenant: "airqo",
+              online_status: "online",
+            },
+            params: {},
+          },
+          next
+        );
+
+        expect(result.data.map((s) => s._id)).to.deep.equal(["onlineSite"]);
+      });
+
+      it("caps the number of results at the requested limit", async () => {
+        const sites = [0, 1, 2, 3, 4].map((i) => ({
+          _id: `site-${i}`,
+          latitude: 0.01 * (i + 1),
+          longitude: 0.01 * (i + 1),
+          isOnline: true,
+        }));
+        listAirQoActiveStub.resolves({
+          success: true,
+          data: sites,
+          status: httpStatus.OK,
+        });
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: {
+              radius: 10000,
+              latitude: 0,
+              longitude: 0,
+              tenant: "airqo",
+              limit: 2,
+            },
+            params: {},
+          },
+          next
+        );
+
+        expect(result.data).to.have.lengthOf(2);
+        expect(result.data.map((s) => s._id)).to.deep.equal([
+          "site-0",
+          "site-1",
+        ]);
+      });
+
+      it("excludes sites at or beyond the radius", async () => {
+        const sites = [
+          { _id: "inRange", latitude: 0.01, longitude: 0.01, isOnline: true },
+          { _id: "outOfRange", latitude: 10, longitude: 10, isOnline: true },
+        ];
+        listAirQoActiveStub.resolves({
+          success: true,
+          data: sites,
+          status: httpStatus.OK,
+        });
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: { radius: 5, latitude: 0, longitude: 0, tenant: "airqo" },
+            params: {},
+          },
+          next
+        );
+
+        expect(result.data.map((s) => s._id)).to.deep.equal(["inRange"]);
+      });
     });
   });
 
