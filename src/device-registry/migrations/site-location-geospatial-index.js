@@ -27,16 +27,31 @@ async function checkMigrationStatus() {
       tenant: TENANT,
     });
 
-    if (!tracker) {
+    if (tracker) {
+      return tracker.status;
+    }
+
+    try {
       await MigrationTrackerModel(TENANT).create({
         name: MIGRATION_NAME,
         tenant: TENANT,
         status: "pending",
       });
       return "pending";
+    } catch (createError) {
+      // Multiple device-registry replicas run startup migrations concurrently.
+      // If another one already inserted the tracker doc between our findOne
+      // and create above, the unique {name,tenant} index rejects ours with
+      // E11000 — that's fine, just read back whatever status won the race.
+      if (createError.code === 11000) {
+        const existing = await MigrationTrackerModel(TENANT).findOne({
+          name: MIGRATION_NAME,
+          tenant: TENANT,
+        });
+        return existing ? existing.status : "pending";
+      }
+      throw createError;
     }
-
-    return tracker.status;
   } catch (error) {
     logger.error(`🐛🐛 Error checking migration status: ${error.message}`);
     throw error;
