@@ -97,12 +97,13 @@ async function backfillLocations(collection) {
     }));
 
     const result = await collection.bulkWrite(bulkOps, { ordered: false });
-    totalBackfilled += result.modifiedCount || 0;
+    const modifiedCount = result.modifiedCount || 0;
+    totalBackfilled += modifiedCount;
 
-    // Batch fully processed and filter still matches the same count means
-    // every remaining match failed to update (shouldn't happen, but avoids
-    // an infinite loop if it ever does).
-    if (sites.length < BATCH_SIZE) {
+    // Stop once a pass makes no progress — a full batch that modifies zero
+    // documents means every remaining match is stuck (e.g. failing $set),
+    // and re-fetching the same docs forever would otherwise infinite-loop.
+    if (modifiedCount === 0 || sites.length < BATCH_SIZE) {
       break;
     }
   }
