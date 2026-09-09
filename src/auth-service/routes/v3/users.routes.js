@@ -397,6 +397,12 @@ router.post(
   userController.emailAuth
 );
 
+router.post(
+  "/completeEmailLogin",
+  userValidations.completeEmailLogin,
+  userController.completeEmailLogin
+);
+
 router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 
 router.post(

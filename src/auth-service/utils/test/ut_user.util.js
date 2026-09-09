@@ -921,6 +921,10 @@ describe("create-user-util", function () {
       },
     };
     let origGenerateNumericToken;
+    let origUserModel;
+    let existsStub;
+    let modifyStub;
+    let internalModule;
 
     beforeEach(() => {
       origGenerateNumericToken = rewireCreateUser.__get__(
@@ -930,6 +934,20 @@ describe("create-user-util", function () {
         "generateNumericToken",
         sinon.stub().returns("54321")
       );
+
+      existsStub = sinon.stub().resolves(true);
+      modifyStub = sinon.stub().resolves({ success: true });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        exists: existsStub,
+        modify: modifyStub,
+      }));
+
+      internalModule = rewireCreateUser.__get__("createUserModule");
+      sinon.stub(internalModule, "generateResetToken").returns({
+        success: true,
+        data: "SAMPLECODE",
+      });
     });
 
     afterEach(() => {
@@ -937,17 +955,11 @@ describe("create-user-util", function () {
         "generateNumericToken",
         origGenerateNumericToken
       );
+      rewireCreateUser.__set__("UserModel", origUserModel);
       sinon.restore();
     });
 
     it("should generate the sign-in link with email correctly and send email for authentication", async () => {
-      const generateSignInWithEmailLinkStub = sinon
-        .stub()
-        .resolves("https://example.com/?a=1%26oobCode%3DSAMPLECODE");
-      sinon.stub(firebaseAuthModule, "getAuth").returns({
-        generateSignInWithEmailLink: generateSignInWithEmailLinkStub,
-      });
-
       const authenticateEmailStub = sinon
         .stub(mailer, "authenticateEmail")
         .resolves({ success: true });
@@ -961,26 +973,43 @@ describe("create-user-util", function () {
         message: "process successful, check your email for token",
         status: httpStatus.OK,
         data: {
-          link: "https://example.com/?a=1%26oobCode%3DSAMPLECODE",
+          link: `${constants.SIGN_IN_LINK}?token=SAMPLECODE&email=test%40example.com`,
           token: "54321",
           email: "test@example.com",
           emailLinkCode: "SAMPLECODE",
         },
       });
 
-      sinon.assert.calledOnce(generateSignInWithEmailLinkStub);
+      sinon.assert.calledOnce(existsStub);
+      sinon.assert.calledOnce(modifyStub);
       sinon.assert.calledOnceWithMatch(authenticateEmailStub, {
         email: "test@example.com",
         token: "54321",
       });
     });
 
+    it("should return a 400 error and not send an email when the account does not exist", async () => {
+      existsStub.resolves(false);
+      const authenticateEmailStub = sinon
+        .stub(mailer, "authenticateEmail")
+        .resolves({ success: true });
+      const next = sinon.stub();
+
+      await rewireCreateUser.generateSignInWithEmailLink(
+        sampleRequest,
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
+      sinon.assert.notCalled(modifyStub);
+      sinon.assert.notCalled(authenticateEmailStub);
+    });
+
     it("should handle errors and return an error response", async () => {
-      sinon.stub(firebaseAuthModule, "getAuth").returns({
-        generateSignInWithEmailLink: sinon
-          .stub()
-          .rejects(new Error("Some error")),
-      });
+      existsStub.rejects(new Error("Some error"));
       const next = sinon.stub();
 
       await rewireCreateUser.generateSignInWithEmailLink(
@@ -993,6 +1022,74 @@ describe("create-user-util", function () {
       expect(err).to.be.instanceOf(Error);
       expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+  describe("completeSignInWithEmailLink()", () => {
+    const sampleRequest = {
+      body: {
+        email: "test@example.com",
+        token: "SAMPLECODE",
+      },
+      query: {},
+    };
+    let origUserModel;
+    let findOneAndUpdateStub;
+    let internalModule;
+
+    beforeEach(() => {
+      findOneAndUpdateStub = sinon.stub();
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findOneAndUpdate: findOneAndUpdateStub,
+      }));
+      internalModule = rewireCreateUser.__get__("createUserModule");
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should complete sign-in and return the enhanced login response when the token is valid", async () => {
+      findOneAndUpdateStub.resolves({ _id: "u1", email: "test@example.com" });
+      const loginStub = sinon
+        .stub(internalModule, "loginWithEnhancedTokens")
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          data: { _id: "u1", email: "test@example.com", token: "JWT abc" },
+        });
+
+      const result = await rewireCreateUser.completeSignInWithEmailLink(
+        sampleRequest
+      );
+
+      expect(result).to.deep.equal({
+        success: true,
+        status: httpStatus.OK,
+        data: { _id: "u1", email: "test@example.com", token: "JWT abc" },
+      });
+      sinon.assert.calledOnceWithMatch(
+        loginStub,
+        { body: { email: "test@example.com" } },
+        sinon.match.any,
+        { skipPasswordCheck: true }
+      );
+    });
+
+    it("should call next with a 400 error when the token is invalid or expired", async () => {
+      findOneAndUpdateStub.resolves(null);
+      const next = sinon.stub();
+
+      await rewireCreateUser.completeSignInWithEmailLink(
+        sampleRequest,
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
   });
   describe("delete()", () => {
