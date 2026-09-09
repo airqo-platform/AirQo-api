@@ -814,6 +814,43 @@ const userController = {
       handleError(error, next);
     }
   },
+  completeEmailLogin: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.completeSignInWithEmailLink(
+        request,
+        next,
+      );
+
+      if (result && result.success === true) {
+        const { data } = result;
+        const userResponse = {
+          _id: data._id,
+          token: data.token,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          userName: data.userName,
+          privilege: data.privilege,
+          organization: data.organization,
+          long_organization: data.long_organization,
+          profilePicture: data.profilePicture,
+          country: data.country,
+          phoneNumber: data.phoneNumber,
+          interests: data.interests,
+          interestsDescription: data.interestsDescription,
+          verified: data.verified,
+          isActive: data.isActive,
+          authMethods: data.authMethods,
+        };
+        return res.status(httpStatus.OK).json(userResponse);
+      }
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   updateForgottenPassword: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

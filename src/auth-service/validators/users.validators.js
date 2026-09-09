@@ -253,6 +253,23 @@ const emailAuth = [
   ],
 ];
 
+const completeEmailLogin = [
+  [
+    body("email")
+      .exists()
+      .withMessage("the email must be provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("token")
+      .exists()
+      .withMessage("the token must be provided")
+      .bail()
+      .notEmpty()
+      .withMessage("the token should not be empty"),
+  ],
+];
+
 const feedback = oneOf([
   [
     body("email")
@@ -2065,6 +2082,7 @@ module.exports = {
   login,
   emailLogin,
   emailAuth,
+  completeEmailLogin,
   feedback,
   firebaseLookup,
   firebaseCreate,
