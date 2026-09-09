@@ -163,6 +163,101 @@ class TestMaintenanceMapViewSynced(unittest.TestCase):
         finally:
             app.dependency_overrides.pop(get_db, None)
 
+    def test_get_device_metrics_for_map_view_crud(self):
+        import uuid
+        from datetime import datetime, timezone, timedelta
+        from app.crud.crud_sync_device_data import get_device_metrics_for_map_view
+
+        now = datetime.now(timezone.utc)
+        h1 = now - timedelta(hours=2)
+        h2 = now - timedelta(hours=1)
+
+        row1 = SyncHourlyDeviceData(
+            id=uuid.uuid4(),
+            channel_id="789012",
+            hour_start=h1,
+            field1_avg=20.0,
+            field3_avg=17.5,
+            record_count=60,
+            complete=True,
+        )
+        row2 = SyncHourlyDeviceData(
+            id=uuid.uuid4(),
+            channel_id="789012",
+            hour_start=h2,
+            field1_avg=22.0,
+            field3_avg=18.5,
+            record_count=60,
+            complete=True,
+        )
+        self.db.add_all([row1, row2])
+        self.db.commit()
+
+        start = (now - timedelta(days=1)).isoformat()
+        end = now.isoformat()
+
+        metrics = get_device_metrics_for_map_view(
+            self.db,
+            channel_ids=["789012"],
+            start=start,
+            end=end,
+            frequency="hourly",
+        )
+        self.assertIn("789012", metrics)
+        m = metrics["789012"]
+        # avg s1 is (20 + 22) / 2 = 21.0
+        # avg s2 is (17.5 + 18.5) / 2 = 18.0
+        # error margin is |21.0 - 18.0| = 3.0
+        self.assertEqual(m["error_margin"], 3.0)
+        self.assertGreater(m["uptime"], 0.0)
+        self.assertEqual(m["data_completeness"], m["uptime"])
+
+    def test_get_synced_map_view_with_performance_data(self):
+        import uuid
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        h1 = now - timedelta(hours=3)
+        h2 = now - timedelta(hours=2)
+
+        row1 = SyncHourlyDeviceData(
+            id=uuid.uuid4(),
+            channel_id="789012",
+            hour_start=h1,
+            field1_avg=15.0,
+            field3_avg=14.0,
+            record_count=60,
+            complete=True,
+        )
+        row2 = SyncHourlyDeviceData(
+            id=uuid.uuid4(),
+            channel_id="789012",
+            hour_start=h2,
+            field1_avg=17.0,
+            field3_avg=14.0,
+            record_count=60,
+            complete=True,
+        )
+        raw_row = SyncRawDeviceData(
+            id=uuid.uuid4(),
+            channel_id="789012",
+            entry_id=1,
+            created_at_ts=h2,
+        )
+        self.db.add_all([row1, row2, raw_row])
+        self.db.commit()
+
+        result = get_synced_map_view(self.db, cohort_ids=["coh_1"], days=14)
+        self.assertTrue(result["success"])
+        self.assertEqual(len(result["data"]), 1)
+        entry = result["data"][0]
+        self.assertEqual(entry["device_name"], "aq_01")
+        # avg s1 = (15 + 17) / 2 = 16.0; avg s2 = (14 + 14) / 2 = 14.0 -> error_margin = 2.0
+        self.assertEqual(entry["error_margin"], 2.0)
+        self.assertGreater(entry["uptime"], 0.0)
+        self.assertEqual(entry["data_completeness"], entry["uptime"])
+        self.assertIsNotNone(entry["last_active"])
+
 
 if __name__ == "__main__":
     unittest.main()
