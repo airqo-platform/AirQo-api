@@ -6,7 +6,10 @@ from datetime import datetime, timedelta, timezone
 from app.services import cohort_service
 from app.utils.performance import PerformanceAnalysis
 from app.core.config import settings
-from app.crud.crud_sync_device_data import get_latest_raw_timestamps
+from app.crud.crud_sync_device_data import (
+    get_latest_raw_timestamps,
+    get_device_metrics_for_map_view,
+)
 from app.db.session import SessionLocal
 from app.models.sync import SyncGrid, SyncGridSite, SyncDevice
 
@@ -178,12 +181,43 @@ async def get_map_view(
     local sync tables are the single source of truth.
     """
     _ = live  # kept for signature compatibility
-    cohorts = await _fetch_cohorts_with_performance(
-        token, days, tags=tags, paginate_all=True, include_device_data=True,
-        frequency=frequency,
-    )
+    start_dt, end_dt = _compute_date_range(days)
+    fetch_params: Dict[str, Any] = {}
+    if tags:
+        fetch_params["tags"] = ",".join(tags)
+
+    result = await cohort_service.get_all_cohorts_paginated(token, fetch_params)
+    if not result.get("success", True):
+        status_code = result.get("status_code", 400)
+        message = result.get("message", "Error fetching cohorts from platform")
+        logger.error(f"Failed to fetch paginated cohorts: {message}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=status_code, detail=message)
+    cohorts = result.get("cohorts", [])
 
     device_map, name_to_channel = _build_map_view_devices(cohorts)
+
+    if name_to_channel:
+        session = SessionLocal()
+        try:
+            channel_metrics = get_device_metrics_for_map_view(
+                session,
+                channel_ids=name_to_channel.values(),
+                start=start_dt,
+                end=end_dt,
+                frequency=frequency,
+            )
+        finally:
+            session.close()
+
+        for d_name, ch_id in name_to_channel.items():
+            if d_name in device_map:
+                metrics = channel_metrics.get(ch_id)
+                if metrics:
+                    device_map[d_name]["uptime"] = sanitize_metric(metrics["uptime"])
+                    device_map[d_name]["data_completeness"] = sanitize_metric(metrics["data_completeness"])
+                    device_map[d_name]["error_margin"] = sanitize_metric(metrics["error_margin"])
+
     _override_last_active_from_local(device_map, name_to_channel)
 
     output = []
@@ -215,12 +249,24 @@ def get_synced_map_view(
     )
     cohorts = result.get("cohorts", [])
 
-    if cohorts:
-        cohort_service.apply_local_performance(
-            cohorts, db, start_dt, end_dt, frequency=frequency,
-        )
-
     device_map, name_to_channel = _build_map_view_devices(cohorts, db=db)
+
+    if name_to_channel:
+        channel_metrics = get_device_metrics_for_map_view(
+            db,
+            channel_ids=name_to_channel.values(),
+            start=start_dt,
+            end=end_dt,
+            frequency=frequency,
+        )
+        for d_name, ch_id in name_to_channel.items():
+            if d_name in device_map:
+                metrics = channel_metrics.get(ch_id)
+                if metrics:
+                    device_map[d_name]["uptime"] = sanitize_metric(metrics["uptime"])
+                    device_map[d_name]["data_completeness"] = sanitize_metric(metrics["data_completeness"])
+                    device_map[d_name]["error_margin"] = sanitize_metric(metrics["error_margin"])
+
     _override_last_active_from_local(device_map, name_to_channel, db=db)
 
     output = []
