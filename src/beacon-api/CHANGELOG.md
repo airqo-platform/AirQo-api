@@ -4,6 +4,36 @@
 
 ---
 
+## Version 2.2.1
+**Released:** September 9, 2026
+
+### Fix: Maintenance Map View Query Optimization & PostgreSQL Connection Resilience
+
+Resolved PostgreSQL connection terminations and `OperationalError: server closed the connection unexpectedly` on `/api/v1/maintenance/map-view/synced` and `/api/v1/maintenance/map-view` by pushing performance metric aggregations down to the database and batching telemetry channel queries.
+
+<details>
+<summary><strong>SQL-Level Metric Aggregation & Query Batching</strong></summary>
+
+- **Lightweight Grouped Aggregation (`app/crud/crud_sync_device_data.py`)**:
+  - Implemented `get_device_metrics_for_map_view` performing SQL-level `GROUP BY channel_id` calculations for `uptime` (bucket count), `data_completeness`, and `error_margin` (`AVG(field1_avg)` vs `AVG(field3_avg)`).
+  - Reduced query payload from ~226,000+ full hourly records across 20+ columns down to a single summary row per channel (~675 rows total).
+  - Added query batching in chunks of 200 channels to remain safely within database parameter limits.
+- **Batching Safeguards in CRUD Helpers**:
+  - Updated `get_device_data_for_devices` and `get_latest_raw_timestamps` in `app/crud/crud_sync_device_data.py` to chunk channel IDs in batches of 200.
+- **Map View Service Streamlining (`app/services/maintenance_service.py`)**:
+  - Updated `get_synced_map_view` and `get_map_view` to query device metrics directly via `get_device_metrics_for_map_view`, bypassing the heavy row-by-row `apply_local_performance` pipeline.
+- **Automated Test Coverage (`tests/test_maintenance_synced.py`)**:
+  - Added unit test cases verifying database metric aggregations and end-to-end synced map view response generation.
+
+</details>
+
+**Files changed:**
+- `app/crud/crud_sync_device_data.py` — Added `get_device_metrics_for_map_view` and batched channel queries
+- `app/services/maintenance_service.py` — Streamlined `get_synced_map_view` and `get_map_view` to use SQL-level metrics
+- `tests/test_maintenance_synced.py` — Added test coverage for metric aggregations and performance data
+
+---
+
 ## Version 2.2.0
 **Released:** September 6, 2026
 
