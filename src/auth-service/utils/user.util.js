@@ -2410,7 +2410,7 @@ const createUserModule = {
       }
       if (purpose === "login") {
         responseFromSendEmail = await mailer.signInWithEmailLink(
-          { email, token },
+          { email, token, link },
           next,
         );
       }

@@ -831,7 +831,7 @@ const getEmailSubject = (functionName, params) => {
     sendPasswordResetEmail: `Password Reset Code: ${params.token || ""}`,
     updateForgottenPassword: "Your AirQo Account Password Reset Successful",
     updateKnownPassword: "Your AirQo Account Password Update Successful",
-    signInWithEmailLink: "Verify your email address!",
+    signInWithEmailLink: "Your secure sign-in link for AirQo",
     deleteMobileAccountEmail: "Confirm Account Deletion - AirQo",
     authenticateEmail: "Changes to your AirQo email",
     compromisedToken:
@@ -1860,7 +1860,8 @@ const mailer = {
   signInWithEmailLink: createMailerFunction(
     "signInWithEmailLink", //
     "CORE_CRITICAL",
-    (params) => msgs.join_by_email(params.email, params.token),
+    (params) =>
+      msgs.signInLinkEmail({ email: params.email, link: params.link }),
   ),
   deleteMobileAccountEmail: createMailerFunction(
     "deleteMobileAccountEmail", //

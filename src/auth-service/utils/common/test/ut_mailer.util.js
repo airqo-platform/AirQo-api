@@ -463,6 +463,7 @@ describe("mailer", () => {
   describe("signInWithEmailLink", () => {
     const email = "johndoe@example.com";
     const token = "abcdef123456";
+    const link = "https://airqo.net/__/auth/action?apiKey=xyz&mode=signIn&oobCode=abc";
 
     it("should send the sign-in link email and return a success response", async () => {
       sendMailStub.resolves({ accepted: [email], rejected: [] });
@@ -470,6 +471,7 @@ describe("mailer", () => {
       const result = await mailer.signInWithEmailLink({
         email,
         token,
+        link,
         priority: "high",
       });
 
@@ -477,15 +479,15 @@ describe("mailer", () => {
       expect(sendMailStub.calledOnce).to.be.true;
       const mailOptions = sendMailStub.firstCall.args[0];
       expect(mailOptions.to).to.equal(email);
-      expect(mailOptions.subject).to.equal("Verify your email address!");
-      expect(mailOptions.html).to.equal(msgs.join_by_email(email, token));
+      expect(mailOptions.subject).to.equal("Your secure sign-in link for AirQo");
+      expect(mailOptions.html).to.equal(msgs.signInLinkEmail({ email, link }));
     });
 
     it("should return an internal server error when the transporter rejects the recipient", async () => {
       sendMailStub.resolves({ accepted: [], rejected: [email] });
 
       await expectHttpErrorRejection(
-        mailer.signInWithEmailLink({ email, token, priority: "high" }),
+        mailer.signInWithEmailLink({ email, token, link, priority: "high" }),
         httpStatus.INTERNAL_SERVER_ERROR
       );
     });

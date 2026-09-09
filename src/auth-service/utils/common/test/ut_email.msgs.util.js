@@ -301,6 +301,41 @@ describe("email.msgs", () => {
       expect(result).to.equal(expectedMessage);
     });
   });
+  describe("signInLinkEmail", () => {
+    it("should return the correct signInLinkEmail message with valid inputs", () => {
+      const email = "john.doe@example.com";
+      const link =
+        "https://airqo.net/__/auth/action?apiKey=xyz&mode=signIn&oobCode=abc";
+      const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Click the button below to securely sign in to your AirQo account. This link expires in 10 minutes.
+                                    <br /><br />
+                                    <a href="${link}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Sign in</div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    Trouble with the button? Paste this URL into your browser:
+                                    <br />
+                                    <a href="${link}" target="_blank">${link}</a>
+                                    <br /><br />
+                                    <div
+                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                        If you didn't request this, you can safely ignore this email — no changes will be made to your account.</div>
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY({ email, content });
+      const result = msgs.signInLinkEmail({ email, link });
+      expect(result).to.equal(expectedMessage);
+    });
+  });
   describe("authenticate_email", () => {
     it("should return the correct authenticate_email message with valid token", () => {
       const email = "john.doe@example.com";
