@@ -108,6 +108,7 @@ function envConfig(env) {
       ? `${nexusBaseUrl}/user/login`
       : undefined,
     FORGOT_PAGE: nexusBaseUrl ? `${nexusBaseUrl}/forgot` : undefined,
+    SIGN_IN_LINK: nexusBaseUrl ? `${nexusBaseUrl}/user/emailLogin` : undefined,
     PLATFORM_BASE_URL: nexusBaseUrl,
 
     // ── Per-environment defaults ──────────────────────────────────────────────

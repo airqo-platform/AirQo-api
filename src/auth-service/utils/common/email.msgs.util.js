@@ -1069,7 +1069,7 @@ module.exports = {
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Click the button below to securely sign in to your AirQo account. This link expires in 10 minutes.
+                                Click the button below to securely sign in to your AirQo account. This link is time-sensitive, so please use it soon.
                                     <br /><br />
                                     <a href="${link}" target="_blank">
                                         <div

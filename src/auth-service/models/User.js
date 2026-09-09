@@ -244,6 +244,8 @@ const UserSchema = new Schema(
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    signInToken: { type: String },
+    signInTokenExpires: { type: Date },
     jobTitle: {
       type: String,
     },
