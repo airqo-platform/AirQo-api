@@ -1183,7 +1183,12 @@ const updateRawOnlineStatus = async () => {
     const countLog = totalDevices > 0 ? `~${totalDevices}` : "all";
     logText(`Found ${countLog} devices to process in batches of ${BATCH_SIZE}`);
 
-    // Use cursor with smaller memory footprint
+    // Use cursor with smaller memory footprint. noCursorTimeout is required
+    // because processing a single batch (ThingSpeak/external-API fetches at
+    // concurrency 5, each up to 30s) can exceed MongoDB's default idle-cursor
+    // timeout between getMore calls, which otherwise kills the cursor mid-run
+    // ("cursor id ... not found"). Safe here since the cursor is always
+    // closed in the finally block below regardless of how the loop exits.
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
@@ -1191,6 +1196,7 @@ const updateRawOnlineStatus = async () => {
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
+      .setOptions({ noCursorTimeout: true })
       .cursor();
 
     let batch = [];
