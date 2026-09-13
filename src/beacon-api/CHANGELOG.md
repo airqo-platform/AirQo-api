@@ -4,6 +4,75 @@
 
 ---
 
+## Version 2.3.0
+**Released:** September 13, 2026
+
+### Feature: Profile-Driven Diagnostic Engine
+
+The diagnostic engine no longer contains device-specific rules (12 V battery thresholds, solar and PM key names, a fixed 2-minute reporting interval, fixed subsystems and causes). Everything device-specific now comes from the device profile.
+
+<details>
+<summary><strong>How a profile drives the analysis</strong></summary>
+
+- **Component metrics** (`expected_min`, `expected_max`, `max_rate_of_change` per hour): generic checks `METRIC_BELOW_MIN`, `METRIC_ABOVE_MAX`, `METRIC_RATE_EXCEEDED`, `METRIC_STUCK`, `METRIC_MISSING` for every telemetry-mapped metric.
+- **Component criticality**: weights each component's score in the overall health score and sets issue severity (criticality × confidence).
+- **Relationships**: `POWERS` / `COOLS` / `COMMUNICATES_VIA` build a dependency graph — a faulty upstream component is reported as the root cause of its dependents' issues, and an unmonitored component whose dependents all fail is reported as suspected. `MEASURES_SAME_AS` pairs sensors for an agreement check; disagreement is attributed to whichever side has its own fault.
+- **Config mappings**: `reporting_interval` (device's synced config value, falling back to the profile default) drives the `DATA_GAPS` check, attributed to `connectivity` components.
+- **Policy** (`app/services/diagnostics/policy.py`): generic tuning (violation rates, check impacts, lifecycle bands) overridable via `profile.meta_data.diagnostics` and `component.meta_data.diagnostics` (including `disabled_checks`).
+- Devices without a usable profile are rejected (`422` on evaluate endpoints, `skipped_no_profile` in daily runs) instead of being scored with guessed rules.
+- New `GET /diagnostics/profiles/{profile_id}/diagnostic-readiness` lists what a profile is missing (unmapped metrics, missing limits, unsupported relationships, missing reporting interval, unmonitored telemetry).
+- `subsystem_scores` are now keyed by profile component name; evidence and diagnoses include component, metric and affected components.
+
+**Files:** `app/services/diagnostics/profile_model.py`, `policy.py`, `root_cause.py` (new); `evidence.py`, `features.py`, `evaluator.py`, `issues.py` (rewritten); `tests/diagnostics_fixtures.py` (new).
+
+</details>
+
+### Feature: Daily Device Diagnostics, Issue Streaks & Fleet Health Endpoints
+
+After the nightly ThingSpeak sync, every device with data for a completed UTC day is now run through the diagnostic engine and the result is stored per device per day. Detected issues are tracked across days (new vs. persisting vs. resolved), and new endpoints expose device history, recurring issues and a fleet-wide daily overview.
+
+<details>
+<summary><strong>Daily Evaluation Pipeline</strong></summary>
+
+- **Service (`app/services/diagnostics/daily.py`)**:
+  - `run_daily_diagnostics` evaluates each completed device-day (`sync_daily_device_data.complete = true`, `record_count > 0`) from the stored raw readings, resolving the device's profile for field mapping.
+  - Idempotent and self-healing: each run catches up on undiagnosed days in the lookback window (default 3 days, max 14 = raw data retention). `force=True` re-evaluates and replaces existing days.
+  - Commits per device-day so one bad day does not roll back others; failures are counted in the run summary.
+  - Runs in a worker thread (`run_daily_diagnostics_async`) because evaluation is CPU-bound (~0.2 s per device-day).
+- **Issues (`app/services/diagnostics/issues.py`)**: each profile-driven finding is stored with its check type, component, metric, component type (`subsystem`) and severity, e.g. `METRIC_BELOW_MIN:device_battery.battery_voltage`.
+- **Streaks**: each issue stores `is_new`, `streak_days` and `streak_start_date`; a gap of up to 3 days (e.g. device offline) does not reset a streak. Each day also stores `resolved_issue_codes`.
+- **Scheduler (`app/services/scheduler_service.py`)**: chained after the daily ThingSpeak sync, followed by a 365-day retention cleanup. Toggle with `DAILY_DIAGNOSTICS_ENABLED`.
+
+</details>
+
+<details>
+<summary><strong>New Endpoints (`/api/v1/diagnostics`)</strong></summary>
+
+- `GET /devices/{device_id}/daily` — day-by-day diagnosis history with issues (filters: `start_date`, `end_date`, `lifecycle_state`, `limit`).
+- `GET /devices/{device_id}/daily/{diagnosis_date}` — full diagnosis for one day: evidence, ranked causes, issues and per-metric mean/min/max.
+- `GET /devices/{device_id}/issues?days=30` — recurring/active issues with days observed, current streak and a health score trend.
+- `GET /fleet/daily-summary` — lifecycle state and severity counts, top issues (with new-device counts), resolved issues and worst devices for a day (defaults to latest).
+- `GET /fleet/issues` — cross-fleet issue search (`issue_code`, `severity`, `subsystem`, `min_streak_days`, `only_new`, date filters).
+- `POST /daily/run` — background run/backfill (`start_date`, `end_date`, repeatable `device_id`, `force`, `lookback_days`).
+
+</details>
+
+**Database migration:** `b8c9d0e1f2a3` — adds `device_daily_diagnostics` (unique per device + date) and `device_daily_issues` (unique per device + date + issue code).
+
+**Files changed:**
+- `app/models/health.py` — Added `DeviceDailyDiagnostic` and `DeviceDailyIssue`
+- `app/services/diagnostics/daily.py` — Daily evaluation pipeline and read-side summaries
+- `app/services/diagnostics/issues.py` — Issue catalog and classification
+- `app/crud/crud_diagnostics.py` — Daily diagnosis and issue queries, retention cleanup
+- `app/schemas/diagnostics.py` — Daily diagnosis, issue summary and fleet response schemas
+- `app/api/v1/diagnostics.py` — Daily diagnostics endpoints
+- `app/services/scheduler_service.py` — Run daily diagnostics after the scheduled sync
+- `app/core/config.py` — `DAILY_DIAGNOSTICS_ENABLED` setting
+- `alembic/versions/b8c9d0e1f2a3_add_daily_device_diagnostics_tables.py` — New tables
+- `tests/test_daily_diagnostics.py` — Pipeline, streak, idempotency and API tests
+
+---
+
 ## Version 2.2.1
 **Released:** September 9, 2026
 
