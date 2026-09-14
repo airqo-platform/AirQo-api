@@ -3,12 +3,35 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
+_TIMESTAMP_KEYS = ("created_at_ts", "datetime", "timestamp", "time")
+_NON_METRIC_KEYS = set(_TIMESTAMP_KEYS) | {"device_id", "channel_id", "id", "entry_id"}
+
 
 class FeatureExtractor:
     """
     Extracts statistical, temporal, and relational features from raw or windowed telemetry.
-    Operates agnostically on arbitrary numerical metric streams.
+    Operates agnostically on arbitrary numerical metric streams; what the values mean
+    comes from the device profile.
     """
+
+    @staticmethod
+    def get_record_timestamp(record: Dict[str, Any]) -> Optional[float]:
+        """Epoch seconds for a record, or None when it has no usable timestamp."""
+        ts = next((record[k] for k in _TIMESTAMP_KEYS if record.get(k) is not None), None)
+        if isinstance(ts, (int, float)) and not isinstance(ts, bool):
+            return None if math.isnan(ts) or math.isinf(ts) else float(ts)
+        if isinstance(ts, datetime):
+            return ts.timestamp()
+        if isinstance(ts, str):
+            try:
+                return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _is_number(value: Any) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and not math.isnan(value)
 
     @staticmethod
     def calculate_cross_sensor_agreement(
@@ -18,7 +41,6 @@ class FeatureExtractor:
         Calculates Pearson correlation coefficient, Mean Absolute Error (MAE),
         and relative divergence ratio between two collocated or redundant sensors.
         """
-        # Filter valid pairs
         pairs = [(a, b) for a, b in zip(series_a, series_b) if a is not None and b is not None and not math.isnan(a) and not math.isnan(b)]
         if len(pairs) < 3:
             return {
@@ -57,7 +79,7 @@ class FeatureExtractor:
         values: List[float], timestamps: List[float]
     ) -> float:
         """
-        Calculates rate of change (e.g. Volts / hour or Degrees / hour) over time via linear regression.
+        Calculates rate of change (units / hour) over time via linear regression.
         timestamps should be in epoch seconds.
         """
         if len(values) < 2 or len(timestamps) < 2 or len(values) != len(timestamps):
@@ -66,7 +88,6 @@ class FeatureExtractor:
         arr_y = np.array(values, dtype=float)
         arr_x = np.array(timestamps, dtype=float)
 
-        # Normalize x to hours relative to start
         x_hours = (arr_x - arr_x[0]) / 3600.0
         if x_hours[-1] == 0:
             return 0.0
@@ -75,23 +96,37 @@ class FeatureExtractor:
         return round(float(slope), 4)
 
     @staticmethod
-    def calculate_steepest_discharge_gradient(
-        values: List[float], timestamps: List[float], window_size: int = 4
-    ) -> float:
-        """Finds the steepest downward slope over sliding windows."""
-        if len(values) < 3 or len(timestamps) < 3:
-            return 0.0
-        steepest = 0.0
-        arr_y = np.array(values, dtype=float)
-        arr_x = (np.array(timestamps, dtype=float) - timestamps[0]) / 3600.0
-        for i in range(len(values) - window_size + 1):
-            win_y = arr_y[i : i + window_size]
-            win_x = arr_x[i : i + window_size]
-            if win_x[-1] > win_x[0]:
-                slope, _ = np.polyfit(win_x - win_x[0], win_y, 1)
-                if slope < steepest:
-                    steepest = float(slope)
-        return round(steepest, 4)
+    def calculate_max_rate_per_hour(
+        values: List[float],
+        timestamps: List[float],
+        window_seconds: float = 3600.0,
+        min_samples: int = 3,
+    ) -> Tuple[float, float]:
+        """
+        Largest absolute rate of change (units / hour) found in consecutive time windows,
+        using a linear fit per window so single noisy samples do not dominate.
+        Returns (max_abs_rate, signed_rate_of_that_window).
+        """
+        if len(values) < min_samples or len(values) != len(timestamps):
+            return 0.0, 0.0
+
+        start = timestamps[0]
+        buckets: Dict[int, List[Tuple[float, float]]] = {}
+        for v, ts in zip(values, timestamps):
+            buckets.setdefault(int((ts - start) // window_seconds), []).append((ts, v))
+
+        best_abs, best_signed = 0.0, 0.0
+        for points in buckets.values():
+            if len(points) < min_samples:
+                continue
+            xs = np.array([p[0] for p in points], dtype=float)
+            if xs[-1] <= xs[0]:
+                continue
+            ys = np.array([p[1] for p in points], dtype=float)
+            slope, _ = np.polyfit((xs - xs[0]) / 3600.0, ys, 1)
+            if abs(slope) > best_abs:
+                best_abs, best_signed = abs(float(slope)), float(slope)
+        return round(best_abs, 4), round(best_signed, 4)
 
     @staticmethod
     def calculate_missing_rate(
@@ -135,112 +170,107 @@ class FeatureExtractor:
     def calculate_range_violations(
         series: List[float], expected_min: Optional[float], expected_max: Optional[float]
     ) -> Dict[str, Any]:
-        """Counts values strictly outside expected operating bounds."""
+        """Counts values strictly below / above the expected operating bounds."""
         valid_vals = [v for v in series if v is not None and not math.isnan(v)]
         if not valid_vals:
-            return {"out_of_bounds_count": 0, "violation_rate": 0.0}
+            return {"below_count": 0, "above_count": 0, "below_rate": 0.0, "above_rate": 0.0}
 
-        violations = 0
-        for v in valid_vals:
-            if expected_min is not None and v < expected_min:
-                violations += 1
-            elif expected_max is not None and v > expected_max:
-                violations += 1
-
+        below = sum(1 for v in valid_vals if expected_min is not None and v < expected_min)
+        above = sum(1 for v in valid_vals if expected_max is not None and v > expected_max)
         return {
-            "out_of_bounds_count": violations,
-            "violation_rate": round(violations / len(valid_vals), 4),
+            "below_count": below,
+            "above_count": above,
+            "below_rate": round(below / len(valid_vals), 4),
+            "above_rate": round(above / len(valid_vals), 4),
         }
+
+    @classmethod
+    def paired_values(
+        cls, records: List[Dict[str, Any]], key_a: str, key_b: str
+    ) -> Tuple[List[float], List[float]]:
+        """Values of two metrics taken only from records where both are present."""
+        series_a: List[float] = []
+        series_b: List[float] = []
+        for r in records:
+            a, b = r.get(key_a), r.get(key_b)
+            if cls._is_number(a) and cls._is_number(b):
+                series_a.append(float(a))
+                series_b.append(float(b))
+        return series_a, series_b
 
     @classmethod
     def extract_all_features(
         cls,
         records: List[Dict[str, Any]],
-        expected_frequency_minutes: int = 2,
+        expected_interval_seconds: Optional[float] = None,
+        window_seconds: Optional[float] = None,
+        rate_window_seconds: float = 3600.0,
+        rate_min_samples: int = 3,
     ) -> Dict[str, Any]:
         """
-        Parses arbitrary telemetry record dictionaries and extracts a comprehensive feature map.
-        Supports both raw AirQo device fields and generic metric keys.
+        Builds per-metric statistics for every numeric key in the records.
+        Data completeness is only computed when the expected reporting interval is known;
+        the window defaults to the span between the first and last record.
+        Records without a usable timestamp are excluded, since every check here is time-based.
         """
-        if not records:
+        timed: List[Tuple[float, Dict[str, Any]]] = []
+        for record in records or []:
+            ts = cls.get_record_timestamp(record)
+            if ts is not None:
+                timed.append((ts, record))
+
+        if not timed:
             return {
                 "record_count": 0,
-                "missing_rate": 1.0,
+                "records_without_timestamp": len(records or []),
+                "duration_hours": 0.0,
+                "expected_records": None,
+                "missing_rate": None,
+                "metrics": {},
             }
 
-        # Sort records by timestamp if available
-        def get_ts(r: Dict[str, Any]) -> float:
-            ts = r.get("created_at_ts") or r.get("datetime") or r.get("timestamp") or r.get("time")
-            if isinstance(ts, (int, float)):
-                return float(ts)
-            if isinstance(ts, datetime):
-                return ts.timestamp()
-            if isinstance(ts, str):
-                try:
-                    return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
-                except Exception:
-                    pass
-            return 0.0
+        timed.sort(key=lambda pair: pair[0])
+        timestamps = [pair[0] for pair in timed]
+        sorted_records = [pair[1] for pair in timed]
 
-        sorted_records = sorted(records, key=get_ts)
-        timestamps = [get_ts(r) for r in sorted_records]
-
-        # Collect time-series per key with source timestamp
         series_by_key: Dict[str, List[Tuple[float, float]]] = {}
-        for r in sorted_records:
-            r_ts = get_ts(r)
+        for r, r_ts in zip(sorted_records, timestamps):
             for k, v in r.items():
-                if k in ("created_at_ts", "datetime", "timestamp", "time", "device_id", "channel_id", "id"):
+                if k in _NON_METRIC_KEYS or not cls._is_number(v):
                     continue
-                if isinstance(v, (int, float)) and not math.isnan(v):
-                    series_by_key.setdefault(k, []).append((float(v), r_ts))
+                series_by_key.setdefault(k, []).append((float(v), r_ts))
 
-        # Calculate time duration
-        first_ts = timestamps[0] if timestamps else 0
-        last_ts = timestamps[-1] if timestamps else 0
-        duration_minutes = max(1.0, (last_ts - first_ts) / 60.0) if (last_ts > first_ts) else 60.0
-        expected_records = max(1, int(duration_minutes / expected_frequency_minutes) + 1)
-        actual_records = len(sorted_records)
-        missing_rate = cls.calculate_missing_rate(actual_records, expected_records)
-
+        span_seconds = max(0.0, timestamps[-1] - timestamps[0])
         feature_map: Dict[str, Any] = {
-            "record_count": actual_records,
-            "expected_records": expected_records,
-            "duration_hours": round(duration_minutes / 60.0, 2),
-            "missing_rate": missing_rate,
+            "record_count": len(sorted_records),
+            "records_without_timestamp": len(records) - len(sorted_records),
+            "duration_hours": round(span_seconds / 3600.0, 2),
+            "expected_records": None,
+            "missing_rate": None,
             "metrics": {},
         }
+
+        if expected_interval_seconds and expected_interval_seconds > 0:
+            if window_seconds:
+                expected = max(1, int(window_seconds // expected_interval_seconds))
+            else:
+                expected = max(1, int(span_seconds // expected_interval_seconds) + 1)
+            feature_map["expected_records"] = expected
+            feature_map["missing_rate"] = cls.calculate_missing_rate(len(sorted_records), expected)
 
         for key, pairs in series_by_key.items():
             vals = [p[0] for p in pairs]
             ts_list = [p[1] for p in pairs]
-            stats = cls.calculate_variance_and_spikes(vals)
-            gradient = cls.calculate_discharge_gradient(vals, ts_list)
-            steepest_discharge = cls.calculate_steepest_discharge_gradient(vals, ts_list)
-            feature_map["metrics"][key] = {
-                **stats,
-                "gradient_per_hour": gradient,
-                "discharge_gradient_per_hour": steepest_discharge,
-                "count": len(vals),
-            }
-
-        # Check for Dual PM sensors (pm2_5_sensor1 & pm2_5_sensor2 or field1 & field3)
-        # Build PM pairs only from records containing both sensor values at the same timestamp
-        pm1_keys = ("pm2_5_sensor1", "pm2_5_sensor_1", "pm2_5", "field1")
-        pm2_keys = ("pm2_5_sensor2", "pm2_5_sensor_2", "field3")
-        pm1_paired: List[float] = []
-        pm2_paired: List[float] = []
-
-        for r in sorted_records:
-            v1 = next((float(r[k]) for k in pm1_keys if k in r and isinstance(r[k], (int, float)) and not math.isnan(r[k])), None)
-            v2 = next((float(r[k]) for k in pm2_keys if k in r and isinstance(r[k], (int, float)) and not math.isnan(r[k])), None)
-            if v1 is not None and v2 is not None:
-                pm1_paired.append(v1)
-                pm2_paired.append(v2)
-
-        if pm1_paired and pm2_paired:
-            feature_map["pm_sensor_agreement"] = cls.calculate_cross_sensor_agreement(
-                pm1_paired, pm2_paired
+            max_rate, signed_rate = cls.calculate_max_rate_per_hour(
+                vals, ts_list, window_seconds=rate_window_seconds, min_samples=rate_min_samples
             )
+            feature_map["metrics"][key] = {
+                **cls.calculate_variance_and_spikes(vals),
+                "gradient_per_hour": cls.calculate_discharge_gradient(vals, ts_list),
+                "max_rate_per_hour": max_rate,
+                "max_rate_signed": signed_rate,
+                "count": len(vals),
+                "values": vals,
+            }
 
         return feature_map

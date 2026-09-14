@@ -45,4 +45,6 @@ from app.models.diagnostics import (
 from app.models.health import (
     DeviceHealthSnapshot,
     DiagnosticFeedback,
+    DeviceDailyDiagnostic,
+    DeviceDailyIssue,
 )
