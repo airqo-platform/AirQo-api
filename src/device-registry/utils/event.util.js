@@ -1977,38 +1977,45 @@ const createEvent = {
       // identity (whitespace/case variants of the same real place, e.g.
       // "Kampala" and "kampala " written on different days) BEFORE computing
       // any average — summing the raw totals first, then dividing once,
-      // avoids double-counting or averaging-of-averages. Merges purely on
-      // (name, year) — same as the rollup job's own upsert key, which has
-      // never distinguished same-named entities by country — so a doc still
-      // missing country attribution merges with one that has it, rather than
-      // splitting into two rows for the same real place.
-      const merged = new Map(); // `${normalizedEntity}|${year}` -> bucket
+      // avoids double-counting or averaging-of-averages. A doc still missing
+      // country attribution (null) merges freely with one that has it, since
+      // that's the expected self-healing case. But two docs under the same
+      // normalized name that carry two DIFFERENT non-null countries are kept
+      // as separate entities instead of being silently averaged together —
+      // that combination is the one real signal that these are two unrelated
+      // places that happen to share a name (see the `country` field's
+      // comment on models/AirQualitySummary.js), and there's no way to
+      // un-mix two averages once merged.
+      const groupsByEntity = new Map(); // normalizedEntity -> array of { country, displayName, years: Map<year,{sum_pm2_5,reading_count,siteSet}> }
       summaryDocs
         .filter((doc) => doc.reading_count > 0)
         .forEach((doc) => {
           const trimmedEntity = (doc.entity || "").trim();
           if (!trimmedEntity) return; // drop empty/placeholder entities defensively
           const normalizedEntity = trimmedEntity.toLowerCase();
-          const mapKey = `${normalizedEntity}|${doc.year}`;
-          if (!merged.has(mapKey)) {
-            merged.set(mapKey, {
-              normalizedEntity,
-              country: doc.country || null,
-              year: doc.year,
-              displayName: trimmedEntity,
-              sum_pm2_5: 0,
-              reading_count: 0,
-              siteSet: new Set(),
-            });
+          const docCountry = doc.country || null;
+
+          if (!groupsByEntity.has(normalizedEntity)) groupsByEntity.set(normalizedEntity, []);
+          const candidates = groupsByEntity.get(normalizedEntity);
+          let group = candidates.find(
+            (g) => !g.country || !docCountry || g.country === docCountry
+          );
+          if (!group) {
+            group = { country: docCountry, displayName: trimmedEntity, years: new Map() };
+            candidates.push(group);
           }
-          const bucket = merged.get(mapKey);
-          bucket.sum_pm2_5 += doc.sum_pm2_5;
-          bucket.reading_count += doc.reading_count;
-          (doc.contributing_sites || []).forEach((s) => bucket.siteSet.add(s));
-          if (!bucket.country && doc.country) bucket.country = doc.country;
+          if (!group.country && docCountry) group.country = docCountry;
           // Lexicographically-min trimmed casing gives a deterministic
           // canonical display name, independent of Mongo's sort/find order.
-          if (trimmedEntity < bucket.displayName) bucket.displayName = trimmedEntity;
+          if (trimmedEntity < group.displayName) group.displayName = trimmedEntity;
+
+          if (!group.years.has(doc.year)) {
+            group.years.set(doc.year, { sum_pm2_5: 0, reading_count: 0, siteSet: new Set() });
+          }
+          const yearBucket = group.years.get(doc.year);
+          yearBucket.sum_pm2_5 += doc.sum_pm2_5;
+          yearBucket.reading_count += doc.reading_count;
+          (doc.contributing_sites || []).forEach((s) => yearBucket.siteSet.add(s));
         });
 
       // Resolved once per request, same reasoning as getAirQualityRankings —
@@ -2021,17 +2028,27 @@ const createEvent = {
       const byEntity = new Map();
       const entityCountry = new Map();
       const entityDisplayName = new Map();
-      Array.from(merged.values()).forEach((b) => {
-        if (!byEntity.has(b.normalizedEntity)) byEntity.set(b.normalizedEntity, new Map());
-        byEntity.get(b.normalizedEntity).set(b.year, {
-          avg_pm2_5: Math.round((b.sum_pm2_5 / b.reading_count) * 100) / 100,
-          site_count: b.siteSet.size,
+      groupsByEntity.forEach((groups, normalizedEntity) => {
+        // A single group (the overwhelming common case) keeps the plain
+        // normalized-name key; a genuine country conflict splits into
+        // multiple response rows, disambiguated by country in the key.
+        groups.forEach((group, index) => {
+          const responseKey =
+            groups.length > 1
+              ? `${normalizedEntity}#${group.country || index}`
+              : normalizedEntity;
+          const yearMap = new Map();
+          group.years.forEach((yearBucket, year) => {
+            yearMap.set(year, {
+              avg_pm2_5:
+                Math.round((yearBucket.sum_pm2_5 / yearBucket.reading_count) * 100) / 100,
+              site_count: yearBucket.siteSet.size,
+            });
+          });
+          byEntity.set(responseKey, yearMap);
+          if (group.country) entityCountry.set(responseKey, group.country);
+          entityDisplayName.set(responseKey, group.displayName);
         });
-        if (b.country) entityCountry.set(b.normalizedEntity, b.country);
-        const prevDisplay = entityDisplayName.get(b.normalizedEntity);
-        if (!prevDisplay || b.displayName < prevDisplay) {
-          entityDisplayName.set(b.normalizedEntity, b.displayName);
-        }
       });
 
       const data = Array.from(byEntity.entries())

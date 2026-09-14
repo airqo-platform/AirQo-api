@@ -46,6 +46,15 @@ function normalize(value) {
 }
 
 async function buildUnambiguousCityToCountryMap() {
+  // Only the exact, canonical names in constants.countryCodes are ever
+  // written to AirQualitySummary.country (see event.util.js /
+  // air-quality-rollup-job.js) — a raw site.country that's merely
+  // untrimmed ("Uganda ") or non-canonical would (a) create false
+  // ambiguity against a clean "Uganda" value for the same city, and (b)
+  // if backfilled as-is, never match the canonical-name lookups the
+  // rankings endpoints use, silently making the backfilled row unusable.
+  const canonicalCountries = new Set(Object.keys(constants.countryCodes));
+
   const sites = await SiteModel(TENANT)
     .find({ city: { $nin: [null, ""] }, country: { $nin: [null, ""] } })
     .select({ city: 1, country: 1 })
@@ -55,8 +64,10 @@ async function buildUnambiguousCityToCountryMap() {
   sites.forEach((site) => {
     const key = normalize(site.city);
     if (!key) return;
+    const trimmedCountry = (site.country || "").trim();
+    if (!trimmedCountry || !canonicalCountries.has(trimmedCountry)) return;
     if (!cityToCountries.has(key)) cityToCountries.set(key, new Set());
-    cityToCountries.get(key).add(site.country);
+    cityToCountries.get(key).add(trimmedCountry);
   });
 
   const unambiguous = new Map(); // normalizedCity -> country
@@ -98,7 +109,13 @@ async function backfill({ dryRun = true } = {}) {
     }
     ops.push({
       updateOne: {
-        filter: { _id: doc._id },
+        // country: null re-asserted here (not just in the find() above) so
+        // a write only lands if the row is still unattributed at write
+        // time — the rollup job runs daily and self-heals country on its
+        // own, so between this script's read and its bulkWrite, a row
+        // could already have a real (possibly different) country; this
+        // guard stops the migration from clobbering it with a stale guess.
+        filter: { _id: doc._id, country: null },
         update: { $set: { country } },
       },
     });

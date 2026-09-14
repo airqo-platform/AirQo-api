@@ -3683,6 +3683,76 @@ describe("create Event utils", function() {
 
       expect(result.data).to.deep.equal([]);
     });
+
+    it("does not merge two docs sharing a normalized name but carrying two different non-null countries", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Springfield",
+            country: "Kenya",
+            year: 2023,
+            sum_pm2_5: 100,
+            reading_count: 2,
+            contributing_sites: ["s1"],
+          },
+          {
+            entity: "springfield",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 10,
+            reading_count: 2,
+            contributing_sites: ["s2"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      // Two separate response rows, not one row averaging 100 and 10
+      // together under a single, misleading country.
+      expect(result.data).to.have.lengthOf(2);
+      const countries = result.data.map((entry) => entry.country_name).sort();
+      expect(countries).to.deep.equal(["Kenya", "Uganda"]);
+      const kenyaEntry = result.data.find((e) => e.country_name === "Kenya");
+      const ugandaEntry = result.data.find((e) => e.country_name === "Uganda");
+      expect(kenyaEntry.values[0].avg_pm2_5).to.equal(50);
+      expect(ugandaEntry.values[0].avg_pm2_5).to.equal(5);
+    });
+
+    it("still merges a null-country doc with a differently-cased non-null-country doc for the same real place", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Kampala",
+            country: null,
+            year: 2023,
+            sum_pm2_5: 30,
+            reading_count: 1,
+            contributing_sites: ["s1"],
+          },
+          {
+            entity: "kampala",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 40,
+            reading_count: 1,
+            contributing_sites: ["s2"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(1);
+      expect(result.data[0].country_name).to.equal("Uganda");
+      expect(result.data[0].values[0].avg_pm2_5).to.equal(35);
+    });
   });
 
   // Nexus: rankings filter-option metadata — country selector for the
