@@ -1838,8 +1838,11 @@ const createEvent = {
         // Secondary sort on name breaks ties deterministically — without it,
         // two entities with the same avg_pm2_5 could swap order between
         // identical requests, since Mongo doesn't guarantee sort stability
-        // on its own.
-        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1, name: 1 } },
+        // on its own. Tertiary sort on country covers the rare case where
+        // two different countries have a city of the exact same name (see
+        // the _id.country comment above) — name alone wouldn't disambiguate
+        // that pair.
+        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1, name: 1, "_id.country": 1 } },
         {
           $facet: {
             data: [{ $limit: Number(limit) }],
@@ -1973,50 +1976,82 @@ const createEvent = {
         .sort({ entity: 1 })
         .lean();
 
+      // Folds a set of same-identity docs (already known to share one
+      // country, or to be the sole unattributed group) into one group —
+      // summing raw totals per year BEFORE computing any average, since
+      // averaging-of-averages would misweight days/sites unevenly.
+      const foldDocsIntoGroup = (docs, country) => {
+        const years = new Map();
+        let displayName = docs[0].trimmedEntity;
+        docs.forEach((doc) => {
+          // Lexicographically-min trimmed casing gives a deterministic
+          // canonical display name, independent of Mongo's find() order.
+          if (doc.trimmedEntity < displayName) displayName = doc.trimmedEntity;
+          if (!years.has(doc.year)) {
+            years.set(doc.year, { sum_pm2_5: 0, reading_count: 0, siteSet: new Set() });
+          }
+          const yearBucket = years.get(doc.year);
+          yearBucket.sum_pm2_5 += doc.sum_pm2_5;
+          yearBucket.reading_count += doc.reading_count;
+          doc.contributing_sites.forEach((s) => yearBucket.siteSet.add(s));
+        });
+        return { country, displayName, years };
+      };
+
       // Merge docs whose entity normalizes to the same trimmed/lowercased
       // identity (whitespace/case variants of the same real place, e.g.
       // "Kampala" and "kampala " written on different days) BEFORE computing
-      // any average — summing the raw totals first, then dividing once,
-      // avoids double-counting or averaging-of-averages. A doc still missing
-      // country attribution (null) merges freely with one that has it, since
-      // that's the expected self-healing case. But two docs under the same
-      // normalized name that carry two DIFFERENT non-null countries are kept
-      // as separate entities instead of being silently averaged together —
-      // that combination is the one real signal that these are two unrelated
-      // places that happen to share a name (see the `country` field's
-      // comment on models/AirQualitySummary.js), and there's no way to
-      // un-mix two averages once merged.
-      const groupsByEntity = new Map(); // normalizedEntity -> array of { country, displayName, years: Map<year,{sum_pm2_5,reading_count,siteSet}> }
+      // any average. Two-phase per normalized name so an unattributed
+      // (country: null) doc is never guessed into an arbitrary country:
+      //  - 0 or 1 distinct non-null countries seen -> unambiguous; every doc
+      //    (attributed or not) folds into one group under that country —
+      //    the expected self-healing case.
+      //  - 2+ distinct non-null countries seen -> a genuine same-name
+      //    collision (see the `country` field's comment on
+      //    models/AirQualitySummary.js) — one group per attributed country
+      //    (only its own docs), plus a separate, still-unattributed group
+      //    for any null-country docs rather than assigning them to either.
+      const docsByEntity = new Map(); // normalizedEntity -> raw doc list
       summaryDocs
         .filter((doc) => doc.reading_count > 0)
         .forEach((doc) => {
           const trimmedEntity = (doc.entity || "").trim();
           if (!trimmedEntity) return; // drop empty/placeholder entities defensively
           const normalizedEntity = trimmedEntity.toLowerCase();
-          const docCountry = doc.country || null;
-
-          if (!groupsByEntity.has(normalizedEntity)) groupsByEntity.set(normalizedEntity, []);
-          const candidates = groupsByEntity.get(normalizedEntity);
-          let group = candidates.find(
-            (g) => !g.country || !docCountry || g.country === docCountry
-          );
-          if (!group) {
-            group = { country: docCountry, displayName: trimmedEntity, years: new Map() };
-            candidates.push(group);
-          }
-          if (!group.country && docCountry) group.country = docCountry;
-          // Lexicographically-min trimmed casing gives a deterministic
-          // canonical display name, independent of Mongo's sort/find order.
-          if (trimmedEntity < group.displayName) group.displayName = trimmedEntity;
-
-          if (!group.years.has(doc.year)) {
-            group.years.set(doc.year, { sum_pm2_5: 0, reading_count: 0, siteSet: new Set() });
-          }
-          const yearBucket = group.years.get(doc.year);
-          yearBucket.sum_pm2_5 += doc.sum_pm2_5;
-          yearBucket.reading_count += doc.reading_count;
-          (doc.contributing_sites || []).forEach((s) => yearBucket.siteSet.add(s));
+          if (!docsByEntity.has(normalizedEntity)) docsByEntity.set(normalizedEntity, []);
+          docsByEntity.get(normalizedEntity).push({
+            trimmedEntity,
+            country: doc.country || null,
+            year: doc.year,
+            sum_pm2_5: doc.sum_pm2_5,
+            reading_count: doc.reading_count,
+            contributing_sites: doc.contributing_sites || [],
+          });
         });
+
+      const groupsByEntity = new Map(); // normalizedEntity -> array of { country, displayName, years }
+      docsByEntity.forEach((docs, normalizedEntity) => {
+        const distinctCountries = Array.from(
+          new Set(docs.filter((d) => d.country).map((d) => d.country))
+        );
+        if (distinctCountries.length <= 1) {
+          groupsByEntity.set(normalizedEntity, [
+            foldDocsIntoGroup(docs, distinctCountries[0] || null),
+          ]);
+          return;
+        }
+        const groups = distinctCountries.map((country) =>
+          foldDocsIntoGroup(
+            docs.filter((d) => d.country === country),
+            country
+          )
+        );
+        const unattributed = docs.filter((d) => !d.country);
+        if (unattributed.length > 0) {
+          groups.push(foldDocsIntoGroup(unattributed, null));
+        }
+        groupsByEntity.set(normalizedEntity, groups);
+      });
 
       // Resolved once per request, same reasoning as getAirQualityRankings —
       // must never disagree with GET /aqi-ranges or the current rankings.

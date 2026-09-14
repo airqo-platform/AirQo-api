@@ -3354,6 +3354,18 @@ describe("create Event utils", function() {
       expect(sortStage.$sort.name).to.equal(1);
     });
 
+    it("breaks a same-avg_pm2_5-and-name tie with a tertiary sort on country", async () => {
+      aggregateStub.returns(mockAggregateChain([]));
+
+      await proxiedEventUtil.getAirQualityRankings({ query: {} }, next);
+
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const sortStage = pipeline.find(
+        (stage) => stage.$sort && "avg_pm2_5" in stage.$sort
+      );
+      expect(sortStage.$sort["_id.country"]).to.equal(1);
+    });
+
     it("returns an empty array (not an error) when nothing qualifies", async () => {
       aggregateStub.returns(mockAggregateChain([]));
 
@@ -3720,6 +3732,59 @@ describe("create Event utils", function() {
       const ugandaEntry = result.data.find((e) => e.country_name === "Uganda");
       expect(kenyaEntry.values[0].avg_pm2_5).to.equal(50);
       expect(ugandaEntry.values[0].avg_pm2_5).to.equal(5);
+    });
+
+    it("keeps a null-country doc in its own unattributed group rather than guessing between two conflicting countries (Kenya/Uganda/null)", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Springfield",
+            country: "Kenya",
+            year: 2023,
+            sum_pm2_5: 100,
+            reading_count: 2,
+            contributing_sites: ["s1"],
+          },
+          {
+            entity: "springfield",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 10,
+            reading_count: 2,
+            contributing_sites: ["s2"],
+          },
+          {
+            // Legacy, unattributed doc for the same normalized name — must
+            // not be silently folded into either Kenya's or Uganda's total,
+            // regardless of which order the docs are processed in.
+            entity: "Springfield",
+            country: null,
+            year: 2023,
+            sum_pm2_5: 1000,
+            reading_count: 2,
+            contributing_sites: ["s3"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(3);
+      const kenyaEntry = result.data.find((e) => e.country_name === "Kenya");
+      const ugandaEntry = result.data.find((e) => e.country_name === "Uganda");
+      const unattributedEntry = result.data.find((e) => e.country_name === null);
+
+      // Kenya/Uganda averages are untouched by the null-country doc's 1000.
+      expect(kenyaEntry.values[0].avg_pm2_5).to.equal(50);
+      expect(ugandaEntry.values[0].avg_pm2_5).to.equal(5);
+      // The unattributed doc surfaces as its own row instead of vanishing
+      // or being attributed to either country.
+      expect(unattributedEntry).to.exist;
+      expect(unattributedEntry.country_code).to.equal(null);
+      expect(unattributedEntry.values[0].avg_pm2_5).to.equal(500);
     });
 
     it("still merges a null-country doc with a differently-cased non-null-country doc for the same real place", async () => {
