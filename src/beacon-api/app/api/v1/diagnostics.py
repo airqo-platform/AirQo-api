@@ -1,6 +1,7 @@
+from datetime import date
 from typing import List, Optional, Any, Dict
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -21,9 +22,25 @@ from app.schemas.diagnostics import (
     DeviceHealthSnapshotResponse,
     DiagnosticFeedbackCreate,
     DiagnosticFeedbackResponse,
+    DailyDiagnosticsRunResponse,
+    DeviceDailyDiagnosticResponse,
+    DeviceDailyDiagnosticSummaryResponse,
+    DeviceIssueSummaryResponse,
+    FleetDailySummaryResponse,
+    FleetIssueResponse,
+    ProfileDiagnosticReadinessResponse,
+)
+from app.services.diagnostics.daily import (
+    DEFAULT_LOOKBACK_DAYS,
+    RAW_RETENTION_DAYS,
+    build_device_issue_summary,
+    build_fleet_daily_summary,
+    resolve_window,
+    run_daily_diagnostics,
 )
 from app.services.diagnostics.evaluator import DiagnosticEvaluator
-from app.services.diagnostics.seeds import seed_default_templates, get_default_candidate_causes
+from app.services.diagnostics.profile_model import ProfileNotDiagnosableError, build_model
+from app.services.diagnostics.seeds import seed_default_templates
 from app.models.sync import SyncDevice
 from app.utils.field_mappings import map_record_from_profile, normalize_and_unpack_record
 
@@ -81,6 +98,25 @@ def get_device_profile(
             detail=f"Device profile '{profile_id}' not found",
         )
     return profile
+
+
+@router.get("/profiles/{profile_id}/diagnostic-readiness", response_model=ProfileDiagnosticReadinessResponse)
+def get_profile_diagnostic_readiness(
+    profile_id: str,
+    db: Session = Depends(get_db),
+) -> Any:
+    """
+    Reports whether a profile has what the diagnostic engine needs (telemetry-mapped component
+    metrics with limits, relationships, reporting interval) and lists anything missing.
+    """
+    profile = crud_diagnostics.get_profile(db, profile_id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Device profile '{profile_id}' not found",
+        )
+    model = build_model(profile)
+    return {**model.readiness(), "effective_policy": model.policy}
 
 
 @router.put("/profiles/{profile_id}", response_model=DeviceProfileResponse)
@@ -280,6 +316,27 @@ def _prepare_telemetry_for_evaluation(
     return prepared
 
 
+def _evaluate_with_profile(device_id: str, request: EvaluationRequest, profile: Optional[Any]) -> Dict[str, Any]:
+    prepared_telemetry = _prepare_telemetry_for_evaluation(request.telemetry_window or [], profile)
+    try:
+        return evaluator.evaluate_telemetry(
+            device_id=device_id,
+            telemetry_records=prepared_telemetry,
+            profile=profile,
+            context=request.context,
+            window_hours=request.window_hours,
+        )
+    except ProfileNotDiagnosableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": "The device profile cannot drive a diagnostic analysis.",
+                "errors": exc.errors,
+                "warnings": exc.warnings,
+            },
+        )
+
+
 @router.post("/evaluate-payload", response_model=EvaluationResultResponse)
 def evaluate_custom_payload(
     request: EvaluationRequest,
@@ -290,24 +347,8 @@ def evaluate_custom_payload(
     device profiles, mapping raw telemetry fields, and unpacking composite fields.
     """
     device_id = request.device_id or "adhoc_device"
-    telemetry = request.telemetry_window or []
-    candidate_causes = get_default_candidate_causes()
-
     profile = _resolve_profile(db, profile_id=request.profile_id, device_id=request.device_id)
-    prepared_telemetry = _prepare_telemetry_for_evaluation(telemetry, profile)
-
-    eval_context = dict(request.context or {})
-    if profile is not None and "profile" not in eval_context:
-        eval_context["profile"] = profile
-
-    result = evaluator.evaluate_telemetry(
-        device_id=device_id,
-        telemetry_records=prepared_telemetry,
-        candidate_causes=candidate_causes,
-        context=eval_context,
-        window_hours=request.window_hours,
-    )
-    return result
+    return _evaluate_with_profile(device_id, request, profile)
 
 
 @router.post("/evaluate/{device_id}", response_model=EvaluationResultResponse)
@@ -321,23 +362,8 @@ def evaluate_device(
     Runs the full diagnostic pipeline on a device and saves a health snapshot record.
     """
     req = request or EvaluationRequest()
-    telemetry = req.telemetry_window or []
-    candidate_causes = get_default_candidate_causes()
-
     profile = _resolve_profile(db, profile_id=req.profile_id, device_id=device_id)
-    prepared_telemetry = _prepare_telemetry_for_evaluation(telemetry, profile)
-
-    eval_context = dict(req.context or {})
-    if profile is not None and "profile" not in eval_context:
-        eval_context["profile"] = profile
-
-    result = evaluator.evaluate_telemetry(
-        device_id=device_id,
-        telemetry_records=prepared_telemetry,
-        candidate_causes=candidate_causes,
-        context=eval_context,
-        window_hours=req.window_hours,
-    )
+    result = _evaluate_with_profile(device_id, req, profile)
 
     if save_snapshot:
         evaluator.save_snapshot(db, result)
@@ -370,6 +396,146 @@ def get_device_health_history(
 ) -> Any:
     """Fetch historical health score and state transitions for a device."""
     return crud_diagnostics.get_snapshot_history(db, device_id=device_id, limit=limit)
+
+
+# ── Daily Diagnostics ─────────────────────────────────────────────────────────
+
+@router.get("/devices/{device_id}/daily", response_model=List[DeviceDailyDiagnosticSummaryResponse])
+def list_device_daily_diagnostics(
+    device_id: str,
+    start_date: Optional[date] = Query(default=None, description="Earliest diagnosis date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(default=None, description="Latest diagnosis date (YYYY-MM-DD)"),
+    lifecycle_state: Optional[str] = Query(default=None, description="Filter by lifecycle state, e.g. LIKELY_FAILURE"),
+    limit: int = Query(default=30, ge=1, le=180),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Day-by-day diagnosis history for a device (newest first), including the issues found each day."""
+    return crud_diagnostics.list_daily_diagnostics(
+        db,
+        device_id=device_id,
+        start_date=start_date,
+        end_date=end_date,
+        lifecycle_state=lifecycle_state,
+        limit=limit,
+    )
+
+
+@router.get("/devices/{device_id}/daily/{diagnosis_date}", response_model=DeviceDailyDiagnosticResponse)
+def get_device_daily_diagnostic(
+    device_id: str,
+    diagnosis_date: date,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Full diagnosis for one device-day: evidence, ranked causes, issues and a per-metric summary."""
+    diagnostic = crud_diagnostics.get_daily_diagnostic(db, device_id, diagnosis_date)
+    if not diagnostic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No daily diagnosis found for device '{device_id}' on {diagnosis_date}.",
+        )
+    return diagnostic
+
+
+@router.get("/devices/{device_id}/issues", response_model=DeviceIssueSummaryResponse)
+def get_device_issue_summary(
+    device_id: str,
+    days: int = Query(default=30, ge=1, le=365, description="Look back this many days"),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Recurring and active issues for a device over a period, with its daily health trend."""
+    return build_device_issue_summary(db, device_id=device_id, days=days)
+
+
+@router.get("/fleet/daily-summary", response_model=FleetDailySummaryResponse)
+def get_fleet_daily_summary(
+    diagnosis_date: Optional[date] = Query(default=None, description="Day to summarise; defaults to the latest diagnosed day"),
+    top_n: int = Query(default=10, ge=1, le=50, description="Number of top issues and worst devices to return"),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Fleet health for a day: lifecycle state counts, most common issues, new/resolved issues and worst devices."""
+    return build_fleet_daily_summary(db, diagnosis_date=diagnosis_date, top_n=top_n)
+
+
+@router.get("/fleet/issues", response_model=List[FleetIssueResponse])
+def list_fleet_issues(
+    diagnosis_date: Optional[date] = Query(default=None, description="Exact day; defaults to the latest diagnosed day when no date filter is given"),
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    device_id: Optional[str] = Query(default=None),
+    issue_code: Optional[str] = Query(default=None, description="e.g. EVID_BATTERY_VOLTAGE_CRITICAL_LOW"),
+    severity: Optional[str] = Query(default=None, description="LOW, MEDIUM, HIGH or CRITICAL"),
+    subsystem: Optional[str] = Query(default=None, description="Component type from the profile, e.g. battery, sensor"),
+    component_name: Optional[str] = Query(default=None, description="Profile component name, e.g. device_battery"),
+    check_type: Optional[str] = Query(default=None, description="METRIC_BELOW_MIN, METRIC_ABOVE_MAX, METRIC_RATE_EXCEEDED, METRIC_STUCK, METRIC_MISSING, SENSOR_DISAGREEMENT or DATA_GAPS"),
+    min_streak_days: Optional[int] = Query(default=None, ge=1, description="Only issues persisting at least this many days"),
+    only_new: bool = Query(default=False, description="Only issues that first appeared on that day"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Search detected issues across all devices, e.g. every device with a persistent power fault."""
+    if not (diagnosis_date or start_date or end_date):
+        diagnosis_date = crud_diagnostics.get_latest_diagnosis_date(db)
+        if diagnosis_date is None:
+            return []
+    return crud_diagnostics.list_daily_issues(
+        db,
+        diagnosis_date=diagnosis_date,
+        start_date=start_date,
+        end_date=end_date,
+        device_id=device_id,
+        issue_code=issue_code,
+        severity=severity,
+        subsystem=subsystem,
+        component_name=component_name,
+        check_type=check_type,
+        min_streak_days=min_streak_days,
+        only_new=only_new,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post("/daily/run", response_model=DailyDiagnosticsRunResponse, status_code=status.HTTP_202_ACCEPTED)
+def trigger_daily_diagnostics(
+    background_tasks: BackgroundTasks,
+    start_date: Optional[date] = Query(default=None, description="First day to diagnose (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(default=None, description="Last day to diagnose; capped at yesterday (UTC)"),
+    device_id: Optional[List[str]] = Query(default=None, description="Limit to these device IDs (repeatable)"),
+    force: bool = Query(default=False, description="Re-evaluate days that already have a diagnosis"),
+    lookback_days: int = Query(default=DEFAULT_LOOKBACK_DAYS, ge=1, le=RAW_RETENTION_DAYS, description="Used when start_date is omitted"),
+) -> Any:
+    """
+    Run (or backfill) daily diagnostics in the background. Only completed days that
+    still have raw readings (last 14 days) can be evaluated.
+    """
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_date must be on or before end_date.",
+        )
+    start, end = resolve_window(start_date, end_date, lookback_days)
+    if start > end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No completed days with raw data in the requested window (raw readings are kept for {RAW_RETENTION_DAYS} days).",
+        )
+
+    background_tasks.add_task(
+        run_daily_diagnostics,
+        start_date=start,
+        end_date=end,
+        device_ids=device_id,
+        force=force,
+    )
+    return {
+        "success": True,
+        "message": f"Daily diagnostics started for {start} → {end}",
+        "start_date": start,
+        "end_date": end,
+        "device_ids": device_id,
+        "force": force,
+    }
 
 
 # ── Technician Feedback Loop ──────────────────────────────────────────────────

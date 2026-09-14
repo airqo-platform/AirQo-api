@@ -1,8 +1,10 @@
+import asyncio
 import logging
 from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers import SchedulerAlreadyRunningError
 from app.services.thingspeak_sync_service import sync_device_data
+from app.services.diagnostics.daily import run_daily_diagnostics_async, cleanup_old_daily_diagnostics
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,22 @@ async def scheduled_thingspeak_sync():
         logger.info(f"Scheduled ThingSpeak data sync completed: {summary}")
     except Exception as exc:
         logger.exception(f"ThingSpeak sync failed: {exc}")
+
+    # Diagnose the days the sync just completed. Runs even if the sync failed so
+    # earlier days that are still undiagnosed get caught up.
+    if settings.DAILY_DIAGNOSTICS_ENABLED:
+        await scheduled_daily_diagnostics()
+
+async def scheduled_daily_diagnostics():
+    logger.info("Starting scheduled daily device diagnostics...")
+    try:
+        summary = await run_daily_diagnostics_async()
+        logger.info(f"Scheduled daily diagnostics completed: {summary['message']}")
+        deleted = await asyncio.to_thread(cleanup_old_daily_diagnostics)
+        if deleted:
+            logger.info(f"Removed {deleted} expired daily diagnostics.")
+    except Exception as exc:
+        logger.exception(f"Daily diagnostics failed: {exc}")
 
 async def expire_inactive_webrtc_sessions_job():
     logger.info("Running scheduled job to expire inactive WebRTC sessions...")

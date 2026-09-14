@@ -69,7 +69,7 @@ describe("air-quality-rollup-job", () => {
       .returns(
         mockAggregateChain([
           {
-            _id: { entity: "Nairobi", year: 2024 },
+            _id: { entity: "Nairobi", year: 2024, country: "Kenya" },
             sum_pm2_5: 50,
             reading_count: 5,
             siteIds: ["s1"],
@@ -102,6 +102,12 @@ describe("air-quality-rollup-job", () => {
     const cityOps = bulkWriteStub.getCall(1).args[0];
     expect(cityOps[0].updateOne.filter.level).to.equal("city");
     expect(cityOps[0].updateOne.filter.entity).to.equal("Nairobi");
+    // country is carried through $set for level="city" so history can later
+    // be filtered/labeled by country — country isn't part of the upsert
+    // filter itself, so a pre-existing row without it gets healed in place.
+    expect(cityOps[0].updateOne.update.$set.country).to.equal("Kenya");
+    // level="country" has no separate country field — entity IS the country.
+    expect(countryOps[0].updateOne.update.$set.country).to.equal(undefined);
 
     expect(jobStateSetStub.calledOnce).to.equal(true);
     expect(jobStateSetStub.getCall(0).args[0]).to.equal("air-quality-rollup-job");

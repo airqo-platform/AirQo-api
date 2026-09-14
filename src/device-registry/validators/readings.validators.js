@@ -14,6 +14,17 @@ const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
 const constants = require("@config/constants");
 
 const commonValidations = {
+  // ISO 3166-1 alpha-2 only (matches the network-coverage iso2 validator) —
+  // case-insensitive in, normalized to lowercase for the query layer, which
+  // resolves it back to the country name stored on siteDetails.country.
+  country: [
+    query("country")
+      .optional()
+      .trim()
+      .customSanitizer((value) => value.toLowerCase())
+      .matches(/^[a-z]{2}$/)
+      .withMessage("Invalid country code: expected ISO 3166-1 alpha-2"),
+  ],
   tenant: [
     query("tenant")
       .optional()
@@ -778,6 +789,7 @@ const readingsValidations = {
   rankings: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
+      ...commonValidations.country,
       query("level")
         .optional()
         .trim()
@@ -804,6 +816,7 @@ const readingsValidations = {
   rankingsHistory: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
+      ...commonValidations.country,
       query("level")
         .optional()
         .trim()
@@ -838,6 +851,13 @@ const readingsValidations = {
           return true;
         }),
     ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  rankingsCountries: (req, res, next) => {
+    const validationRules = [...commonValidations.tenant];
 
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, next);
