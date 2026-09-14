@@ -18,7 +18,7 @@ The diagnostic engine no longer contains device-specific rules (12 V battery thr
 - **Component criticality**: weights each component's score in the overall health score and sets issue severity (criticality × confidence).
 - **Relationships**: `POWERS` / `COOLS` / `COMMUNICATES_VIA` build a dependency graph — a faulty upstream component is reported as the root cause of its dependents' issues, and an unmonitored component whose dependents all fail is reported as suspected. `MEASURES_SAME_AS` pairs sensors for an agreement check; disagreement is attributed to whichever side has its own fault.
 - **Config mappings**: `reporting_interval` (device's synced config value, falling back to the profile default) drives the `DATA_GAPS` check, attributed to `connectivity` components.
-- **Policy** (`app/services/diagnostics/policy.py`): generic tuning (violation rates, check impacts, lifecycle bands) overridable via `profile.meta_data.diagnostics` and `component.meta_data.diagnostics` (including `disabled_checks`).
+- **Policy** (`app/services/diagnostics/policy.py`): generic tuning (violation rates, check impacts, lifecycle bands) overridable via `profile.meta_data.diagnostics` and `component.meta_data.diagnostics` (including `disabled_checks`). Invalid overrides are reported as readiness errors and unknown settings as warnings.
 - Devices without a usable profile are rejected (`422` on evaluate endpoints, `skipped_no_profile` in daily runs) instead of being scored with guessed rules.
 - New `GET /diagnostics/profiles/{profile_id}/diagnostic-readiness` lists what a profile is missing (unmapped metrics, missing limits, unsupported relationships, missing reporting interval, unmonitored telemetry).
 - `subsystem_scores` are now keyed by profile component name; evidence and diagnoses include component, metric and affected components.
@@ -38,6 +38,7 @@ After the nightly ThingSpeak sync, every device with data for a completed UTC da
   - `run_daily_diagnostics` evaluates each completed device-day (`sync_daily_device_data.complete = true`, `record_count > 0`) from the stored raw readings, resolving the device's profile for field mapping.
   - Idempotent and self-healing: each run catches up on undiagnosed days in the lookback window (default 3 days, max 14 = raw data retention). `force=True` re-evaluates and replaces existing days.
   - Commits per device-day so one bad day does not roll back others; failures are counted in the run summary.
+  - Scheduled, manual and forced runs share a PostgreSQL advisory lock; a run that starts while another is in progress exits without processing.
   - Runs in a worker thread (`run_daily_diagnostics_async`) because evaluation is CPU-bound (~0.2 s per device-day).
 - **Issues (`app/services/diagnostics/issues.py`)**: each profile-driven finding is stored with its check type, component, metric, component type (`subsystem`) and severity, e.g. `METRIC_BELOW_MIN:device_battery.battery_voltage`.
 - **Streaks**: each issue stores `is_new`, `streak_days` and `streak_start_date`; a gap of up to 3 days (e.g. device offline) does not reset a streak. Each day also stores `resolved_issue_codes`.
@@ -52,7 +53,7 @@ After the nightly ThingSpeak sync, every device with data for a completed UTC da
 - `GET /devices/{device_id}/daily/{diagnosis_date}` — full diagnosis for one day: evidence, ranked causes, issues and per-metric mean/min/max.
 - `GET /devices/{device_id}/issues?days=30` — recurring/active issues with days observed, current streak and a health score trend.
 - `GET /fleet/daily-summary` — lifecycle state and severity counts, top issues (with new-device counts), resolved issues and worst devices for a day (defaults to latest).
-- `GET /fleet/issues` — cross-fleet issue search (`issue_code`, `severity`, `subsystem`, `min_streak_days`, `only_new`, date filters).
+- `GET /fleet/issues` — cross-fleet issue search (`issue_code`, `check_type`, `component_name`, `severity`, `subsystem`, `min_streak_days`, `only_new`, date filters).
 - `POST /daily/run` — background run/backfill (`start_date`, `end_date`, repeatable `device_id`, `force`, `lookback_days`).
 
 </details>

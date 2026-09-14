@@ -15,18 +15,19 @@ class FeatureExtractor:
     """
 
     @staticmethod
-    def get_record_timestamp(record: Dict[str, Any]) -> float:
+    def get_record_timestamp(record: Dict[str, Any]) -> Optional[float]:
+        """Epoch seconds for a record, or None when it has no usable timestamp."""
         ts = next((record[k] for k in _TIMESTAMP_KEYS if record.get(k) is not None), None)
-        if isinstance(ts, (int, float)):
-            return float(ts)
+        if isinstance(ts, (int, float)) and not isinstance(ts, bool):
+            return None if math.isnan(ts) or math.isinf(ts) else float(ts)
         if isinstance(ts, datetime):
             return ts.timestamp()
         if isinstance(ts, str):
             try:
                 return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
             except ValueError:
-                pass
-        return 0.0
+                return None
+        return None
 
     @staticmethod
     def _is_number(value: Any) -> bool:
@@ -210,12 +211,27 @@ class FeatureExtractor:
         Builds per-metric statistics for every numeric key in the records.
         Data completeness is only computed when the expected reporting interval is known;
         the window defaults to the span between the first and last record.
+        Records without a usable timestamp are excluded, since every check here is time-based.
         """
-        if not records:
-            return {"record_count": 0, "expected_records": None, "missing_rate": None, "metrics": {}}
+        timed: List[Tuple[float, Dict[str, Any]]] = []
+        for record in records or []:
+            ts = cls.get_record_timestamp(record)
+            if ts is not None:
+                timed.append((ts, record))
 
-        sorted_records = sorted(records, key=cls.get_record_timestamp)
-        timestamps = [cls.get_record_timestamp(r) for r in sorted_records]
+        if not timed:
+            return {
+                "record_count": 0,
+                "records_without_timestamp": len(records or []),
+                "duration_hours": 0.0,
+                "expected_records": None,
+                "missing_rate": None,
+                "metrics": {},
+            }
+
+        timed.sort(key=lambda pair: pair[0])
+        timestamps = [pair[0] for pair in timed]
+        sorted_records = [pair[1] for pair in timed]
 
         series_by_key: Dict[str, List[Tuple[float, float]]] = {}
         for r, r_ts in zip(sorted_records, timestamps):
@@ -227,6 +243,7 @@ class FeatureExtractor:
         span_seconds = max(0.0, timestamps[-1] - timestamps[0])
         feature_map: Dict[str, Any] = {
             "record_count": len(sorted_records),
+            "records_without_timestamp": len(records) - len(sorted_records),
             "duration_hours": round(span_seconds / 3600.0, 2),
             "expected_records": None,
             "missing_rate": None,

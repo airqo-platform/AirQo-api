@@ -12,7 +12,7 @@ The only vocabulary the engine understands is the relationship types below and t
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.services.diagnostics.policy import DEFAULT_POLICY, merge_policy
+from app.services.diagnostics.policy import DEFAULT_POLICY, merge_policy, validate_policy_override
 from app.utils.field_mappings import ensure_dict
 
 # For dependency relationships, the value says which end is upstream: a fault upstream
@@ -22,7 +22,12 @@ REDUNDANCY_RELATIONSHIPS = {"MEASURES_SAME_AS"}
 TRANSMISSION_COMPONENT_TYPE = "connectivity"
 
 _TIME_UNIT_SECONDS = {"ms": 0.001, "s": 1.0, "sec": 1.0, "second": 1.0, "seconds": 1.0,
-                      "min": 60.0, "minute": 60.0, "minutes": 60.0, "h": 3600.0, "hour": 3600.0, "hours": 3600.0}
+                      "min": 60.0, "minute": 60.0, "minutes": 60.0, "h": 3600.0, "hour": 3600.0, "hours": 3600.0,
+                      "d": 86400.0, "day": 86400.0, "days": 86400.0}
+
+
+def _interval_unit(meta: Dict[str, Any]) -> str:
+    return str(meta.get("unit") or "s").strip().lower()
 
 
 class ProfileNotDiagnosableError(ValueError):
@@ -136,9 +141,18 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
     errors: List[str] = []
     warnings: List[str] = []
 
+    def checked(override: Any, source: str) -> Optional[Dict[str, Any]]:
+        """Return the override if valid; otherwise record why it was rejected and fall back to defaults."""
+        if override is None:
+            return None
+        override_errors, override_warnings = validate_policy_override(override, path=source)
+        errors.extend(override_errors)
+        warnings.extend(override_warnings)
+        return None if override_errors else override
+
     profile_meta = ensure_dict(_get(profile, "meta_data")) or {}
-    policy = merge_policy(DEFAULT_POLICY, profile_meta.get("diagnostics"))
-    policy = merge_policy(policy, policy_override)
+    policy = merge_policy(DEFAULT_POLICY, checked(profile_meta.get("diagnostics"), "meta_data.diagnostics"))
+    policy = merge_policy(policy, checked(policy_override, "context.policy"))
 
     telemetry = _telemetry_index(ensure_dict(_get(profile, "telemetry_mappings")) or {})
     config_mappings = {
@@ -173,7 +187,7 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
             component_type=_get(comp, "component_type") or "unknown",
             criticality=float(criticality) if criticality is not None else 1.0,
             metrics=metrics,
-            policy=merge_policy(policy, comp_meta.get("diagnostics")),
+            policy=merge_policy(policy, checked(comp_meta.get("diagnostics"), f"components.{name}.meta_data.diagnostics")),
         )
         components[name] = spec
         if spec.id:
@@ -258,6 +272,11 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
         warnings.append(
             f"No '{interval_key}' config mapping; data completeness is only checked when the device's interval is known."
         )
+    elif _interval_unit(interval_mapping) not in _TIME_UNIT_SECONDS:
+        warnings.append(
+            f"Config '{interval_key}' has unsupported unit '{interval_mapping.get('unit')}'; completeness check skipped. "
+            f"Supported units: {', '.join(sorted(_TIME_UNIT_SECONDS))}."
+        )
     elif interval_mapping.get("default") in (None, ""):
         warnings.append(f"Config '{interval_key}' has no default; devices without a synced value skip the completeness check.")
 
@@ -302,7 +321,9 @@ def resolve_expected_interval_seconds(
             value = float(raw)
         except (TypeError, ValueError):
             return None
-        factor = _TIME_UNIT_SECONDS.get(str(meta.get("unit") or "s").lower(), 1.0)
+        factor = _TIME_UNIT_SECONDS.get(_interval_unit(meta))
+        if factor is None:
+            return None
         seconds = value * factor
         return seconds if seconds > 0 else None
     return None

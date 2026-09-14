@@ -1,5 +1,6 @@
 import unittest
 import uuid
+from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import patch
 
@@ -227,6 +228,23 @@ class TestDailyDiagnosticsRun(DailyDiagnosticsDBTestCase):
         try:
             self.assertEqual(db.query(DeviceDailyDiagnostic).count(), 3)
             self.assertEqual(db.query(DeviceDailyIssue).count(), issue_count)
+        finally:
+            db.close()
+
+    def test_overlapping_run_exits_without_processing(self):
+        @contextmanager
+        def lock_held_elsewhere(db):
+            yield False
+
+        with patch.object(daily, "_run_lock", lock_held_elsewhere):
+            summary = self._run()
+
+        self.assertTrue(summary["skipped_locked"])
+        self.assertEqual(summary["evaluated"], 0)
+        self.assertEqual(summary["failed"], 0)
+        db = self.Session()
+        try:
+            self.assertEqual(db.query(DeviceDailyDiagnostic).count(), 0)
         finally:
             db.close()
 

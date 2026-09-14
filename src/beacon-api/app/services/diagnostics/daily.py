@@ -14,11 +14,12 @@ import asyncio
 import logging
 import uuid
 from collections import OrderedDict
+from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, case, func
+from sqlalchemy import and_, case, func, text
 from sqlalchemy.orm import Session
 
 from app.crud.crud_device_data import RAW_FIELD_COLUMNS
@@ -44,6 +45,8 @@ RAW_RETENTION_DAYS = 14
 # so a device that is offline for a day does not reset a persistent fault.
 STREAK_MAX_GAP_DAYS = 3
 DIAGNOSTICS_RETENTION_DAYS = 365
+# PostgreSQL advisory lock key shared by every daily diagnostics run (scheduled, manual, forced).
+RUN_LOCK_KEY = 820260913001
 
 _SUMMARY_EXCLUDED_KEYS = {"created_at_ts", "channel_id", "device_id", "entry_id"}
 
@@ -306,6 +309,89 @@ def evaluate_device_day(
 
 # ── Orchestration ─────────────────────────────────────────────────────────────
 
+@contextmanager
+def _run_lock(db: Session):
+    """
+    Hold a session-level advisory lock for the whole run so overlapping runs cannot pick the
+    same device-days. Uses a dedicated connection, because the ORM session hands its connection
+    back to the pool after every commit. Yields False when another run holds the lock.
+    No-op on databases without advisory locks.
+    """
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        yield True
+        return
+
+    conn = bind.connect()
+    try:
+        acquired = bool(conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": RUN_LOCK_KEY}).scalar())
+        conn.commit()  # the lock is session-level; don't leave the connection idle in a transaction
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": RUN_LOCK_KEY})
+                conn.commit()
+    finally:
+        conn.close()
+
+
+def _diagnose_pending(
+    db: Session,
+    start: date,
+    end: date,
+    device_ids: Optional[List[str]],
+    force: bool,
+    summary: Dict[str, Any],
+) -> None:
+    pending = find_pending_device_days(db, start, end, device_ids=device_ids, force=force)
+    by_device: "OrderedDict[str, List[Tuple[date, str]]]" = OrderedDict()
+    for device_id, day, channel_id in pending:
+        by_device.setdefault(device_id, []).append((day, channel_id))
+
+    summary["devices"] = len(by_device)
+    logger.info(
+        f"[Daily Diagnostics] {len(pending)} device-days pending across {len(by_device)} devices ({start} → {end})"
+    )
+    # Devices share a handful of profiles; build each profile's model once per run.
+    models: Dict[Any, Optional[Tuple[Any, DiagnosticModel]]] = {}
+
+    for device_id, days in by_device.items():
+        device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
+        if device is None:
+            continue
+        profile = _resolve_device_profile(db, device)
+        if profile is not None and profile.id not in models:
+            models[profile.id] = load_profile_model(profile)
+        loaded = models.get(profile.id) if profile is not None else None
+
+        if loaded is None or not loaded[1].diagnosable:
+            summary["skipped_no_profile"] += len(days)
+            reasons = loaded[1].errors if loaded else ["no profile assigned"]
+            logger.warning(f"[Daily Diagnostics] Skipping {device_id}: {'; '.join(reasons)}")
+            continue
+        mapping_profile, model = loaded
+        device_config = _device_config(db, device_id)
+
+        for day, channel_id in days:
+            try:
+                diagnostic = evaluate_device_day(
+                    db, device, channel_id, day, mapping_profile, model=model, device_config=device_config
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+                summary["failed"] += 1
+                logger.exception(f"[Daily Diagnostics] Evaluation failed for {device_id} on {day}")
+                continue
+
+            if diagnostic is None:
+                summary["skipped_no_raw_data"] += 1
+            else:
+                summary["evaluated"] += 1
+                summary["issues_recorded"] += diagnostic.issue_count
+
+
 def run_daily_diagnostics(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -335,52 +421,13 @@ def run_daily_diagnostics(
 
     db = SessionLocal()
     try:
-        pending = find_pending_device_days(db, start, end, device_ids=device_ids, force=force)
-        by_device: "OrderedDict[str, List[Tuple[date, str]]]" = OrderedDict()
-        for device_id, day, channel_id in pending:
-            by_device.setdefault(device_id, []).append((day, channel_id))
-
-        summary["devices"] = len(by_device)
-        logger.info(
-            f"[Daily Diagnostics] {len(pending)} device-days pending across {len(by_device)} devices ({start} → {end})"
-        )
-        # Devices share a handful of profiles; build each profile's model once per run.
-        models: Dict[Any, Optional[Tuple[Any, DiagnosticModel]]] = {}
-
-        for device_id, days in by_device.items():
-            device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
-            if device is None:
-                continue
-            profile = _resolve_device_profile(db, device)
-            if profile is not None and profile.id not in models:
-                models[profile.id] = load_profile_model(profile)
-            loaded = models.get(profile.id) if profile is not None else None
-
-            if loaded is None or not loaded[1].diagnosable:
-                summary["skipped_no_profile"] += len(days)
-                reasons = loaded[1].errors if loaded else ["no profile assigned"]
-                logger.warning(f"[Daily Diagnostics] Skipping {device_id}: {'; '.join(reasons)}")
-                continue
-            mapping_profile, model = loaded
-            device_config = _device_config(db, device_id)
-
-            for day, channel_id in days:
-                try:
-                    diagnostic = evaluate_device_day(
-                        db, device, channel_id, day, mapping_profile, model=model, device_config=device_config
-                    )
-                    db.commit()
-                except Exception:
-                    db.rollback()
-                    summary["failed"] += 1
-                    logger.exception(f"[Daily Diagnostics] Evaluation failed for {device_id} on {day}")
-                    continue
-
-                if diagnostic is None:
-                    summary["skipped_no_raw_data"] += 1
-                else:
-                    summary["evaluated"] += 1
-                    summary["issues_recorded"] += diagnostic.issue_count
+        with _run_lock(db) as acquired:
+            if not acquired:
+                summary["skipped_locked"] = True
+                summary["message"] = "Another daily diagnostics run is in progress; this run was skipped"
+                logger.info(f"[Daily Diagnostics] {summary['message']} ({start} → {end})")
+                return summary
+            _diagnose_pending(db, start, end, device_ids, force, summary)
     finally:
         db.close()
 

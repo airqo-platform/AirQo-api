@@ -9,7 +9,7 @@ definitions. Any value can be overridden per profile via
 `component.meta_data["diagnostics"]`.
 """
 import copy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 DEFAULT_POLICY: Dict[str, Any] = {
     "range": {
@@ -58,6 +58,58 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "medium_confidence": 70.0,
     },
 }
+
+
+# Settings used as divisors, window sizes or sample counts, so zero is not allowed.
+_POSITIVE_SETTINGS = {
+    "range.full_confidence_violation_rate",
+    "rate.window_minutes",
+    "rate.min_samples_per_window",
+    "stuck.min_samples",
+    "agreement.min_pairs",
+}
+
+
+def validate_policy_override(
+    override: Any,
+    base: Dict[str, Any] = DEFAULT_POLICY,
+    path: str = "diagnostics",
+    _relative: str = "",
+) -> Tuple[List[str], List[str]]:
+    """
+    Check a policy override against the shape of the default policy.
+    Returns (errors, warnings): wrong types or invalid values are errors, unknown settings are warnings.
+    """
+    if not isinstance(override, dict):
+        return [f"'{path}' must be an object, got {type(override).__name__}."], []
+
+    errors: List[str] = []
+    warnings: List[str] = []
+    for key, value in override.items():
+        where = f"{path}.{key}"
+        relative = f"{_relative}.{key}" if _relative else key
+        if key not in base:
+            warnings.append(f"Unknown diagnostic policy setting '{where}' is ignored.")
+            continue
+        expected = base[key]
+        if isinstance(expected, dict):
+            sub_errors, sub_warnings = validate_policy_override(value, expected, where, relative)
+            errors.extend(sub_errors)
+            warnings.extend(sub_warnings)
+        elif isinstance(expected, list):
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                errors.append(f"'{where}' must be a list of strings.")
+        elif isinstance(expected, (int, float)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                errors.append(f"'{where}' must be a number, got {type(value).__name__}.")
+            elif relative in _POSITIVE_SETTINGS and value <= 0:
+                errors.append(f"'{where}' must be greater than 0.")
+            elif value < 0:
+                errors.append(f"'{where}' must not be negative.")
+        elif isinstance(expected, str):
+            if not isinstance(value, str) or not value:
+                errors.append(f"'{where}' must be a non-empty string.")
+    return errors, warnings
 
 
 def merge_policy(base: Dict[str, Any], override: Optional[Dict[str, Any]]) -> Dict[str, Any]:

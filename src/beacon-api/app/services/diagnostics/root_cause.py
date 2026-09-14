@@ -33,10 +33,11 @@ class RootCauseAnalyzer:
         faulty = set(own)
 
         explained: Dict[str, str] = {}
-        for component in faulty:
+        for component in sorted(faulty):
             ancestor = self._nearest_faulty_ancestor(component, faulty, model)
             if ancestor:
                 explained[component] = ancestor
+        self._collapse_to_terminal_roots(explained)
 
         suspected: Dict[str, List[str]] = {}
         for name, component in model.components.items():
@@ -114,6 +115,25 @@ class RootCauseAnalyzer:
         return diagnoses
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _collapse_to_terminal_roots(explained: Dict[str, str]) -> None:
+        """
+        Point every explained component at the top of its fault chain (battery -> modem -> sensor
+        makes the sensor explained by the battery). A dependency cycle keeps one member as the root.
+        """
+        for component in sorted(explained):
+            if component not in explained:
+                continue
+            seen = {component}
+            root = explained[component]
+            while root in explained and root not in seen:
+                seen.add(root)
+                root = explained[root]
+            if root in seen:
+                del explained[component]
+            else:
+                explained[component] = root
 
     @staticmethod
     def _nearest_faulty_ancestor(component: str, faulty: Set[str], model: DiagnosticModel) -> Optional[str]:

@@ -14,7 +14,16 @@ from app.services.diagnostics.profile_model import (
     build_model,
     resolve_expected_interval_seconds,
 )
-from tests.diagnostics_fixtures import COMM_ID, healthy_pm, lowcost_profile, make_records, profile_orm
+from app.services.diagnostics.root_cause import RootCauseAnalyzer
+from tests.diagnostics_fixtures import (
+    BATTERY_ID,
+    COMM_ID,
+    PM1_ID,
+    healthy_pm,
+    lowcost_profile,
+    make_records,
+    profile_orm,
+)
 from main import app
 
 
@@ -98,6 +107,20 @@ class TestDiagnosticsFeatureExtractor(unittest.TestCase):
         self.assertAlmostEqual(max_rate, 1.2, places=2)
         self.assertGreater(signed, 0)
 
+    def test_records_without_timestamp_are_excluded(self):
+        records = [{"datetime": 1700000000 + i * 120, "battery_voltage": 4.0} for i in range(6)]
+        records.append({"battery_voltage": 4.0})
+        records.append({"datetime": "not-a-date", "battery_voltage": 4.0})
+        features = FeatureExtractor.extract_all_features(records, expected_interval_seconds=120)
+        self.assertEqual(features["record_count"], 6)
+        self.assertEqual(features["records_without_timestamp"], 2)
+        self.assertEqual(features["expected_records"], 6)
+        self.assertEqual(features["missing_rate"], 0.0)
+
+        untimed = FeatureExtractor.extract_all_features([{"battery_voltage": 4.0}], expected_interval_seconds=120)
+        self.assertEqual(untimed["record_count"], 0)
+        self.assertIsNone(untimed["missing_rate"])
+
     def test_dual_pm_pairs_timestamp_alignment(self):
         # Paired series should only include records where both sensors are present
         base_ts = 1700000000
@@ -167,6 +190,35 @@ class TestProfileModel(unittest.TestCase):
         self.assertEqual(model.policy["completeness"]["max_missing_rate"], 0.9)
         self.assertEqual(model.components["device_battery"].policy["disabled_checks"], ["METRIC_RATE_EXCEEDED"])
         self.assertEqual(model.components["pm_sensor1"].policy["disabled_checks"], [])
+
+    def test_invalid_policy_overrides_are_readiness_errors(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {
+            "diagnostics": {"completeness": None, "rate": {"window_minutes": 0}, "unknown_setting": 1}
+        }
+        profile["components"][0]["meta_data"] = {"diagnostics": {"disabled_checks": "METRIC_STUCK"}}
+        model = build_model(profile)
+
+        self.assertFalse(model.diagnosable)
+        errors = " | ".join(model.errors)
+        self.assertIn("'meta_data.diagnostics.completeness' must be an object", errors)
+        self.assertIn("'meta_data.diagnostics.rate.window_minutes' must be greater than 0", errors)
+        self.assertIn("'components.device_battery.meta_data.diagnostics.disabled_checks' must be a list of strings", errors)
+        self.assertTrue(any("unknown_setting" in w for w in model.warnings))
+        # Rejected overrides fall back to the defaults instead of breaking model construction
+        self.assertEqual(model.policy["completeness"]["max_missing_rate"], 0.4)
+        with self.assertRaises(ProfileNotDiagnosableError):
+            DiagnosticEvaluator().evaluate_telemetry("dev", make_records(10), profile=profile)
+
+    def test_interval_units_are_converted_or_rejected(self):
+        profile = lowcost_profile()
+        profile["config_mappings"]["config1"].update({"unit": "day", "default": 1})
+        self.assertEqual(resolve_expected_interval_seconds(build_model(profile)), 86400.0)
+
+        profile["config_mappings"]["config1"]["unit"] = "fortnight"
+        model = build_model(profile)
+        self.assertIsNone(resolve_expected_interval_seconds(model))
+        self.assertTrue(any("unsupported unit 'fortnight'" in w for w in model.warnings))
 
     def test_reporting_interval_prefers_device_config_then_profile_default(self):
         model = build_model(lowcost_profile())
@@ -268,6 +320,54 @@ class TestDiagnosticReasoner(unittest.TestCase):
         # Because solar underperformed and poor weather refute battery degradation, it should not rank high
         if battery_causes:
             self.assertLess(battery_causes[0]["confidence_percentage"], 65.0)
+
+
+def _fact(check: str, component: str) -> EvidenceFact:
+    return EvidenceFact(
+        code=f"{check}:{component}",
+        component_name=component,
+        description=f"{check} on {component}",
+        confidence=1.0,
+        value=None,
+        check=check,
+        title=check,
+    )
+
+
+class TestRootCauseAnalyzer(unittest.TestCase):
+    def _model(self, relationships):
+        profile = lowcost_profile()
+        profile["relationships"] = relationships
+        return build_model(profile)
+
+    def test_multi_level_chain_is_attributed_to_terminal_root(self):
+        # battery POWERS communication; pm_sensor1 COMMUNICATES_VIA communication
+        model = self._model([
+            {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"},
+            {"source_component_id": PM1_ID, "target_component_id": COMM_ID, "relationship_type": "COMMUNICATES_VIA"},
+        ])
+        evidences = [
+            _fact("METRIC_BELOW_MIN", "device_battery"),
+            _fact("DATA_GAPS", "communication"),
+            _fact("METRIC_STUCK", "pm_sensor1"),
+        ]
+        diagnoses = RootCauseAnalyzer().analyze(evidences, model)
+
+        self.assertEqual([d["cause_code"] for d in diagnoses], ["COMPONENT_FAULT:device_battery"])
+        self.assertEqual(diagnoses[0]["affected_components"], ["communication", "pm_sensor1"])
+        self.assertEqual(len(diagnoses[0]["supporting_evidence"]), 3)
+
+    def test_dependency_cycle_still_reports_one_root(self):
+        model = self._model([
+            {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"},
+            {"source_component_id": COMM_ID, "target_component_id": BATTERY_ID, "relationship_type": "POWERS"},
+        ])
+        evidences = [_fact("METRIC_BELOW_MIN", "device_battery"), _fact("DATA_GAPS", "communication")]
+        diagnoses = RootCauseAnalyzer().analyze(evidences, model)
+
+        self.assertEqual(len(diagnoses), 1)
+        self.assertEqual(len(diagnoses[0]["affected_components"]), 1)
+        self.assertEqual(len(diagnoses[0]["supporting_evidence"]), 2)
 
 
 class TestEndToEndEvaluatorProfileDriven(unittest.TestCase):
