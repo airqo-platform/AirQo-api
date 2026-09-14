@@ -107,6 +107,9 @@ function sendRankingResponse(res, result) {
       success: true,
       message: result.message,
       data: result.data,
+      // Additive — only live rankings computes it today (see R7 in the
+      // Nexus country-filter requirements doc).
+      ...(result.meta ? { meta: result.meta } : {}),
     });
   } else {
     res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -580,6 +583,32 @@ const createEvent = {
         return;
       }
       const result = await createEventUtil.getAirQualityRankingsHistory(
+        req,
+        next,
+      );
+      sendRankingResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getAirQualityRankingsCountries: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankingsCountries(
         req,
         next,
       );

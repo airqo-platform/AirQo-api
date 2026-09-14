@@ -192,6 +192,12 @@ const routes = [
   },
   {
     method: "get",
+    path: "/rankings/countries",
+    middlewares: [checkValidation("rankingsCountries")],
+    controller: "getAirQualityRankingsCountries",
+  },
+  {
+    method: "get",
     path: "/rankings",
     middlewares: [checkValidation("rankings")],
     controller: "getAirQualityRankings",
