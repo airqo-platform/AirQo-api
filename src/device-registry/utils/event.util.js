@@ -1770,21 +1770,39 @@ const createEvent = {
         level = "country",
         sort = "best",
         limit = 20,
+        country,
       } = request.query;
+
+      // country is already lowercase alpha-2 (validator normalizes it).
+      // A well-formed code we don't recognize (e.g. "zz") returns an empty,
+      // 200 result rather than a 400 — it's not malformed, it just matches
+      // nothing in the rankable universe.
+      const countryName = country
+        ? constants.getCountryNameByCode(country)
+        : null;
+      if (country && !countryName) {
+        return {
+          success: true,
+          message: "Successfully retrieved air quality rankings",
+          data: [],
+          meta: { total: 0, limit: Number(limit), skip: 0 },
+          status: httpStatus.OK,
+        };
+      }
 
       const groupField = `$siteDetails.${level}`;
       const africanCountries = Object.keys(constants.countryCodes);
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
+      const matchStage = {
+        time: { $gte: threeDaysAgo },
+        "siteDetails.country": countryName || { $in: africanCountries },
+        "pm2_5.value": { $ne: null, $type: "number" },
+      };
+
       const pipeline = [
-        {
-          $match: {
-            time: { $gte: threeDaysAgo },
-            "siteDetails.country": { $in: africanCountries },
-            "pm2_5.value": { $ne: null, $type: "number" },
-          },
-        },
+        { $match: matchStage },
         { $sort: { time: -1 } },
         {
           $group: {
@@ -1795,26 +1813,49 @@ const createEvent = {
         { $replaceRoot: { newRoot: "$latestReading" } },
         {
           $group: {
-            _id: groupField,
+            // Group on a trimmed/lowercased key so whitespace/case variants
+            // of the same real place ("Kampala" / "kampala " ) merge into one
+            // ranked entry instead of splitting the same city's readings
+            // across two rows — country stays part of the key so the same
+            // city name in two different countries still stays separate.
+            // country is carried alongside so country_code/country_name can
+            // be emitted for level="city" rows too, not just level="country".
+            _id: {
+              key: { $trim: { input: { $toLower: groupField } } },
+              country: "$siteDetails.country",
+            },
+            // $min of the trimmed (but not lowercased) raw value gives a
+            // deterministic, stable canonical casing to display, independent
+            // of Mongo's non-guaranteed group-input ordering.
+            name: { $min: { $trim: { input: groupField } } },
             avg_pm2_5: { $avg: "$pm2_5.value" },
             site_count: { $sum: 1 },
           },
         },
-        { $match: { _id: { $ne: null } } },
-        // Secondary sort on _id (entity name) breaks ties deterministically —
-        // without it, two entities with the same avg_pm2_5 could swap order
-        // between identical requests, since Mongo doesn't guarantee sort
-        // stability on its own.
-        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1, _id: 1 } },
-        { $limit: Number(limit) },
+        // Excludes both a missing city/country and an empty-after-trim
+        // placeholder value ("", " ") from the rankings.
+        { $match: { "_id.key": { $nin: [null, ""] } } },
+        // Secondary sort on name breaks ties deterministically — without it,
+        // two entities with the same avg_pm2_5 could swap order between
+        // identical requests, since Mongo doesn't guarantee sort stability
+        // on its own.
+        { $sort: { avg_pm2_5: sort === "worst" ? -1 : 1, name: 1 } },
+        {
+          $facet: {
+            data: [{ $limit: Number(limit) }],
+            totalCount: [{ $count: "count" }],
+          },
+        },
       ];
 
-      const rows = await ReadingModel(tenant)
+      const [facetResult = {}] = await ReadingModel(tenant)
         .aggregate(pipeline)
         .option({
           allowDiskUse: true,
           maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
         });
+      const rows = facetResult.data || [];
+      const total = facetResult.totalCount?.[0]?.count || 0;
 
       // Resolved once per request (not per row) so an admin-set custom AQI
       // config (see utils/aqi.util.js's resolveActiveAqiRanges) is reflected
@@ -1829,12 +1870,13 @@ const createEvent = {
         // show a category that doesn't match the displayed figure whenever
         // rounding lands exactly on a category boundary.
         const avgPm25 = Math.round(row.avg_pm2_5 * 100) / 100;
+        const rowCountry = row._id.country;
         return {
           rank: index + 1,
-          name: row._id,
+          name: row.name,
           level,
-          country_code:
-            level === "country" ? constants.countryCodes[row._id] || null : null,
+          country_code: constants.countryCodes[rowCountry] || null,
+          country_name: rowCountry || null,
           avg_pm2_5: avgPm25,
           // aqi_index always comes from the fixed EPA numeric breakpoints
           // (calculatePm25Aqi is not admin-configurable) — pairing it with a
@@ -1856,6 +1898,7 @@ const createEvent = {
         success: true,
         message: "Successfully retrieved air quality rankings",
         data,
+        meta: { total, limit: Number(limit), skip: 0 },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1884,9 +1927,39 @@ const createEvent = {
   // coerced to a live re-aggregation, and never coerced to zero).
   getAirQualityRankingsHistory: async (request, next) => {
     try {
-      const { tenant = "airqo", level = "country" } = request.query;
+      const {
+        tenant = "airqo",
+        level = "country",
+        country,
+      } = request.query;
       const startYear = Number(request.query.start_year);
       const endYear = Number(request.query.end_year);
+
+      // country is already lowercase alpha-2 (validator normalizes it).
+      // A well-formed code we don't recognize returns an empty 200, same as
+      // getAirQualityRankings — it's not malformed, just matches nothing.
+      const countryName = country
+        ? constants.getCountryNameByCode(country)
+        : null;
+      if (country && !countryName) {
+        return {
+          success: true,
+          message: "Successfully retrieved historical air quality rankings",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      // level="country": entity IS the country name, filter it directly.
+      // level="city": filter on the country field air-quality-rollup-job.js
+      // writes going forward — rows created before that field existed stay
+      // null and are excluded here rather than guessed at (city names
+      // aren't guaranteed unique across countries).
+      const countryFilter = countryName
+        ? level === "country"
+          ? { entity: countryName }
+          : { country: countryName }
+        : {};
 
       // No need to re-filter by African country here — the rollup job only
       // ever writes rows for siteDetails.country in constants.countryCodes.
@@ -1895,18 +1968,48 @@ const createEvent = {
           tenant,
           level,
           year: { $gte: startYear, $lte: endYear },
+          ...countryFilter,
         })
         .sort({ entity: 1 })
         .lean();
 
-      const rows = summaryDocs
+      // Merge docs whose entity normalizes to the same trimmed/lowercased
+      // identity (whitespace/case variants of the same real place, e.g.
+      // "Kampala" and "kampala " written on different days) BEFORE computing
+      // any average — summing the raw totals first, then dividing once,
+      // avoids double-counting or averaging-of-averages. Merges purely on
+      // (name, year) — same as the rollup job's own upsert key, which has
+      // never distinguished same-named entities by country — so a doc still
+      // missing country attribution merges with one that has it, rather than
+      // splitting into two rows for the same real place.
+      const merged = new Map(); // `${normalizedEntity}|${year}` -> bucket
+      summaryDocs
         .filter((doc) => doc.reading_count > 0)
-        .map((doc) => ({
-          entity: doc.entity,
-          year: doc.year,
-          avg_pm2_5: Math.round((doc.sum_pm2_5 / doc.reading_count) * 100) / 100,
-          site_count: (doc.contributing_sites || []).length,
-        }));
+        .forEach((doc) => {
+          const trimmedEntity = (doc.entity || "").trim();
+          if (!trimmedEntity) return; // drop empty/placeholder entities defensively
+          const normalizedEntity = trimmedEntity.toLowerCase();
+          const mapKey = `${normalizedEntity}|${doc.year}`;
+          if (!merged.has(mapKey)) {
+            merged.set(mapKey, {
+              normalizedEntity,
+              country: doc.country || null,
+              year: doc.year,
+              displayName: trimmedEntity,
+              sum_pm2_5: 0,
+              reading_count: 0,
+              siteSet: new Set(),
+            });
+          }
+          const bucket = merged.get(mapKey);
+          bucket.sum_pm2_5 += doc.sum_pm2_5;
+          bucket.reading_count += doc.reading_count;
+          (doc.contributing_sites || []).forEach((s) => bucket.siteSet.add(s));
+          if (!bucket.country && doc.country) bucket.country = doc.country;
+          // Lexicographically-min trimmed casing gives a deterministic
+          // canonical display name, independent of Mongo's sort/find order.
+          if (trimmedEntity < bucket.displayName) bucket.displayName = trimmedEntity;
+        });
 
       // Resolved once per request, same reasoning as getAirQualityRankings —
       // must never disagree with GET /aqi-ranges or the current rankings.
@@ -1916,9 +2019,19 @@ const createEvent = {
       for (let y = startYear; y <= endYear; y += 1) years.push(y);
 
       const byEntity = new Map();
-      rows.forEach((row) => {
-        if (!byEntity.has(row.entity)) byEntity.set(row.entity, new Map());
-        byEntity.get(row.entity).set(row.year, row);
+      const entityCountry = new Map();
+      const entityDisplayName = new Map();
+      Array.from(merged.values()).forEach((b) => {
+        if (!byEntity.has(b.normalizedEntity)) byEntity.set(b.normalizedEntity, new Map());
+        byEntity.get(b.normalizedEntity).set(b.year, {
+          avg_pm2_5: Math.round((b.sum_pm2_5 / b.reading_count) * 100) / 100,
+          site_count: b.siteSet.size,
+        });
+        if (b.country) entityCountry.set(b.normalizedEntity, b.country);
+        const prevDisplay = entityDisplayName.get(b.normalizedEntity);
+        if (!prevDisplay || b.displayName < prevDisplay) {
+          entityDisplayName.set(b.normalizedEntity, b.displayName);
+        }
       });
 
       const data = Array.from(byEntity.entries())
@@ -1926,23 +2039,28 @@ const createEvent = {
         // but level=city has no fixed upper bound — cap the response so it
         // can't fan out across every distinct city ever seen.
         .slice(0, MAX_RANKING_RESULTS)
-        .map(([entity, byYear]) => ({
-          name: entity,
-          level,
-          country_code:
-            level === "country" ? constants.countryCodes[entity] || null : null,
-          values: years.map((year) => {
-            const row = byYear.get(year);
-            return {
-              year,
-              avg_pm2_5: row ? row.avg_pm2_5 : null,
-              aqi_category: row
-                ? aqiUtil.categoryFromConcentration(row.avg_pm2_5, resolvedAqiRanges)
-                : null,
-              site_count: row ? row.site_count : 0,
-            };
-          }),
-        }));
+        .map(([entity, byYear]) => {
+          const displayName = entityDisplayName.get(entity);
+          const resolvedCountry =
+            level === "country" ? displayName : entityCountry.get(entity) || null;
+          return {
+            name: displayName,
+            level,
+            country_code: constants.countryCodes[resolvedCountry] || null,
+            country_name: resolvedCountry,
+            values: years.map((year) => {
+              const row = byYear.get(year);
+              return {
+                year,
+                avg_pm2_5: row ? row.avg_pm2_5 : null,
+                aqi_category: row
+                  ? aqiUtil.categoryFromConcentration(row.avg_pm2_5, resolvedAqiRanges)
+                  : null,
+                site_count: row ? row.site_count : 0,
+              };
+            }),
+          };
+        });
 
       return {
         success: true,
@@ -1953,6 +2071,102 @@ const createEvent = {
     } catch (error) {
       logger.error(
         `🐛🐛 Internal Server Error -- getAirQualityRankingsHistory -- ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  // Filter-option metadata for the Nexus rankings country selector — scoped
+  // to exactly the same "rankable" universe as getAirQualityRankings (latest
+  // reading per site, last 3 days) so the dropdown never offers a country
+  // the rankings endpoint itself would return empty for.
+  getAirQualityRankingsCountries: async (request, next) => {
+    try {
+      const { tenant = "airqo" } = request.query;
+      const africanCountries = Object.keys(constants.countryCodes);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const pipeline = [
+        {
+          $match: {
+            time: { $gte: threeDaysAgo },
+            "siteDetails.country": { $in: africanCountries },
+            "pm2_5.value": { $ne: null, $type: "number" },
+          },
+        },
+        { $sort: { time: -1 } },
+        {
+          $group: {
+            _id: "$site_id",
+            latestReading: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$latestReading" } },
+        {
+          $group: {
+            _id: "$siteDetails.country",
+            site_count: { $sum: 1 },
+            // Trim/lowercase before adding to the set so whitespace/case
+            // variants of the same city ("Kampala" / "kampala ") count once,
+            // matching the same normalization getAirQualityRankings applies.
+            cities: {
+              $addToSet: { $trim: { input: { $toLower: "$siteDetails.city" } } },
+            },
+            latest_reading_at: { $max: "$time" },
+          },
+        },
+        { $match: { _id: { $ne: null } } },
+        { $sort: { _id: 1 } },
+      ];
+
+      const [rows, historyFromRows] = await Promise.all([
+        ReadingModel(tenant)
+          .aggregate(pipeline)
+          .option({
+            allowDiskUse: true,
+            maxTimeMS: constants.READINGS_AGGREGATE_TIMEOUT_MS,
+          }),
+        // First year each country has any country-attributed level="city"
+        // history row — lets Nexus show "city history begins <year>" instead
+        // of an apparently-broken chart for the pre-attribution gap (see the
+        // AirQualitySummary.country comment for why that gap exists).
+        // level="country" history has no such gap, so it's omitted here.
+        AirQualitySummaryModel(tenant).aggregate([
+          { $match: { tenant, level: "city", country: { $ne: null } } },
+          { $group: { _id: "$country", history_from: { $min: "$year" } } },
+        ]),
+      ]);
+      const historyFromByCountry = new Map(
+        historyFromRows.map((r) => [r._id, r.history_from])
+      );
+
+      const data = rows.map((row) => ({
+        country_code: constants.countryCodes[row._id] || null,
+        country_name: row._id,
+        city_count: (row.cities || []).filter(Boolean).length,
+        site_count: row.site_count,
+        latest_reading_at: row.latest_reading_at
+          ? row.latest_reading_at.toISOString()
+          : null,
+        history_from: historyFromByCountry.get(row._id) || null,
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved air quality rankings filter countries",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error -- getAirQualityRankingsCountries -- ${error.message}`,
       );
       next(
         new HttpError(
