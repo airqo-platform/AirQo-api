@@ -9,3 +9,4 @@ __pycache__
 *.code-workspace
 
 storage/
+CODEBASE_ISSUES.md
