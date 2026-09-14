@@ -41,7 +41,9 @@
     "dev:clean": "npm run cleanup && npm run dev",
     "dev:debug": "npm run env:debug && npm run dev",
     "kafka:check": "node config/check-kafka-status.js",
-    "kafka:cleanup": "node config/cleanup-kafka.js"
+    "kafka:cleanup": "node config/cleanup-kafka.js",
+    "seed:ubos-parish-population": "node scripts/seed-ubos-parish-population.js",
+    "seed:ubos-division-population": "node scripts/seed-ubos-division-population.js"
   },
   "_moduleAliases": {
     "@root": ".",
