@@ -204,48 +204,46 @@ const stopEmailQueue = () => {
 
 // Cache for application email configs — keyed by tenant, 5-minute TTL.
 // Avoids a DB round-trip on every email send while staying reasonably fresh.
+// A tenant can hold multiple config documents (see ApplicationEmailConfiguration
+// model), so the full list is cached and searched, not a single "the" config.
 const _appEmailConfigCache = new Map();
 const _APP_EMAIL_CONFIG_TTL_MS = 5 * 60 * 1000;
 
-const _getApplicationEmailConfig = async (tenant) => {
+const _getApplicationEmailConfigs = async (tenant) => {
   const normalizedTenant = (tenant || "").toLowerCase();
   const cached = _appEmailConfigCache.get(normalizedTenant);
   if (cached && Date.now() - cached.fetchedAt < _APP_EMAIL_CONFIG_TTL_MS) {
     return cached.data;
   }
   try {
-    const config = await ApplicationEmailConfigurationModel(normalizedTenant)
-      .findOne({})
-      .sort({ createdAt: 1 })
+    const configs = await ApplicationEmailConfigurationModel(normalizedTenant)
+      .find({})
       .lean();
-    _appEmailConfigCache.set(normalizedTenant, { data: config, fetchedAt: Date.now() });
-    return config;
+    _appEmailConfigCache.set(normalizedTenant, { data: configs, fetchedAt: Date.now() });
+    return configs;
   } catch (error) {
     logger.warn(
-      `Failed to fetch application email config for tenant ${normalizedTenant}: ${error.message}`
+      `Failed to fetch application email configs for tenant ${normalizedTenant}: ${error.message}`
     );
-    return null;
+    return [];
   }
 };
 
 // Returns the adminCCEmails string if `email` is a registered application
-// email address, otherwise returns null.
+// email address in any of the tenant's configs, otherwise returns null.
 const _resolveAdminCCForApplicationEmail = async (email, tenant) => {
   try {
-    const config = await _getApplicationEmailConfig(tenant);
-    if (
-      !config ||
-      !config.adminCCEmails ||
-      !Array.isArray(config.applicationEmails) ||
-      config.applicationEmails.length === 0
-    ) {
-      return null;
-    }
+    const configs = await _getApplicationEmailConfigs(tenant);
     const normalized = email.toLowerCase().trim();
-    const isAppEmail = config.applicationEmails.some(
-      (e) => e.toLowerCase().trim() === normalized
+    const match = configs.find(
+      (config) =>
+        config.adminCCEmails &&
+        Array.isArray(config.applicationEmails) &&
+        config.applicationEmails.some(
+          (e) => e.toLowerCase().trim() === normalized
+        )
     );
-    return isAppEmail ? config.adminCCEmails : null;
+    return match ? match.adminCCEmails : null;
   } catch (error) {
     logger.warn(
       `Failed to resolve admin CC for ${email}: ${error.message}`
