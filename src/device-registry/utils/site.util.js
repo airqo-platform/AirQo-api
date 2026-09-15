@@ -2271,6 +2271,68 @@ const createSite = {
       );
     }
   },
+  findRouteDirections: async (request, next) => {
+    try {
+      const {
+        origin_latitude,
+        origin_longitude,
+        destination_latitude,
+        destination_longitude,
+      } = request.body;
+
+      return client
+        .directions(
+          {
+            params: {
+              origin: `${origin_latitude},${origin_longitude}`,
+              destination: `${destination_latitude},${destination_longitude}`,
+              mode: "driving",
+              key: process.env.GOOGLE_MAPS_API_KEY,
+            },
+            timeout: 10000, // milliseconds
+          },
+          axiosInstance(),
+        )
+        .then((r) => {
+          return {
+            success: true,
+            message: "successfully retrieved trip directions",
+            data: r.data,
+            status: httpStatus.OK,
+          };
+        })
+        .catch((e) => {
+          const safeError = {
+            code: e.code,
+            message: e.message,
+            responseStatus: e.response?.status,
+            responseData: e.response?.data?.error_message || e.response?.data,
+          };
+          logger.warn(
+            `findRouteDirections failed for origin=(${origin_latitude},${origin_longitude}) destination=(${destination_latitude},${destination_longitude}) — ${JSON.stringify(
+              safeError,
+            )}`,
+          );
+          return {
+            success: false,
+            message: "unable to retrieve trip directions",
+            errors: {
+              message: e.response?.data?.error_message || e.message,
+            },
+            status: httpStatus.BAD_GATEWAY,
+          };
+        });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
   findNearestLocations: async (request, next) => {
     try {
       const { tenant: rawTenant } = request.query;
