@@ -216,8 +216,12 @@ const _getApplicationEmailConfigs = async (tenant) => {
     return cached.data;
   }
   try {
+    // Sorted so that, if the same application email is ever listed in more
+    // than one config, the match below is deterministic (oldest wins) rather
+    // than depending on MongoDB's unspecified natural order.
     const configs = await ApplicationEmailConfigurationModel(normalizedTenant)
       .find({})
+      .sort({ createdAt: 1, _id: 1 })
       .lean();
     _appEmailConfigCache.set(normalizedTenant, { data: configs, fetchedAt: Date.now() });
     return configs;
@@ -227,6 +231,13 @@ const _getApplicationEmailConfigs = async (tenant) => {
     );
     return [];
   }
+};
+
+// Drops the cached config list for a tenant so the next lookup re-fetches
+// from the DB. Called after any create/update/delete of an application email
+// configuration so callers don't have to wait out the TTL to see the change.
+const invalidateApplicationEmailConfigCache = (tenant) => {
+  _appEmailConfigCache.delete((tenant || "").toLowerCase());
 };
 
 // Returns the adminCCEmails string if `email` is a registered application
@@ -3006,4 +3017,5 @@ const mailer = {
 
 mailer.startEmailQueue = startEmailQueue;
 mailer.stopEmailQueue = stopEmailQueue;
+mailer.invalidateApplicationEmailConfigCache = invalidateApplicationEmailConfigCache;
 module.exports = mailer;

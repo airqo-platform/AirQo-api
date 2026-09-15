@@ -79,7 +79,7 @@ describe("mailer", () => {
     createDefaultSubscriptionStub = sinon.stub().resolves({});
     queueSaveStub = sinon.stub().resolves({});
     appConfigFindStub = sinon.stub().returns({
-      lean: () => Promise.resolve([]),
+      sort: () => ({ lean: () => Promise.resolve([]) }),
     });
     sinon.stub(emailDeduplicator, "checkAndMarkEmail").resolves(true);
     sinon.stub(emailDeduplicator, "removeEmailKey").resolves(true);
