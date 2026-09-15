@@ -1,4 +1,5 @@
 const ApplicationEmailConfigurationModel = require("@models/ApplicationEmailConfiguration");
+const mailer = require("@utils/common/mailer.util");
 const httpStatus = require("http-status");
 const { logObject, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
@@ -24,6 +25,9 @@ const applicationEmailConfig = {
         { ...body, tenant },
         next
       );
+      if (response && response.success) {
+        mailer.invalidateApplicationEmailConfigCache(tenant);
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -128,6 +132,9 @@ const applicationEmailConfig = {
         { filter, update },
         next
       );
+      if (response && response.success) {
+        mailer.invalidateApplicationEmailConfigCache(tenant);
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -154,6 +161,9 @@ const applicationEmailConfig = {
         { filter },
         next
       );
+      if (response && response.success) {
+        mailer.invalidateApplicationEmailConfigCache(tenant);
+      }
       return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

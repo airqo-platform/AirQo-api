@@ -48,7 +48,7 @@ const { emailDeduplicator } = require("@utils/common/email-deduplication.util");
 let subscriptionCheckStub;
 let createDefaultSubscriptionStub;
 let queueSaveStub;
-let appConfigFindOneStub;
+let appConfigFindStub;
 
 class FakeEmailQueueDoc {
   constructor(doc) {
@@ -66,7 +66,7 @@ const mailer = proxyquire("../mailer.util", {
   }),
   "@models/EmailQueue": () => FakeEmailQueueDoc,
   "@models/ApplicationEmailConfiguration": () => ({
-    findOne: (...args) => appConfigFindOneStub(...args),
+    find: (...args) => appConfigFindStub(...args),
   }),
 });
 
@@ -78,8 +78,8 @@ describe("mailer", () => {
     subscriptionCheckStub = sinon.stub().resolves({ success: true });
     createDefaultSubscriptionStub = sinon.stub().resolves({});
     queueSaveStub = sinon.stub().resolves({});
-    appConfigFindOneStub = sinon.stub().returns({
-      sort: () => ({ lean: () => Promise.resolve(null) }),
+    appConfigFindStub = sinon.stub().returns({
+      sort: () => ({ lean: () => Promise.resolve([]) }),
     });
     sinon.stub(emailDeduplicator, "checkAndMarkEmail").resolves(true);
     sinon.stub(emailDeduplicator, "removeEmailKey").resolves(true);
