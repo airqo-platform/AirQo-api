@@ -288,6 +288,40 @@ const formatDirectionsDurationText = (seconds) => {
   return `${hours} hour${hours > 1 ? "s" : ""} ${minutes} mins`;
 };
 
+// ORS returns raw [lng, lat] GeoJSON coordinates rather than a pre-encoded
+// polyline, so the backend encodes them itself using Google's standard
+// Encoded Polyline Algorithm Format (precision 1e5) — the exact format the
+// mobile client's existing polyline decoder already expects.
+const encodeDirectionsPolyline = (coordinates) => {
+  const encodeSignedNumber = (num) => {
+    let signedNum = num << 1;
+    if (num < 0) {
+      signedNum = ~signedNum;
+    }
+    let output = "";
+    let value = signedNum;
+    while (value >= 0x20) {
+      output += String.fromCharCode((0x20 | (value & 0x1f)) + 63);
+      value >>= 5;
+    }
+    output += String.fromCharCode(value + 63);
+    return output;
+  };
+
+  let output = "";
+  let prevLat = 0;
+  let prevLng = 0;
+  for (const [lng, lat] of coordinates) {
+    const lat5 = Math.round(lat * 1e5);
+    const lng5 = Math.round(lng * 1e5);
+    output += encodeSignedNumber(lat5 - prevLat);
+    output += encodeSignedNumber(lng5 - prevLng);
+    prevLat = lat5;
+    prevLng = lng5;
+  }
+  return output;
+};
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -2328,8 +2362,9 @@ const createSite = {
           timeout: 10000, // milliseconds
         });
 
-        const route = response.data?.routes?.[0];
-        if (!route) {
+        const feature = response.data?.features?.[0];
+        const coordinates = feature?.geometry?.coordinates;
+        if (!feature || !Array.isArray(coordinates) || coordinates.length < 2) {
           return {
             success: true,
             message: "no route was found between the given points",
@@ -2338,8 +2373,8 @@ const createSite = {
           };
         }
 
-        const distanceMeters = route.summary?.distance ?? 0;
-        const durationSeconds = route.summary?.duration ?? 0;
+        const distanceMeters = feature.properties?.summary?.distance ?? 0;
+        const durationSeconds = feature.properties?.summary?.duration ?? 0;
 
         return {
           success: true,
@@ -2348,7 +2383,9 @@ const createSite = {
             status: "OK",
             routes: [
               {
-                overview_polyline: { points: route.geometry },
+                overview_polyline: {
+                  points: encodeDirectionsPolyline(coordinates),
+                },
                 legs: [
                   {
                     distance: {
