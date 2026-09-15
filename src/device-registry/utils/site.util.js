@@ -263,6 +263,31 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
 // Reset to 0 whenever altitude is successfully written.
 const ALTITUDE_FAILURE_THRESHOLD = 3;
 
+// OpenRouteService is the open-source/free routing provider for trip
+// directions — chosen over Google Directions to avoid per-request billing.
+const OPENROUTESERVICE_DIRECTIONS_URL =
+  "https://api.openrouteservice.org/v2/directions/driving-car";
+
+// Mirrors the short "12 km" / "850 m" style Google Directions used to return,
+// since the mobile client's UI already expects a human-readable string here.
+const formatDirectionsDistanceText = (meters) => {
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${(meters / 1000).toFixed(1)} km`;
+};
+
+// Mirrors Google's "28 mins" / "1 hour 5 mins" style duration text.
+const formatDirectionsDurationText = (seconds) => {
+  const totalMinutes = Math.round(seconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes} mins`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours} hour${hours > 1 ? "s" : ""} ${minutes} mins`;
+};
+
 const createSite = {
   getSiteById: async (req, next) => {
     try {
@@ -2280,48 +2305,95 @@ const createSite = {
         destination_longitude,
       } = request.body;
 
-      return client
-        .directions(
-          {
-            params: {
-              origin: `${origin_latitude},${origin_longitude}`,
-              destination: `${destination_latitude},${destination_longitude}`,
-              mode: "driving",
-              key: process.env.GOOGLE_MAPS_API_KEY,
-            },
-            timeout: 10000, // milliseconds
+      const orsApiKey = process.env.OPENROUTESERVICE_API_KEY;
+      if (!orsApiKey) {
+        logger.warn(
+          "findRouteDirections failed — OPENROUTESERVICE_API_KEY is not configured",
+        );
+        return {
+          success: false,
+          message: "unable to retrieve trip directions",
+          errors: { message: "Directions provider is not configured" },
+          status: httpStatus.SERVICE_UNAVAILABLE,
+        };
+      }
+
+      try {
+        const response = await axios.get(OPENROUTESERVICE_DIRECTIONS_URL, {
+          params: {
+            api_key: orsApiKey,
+            start: `${origin_longitude},${origin_latitude}`,
+            end: `${destination_longitude},${destination_latitude}`,
           },
-          axiosInstance(),
-        )
-        .then((r) => {
+          timeout: 10000, // milliseconds
+        });
+
+        const route = response.data?.routes?.[0];
+        if (!route) {
           return {
             success: true,
-            message: "successfully retrieved trip directions",
-            data: r.data,
+            message: "no route was found between the given points",
+            data: { status: "ZERO_RESULTS", routes: [] },
             status: httpStatus.OK,
           };
-        })
-        .catch((e) => {
-          const safeError = {
-            code: e.code,
-            message: e.message,
-            responseStatus: e.response?.status,
-            responseData: e.response?.data?.error_message || e.response?.data,
-          };
-          logger.warn(
-            `findRouteDirections failed for origin=(${origin_latitude},${origin_longitude}) destination=(${destination_latitude},${destination_longitude}) — ${JSON.stringify(
-              safeError,
-            )}`,
-          );
+        }
+
+        const distanceMeters = route.summary?.distance ?? 0;
+        const durationSeconds = route.summary?.duration ?? 0;
+
+        return {
+          success: true,
+          message: "successfully retrieved trip directions",
+          data: {
+            status: "OK",
+            routes: [
+              {
+                overview_polyline: { points: route.geometry },
+                legs: [
+                  {
+                    distance: {
+                      text: formatDirectionsDistanceText(distanceMeters),
+                      value: distanceMeters,
+                    },
+                    duration: {
+                      text: formatDirectionsDurationText(durationSeconds),
+                      value: durationSeconds,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          status: httpStatus.OK,
+        };
+      } catch (e) {
+        // ORS returns 404 for a genuinely unroutable pair of points — that's
+        // a normal outcome the mobile client already knows how to explain to
+        // the user, not a provider failure.
+        if (e.response?.status === 404) {
           return {
-            success: false,
-            message: "unable to retrieve trip directions",
-            errors: {
-              message: e.response?.data?.error_message || e.message,
-            },
-            status: httpStatus.BAD_GATEWAY,
+            success: true,
+            message: "no route was found between the given points",
+            data: { status: "ZERO_RESULTS", routes: [] },
+            status: httpStatus.OK,
           };
-        });
+        }
+
+        const safeError = {
+          code: e.code,
+          responseStatus: e.response?.status,
+          responseErrorCode: e.response?.data?.error?.code,
+        };
+        logger.warn(`findRouteDirections failed — ${JSON.stringify(safeError)}`);
+        return {
+          success: false,
+          message: "unable to retrieve trip directions",
+          errors: {
+            message: e.response?.data?.error?.message || e.message,
+          },
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
