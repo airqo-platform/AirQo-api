@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.services.diagnostics.features import FeatureExtractor
 from app.services.diagnostics.evidence import DEVICE_COMPONENT, EvidenceEngine, EvidenceFact
+from app.services.diagnostics.indicators import compute_indicators
 from app.services.diagnostics.profile_model import (
     DiagnosticModel,
     ProfileNotDiagnosableError,
@@ -40,6 +41,7 @@ class DiagnosticEvaluator:
         window_seconds: Optional[float] = None,
         device_config: Optional[Dict[str, Any]] = None,
         model: Optional[DiagnosticModel] = None,
+        window_start: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Evaluates telemetry (already mapped to the profile's semantic keys) against the profile.
@@ -47,7 +49,8 @@ class DiagnosticEvaluator:
         context may carry `expected_interval_seconds` (overrides the configured reporting interval)
         and `policy` (overrides for the generic check policy).
         window_seconds, when given, is the full period the records should cover (e.g. 86400 for a day);
-        otherwise completeness is measured over the span of the records.
+        otherwise completeness is measured over the span of the records. window_start anchors that
+        window (hour buckets and leading outages); it defaults to the first record's hour.
         Raises ProfileNotDiagnosableError when no usable profile is available.
         """
         context = context or {}
@@ -70,15 +73,21 @@ class DiagnosticEvaluator:
             rate_min_samples=int(policy["rate"]["min_samples_per_window"]),
         )
 
-        # 2. Evidence from profile-driven checks
-        evidences: List[EvidenceFact] = self.evidence_engine.evaluate(
-            features, model, telemetry_records, expected_interval_seconds=interval
+        # 2. Indicators: continuous per-component measurements (cycles, coverage, agreement)
+        indicators = compute_indicators(
+            telemetry_records, features, model,
+            expected_interval_seconds=interval, window_seconds=window_seconds, window_start=window_start,
         )
 
-        # 3. Root causes over the component graph
+        # 3. Evidence from profile-driven checks
+        evidences: List[EvidenceFact] = self.evidence_engine.evaluate(
+            features, model, telemetry_records, expected_interval_seconds=interval, indicators=indicators
+        )
+
+        # 4. Root causes over the component graph
         top_diagnoses = self.root_cause.analyze(evidences, model)
 
-        # 4. Component scores and criticality-weighted overall score
+        # 5. Component scores and criticality-weighted overall score
         if features["record_count"]:
             component_scores = self._component_scores(features, evidences, model)
             overall_score = self._overall_score(component_scores, model)
@@ -96,6 +105,7 @@ class DiagnosticEvaluator:
             "active_evidences": [e.to_dict() for e in evidences],
             "detected_symptoms": list(dict.fromkeys(e.title for e in evidences)),
             "top_diagnoses": top_diagnoses,
+            "indicators": indicators,
             "data_completeness": {
                 "records": features["record_count"],
                 "expected_records": features["expected_records"],
@@ -171,6 +181,7 @@ class DiagnosticEvaluator:
             metadata_context={
                 "profile_id": evaluation_result.get("profile_id"),
                 "data_completeness": evaluation_result.get("data_completeness"),
+                "indicators": evaluation_result.get("indicators"),
             },
         )
         db.add(snapshot)

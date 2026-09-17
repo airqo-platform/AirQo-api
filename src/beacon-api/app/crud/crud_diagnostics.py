@@ -105,6 +105,7 @@ class CRUDDiagnostics:
                             expected_max=m_in.expected_max,
                             max_rate_of_change=m_in.max_rate_of_change,
                             is_telemetry_field=m_in.is_telemetry_field,
+                            role=m_in.role,
                         )
                         db.add(m_obj)
 
@@ -229,6 +230,7 @@ class CRUDDiagnostics:
                                 expected_max=m_data.get("expected_max"),
                                 max_rate_of_change=m_data.get("max_rate_of_change"),
                                 is_telemetry_field=m_data.get("is_telemetry_field", True),
+                                role=m_data.get("role"),
                             )
                             matched.metrics.append(m_obj)
                     retained_components.append(matched)
@@ -271,6 +273,7 @@ class CRUDDiagnostics:
                                 expected_max=m_data.get("expected_max"),
                                 max_rate_of_change=m_data.get("max_rate_of_change"),
                                 is_telemetry_field=m_data.get("is_telemetry_field", True),
+                                role=m_data.get("role"),
                             )
                             new_comp.metrics.append(m_obj)
                     retained_components.append(new_comp)
@@ -328,6 +331,11 @@ class CRUDDiagnostics:
                         source_component_id=src_id,
                         target_component_id=tgt_id,
                         relationship_type=rel_type,
+                        meta_data=(
+                            _to_dict(r_data.get("meta_data") or r_data.get("metadata"))
+                            if (r_data.get("meta_data") or r_data.get("metadata")) is not None
+                            else None
+                        ),
                     )
                     db_obj.relationships.append(rel_obj)
 
@@ -430,6 +438,7 @@ class CRUDDiagnostics:
                     expected_max=m_in.expected_max,
                     max_rate_of_change=m_in.max_rate_of_change,
                     is_telemetry_field=m_in.is_telemetry_field,
+                    role=m_in.role,
                 )
                 db.add(m_obj)
 
@@ -474,6 +483,7 @@ class CRUDDiagnostics:
                     expected_max=m_in.expected_max,
                     max_rate_of_change=m_in.max_rate_of_change,
                     is_telemetry_field=m_in.is_telemetry_field,
+                    role=m_in.role,
                 )
                 db_obj.metrics.append(m_obj)
 

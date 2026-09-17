@@ -150,6 +150,7 @@ class EvaluationResultResponse(BaseModel):
     active_evidences: List[EvidenceFactSchema]
     detected_symptoms: List[str]
     top_diagnoses: List[DiagnosisResultSchema]
+    indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}   # component -> indicator group -> values
     data_completeness: Optional[DataCompletenessSchema] = None
     profile_warnings: List[str] = []
     evaluated_window_hours: float
@@ -166,6 +167,7 @@ class ProfileDiagnosticReadinessResponse(BaseModel):
     transmission_components: List[str] = []
     dependencies: Dict[str, List[str]] = {}
     redundant_pairs: List[str] = []
+    metric_roles: Dict[str, str] = {}
     effective_policy: Dict[str, Any] = {}
 
 
@@ -264,7 +266,16 @@ class DeviceDailyDiagnosticResponse(DeviceDailyDiagnosticSummaryResponse):
     active_evidences: Optional[List[Dict[str, Any]]] = None
     detected_symptoms: Optional[List[str]] = None
     top_diagnoses: Optional[List[Dict[str, Any]]] = None
-    metrics_summary: Optional[Dict[str, Dict[str, float]]] = None
+    metrics_summary: Optional[Dict[str, Dict[str, Any]]] = None
+    indicators: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None
+
+
+class DeviceIndicatorSeriesResponse(BaseModel):
+    device_id: str
+    start_date: date
+    end_date: date
+    days_diagnosed: int
+    components: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}   # component -> group -> one point per day
 
 
 class DeviceIssueHistoryItem(BaseModel):
