@@ -133,11 +133,7 @@ const runBackfill = async ({ tenant = "airqo", apply = false } = {}) => {
           update: {
             $min: { first_seen: new Date(`${days[0]}T00:00:00Z`) },
             $max: { last_seen: new Date(`${days[days.length - 1]}T12:00:00Z`) },
-            $setOnInsert: {
-              total_page_views: 0,
-              total_api_calls: docs.reduce((s, d) => s + d.api_calls, 0),
-              internal,
-            },
+            $setOnInsert: { internal },
           },
           upsert: true,
         },

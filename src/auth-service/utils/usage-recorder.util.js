@@ -75,6 +75,7 @@ const stats = {
   flushes: 0,
   flushed_entries: 0,
   failed_entries: 0,
+  profile_retry_queued: 0,
   last_flush_at: null,
   last_flush_ms: null,
 };
@@ -263,6 +264,92 @@ const buildDailyUpdate = (entry) => {
   };
 };
 
+// Profile writes are deliberately idempotent ($min / $max / $setOnInsert only,
+// no counters), so a failed batch can be retried without double counting.
+const profileOp = (p) => ({
+  updateOne: {
+    filter: {
+      tenant: p.tenant,
+      user_id: new mongoose.Types.ObjectId(p.userId),
+    },
+    update: {
+      $min: { first_seen: p.firstAt },
+      $max: { last_seen: p.lastAt },
+      $setOnInsert: { internal: p.internal },
+    },
+    upsert: true,
+  },
+});
+
+const MAX_PENDING_PROFILES = 5000;
+// Profile updates whose write failed, keyed by tenant|user, awaiting a retry.
+const pendingProfiles = new Map();
+
+const mergeProfile = (map, p) => {
+  const key = `${p.tenant}|${p.userId}`;
+  const cur = map.get(key);
+  if (!cur) {
+    map.set(key, {
+      tenant: p.tenant,
+      userId: p.userId,
+      internal: p.internal,
+      firstAt: p.firstAt,
+      lastAt: p.lastAt,
+    });
+    return;
+  }
+  if (p.firstAt < cur.firstAt) cur.firstAt = p.firstAt;
+  if (p.lastAt > cur.lastAt) cur.lastAt = p.lastAt;
+};
+
+/**
+ * Folds keys that would push a persisted (user, day) document past
+ * USAGE_MAX_KEYS_PER_DAY into "(other)". `existing` is the map already stored
+ * for that document, so the budget holds across flushes, not just within one.
+ */
+const foldKeysOverBudget = (incoming, existing, budget) => {
+  const stored = new Set(existing ? Object.keys(existing) : []);
+  let remaining = budget - stored.size;
+  for (const key of Object.keys(incoming)) {
+    if (key === OTHER_KEY || stored.has(key)) continue;
+    if (remaining > 0) {
+      remaining -= 1;
+      continue;
+    }
+    const value = incoming[key];
+    delete incoming[key];
+    if (typeof value === "number") {
+      incoming[OTHER_KEY] = (incoming[OTHER_KEY] || 0) + value;
+    } else {
+      const other = incoming[OTHER_KEY] || (incoming[OTHER_KEY] = { n: 0, d: 0 });
+      other.n += value.n;
+      other.d += value.d;
+    }
+  }
+};
+
+const enforceKeyBudget = async (tenant, entries) => {
+  const budget = constants.USAGE_MAX_KEYS_PER_DAY;
+  const existing = await UserUsageDailyModel(tenant)
+    .find(
+      {
+        tenant,
+        day: { $in: [...new Set(entries.map((e) => e.day))] },
+        user_id: {
+          $in: entries.map((e) => new mongoose.Types.ObjectId(e.userId)),
+        },
+      },
+      { user_id: 1, day: 1, pages: 1, api: 1 },
+    )
+    .lean();
+  const byDoc = new Map(existing.map((d) => [`${d.user_id}|${d.day}`, d]));
+  for (const entry of entries) {
+    const doc = byDoc.get(`${entry.userId}|${entry.day}`);
+    foldKeysOverBudget(entry.pages, doc && doc.pages, budget);
+    foldKeysOverBudget(entry.api, doc && doc.api, budget);
+  }
+};
+
 /** Builds the bulkWrite operations for a set of buffered entries. */
 const buildOps = (entries) => {
   const daily = [];
@@ -276,47 +363,71 @@ const buildOps = (entries) => {
         upsert: true,
       },
     });
-    profile.push({
-      updateOne: {
-        filter: { tenant: entry.tenant, user_id },
-        update: {
-          $min: { first_seen: entry.firstAt },
-          $max: { last_seen: entry.lastAt },
-          $inc: {
-            total_page_views: entry.page_views,
-            total_api_calls: entry.api_calls,
-          },
-          $setOnInsert: { internal: entry.internal },
-        },
-        upsert: true,
-      },
-    });
+    profile.push(profileOp(entry));
   }
   return { daily, profile };
 };
 
+const writeProfiles = async (tenant, entries) => {
+  const batch = new Map();
+  for (const [key, pending] of pendingProfiles) {
+    if (pending.tenant === tenant) {
+      mergeProfile(batch, pending);
+      pendingProfiles.delete(key);
+    }
+  }
+  for (const entry of entries) mergeProfile(batch, entry);
+  if (batch.size === 0) return;
+  try {
+    await UserUsageProfileModel(tenant).bulkWrite(
+      [...batch.values()].map(profileOp),
+      { ordered: false },
+    );
+  } catch (error) {
+    // Safe to retry: profile ops are idempotent. Bounded so an outage cannot
+    // grow memory without limit.
+    let dropped = 0;
+    for (const p of batch.values()) {
+      if (pendingProfiles.size < MAX_PENDING_PROFILES) {
+        mergeProfile(pendingProfiles, p);
+      } else {
+        dropped += 1;
+      }
+    }
+    stats.profile_retry_queued = pendingProfiles.size;
+    logger.warn(
+      `usage profile write failed for tenant ${tenant} (${batch.size - dropped} queued for retry, ${dropped} dropped): ${error.message}`,
+    );
+  }
+};
+
 const writeEntries = async (entries) => {
   const byTenant = new Map();
-  for (const entry of entries) {
-    if (!byTenant.has(entry.tenant)) byTenant.set(entry.tenant, []);
-    byTenant.get(entry.tenant).push(entry);
-  }
+  const bucket = (tenant) => {
+    if (!byTenant.has(tenant)) byTenant.set(tenant, []);
+    return byTenant.get(tenant);
+  };
+  for (const entry of entries) bucket(entry.tenant).push(entry);
+  // Tenants with only retryable profile updates still get a write attempt.
+  for (const pending of pendingProfiles.values()) bucket(pending.tenant);
+
   for (const [tenant, tenantEntries] of byTenant) {
-    const { daily, profile } = buildOps(tenantEntries);
-    try {
-      await UserUsageDailyModel(tenant).bulkWrite(daily, { ordered: false });
-      await UserUsageProfileModel(tenant).bulkWrite(profile, {
-        ordered: false,
-      });
-      stats.flushed_entries += tenantEntries.length;
-    } catch (error) {
-      // Analytics counters are best-effort: drop the batch rather than
-      // re-queue it, so a Mongo outage cannot grow memory without bound.
-      stats.failed_entries += tenantEntries.length;
-      logger.warn(
-        `usage flush failed for tenant ${tenant} (${tenantEntries.length} entries dropped): ${error.message}`,
-      );
+    if (tenantEntries.length) {
+      try {
+        await enforceKeyBudget(tenant, tenantEntries);
+        const { daily } = buildOps(tenantEntries);
+        await UserUsageDailyModel(tenant).bulkWrite(daily, { ordered: false });
+        stats.flushed_entries += tenantEntries.length;
+      } catch (error) {
+        // Counters are best-effort: drop the batch rather than re-queue it,
+        // since $inc is not idempotent and a retry could double count.
+        stats.failed_entries += tenantEntries.length;
+        logger.warn(
+          `usage flush failed for tenant ${tenant} (${tenantEntries.length} entries dropped): ${error.message}`,
+        );
+      }
     }
+    await writeProfiles(tenant, tenantEntries);
   }
 };
 
@@ -327,7 +438,7 @@ const writeEntries = async (entries) => {
  */
 const flush = async () => {
   if (inFlight) return inFlight;
-  if (buffer.size === 0) return { flushed: 0 };
+  if (buffer.size === 0 && pendingProfiles.size === 0) return { flushed: 0 };
 
   const entries = Array.from(buffer.values());
   buffer = new Map();
@@ -358,11 +469,16 @@ const shutdown = async () => {
   return flush();
 };
 
-const getStats = () => ({ ...stats, buffered_entries: buffer.size });
+const getStats = () => ({
+  ...stats,
+  buffered_entries: buffer.size,
+  pending_profiles: pendingProfiles.size,
+});
 
 // Test helper: drops buffered state without writing it.
 const _reset = () => {
   buffer = new Map();
+  inFlight = null;
   atCapacity = false;
   Object.assign(stats, {
     recorded: 0,
@@ -370,9 +486,11 @@ const _reset = () => {
     flushes: 0,
     flushed_entries: 0,
     failed_entries: 0,
+    profile_retry_queued: 0,
     last_flush_at: null,
     last_flush_ms: null,
   });
+  pendingProfiles.clear();
   if (timer) {
     clearInterval(timer);
     timer = null;
@@ -389,6 +507,8 @@ module.exports = {
   isIdLike,
   isInternalEmail,
   buildOps,
+  foldKeysOverBudget,
   _reset,
   _getBuffer: () => buffer,
+  _getPendingProfiles: () => pendingProfiles,
 };

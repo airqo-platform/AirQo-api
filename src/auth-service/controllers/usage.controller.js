@@ -85,8 +85,17 @@ const usage = {
     try {
       const request = prepare(req, next);
       if (!request) return;
+      // Scope writes to the tenant that authenticated the user, not to the
+      // client-supplied query/body tenant.
+      if (!request.authTenant) {
+        return next(
+          new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+            message: "Authenticated tenant could not be resolved",
+          }),
+        );
+      }
       const accepted = usageRecorder.recordPageEvents({
-        tenant: request.query.tenant,
+        tenant: request.authTenant,
         user: request.user,
         events: request.body.events,
       });

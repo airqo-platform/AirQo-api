@@ -42,6 +42,13 @@ const eachDate = (from, to) => {
   return dates;
 };
 
+/** Inclusive number of days between two YYYY-MM-DD dates, without iterating. */
+const daySpan = (from, to) =>
+  Math.floor(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      MS_PER_DAY,
+  ) + 1;
+
 const utcToday = () => moment.utc().format("YYYY-MM-DD");
 
 const monthBounds = (month) => {
@@ -236,7 +243,7 @@ const userCalendar = async (request) => {
       days: [],
     });
   }
-  if (eachDate(start, end).length > MAX_CALENDAR_DAYS) {
+  if (daySpan(start, end) > MAX_CALENDAR_DAYS) {
     return fail(httpStatus.BAD_REQUEST, "Range too large", `range cannot exceed ${MAX_CALENDAR_DAYS} days`);
   }
 
@@ -338,6 +345,9 @@ const userSummary = async (request) => {
     sessions: cur.sessions,
     total_time_sec: cur.duration_sec,
     avg_session_sec: cur.sessions ? Math.round(cur.duration_sec / cur.sessions) : null,
+    // Actions, active days and streaks follow `tz`; sessions and time are stored
+    // per UTC day and cannot be re-bucketed, so they are summed by UTC month.
+    session_metrics_basis: "utc_day",
     previous_month: {
       month: bounds.previous,
       total_actions: prv.total_actions,
@@ -447,7 +457,9 @@ const userTimeline = async (request) => {
     page_views: hours.reduce((s, h) => s + h.page_views, 0),
     api_calls: hours.reduce((s, h) => s + h.api_calls, 0),
     hours,
-    // Top lists come from the UTC day document with the same date.
+    // Top lists come from the UTC day document with the same date; the hourly
+    // totals above follow `tz`.
+    top_lists_basis: "utc_day",
     top_pages: top(dayDoc && dayDoc.pages, (v) => v.n || 0),
     top_endpoints: top(dayDoc && dayDoc.api, (v) => v || 0),
   });
@@ -465,7 +477,7 @@ const userRhythm = async (request) => {
   const end = to || localToday(tz);
   const start = from || addDays(end, -89);
   if (start > end) return fail(httpStatus.BAD_REQUEST, "Invalid range", "from must not be after to");
-  if (eachDate(start, end).length > MAX_CALENDAR_DAYS) {
+  if (daySpan(start, end) > MAX_CALENDAR_DAYS) {
     return fail(httpStatus.BAD_REQUEST, "Range too large", `range cannot exceed ${MAX_CALENDAR_DAYS} days`);
   }
   const docs = await userDocs(tenant, userId, addDays(start, -1), addDays(end, 1), {
@@ -766,7 +778,9 @@ const usagePages = async (request) => {
   const { month, kind = "page", limit = 20 } = request.query;
   const monthly = await getMonthly(tenant, month, scope);
   const source = kind === "page" ? monthly.top_pages : monthly.top_endpoints;
-  const grand = source.reduce((sum, i) => sum + i.count, 0);
+  // Denominator is the month's real total, not just the stored top keys, so
+  // shares stay honest when many keys fall outside the top list.
+  const grand = kind === "page" ? monthly.page_views : monthly.api_calls;
   const items = source.slice(0, Number(limit)).map((i) => ({
     key: i.key,
     count: i.count,
@@ -823,26 +837,34 @@ const usageUsers = async (request) => {
     : Math.min(Math.max(parseInt(request.query.limit, 10) || 25, 1), 100);
   const bounds = monthBounds(month);
 
-  let idFilter = {};
-  if (search) {
-    const re = new RegExp(escapeRegex(String(search).trim()), "i");
-    const matches = await UserModel(tenant)
-      .find(
-        { $or: [{ email: re }, { firstName: re }, { lastName: re }, { userName: re }] },
-        { _id: 1 },
-      )
-      .limit(500)
-      .lean();
-    if (!matches.length) {
-      return ok("Usage users retrieved", { month, page, limit, total: 0, users: [] });
-    }
-    idFilter = { user_id: { $in: matches.map((m) => m._id) } };
-  }
+  // Search runs after grouping, joined to the users collection, so every
+  // matching user is considered (no pre-filter cap) and an empty result flows
+  // through the same JSON/CSV path as any other.
+  const searchStages = search
+    ? [
+        {
+          $lookup: {
+            from: UserModel(tenant).collection.name,
+            localField: "_id",
+            foreignField: "_id",
+            as: "_u",
+          },
+        },
+        {
+          $match: {
+            $or: ["email", "firstName", "lastName", "userName"].map((field) => ({
+              [`_u.${field}`]: new RegExp(escapeRegex(String(search).trim()), "i"),
+            })),
+          },
+        },
+        { $project: { _u: 0 } },
+      ]
+    : [];
 
   const sortField = USER_SORT_FIELDS[sort] || "total_actions";
   const [result] = await UserUsageDailyModel(tenant)
     .aggregate([
-      { $match: dayMatch(tenant, bounds.start, bounds.end, scope, idFilter) },
+      { $match: dayMatch(tenant, bounds.start, bounds.end, scope) },
       {
         $group: {
           _id: "$user_id",
@@ -862,6 +884,7 @@ const usageUsers = async (request) => {
         },
       },
       { $addFields: { total_actions: { $add: ["$page_views", "$api_calls"] } } },
+      ...searchStages,
       { $sort: { [sortField]: order === "asc" ? 1 : -1, _id: 1 } },
       {
         $facet: {
@@ -1029,6 +1052,7 @@ module.exports = {
   // exported for tests and the rollup job
   addDays,
   eachDate,
+  daySpan,
   monthBounds,
   localParts,
   bucketByLocalDate,

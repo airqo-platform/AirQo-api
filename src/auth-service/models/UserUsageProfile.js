@@ -4,9 +4,10 @@ const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 
 /**
- * One small document per (tenant, user): first/last time usage was recorded
- * and lifetime totals. Powers "last seen", new-vs-returning lifecycle and
- * signup-cohort retention without scanning the daily collection.
+ * One small document per (tenant, user): first/last time usage was recorded.
+ * Powers "last seen", new-vs-returning lifecycle and retention cohorts without
+ * scanning the daily collection. It holds no counters on purpose, so every
+ * write to it is idempotent and safe to retry or re-run from a backfill.
  */
 const UserUsageProfileSchema = new Schema(
   {
@@ -14,8 +15,6 @@ const UserUsageProfileSchema = new Schema(
     user_id: { type: Schema.Types.ObjectId, required: true },
     first_seen: { type: Date },
     last_seen: { type: Date },
-    total_page_views: { type: Number, default: 0 },
-    total_api_calls: { type: Number, default: 0 },
     internal: { type: Boolean, default: false },
   },
   { timestamps: false },

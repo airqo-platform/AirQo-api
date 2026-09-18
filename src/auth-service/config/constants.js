@@ -107,6 +107,13 @@ function envConfig(env) {
       const v = parseInt(process.env.USAGE_MAX_KEYS_PER_ENTRY, 10);
       return Number.isFinite(v) && v > 0 ? v : 50;
     })(),
+    // Hard budget of distinct page keys and of endpoint keys persisted in ONE
+    // (user, day) document across all flushes; overflow is folded into
+    // "(other)". Bounds document size no matter how many paths a client sends.
+    USAGE_MAX_KEYS_PER_DAY: (() => {
+      const v = parseInt(process.env.USAGE_MAX_KEYS_PER_DAY, 10);
+      return Number.isFinite(v) && v > 0 ? v : 200;
+    })(),
     // Daily usage documents expire after this many months (TTL index).
     USAGE_RETENTION_MONTHS: (() => {
       const v = parseInt(process.env.USAGE_RETENTION_MONTHS, 10);

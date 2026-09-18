@@ -9,9 +9,11 @@ const usageRecorder = require("@utils/usage-recorder.util");
  */
 const trackApiUsage = (req, res, next) => {
   try {
-    if (constants.USAGE_TRACKING_ENABLED && req.user && req.user._id) {
+    // Only the tenant that authenticated the user is trusted; a client-supplied
+    // tenant is never used to pick where usage is written.
+    if (constants.USAGE_TRACKING_ENABLED && req.user && req.user._id && req.authTenant) {
       usageRecorder.recordApiCall({
-        tenant: req.query.tenant || req.body?.tenant,
+        tenant: req.authTenant,
         user: req.user,
         uri: req.headers["x-original-uri"],
         method: req.headers["x-original-method"],

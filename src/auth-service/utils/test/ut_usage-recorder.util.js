@@ -15,17 +15,22 @@ const makeUser = (email = "someone@example.com") => ({
 describe("usage-recorder.util", () => {
   let dailyBulkWrite;
   let profileBulkWrite;
+  let existingDocs;
   let original;
 
   beforeEach(() => {
     recorder._reset();
     dailyBulkWrite = sinon.stub().resolves({});
     profileBulkWrite = sinon.stub().resolves({});
+    existingDocs = [];
     original = {
       daily: recorder.__get__("UserUsageDailyModel"),
       profile: recorder.__get__("UserUsageProfileModel"),
     };
-    recorder.__set__("UserUsageDailyModel", () => ({ bulkWrite: dailyBulkWrite }));
+    recorder.__set__("UserUsageDailyModel", () => ({
+      bulkWrite: dailyBulkWrite,
+      find: () => ({ lean: async () => existingDocs }),
+    }));
     recorder.__set__("UserUsageProfileModel", () => ({ bulkWrite: profileBulkWrite }));
   });
 
@@ -202,11 +207,12 @@ describe("usage-recorder.util", () => {
       expect(update.$setOnInsert.expireAt).to.be.instanceOf(Date);
       expect(dailyBulkWrite.firstCall.args[1]).to.deep.equal({ ordered: false });
 
+      // Profile writes are idempotent: no counters, only $min/$max/$setOnInsert.
       const [profileOps] = profileBulkWrite.firstCall.args;
-      expect(profileOps[0].updateOne.update.$inc).to.deep.equal({
-        total_page_views: 1,
-        total_api_calls: 2,
-      });
+      const profileUpdate = profileOps[0].updateOne.update;
+      expect(profileUpdate).to.have.all.keys("$min", "$max", "$setOnInsert");
+      expect(profileUpdate.$min.first_seen).to.be.instanceOf(Date);
+      expect(profileUpdate.$max.last_seen).to.be.instanceOf(Date);
     });
 
     it("is a no-op when nothing is buffered", async () => {
@@ -223,17 +229,104 @@ describe("usage-recorder.util", () => {
     });
 
     it("keeps events recorded during a flush for the next one", async () => {
-      let release;
+      let release = null;
       dailyBulkWrite.callsFake(() => new Promise((resolve) => { release = resolve; }));
       recorder.recordApiCall({ user: makeUser(), uri: "/a", method: "GET" });
       const pending = recorder.flush();
       recorder.recordApiCall({ user: makeUser(), uri: "/b", method: "GET" });
       expect(recorder._getBuffer().size).to.equal(1);
+      // The budget read runs before the write, so wait until bulkWrite is in flight.
+      while (!release) await new Promise((resolve) => setImmediate(resolve));
       release({});
       await pending;
       dailyBulkWrite.resolves({});
       await recorder.flush();
       expect(recorder.getStats().flushed_entries).to.equal(2);
+    });
+
+    it("still writes the profile when the daily write fails", async () => {
+      dailyBulkWrite.rejects(new Error("daily down"));
+      recorder.recordApiCall({ user: makeUser(), uri: "/x", method: "GET" });
+      await recorder.flush();
+      expect(profileBulkWrite.calledOnce).to.equal(true);
+      expect(recorder.getStats().failed_entries).to.equal(1);
+    });
+
+    it("queues a failed profile write and retries it later without any counters", async () => {
+      const user = makeUser();
+      profileBulkWrite.onFirstCall().rejects(new Error("profile down"));
+      recorder.recordApiCall({ user, uri: "/x", method: "GET" });
+      await recorder.flush();
+
+      // Daily data is committed; the profile update is held for retry.
+      expect(dailyBulkWrite.calledOnce).to.equal(true);
+      expect(recorder._getPendingProfiles().size).to.equal(1);
+      expect(recorder.getStats().pending_profiles).to.equal(1);
+
+      // Nothing new was recorded, yet the next flush retries the profile.
+      await recorder.flush();
+      expect(profileBulkWrite.calledTwice).to.equal(true);
+      const [retryOps] = profileBulkWrite.secondCall.args;
+      expect(retryOps).to.have.length(1);
+      expect(retryOps[0].updateOne.filter.user_id.toString()).to.equal(String(user._id));
+      expect(retryOps[0].updateOne.update).to.not.have.property("$inc");
+      expect(recorder._getPendingProfiles().size).to.equal(0);
+      // Daily counters were not re-sent by the retry.
+      expect(dailyBulkWrite.calledOnce).to.equal(true);
+    });
+  });
+
+  describe("per-day key budget", () => {
+    it("folds only the keys beyond the budget, counting keys already persisted", () => {
+      const incoming = { "/a": { n: 1, d: 1 }, "/new1": { n: 2, d: 2 }, "/new2": { n: 3, d: 3 }, "/new3": { n: 4, d: 4 } };
+      const existing = { "/a": { n: 9, d: 9 }, "/b": { n: 1, d: 1 }, "/c": { n: 1, d: 1 } };
+      recorder.foldKeysOverBudget(incoming, existing, 5); // 3 stored -> room for 2 new keys
+      expect(Object.keys(incoming).sort()).to.deep.equal(["(other)", "/a", "/new1", "/new2"]);
+      expect(incoming["(other)"]).to.deep.equal({ n: 4, d: 4 });
+    });
+
+    it("folds numeric (endpoint) counters and keeps totals intact", () => {
+      const incoming = { "GET /a": 5, "GET /b": 7 };
+      recorder.foldKeysOverBudget(incoming, { "GET /x": 1 }, 1);
+      expect(incoming).to.deep.equal({ "(other)": 12 });
+    });
+
+    it("never drops an already-stored key or (other)", () => {
+      const incoming = { "/stored": { n: 1, d: 0 }, "(other)": { n: 1, d: 0 } };
+      recorder.foldKeysOverBudget(incoming, { "/stored": { n: 1, d: 0 }, "(other)": { n: 1, d: 0 } }, 2);
+      expect(Object.keys(incoming).sort()).to.deep.equal(["(other)", "/stored"]);
+    });
+
+    it("keeps a document bounded across many flushes of brand-new keys", async () => {
+      const prev = constants.USAGE_MAX_KEYS_PER_DAY;
+      constants.USAGE_MAX_KEYS_PER_DAY = 5;
+      try {
+        const user = makeUser();
+        const persisted = { pages: {}, api: {} };
+        // Emulate Mongo: `find` returns what earlier flushes stored, bulkWrite applies the $inc keys.
+        recorder.__set__("UserUsageDailyModel", () => ({
+          find: () => ({ lean: async () => [{ user_id: user._id, day: new Date().toISOString().slice(0, 10), pages: persisted.pages, api: persisted.api }] }),
+          bulkWrite: async (ops) => {
+            for (const key of Object.keys(ops[0].updateOne.update.$inc)) {
+              const page = key.match(/^pages\.(.+)\.[nd]$/);
+              if (page) persisted.pages[page[1]] = true;
+              const api = key.match(/^api\.(.+)$/);
+              if (api) persisted.api[api[1]] = true;
+            }
+          },
+        }));
+        for (let round = 0; round < 6; round += 1) {
+          recorder.recordPageEvents({ user, events: Array.from({ length: 10 }, (_, i) => ({ path: `/p/r${round}/x${i}` })) });
+          for (let i = 0; i < 10; i += 1) recorder.recordApiCall({ user, uri: `/api/r${round}/x${i}`, method: "GET" });
+          await recorder.flush();
+        }
+        // budget (5) + the single "(other)" bucket
+        expect(Object.keys(persisted.pages).length).to.be.at.most(6);
+        expect(Object.keys(persisted.api).length).to.be.at.most(6);
+        expect(persisted.pages).to.have.property("(other)");
+      } finally {
+        constants.USAGE_MAX_KEYS_PER_DAY = prev;
+      }
     });
   });
 });

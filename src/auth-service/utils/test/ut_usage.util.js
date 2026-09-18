@@ -13,6 +13,15 @@ describe("usage.util helpers", () => {
       ]);
     });
 
+    it("daySpan is inclusive, arithmetic, and safe for absurd ranges", () => {
+      expect(usage.daySpan("2026-01-01", "2026-01-01")).to.equal(1);
+      expect(usage.daySpan("2026-01-01", "2026-12-31")).to.equal(365);
+      expect(usage.daySpan("2024-01-01", "2024-12-31")).to.equal(366);
+      const started = Date.now();
+      expect(usage.daySpan("0001-01-01", "9999-12-31")).to.be.above(3000000);
+      expect(Date.now() - started).to.be.below(50);
+    });
+
     it("monthBounds returns first/last day and the previous month", () => {
       expect(usage.monthBounds("2026-02")).to.deep.equal({
         month: "2026-02",
