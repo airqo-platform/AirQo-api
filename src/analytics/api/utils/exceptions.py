@@ -4,6 +4,22 @@ import math
 from typing import Optional
 
 
+class PrivacyScreeningUnavailable(Exception):
+    """device-registry could not be reached to screen private members.
+
+    Raised by the report builder on the public path only.  It is deliberately
+    fail-closed: serving an unscreened report because the registry was down
+    would publish exactly the entries screening exists to withhold.  The
+    service layer maps this to a 503.
+    """
+
+    def __init__(
+        self, message: str = "Unable to verify site/device privacy status."
+    ) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 class ExportRequestNotFound(Exception):
     def __init__(self, message="Export request does not exist", request_id=""):
         self.message = message

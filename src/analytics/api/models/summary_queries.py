@@ -1,5 +1,5 @@
 """
-Query builder for the /data/summary data-completeness report.
+Query builder for the /summary data-completeness report.
 
 Port of the Flask EventsModel.get_devices_summary (recovered from the outer
 tree): sums hourly/calibrated/uncalibrated record counts per device from the

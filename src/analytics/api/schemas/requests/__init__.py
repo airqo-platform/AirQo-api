@@ -396,16 +396,16 @@ class DeviceExceedancesRequest(_ExceedancesBase):
 
 class AirQualityReportRequest(BaseRequest):
     """
-    POST /data/report — PM aggregates for ONE grid or cohort.
+    POST /report — PM aggregates for ONE grid or cohort.
 
     Wire contract carries over from the original Flask grid report: snake_case
     ``start_time`` / ``end_time`` (ISO datetimes), window non-zero and within
     MAX_QUERY_DAYS — the same ceiling the download and chart paths enforce,
     rather than the hardcoded 12 months the original used.
 
-    The entity is chosen in the body rather than by path, matching
-    DataSummaryRequest: grids and cohorts differ only in how membership
-    resolves, so one endpoint serves both.
+    The entity is chosen in the body rather than by path, and DataSummaryRequest
+    now takes the identical body: grids and cohorts differ only in how
+    membership resolves, so one endpoint serves both.
     """
 
     grid_id: Optional[str] = Field(None, description="Grid identifier")
@@ -438,10 +438,23 @@ class AirQualityReportRequest(BaseRequest):
         # returning a 404 "no data" rather than a 422.
         if self.end_time < self.start_time:
             raise ValueError("end_time must be after start_time")
-        max_days = settings.max_query_days
+        max_days, surface = self.window_ceiling()
         if (self.end_time - self.start_time).days > max_days:
-            raise ValueError(f"Time range must not exceed {max_days} days")
+            raise ValueError(f"Time range must not exceed {max_days} days{surface}")
         return self
+
+    @classmethod
+    def window_ceiling(cls) -> tuple:
+        """(max days, wording) this variant enforces — overridden by the v3 subclass.
+
+        A hook rather than a bare ``settings`` read because the subclass cannot
+        simply add a second, tighter validator: pydantic runs inherited
+        ``mode="after"`` validators first, so this one would raise on a wide
+        window and short-circuit before the tighter check was ever reached —
+        reporting the wrong ceiling, and leaving a public cap set above
+        MAX_QUERY_DAYS silently unreachable.
+        """
+        return settings.max_query_days, ""
 
     def entity(self) -> tuple:
         """(kind, entity_id) for the report builder — mirrors DataSummaryRequest."""
@@ -452,39 +465,132 @@ class AirQualityReportRequest(BaseRequest):
         raise ValueError("No report entity provided")  # unreachable post-validation
 
 
+_PUBLIC_SURFACE = " on the public API"
+
+
+def _public_window_days() -> int:
+    """The v3 window ceiling, never wider than the service-wide one.
+
+    Clamped so a MAX_PUBLIC_REPORT_DAYS set above MAX_QUERY_DAYS cannot make
+    the two public endpoints disagree about what they accept.
+    """
+    return min(settings.max_public_report_days, settings.max_query_days)
+
+
+def _validate_public_window(start: datetime, end: datetime) -> None:
+    """Enforce the public window ceiling on a model whose parent validates none.
+
+    Used by PublicDataSummaryRequest only.  PublicAirQualityReportRequest
+    inherits a full window validator and overrides its ceiling instead.
+
+    Raises:
+        ValueError: window reversed, zero-length, or wider than the public
+            ceiling.
+    """
+    if (start.tzinfo is None) != (end.tzinfo is None):
+        # Mixed naive/aware would make the subtraction below raise TypeError.
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        else:
+            end = end.replace(tzinfo=timezone.utc)
+
+    if start == end:
+        raise ValueError("start_time and end_time cannot be the same")
+    # Checked before the cap, not after: a reversed window gives a negative day
+    # count, which would slip under the ceiling unnoticed.
+    if end < start:
+        raise ValueError("end_time must be after start_time")
+
+    max_days = _public_window_days()
+    if (end - start).days > max_days:
+        raise ValueError(f"Time range must not exceed {max_days} days{_PUBLIC_SURFACE}")
+
+
 # ---------------------------------------------------------------------------
 # Data summary (data-completeness report over the devices-summary table)
 # ---------------------------------------------------------------------------
 
 
+# Request field -> the filter kind the query builder and messages expect.
+# devices_summary_query validates against SUMMARY_FILTER_KINDS ("grid",
+# "cohort") and get_summary interpolates the bare kind into its no-data
+# message, so the *_id suffix is dropped here rather than carried through.
+# Module-level rather than a class attribute: pydantic v2 turns a leading
+# underscore on a model class into a private attribute.
+_SUMMARY_ENTITY_FIELDS = (("grid_id", "grid"), ("cohort_id", "cohort"))
+
+
 class DataSummaryRequest(BaseRequest):
     """
-    POST /data/summary — Flask wire contract: startDateTime/endDateTime plus
-    ONE of grid / cohort.  (Flask marked them optional and crashed with a 500
-    when none was given — requiring exactly one turns that into a clean 422.)
+    POST /summary — data-completeness counts for ONE grid or cohort.
+
+    Body matches AirQualityReportRequest exactly: snake_case ``start_time`` /
+    ``end_time`` plus one of ``grid_id`` / ``cohort_id``.  The two endpoints
+    describe the same subject over the same window and differ only in what they
+    report, so they no longer differ in how they are asked.
+
+    This departs from the Flask wire contract, which used camelCase
+    startDateTime/endDateTime and bare grid/cohort keys.  Flask also marked the
+    entity optional and crashed with a 500 when none was given; requiring
+    exactly one turns that into a clean 422.
     """
 
-    start_date_time: datetime = Field(..., alias="startDateTime")
-    end_date_time: datetime = Field(..., alias="endDateTime")
-    grid: Optional[str] = None
-    cohort: Optional[str] = None
+    start_time: datetime = Field(..., description="Start of the summary window")
+    end_time: datetime = Field(..., description="End of the summary window")
+    grid_id: Optional[str] = Field(None, description="Grid identifier")
+    cohort_id: Optional[str] = Field(None, description="Cohort identifier")
 
     @model_validator(mode="after")
     def exactly_one_entity(self) -> "DataSummaryRequest":
         provided = [
-            kind for kind in ("grid", "cohort") if (getattr(self, kind) or "").strip()
+            field
+            for field, _ in _SUMMARY_ENTITY_FIELDS
+            if (getattr(self, field) or "").strip()
         ]
         if len(provided) != 1:
-            raise ValueError("Provide exactly one of: grid, cohort")
+            raise ValueError("Provide exactly one of: grid_id, cohort_id")
         return self
 
     def entity(self) -> tuple:
         """(filter_kind, filter_id) for the summary query builder."""
-        for kind in ("grid", "cohort"):
-            value = (getattr(self, kind) or "").strip()
+        for field, kind in _SUMMARY_ENTITY_FIELDS:
+            value = (getattr(self, field) or "").strip()
             if value:
                 return kind, value
         raise ValueError("No summary entity provided")  # unreachable post-validation
+
+
+# ---------------------------------------------------------------------------
+# Public (v3) variants.  Same bodies as their v2 counterparts, with the shorter
+# MAX_PUBLIC_REPORT_DAYS ceiling — the v2 models are deliberately left alone.
+# ---------------------------------------------------------------------------
+
+
+class PublicAirQualityReportRequest(AirQualityReportRequest):
+    """v3 /report body: identical to v2's, with the public window ceiling.
+
+    The inherited validator does all the work; only the ceiling it reads is
+    swapped.  See AirQualityReportRequest.window_ceiling for why a second,
+    tighter validator would not have worked here.
+    """
+
+    @classmethod
+    def window_ceiling(cls) -> tuple:
+        return _public_window_days(), _PUBLIC_SURFACE
+
+
+class PublicDataSummaryRequest(DataSummaryRequest):
+    """v3 /summary body: identical to v2's, with the public window ceiling.
+
+    Unlike the report, the v2 summary model validates no window at all, so this
+    is also where a reversed or zero-length public window is rejected.  Closing
+    that gap on v2 is a behaviour change and is tracked separately.
+    """
+
+    @model_validator(mode="after")
+    def within_public_window(self) -> "PublicDataSummaryRequest":
+        _validate_public_window(self.start_time, self.end_time)
+        return self
 
 
 # ---------------------------------------------------------------------------

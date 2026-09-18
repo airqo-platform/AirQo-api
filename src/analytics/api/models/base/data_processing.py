@@ -8,11 +8,13 @@ Pipeline (both entity kinds):
 1. Resolve the entity to its members from BigQuery metadata — a grid to its
    site IDs via grids_sites, a cohort to its device IDs via cohorts_devices
    (``fetch_grid_sites`` / ``fetch_cohort_devices``, api/utils/pollutants/report.py).
-2. Query hourly consolidated PM data for those members from BigQuery
+2. Optionally drop members marked private in the device registry
+   (``_screen_private_members``) — the public v3 path only.
+3. Query hourly consolidated PM data for those members from BigQuery
    (``query_bigquery``, parameterized).
-3. Enrich into a DataFrame with date/hour/month breakdown columns
+4. Enrich into a DataFrame with date/hour/month breakdown columns
    (``results_to_dataframe``).
-4. Aggregate with ``PManalysis`` and shape the response dict.
+5. Aggregate with ``PManalysis`` and shape the response dict.
 
 Everything here is blocking I/O + pandas; callers on the event loop must run
 these via ``asyncio.to_thread`` (AirQualityReportService does).
@@ -28,6 +30,8 @@ Raises:
         service layer.
     QueryTooLarge: window too wide to scan within the byte ceiling — mapped to
         HTTP 400 by the service layer.
+    PrivacyScreeningUnavailable: screening was requested and device-registry
+        could not be reached — mapped to HTTP 503 by the service layer.
 """
 
 from datetime import datetime
@@ -36,6 +40,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from config import settings
+from api.utils.data_formatters import filter_non_private_sites_devices
+from api.utils.exceptions import PrivacyScreeningUnavailable
 from api.utils.messages import no_data_message
 from api.utils.pollutants.report import (
     PManalysis,
@@ -113,6 +119,47 @@ def _resolve_members(kind: str, entity_id: str) -> List[str]:
     return members
 
 
+def _screen_private_members(kind: str, members: List[str]) -> List[str]:
+    """
+    Drop members marked private in the device registry.
+
+    Applied on the public (v3) path only.  Screening happens here rather than
+    at the filter layer used by the download paths because those screen site
+    and device IDs, not the grids and cohorts that resolve to them — but once
+    membership *has* resolved, the list is exactly site IDs or device IDs,
+    which is what the registry screens.
+
+    Known limitation: this is all-or-nothing.  ``filter_non_private_sites_devices``
+    drops every entry marked private regardless of who is asking, so a user
+    requesting a report over their own grid does not see their own private
+    sites in it.  That is the wrong answer for them, and it is why this is
+    confined to v3 rather than applied everywhere.
+
+    The filter should take the requesting user into account: keep the private
+    entries that belong to the caller, drop the rest.  Two things are needed
+    before that can happen, and neither is local to this function:
+
+    * A caller identity reaching this far down.  ``optional_caller_id``
+      (api/dependencies.py) already resolves the gateway-asserted user, but the
+      report routes do not depend on it, and it returns None until
+      ``REQUIRE_GATEWAY_IDENTITY`` is switched on — so ownership is
+      unenforceable in the meantime, not merely unimplemented.
+    * A device-registry call that screens by owner rather than by flag.  The
+      current endpoints answer "which of these are public", not "which of these
+      may this user see".
+
+    Raises:
+        PrivacyScreeningUnavailable: the registry could not be reached or
+            answered with an error. Fail-closed on purpose; see the exception.
+    """
+    filter_type = "sites" if kind == "grid" else "device_ids"
+    result = filter_non_private_sites_devices(filter_type, members)
+    if not result or result.get("status") != "success":
+        logger.warning("Privacy screening failed for %s members", kind)
+        raise PrivacyScreeningUnavailable()
+    return result.get("data", []) or []
+
+
 def _members_block(kind: str, members: List[str], name: Any) -> Dict[str, Any]:
     """The `sites`/`devices` block of the response for one entity kind."""
     spec = _ENTITY_KINDS[kind]
@@ -183,7 +230,11 @@ def _report_envelope(
 
 
 def build_entity_report(
-    kind: str, entity_id: str, start_time: datetime, end_time: datetime
+    kind: str,
+    entity_id: str,
+    start_time: datetime,
+    end_time: datetime,
+    screen_private: bool = False,
 ) -> Dict[str, Any]:
     """
     Build the full air-quality report for a grid or cohort.
@@ -193,6 +244,8 @@ def build_entity_report(
         entity_id: The grid or cohort identifier.
         start_time: Start of the reporting window.
         end_time: End of the reporting window.
+        screen_private: Drop members marked private in the device registry.
+            Set on the public (v3) path; the internal path leaves it off.
 
     Returns:
         The ``{"airquality": {...}}`` response dict with daily/monthly/annual,
@@ -204,11 +257,32 @@ def build_entity_report(
         ValueError: Invalid date range.
         LookupError: No members for the entity.
         QueryTooLarge: Window too wide to scan within the byte ceiling.
+        PrivacyScreeningUnavailable: Screening was requested and the registry
+            could not be reached.
     """
     validate_dates(start_time, end_time)
     spec = _ENTITY_KINDS[kind]
 
     members = _resolve_members(kind, entity_id)
+
+    if screen_private:
+        # Screened after the LookupError above, deliberately. An entity with no
+        # members at all is a 404; an entity whose members are all private is a
+        # resolved entity with nothing to report, which is the same answer as a
+        # window holding no measurements — a 200 with empty aggregates.
+        members = _screen_private_members(kind, members)
+        if not members:
+            logger.info("Every member of %s %s is private", kind, entity_id)
+            return _report_envelope(
+                kind,
+                entity_id,
+                members,
+                [],
+                start_time,
+                end_time,
+                {key: [] for key in _AGGREGATE_KEYS},
+                message=no_data_message(start_time, end_time, f"{kind} {entity_id}"),
+            )
 
     results = query_bigquery(members, start_time, end_time, id_column=spec["id_column"])
     if results is None:

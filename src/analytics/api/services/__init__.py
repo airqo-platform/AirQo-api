@@ -74,7 +74,12 @@ from api.utils.messages import FILTER_MSG, no_data_message
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
-from api.utils.exceptions import ExportRequestNotFound, QueryTooLarge, format_bytes
+from api.utils.exceptions import (
+    ExportRequestNotFound,
+    PrivacyScreeningUnavailable,
+    QueryTooLarge,
+    format_bytes,
+)
 from config import settings
 from constants import (
     DataExportFormat,
@@ -317,13 +322,13 @@ class DataExportService(BaseService):
 
     async def get_summary(self, request: DataSummaryRequest) -> Dict[str, Any]:
         """
-        Data-completeness report over the devices-summary table (Flask
-        /data/summary): hourly/calibrated/uncalibrated record counts and
-        percentages per device and per site, for one grid/cohort.
+        Data-completeness report over the devices-summary table (/summary,
+        formerly Flask /data/summary): hourly/calibrated/uncalibrated record
+        counts and percentages per device and per site, for one grid/cohort.
         """
         filter_kind, filter_id = request.entity()
-        start = self._summary_hour(request.start_date_time)
-        end = self._summary_hour(request.end_date_time)
+        start = self._summary_hour(request.start_time)
+        end = self._summary_hour(request.end_time)
         start_str = start.strftime("%Y-%m-%dT%H:00:00Z")
         end_str = end.strftime("%Y-%m-%dT%H:00:00Z")
 
@@ -357,8 +362,8 @@ class DataExportService(BaseService):
                 # Flask interpolated the (possibly empty) grid value here —
                 # use the requested entity id for a more useful message.
                 "message": no_data_message(
-                    request.start_date_time,
-                    request.end_date_time,
+                    request.start_time,
+                    request.end_time,
                     entity=f"{filter_kind} {filter_id}",
                 ),
                 "data": {},
@@ -1024,12 +1029,23 @@ class AirQualityReportService(BaseService):
     to HTTP status codes and keeps the blocking work off the event loop.
     """
 
-    async def get_report(self, request: AirQualityReportRequest) -> Dict[str, Any]:
+    async def get_report(
+        self,
+        request: AirQualityReportRequest,
+        *,
+        screen_private: bool = False,
+    ) -> Dict[str, Any]:
         """
         PM aggregates for one grid or cohort: daily/monthly/annual plus
         site/city/country/region breakdowns.
 
         The two kinds share a pipeline; the request names which one.
+
+        Args:
+            request: The validated report body.
+            screen_private: Drop members marked private before querying. The
+                v3 public route passes True; v2 leaves it off, preserving what
+                the internal dashboard sees today.
         """
         kind, entity_id = request.entity()
         try:
@@ -1039,9 +1055,17 @@ class AirQualityReportService(BaseService):
                 entity_id,
                 request.start_time,
                 request.end_time,
+                screen_private,
             )
         except QueryTooLarge as exc:
             raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except PrivacyScreeningUnavailable as exc:
+            # Fail closed: the same 503 the download paths give when the
+            # registry is unreachable, rather than serving unscreened members.
+            raise HTTPException(
+                status_code=503,
+                detail=f"{exc.message} Please try again later.",
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except LookupError as exc:
