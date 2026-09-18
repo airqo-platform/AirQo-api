@@ -308,35 +308,7 @@ class DataApi:
         logger.info(f"Total devices fetched: {len(response_data)}")
         return response_data
 
-    def get_networks(
-        self, net_status: str = "active"
-    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-        """
-        Retrieve a list of networks.
 
-        Args:
-            net_status (str): The status of networks to retrieve. Defaults to "active".
-
-        Returns:
-            Tuple[List[Dict[str, Any]], Optional[str]]:
-                - List of networks (dictionaries) retrieved from the API.
-                - Optional error message if an exception occurs.
-        """
-        params = {}
-        networks: List[Dict[str, Any]] = []
-        exception_message: Optional[str] = None
-
-        if configuration.ENVIRONMENT == "production":
-            params["net_status"] = net_status
-
-        try:
-            response = self._request("users/networks", params)
-            networks = response.get("networks", [])
-        except Exception as e:
-            exception_message = f"Failed to fetch networks: {e}"
-            logger.exception(exception_message)
-
-        return networks, exception_message
 
     def __get_device_maintenance_activity(
         self, device: Dict[str, Any]
