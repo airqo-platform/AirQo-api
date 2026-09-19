@@ -3284,6 +3284,16 @@ const token = {
         return;
       }
 
+      // An already-blacklisted IP was flagged (and alerted on) earlier. Its request
+      // history still shows the same pattern, so without this exit every later
+      // request would re-blacklist it and re-send the admin alert email.
+      const isAlreadyBlacklisted = await BlacklistedIPModel(tenant).exists({
+        ip,
+      });
+      if (isAlreadyBlacklisted) {
+        return;
+      }
+
       // Check if the request endpoint starts with any of the monitored base paths.
       // This is more robust than an exact match and aligns with patterns elsewhere in the codebase.
       const isMonitored = constants.BOT_MONITORED_ENDPOINTS.some(
@@ -3353,6 +3363,11 @@ const token = {
           `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`,
         );
       }
+      // The existence check above is not atomic, so overlapping analyses of the
+      // same IP can all reach this point. Only the one that actually inserted
+      // the blacklist entry sends the alert.
+      const claimedBlacklist =
+        blacklistResponse.success && blacklistResponse.inserted === true;
       await IPRequestLogModel(tenant).markAsBot(ip, mostFrequentInterval);
 
       // 2. Handle serverless/cloud provider IPs by blacklisting the prefix
@@ -3385,7 +3400,7 @@ const token = {
 
       // 3. Notify admins
       const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST;
-      if (adminEmails.length > 0) {
+      if (claimedBlacklist && adminEmails.length > 0) {
         mailer
           .sendBotAlert({
             recipients: adminEmails,
