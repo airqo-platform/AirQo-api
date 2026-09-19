@@ -258,6 +258,136 @@ class TestDailyDiagnosticsRun(DailyDiagnosticsDBTestCase):
         self.assertEqual(self._run(device_ids=[DEVICE_ID])["evaluated"], 3)
 
 
+TREND_DEVICE_ID = "aq_trend_test_01"
+TREND_CHANNEL_ID = "990003"
+TREND_DAYS = [TODAY - timedelta(days=6 - i) for i in range(6)]   # six completed days ending yesterday
+TREND_ISSUE = "DEGRADING_TREND:device_battery.charge_cycle.min"
+
+
+def _sliding_battery(low):
+    """A smooth daily cycle from 4.2 V down to `low` and back: every day looks healthy on its own."""
+    import math
+    return lambda i, n: low + (4.2 - low) * (0.5 + 0.5 * math.cos(2 * math.pi * i / n))
+
+
+class TestDailyTrends(DailyDiagnosticsDBTestCase):
+    def _seed(self):
+        db = self.Session()
+        profile = profile_orm(lowcost_profile())
+        db.add(profile)
+        db.add(SyncDevice(device_id=TREND_DEVICE_ID, device_name=TREND_DEVICE_ID,
+                          device_number=int(TREND_CHANNEL_ID), profile_id=profile.id))
+        for k, day in enumerate(TREND_DAYS):
+            db.add(_daily_row(day, device_id=TREND_DEVICE_ID, channel_id=TREND_CHANNEL_ID))
+            db.add_all(_raw_day(day, _sliding_battery(3.95 - 0.08 * k), device_id=TREND_DEVICE_ID, channel_id=TREND_CHANNEL_ID))
+        db.commit()
+        db.close()
+
+    def setUp(self):
+        super().setUp()
+        self.summary = daily.run_daily_diagnostics(
+            start_date=TREND_DAYS[0], end_date=TREND_DAYS[-1], device_ids=[TREND_DEVICE_ID]
+        )
+
+        def override_get_db():
+            db = self.Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[get_db] = override_get_db
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        app.dependency_overrides.pop(get_db, None)
+        super().tearDown()
+
+    def test_sliding_minimum_becomes_a_trend_issue_on_healthy_days(self):
+        self.assertEqual(self.summary["evaluated"], 6)
+        db = self.Session()
+        try:
+            rows = {r.diagnosis_date: r for r in db.query(DeviceDailyDiagnostic).all()}
+            # Fewer than 5 diagnosed days: no trend can be claimed yet
+            for day in TREND_DAYS[:4]:
+                self.assertEqual(rows[day].lifecycle_state, "HEALTHY")
+                self.assertEqual(rows[day].issue_count, 0)
+                self.assertEqual(rows[day].trends, [])
+
+            last = rows[TREND_DAYS[-1]]
+            self.assertEqual(last.overall_health_score, 100.0)      # the day itself breaks no limit
+            self.assertEqual(last.lifecycle_state, "DEGRADING")     # ...but the week does
+            issue = {i.issue_code: i for i in last.issues}[TREND_ISSUE]
+            self.assertEqual(issue.check_type, "DEGRADING_TREND")
+            self.assertEqual(issue.component_name, "device_battery")
+            self.assertEqual(issue.streak_days, 2)                  # flagged on days 5 and 6
+            self.assertEqual(issue.streak_start_date, TREND_DAYS[4])
+            self.assertAlmostEqual(issue.value["slope_per_day"], -0.08, places=2)
+            self.assertIsNotNone(issue.value["days_to_limit"])
+
+            self.assertTrue(last.headline.startswith("Degrading (100/100)"))
+            self.assertIn("Battery Voltage daily minimum falling (day 2)", last.summary)
+            self.assertIn("Trend: Battery Voltage daily minimum fell from 3.95 to 3.55 V over 6 diagnosed days", last.summary)
+            self.assertIn("reaches the 3 V limit", last.summary)
+        finally:
+            db.close()
+
+    def test_trend_lifecycle_adjustment_can_be_turned_off(self):
+        db = self.Session()
+        from app.models.device_schema import DeviceProfile
+        profile = db.query(DeviceProfile).first()
+        profile.meta_data = {"diagnostics": {"trend": {"degrade_lifecycle": False}}}
+        db.commit()
+        db.close()
+
+        daily.run_daily_diagnostics(start_date=TREND_DAYS[-1], end_date=TREND_DAYS[-1],
+                                    device_ids=[TREND_DEVICE_ID], force=True)
+        db = self.Session()
+        try:
+            last = db.query(DeviceDailyDiagnostic).filter(DeviceDailyDiagnostic.diagnosis_date == TREND_DAYS[-1]).one()
+            self.assertEqual(last.lifecycle_state, "HEALTHY")
+            self.assertIn(TREND_ISSUE, [i.issue_code for i in last.issues])
+        finally:
+            db.close()
+
+    def test_trends_endpoint_and_response_fields(self):
+        body = self.client.get(f"/api/v1/diagnostics/devices/{TREND_DEVICE_ID}/trends").json()
+        self.assertEqual(body["as_of"], TREND_DAYS[-1].isoformat())
+        self.assertEqual(body["window_days"], 7)
+        self.assertGreaterEqual(body["degrading_count"], 1)
+        self.assertEqual(body["trends"][0]["status"], "degrading")
+        self.assertIn(("device_battery", "charge_cycle", "min"),
+                      [(t["component"], t["group"], t["field"]) for t in body["trends"] if t["status"] == "degrading"])
+
+        short = self.client.get(f"/api/v1/diagnostics/devices/{TREND_DEVICE_ID}/trends?window_days=3").json()
+        self.assertEqual(short["trends"], [])        # 3 days cannot satisfy the 5-day minimum
+
+        earlier = self.client.get(
+            f"/api/v1/diagnostics/devices/{TREND_DEVICE_ID}/trends?as_of={TREND_DAYS[2].isoformat()}"
+        ).json()
+        self.assertEqual(earlier["trends"], [])
+
+        unknown = self.client.get("/api/v1/diagnostics/devices/no_such_device/trends").json()
+        self.assertIsNone(unknown["as_of"])
+        self.assertEqual(unknown["trends"], [])
+
+        listing = self.client.get(f"/api/v1/diagnostics/devices/{TREND_DEVICE_ID}/daily").json()
+        self.assertTrue(listing[0]["headline"].startswith("Degrading"))
+        detail = self.client.get(
+            f"/api/v1/diagnostics/devices/{TREND_DEVICE_ID}/daily/{TREND_DAYS[-1].isoformat()}"
+        ).json()
+        self.assertIn("Trend:", detail["summary"])
+        self.assertTrue(any(t["status"] == "degrading" for t in detail["trends"]))
+
+        issues = self.client.get(f"/api/v1/diagnostics/devices/{TREND_DEVICE_ID}/issues").json()
+        self.assertTrue(issues["latest_headline"].startswith("Degrading"))
+        fleet = self.client.get("/api/v1/diagnostics/fleet/daily-summary").json()
+        self.assertEqual(fleet["lifecycle_state_counts"], {"DEGRADING": 1})
+        self.assertTrue(fleet["worst_devices"][0]["headline"].startswith("Degrading"))
+        trending = self.client.get("/api/v1/diagnostics/fleet/issues?check_type=degrading_trend").json()
+        self.assertIn(TREND_ISSUE, [i["issue_code"] for i in trending])
+
+
 class TestDailyDiagnosticsAPI(DailyDiagnosticsDBTestCase):
     def setUp(self):
         super().setUp()

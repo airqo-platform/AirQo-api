@@ -31,13 +31,16 @@ from app.models.sync import SyncConfigValues, SyncDevice
 from app.services.diagnostics.evaluator import DiagnosticEvaluator
 from app.services.diagnostics.features import FeatureExtractor
 from app.services.diagnostics.issues import SEVERITY_RANK, extract_issues, max_severity
+from app.services.diagnostics.narrative import build_summary
+from app.services.diagnostics.policy import DEFAULT_POLICY, merge_policy
 from app.services.diagnostics.profile_model import DiagnosticModel, build_model
+from app.services.diagnostics.trends import DayRow, compute_trends, trend_issues
 from app.utils.field_mappings import map_record_from_profile, normalize_and_unpack_record
 
 logger = logging.getLogger(__name__)
 
 # Bump when evidence rules or scoring change, so stored days can be told apart and re-run with force=True.
-ENGINE_VERSION = "2.0.0"
+ENGINE_VERSION = "2.2.0"
 SECONDS_PER_DAY = 86400.0
 DEFAULT_LOOKBACK_DAYS = 3
 # Raw readings are kept for 14 days by the sync retention cleanup; older days cannot be evaluated.
@@ -187,6 +190,26 @@ def _previous_diagnosis(db: Session, device_id: str, day: date) -> Optional[Devi
     )
 
 
+def _trend_rows(db: Session, device_id: str, start: date, end: date) -> List[DayRow]:
+    """Stored (date, indicators, health score) for a device between two dates, inclusive."""
+    if start > end:
+        return []
+    rows = (
+        db.query(
+            DeviceDailyDiagnostic.diagnosis_date,
+            DeviceDailyDiagnostic.indicators,
+            DeviceDailyDiagnostic.overall_health_score,
+        )
+        .filter(
+            DeviceDailyDiagnostic.device_id == device_id,
+            DeviceDailyDiagnostic.diagnosis_date >= start,
+            DeviceDailyDiagnostic.diagnosis_date <= end,
+        )
+        .all()
+    )
+    return [(r[0], r[1] or {}, r[2]) for r in rows]
+
+
 def _resolve_device_profile(db: Session, device: SyncDevice) -> Optional[Any]:
     try:
         if device.profile_id:
@@ -242,6 +265,7 @@ def evaluate_device_day(
     if not raw_rows:
         return None
 
+    model = model or build_model(profile)
     records = _prepare_records(raw_rows, profile)
     result = _evaluator.evaluate_telemetry(
         device_id=device.device_id,
@@ -255,8 +279,42 @@ def evaluate_device_day(
     )
     issues = extract_issues(result["active_evidences"])
 
+    # Trends over the stored days in the window plus today; a degrading trend is an issue in its own right.
+    window_days = int(model.policy["trend"]["window_days"])
+    trends = compute_trends(
+        _trend_rows(db, device.device_id, day - timedelta(days=window_days - 1), day - timedelta(days=1))
+        + [(day, result["indicators"], result["overall_health_score"])],
+        model,
+    )
+    degrading = trend_issues(trends, model)
+    issues = sorted(
+        issues + degrading,
+        key=lambda i: (SEVERITY_RANK.get(i["severity"], 0), i["confidence"] or 0.0),
+        reverse=True,
+    )
+    lifecycle_state = result["lifecycle_state"]
+    if lifecycle_state == "HEALTHY" and degrading and model.policy["trend"]["degrade_lifecycle"]:
+        lifecycle_state = "DEGRADING"
+
     previous = _previous_diagnosis(db, device.device_id, day)
     previous_issues = {i.issue_code: i for i in previous.issues} if previous else {}
+    issue_rows = []
+    for issue in issues:
+        prior = previous_issues.get(issue["code"])
+        issue_rows.append({
+            **issue,
+            "is_new": prior is None,
+            "streak_days": prior.streak_days + 1 if prior else 1,
+            "streak_start_date": prior.streak_start_date if prior else day,
+        })
+    resolved_codes = sorted(set(previous_issues) - {i["code"] for i in issues})
+    narrative = build_summary(
+        {**result, "lifecycle_state": lifecycle_state},
+        model,
+        issues=issue_rows,
+        resolved_titles=[previous_issues[code].title for code in resolved_codes],
+        trends=trends,
+    )
 
     existing = (
         db.query(DeviceDailyDiagnostic)
@@ -269,7 +327,6 @@ def evaluate_device_day(
 
     timestamps = [_as_utc(r.created_at_ts) for r in raw_rows]
     top_diagnoses = result["top_diagnoses"]
-    current_codes = {i["code"] for i in issues}
 
     diagnostic = DeviceDailyDiagnostic(
         device_id=device.device_id,
@@ -281,7 +338,7 @@ def evaluate_device_day(
         first_record_at=timestamps[0],
         last_record_at=timestamps[-1],
         overall_health_score=result["overall_health_score"],
-        lifecycle_state=result["lifecycle_state"],
+        lifecycle_state=lifecycle_state,
         subsystem_scores=result["subsystem_scores"],
         active_evidences=result["active_evidences"],
         detected_symptoms=result["detected_symptoms"],
@@ -289,15 +346,17 @@ def evaluate_device_day(
         top_cause_code=top_diagnoses[0]["cause_code"] if top_diagnoses else None,
         issue_count=len(issues),
         max_severity=max_severity(issues),
-        resolved_issue_codes=sorted(set(previous_issues) - current_codes),
+        resolved_issue_codes=resolved_codes,
         metrics_summary=summarize_metrics(records),
         indicators=result["indicators"],
+        trends=trends,
+        headline=narrative["headline"],
+        summary=narrative["summary"],
         engine_version=ENGINE_VERSION,
         evaluated_at=datetime.now(timezone.utc),
     )
 
-    for issue in issues:
-        prior = previous_issues.get(issue["code"])
+    for issue in issue_rows:
         diagnostic.issues.append(
             DeviceDailyIssue(
                 device_id=device.device_id,
@@ -312,9 +371,9 @@ def evaluate_device_day(
                 confidence=issue["confidence"],
                 description=issue["description"],
                 value=issue["value"],
-                is_new=prior is None,
-                streak_days=prior.streak_days + 1 if prior else 1,
-                streak_start_date=prior.streak_start_date if prior else day,
+                is_new=issue["is_new"],
+                streak_days=issue["streak_days"],
+                streak_start_date=issue["streak_start_date"],
             )
         )
 
@@ -524,6 +583,7 @@ def build_device_issue_summary(
         "average_health_score": round(sum(scores) / len(scores), 1) if scores else None,
         "latest_diagnosis_date": latest.diagnosis_date if latest else None,
         "latest_lifecycle_state": latest.lifecycle_state if latest else None,
+        "latest_headline": latest.headline if latest else None,
         "issues": issues,
         "health_trend": [
             {
@@ -571,6 +631,48 @@ def build_device_indicator_series(
         "end_date": today,
         "days_diagnosed": len(rows),
         "components": series,
+    }
+
+
+def build_device_trends(
+    db: Session,
+    device_id: str,
+    window_days: Optional[int] = None,
+    as_of: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Trends of a device's indicators as of its latest diagnosed day (or `as_of`), computed from
+    stored days. `window_days` overrides the profile's trend window for this request.
+    """
+    latest = as_of or (
+        db.query(func.max(DeviceDailyDiagnostic.diagnosis_date))
+        .filter(DeviceDailyDiagnostic.device_id == device_id)
+        .scalar()
+    )
+    model: Optional[DiagnosticModel] = None
+    device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
+    profile = _resolve_device_profile(db, device) if device is not None else None
+    if profile is not None:
+        model = build_model(profile)
+
+    base_policy = model.policy if model else DEFAULT_POLICY
+    policy = merge_policy(base_policy, {"trend": {"window_days": window_days}}) if window_days else base_policy
+    effective_window = int(policy["trend"]["window_days"])
+    trends: List[Dict[str, Any]] = []
+    if latest is not None:
+        rows = _trend_rows(db, device_id, latest - timedelta(days=effective_window - 1), latest)
+        trends = compute_trends(rows, model, policy)
+
+    rank = {"degrading": 0, "improving": 1, "stable": 2}
+    trends.sort(key=lambda t: (rank.get(t["status"], 3), -t["change_fraction"]))
+    return {
+        "device_id": device_id,
+        "as_of": latest,
+        "window_days": effective_window,
+        "min_days": int(policy["trend"]["min_days"]),
+        "degrading_count": sum(1 for t in trends if t["status"] == "degrading"),
+        "improving_count": sum(1 for t in trends if t["status"] == "improving"),
+        "trends": trends,
     }
 
 
@@ -672,6 +774,7 @@ def build_fleet_daily_summary(
             "issue_count": d.issue_count,
             "max_severity": d.max_severity,
             "top_cause_code": d.top_cause_code,
+            "headline": d.headline,
         }
         for d in worst
     ]

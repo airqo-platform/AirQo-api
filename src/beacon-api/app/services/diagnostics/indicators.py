@@ -83,6 +83,7 @@ def agreement_stats(records: List[Dict[str, Any]], pair: RedundantPair) -> Optio
     a, b = np.array(series_a), np.array(series_b)
     agreement = FeatureExtractor.calculate_cross_sensor_agreement(series_a, series_b)
     diff = a - b
+    mean_level = max(1.0, float(np.mean((a + b) / 2.0)))   # same floor the divergence ratio uses
     stats: Dict[str, Any] = {
         "with": pair.component_b,
         "metric": pair.metric_a,
@@ -92,7 +93,9 @@ def agreement_stats(records: List[Dict[str, Any]], pair: RedundantPair) -> Optio
         "mean_abs_error": agreement["mean_absolute_error"],
         "p95_abs_error": _r(np.percentile(np.abs(diff), 95)),
         "bias": _r(np.mean(diff)),                          # positive: this component reads higher than the other
+        "mean_level": _r(mean_level),
         "relative_error": agreement["divergence_ratio"],   # mean abs error / mean level
+        "relative_bias": _r(float(np.mean(diff)) / mean_level, 4),   # comparable across days with different levels
         "tolerance_abs": pair.tolerance_abs,
         "tolerance_rel": pair.tolerance_rel,
         "within_tolerance_rate": None,
@@ -126,6 +129,8 @@ def charge_cycle_stats(
     stats: Dict[str, Any] = {
         "metric": metric.key,
         "unit": metric.unit,
+        "expected_min": metric.expected_min,   # kept with the day so trends can be scaled and projected later
+        "expected_max": metric.expected_max,
         "readings": int(len(vals)),
         "min": _r(vals[i_min]),
         "min_at": _iso(ts[i_min]),

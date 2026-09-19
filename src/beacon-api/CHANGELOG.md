@@ -4,6 +4,49 @@
 
 ---
 
+## Version 2.5.0
+**Released:** September 19, 2026
+
+### Feature: Multi-Day Trends & Plain-Language Daily Summaries
+
+A device can pass every daily check while sliding towards failure. Trends fit the last days of each stored indicator and flag the slide; every diagnosis now also carries a headline and a plain-language summary built from the stored numbers.
+
+<details>
+<summary><strong>Trends (`app/services/diagnostics/trends.py`)</strong></summary>
+
+- Least-squares fit over the last `window_days` (7) of stored indicators, needing `min_days` (5) diagnosed days. A trend is **degrading**, **improving** or **stable**; it counts only when the fitted change is at least 15% of the indicator's scale and the days follow the line (`r² ≥ 0.5`).
+- Tracked: battery daily minimum and average (judged against the metric's `expected_min`–`expected_max` range), hours at low charge, offline hours, share of missing readings, sensor-pair error and bias **relative to the measured level**, pair correlation, share within tolerance, and the health score.
+- Where the indicator has a limit, the days until it is reached are projected (battery minimum → `expected_min`), only within `projection_horizon_days` (14).
+- Degrading trends are stored as `DEGRADING_TREND:<component>.<group>.<field>` issues with streaks like any other issue, and a day that is `HEALTHY` on its own is reported as `DEGRADING` (`trend.degrade_lifecycle`, on by default). The day's health score is not changed.
+- All thresholds live under the `trend` policy section and can be overridden per profile or component; `DEGRADING_TREND` can be listed in `disabled_checks`.
+
+</details>
+
+<details>
+<summary><strong>Summaries (`app/services/diagnostics/narrative.py`)</strong></summary>
+
+- Deterministic templates, no LLM: the same inputs always give the same text, and every number is a stored value.
+- `headline`, e.g. `Degrading (92/100): communication (connectivity) fault (47%)`.
+- `summary` covers the battery's day, data coverage and outages with their power/link attribution, sensor agreement, new / persisting (with day count) / resolved issues, trends with projections, and the recommended action.
+- Returned by the evaluate endpoints, stored on each daily diagnosis, shown in daily lists (`headline`), daily detail (`summary`, `trends`), the device issue summary (`latest_headline`) and fleet worst devices.
+
+</details>
+
+**Endpoint:** `GET /diagnostics/devices/{device_id}/trends?window_days=&as_of=` — degrading first, then improving, then stable. Fleet-wide: `GET /diagnostics/fleet/issues?check_type=DEGRADING_TREND`.
+
+**Database migration:** `d0e1f2a3b4c5` — adds `trends`, `headline` and `summary` to `device_daily_diagnostics`.
+
+**Also:** sensor-pair indicators gain `mean_level` and `relative_bias`; charge-cycle indicators carry the metric's `expected_min`/`expected_max` so stored days are self-describing; boolean policy settings are validated.
+
+**Files changed:**
+- `app/services/diagnostics/trends.py`, `narrative.py` — New
+- `app/services/diagnostics/daily.py`, `evaluator.py`, `indicators.py`, `policy.py` — Trend issues, lifecycle adjustment, summaries, new policy section
+- `app/models/health.py`, `app/schemas/diagnostics.py`, `app/api/v1/diagnostics.py` — New fields and trends endpoint
+- `alembic/versions/d0e1f2a3b4c5_add_daily_diagnostic_trends_and_summary.py`
+- `tests/test_diagnostics_trends.py` (new), `tests/test_daily_diagnostics.py`
+
+---
+
 ## Version 2.4.0
 **Released:** September 17, 2026
 

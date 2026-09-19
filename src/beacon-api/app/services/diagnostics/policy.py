@@ -44,6 +44,16 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "smoothing_minutes": 60,               # moving-average window before classifying charge/discharge
         "flat_rate_fraction_per_hour": 0.02,   # |rate| below this share of the metric's range per hour = flat
     },
+    # Multi-day trends over stored daily indicators
+    "trend": {
+        "window_days": 7,
+        "min_days": 5,                          # diagnosed days needed inside the window (fewer fits chance too easily)
+        "projection_horizon_days": 14,          # only forecast reaching a limit this far ahead
+        "min_change_fraction": 0.15,            # fitted change over the window, as a share of the indicator's scale
+        "full_confidence_change_fraction": 0.40,
+        "min_r_squared": 0.5,                   # how consistently the days follow the fitted line
+        "degrade_lifecycle": True,              # a HEALTHY day with a degrading trend is reported as DEGRADING
+    },
     # Penalty applied to a component's score (and weight in root-cause confidence) per check type.
     "impact": {
         "METRIC_BELOW_MIN": 0.6,
@@ -87,6 +97,11 @@ _POSITIVE_SETTINGS = {
     "coverage.readings_before_outage",
     "cycle.smoothing_minutes",
     "cycle.flat_rate_fraction_per_hour",
+    "trend.window_days",
+    "trend.min_days",
+    "trend.projection_horizon_days",
+    "trend.min_change_fraction",
+    "trend.full_confidence_change_fraction",
 }
 
 # Shares, rates and weights: a value above 1 would make the check unreachable or always true.
@@ -99,6 +114,7 @@ _FRACTION_SETTINGS = {
     "coverage.hour_complete_fraction",
     "coverage.low_charge_fraction",
     "cycle.flat_rate_fraction_per_hour",
+    "trend.min_r_squared",
     "downstream_evidence_factor",
 }
 _FRACTION_SECTIONS = ("impact.", "severity_thresholds.")
@@ -137,6 +153,9 @@ def validate_policy_override(
         elif isinstance(expected, list):
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 errors.append(f"'{where}' must be a list of strings.")
+        elif isinstance(expected, bool):
+            if not isinstance(value, bool):
+                errors.append(f"'{where}' must be true or false.")
         elif isinstance(expected, (int, float)):
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 errors.append(f"'{where}' must be a number, got {type(value).__name__}.")

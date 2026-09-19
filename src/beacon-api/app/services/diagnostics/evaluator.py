@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.services.diagnostics.features import FeatureExtractor
 from app.services.diagnostics.evidence import DEVICE_COMPONENT, EvidenceEngine, EvidenceFact
 from app.services.diagnostics.indicators import compute_indicators
+from app.services.diagnostics.narrative import build_summary
 from app.services.diagnostics.profile_model import (
     DiagnosticModel,
     ProfileNotDiagnosableError,
@@ -95,7 +96,7 @@ class DiagnosticEvaluator:
         else:
             component_scores, overall_score, lifecycle_state = {}, 0.0, "NO_DATA"
 
-        return {
+        result = {
             "device_id": device_id,
             "profile_id": model.profile_id,
             "profile_name": model.profile_name,
@@ -116,6 +117,9 @@ class DiagnosticEvaluator:
             "evaluated_window_hours": window_hours,
             "timestamp": datetime.now(timezone.utc),
         }
+        # 6. Plain-language headline and summary (the daily job rebuilds it with streaks and trends)
+        result.update(build_summary(result, model))
+        return result
 
     @staticmethod
     def _component_scores(
