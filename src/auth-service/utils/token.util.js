@@ -3284,6 +3284,16 @@ const token = {
         return;
       }
 
+      // An already-blacklisted IP was flagged (and alerted on) earlier. Its request
+      // history still shows the same pattern, so without this exit every later
+      // request would re-blacklist it and re-send the admin alert email.
+      const isAlreadyBlacklisted = await BlacklistedIPModel(tenant).exists({
+        ip,
+      });
+      if (isAlreadyBlacklisted) {
+        return;
+      }
+
       // Check if the request endpoint starts with any of the monitored base paths.
       // This is more robust than an exact match and aligns with patterns elsewhere in the codebase.
       const isMonitored = constants.BOT_MONITORED_ENDPOINTS.some(
