@@ -143,6 +143,12 @@ const authRoutes = [
     description: "Authentication analytics",
   },
   {
+    path: "/usage",
+    route: "@routes/v2/usage.routes",
+    name: "usage",
+    description: "Per-user and platform usage statistics",
+  },
+  {
     path: "/candidates",
     route: "@routes/v2/candidates.routes",
     name: "candidates",
@@ -403,7 +409,7 @@ function getCategoryForRoute(routeName) {
     oauth: ["clients", "scopes", "tokens"],
     management: ["departments", "groups", "tenant-settings"],
     user_data: ["preferences", "favorites", "comparisons", "locationHistory", "searchHistory"],
-    system: ["analytics", "maintenances", "types", "defaults"],
+    system: ["analytics", "usage", "maintenances", "types", "defaults"],
     requests: [
       "requests",
       "inquiries",
