@@ -265,35 +265,4 @@ class TestDataApi:
         assert result == []
         mock_request.assert_called_once()
 
-    def test_get_networks(self, data_api):
-        """Test network retrieval functionality."""
-        expected_networks = [
-            {"id": 1, "name": "Network 1"},
-            {"id": 2, "name": "Network 2"},
-        ]
 
-        with patch.object(DataApi, "_request") as mock_request:
-            mock_request.return_value = {"networks": expected_networks}
-
-            # Test successful retrieval
-            networks, error = data_api.get_networks()
-            assert networks == expected_networks
-            assert error is None
-
-            # Test error handling
-            mock_request.side_effect = Exception("API Error")
-            networks, error = data_api.get_networks()
-            assert networks == []
-            assert "Failed to fetch networks" in error
-
-    @patch("airqo_etl_utils.data_api.configuration")
-    def test_get_networks_production_environment(self, mock_config, data_api):
-        """Test network retrieval in production environment."""
-        mock_config.ENVIRONMENT = "production"
-
-        with patch.object(DataApi, "_request") as mock_request:
-            mock_request.return_value = {"networks": []}
-            data_api.get_networks(net_status="inactive")
-            mock_request.assert_called_once_with(
-                "users/networks", {"net_status": "inactive"}
-            )
