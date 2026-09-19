@@ -25,6 +25,7 @@ from app.schemas.diagnostics import (
     DailyDiagnosticsRunResponse,
     DeviceDailyDiagnosticResponse,
     DeviceDailyDiagnosticSummaryResponse,
+    DeviceIndicatorSeriesResponse,
     DeviceIssueSummaryResponse,
     FleetDailySummaryResponse,
     FleetIssueResponse,
@@ -33,6 +34,7 @@ from app.schemas.diagnostics import (
 from app.services.diagnostics.daily import (
     DEFAULT_LOOKBACK_DAYS,
     RAW_RETENTION_DAYS,
+    build_device_indicator_series,
     build_device_issue_summary,
     build_fleet_daily_summary,
     resolve_window,
@@ -444,6 +446,22 @@ def get_device_issue_summary(
 ) -> Any:
     """Recurring and active issues for a device over a period, with its daily health trend."""
     return build_device_issue_summary(db, device_id=device_id, days=days)
+
+
+@router.get("/devices/{device_id}/indicators", response_model=DeviceIndicatorSeriesResponse)
+def get_device_indicator_series(
+    device_id: str,
+    days: int = Query(default=30, ge=1, le=365, description="Look back this many days"),
+    component: Optional[str] = Query(default=None, description="Only this profile component, e.g. device_battery"),
+    indicator: Optional[str] = Query(default=None, description="Only this indicator group, e.g. charge_cycle, coverage, agreement:pm_sensor2_2.5"),
+    db: Session = Depends(get_db),
+) -> Any:
+    """
+    Daily indicator time series per component: charge cycle (swing, hours charging/discharging, min and when),
+    coverage (hours with data, outages and whether they followed a low charge) and sensor agreement
+    (correlation, error, bias, share within tolerance).
+    """
+    return build_device_indicator_series(db, device_id=device_id, days=days, component=component, indicator=indicator)
 
 
 @router.get("/fleet/daily-summary", response_model=FleetDailySummaryResponse)

@@ -31,6 +31,18 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "min_pairs": 10,
         "min_correlation": 0.65,
         "max_divergence_ratio": 0.35,
+        "min_within_tolerance_rate": 0.70,     # share of paired readings inside the relationship's tolerance
+    },
+    "coverage": {
+        "outage_min_minutes": 30,              # a gap shorter than this is never an outage
+        "outage_interval_multiple": 3,         # ...and it must also exceed this many reporting intervals
+        "hour_complete_fraction": 0.5,         # an hour counts as covered with this share of its expected readings
+        "low_charge_fraction": 0.3,            # charge below min + fraction × (max − min) before an outage = power-related
+        "readings_before_outage": 3,
+    },
+    "cycle": {
+        "smoothing_minutes": 60,               # moving-average window before classifying charge/discharge
+        "flat_rate_fraction_per_hour": 0.02,   # |rate| below this share of the metric's range per hour = flat
     },
     # Penalty applied to a component's score (and weight in root-cause confidence) per check type.
     "impact": {
@@ -40,7 +52,9 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "METRIC_STUCK": 0.7,
         "METRIC_MISSING": 0.8,
         "SENSOR_DISAGREEMENT": 0.5,
+        "SENSOR_ERROR_MARGIN": 0.5,
         "DATA_GAPS": 0.5,
+        "LOW_CHARGE_OUTAGE": 0.7,
     },
     "disabled_checks": [],
     # Evidence on a dependent component counts this much toward its upstream component's fault.
@@ -67,6 +81,12 @@ _POSITIVE_SETTINGS = {
     "rate.min_samples_per_window",
     "stuck.min_samples",
     "agreement.min_pairs",
+    "coverage.outage_min_minutes",
+    "coverage.outage_interval_multiple",
+    "coverage.hour_complete_fraction",
+    "coverage.readings_before_outage",
+    "cycle.smoothing_minutes",
+    "cycle.flat_rate_fraction_per_hour",
 }
 
 

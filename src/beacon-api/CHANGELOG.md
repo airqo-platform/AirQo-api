@@ -7,6 +7,36 @@
 ## Version 2.3.0
 **Released:** September 13, 2026
 
+### Feature: Diagnostic Indicators — Charge Cycles, Outage Attribution & Sensor Error Margin
+
+The engine now measures how each component behaved every day, not only whether a threshold broke. Indicators are stored with each daily diagnosis and exposed as time series.
+
+<details>
+<summary><strong>Indicators (`app/services/diagnostics/indicators.py`)</strong></summary>
+
+- **`charge_cycle`** for metrics with role `charge_level`: daily min/max and when they happened, swing, hours charging / discharging / flat, longest continuous charge and discharge, charge and discharge rates, max discharge rate, cycle count, hours below `expected_min` and hours in the low-charge band.
+- **`coverage`** for each connectivity component (or the device): hours with data / complete / empty, records per hour, outage list with start, end and duration, offline hours, longest outage, and whether each outage followed a low charge level on the battery that `POWERS` the link. Also partial-payload rate and records without a timestamp.
+- **`agreement:<other>`** for each `MEASURES_SAME_AS` pair: correlation, mean and p95 absolute error, signed bias (which sensor reads high), relative error, and the share of paired readings within the relationship's tolerance.
+- **`generation`** for metrics with role `charge_source`: peak and when, mean, hours active.
+- `metrics_summary` now also records `std` and when the min/max occurred.
+
+**Profile additions (migration `c9d0e1f2a3b4`):**
+- `metric_definitions.role` — `charge_level`, `charge_source` or `signal_strength`. Existing battery voltage metrics (battery component, unit `V`) are backfilled as `charge_level`.
+- `component_relationships.metadata` — e.g. `{"tolerance": {"absolute": 10, "relative": 0.2}}` on `MEASURES_SAME_AS`; readings agree when `|a − b| ≤ max(absolute, relative × mean)`.
+- `device_daily_diagnostics.indicators`.
+
+**New checks:**
+- `SENSOR_ERROR_MARGIN` — too few paired readings within the pair's tolerance (needs relationship tolerance).
+- `LOW_CHARGE_OUTAGE` — evidence against the battery when outages on the link it powers began after the charge level fell into the low band (`expected_min + 0.3 × range`).
+- `METRIC_RATE_EXCEEDED` on a `charge_level` metric now limits the **discharge** rate only, so solar charging no longer trips it.
+- Pair evidence without a faulty side is reported once per pair as `SENSOR_PAIR:<a>~<b>`.
+
+**Endpoint:** `GET /diagnostics/devices/{device_id}/indicators?days=30&component=&indicator=` — one point per diagnosed day per indicator group, for charting. `indicators` is also included in daily detail and evaluate responses; readiness reports `metric_roles` and warns when a battery has no `charge_level` metric or a pair has no tolerance.
+
+**Fix:** naive datetimes in telemetry are now treated as UTC instead of the host time zone.
+
+</details>
+
 ### Feature: Profile-Driven Diagnostic Engine
 
 The diagnostic engine no longer contains device-specific rules (12 V battery thresholds, solar and PM key names, a fixed 2-minute reporting interval, fixed subsystems and causes). Everything device-specific now comes from the device profile.

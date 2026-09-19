@@ -29,6 +29,7 @@ from app.models.device_data import SyncDailyDeviceData, SyncRawDeviceData
 from app.models.health import DeviceDailyDiagnostic, DeviceDailyIssue
 from app.models.sync import SyncConfigValues, SyncDevice
 from app.services.diagnostics.evaluator import DiagnosticEvaluator
+from app.services.diagnostics.features import FeatureExtractor
 from app.services.diagnostics.issues import SEVERITY_RANK, extract_issues, max_severity
 from app.services.diagnostics.profile_model import DiagnosticModel, build_model
 from app.utils.field_mappings import map_record_from_profile, normalize_and_unpack_record
@@ -131,7 +132,7 @@ def _load_raw_rows(db: Session, channel_id: str, day: date) -> List[SyncRawDevic
 def _prepare_records(raw_rows: List[SyncRawDeviceData], profile: Optional[Any]) -> List[Dict[str, Any]]:
     prepared = []
     for row in raw_rows:
-        record: Dict[str, Any] = {"created_at_ts": row.created_at_ts}
+        record: Dict[str, Any] = {"created_at_ts": _as_utc(row.created_at_ts)}
         for col in RAW_FIELD_COLUMNS:
             value = getattr(row, col)
             if value is not None:
@@ -141,23 +142,36 @@ def _prepare_records(raw_rows: List[SyncRawDeviceData], profile: Optional[Any]) 
     return prepared
 
 
-def summarize_metrics(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
-    values: Dict[str, List[float]] = {}
+def summarize_metrics(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Per-metric daily statistics, with when the extremes happened so a chart can point at them."""
+    values: Dict[str, List[Tuple[float, Optional[float]]]] = {}
     for record in records:
+        ts = FeatureExtractor.get_record_timestamp(record)
         for key, value in record.items():
             if key in _SUMMARY_EXCLUDED_KEYS or isinstance(value, bool) or not isinstance(value, (int, float)):
                 continue
-            values.setdefault(key, []).append(float(value))
+            values.setdefault(key, []).append((float(value), ts))
 
-    return {
-        key: {
-            "mean": round(sum(vals) / len(vals), 3),
-            "min": round(min(vals), 3),
-            "max": round(max(vals), 3),
+    summary: Dict[str, Dict[str, Any]] = {}
+    for key, pairs in sorted(values.items()):
+        vals = [v for v, _ in pairs]
+        lowest = min(pairs, key=lambda p: p[0])
+        highest = max(pairs, key=lambda p: p[0])
+        mean = sum(vals) / len(vals)
+        summary[key] = {
+            "mean": round(mean, 3),
+            "min": round(lowest[0], 3),
+            "min_at": _iso_or_none(lowest[1]),
+            "max": round(highest[0], 3),
+            "max_at": _iso_or_none(highest[1]),
+            "std": round((sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5, 3),
             "count": len(vals),
         }
-        for key, vals in sorted(values.items())
-    }
+    return summary
+
+
+def _iso_or_none(ts: Optional[float]) -> Optional[str]:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() if ts is not None else None
 
 
 def _previous_diagnosis(db: Session, device_id: str, day: date) -> Optional[DeviceDailyDiagnostic]:
@@ -237,6 +251,7 @@ def evaluate_device_day(
         device_config=device_config,
         window_hours=24.0,
         window_seconds=SECONDS_PER_DAY,
+        window_start=datetime.combine(day, time.min, tzinfo=timezone.utc),
     )
     issues = extract_issues(result["active_evidences"])
 
@@ -276,6 +291,7 @@ def evaluate_device_day(
         max_severity=max_severity(issues),
         resolved_issue_codes=sorted(set(previous_issues) - current_codes),
         metrics_summary=summarize_metrics(records),
+        indicators=result["indicators"],
         engine_version=ENGINE_VERSION,
         evaluated_at=datetime.now(timezone.utc),
     )
@@ -518,6 +534,43 @@ def build_device_issue_summary(
             }
             for r in rows
         ],
+    }
+
+
+def build_device_indicator_series(
+    db: Session,
+    device_id: str,
+    days: int = 30,
+    component: Optional[str] = None,
+    indicator: Optional[str] = None,
+    today: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Daily indicator values for a device as time series, keyed by component then indicator group,
+    so battery swing, sensor error or offline hours can be charted over time.
+    """
+    today = today or datetime.now(timezone.utc).date()
+    start = today - timedelta(days=days)
+    rows = crud_diagnostics.list_daily_diagnostics(
+        db, device_id=device_id, start_date=start, end_date=today, limit=days + 1
+    )
+    series: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+    for row in sorted(rows, key=lambda r: r.diagnosis_date):
+        for comp_name, groups in (row.indicators or {}).items():
+            if component and comp_name != component:
+                continue
+            for group_name, values in groups.items():
+                if indicator and group_name != indicator:
+                    continue
+                point = {k: v for k, v in values.items() if k != "outages"}
+                point["diagnosis_date"] = row.diagnosis_date
+                series.setdefault(comp_name, {}).setdefault(group_name, []).append(point)
+    return {
+        "device_id": device_id,
+        "start_date": start,
+        "end_date": today,
+        "days_diagnosed": len(rows),
+        "components": series,
     }
 
 

@@ -77,6 +77,7 @@ class DeviceDailyDiagnostic(Base):
     max_severity = Column(String(20), nullable=True)
     resolved_issue_codes = Column(JSONB, nullable=True)  # Issues present on the previous diagnosed day but not this one
     metrics_summary = Column(JSONB, nullable=True)       # {"battery_voltage": {"mean": .., "min": .., "max": .., "count": ..}}
+    indicators = Column(JSONB, nullable=True)            # {component: {"charge_cycle" | "coverage" | "agreement:<other>": {...}}}
 
     engine_version = Column(String(20), nullable=True)
     evaluated_at = Column(DateTime(timezone=True), server_default=func.now())

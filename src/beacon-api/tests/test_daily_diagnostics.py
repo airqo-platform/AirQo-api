@@ -297,6 +297,30 @@ class TestDailyDiagnosticsAPI(DailyDiagnosticsDBTestCase):
         missing = self.client.get(f"/api/v1/diagnostics/devices/{DEVICE_ID}/daily/{DAY_NO_RAW.isoformat()}")
         self.assertEqual(missing.status_code, 404)
 
+    def test_device_indicator_series(self):
+        response = self.client.get(f"/api/v1/diagnostics/devices/{DEVICE_ID}/indicators?days=30")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["days_diagnosed"], 3)
+        cycle = body["components"]["device_battery"]["charge_cycle"]
+        self.assertEqual([p["diagnosis_date"] for p in cycle],
+                         [DAY_FAULT_1.isoformat(), DAY_FAULT_2.isoformat(), DAY_HEALTHY.isoformat()])
+        self.assertLess(cycle[0]["min"], 3.0)
+        self.assertGreater(cycle[2]["min"], 3.9)
+        coverage = body["components"]["communication"]["coverage"]
+        self.assertEqual(coverage[0]["hours_with_data"], 24)
+        self.assertNotIn("outages", coverage[0])
+
+        filtered = self.client.get(
+            f"/api/v1/diagnostics/devices/{DEVICE_ID}/indicators?component=pm_sensor1&indicator=agreement:pm_sensor2"
+        ).json()
+        self.assertEqual(list(filtered["components"]), ["pm_sensor1"])
+        self.assertEqual(list(filtered["components"]["pm_sensor1"]), ["agreement:pm_sensor2"])
+
+        detail = self.client.get(f"/api/v1/diagnostics/devices/{DEVICE_ID}/daily/{DAY_HEALTHY.isoformat()}").json()
+        self.assertIn("charge_cycle", detail["indicators"]["device_battery"])
+        self.assertIn("min_at", detail["metrics_summary"]["battery_voltage"])
+
     def test_device_issue_summary(self):
         response = self.client.get(f"/api/v1/diagnostics/devices/{DEVICE_ID}/issues?days=30")
         self.assertEqual(response.status_code, 200)
