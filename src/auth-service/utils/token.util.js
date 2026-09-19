@@ -3363,6 +3363,11 @@ const token = {
           `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`,
         );
       }
+      // The existence check above is not atomic, so overlapping analyses of the
+      // same IP can all reach this point. Only the one that actually inserted
+      // the blacklist entry sends the alert.
+      const claimedBlacklist =
+        blacklistResponse.success && blacklistResponse.inserted === true;
       await IPRequestLogModel(tenant).markAsBot(ip, mostFrequentInterval);
 
       // 2. Handle serverless/cloud provider IPs by blacklisting the prefix
@@ -3395,7 +3400,7 @@ const token = {
 
       // 3. Notify admins
       const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST;
-      if (adminEmails.length > 0) {
+      if (claimedBlacklist && adminEmails.length > 0) {
         mailer
           .sendBotAlert({
             recipients: adminEmails,
