@@ -89,6 +89,24 @@ _POSITIVE_SETTINGS = {
     "cycle.flat_rate_fraction_per_hour",
 }
 
+# Shares, rates and weights: a value above 1 would make the check unreachable or always true.
+_FRACTION_SETTINGS = {
+    "range.min_violation_rate",
+    "range.full_confidence_violation_rate",
+    "completeness.max_missing_rate",
+    "agreement.min_correlation",
+    "agreement.min_within_tolerance_rate",
+    "coverage.hour_complete_fraction",
+    "coverage.low_charge_fraction",
+    "cycle.flat_rate_fraction_per_hour",
+    "downstream_evidence_factor",
+}
+_FRACTION_SECTIONS = ("impact.", "severity_thresholds.")
+
+
+def _is_fraction(relative: str) -> bool:
+    return relative in _FRACTION_SETTINGS or relative.startswith(_FRACTION_SECTIONS)
+
 
 def validate_policy_override(
     override: Any,
@@ -126,6 +144,8 @@ def validate_policy_override(
                 errors.append(f"'{where}' must be greater than 0.")
             elif value < 0:
                 errors.append(f"'{where}' must not be negative.")
+            elif _is_fraction(relative) and value > 1:
+                errors.append(f"'{where}' must be between 0 and 1.")
         elif isinstance(expected, str):
             if not isinstance(value, str) or not value:
                 errors.append(f"'{where}' must be a non-empty string.")

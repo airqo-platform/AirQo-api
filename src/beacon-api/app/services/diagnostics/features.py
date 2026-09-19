@@ -20,14 +20,14 @@ class FeatureExtractor:
         ts = next((record[k] for k in _TIMESTAMP_KEYS if record.get(k) is not None), None)
         if isinstance(ts, (int, float)) and not isinstance(ts, bool):
             return None if math.isnan(ts) or math.isinf(ts) else float(ts)
-        if isinstance(ts, datetime):
-            # Naive datetimes are UTC (the sync stores UTC); never interpret them in the host's zone.
-            return (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)).timestamp()
         if isinstance(ts, str):
             try:
-                return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+                ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except ValueError:
                 return None
+        if isinstance(ts, datetime):
+            # Naive values are UTC (the sync stores UTC); never interpret them in the host's zone.
+            return (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)).timestamp()
         return None
 
     @staticmethod

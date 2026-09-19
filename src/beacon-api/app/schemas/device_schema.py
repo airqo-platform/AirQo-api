@@ -155,12 +155,14 @@ class ComponentRelationshipBase(BaseModel):
     @field_validator("meta_data", mode="before")
     @classmethod
     def parse_relationship_meta(cls, v: Any) -> Any:
+        # Silently dropping bad metadata would disable the pair's tolerance check without anyone noticing.
         if isinstance(v, str):
             try:
-                parsed = json.loads(v)
-                return parsed if isinstance(parsed, dict) else None
-            except Exception:
-                return None
+                v = json.loads(v)
+            except json.JSONDecodeError as exc:
+                raise ValueError("meta_data must be valid JSON") from exc
+        if v is not None and not isinstance(v, dict):
+            raise ValueError("meta_data must be a JSON object")
         return v
 
 

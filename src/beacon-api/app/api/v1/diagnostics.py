@@ -453,7 +453,7 @@ def get_device_indicator_series(
     device_id: str,
     days: int = Query(default=30, ge=1, le=365, description="Look back this many days"),
     component: Optional[str] = Query(default=None, description="Only this profile component, e.g. device_battery"),
-    indicator: Optional[str] = Query(default=None, description="Only this indicator group, e.g. charge_cycle, coverage, agreement:pm_sensor2_2.5"),
+    indicator: Optional[str] = Query(default=None, description="Only this indicator group: charge_cycle, generation, coverage, or agreement:<name of the other component in the pair>"),
     db: Session = Depends(get_db),
 ) -> Any:
     """

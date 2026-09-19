@@ -4,8 +4,8 @@
 
 ---
 
-## Version 2.3.0
-**Released:** September 13, 2026
+## Version 2.4.0
+**Released:** September 17, 2026
 
 ### Feature: Diagnostic Indicators — Charge Cycles, Outage Attribution & Sensor Error Margin
 
@@ -33,9 +33,23 @@ The engine now measures how each component behaved every day, not only whether a
 
 **Endpoint:** `GET /diagnostics/devices/{device_id}/indicators?days=30&component=&indicator=` — one point per diagnosed day per indicator group, for charting. `indicators` is also included in daily detail and evaluate responses; readiness reports `metric_roles` and warns when a battery has no `charge_level` metric or a pair has no tolerance.
 
-**Fix:** naive datetimes in telemetry are now treated as UTC instead of the host time zone.
+**Fix:** naive datetimes and naive ISO strings in telemetry are now treated as UTC instead of the host time zone.
+
+**Validation:** relationship `meta_data` must be a JSON object (invalid JSON is rejected instead of silently dropped), and fraction-valued policy settings must be between 0 and 1.
 
 </details>
+
+**Files changed:**
+- `app/services/diagnostics/indicators.py` — Indicator computation (new)
+- `app/services/diagnostics/evidence.py`, `root_cause.py`, `evaluator.py`, `features.py`, `policy.py`, `profile_model.py`, `daily.py` — New checks, roles, tolerance, indicator storage
+- `app/models/device_schema.py`, `app/models/health.py`, `app/schemas/device_schema.py`, `app/schemas/diagnostics.py`, `app/crud/crud_diagnostics.py` — `role`, relationship `meta_data`, `indicators`
+- `app/api/v1/diagnostics.py` — Indicator series endpoint
+- `alembic/versions/c9d0e1f2a3b4_add_metric_roles_relationship_metadata_and_indicators.py` — New columns and role backfill
+
+---
+
+## Version 2.3.0
+**Released:** September 13, 2026
 
 ### Feature: Profile-Driven Diagnostic Engine
 

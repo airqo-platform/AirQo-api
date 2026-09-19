@@ -134,6 +134,17 @@ class TestDiagnosticsFeatureExtractor(unittest.TestCase):
         self.assertEqual(untimed["record_count"], 0)
         self.assertIsNone(untimed["missing_rate"])
 
+    def test_naive_timestamps_are_utc_in_every_form(self):
+        expected = datetime(2026, 9, 10, tzinfo=timezone.utc).timestamp()
+        for value in (
+            datetime(2026, 9, 10),
+            "2026-09-10T00:00:00",
+            "2026-09-10T00:00:00Z",
+            "2026-09-10T03:00:00+03:00",
+            datetime(2026, 9, 10, tzinfo=timezone.utc),
+        ):
+            self.assertEqual(FeatureExtractor.get_record_timestamp({"datetime": value}), expected, value)
+
     def test_dual_pm_pairs_timestamp_alignment(self):
         # Paired series should only include records where both sensors are present
         base_ts = 1700000000
@@ -222,6 +233,31 @@ class TestProfileModel(unittest.TestCase):
         self.assertEqual(model.policy["completeness"]["max_missing_rate"], 0.4)
         with self.assertRaises(ProfileNotDiagnosableError):
             DiagnosticEvaluator().evaluate_telemetry("dev", make_records(10), profile=profile)
+
+    def test_fraction_policy_settings_must_not_exceed_one(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {
+            "coverage": {"low_charge_fraction": 1.1, "outage_min_minutes": 90},
+            "agreement": {"min_within_tolerance_rate": 1.5},
+            "impact": {"DATA_GAPS": 2},
+        }}
+        errors = " | ".join(build_model(profile).errors)
+        self.assertIn("'meta_data.diagnostics.coverage.low_charge_fraction' must be between 0 and 1", errors)
+        self.assertIn("'meta_data.diagnostics.agreement.min_within_tolerance_rate' must be between 0 and 1", errors)
+        self.assertIn("'meta_data.diagnostics.impact.DATA_GAPS' must be between 0 and 1", errors)
+        self.assertNotIn("outage_min_minutes", errors)
+
+    def test_relationship_metadata_must_be_a_json_object(self):
+        from pydantic import ValidationError
+        from app.schemas.device_schema import ComponentRelationshipCreate
+
+        ids = {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"}
+        parsed = ComponentRelationshipCreate(**ids, meta_data='{"tolerance": {"absolute": 5}}')
+        self.assertEqual(parsed.meta_data, {"tolerance": {"absolute": 5}})
+        self.assertIsNone(ComponentRelationshipCreate(**ids).meta_data)
+        for bad in ("not json {", "[1, 2]", 5):
+            with self.assertRaises(ValidationError):
+                ComponentRelationshipCreate(**ids, meta_data=bad)
 
     def test_interval_units_are_converted_or_rejected(self):
         profile = lowcost_profile()
