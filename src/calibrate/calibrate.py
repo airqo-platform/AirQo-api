@@ -1,69 +1,136 @@
 import pandas as pd
 from flask import Blueprint, request, jsonify, make_response
+from pandas.errors import EmptyDataError, ParserError
 
 from models import calibrate_tool as calibration_tool
-from models import regression as rg
 from models import train_calibrate_tool as training_tool
-import api
+import routes as api
 
 calibrate_bp = Blueprint("calibrate_bp", __name__)
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+REQUIRED_CALIBRATION_COLUMNS = (
+    "datetime",
+    "pm10",
+    "s2_pm10",
+    "humidity",
+    "temperature",
+)
+PM2_5_SENSOR_COLUMNS = ("pm2_5", "s2_pm2_5")
+PM2_5_AVERAGE_COLUMN = "avg_pm2_5"
+CALIBRATION_COLUMNS = (
+    *REQUIRED_CALIBRATION_COLUMNS,
+    *PM2_5_SENSOR_COLUMNS,
+    PM2_5_AVERAGE_COLUMN,
+)
+
+
+def _error(message, status_code=400):
+    return jsonify({"message": message, "success": False}), status_code
+
+
+def _validate_csv_upload(file):
+    if not file or not file.filename:
+        return _error("Please upload a CSV file.")
+
+    if not file.filename.lower().endswith(".csv"):
+        return _error("Only CSV files are supported.")
+
+    stream = file.stream
+    current_position = stream.tell()
+    stream.seek(0, 2)
+    file_size = stream.tell()
+    stream.seek(current_position)
+
+    if file_size > MAX_UPLOAD_BYTES:
+        return _error("The uploaded CSV file cannot exceed 20 MB.", 413)
+
+    if file_size == 0:
+        return _error("The uploaded CSV file is empty.")
+
+    return None
+
+
+def _read_csv(file):
+    try:
+        return pd.read_csv(file), None
+    except (EmptyDataError, ParserError, UnicodeDecodeError, ValueError):
+        return None, _error("The uploaded file is not a valid CSV file.")
 
 
 @calibrate_bp.route(api.route["calibrate_tool"], methods=["POST"])
 def calibrate_tool():
     if "file" not in request.files:
-        return (
-            jsonify(
-                {
-                    "message": "File missing. Refer to the API documentation for details.",
-                    "success": False,
-                }
-            ),
-            400,
+        return _error(
+            "File missing. Refer to the API documentation for details."
         )
 
-    map_columns = request.form
+    map_columns = {
+        column: request.form.get(column) for column in CALIBRATION_COLUMNS
+    }
 
-    if not (
-        map_columns.get("datetime")
-        and map_columns.get("pm2_5")
-        and map_columns.get("s2_pm2_5")
-        and map_columns.get("pm10")
-        and map_columns.get("s2_pm10")
-        and map_columns.get("humidity")
-        and map_columns.get("temperature")
+    has_required_columns = all(
+        map_columns[column] for column in REQUIRED_CALIBRATION_COLUMNS
+    )
+    has_pm2_5_average = bool(map_columns[PM2_5_AVERAGE_COLUMN])
+    has_pm2_5_sensor_pair = all(
+        map_columns[column] for column in PM2_5_SENSOR_COLUMNS
+    )
+    if not has_required_columns or not (
+        has_pm2_5_average or has_pm2_5_sensor_pair
     ):
-        return (
-            jsonify(
-                {
-                    "message": "Please specify the corresponding datetime, sensor1 pm2.5, sensor2 pm2.5, "
-                    "sensor1 pm10, sensor1 pm10, temperature and humidity values. "
-                    "Refer to the API documentation for details.",
-                    "success": False,
-                }
-            ),
-            400,
+        return _error(
+            "Please map datetime, PM10 sensor 1, PM10 sensor 2, temperature, "
+            "humidity, and either avg_pm2_5 or both PM2.5 sensor columns. "
+            "Refer to the API documentation for details."
         )
 
     file = request.files.get("file")
-    df = pd.read_csv(file)
+    upload_error = _validate_csv_upload(file)
+    if upload_error:
+        return upload_error
 
-    if not set(list(map_columns.values())).issubset(set(list(df.columns))):
-        return (
-            jsonify(
-                {
-                    "message": "One or more keys are missing in the uploaded file.",
-                    "success": False,
-                }
-            ),
-            400,
+    df, csv_error = _read_csv(file)
+    if csv_error:
+        return csv_error
+
+    map_columns = {
+        column: csv_column
+        for column, csv_column in map_columns.items()
+        if csv_column
+    }
+
+    if len(set(map_columns.values())) != len(map_columns):
+        return _error("Each calibration field must map to a different CSV column.")
+
+    missing_columns = sorted(set(map_columns.values()) - set(df.columns))
+    if missing_columns:
+        return _error(
+            "The following mapped columns are missing from the uploaded file: "
+            + ", ".join(missing_columns)
         )
 
-    rg_model = calibration_tool.Regression()
+    country = request.form.get("country")
+    try:
+        rg_model = calibration_tool.Regression(country=country)
+    except ValueError as error:
+        return _error(str(error))
+    except calibration_tool.CalibrationModelError:
+        return _error(
+            "The requested calibration model is currently unavailable.", 503
+        )
 
     map_columns = {value: key for key, value in map_columns.items()}
-    calibrated_data = rg_model.compute_calibrated_val(map_columns, df)
-    resp = make_response(calibrated_data.to_csv())
+    try:
+        calibrated_data = rg_model.compute_calibrated_val(map_columns, df)
+    except (KeyError, TypeError, ValueError) as error:
+        return _error(f"The uploaded data could not be calibrated: {error}")
+    except calibration_tool.CalibrationModelError:
+        return _error(
+            "The requested calibration model could not process the data.", 503
+        )
+
+    resp = make_response(calibrated_data.to_csv(index=False))
     resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
     resp.headers["Content-Type"] = "text/csv"
     return resp
