@@ -265,6 +265,15 @@ describe("create-user-util", function () {
       expect(result.data).to.deep.equal(sampleStatisticsData);
     });
 
+    it("should pass next (not tenant) to UserModel.listStatistics", async function () {
+      const next = sinon.stub();
+      listStatisticsStub.resolves({ success: true, data: {} });
+
+      await rewireCreateUser.listStatistics("airqo", next);
+
+      sinon.assert.calledOnceWithExactly(listStatisticsStub, next);
+    });
+
     it("should handle errors from UserModel.listStatistics", async function () {
       const tenant = "example_tenant";
       const next = sinon.stub();
@@ -277,6 +286,139 @@ describe("create-user-util", function () {
       const err = next.firstCall.args[0];
       expect(err).to.be.instanceOf(Error);
       expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+  describe("exportStatsSegment", function () {
+    let origUserModel;
+    let aggregateStub;
+    let allowDiskUseStub;
+
+    const buildRequest = (segment) => ({
+      query: { tenant: "airqo", segment },
+    });
+
+    beforeEach(function () {
+      allowDiskUseStub = sinon.stub();
+      aggregateStub = sinon.stub().returns({ allowDiskUse: allowDiskUseStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        aggregate: aggregateStub,
+      }));
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("returns users and total for the total segment without extra filters", async function () {
+      const users = [{ _id: "1", email: "a@b.com" }];
+      allowDiskUseStub.resolves(users);
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total"),
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal({
+        segment: "total",
+        total: 1,
+        unsubscribed_total: 0,
+        users,
+      });
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline[0]).to.deep.equal({
+        $match: { email: { $nin: [null, ""] } },
+      });
+      expect(pipeline.filter((s) => s.$match)).to.have.lengthOf(1);
+    });
+
+    it("filters the active segment on isActive", async function () {
+      allowDiskUseStub.resolves([]);
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("active"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline).to.deep.include({ $match: { isActive: true } });
+    });
+
+    it("filters the verified segment on verified", async function () {
+      allowDiskUseStub.resolves([]);
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("verified"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline).to.deep.include({ $match: { verified: true } });
+    });
+
+    it("keeps only users with at least one client for the api segment", async function () {
+      allowDiskUseStub.resolves([]);
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("api"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "clients"))
+        .to.be.true;
+      expect(pipeline).to.deep.include({
+        $match: { "clients.0": { $exists: true } },
+      });
+    });
+
+    it("projects only lightweight contact fields", async function () {
+      allowDiskUseStub.resolves([]);
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("total"));
+
+      const project = aggregateStub.firstCall.args[0].find((s) => s.$project)
+        .$project;
+      expect(project).to.include.keys(["email", "firstName", "lastName"]);
+      expect(project).to.not.have.any.keys([
+        "permissions",
+        "clients",
+        "group_roles",
+      ]);
+    });
+
+    it("flags unsubscribed users and keeps them by default", async function () {
+      allowDiskUseStub.resolves([
+        { _id: "1", email: "a@b.com", unsubscribed: false },
+        { _id: "2", email: "c@d.com", unsubscribed: true },
+      ]);
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total"),
+      );
+
+      expect(result.data.total).to.equal(2);
+      expect(result.data.unsubscribed_total).to.equal(1);
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "subscriptions"))
+        .to.be.true;
+    });
+
+    it("drops unsubscribed users when exclude_unsubscribed is true", async function () {
+      allowDiskUseStub.resolves([
+        { _id: "1", email: "a@b.com", unsubscribed: false },
+        { _id: "2", email: "c@d.com", unsubscribed: true },
+      ]);
+
+      const result = await rewireCreateUser.exportStatsSegment({
+        query: { tenant: "airqo", segment: "total", exclude_unsubscribed: true },
+      });
+
+      expect(result.data.total).to.equal(1);
+      expect(result.data.unsubscribed_total).to.equal(1);
+      expect(result.data.users.map((u) => u.email)).to.deep.equal(["a@b.com"]);
+    });
+
+    it("forwards an Internal Server Error when the aggregation fails", async function () {
+      const next = sinon.stub();
+      allowDiskUseStub.rejects(new Error("db down"));
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("total"), next);
+
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0].message).to.equal("Internal Server Error");
     });
   });
   describe("getStatsBreakdown", function () {

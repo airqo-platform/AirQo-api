@@ -790,7 +790,7 @@ const createUserModule = {
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics =
-        await UserModel(tenant).listStatistics(tenant);
+        await UserModel(tenant).listStatistics(next);
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1128,6 +1128,105 @@ const createUserModule = {
     } catch (error) {
       logger.error(
         `🐛🐛 Internal Server Error in getStatsBreakdown: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  // Lightweight, unpaginated contact list behind each User Statistics card
+  // (total / active / verified / api). Segments mirror the card definitions.
+  // Each row carries `unsubscribed` (email notifications switched off in the
+  // local subscriptions collection, the same flag the mailer enforces).
+  // Newsletter unsubscribes live only in Mailchimp and are not visible here.
+  exportStatsSegment: async (request, next) => {
+    try {
+      const { tenant, segment, exclude_unsubscribed } = request.query;
+
+      const pipeline = [
+        { $match: { email: { $nin: [null, ""] } } },
+      ];
+
+      if (segment === "active") {
+        pipeline.push({ $match: { isActive: true } });
+      } else if (segment === "verified") {
+        pipeline.push({ $match: { verified: true } });
+      } else if (segment === "api") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "clients",
+              localField: "_id",
+              foreignField: "user_id",
+              as: "clients",
+            },
+          },
+          { $match: { "clients.0": { $exists: true } } },
+        );
+      }
+
+      pipeline.push(
+        { $sort: { createdAt: -1 } },
+        {
+          $lookup: {
+            from: "subscriptions",
+            localField: "email",
+            foreignField: "email",
+            as: "subscription",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            email: 1,
+            firstName: 1,
+            lastName: 1,
+            userName: 1,
+            organization: 1,
+            country: 1,
+            isActive: { $ifNull: ["$isActive", false] },
+            verified: { $ifNull: ["$verified", false] },
+            loginCount: { $ifNull: ["$loginCount", 0] },
+            lastLogin: 1,
+            createdAt: 1,
+            unsubscribed: {
+              $eq: [
+                { $arrayElemAt: ["$subscription.notifications.email", 0] },
+                false,
+              ],
+            },
+          },
+        },
+      );
+
+      const allUsers = await UserModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const unsubscribedTotal = allUsers.filter((u) => u.unsubscribed).length;
+      const users =
+        exclude_unsubscribed === true
+          ? allUsers.filter((u) => !u.unsubscribed)
+          : allUsers;
+
+      return {
+        success: true,
+        message: `Successfully retrieved the ${segment} users`,
+        data: {
+          segment,
+          total: users.length,
+          unsubscribed_total: unsubscribedTotal,
+          users,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in exportStatsSegment: ${error.message}`,
       );
       next(
         new HttpError(
