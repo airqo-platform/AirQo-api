@@ -486,6 +486,7 @@ class TestDailyDiagnosticsAPI(DailyDiagnosticsDBTestCase):
         self.assertEqual(battery["component_name"], "device_battery")
         self.assertEqual(battery["check_type"], "METRIC_BELOW_MIN")
         self.assertEqual(body["worst_devices"][0]["device_id"], DEVICE_ID)
+        self.assertEqual(body["worst_devices"][0]["device_name"], DEVICE_ID)
 
     def test_fleet_issue_search(self):
         persistent = self.client.get(
@@ -501,6 +502,8 @@ class TestDailyDiagnosticsAPI(DailyDiagnosticsDBTestCase):
         ).json()
         self.assertEqual(len(by_component), 2)
         self.assertEqual(by_component[0]["diagnosis_date"], DAY_FAULT_2.isoformat())
+        self.assertEqual(by_component[0]["device_id"], DEVICE_ID)
+        self.assertEqual(by_component[0]["device_name"], DEVICE_ID)   # the fixture names the device after its id
 
         # No date filter falls back to the latest diagnosed day, which had no issues.
         self.assertEqual(self.client.get("/api/v1/diagnostics/fleet/issues").json(), [])

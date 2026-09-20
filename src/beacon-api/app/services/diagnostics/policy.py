@@ -25,7 +25,9 @@ DEFAULT_POLICY: Dict[str, Any] = {
     },
     "completeness": {
         "interval_config_key": "reporting_interval",  # config_mappings key holding the reporting interval
-        "max_missing_rate": 0.40,
+        # A data gap is an hour with no readings at all. Flag when more than this share of the window's
+        # hours are empty (0.10 = 3 or more of 24). Independent of the reporting interval.
+        "max_empty_hour_fraction": 0.10,
     },
     "agreement": {
         "min_pairs": 10,
@@ -108,7 +110,7 @@ _POSITIVE_SETTINGS = {
 _FRACTION_SETTINGS = {
     "range.min_violation_rate",
     "range.full_confidence_violation_rate",
-    "completeness.max_missing_rate",
+    "completeness.max_empty_hour_fraction",
     "agreement.min_correlation",
     "agreement.min_within_tolerance_rate",
     "coverage.hour_complete_fraction",

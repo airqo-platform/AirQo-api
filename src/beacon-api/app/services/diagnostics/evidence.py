@@ -255,31 +255,38 @@ class EvidenceEngine:
         expected_interval_seconds: Optional[float],
         indicators: Dict[str, Dict[str, Dict[str, Any]]],
     ) -> List[EvidenceFact]:
-        missing_rate = features.get("missing_rate")
-        if missing_rate is None or missing_rate <= model.policy["completeness"]["max_missing_rate"]:
-            return []
-
-        interval = f" at a {expected_interval_seconds:g}s interval" if expected_interval_seconds else ""
+        # A data gap is an hour without any reading. Sparse-but-present data is not a gap, so this
+        # does not depend on the reporting interval being right.
         found = []
         for component in self._coverage_targets(model):
             if "DATA_GAPS" in set(component.policy.get("disabled_checks") or []):
                 continue
             coverage = indicators.get(component.name, {}).get("coverage", {})
+            hours_total, hours_empty = coverage.get("hours_total"), coverage.get("hours_empty")
+            if not hours_total or not hours_empty:
+                continue
+            empty_fraction = hours_empty / hours_total
+            if empty_fraction <= component.policy["completeness"]["max_empty_hour_fraction"]:
+                continue
             outage_note = ""
             if coverage.get("outage_count"):
-                outage_note = f"; {coverage['outage_count']} outage(s) totalling {coverage['offline_hours']:g} h"
+                outage_note = (
+                    f"; {coverage['outage_count']} outage(s) totalling {coverage['offline_hours']:g} h, "
+                    f"longest {coverage['longest_outage_hours']:g} h"
+                )
                 if coverage.get("outages_after_low_charge"):
                     outage_note += f", {coverage['outages_after_low_charge']} after low charge"
             found.append(self._fact(
-                "DATA_GAPS", component, missing_rate,
+                "DATA_GAPS", component, empty_fraction,
                 "Data gaps",
-                f"{missing_rate * 100:.1f}% of expected readings missing "
-                f"({features['record_count']} of {features['expected_records']}{interval}){outage_note}",
+                f"{hours_empty} of {hours_total} hours without any data{outage_note}",
                 {
-                    "missing_rate": missing_rate,
+                    "hours_empty": hours_empty,
+                    "hours_total": hours_total,
+                    "hours_with_data": coverage.get("hours_with_data"),
+                    "empty_hour_fraction": round(empty_fraction, 4),
+                    "longest_outage_hours": coverage.get("longest_outage_hours"),
                     "records": features["record_count"],
-                    "expected_records": features["expected_records"],
-                    "expected_interval_seconds": expected_interval_seconds,
                     "outage_count": coverage.get("outage_count"),
                     "offline_hours": coverage.get("offline_hours"),
                     "outages_after_low_charge": coverage.get("outages_after_low_charge"),

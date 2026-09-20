@@ -766,9 +766,11 @@ def build_fleet_daily_summary(
         .limit(top_n)
         .all()
     )
+    names = crud_diagnostics.get_device_names(db, [d.device_id for d in worst])
     summary["worst_devices"] = [
         {
             "device_id": d.device_id,
+            "device_name": names.get(d.device_id),
             "overall_health_score": d.overall_health_score,
             "lifecycle_state": d.lifecycle_state,
             "issue_count": d.issue_count,

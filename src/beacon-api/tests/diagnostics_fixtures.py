@@ -67,11 +67,17 @@ def make_records(
     battery: Optional[Callable[[int], Optional[float]]] = healthy_battery,
     pm1: Optional[Callable[[int], Optional[float]]] = healthy_pm,
     pm2: Optional[Callable[[int], Optional[float]]] = lambda i: healthy_pm(i) + 0.5,
+    gap_after: Optional[int] = None,
+    gap_hours: float = 0.0,
 ) -> List[Dict[str, Any]]:
-    """Telemetry already mapped to the profile's semantic keys."""
+    """
+    Telemetry already mapped to the profile's semantic keys. `gap_after`/`gap_hours` make the
+    device silent for that many hours after the given reading.
+    """
     records = []
     for i in range(count):
-        record: Dict[str, Any] = {"datetime": start_ts + i * interval_s}
+        silent = gap_hours * 3600 if gap_after is not None and i > gap_after else 0
+        record: Dict[str, Any] = {"datetime": start_ts + i * interval_s + silent}
         for key, fn in (("battery_voltage", battery), ("pm2_5_sensor1", pm1), ("pm2_5_sensor2", pm2)):
             value = fn(i) if fn else None
             if value is not None:

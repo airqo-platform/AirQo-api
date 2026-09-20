@@ -237,6 +237,7 @@ class DailyIssueResponse(BaseModel):
 
 class FleetIssueResponse(DailyIssueResponse):
     device_id: str
+    device_name: Optional[str] = None
     diagnosis_date: date
 
 
@@ -338,6 +339,7 @@ class FleetTopIssue(BaseModel):
 
 class FleetDeviceHealth(BaseModel):
     device_id: str
+    device_name: Optional[str] = None
     overall_health_score: float
     lifecycle_state: str
     issue_count: int

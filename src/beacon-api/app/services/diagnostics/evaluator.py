@@ -126,8 +126,8 @@ class DiagnosticEvaluator:
         features: Dict[str, Any], evidences: List[EvidenceFact], model: DiagnosticModel
     ) -> Dict[str, float]:
         scored = {name for name, c in model.components.items() if c.mapped_metrics}
-        if features.get("missing_rate") is not None:
-            scored.update(model.transmission_components)
+        if features.get("record_count"):
+            scored.update(model.transmission_components)   # judged on hours without data
 
         scores: Dict[str, float] = {name: 100.0 for name in scored}
         for ev in evidences:

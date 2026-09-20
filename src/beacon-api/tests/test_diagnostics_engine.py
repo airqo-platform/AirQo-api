@@ -208,10 +208,10 @@ class TestProfileModel(unittest.TestCase):
 
     def test_policy_overrides_from_profile_and_component_metadata(self):
         profile = lowcost_profile()
-        profile["meta_data"] = {"diagnostics": {"completeness": {"max_missing_rate": 0.9}}}
+        profile["meta_data"] = {"diagnostics": {"completeness": {"max_empty_hour_fraction": 0.9}}}
         profile["components"][0]["meta_data"] = {"diagnostics": {"disabled_checks": ["METRIC_RATE_EXCEEDED"]}}
         model = build_model(profile)
-        self.assertEqual(model.policy["completeness"]["max_missing_rate"], 0.9)
+        self.assertEqual(model.policy["completeness"]["max_empty_hour_fraction"], 0.9)
         self.assertEqual(model.components["device_battery"].policy["disabled_checks"], ["METRIC_RATE_EXCEEDED"])
         self.assertEqual(model.components["pm_sensor1"].policy["disabled_checks"], [])
 
@@ -230,7 +230,7 @@ class TestProfileModel(unittest.TestCase):
         self.assertIn("'components.device_battery.meta_data.diagnostics.disabled_checks' must be a list of strings", errors)
         self.assertTrue(any("unknown_setting" in w for w in model.warnings))
         # Rejected overrides fall back to the defaults instead of breaking model construction
-        self.assertEqual(model.policy["completeness"]["max_missing_rate"], 0.4)
+        self.assertEqual(model.policy["completeness"]["max_empty_hour_fraction"], 0.1)
         with self.assertRaises(ProfileNotDiagnosableError):
             DiagnosticEvaluator().evaluate_telemetry("dev", make_records(10), profile=profile)
 
@@ -368,6 +368,7 @@ class TestDiagnosticsEvidenceEngine(unittest.TestCase):
         self.assertEqual(outage.related_components, ["communication"])
         self.assertEqual(outage.value["outages_after_low_charge"], 1)
         self.assertIn("1 outage(s) totalling 4", evidence["DATA_GAPS:communication"].description)
+        self.assertIn("1 after low charge", evidence["DATA_GAPS:communication"].description)
 
     def test_stuck_and_missing_metrics(self):
         records = make_records(30, pm1=lambda i: 12.0, pm2=None)
@@ -385,15 +386,37 @@ class TestDiagnosticsEvidenceEngine(unittest.TestCase):
         profile["relationships"] = profile["relationships"][:3]
         self.assertFalse(any(c.startswith("SENSOR_DISAGREEMENT") for c in self._evidence(records, profile)))
 
-    def test_data_gaps_use_reporting_interval_and_connectivity_component(self):
-        records = make_records(30, interval_s=600)
-        self.assertIn("DATA_GAPS:communication", self._evidence(records, interval=120))
-        self.assertNotIn("DATA_GAPS:communication", self._evidence(records, interval=600))
+    def test_data_gaps_are_hours_without_any_data(self):
+        # Sparse but continuous: one reading every 10 min for 5 h. Far fewer readings than a 120 s
+        # interval expects, but no hour is empty, so there is no gap whatever the interval says.
+        sparse = make_records(30, interval_s=600)
+        self.assertNotIn("DATA_GAPS:communication", self._evidence(sparse, interval=120))
+
+        # Same readings, starting on the hour, silent from 03:00 to 07:00: 4 of 9 clock hours have no data
+        on_the_hour = 1699999200
+        silent = make_records(30, interval_s=600, start_ts=on_the_hour, gap_after=17, gap_hours=4)
+        for interval in (120, 600, None):
+            gap = self._evidence(silent, interval=interval)["DATA_GAPS:communication"]
+            self.assertEqual(gap.value["hours_empty"], 4)
+            self.assertEqual(gap.value["hours_total"], 9)
+            self.assertAlmostEqual(gap.confidence, 4 / 9, places=3)
+            self.assertIn("4 of 9 hours without any data", gap.description)
+
+        # One empty hour in a day is under the 10% threshold
+        blip = make_records(138, interval_s=600, start_ts=on_the_hour, gap_after=59, gap_hours=1)
+        self.assertEqual(
+            compute_indicators(blip, FeatureExtractor.extract_all_features(blip), build_model(lowcost_profile()))
+            ["communication"]["coverage"]["hours_empty"], 1)
+        self.assertNotIn("DATA_GAPS:communication", self._evidence(blip, interval=600))
+
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {"completeness": {"max_empty_hour_fraction": 0.5}}}
+        self.assertNotIn("DATA_GAPS:communication", self._evidence(silent, profile))
 
         profile = lowcost_profile()
         profile["components"] = profile["components"][:3]
         profile["relationships"] = [r for r in profile["relationships"] if r["target_component_id"] != COMM_ID]
-        self.assertIn("DATA_GAPS:device", self._evidence(records, profile, interval=120))
+        self.assertIn("DATA_GAPS:device", self._evidence(silent, profile, interval=120))
 
     def test_disabled_checks_are_skipped(self):
         profile = lowcost_profile()
@@ -572,8 +595,8 @@ class TestEndToEndEvaluatorProfileDriven(unittest.TestCase):
         )
 
     def test_battery_fault_explains_downstream_data_gaps(self):
-        # Battery below minimum and readings every 10 min against a 2 min reporting interval
-        records = make_records(36, interval_s=600, battery=lambda i: 2.8)
+        # Battery below minimum all along, and the device is silent for 4 of the 10 hours
+        records = make_records(36, interval_s=600, battery=lambda i: 2.8, gap_after=17, gap_hours=4)
         result = self.evaluator.evaluate_telemetry("dev_batt", records, profile=lowcost_profile())
         top = result["top_diagnoses"][0]
         self.assertEqual(top["cause_code"], "COMPONENT_FAULT:device_battery")
@@ -612,7 +635,7 @@ class TestEndToEndEvaluatorProfileDriven(unittest.TestCase):
     def test_unmonitored_upstream_component_is_suspected(self):
         profile = lowcost_profile()
         profile["components"][0]["metrics"] = []
-        records = make_records(36, interval_s=600, pm1=lambda i: 12.0, pm2=lambda i: 15.0)
+        records = make_records(36, interval_s=600, pm1=lambda i: 12.0, pm2=lambda i: 15.0, gap_after=17, gap_hours=4)
         result = self.evaluator.evaluate_telemetry("dev_hidden", records, profile=profile)
         codes = [d["cause_code"] for d in result["top_diagnoses"]]
         self.assertEqual(codes[0], "COMPONENT_SUSPECTED:device_battery")
@@ -623,9 +646,13 @@ class TestEndToEndEvaluatorProfileDriven(unittest.TestCase):
         configured = self.evaluator.evaluate_telemetry(
             "dev_cfg", records, profile=lowcost_profile(), device_config={"config1": "600"}
         )
-        self.assertTrue(any(e["check"] == "DATA_GAPS" for e in default["active_evidences"]))
-        self.assertFalse(any(e["check"] == "DATA_GAPS" for e in configured["active_evidences"]))
+        # The interval shapes the completeness figures, but continuous data is never a gap
+        self.assertGreater(default["data_completeness"]["missing_rate"], 0.7)
+        self.assertEqual(configured["data_completeness"]["missing_rate"], 0.0)
         self.assertEqual(configured["data_completeness"]["expected_interval_seconds"], 600.0)
+        for result in (default, configured):
+            self.assertFalse(any(e["check"] == "DATA_GAPS" for e in result["active_evidences"]))
+            self.assertEqual(result["subsystem_scores"]["communication"], 100.0)
 
     def test_missing_or_incomplete_profile_raises(self):
         with self.assertRaises(ProfileNotDiagnosableError):

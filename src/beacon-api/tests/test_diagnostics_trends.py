@@ -194,7 +194,7 @@ class TestNarrative(unittest.TestCase):
     def test_streaks_resolutions_and_trends(self):
         result = self.evaluator.evaluate_telemetry("dev_ok", make_records(180), profile=lowcost_profile())
         rows = _rows([3.95, 3.88, 3.80, 3.71, 3.64, 3.55, 3.48], _cycle) + _rows(
-            [6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.2], lambda h: {"offline_hours": h, "missing_rate": 0.1}, "communication", "coverage"
+            [6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.2], lambda h: {"offline_hours": h, "hours_empty": 1}, "communication", "coverage"
         )
         trends = compute_trends(rows, self.model)
         narrative = build_summary(

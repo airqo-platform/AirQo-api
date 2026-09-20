@@ -40,7 +40,7 @@ TRACKED: Tuple[TrendSpec, ...] = (
     TrendSpec("charge_cycle", "min", "down", "range", "{label} daily minimum", "{label} daily minimum falling", "expected_min"),
     TrendSpec("charge_cycle", "mean", "down", "range", "{label} daily average", "{label} daily average falling"),
     TrendSpec("charge_cycle", "hours_low_charge", "up", "hours", "time at low {label}", "More time at low {label}"),
-    TrendSpec("coverage", "missing_rate", "up", "unit", "share of missing readings", "Data gaps increasing"),
+    TrendSpec("coverage", "hours_empty", "up", "hours", "hours without data", "Hours without data increasing"),
     TrendSpec("coverage", "offline_hours", "up", "hours", "offline time", "Offline time increasing"),
     # Relative to the measured level: absolute error between two sensors rises and falls with the level itself.
     TrendSpec("agreement", "relative_error", "up", "unit", "error against {other}", "Error against {other} growing"),
