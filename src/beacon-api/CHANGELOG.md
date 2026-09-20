@@ -15,7 +15,7 @@ A device can pass every daily check while sliding towards failure. Trends fit th
 <summary><strong>Trends (`app/services/diagnostics/trends.py`)</strong></summary>
 
 - Least-squares fit over the last `window_days` (7) of stored indicators, needing `min_days` (5) diagnosed days. A trend is **degrading**, **improving** or **stable**; it counts only when the fitted change is at least 15% of the indicator's scale and the days follow the line (`r² ≥ 0.5`).
-- Tracked: battery daily minimum and average (judged against the metric's `expected_min`–`expected_max` range), hours at low charge, offline hours, share of missing readings, sensor-pair error and bias **relative to the measured level**, pair correlation, share within tolerance, and the health score.
+- Tracked: battery daily minimum and average (judged against the metric's `expected_min`–`expected_max` range), hours at low charge, hours without data, offline hours, sensor-pair error and bias **relative to the measured level**, pair correlation, share within tolerance, and the health score.
 - Where the indicator has a limit, the days until it is reached are projected (battery minimum → `expected_min`), only within `projection_horizon_days` (14).
 - Degrading trends are stored as `DEGRADING_TREND:<component>.<group>.<field>` issues with streaks like any other issue, and a day that is `HEALTHY` on its own is reported as `DEGRADING` (`trend.degrade_lifecycle`, on by default). The day's health score is not changed.
 - All thresholds live under the `trend` policy section and can be overridden per profile or component; `DEGRADING_TREND` can be listed in `disabled_checks`.

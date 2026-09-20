@@ -204,16 +204,18 @@ def _pair_tolerance(rel_meta: Dict[str, Any], label: str, errors: List[str]) -> 
         errors.append(f"{label}: 'tolerance' must be an object with 'absolute' and/or 'relative'.")
         return None, None
     values: List[Optional[float]] = []
+    invalid = False   # errors is shared across the whole model, so track what this relationship added
     for key in ("absolute", "relative"):
         raw = tolerance.get(key)
         if raw is None:
             values.append(None)
         elif isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw < 0:
             errors.append(f"{label}: 'tolerance.{key}' must be a number ≥ 0.")
+            invalid = True
             values.append(None)
         else:
             values.append(float(raw))
-    if values == [None, None] and not errors:
+    if values == [None, None] and not invalid:
         errors.append(f"{label}: 'tolerance' needs 'absolute' and/or 'relative'.")
     return values[0], values[1]
 

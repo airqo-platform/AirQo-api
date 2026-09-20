@@ -294,6 +294,20 @@ class TestProfileModel(unittest.TestCase):
         profile["relationships"][3]["meta_data"] = {"tolerance": {"absolute": -1}}
         self.assertFalse(build_model(profile).diagnosable)
 
+    def test_empty_tolerance_is_reported_even_when_other_errors_exist(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {"completeness": None}}     # an unrelated, earlier error
+        profile["relationships"][3]["meta_data"] = {"tolerance": {}}
+        errors = build_model(profile).errors
+        self.assertTrue(any("'meta_data.diagnostics.completeness' must be an object" in e for e in errors))
+        self.assertTrue(any("'tolerance' needs 'absolute' and/or 'relative'" in e for e in errors))
+
+        # An invalid value already explains the problem: no second, redundant message for the same relationship
+        profile["relationships"][3]["meta_data"] = {"tolerance": {"absolute": "five"}}
+        errors = build_model(profile).errors
+        self.assertTrue(any("'tolerance.absolute' must be a number" in e for e in errors))
+        self.assertFalse(any("needs 'absolute' and/or 'relative'" in e for e in errors))
+
     def test_reporting_interval_prefers_device_config_then_profile_default(self):
         model = build_model(lowcost_profile())
         self.assertEqual(resolve_expected_interval_seconds(model), 120.0)
