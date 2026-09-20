@@ -197,6 +197,23 @@ const userController = {
       handleError(error, next);
     }
   },
+  exportStatsSegment: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.exportStatsSegment(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      return res.status(result.status || httpStatus.OK).json({
+        success: true,
+        message: result.message,
+        ...result.data,
+      });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   listLogs: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

@@ -55,6 +55,9 @@ const {
   extractIp,
 } = require("@utils/common/device.util");
 
+const EXPORT_STATS_DEFAULT_LIMIT = 500;
+const EXPORT_STATS_MAX_LIMIT = 1000;
+
 function generateNumericToken(length) {
   const charset = "0123456789";
   let token = "";
@@ -790,7 +793,7 @@ const createUserModule = {
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics =
-        await UserModel(tenant).listStatistics(tenant);
+        await UserModel(tenant).listStatistics(next);
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1128,6 +1131,139 @@ const createUserModule = {
     } catch (error) {
       logger.error(
         `🐛🐛 Internal Server Error in getStatsBreakdown: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  // Lightweight, unpaginated contact list behind each User Statistics card
+  // (total / active / verified / api). Segments mirror the card definitions.
+  // Each row carries `unsubscribed` (email notifications switched off in the
+  // local subscriptions collection, the same flag the mailer enforces).
+  // Newsletter unsubscribes live only in Mailchimp and are not visible here.
+  exportStatsSegment: async (request, next) => {
+    try {
+      const {
+        tenant,
+        segment,
+        exclude_unsubscribed,
+        skip: rawSkip,
+        limit: rawLimit,
+      } = request.query;
+      const skip = Number.isFinite(Number(rawSkip))
+        ? Math.max(0, parseInt(rawSkip, 10))
+        : 0;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.min(
+            EXPORT_STATS_MAX_LIMIT,
+            Math.max(1, parseInt(rawLimit, 10)),
+          )
+        : EXPORT_STATS_DEFAULT_LIMIT;
+
+      const pipeline = [
+        { $match: { email: { $nin: [null, ""] } } },
+      ];
+
+      if (segment === "active") {
+        pipeline.push({ $match: { isActive: true } });
+      } else if (segment === "verified") {
+        pipeline.push({ $match: { verified: true } });
+      } else if (segment === "api") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "clients",
+              localField: "_id",
+              foreignField: "user_id",
+              as: "clients",
+            },
+          },
+          { $match: { "clients.0": { $exists: true } } },
+        );
+      }
+
+      pipeline.push(
+        {
+          $lookup: {
+            from: "subscriptions",
+            localField: "email",
+            foreignField: "email",
+            as: "subscription",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            email: 1,
+            firstName: 1,
+            lastName: 1,
+            userName: 1,
+            organization: 1,
+            country: 1,
+            isActive: { $ifNull: ["$isActive", false] },
+            verified: { $ifNull: ["$verified", false] },
+            loginCount: { $ifNull: ["$loginCount", 0] },
+            lastLogin: 1,
+            createdAt: 1,
+            unsubscribed: {
+              $eq: [
+                { $arrayElemAt: ["$subscription.notifications.email", 0] },
+                false,
+              ],
+            },
+          },
+        },
+      );
+
+      const excludeUnsubscribed = exclude_unsubscribed === true;
+      pipeline.push({
+        $facet: {
+          users: [
+            ...(excludeUnsubscribed
+              ? [{ $match: { unsubscribed: false } }]
+              : []),
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          counts: [{ $group: { _id: "$unsubscribed", count: { $sum: 1 } } }],
+        },
+      });
+
+      const [facets = {}] = await UserModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const users = facets.users || [];
+      const countFor = (flag) =>
+        ((facets.counts || []).find((c) => c._id === flag) || {}).count || 0;
+      const unsubscribedTotal = countFor(true);
+      const total = excludeUnsubscribed
+        ? countFor(false)
+        : countFor(false) + unsubscribedTotal;
+
+      return {
+        success: true,
+        message: `Successfully retrieved the ${segment} users`,
+        data: {
+          segment,
+          total,
+          unsubscribed_total: unsubscribedTotal,
+          skip,
+          limit,
+          has_more: skip + users.length < total,
+          users,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in exportStatsSegment: ${error.message}`,
       );
       next(
         new HttpError(

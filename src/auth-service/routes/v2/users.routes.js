@@ -753,6 +753,15 @@ router.get(
 );
 
 router.get(
+  "/stats/export",
+  userValidations.statsExport,
+  validate,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userController.exportStatsSegment,
+);
+
+router.get(
   "/cache",
   userValidations.cache,
   enhancedJWTAuth,
