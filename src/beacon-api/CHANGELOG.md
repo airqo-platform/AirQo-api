@@ -36,6 +36,10 @@ A device can pass every daily check while sliding towards failure. Trends fit th
 
 **Database migration:** `d0e1f2a3b4c5` — adds `trends`, `headline` and `summary` to `device_daily_diagnostics`.
 
+**Change: data gaps are hours without any data.** `DATA_GAPS` no longer compares the number of readings with the reporting interval (a wrong interval flagged 96% of devices). A gap is a clock hour with no readings; the issue is raised when more than `completeness.max_empty_hour_fraction` (0.10, i.e. 3+ of 24 hours) of the window is empty, and its confidence is the share of empty hours, so severity grows with the silence. Replaces `completeness.max_missing_rate`; the readings-missing rate is still stored as an indicator. The matching trend follows `hours_empty`.
+
+**Device names:** `GET /fleet/issues` items and `worst_devices` in `GET /fleet/daily-summary` include `device_name`.
+
 **Also:** sensor-pair indicators gain `mean_level` and `relative_bias`; charge-cycle indicators carry the metric's `expected_min`/`expected_max` so stored days are self-describing; boolean policy settings are validated.
 
 **Files changed:**
