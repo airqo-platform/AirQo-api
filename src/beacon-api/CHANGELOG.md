@@ -4,6 +4,97 @@
 
 ---
 
+## Version 2.5.0
+**Released:** September 19, 2026
+
+### Feature: Multi-Day Trends & Plain-Language Daily Summaries
+
+A device can pass every daily check while sliding towards failure. Trends fit the last days of each stored indicator and flag the slide; every diagnosis now also carries a headline and a plain-language summary built from the stored numbers.
+
+<details>
+<summary><strong>Trends (`app/services/diagnostics/trends.py`)</strong></summary>
+
+- Least-squares fit over the last `window_days` (7) of stored indicators, needing `min_days` (5) diagnosed days. A trend is **degrading**, **improving** or **stable**; it counts only when the fitted change is at least 15% of the indicator's scale and the days follow the line (`r² ≥ 0.5`).
+- Tracked: battery daily minimum and average (judged against the metric's `expected_min`–`expected_max` range), hours at low charge, hours without data, offline hours, sensor-pair error and bias **relative to the measured level**, pair correlation, share within tolerance, and the health score.
+- Where the indicator has a limit, the days until it is reached are projected (battery minimum → `expected_min`), only within `projection_horizon_days` (14).
+- Degrading trends are stored as `DEGRADING_TREND:<component>.<group>.<field>` issues with streaks like any other issue, and a day that is `HEALTHY` on its own is reported as `DEGRADING` (`trend.degrade_lifecycle`, on by default). The day's health score is not changed.
+- All thresholds live under the `trend` policy section and can be overridden per profile or component; `DEGRADING_TREND` can be listed in `disabled_checks`.
+
+</details>
+
+<details>
+<summary><strong>Summaries (`app/services/diagnostics/narrative.py`)</strong></summary>
+
+- Deterministic templates, no LLM: the same inputs always give the same text, and every number is a stored value.
+- `headline`, e.g. `Degrading (92/100): communication (connectivity) fault (47%)`.
+- `summary` covers the battery's day, data coverage and outages with their power/link attribution, sensor agreement, new / persisting (with day count) / resolved issues, trends with projections, and the recommended action.
+- Returned by the evaluate endpoints, stored on each daily diagnosis, shown in daily lists (`headline`), daily detail (`summary`, `trends`), the device issue summary (`latest_headline`) and fleet worst devices.
+
+</details>
+
+**Endpoint:** `GET /diagnostics/devices/{device_id}/trends?window_days=&as_of=` — degrading first, then improving, then stable. Fleet-wide: `GET /diagnostics/fleet/issues?check_type=DEGRADING_TREND`.
+
+**Database migration:** `d0e1f2a3b4c5` — adds `trends`, `headline` and `summary` to `device_daily_diagnostics`.
+
+**Change: data gaps are hours without any data.** `DATA_GAPS` no longer compares the number of readings with the reporting interval (a wrong interval flagged 96% of devices). A gap is a clock hour with no readings; the issue is raised when more than `completeness.max_empty_hour_fraction` (0.10, i.e. 3+ of 24 hours) of the window is empty, and its confidence is the share of empty hours, so severity grows with the silence. Replaces `completeness.max_missing_rate`; the readings-missing rate is still stored as an indicator. The matching trend follows `hours_empty`.
+
+**Device names:** `GET /fleet/issues` items and `worst_devices` in `GET /fleet/daily-summary` include `device_name`.
+
+**Also:** sensor-pair indicators gain `mean_level` and `relative_bias`; charge-cycle indicators carry the metric's `expected_min`/`expected_max` so stored days are self-describing; boolean policy settings are validated.
+
+**Files changed:**
+- `app/services/diagnostics/trends.py`, `narrative.py` — New
+- `app/services/diagnostics/daily.py`, `evaluator.py`, `indicators.py`, `policy.py` — Trend issues, lifecycle adjustment, summaries, new policy section
+- `app/models/health.py`, `app/schemas/diagnostics.py`, `app/api/v1/diagnostics.py` — New fields and trends endpoint
+- `alembic/versions/d0e1f2a3b4c5_add_daily_diagnostic_trends_and_summary.py`
+- `tests/test_diagnostics_trends.py` (new), `tests/test_daily_diagnostics.py`
+
+---
+
+## Version 2.4.0
+**Released:** September 17, 2026
+
+### Feature: Diagnostic Indicators — Charge Cycles, Outage Attribution & Sensor Error Margin
+
+The engine now measures how each component behaved every day, not only whether a threshold broke. Indicators are stored with each daily diagnosis and exposed as time series.
+
+<details>
+<summary><strong>Indicators (`app/services/diagnostics/indicators.py`)</strong></summary>
+
+- **`charge_cycle`** for metrics with role `charge_level`: daily min/max and when they happened, swing, hours charging / discharging / flat, longest continuous charge and discharge, charge and discharge rates, max discharge rate, cycle count, hours below `expected_min` and hours in the low-charge band.
+- **`coverage`** for each connectivity component (or the device): hours with data / complete / empty, records per hour, outage list with start, end and duration, offline hours, longest outage, and whether each outage followed a low charge level on the battery that `POWERS` the link. Also partial-payload rate and records without a timestamp.
+- **`agreement:<other>`** for each `MEASURES_SAME_AS` pair: correlation, mean and p95 absolute error, signed bias (which sensor reads high), relative error, and the share of paired readings within the relationship's tolerance.
+- **`generation`** for metrics with role `charge_source`: peak and when, mean, hours active.
+- `metrics_summary` now also records `std` and when the min/max occurred.
+
+**Profile additions (migration `c9d0e1f2a3b4`):**
+- `metric_definitions.role` — `charge_level`, `charge_source` or `signal_strength`. Existing battery voltage metrics (battery component, unit `V`) are backfilled as `charge_level`.
+- `component_relationships.metadata` — e.g. `{"tolerance": {"absolute": 10, "relative": 0.2}}` on `MEASURES_SAME_AS`; readings agree when `|a − b| ≤ max(absolute, relative × mean)`.
+- `device_daily_diagnostics.indicators`.
+
+**New checks:**
+- `SENSOR_ERROR_MARGIN` — too few paired readings within the pair's tolerance (needs relationship tolerance).
+- `LOW_CHARGE_OUTAGE` — evidence against the battery when outages on the link it powers began after the charge level fell into the low band (`expected_min + 0.3 × range`).
+- `METRIC_RATE_EXCEEDED` on a `charge_level` metric now limits the **discharge** rate only, so solar charging no longer trips it.
+- Pair evidence without a faulty side is reported once per pair as `SENSOR_PAIR:<a>~<b>`.
+
+**Endpoint:** `GET /diagnostics/devices/{device_id}/indicators?days=30&component=&indicator=` — one point per diagnosed day per indicator group, for charting. `indicators` is also included in daily detail and evaluate responses; readiness reports `metric_roles` and warns when a battery has no `charge_level` metric or a pair has no tolerance.
+
+**Fix:** naive datetimes and naive ISO strings in telemetry are now treated as UTC instead of the host time zone.
+
+**Validation:** relationship `meta_data` must be a JSON object (invalid JSON is rejected instead of silently dropped), and fraction-valued policy settings must be between 0 and 1.
+
+</details>
+
+**Files changed:**
+- `app/services/diagnostics/indicators.py` — Indicator computation (new)
+- `app/services/diagnostics/evidence.py`, `root_cause.py`, `evaluator.py`, `features.py`, `policy.py`, `profile_model.py`, `daily.py` — New checks, roles, tolerance, indicator storage
+- `app/models/device_schema.py`, `app/models/health.py`, `app/schemas/device_schema.py`, `app/schemas/diagnostics.py`, `app/crud/crud_diagnostics.py` — `role`, relationship `meta_data`, `indicators`
+- `app/api/v1/diagnostics.py` — Indicator series endpoint
+- `alembic/versions/c9d0e1f2a3b4_add_metric_roles_relationship_metadata_and_indicators.py` — New columns and role backfill
+
+---
+
 ## Version 2.3.0
 **Released:** September 13, 2026
 
