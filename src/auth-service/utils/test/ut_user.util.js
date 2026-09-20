@@ -293,9 +293,13 @@ describe("create-user-util", function () {
     let aggregateStub;
     let allowDiskUseStub;
 
-    const buildRequest = (segment) => ({
-      query: { tenant: "airqo", segment },
+    const buildRequest = (segment, extra = {}) => ({
+      query: { tenant: "airqo", segment, ...extra },
     });
+
+    const facetResult = (users = [], counts = []) => [{ users, counts }];
+
+    const facetStage = (pipeline) => pipeline.find((s) => s.$facet).$facet;
 
     beforeEach(function () {
       allowDiskUseStub = sinon.stub();
@@ -311,9 +315,9 @@ describe("create-user-util", function () {
       sinon.restore();
     });
 
-    it("returns users and total for the total segment without extra filters", async function () {
-      const users = [{ _id: "1", email: "a@b.com" }];
-      allowDiskUseStub.resolves(users);
+    it("returns users, totals and paging info for the total segment without extra filters", async function () {
+      const users = [{ _id: "1", email: "a@b.com", unsubscribed: false }];
+      allowDiskUseStub.resolves(facetResult(users, [{ _id: false, count: 1 }]));
 
       const result = await rewireCreateUser.exportStatsSegment(
         buildRequest("total"),
@@ -324,6 +328,9 @@ describe("create-user-util", function () {
         segment: "total",
         total: 1,
         unsubscribed_total: 0,
+        skip: 0,
+        limit: 500,
+        has_more: false,
         users,
       });
       const pipeline = aggregateStub.firstCall.args[0];
@@ -334,7 +341,7 @@ describe("create-user-util", function () {
     });
 
     it("filters the active segment on isActive", async function () {
-      allowDiskUseStub.resolves([]);
+      allowDiskUseStub.resolves(facetResult());
 
       await rewireCreateUser.exportStatsSegment(buildRequest("active"));
 
@@ -343,7 +350,7 @@ describe("create-user-util", function () {
     });
 
     it("filters the verified segment on verified", async function () {
-      allowDiskUseStub.resolves([]);
+      allowDiskUseStub.resolves(facetResult());
 
       await rewireCreateUser.exportStatsSegment(buildRequest("verified"));
 
@@ -352,7 +359,7 @@ describe("create-user-util", function () {
     });
 
     it("keeps only users with at least one client for the api segment", async function () {
-      allowDiskUseStub.resolves([]);
+      allowDiskUseStub.resolves(facetResult());
 
       await rewireCreateUser.exportStatsSegment(buildRequest("api"));
 
@@ -365,7 +372,7 @@ describe("create-user-util", function () {
     });
 
     it("projects only lightweight contact fields", async function () {
-      allowDiskUseStub.resolves([]);
+      allowDiskUseStub.resolves(facetResult());
 
       await rewireCreateUser.exportStatsSegment(buildRequest("total"));
 
@@ -379,11 +386,19 @@ describe("create-user-util", function () {
       ]);
     });
 
-    it("flags unsubscribed users and keeps them by default", async function () {
-      allowDiskUseStub.resolves([
-        { _id: "1", email: "a@b.com", unsubscribed: false },
-        { _id: "2", email: "c@d.com", unsubscribed: true },
-      ]);
+    it("looks up local opt-outs and keeps unsubscribed users by default", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [
+            { _id: "1", email: "a@b.com", unsubscribed: false },
+            { _id: "2", email: "c@d.com", unsubscribed: true },
+          ],
+          [
+            { _id: false, count: 1 },
+            { _id: true, count: 1 },
+          ],
+        ),
+      );
 
       const result = await rewireCreateUser.exportStatsSegment(
         buildRequest("total"),
@@ -394,21 +409,78 @@ describe("create-user-util", function () {
       const pipeline = aggregateStub.firstCall.args[0];
       expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "subscriptions"))
         .to.be.true;
+      expect(facetStage(pipeline).users).to.not.deep.include({
+        $match: { unsubscribed: false },
+      });
     });
 
-    it("drops unsubscribed users when exclude_unsubscribed is true", async function () {
-      allowDiskUseStub.resolves([
-        { _id: "1", email: "a@b.com", unsubscribed: false },
-        { _id: "2", email: "c@d.com", unsubscribed: true },
-      ]);
+    it("excludes unsubscribed users and their count from total when exclude_unsubscribed is true", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [{ _id: "1", email: "a@b.com", unsubscribed: false }],
+          [
+            { _id: false, count: 1 },
+            { _id: true, count: 1 },
+          ],
+        ),
+      );
 
-      const result = await rewireCreateUser.exportStatsSegment({
-        query: { tenant: "airqo", segment: "total", exclude_unsubscribed: true },
-      });
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { exclude_unsubscribed: true }),
+      );
 
       expect(result.data.total).to.equal(1);
       expect(result.data.unsubscribed_total).to.equal(1);
-      expect(result.data.users.map((u) => u.email)).to.deep.equal(["a@b.com"]);
+      expect(facetStage(aggregateStub.firstCall.args[0]).users).to.deep.include({
+        $match: { unsubscribed: false },
+      });
+    });
+
+    it("applies skip and limit, sorts deterministically, and reports has_more", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [{ _id: "3", email: "c@d.com", unsubscribed: false }],
+          [{ _id: false, count: 5 }],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { skip: 2, limit: 1 }),
+      );
+
+      const usersStages = facetStage(aggregateStub.firstCall.args[0]).users;
+      expect(usersStages).to.deep.include({ $sort: { createdAt: -1, _id: -1 } });
+      expect(usersStages).to.deep.include({ $skip: 2 });
+      expect(usersStages).to.deep.include({ $limit: 1 });
+      expect(result.data.skip).to.equal(2);
+      expect(result.data.limit).to.equal(1);
+      expect(result.data.total).to.equal(5);
+      expect(result.data.has_more).to.be.true;
+    });
+
+    it("clamps limit to the maximum page size", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { limit: 999999 }),
+      );
+
+      expect(result.data.limit).to.equal(1000);
+      expect(facetStage(aggregateStub.firstCall.args[0]).users).to.deep.include({
+        $limit: 1000,
+      });
+    });
+
+    it("returns empty totals when nothing matches", async function () {
+      allowDiskUseStub.resolves([]);
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("api"),
+      );
+
+      expect(result.data.total).to.equal(0);
+      expect(result.data.users).to.deep.equal([]);
+      expect(result.data.has_more).to.be.false;
     });
 
     it("forwards an Internal Server Error when the aggregation fails", async function () {

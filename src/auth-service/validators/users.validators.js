@@ -131,6 +131,16 @@ const statsExport = [
     .isBoolean()
     .withMessage("exclude_unsubscribed must be true or false")
     .toBoolean(),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage("limit must be an integer between 1 and 1000")
+    .toInt(),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer")
+    .toInt(),
 ];
 
 const validateAirqoTenantOnly = oneOf([

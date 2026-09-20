@@ -55,6 +55,9 @@ const {
   extractIp,
 } = require("@utils/common/device.util");
 
+const EXPORT_STATS_DEFAULT_LIMIT = 500;
+const EXPORT_STATS_MAX_LIMIT = 1000;
+
 function generateNumericToken(length) {
   const charset = "0123456789";
   let token = "";
@@ -1145,7 +1148,22 @@ const createUserModule = {
   // Newsletter unsubscribes live only in Mailchimp and are not visible here.
   exportStatsSegment: async (request, next) => {
     try {
-      const { tenant, segment, exclude_unsubscribed } = request.query;
+      const {
+        tenant,
+        segment,
+        exclude_unsubscribed,
+        skip: rawSkip,
+        limit: rawLimit,
+      } = request.query;
+      const skip = Number.isFinite(Number(rawSkip))
+        ? Math.max(0, parseInt(rawSkip, 10))
+        : 0;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.min(
+            EXPORT_STATS_MAX_LIMIT,
+            Math.max(1, parseInt(rawLimit, 10)),
+          )
+        : EXPORT_STATS_DEFAULT_LIMIT;
 
       const pipeline = [
         { $match: { email: { $nin: [null, ""] } } },
@@ -1170,7 +1188,6 @@ const createUserModule = {
       }
 
       pipeline.push(
-        { $sort: { createdAt: -1 } },
         {
           $lookup: {
             from: "subscriptions",
@@ -1203,23 +1220,43 @@ const createUserModule = {
         },
       );
 
-      const allUsers = await UserModel(tenant)
+      const excludeUnsubscribed = exclude_unsubscribed === true;
+      pipeline.push({
+        $facet: {
+          users: [
+            ...(excludeUnsubscribed
+              ? [{ $match: { unsubscribed: false } }]
+              : []),
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          counts: [{ $group: { _id: "$unsubscribed", count: { $sum: 1 } } }],
+        },
+      });
+
+      const [facets = {}] = await UserModel(tenant)
         .aggregate(pipeline)
         .allowDiskUse(true);
 
-      const unsubscribedTotal = allUsers.filter((u) => u.unsubscribed).length;
-      const users =
-        exclude_unsubscribed === true
-          ? allUsers.filter((u) => !u.unsubscribed)
-          : allUsers;
+      const users = facets.users || [];
+      const countFor = (flag) =>
+        ((facets.counts || []).find((c) => c._id === flag) || {}).count || 0;
+      const unsubscribedTotal = countFor(true);
+      const total = excludeUnsubscribed
+        ? countFor(false)
+        : countFor(false) + unsubscribedTotal;
 
       return {
         success: true,
         message: `Successfully retrieved the ${segment} users`,
         data: {
           segment,
-          total: users.length,
+          total,
           unsubscribed_total: unsubscribedTotal,
+          skip,
+          limit,
+          has_more: skip + users.length < total,
           users,
         },
         status: httpStatus.OK,
