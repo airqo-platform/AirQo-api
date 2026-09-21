@@ -1,5 +1,9 @@
 # FastAPI dependencies
-fastapi >= 0.100.0
+# The ceiling holds the service to the range the suite runs against. FastAPI
+# 0.141 changed include_router to hold one lazy entry per router, which moves
+# where the full path of a route is readable, and it arrives with a Starlette
+# major release. Raise the ceiling once the suite runs against the newer range.
+fastapi >= 0.100.0, < 0.142.0
 uvicorn[standard] >= 0.23.0
 pydantic >= 2.0.0
 pydantic-settings >= 2.0.0

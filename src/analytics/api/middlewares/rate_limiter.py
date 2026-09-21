@@ -1,7 +1,7 @@
 import ipaddress
 import logging
 import time
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -199,7 +199,12 @@ class RateLimitExceeded(HTTPException):
 
 _local_counters: Dict[str, Tuple[int, float]] = {}
 _local_prune_due = 0.0
-_degraded_logged_at = 0.0
+# None marks that no warning has been emitted yet.  time.monotonic() counts
+# from machine boot on Linux and from process start on macOS, so a numeric
+# starting value reads as "logged moments ago" whenever the clock is still
+# below _DEGRADED_LOG_INTERVAL, which holds the first warning back through the
+# first minute after boot.
+_degraded_logged_at: Optional[float] = None
 
 _PRUNE_INTERVAL = 60.0
 # Redis being down would otherwise log once per request.
@@ -233,10 +238,16 @@ def _consume_locally(cache_key: str, limit: int, window_seconds: int) -> bool:
 
 
 def _log_degraded() -> None:
-    """Warn that limiting is degraded, at most once a minute."""
+    """Warn that limiting is degraded, at most once a minute.
+
+    The first call always warns, whatever the monotonic clock reads.
+    """
     global _degraded_logged_at
     now = time.monotonic()
-    if now - _degraded_logged_at >= _DEGRADED_LOG_INTERVAL:
+    if (
+        _degraded_logged_at is None
+        or now - _degraded_logged_at >= _DEGRADED_LOG_INTERVAL
+    ):
         _degraded_logged_at = now
         logger.warning(
             "Redis unavailable — rate limiting has fallen back to per-process "

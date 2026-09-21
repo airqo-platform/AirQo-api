@@ -538,16 +538,25 @@ class TestV3ReportAndSummary:
 
         assert resp.status_code == 422
 
-    @pytest.mark.parametrize("path", [V3_REPORT, V3_SUMMARY])
+    @pytest.mark.parametrize("path", ["/report", "/summary"])
     def test_public_routes_carry_the_10_per_minute_route_limit(self, path):
         """Without this dependency they would fall back to the global limit of
         100 requests per minute, which is the whole point of the v3 surface.
         The limit and window are asserted as literals: presence alone would
-        still pass with a limit of ten thousand."""
-        from api.middlewares.rate_limiter import RouteRateLimit
-        from main import app
+        still pass with a limit of ten thousand.
 
-        route = next(r for r in app.routes if getattr(r, "path", None) == path)
+        The lookup reads the router rather than app.routes, and matches the
+        bare path the router declares rather than the prefixed one. FastAPI
+        0.141 includes a router as a single lazy entry that resolves paths when
+        a request arrives, so the app exposes the prefixed path at request time
+        and the router holds the declaration. The router is the same object on
+        every version this service supports, and the prefix reaches coverage
+        through the tests that post to the full URL.
+        """
+        from api.middlewares.rate_limiter import RouteRateLimit
+        from api.routers.v3 import router
+
+        route = next(r for r in router.routes if getattr(r, "path", None) == path)
         limits = [
             dep.dependency
             for dep in route.dependencies
