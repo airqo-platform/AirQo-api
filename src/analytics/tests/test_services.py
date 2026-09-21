@@ -1601,6 +1601,27 @@ class TestOversizedQueryHandling:
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
+    async def test_byte_figures_reach_the_log_and_not_the_response(
+        self, export_request, caplog
+    ):
+        """An operator reads how tight the ceiling is running; a requester
+        reads the two levers they control."""
+        import logging
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=self._too_large(),
+        ):
+            with caplog.at_level(logging.WARNING, logger="api.services"):
+                with pytest.raises(HTTPException) as exc:
+                    await DataExportService().export_data(export_request)
+
+        assert "5.2 GB" in caplog.text
+        assert "1.0 GB" in caplog.text
+        assert "GB" not in exc.value.detail
+
+    @pytest.mark.asyncio
     async def test_missing_byte_figures_still_map_to_400(self, export_request):
         """BigQuery states the byte figures in most rejections, and the
         handler answers with a 400 whether or not they parse out."""

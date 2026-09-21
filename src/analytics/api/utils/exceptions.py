@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import Optional
 
 
@@ -55,19 +54,12 @@ class QueryTooLarge(Exception):
     figure: narrowing the window is what brings a refused query under the
     ceiling.  Filtering to fewer sites or devices does not, since those are
     applied after the scan.
+
+    This class carries the two figures.  api.services._too_large_error renders
+    them for the operator log and builds the response the requester sees.
     """
 
     def __init__(self, limit_bytes: int, required_bytes: Optional[int] = None) -> None:
         self.limit_bytes = limit_bytes
         self.required_bytes = required_bytes
-        super().__init__(
-            f"Query would scan {format_bytes(required_bytes)}, over the "
-            f"{format_bytes(limit_bytes)} limit"
-        )
-
-    @property
-    def reduction_factor(self) -> Optional[int]:
-        """How much smaller the scan needs to be, rounded up (e.g. 6 → "6x")."""
-        if not self.required_bytes or not self.limit_bytes:
-            return None
-        return max(2, math.ceil(self.required_bytes / self.limit_bytes))
+        super().__init__()

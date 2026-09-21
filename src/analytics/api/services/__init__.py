@@ -78,6 +78,7 @@ from api.utils.exceptions import (
     ExportRequestNotFound,
     PrivacyScreeningUnavailable,
     QueryTooLarge,
+    format_bytes,
 )
 from config import settings
 from constants import (
@@ -87,6 +88,10 @@ from constants import (
     DeviceCategory,
     Frequency,
 )
+
+# Module-level logger for the helpers below.  Each service holds its own
+# logger, named for the class, on self.logger.
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -187,12 +192,26 @@ def _too_large_error(
     Turn a refused-for-size query into a 400 the requester can act on.
 
     Bytes are billed per partition scanned, so the window is the lever that
-    moves the figure.  The message names that lever and, at the frequencies
-    below daily, offers the second lever as well.  ``log_cost_rejections`` in
-    api/utils/bigquery_jobs.py records the byte figures for the operator, so
-    the response keeps to what the requester can act on.
+    moves the figure.  The response names that lever and, at the frequencies
+    below daily, offers the second lever as well.  The byte figures go to the
+    log for tracking.
     """
     for_frequency = f" for {frequency.value} data" if frequency else ""
+
+    required, limit = exc.required_bytes, exc.limit_bytes
+    factor = (
+        f", about {max(2, math.ceil(required / limit))}x over"
+        if required and limit
+        else ""
+    )
+    logger.warning(
+        "Query refused for size%s: %s of %s%s",
+        for_frequency,
+        format_bytes(required),
+        format_bytes(limit),
+        factor,
+    )
+
     detail = (
         f"The requested date range is too wide{for_frequency}. "
         f"Shorten the date range"
