@@ -16,7 +16,7 @@ from api.schemas.requests import (
     PublicDataSummaryRequest,
     RawDataExportRequest,
 )
-from api.schemas.responses import DataExportResponse
+from api.schemas.responses import DataExportResponse, DOWNLOAD_RESPONSES
 from api.services import AirQualityReportService, DataExportService
 from api.middlewares.rate_limiter import RouteRateLimit
 
@@ -29,6 +29,7 @@ _v3_rate_limit = RouteRateLimit(limit=10, window=60)
 @router.post(
     "/data-download",
     response_model=DataExportResponse,
+    responses=DOWNLOAD_RESPONSES,
     dependencies=[Depends(_v3_rate_limit)],
 )
 async def export_data(
@@ -47,6 +48,7 @@ async def export_data(
 @router.post(
     "/raw-data",
     response_model=DataExportResponse,
+    responses=DOWNLOAD_RESPONSES,
     dependencies=[Depends(_v3_rate_limit)],
 )
 async def raw_data_export(

@@ -287,13 +287,15 @@ class ForecastDataExportRequest(BaseRequest):
     """
     Request model for forecast data downloads.
 
-    Filtered by country or city (not device/site IDs).
+    Filtered by country or city (not device/site IDs), and paged by the same
+    cursor token the other download endpoints use.
     """
 
     start_date_time: datetime = Field(..., alias="startDateTime")
     end_date_time: datetime = Field(..., alias="endDateTime")
     country: Optional[str] = Field(None, description="Country filter")
     city: Optional[str] = Field(None, description="City filter")
+    cursor: Optional[str] = Field(None, description="Pagination cursor token")
 
     @model_validator(mode="after")
     def validate_dates_and_filter(self) -> "ForecastDataExportRequest":

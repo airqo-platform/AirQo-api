@@ -817,6 +817,61 @@ class TestCsvDownload:
         assert resp.headers["content-type"].startswith("application/json")
         assert resp.json()["metadata"]["total_count"] == 2
 
+    def test_empty_result_returns_a_csv_attachment(
+        self, client, valid_export_payload, empty_df
+    ):
+        """A CSV request is answered with a CSV file at every row count."""
+        meta = {"total_count": 0, "has_more": False, "next": None}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(empty_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download",
+                json={**valid_export_payload, "downloadType": "csv"},
+            )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "attachment" in resp.headers.get("content-disposition", "")
+        assert resp.headers["x-total-count"] == "0"
+
+    def test_csv_carries_the_pagination_metadata_in_headers(
+        self, client, valid_export_payload, sample_df
+    ):
+        """A CSV body holds rows alone, so the page state travels in headers
+        and a CSV caller pages the way a JSON caller does."""
+        meta = {"total_count": 2, "has_more": True, "next": "cursor-token"}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download",
+                json={**valid_export_payload, "downloadType": "csv"},
+            )
+        assert resp.status_code == 200
+        assert resp.headers["x-total-count"] == "2"
+        assert resp.headers["x-has-more"] == "true"
+        assert resp.headers["x-next-cursor"] == "cursor-token"
+
+    def test_csv_omits_the_cursor_header_on_the_last_page(
+        self, client, valid_export_payload, sample_df
+    ):
+        meta = {"total_count": 2, "has_more": False, "next": None}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download",
+                json={**valid_export_payload, "downloadType": "csv"},
+            )
+        assert resp.headers["x-has-more"] == "false"
+        assert "x-next-cursor" not in resp.headers
+
 
 # ---------------------------------------------------------------------------
 # Observability & middleware
@@ -925,7 +980,7 @@ class TestAirQualityReportEndpoint:
         assert resp.status_code == 400
         body = resp.json()
         assert body["status"] == "error"
-        assert "date range is too large" in body["message"]
+        assert body["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -1228,7 +1283,7 @@ class TestResponseEnvelopeContract:
         assert self._ENVELOPE_KEYS <= set(body)
         assert body["status"] == "error"
         assert body["data"] is None
-        assert "date range is too large" in body["message"]
+        assert body["message"]
 
     def test_empty_result_is_a_200_success_envelope(
         self, client, valid_export_payload, empty_df

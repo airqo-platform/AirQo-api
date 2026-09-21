@@ -29,6 +29,7 @@ from api.schemas.responses import (
     DailyAveragesResponse,
     DataExportResponse,
     DashboardChartResponse,
+    DOWNLOAD_RESPONSES,
     ExceedancesResponse,
     MonitoringSiteResponse,
 )
@@ -49,7 +50,11 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-@router.post("/data-download", response_model=DataExportResponse)
+@router.post(
+    "/data-download",
+    response_model=DataExportResponse,
+    responses=DOWNLOAD_RESPONSES,
+)
 async def data_download(
     request: DataExportRequest,
     service: DataExportService = Depends(),
@@ -58,7 +63,11 @@ async def data_download(
     return await service.export_data(request)
 
 
-@router.post("/raw-data", response_model=DataExportResponse)
+@router.post(
+    "/raw-data",
+    response_model=DataExportResponse,
+    responses=DOWNLOAD_RESPONSES,
+)
 async def raw_data_export(
     request: RawDataExportRequest,
     service: DataExportService = Depends(),

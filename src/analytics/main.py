@@ -191,6 +191,16 @@ def _configure_middleware(app: FastAPI) -> None:
         allow_credentials="*" not in cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
+        # A browser reads only the six CORS-safelisted response headers unless
+        # the server names the others here.  The CSV download path carries its
+        # pagination state and its filename in these, so a browser client needs
+        # them exposed to page through a CSV export.
+        expose_headers=[
+            "Content-Disposition",
+            "X-Total-Count",
+            "X-Has-More",
+            "X-Next-Cursor",
+        ],
     )
 
 

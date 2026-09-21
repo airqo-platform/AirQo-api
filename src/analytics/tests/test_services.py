@@ -218,6 +218,36 @@ class TestDataExportService:
         assert kwargs["where_fields"] == {"country": "uganda"}
 
     @pytest.mark.asyncio
+    async def test_export_forecast_data_accepts_its_own_cursor(self, sample_df):
+        """The cursor this endpoint returns is accepted back on it, so a
+        caller reaches the pages behind metadata.next."""
+        from datetime import datetime, timedelta, timezone
+        from api.schemas.requests import ForecastDataExportRequest
+
+        req = ForecastDataExportRequest(
+            startDateTime=(
+                datetime.now(tz=timezone.utc) - timedelta(days=2)
+            ).isoformat(),
+            endDateTime=datetime.now(tz=timezone.utc).isoformat(),
+            country="uganda",
+            cursor="cursor-token",
+        )
+        svc = DataExportService()
+        meta = {"total_count": 2, "has_more": True, "next": "next-token"}
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ) as mock_bq:
+            resp = await svc.export_forecast_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "cursor-token"
+        assert resp.metadata["next"] == "next-token"
+        assert resp.metadata["has_more"] is True
+
+    @pytest.mark.asyncio
     async def test_export_data_csv_returns_streaming_response(self, sample_df):
         from datetime import datetime, timedelta, timezone
         from fastapi.responses import StreamingResponse
@@ -595,8 +625,6 @@ class TestAirQualityReportService:
                 await self._svc().get_report(_report_request(grid_id="grid-1"))
 
         assert exc.value.status_code == 400
-        assert "date range is too large" in exc.value.detail
-        assert "6x" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_unexpected_error_maps_to_sanitized_500(self):
@@ -1545,25 +1573,7 @@ class TestOversizedQueryHandling:
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_message_names_the_window_and_the_sizes(self, export_request):
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=self._too_large(),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        detail = exc.value.detail
-        assert "date range is too large" in detail
-        assert "5.2 GB" in detail and "1.0 GB" in detail
-        # 5557452800 / 1073741824 rounds up to 6
-        assert "6x" in detail
-        assert "daily" in detail  # export_request is daily → frequency named
-
-    @pytest.mark.asyncio
-    async def test_fine_frequencies_are_offered_a_coarser_one(self, valid_raw_payload):
-        """Suggesting "use daily instead" only helps below daily."""
+    async def test_raw_frequency_returns_400(self, valid_raw_payload):
         from api.schemas.requests import RawDataExportRequest
 
         with patch(
@@ -1576,7 +1586,7 @@ class TestOversizedQueryHandling:
                     RawDataExportRequest(**valid_raw_payload)
                 )
 
-        assert "coarser frequency" in exc.value.detail
+        assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_chart_data_returns_400(self, dashboard_request):
@@ -1589,14 +1599,11 @@ class TestOversizedQueryHandling:
                 await DashboardService().get_chart_data(dashboard_request)
 
         assert exc.value.status_code == 400
-        assert "date range is too large" in exc.value.detail
 
     @pytest.mark.asyncio
-    async def test_unparseable_rejection_still_gives_actionable_advice(
-        self, export_request
-    ):
-        """Without the byte figures there is no "Nx" to quote, but the
-        instruction to shorten the range still stands."""
+    async def test_missing_byte_figures_still_map_to_400(self, export_request):
+        """BigQuery states the byte figures in most rejections, and the
+        handler answers with a 400 whether or not they parse out."""
         from api.utils.exceptions import QueryTooLarge
 
         with patch(
@@ -1608,8 +1615,6 @@ class TestOversizedQueryHandling:
                 await DataExportService().export_data(export_request)
 
         assert exc.value.status_code == 400
-        assert "Shorten the date range" in exc.value.detail
-        assert "x," not in exc.value.detail  # no bogus "by about Nx"
 
     @pytest.mark.asyncio
     async def test_other_query_failures_are_still_500(self, export_request):

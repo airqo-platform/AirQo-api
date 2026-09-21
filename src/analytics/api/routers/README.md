@@ -213,7 +213,27 @@ Response:
 ```
 
 With `"downloadType": "csv"` the response is a CSV attachment
-(`Content-Type: text/csv`) instead of the JSON envelope.
+(`Content-Type: text/csv`) instead of the JSON envelope. A window holding no
+measurements returns a CSV file with zero data rows, so the media type follows
+the request rather than the result.
+
+A CSV body holds rows alone, so the pagination block travels in the response
+headers instead:
+
+| Header          | Carries                | Example          |
+| --------------- | ---------------------- | ---------------- |
+| `X-Total-Count` | `metadata.total_count` | `2000`           |
+| `X-Has-More`    | `metadata.has_more`    | `true`           |
+| `X-Next-Cursor` | `metadata.next`        | `<cursor token>` |
+
+`X-Next-Cursor` is present while another page exists and is absent on the last
+page. Send its value back as the `cursor` field of the request body, exactly as
+on the JSON path — the request format is the same for both. **A single CSV
+response holds one page**, so a caller that ignores these headers receives the
+first page and no indication that the rest exists.
+
+Browser clients read these headers because the service lists them in
+`Access-Control-Expose-Headers`, alongside `Content-Disposition`.
 
 ## Raw Data
 
@@ -574,6 +594,12 @@ Successful data responses use this envelope:
 
 The chart endpoints add a `chart_type` key.
 
+`metadata` carries the pagination block on the endpoints that page:
+`data-download`, `raw-data`, `forecast-data` and the chart endpoints. `report`
+and `summary` compute a whole window in one pass and return `"metadata": null`.
+Read the block as present-and-populated or `null`, and branch on that rather
+than on the endpoint.
+
 All response keys are snake_case.
 
 Errors use the **same four keys** (see [Error Handling](#error-handling)), so a
@@ -594,6 +620,12 @@ the window:
 
 Every endpoint uses that same wording, so "no data" can be detected once rather
 than per endpoint. Check `data` for emptiness — do not treat it as a failure.
+
+An empty `data` can arrive with `has_more: true` and a `next` cursor. The
+cleaning pipeline drops rows the query returned, so a page can empty while
+later pages still hold measurements. Treat `has_more` as the signal to keep
+paging and `data` as the payload of the page in hand — page until `has_more` is
+`false`, rather than until `data` is empty.
 
 ## Pagination
 
@@ -664,16 +696,19 @@ Validation failures add an `errors` array describing each offending field:
 per-request byte ceiling (`BIGQUERY_MAX_BYTES_BILLED`, **1 GiB** by default).
 BigQuery checks it while planning the job, so an over-budget request is refused
 before anything is scanned — the query never runs and costs nothing. The
-response says how far over it went and by how much to cut back:
+response names the two levers that bring a request under the ceiling:
 
 ```json
 {
   "status": "error",
-  "message": "The requested date range is too large for hourly data: it would scan 5.2 GB of data, above the 1.0 GB limit for a single request. Shorten the date range by about 6x, or request a coarser frequency such as daily, then try again.",
+  "message": "The requested date range is too wide for hourly data. Shorten the date range or request a coarser frequency such as daily.",
   "data": null,
   "metadata": null
 }
 ```
+
+The coarser-frequency clause appears at `raw` and `hourly` frequency, where a
+coarser one exists. Above hourly the message names the date range alone.
 
 Bytes are billed per **time partition scanned**, so the date range is the lever
 that moves the figure. Narrowing `sites`/`device_ids` does not help — that
