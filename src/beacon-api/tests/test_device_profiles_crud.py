@@ -53,6 +53,8 @@ class TestDeviceProfilesCRUD(unittest.TestCase):
         app.dependency_overrides.clear()
         self.db.rollback()
         self.db.close()
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
 
     def test_schema_importable_from_both_modules(self):
         self.assertIs(SchemaFromDiag, SchemaFromDevice)

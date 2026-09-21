@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # Scheduler
     SCHEDULER_ENABLED: bool = True
     SYNC_INTERVAL_MINUTES: int = 30
+    DAILY_DIAGNOSTICS_ENABLED: bool = True  # Diagnose each completed device-day after the scheduled ThingSpeak sync
 
     # Tokens
     ORG_TOKEN: str = ""

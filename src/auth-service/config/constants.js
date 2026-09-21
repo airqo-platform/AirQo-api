@@ -86,6 +86,50 @@ function envConfig(env) {
       const v = parseInt(process.env.ACTIVITY_LOG_RETENTION_DAYS, 10);
       return Number.isFinite(v) && v > 0 ? v : 0;
     })(),
+    // ── User usage tracking (API + page usage rollups) ────────────────────────
+    // Master switch for recording usage on the nginx verify hop and via the
+    // page-event beacon. Reads of already-recorded usage are unaffected.
+    USAGE_TRACKING_ENABLED: parseBool(process.env.USAGE_TRACKING_ENABLED, true),
+    // How often the in-memory usage buffer is flushed to MongoDB.
+    USAGE_FLUSH_INTERVAL_MS: (() => {
+      const v = parseInt(process.env.USAGE_FLUSH_INTERVAL_MS, 10);
+      return Number.isFinite(v) && v >= 1000 ? v : 15000;
+    })(),
+    // Upper bound on distinct (tenant, user, day) entries held in memory
+    // between flushes; further new entries are shed until the next flush.
+    USAGE_BUFFER_MAX_ENTRIES: (() => {
+      const v = parseInt(process.env.USAGE_BUFFER_MAX_ENTRIES, 10);
+      return Number.isFinite(v) && v > 0 ? v : 5000;
+    })(),
+    // Distinct page / endpoint keys accepted per (user, day) per flush window;
+    // overflow is folded into a single "(other)" key to bound document size.
+    USAGE_MAX_KEYS_PER_ENTRY: (() => {
+      const v = parseInt(process.env.USAGE_MAX_KEYS_PER_ENTRY, 10);
+      return Number.isFinite(v) && v > 0 ? v : 50;
+    })(),
+    // Hard budget of distinct page keys and of endpoint keys persisted in ONE
+    // (user, day) document across all flushes; overflow is folded into
+    // "(other)". Bounds document size no matter how many paths a client sends.
+    USAGE_MAX_KEYS_PER_DAY: (() => {
+      const v = parseInt(process.env.USAGE_MAX_KEYS_PER_DAY, 10);
+      return Number.isFinite(v) && v > 0 ? v : 200;
+    })(),
+    // Daily usage documents expire after this many months (TTL index).
+    USAGE_RETENTION_MONTHS: (() => {
+      const v = parseInt(process.env.USAGE_RETENTION_MONTHS, 10);
+      return Number.isFinite(v) && v > 0 ? v : 25;
+    })(),
+    // After this many months the per-page/endpoint breakdown on daily usage
+    // documents is dropped (compacted), keeping only the daily totals.
+    USAGE_DETAIL_RETENTION_MONTHS: (() => {
+      const v = parseInt(process.env.USAGE_DETAIL_RETENTION_MONTHS, 10);
+      return Number.isFinite(v) && v > 0 ? v : 13;
+    })(),
+    // Email domains treated as internal (staff/test) accounts. Empty by
+    // default, in which case the "exclude internal" filter is a no-op.
+    USAGE_INTERNAL_EMAIL_DOMAINS: parseCSV(
+      (process.env.USAGE_INTERNAL_EMAIL_DOMAINS || "").toLowerCase(),
+    ),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
     POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),
@@ -108,6 +152,7 @@ function envConfig(env) {
       ? `${nexusBaseUrl}/user/login`
       : undefined,
     FORGOT_PAGE: nexusBaseUrl ? `${nexusBaseUrl}/forgot` : undefined,
+    SIGN_IN_LINK: nexusBaseUrl ? `${nexusBaseUrl}/user/emailLogin` : undefined,
     PLATFORM_BASE_URL: nexusBaseUrl,
 
     // ── Per-environment defaults ──────────────────────────────────────────────

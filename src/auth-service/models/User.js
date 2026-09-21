@@ -244,6 +244,8 @@ const UserSchema = new Schema(
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    signInToken: { type: String },
+    signInTokenExpires: { type: Date },
     jobTitle: {
       type: String,
     },
@@ -706,11 +708,10 @@ UserSchema.statics = {
           foreignField: "user_id",
           as: "clients",
         })
-        .lookup({
-          from: "users",
-          localField: "clients.user_id",
-          foreignField: "_id",
-          as: "api_clients",
+        .addFields({
+          has_clients: {
+            $gt: [{ $size: { $ifNull: ["$clients", []] } }, 0],
+          },
         })
         .group({
           _id: null,
@@ -740,14 +741,20 @@ UserSchema.statics = {
               },
             },
           },
-          client_users: { $addToSet: "$clients.user_id" },
+          api_users: { $sum: { $cond: ["$has_clients", 1, 0] } },
           api_user_details: {
             $addToSet: {
-              userName: { $arrayElemAt: ["$api_clients.userName", 0] },
-              email: { $arrayElemAt: ["$api_clients.email", 0] },
-              firstName: { $arrayElemAt: ["$api_clients.firstName", 0] },
-              lastName: { $arrayElemAt: ["$api_clients.lastName", 0] },
-              _id: { $arrayElemAt: ["$api_clients._id", 0] },
+              $cond: {
+                if: "$has_clients",
+                then: {
+                  userName: "$userName",
+                  email: "$email",
+                  firstName: "$firstName",
+                  lastName: "$lastName",
+                  _id: "$_id",
+                },
+                else: "$nothing",
+              },
             },
           },
         })
@@ -762,7 +769,7 @@ UserSchema.statics = {
             details: "$active_user_details",
           },
           api_users: {
-            number: { $size: { $ifNull: ["$client_users", []] } },
+            number: "$api_users",
             details: "$api_user_details",
           },
         })

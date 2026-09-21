@@ -188,9 +188,14 @@ def get_device_data_for_devices(
     model_cls, ts_col, _suffix = _FREQ_CONFIG[frequency]
     ts_attr = getattr(model_cls, ts_col)
 
-    query = db.query(model_cls).filter(model_cls.channel_id.in_(list(name_by_channel.keys())))
-    query = _apply_time_range(query, ts_attr, frequency, start, end)
-    rows = query.order_by(ts_attr.asc()).all()
+    channels = list(name_by_channel.keys())
+    BATCH_SIZE = 200
+    rows = []
+    for i in range(0, len(channels), BATCH_SIZE):
+        batch = channels[i : i + BATCH_SIZE]
+        query = db.query(model_cls).filter(model_cls.channel_id.in_(batch))
+        query = _apply_time_range(query, ts_attr, frequency, start, end)
+        rows.extend(query.order_by(ts_attr.asc()).all())
 
     records_by_device = _group_rows_by_device(rows, name_by_channel, device_names, frequency)
     return records_by_device, info_by_name
@@ -211,13 +216,117 @@ def get_latest_raw_timestamps(
     if not ids:
         return {}
 
-    rows = (
-        db.query(
-            SyncRawDeviceData.channel_id,
-            func.max(SyncRawDeviceData.created_at_ts).label("last_ts"),
+    BATCH_SIZE = 200
+    out: Dict[str, datetime] = {}
+    for i in range(0, len(ids), BATCH_SIZE):
+        batch = ids[i : i + BATCH_SIZE]
+        rows = (
+            db.query(
+                SyncRawDeviceData.channel_id,
+                func.max(SyncRawDeviceData.created_at_ts).label("last_ts"),
+            )
+            .filter(SyncRawDeviceData.channel_id.in_(batch))
+            .group_by(SyncRawDeviceData.channel_id)
+            .all()
         )
-        .filter(SyncRawDeviceData.channel_id.in_(ids))
-        .group_by(SyncRawDeviceData.channel_id)
-        .all()
-    )
-    return {str(r.channel_id): r.last_ts for r in rows if r.last_ts is not None}
+        for r in rows:
+            if r.last_ts is not None:
+                out[str(r.channel_id)] = r.last_ts
+    return out
+
+
+def get_device_metrics_for_map_view(
+    db: Session,
+    channel_ids: Iterable[str],
+    start: Optional[str],
+    end: Optional[str],
+    frequency: str = "hourly",
+) -> Dict[str, Dict[str, float]]:
+    """
+    Compute lightweight aggregate metrics (uptime, data_completeness, error_margin)
+    for map-view devices directly in SQL.
+
+    Instead of fetching hundreds of thousands of raw/hourly rows into Python,
+    this function executes a single GROUP BY query returning only 1 summary row per channel.
+
+    Returns:
+        {channel_id_str: {"uptime": float, "data_completeness": float, "error_margin": float}}
+    """
+    frequency = (frequency or "hourly").lower()
+    if frequency not in _FREQ_CONFIG:
+        raise ValueError(
+            f"Invalid frequency {frequency!r}. Expected one of: "
+            f"{sorted(_FREQ_CONFIG)}"
+        )
+
+    ids = [str(c) for c in channel_ids if c is not None and str(c) != ""]
+    if not ids:
+        return {}
+
+    model_cls, ts_col, _suffix = _FREQ_CONFIG[frequency]
+    ts_attr = getattr(model_cls, ts_col)
+
+    start_dt = _parse_datetime(start)
+    end_dt = _parse_datetime(end)
+    use_days = frequency == "daily"
+    if start_dt and end_dt and end_dt > start_dt:
+        if use_days:
+            total_buckets = max(1, int((end_dt.date() - start_dt.date()).days) + 1)
+        else:
+            total_buckets = max(1, int((end_dt - start_dt).total_seconds() // 3600))
+    else:
+        total_buckets = 1
+
+    if frequency == "raw":
+        field1_col = model_cls.field1
+        field3_col = model_cls.field3
+        bind = db.get_bind() if hasattr(db, "get_bind") else getattr(db, "bind", None)
+        is_sqlite = bind is not None and getattr(bind.dialect, "name", "") == "sqlite"
+        if is_sqlite:
+            hour_expr = func.strftime("%Y-%m-%d %H", model_cls.created_at_ts)
+        else:
+            hour_expr = func.date_trunc("hour", model_cls.created_at_ts)
+        bucket_expr = func.count(func.distinct(hour_expr))
+    elif frequency == "daily":
+        field1_col = model_cls.field1_avg
+        field3_col = model_cls.field3_avg
+        bucket_expr = func.count(func.distinct(model_cls.data_date))
+    else:  # hourly
+        field1_col = model_cls.field1_avg
+        field3_col = model_cls.field3_avg
+        bucket_expr = func.count(func.distinct(model_cls.hour_start))
+
+    BATCH_SIZE = 200
+    metrics_by_channel: Dict[str, Dict[str, float]] = {}
+
+    for i in range(0, len(ids), BATCH_SIZE):
+        batch = ids[i : i + BATCH_SIZE]
+        query = (
+            db.query(
+                model_cls.channel_id,
+                bucket_expr.label("bucket_count"),
+                func.avg(field1_col).label("avg_s1"),
+                func.avg(field3_col).label("avg_s2"),
+            )
+            .filter(model_cls.channel_id.in_(batch))
+        )
+        query = _apply_time_range(query, ts_attr, frequency, start, end)
+        rows = query.group_by(model_cls.channel_id).all()
+
+        for row in rows:
+            cid = str(row.channel_id)
+            bucket_count = row.bucket_count or 0
+            uptime = round(min(bucket_count / total_buckets, 1.0) * 100.0, 2)
+            avg_s1 = row.avg_s1
+            avg_s2 = row.avg_s2
+            if avg_s1 is not None and avg_s2 is not None:
+                err = round(abs(avg_s1 - avg_s2), 4)
+            else:
+                err = 0.0
+            metrics_by_channel[cid] = {
+                "uptime": uptime,
+                "data_completeness": uptime,
+                "error_margin": err,
+            }
+
+    return metrics_by_channel

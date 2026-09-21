@@ -747,6 +747,16 @@ describe("createSite Util Functions", () => {
   });
 
   describe("findNearestSitesByCoordinates", () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it("should find nearest sites", async () => {
       const radius = 10;
       const latitude = 0.1;
@@ -780,6 +790,117 @@ describe("createSite Util Functions", () => {
 
       // On DB error, the catch block calls next(HttpError) without returning
       expect(result !== undefined || next.called).to.be.true;
+    });
+
+    // Mock @models/Site via proxyquire (same approach as listForComparisonPicker
+    // below) rather than stubbing SiteModel(tenant) directly — the latter requires
+    // a live mongoose connection lookup and throws "Query database connection not
+    // established" in this test environment.
+    //
+    // Radius filtering, distance sort and the result-count cap now happen
+    // inside the $geoNear-backed SiteModel.findNearestSites static (see
+    // models/Site.js), not in this util — so these tests assert that the
+    // util builds the right query args and passes the model's response
+    // through unchanged, rather than re-testing geo math here.
+    describe("with a mocked site model", () => {
+      const proxyquire = require("proxyquire");
+      let proxiedSiteUtil;
+      let findNearestSitesStub;
+      let next;
+
+      beforeEach(() => {
+        findNearestSitesStub = sinon.stub();
+        proxiedSiteUtil = proxyquire("../site.util", {
+          "@models/Site": () => ({
+            findNearestSites: findNearestSitesStub,
+          }),
+        });
+        next = sinon.stub();
+      });
+
+      afterEach(() => {
+        sinon.restore();
+      });
+
+      it("delegates to SiteModel.findNearestSites with the request's coordinates, radius and limit", async () => {
+        const sites = [{ _id: "near", distance_km: 0.5 }];
+        findNearestSitesStub.resolves({
+          success: true,
+          data: sites,
+          status: httpStatus.OK,
+        });
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: {
+              radius: 10,
+              latitude: 0.1,
+              longitude: 32.1,
+              tenant: "airqo",
+              limit: 5,
+            },
+            params: {},
+          },
+          next
+        );
+
+        expect(findNearestSitesStub.calledOnce).to.be.true;
+        const args = findNearestSitesStub.firstCall.args[0];
+        expect(args.latitude).to.equal(0.1);
+        expect(args.longitude).to.equal(32.1);
+        expect(args.radius).to.equal(10);
+        expect(args.limit).to.equal(5);
+
+        expect(result.success).to.equal(true);
+        expect(result.data).to.deep.equal(sites);
+      });
+
+      it("passes online_status through as an isOnline filter", async () => {
+        findNearestSitesStub.resolves({
+          success: true,
+          data: [],
+          status: httpStatus.OK,
+        });
+
+        await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: {
+              radius: 10,
+              latitude: 0,
+              longitude: 0,
+              tenant: "airqo",
+              online_status: "online",
+            },
+            params: {},
+          },
+          next
+        );
+
+        const args = findNearestSitesStub.firstCall.args[0];
+        expect(args.filter.isOnline).to.equal(true);
+      });
+
+      it("returns the model's failure response unchanged", async () => {
+        const failureResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+        findNearestSitesStub.resolves(failureResponse);
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: { radius: 10, latitude: 0, longitude: 0, tenant: "airqo" },
+            params: {},
+          },
+          next
+        );
+
+        expect(result).to.deep.equal(failureResponse);
+      });
     });
   });
 

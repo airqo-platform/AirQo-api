@@ -265,6 +265,15 @@ describe("create-user-util", function () {
       expect(result.data).to.deep.equal(sampleStatisticsData);
     });
 
+    it("should pass next (not tenant) to UserModel.listStatistics", async function () {
+      const next = sinon.stub();
+      listStatisticsStub.resolves({ success: true, data: {} });
+
+      await rewireCreateUser.listStatistics("airqo", next);
+
+      sinon.assert.calledOnceWithExactly(listStatisticsStub, next);
+    });
+
     it("should handle errors from UserModel.listStatistics", async function () {
       const tenant = "example_tenant";
       const next = sinon.stub();
@@ -277,6 +286,211 @@ describe("create-user-util", function () {
       const err = next.firstCall.args[0];
       expect(err).to.be.instanceOf(Error);
       expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+  describe("exportStatsSegment", function () {
+    let origUserModel;
+    let aggregateStub;
+    let allowDiskUseStub;
+
+    const buildRequest = (segment, extra = {}) => ({
+      query: { tenant: "airqo", segment, ...extra },
+    });
+
+    const facetResult = (users = [], counts = []) => [{ users, counts }];
+
+    const facetStage = (pipeline) => pipeline.find((s) => s.$facet).$facet;
+
+    beforeEach(function () {
+      allowDiskUseStub = sinon.stub();
+      aggregateStub = sinon.stub().returns({ allowDiskUse: allowDiskUseStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        aggregate: aggregateStub,
+      }));
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("returns users, totals and paging info for the total segment without extra filters", async function () {
+      const users = [{ _id: "1", email: "a@b.com", unsubscribed: false }];
+      allowDiskUseStub.resolves(facetResult(users, [{ _id: false, count: 1 }]));
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total"),
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal({
+        segment: "total",
+        total: 1,
+        unsubscribed_total: 0,
+        skip: 0,
+        limit: 500,
+        has_more: false,
+        users,
+      });
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline[0]).to.deep.equal({
+        $match: { email: { $nin: [null, ""] } },
+      });
+      expect(pipeline.filter((s) => s.$match)).to.have.lengthOf(1);
+    });
+
+    it("filters the active segment on isActive", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("active"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline).to.deep.include({ $match: { isActive: true } });
+    });
+
+    it("filters the verified segment on verified", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("verified"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline).to.deep.include({ $match: { verified: true } });
+    });
+
+    it("keeps only users with at least one client for the api segment", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("api"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "clients"))
+        .to.be.true;
+      expect(pipeline).to.deep.include({
+        $match: { "clients.0": { $exists: true } },
+      });
+    });
+
+    it("projects only lightweight contact fields", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("total"));
+
+      const project = aggregateStub.firstCall.args[0].find((s) => s.$project)
+        .$project;
+      expect(project).to.include.keys(["email", "firstName", "lastName"]);
+      expect(project).to.not.have.any.keys([
+        "permissions",
+        "clients",
+        "group_roles",
+      ]);
+    });
+
+    it("looks up local opt-outs and keeps unsubscribed users by default", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [
+            { _id: "1", email: "a@b.com", unsubscribed: false },
+            { _id: "2", email: "c@d.com", unsubscribed: true },
+          ],
+          [
+            { _id: false, count: 1 },
+            { _id: true, count: 1 },
+          ],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total"),
+      );
+
+      expect(result.data.total).to.equal(2);
+      expect(result.data.unsubscribed_total).to.equal(1);
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "subscriptions"))
+        .to.be.true;
+      expect(facetStage(pipeline).users).to.not.deep.include({
+        $match: { unsubscribed: false },
+      });
+    });
+
+    it("excludes unsubscribed users and their count from total when exclude_unsubscribed is true", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [{ _id: "1", email: "a@b.com", unsubscribed: false }],
+          [
+            { _id: false, count: 1 },
+            { _id: true, count: 1 },
+          ],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { exclude_unsubscribed: true }),
+      );
+
+      expect(result.data.total).to.equal(1);
+      expect(result.data.unsubscribed_total).to.equal(1);
+      expect(facetStage(aggregateStub.firstCall.args[0]).users).to.deep.include({
+        $match: { unsubscribed: false },
+      });
+    });
+
+    it("applies skip and limit, sorts deterministically, and reports has_more", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [{ _id: "3", email: "c@d.com", unsubscribed: false }],
+          [{ _id: false, count: 5 }],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { skip: 2, limit: 1 }),
+      );
+
+      const usersStages = facetStage(aggregateStub.firstCall.args[0]).users;
+      expect(usersStages).to.deep.include({ $sort: { createdAt: -1, _id: -1 } });
+      expect(usersStages).to.deep.include({ $skip: 2 });
+      expect(usersStages).to.deep.include({ $limit: 1 });
+      expect(result.data.skip).to.equal(2);
+      expect(result.data.limit).to.equal(1);
+      expect(result.data.total).to.equal(5);
+      expect(result.data.has_more).to.be.true;
+    });
+
+    it("clamps limit to the maximum page size", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { limit: 999999 }),
+      );
+
+      expect(result.data.limit).to.equal(1000);
+      expect(facetStage(aggregateStub.firstCall.args[0]).users).to.deep.include({
+        $limit: 1000,
+      });
+    });
+
+    it("returns empty totals when nothing matches", async function () {
+      allowDiskUseStub.resolves([]);
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("api"),
+      );
+
+      expect(result.data.total).to.equal(0);
+      expect(result.data.users).to.deep.equal([]);
+      expect(result.data.has_more).to.be.false;
+    });
+
+    it("forwards an Internal Server Error when the aggregation fails", async function () {
+      const next = sinon.stub();
+      allowDiskUseStub.rejects(new Error("db down"));
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("total"), next);
+
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0].message).to.equal("Internal Server Error");
     });
   });
   describe("getStatsBreakdown", function () {
@@ -921,6 +1135,10 @@ describe("create-user-util", function () {
       },
     };
     let origGenerateNumericToken;
+    let origUserModel;
+    let existsStub;
+    let modifyStub;
+    let internalModule;
 
     beforeEach(() => {
       origGenerateNumericToken = rewireCreateUser.__get__(
@@ -930,6 +1148,20 @@ describe("create-user-util", function () {
         "generateNumericToken",
         sinon.stub().returns("54321")
       );
+
+      existsStub = sinon.stub().resolves(true);
+      modifyStub = sinon.stub().resolves({ success: true });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        exists: existsStub,
+        modify: modifyStub,
+      }));
+
+      internalModule = rewireCreateUser.__get__("createUserModule");
+      sinon.stub(internalModule, "generateResetToken").returns({
+        success: true,
+        data: "SAMPLECODE",
+      });
     });
 
     afterEach(() => {
@@ -937,17 +1169,11 @@ describe("create-user-util", function () {
         "generateNumericToken",
         origGenerateNumericToken
       );
+      rewireCreateUser.__set__("UserModel", origUserModel);
       sinon.restore();
     });
 
     it("should generate the sign-in link with email correctly and send email for authentication", async () => {
-      const generateSignInWithEmailLinkStub = sinon
-        .stub()
-        .resolves("https://example.com/?a=1%26oobCode%3DSAMPLECODE");
-      sinon.stub(firebaseAuthModule, "getAuth").returns({
-        generateSignInWithEmailLink: generateSignInWithEmailLinkStub,
-      });
-
       const authenticateEmailStub = sinon
         .stub(mailer, "authenticateEmail")
         .resolves({ success: true });
@@ -961,26 +1187,43 @@ describe("create-user-util", function () {
         message: "process successful, check your email for token",
         status: httpStatus.OK,
         data: {
-          link: "https://example.com/?a=1%26oobCode%3DSAMPLECODE",
+          link: `${constants.SIGN_IN_LINK}?token=SAMPLECODE&email=test%40example.com`,
           token: "54321",
           email: "test@example.com",
           emailLinkCode: "SAMPLECODE",
         },
       });
 
-      sinon.assert.calledOnce(generateSignInWithEmailLinkStub);
+      sinon.assert.calledOnce(existsStub);
+      sinon.assert.calledOnce(modifyStub);
       sinon.assert.calledOnceWithMatch(authenticateEmailStub, {
         email: "test@example.com",
         token: "54321",
       });
     });
 
+    it("should return a 400 error and not send an email when the account does not exist", async () => {
+      existsStub.resolves(false);
+      const authenticateEmailStub = sinon
+        .stub(mailer, "authenticateEmail")
+        .resolves({ success: true });
+      const next = sinon.stub();
+
+      await rewireCreateUser.generateSignInWithEmailLink(
+        sampleRequest,
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
+      sinon.assert.notCalled(modifyStub);
+      sinon.assert.notCalled(authenticateEmailStub);
+    });
+
     it("should handle errors and return an error response", async () => {
-      sinon.stub(firebaseAuthModule, "getAuth").returns({
-        generateSignInWithEmailLink: sinon
-          .stub()
-          .rejects(new Error("Some error")),
-      });
+      existsStub.rejects(new Error("Some error"));
       const next = sinon.stub();
 
       await rewireCreateUser.generateSignInWithEmailLink(
@@ -993,6 +1236,74 @@ describe("create-user-util", function () {
       expect(err).to.be.instanceOf(Error);
       expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+  describe("completeSignInWithEmailLink()", () => {
+    const sampleRequest = {
+      body: {
+        email: "test@example.com",
+        token: "SAMPLECODE",
+      },
+      query: {},
+    };
+    let origUserModel;
+    let findOneAndUpdateStub;
+    let internalModule;
+
+    beforeEach(() => {
+      findOneAndUpdateStub = sinon.stub();
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findOneAndUpdate: findOneAndUpdateStub,
+      }));
+      internalModule = rewireCreateUser.__get__("createUserModule");
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should complete sign-in and return the enhanced login response when the token is valid", async () => {
+      findOneAndUpdateStub.resolves({ _id: "u1", email: "test@example.com" });
+      const loginStub = sinon
+        .stub(internalModule, "loginWithEnhancedTokens")
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          data: { _id: "u1", email: "test@example.com", token: "JWT abc" },
+        });
+
+      const result = await rewireCreateUser.completeSignInWithEmailLink(
+        sampleRequest
+      );
+
+      expect(result).to.deep.equal({
+        success: true,
+        status: httpStatus.OK,
+        data: { _id: "u1", email: "test@example.com", token: "JWT abc" },
+      });
+      sinon.assert.calledOnceWithMatch(
+        loginStub,
+        { body: { email: "test@example.com" } },
+        sinon.match.any,
+        { skipPasswordCheck: true }
+      );
+    });
+
+    it("should call next with a 400 error when the token is invalid or expired", async () => {
+      findOneAndUpdateStub.resolves(null);
+      const next = sinon.stub();
+
+      await rewireCreateUser.completeSignInWithEmailLink(
+        sampleRequest,
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
   });
   describe("delete()", () => {

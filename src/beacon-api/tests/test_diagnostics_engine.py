@@ -9,6 +9,22 @@ from app.services.diagnostics.evidence import EvidenceEngine, EvidenceFact
 from app.services.diagnostics.reasoner import DiagnosticReasoner
 from app.services.diagnostics.evaluator import DiagnosticEvaluator
 from app.services.diagnostics.seeds import get_default_candidate_causes
+from app.services.diagnostics.profile_model import (
+    ProfileNotDiagnosableError,
+    build_model,
+    resolve_expected_interval_seconds,
+)
+from app.services.diagnostics.indicators import compute_indicators
+from app.services.diagnostics.root_cause import RootCauseAnalyzer
+from tests.diagnostics_fixtures import (
+    BATTERY_ID,
+    COMM_ID,
+    PM1_ID,
+    healthy_pm,
+    lowcost_profile,
+    make_records,
+    profile_orm,
+)
 from main import app
 
 
@@ -49,7 +65,7 @@ class TestDiagnosticsFeatureExtractor(unittest.TestCase):
             {"datetime": base_ts + (i * 120), "battery_voltage": 12.5}
             for i in range(6)
         ]
-        features = FeatureExtractor.extract_all_features(records, expected_frequency_minutes=2)
+        features = FeatureExtractor.extract_all_features(records, expected_interval_seconds=120)
         # Interval span is 10 min / 2 min = 5 intervals. Including initial sample, expected is 5 + 1 = 6 records.
         self.assertEqual(features["record_count"], 6)
         self.assertEqual(features["expected_records"], 6)
@@ -71,8 +87,66 @@ class TestDiagnosticsFeatureExtractor(unittest.TestCase):
         self.assertAlmostEqual(batt_metrics["gradient_per_hour"], -0.5, places=2)
         self.assertEqual(batt_metrics["count"], 3)
 
+    def test_completeness_is_skipped_without_reporting_interval(self):
+        records = [{"datetime": 1700000000 + i * 120, "battery_voltage": 4.0} for i in range(6)]
+        features = FeatureExtractor.extract_all_features(records)
+        self.assertIsNone(features["missing_rate"])
+        self.assertIsNone(features["expected_records"])
+
+    def test_completeness_over_a_fixed_window(self):
+        records = [{"datetime": 1700000000 + i * 600, "battery_voltage": 4.0} for i in range(36)]
+        features = FeatureExtractor.extract_all_features(records, expected_interval_seconds=300, window_seconds=86400)
+        self.assertEqual(features["expected_records"], 288)
+        self.assertAlmostEqual(features["missing_rate"], 1 - 36 / 288, places=3)
+
+    def test_max_rate_per_hour_uses_windowed_fit(self):
+        base_ts = 1700000000
+        # Flat for an hour, then rising 1.2 units/hour for the next hour
+        timestamps = [base_ts + i * 600 for i in range(12)]
+        values = [4.0] * 6 + [4.0 + 0.2 * i for i in range(6)]
+        max_rate, signed = FeatureExtractor.calculate_max_rate_per_hour(values, timestamps)
+        self.assertAlmostEqual(max_rate, 1.2, places=2)
+        self.assertGreater(signed, 0)
+
+    def test_rise_and_fall_rates_are_separated(self):
+        base_ts = 1700000000
+        # Rises 1.2/h for an hour, then falls 0.6/h for an hour
+        timestamps = [base_ts + i * 600 for i in range(12)]
+        values = [4.0 + 0.2 * i for i in range(6)] + [5.0 - 0.1 * i for i in range(6)]
+        rise, fall = FeatureExtractor.calculate_max_rates_per_hour(values, timestamps)
+        self.assertAlmostEqual(rise, 1.2, places=2)
+        self.assertAlmostEqual(fall, 0.6, places=2)
+        features = FeatureExtractor.extract_all_features([{"datetime": t, "x": v} for t, v in zip(timestamps, values)])
+        self.assertAlmostEqual(features["metrics"]["x"]["max_fall_per_hour"], 0.6, places=2)
+        self.assertEqual(features["metrics"]["x"]["max_rate_per_hour"], features["metrics"]["x"]["max_rise_per_hour"])
+
+    def test_records_without_timestamp_are_excluded(self):
+        records = [{"datetime": 1700000000 + i * 120, "battery_voltage": 4.0} for i in range(6)]
+        records.append({"battery_voltage": 4.0})
+        records.append({"datetime": "not-a-date", "battery_voltage": 4.0})
+        features = FeatureExtractor.extract_all_features(records, expected_interval_seconds=120)
+        self.assertEqual(features["record_count"], 6)
+        self.assertEqual(features["records_without_timestamp"], 2)
+        self.assertEqual(features["expected_records"], 6)
+        self.assertEqual(features["missing_rate"], 0.0)
+
+        untimed = FeatureExtractor.extract_all_features([{"battery_voltage": 4.0}], expected_interval_seconds=120)
+        self.assertEqual(untimed["record_count"], 0)
+        self.assertIsNone(untimed["missing_rate"])
+
+    def test_naive_timestamps_are_utc_in_every_form(self):
+        expected = datetime(2026, 9, 10, tzinfo=timezone.utc).timestamp()
+        for value in (
+            datetime(2026, 9, 10),
+            "2026-09-10T00:00:00",
+            "2026-09-10T00:00:00Z",
+            "2026-09-10T03:00:00+03:00",
+            datetime(2026, 9, 10, tzinfo=timezone.utc),
+        ):
+            self.assertEqual(FeatureExtractor.get_record_timestamp({"datetime": value}), expected, value)
+
     def test_dual_pm_pairs_timestamp_alignment(self):
-        # pm2_5_sensor1 and pm2_5_sensor2 should only pair when both are present at same timestamp
+        # Paired series should only include records where both sensors are present
         base_ts = 1700000000
         records = [
             # Both present: 20.0 and 20.1
@@ -86,119 +160,283 @@ class TestDiagnosticsFeatureExtractor(unittest.TestCase):
             # Both present: 30.0 and 30.1
             {"datetime": base_ts + 480, "pm2_5_sensor1": 30.0, "pm2_5_sensor2": 30.1},
         ]
-        features = FeatureExtractor.extract_all_features(records)
-        agreement = features.get("pm_sensor_agreement")
-        self.assertIsNotNone(agreement)
+        series_a, series_b = FeatureExtractor.paired_values(records, "pm2_5_sensor1", "pm2_5_sensor2")
+        agreement = FeatureExtractor.calculate_cross_sensor_agreement(series_a, series_b)
         # The 3 valid co-located pairs are (20.0, 20.1), (25.0, 25.2), (30.0, 30.1)
         self.assertEqual(agreement["valid_pairs"], 3)
         self.assertGreaterEqual(agreement["correlation"], 0.99)
         self.assertLess(agreement["mean_absolute_error"], 0.3)
 
 
+class TestProfileModel(unittest.TestCase):
+    def test_builds_dependencies_pairs_and_transmission_from_profile(self):
+        model = build_model(lowcost_profile())
+        self.assertTrue(model.diagnosable)
+        self.assertEqual(model.upstream["communication"], ["device_battery"])
+        self.assertEqual(model.upstream["pm_sensor1"], ["device_battery"])
+        self.assertEqual(model.transmission_components, ["communication"])
+        self.assertEqual(len(model.redundant_pairs), 1)
+        pair = model.redundant_pairs[0]
+        self.assertEqual((pair.metric_a, pair.metric_b), ("pm2_5_sensor1", "pm2_5_sensor2"))
+        self.assertTrue(any("temperature" in w for w in model.warnings))
+
+    def test_readiness_reports_missing_profile_pieces(self):
+        profile = lowcost_profile()
+        profile["config_mappings"] = {}
+        profile["components"][1]["metrics"][0]["expected_max"] = None
+        profile["components"][1]["metrics"][0]["expected_min"] = None
+        profile["components"][1]["metrics"].append({"key": "not_mapped_metric", "unit": "x"})
+        # A second mapped metric with the same unit makes the MEASURES_SAME_AS pairing ambiguous
+        profile["components"][2]["metrics"].append({"key": "temperature", "unit": "ug/m3"})
+        profile["relationships"].append(
+            {"source_component_id": profile["components"][0]["id"],
+             "target_component_id": profile["components"][1]["id"], "relationship_type": "HEATS"}
+        )
+        warnings = " | ".join(build_model(profile).warnings)
+        self.assertIn("No 'reporting_interval' config mapping", warnings)
+        self.assertIn("'pm_sensor1.pm2_5_sensor1' has no expected_min/expected_max", warnings)
+        self.assertIn("'pm_sensor1.not_mapped_metric' is not mapped", warnings)
+        self.assertIn("Unsupported relationship types ignored: HEATS", warnings)
+        self.assertIn("could not match metrics", warnings)
+
+    def test_profile_without_components_is_not_diagnosable(self):
+        profile = lowcost_profile()
+        profile["components"], profile["relationships"] = [], []
+        model = build_model(profile)
+        self.assertFalse(model.diagnosable)
+        self.assertTrue(model.errors)
+
+    def test_policy_overrides_from_profile_and_component_metadata(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {"completeness": {"max_empty_hour_fraction": 0.9}}}
+        profile["components"][0]["meta_data"] = {"diagnostics": {"disabled_checks": ["METRIC_RATE_EXCEEDED"]}}
+        model = build_model(profile)
+        self.assertEqual(model.policy["completeness"]["max_empty_hour_fraction"], 0.9)
+        self.assertEqual(model.components["device_battery"].policy["disabled_checks"], ["METRIC_RATE_EXCEEDED"])
+        self.assertEqual(model.components["pm_sensor1"].policy["disabled_checks"], [])
+
+    def test_invalid_policy_overrides_are_readiness_errors(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {
+            "diagnostics": {"completeness": None, "rate": {"window_minutes": 0}, "unknown_setting": 1}
+        }
+        profile["components"][0]["meta_data"] = {"diagnostics": {"disabled_checks": "METRIC_STUCK"}}
+        model = build_model(profile)
+
+        self.assertFalse(model.diagnosable)
+        errors = " | ".join(model.errors)
+        self.assertIn("'meta_data.diagnostics.completeness' must be an object", errors)
+        self.assertIn("'meta_data.diagnostics.rate.window_minutes' must be greater than 0", errors)
+        self.assertIn("'components.device_battery.meta_data.diagnostics.disabled_checks' must be a list of strings", errors)
+        self.assertTrue(any("unknown_setting" in w for w in model.warnings))
+        # Rejected overrides fall back to the defaults instead of breaking model construction
+        self.assertEqual(model.policy["completeness"]["max_empty_hour_fraction"], 0.1)
+        with self.assertRaises(ProfileNotDiagnosableError):
+            DiagnosticEvaluator().evaluate_telemetry("dev", make_records(10), profile=profile)
+
+    def test_fraction_policy_settings_must_not_exceed_one(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {
+            "coverage": {"low_charge_fraction": 1.1, "outage_min_minutes": 90},
+            "agreement": {"min_within_tolerance_rate": 1.5},
+            "impact": {"DATA_GAPS": 2},
+        }}
+        errors = " | ".join(build_model(profile).errors)
+        self.assertIn("'meta_data.diagnostics.coverage.low_charge_fraction' must be between 0 and 1", errors)
+        self.assertIn("'meta_data.diagnostics.agreement.min_within_tolerance_rate' must be between 0 and 1", errors)
+        self.assertIn("'meta_data.diagnostics.impact.DATA_GAPS' must be between 0 and 1", errors)
+        self.assertNotIn("outage_min_minutes", errors)
+
+    def test_relationship_metadata_must_be_a_json_object(self):
+        from pydantic import ValidationError
+        from app.schemas.device_schema import ComponentRelationshipCreate
+
+        ids = {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"}
+        parsed = ComponentRelationshipCreate(**ids, meta_data='{"tolerance": {"absolute": 5}}')
+        self.assertEqual(parsed.meta_data, {"tolerance": {"absolute": 5}})
+        self.assertIsNone(ComponentRelationshipCreate(**ids).meta_data)
+        for bad in ("not json {", "[1, 2]", 5):
+            with self.assertRaises(ValidationError):
+                ComponentRelationshipCreate(**ids, meta_data=bad)
+
+    def test_interval_units_are_converted_or_rejected(self):
+        profile = lowcost_profile()
+        profile["config_mappings"]["config1"].update({"unit": "day", "default": 1})
+        self.assertEqual(resolve_expected_interval_seconds(build_model(profile)), 86400.0)
+
+        profile["config_mappings"]["config1"]["unit"] = "fortnight"
+        model = build_model(profile)
+        self.assertIsNone(resolve_expected_interval_seconds(model))
+        self.assertTrue(any("unsupported unit 'fortnight'" in w for w in model.warnings))
+
+    def test_metric_roles_and_pair_tolerance_are_read_from_the_profile(self):
+        model = build_model(lowcost_profile())
+        self.assertEqual(model.readiness()["metric_roles"], {"device_battery.battery_voltage": "charge_level"})
+        pair = model.redundant_pairs[0]
+        self.assertEqual((pair.tolerance_abs, pair.tolerance_rel), (5.0, 0.2))
+        self.assertTrue(pair.within_tolerance(20.0, 24.0))     # within ±5
+        self.assertTrue(pair.within_tolerance(100.0, 118.0))   # within ±20% of the mean
+        self.assertFalse(pair.within_tolerance(20.0, 27.0))
+        source, metric = model.charge_level_feeding("communication")
+        self.assertEqual((source.name, metric.key), ("device_battery", "battery_voltage"))
+
+    def test_readiness_warns_about_missing_roles_and_tolerance(self):
+        profile = lowcost_profile()
+        profile["components"][0]["metrics"][0]["role"] = "voltage"
+        profile["relationships"][3]["meta_data"] = None
+        model = build_model(profile)
+        warnings = " | ".join(model.warnings)
+        self.assertIn("unknown role 'voltage'", warnings)
+        self.assertIn("(battery) has no telemetry-mapped metric with role 'charge_level'", warnings)
+        self.assertIn("has no tolerance in its metadata", warnings)
+        self.assertIsNone(model.charge_level_feeding("communication"))
+
+        profile["relationships"][3]["meta_data"] = {"tolerance": {"absolute": -1}}
+        self.assertFalse(build_model(profile).diagnosable)
+
+    def test_empty_tolerance_is_reported_even_when_other_errors_exist(self):
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {"completeness": None}}     # an unrelated, earlier error
+        profile["relationships"][3]["meta_data"] = {"tolerance": {}}
+        errors = build_model(profile).errors
+        self.assertTrue(any("'meta_data.diagnostics.completeness' must be an object" in e for e in errors))
+        self.assertTrue(any("'tolerance' needs 'absolute' and/or 'relative'" in e for e in errors))
+
+        # An invalid value already explains the problem: no second, redundant message for the same relationship
+        profile["relationships"][3]["meta_data"] = {"tolerance": {"absolute": "five"}}
+        errors = build_model(profile).errors
+        self.assertTrue(any("'tolerance.absolute' must be a number" in e for e in errors))
+        self.assertFalse(any("needs 'absolute' and/or 'relative'" in e for e in errors))
+
+    def test_reporting_interval_prefers_device_config_then_profile_default(self):
+        model = build_model(lowcost_profile())
+        self.assertEqual(resolve_expected_interval_seconds(model), 120.0)
+        self.assertEqual(resolve_expected_interval_seconds(model, {"config1": "600"}), 600.0)
+        profile = lowcost_profile()
+        profile["config_mappings"]["config1"].update({"unit": "min", "default": 10})
+        self.assertEqual(resolve_expected_interval_seconds(build_model(profile)), 600.0)
+
+
 class TestDiagnosticsEvidenceEngine(unittest.TestCase):
     def setUp(self):
         self.engine = EvidenceEngine()
 
-    def test_battery_rapid_discharge_evidence(self):
-        features = {
-            "metrics": {
-                "battery_voltage": {
-                    "gradient_per_hour": -0.38,
-                    "min": 11.0,
-                    "mean": 11.8,
-                }
-            }
-        }
-        evidences = self.engine.evaluate(features)
-        codes = [e.code for e in evidences]
-        self.assertIn("EVID_BATTERY_RAPID_NIGHT_DISCHARGE", codes)
-        self.assertIn("EVID_BATTERY_VOLTAGE_CRITICAL_LOW", codes)
+    def _evidence(self, records, profile=None, interval=120):
+        model = build_model(profile or lowcost_profile())
+        features = FeatureExtractor.extract_all_features(records, expected_interval_seconds=interval)
+        return {e.code: e for e in self.engine.evaluate(features, model, records, interval)}
 
-    def test_solar_clear_sky_evidence(self):
-        features = {
-            "metrics": {
-                "solar_voltage": {"mean": 18.5},
-                "solar_current": {"mean": 0.85},
-            }
-        }
-        context = {"cloud_cover_percentage": 10.0, "is_raining": False}
-        evidences = self.engine.evaluate(features, context=context)
-        codes = [e.code for e in evidences]
-        self.assertIn("EVID_SOLAR_INPUT_NORMAL", codes)
+    def test_limits_come_from_profile_metrics(self):
+        records = make_records(60, battery=lambda i: 3.9)
+        self.assertFalse(any(c.startswith("METRIC_BELOW_MIN") for c in self._evidence(records)))
 
-    def test_solar_metric_selection_ignores_gps_field8_field9(self):
-        # field8 is latitude (~0.35) and field9 is longitude (~32.58)
-        features = {
-            "metrics": {
-                "field8": {"mean": 0.3475},
-                "field9": {"mean": 32.5825},
-                "battery_voltage": {"mean": 12.8, "min": 12.5, "max": 13.0, "gradient_per_hour": 0.0},
-            }
-        }
-        # 1. Profile mapping field8/field9 to GPS latitude and longitude
-        context = {
-            "profile": {
-                "telemetry_mappings": {
-                    "field8": {"key": "latitude_gps", "label": "GPS Latitude"},
-                    "field9": {"key": "longitude_gps", "label": "GPS Longitude"},
-                }
-            },
-            "cloud_cover_percentage": 5.0,
-            "is_raining": False,
-        }
-        evidences = self.engine.evaluate(features, context=context)
-        codes = [e.code for e in evidences]
-        # Must NOT treat GPS coordinates as solar readings, which would falsely emit EVID_SOLAR_UNDERPERFORMING_CLEAR_SKY
-        self.assertNotIn("EVID_SOLAR_UNDERPERFORMING_CLEAR_SKY", codes)
-        self.assertNotIn("EVID_SOLAR_INPUT_NORMAL", codes)
+        profile = lowcost_profile()
+        profile["components"][0]["metrics"][0]["expected_min"] = 3.95
+        evidence = self._evidence(records, profile)
+        below = evidence["METRIC_BELOW_MIN:device_battery.battery_voltage"]
+        self.assertEqual(below.confidence, 1.0)
+        self.assertEqual(below.severity, "CRITICAL")  # criticality 0.7 x confidence 1.0
 
-    def test_solar_metric_selection_accepts_solar_mapped_field8_field9(self):
-        features = {
-            "metrics": {
-                "field8": {"mean": 18.5},
-                "field9": {"mean": 0.85},
-            }
-        }
-        context = {
-            "profile": {
-                "telemetry_mappings": {
-                    "field8": {"key": "solar_voltage", "label": "Solar Panel Voltage"},
-                    "field9": {"key": "solar_current", "label": "Solar Panel Current"},
-                }
-            },
-            "cloud_cover_percentage": 5.0,
-            "is_raining": False,
-        }
-        evidences = self.engine.evaluate(features, context=context)
-        codes = [e.code for e in evidences]
-        self.assertIn("EVID_SOLAR_INPUT_NORMAL", codes)
+    def test_battery_below_min_and_rate_exceeded(self):
+        # 3.9 V -> 2.6 V over 3 hours (~0.43 V/h against a 0.3 V/h limit)
+        records = make_records(90, battery=lambda i: 3.9 - 1.3 * i / 89)
+        evidence = self._evidence(records)
+        self.assertIn("METRIC_BELOW_MIN:device_battery.battery_voltage", evidence)
+        rate = evidence["METRIC_RATE_EXCEEDED:device_battery.battery_voltage"]
+        self.assertIn("discharging", rate.description)
 
-    def test_solar_metric_selection_ignores_unmapped_field8_field9(self):
-        features = {
-            "metrics": {
-                "field8": {"mean": 0.3475},
-                "field9": {"mean": 32.5825},
-            }
-        }
-        # No profile provided: fallback set is restricted to semantic solar keys
-        context = {"cloud_cover_percentage": 5.0, "is_raining": False}
-        evidences = self.engine.evaluate(features, context=context)
-        codes = [e.code for e in evidences]
-        self.assertNotIn("EVID_SOLAR_UNDERPERFORMING_CLEAR_SKY", codes)
+    def test_charge_level_rate_limit_ignores_charging(self):
+        # Rises 0.6 V/h (charging) then holds: above the 0.3 V/h limit, but rises are not a fault for charge_level
+        records = make_records(90, battery=lambda i: 3.4 + min(i, 45) * 0.6 / 30)
+        self.assertNotIn("METRIC_RATE_EXCEEDED:device_battery.battery_voltage", self._evidence(records))
 
-    def test_solar_open_circuit_with_solar_i_alias(self):
-        # High solar voltage (> 14V) with low current (< 0.05A) using solar_i alias
-        features = {
-            "metrics": {
-                "solar_voltage": {"mean": 18.2},
-                "solar_i": {"mean": 0.01},
-            }
-        }
-        context = {"cloud_cover_percentage": 10.0, "is_raining": False}
-        evidences = self.engine.evaluate(features, context=context)
-        codes = [e.code for e in evidences]
-        self.assertIn("EVID_SOLAR_VOLTAGE_HIGH_CURRENT_ZERO", codes)
-        self.assertNotIn("EVID_SOLAR_INPUT_NORMAL", codes)
+        profile = lowcost_profile()
+        profile["components"][0]["metrics"][0]["role"] = None
+        self.assertIn("METRIC_RATE_EXCEEDED:device_battery.battery_voltage", self._evidence(records, profile))
+
+    def test_error_margin_uses_relationship_tolerance(self):
+        # Constant +8 offset: correlated (no SENSOR_DISAGREEMENT) but outside ±5 / ±20% at ~25 ug/m3
+        records = make_records(60, pm2=lambda i: healthy_pm(i) + 8.0)
+        evidence = self._evidence(records)
+        self.assertNotIn("SENSOR_DISAGREEMENT:pm_sensor1.pm2_5_sensor1~pm2_5_sensor2", evidence)
+        margin = evidence["SENSOR_ERROR_MARGIN:pm_sensor1.pm2_5_sensor1~pm2_5_sensor2"]
+        self.assertEqual(margin.related_components, ["pm_sensor2"])
+        self.assertIn("bias -8.00", margin.description)
+
+        profile = lowcost_profile()
+        profile["relationships"][3]["meta_data"] = {}
+        self.assertNotIn("SENSOR_ERROR_MARGIN:pm_sensor1.pm2_5_sensor1~pm2_5_sensor2", self._evidence(records, profile))
+
+    def test_low_charge_outage_is_evidence_against_the_battery(self):
+        # Battery sinks to 3.1 V (below 3.39 V low-charge line), then the device is silent for 4 hours
+        base = 1700000000
+        records = [
+            {"datetime": base + i * 120, "battery_voltage": 3.8 - 0.7 * i / 59, "pm2_5_sensor1": 20.0, "pm2_5_sensor2": 20.5}
+            for i in range(60)
+        ] + [
+            {"datetime": base + 60 * 120 + 4 * 3600 + i * 120, "battery_voltage": 3.9, "pm2_5_sensor1": 20.0, "pm2_5_sensor2": 20.5}
+            for i in range(60)
+        ]
+        evidence = self._evidence(records)
+        outage = evidence["LOW_CHARGE_OUTAGE:device_battery.battery_voltage"]
+        self.assertEqual(outage.related_components, ["communication"])
+        self.assertEqual(outage.value["outages_after_low_charge"], 1)
+        self.assertIn("1 outage(s) totalling 4", evidence["DATA_GAPS:communication"].description)
+        self.assertIn("1 after low charge", evidence["DATA_GAPS:communication"].description)
+
+    def test_stuck_and_missing_metrics(self):
+        records = make_records(30, pm1=lambda i: 12.0, pm2=None)
+        evidence = self._evidence(records)
+        self.assertIn("METRIC_STUCK:pm_sensor1.pm2_5_sensor1", evidence)
+        self.assertIn("METRIC_MISSING:pm_sensor2.pm2_5_sensor2", evidence)
+
+    def test_sensor_disagreement_uses_measures_same_as(self):
+        records = make_records(40, pm2=lambda i: 80.0 - healthy_pm(i))
+        evidence = self._evidence(records)
+        disagreement = evidence["SENSOR_DISAGREEMENT:pm_sensor1.pm2_5_sensor1~pm2_5_sensor2"]
+        self.assertEqual(disagreement.related_components, ["pm_sensor2"])
+
+        profile = lowcost_profile()
+        profile["relationships"] = profile["relationships"][:3]
+        self.assertFalse(any(c.startswith("SENSOR_DISAGREEMENT") for c in self._evidence(records, profile)))
+
+    def test_data_gaps_are_hours_without_any_data(self):
+        # Sparse but continuous: one reading every 10 min for 5 h. Far fewer readings than a 120 s
+        # interval expects, but no hour is empty, so there is no gap whatever the interval says.
+        sparse = make_records(30, interval_s=600)
+        self.assertNotIn("DATA_GAPS:communication", self._evidence(sparse, interval=120))
+
+        # Same readings, starting on the hour, silent from 03:00 to 07:00: 4 of 9 clock hours have no data
+        on_the_hour = 1699999200
+        silent = make_records(30, interval_s=600, start_ts=on_the_hour, gap_after=17, gap_hours=4)
+        for interval in (120, 600, None):
+            gap = self._evidence(silent, interval=interval)["DATA_GAPS:communication"]
+            self.assertEqual(gap.value["hours_empty"], 4)
+            self.assertEqual(gap.value["hours_total"], 9)
+            self.assertAlmostEqual(gap.confidence, 4 / 9, places=3)
+            self.assertIn("4 of 9 hours without any data", gap.description)
+
+        # One empty hour in a day is under the 10% threshold
+        blip = make_records(138, interval_s=600, start_ts=on_the_hour, gap_after=59, gap_hours=1)
+        self.assertEqual(
+            compute_indicators(blip, FeatureExtractor.extract_all_features(blip), build_model(lowcost_profile()))
+            ["communication"]["coverage"]["hours_empty"], 1)
+        self.assertNotIn("DATA_GAPS:communication", self._evidence(blip, interval=600))
+
+        profile = lowcost_profile()
+        profile["meta_data"] = {"diagnostics": {"completeness": {"max_empty_hour_fraction": 0.5}}}
+        self.assertNotIn("DATA_GAPS:communication", self._evidence(silent, profile))
+
+        profile = lowcost_profile()
+        profile["components"] = profile["components"][:3]
+        profile["relationships"] = [r for r in profile["relationships"] if r["target_component_id"] != COMM_ID]
+        self.assertIn("DATA_GAPS:device", self._evidence(silent, profile, interval=120))
+
+    def test_disabled_checks_are_skipped(self):
+        profile = lowcost_profile()
+        profile["components"][1]["meta_data"] = {"diagnostics": {"disabled_checks": ["METRIC_STUCK"]}}
+        records = make_records(30, pm1=lambda i: 12.0)
+        self.assertNotIn("METRIC_STUCK:pm_sensor1.pm2_5_sensor1", self._evidence(records, profile))
 
 
 class TestDiagnosticReasoner(unittest.TestCase):
@@ -233,134 +471,222 @@ class TestDiagnosticReasoner(unittest.TestCase):
             self.assertLess(battery_causes[0]["confidence_percentage"], 65.0)
 
 
-class TestEndToEndEvaluatorMultiDomain(unittest.TestCase):
+def _fact(check: str, component: str) -> EvidenceFact:
+    return EvidenceFact(
+        code=f"{check}:{component}",
+        component_name=component,
+        description=f"{check} on {component}",
+        confidence=1.0,
+        value=None,
+        check=check,
+        title=check,
+    )
+
+
+class TestIndicators(unittest.TestCase):
+    def _indicators(self, records, profile=None, interval=120, window_seconds=None, window_start=None):
+        model = build_model(profile or lowcost_profile())
+        features = FeatureExtractor.extract_all_features(records, expected_interval_seconds=interval, window_seconds=window_seconds)
+        return compute_indicators(records, features, model, interval, window_seconds, window_start)
+
+    def test_charge_cycle_stats(self):
+        base = 1700000000
+        # 6 h discharge 4.2 -> 3.3, then 4 h charge back to 4.2, then flat 2 h (readings every 5 min)
+        def battery(i):
+            t = i * 5 / 60
+            if t <= 6:
+                return 4.2 - 0.15 * t
+            if t <= 10:
+                return 3.3 + 0.225 * (t - 6)
+            return 4.2
+        records = [{"datetime": base + i * 300, "battery_voltage": battery(i)} for i in range(145)]
+        cycle = self._indicators(records, interval=300)["device_battery"]["charge_cycle"]
+
+        self.assertAlmostEqual(cycle["min"], 3.3, places=2)
+        self.assertAlmostEqual(cycle["max"], 4.2, places=2)
+        self.assertEqual(cycle["min_at"], datetime.fromtimestamp(base + 6 * 3600, tz=timezone.utc).isoformat())
+        self.assertAlmostEqual(cycle["hours_discharging"], 6.0, delta=0.75)
+        self.assertAlmostEqual(cycle["hours_charging"], 4.0, delta=0.75)
+        self.assertAlmostEqual(cycle["longest_discharge_hours"], 6.0, delta=0.75)
+        self.assertAlmostEqual(cycle["discharge_rate_per_hour"], 0.15, delta=0.03)
+        self.assertAlmostEqual(cycle["charge_rate_per_hour"], 0.225, delta=0.04)
+        self.assertEqual(cycle["cycle_count"], 1)
+        self.assertEqual(cycle["hours_below_min"], 0.0)
+        self.assertGreater(cycle["hours_low_charge"], 0.5)   # below 3.39 V for a while around the minimum
+
+    def test_coverage_counts_hours_and_attributes_outages(self):
+        day_start = datetime(2026, 9, 10, tzinfo=timezone.utc)
+        base = int(day_start.timestamp())
+        records = []
+        # 00:00-06:00 every 10 min with a healthy battery, silent until 12:00 (healthy before the gap)
+        records += [{"datetime": base + i * 600, "battery_voltage": 4.0, "pm2_5_sensor1": 20.0} for i in range(36)]
+        # 12:00-18:00 battery sinking to 3.1 V, then silent for the rest of the day
+        records += [{"datetime": base + 12 * 3600 + i * 600, "battery_voltage": 4.0 - 0.9 * i / 35, "pm2_5_sensor1": 20.0} for i in range(36)]
+        coverage = self._indicators(records, interval=600, window_seconds=86400, window_start=day_start)["communication"]["coverage"]
+
+        self.assertEqual(coverage["hours_total"], 24)
+        self.assertEqual(coverage["hours_with_data"], 12)
+        self.assertEqual(coverage["hours_complete"], 12)
+        self.assertEqual(coverage["hours_empty"], 12)
+        self.assertEqual(coverage["outage_count"], 2)
+        self.assertAlmostEqual(coverage["offline_hours"], 12.0, delta=0.4)
+        self.assertEqual(coverage["outages_with_healthy_charge"], 1)
+        self.assertEqual(coverage["outages_after_low_charge"], 1)
+        self.assertEqual([o["after_low_charge"] for o in coverage["outages"]], [False, True])
+        self.assertAlmostEqual(coverage["low_charge_threshold"], 3.39, places=2)
+        self.assertEqual(coverage["partial_record_rate"], 0.0)
+
+    def test_leading_outage_is_unattributed_and_device_level_when_no_connectivity(self):
+        day_start = datetime(2026, 9, 10, tzinfo=timezone.utc)
+        base = int(day_start.timestamp())
+        records = [{"datetime": base + 8 * 3600 + i * 600, "battery_voltage": 4.0} for i in range(96)]
+        profile = lowcost_profile()
+        profile["components"] = profile["components"][:3]
+        profile["relationships"] = [r for r in profile["relationships"] if r["target_component_id"] != COMM_ID]
+        indicators = self._indicators(records, profile, interval=600, window_seconds=86400, window_start=day_start)
+        coverage = indicators["device"]["coverage"]
+        self.assertEqual(coverage["outage_count"], 1)
+        self.assertEqual(coverage["outages_unattributed"], 1)
+        self.assertAlmostEqual(coverage["longest_outage_hours"], 8.0, places=1)
+
+    def test_agreement_stats(self):
+        records = make_records(50, pm2=lambda i: healthy_pm(i) + 3.0)
+        agreement = self._indicators(records)["pm_sensor1"]["agreement:pm_sensor2"]
+        self.assertEqual(agreement["paired_count"], 50)
+        self.assertAlmostEqual(agreement["bias"], -3.0, places=2)
+        self.assertAlmostEqual(agreement["mean_abs_error"], 3.0, places=2)
+        self.assertGreaterEqual(agreement["correlation"], 0.99)
+        self.assertEqual(agreement["within_tolerance_rate"], 1.0)
+
+
+class TestRootCauseAnalyzer(unittest.TestCase):
+    def _model(self, relationships):
+        profile = lowcost_profile()
+        profile["relationships"] = relationships
+        return build_model(profile)
+
+    def test_multi_level_chain_is_attributed_to_terminal_root(self):
+        # battery POWERS communication; pm_sensor1 COMMUNICATES_VIA communication
+        model = self._model([
+            {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"},
+            {"source_component_id": PM1_ID, "target_component_id": COMM_ID, "relationship_type": "COMMUNICATES_VIA"},
+        ])
+        evidences = [
+            _fact("METRIC_BELOW_MIN", "device_battery"),
+            _fact("DATA_GAPS", "communication"),
+            _fact("METRIC_STUCK", "pm_sensor1"),
+        ]
+        diagnoses = RootCauseAnalyzer().analyze(evidences, model)
+
+        self.assertEqual([d["cause_code"] for d in diagnoses], ["COMPONENT_FAULT:device_battery"])
+        self.assertEqual(diagnoses[0]["affected_components"], ["communication", "pm_sensor1"])
+        self.assertEqual(len(diagnoses[0]["supporting_evidence"]), 3)
+
+    def test_dependency_cycle_still_reports_one_root(self):
+        model = self._model([
+            {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"},
+            {"source_component_id": COMM_ID, "target_component_id": BATTERY_ID, "relationship_type": "POWERS"},
+        ])
+        evidences = [_fact("METRIC_BELOW_MIN", "device_battery"), _fact("DATA_GAPS", "communication")]
+        diagnoses = RootCauseAnalyzer().analyze(evidences, model)
+
+        self.assertEqual(len(diagnoses), 1)
+        self.assertEqual(len(diagnoses[0]["affected_components"]), 1)
+        self.assertEqual(len(diagnoses[0]["supporting_evidence"]), 2)
+
+
+class TestEndToEndEvaluatorProfileDriven(unittest.TestCase):
     def setUp(self):
         self.evaluator = DiagnosticEvaluator()
-        self.candidate_causes = get_default_candidate_causes()
 
-    def test_scenario_a_air_quality_station_battery_failure(self):
-        """Dual PM air quality station with degraded battery pack and healthy solar."""
-        now = datetime.now(timezone.utc)
-        telemetry = []
-        # Generate 24 simulated hourly readings
-        for h in range(24):
-            ts = (now - timedelta(hours=24 - h)).isoformat()
-            is_day = 6 <= h <= 18
-            v_solar = 18.0 if is_day else 0.0
-            i_solar = 0.9 if is_day else 0.0
-            # Battery drops steeply overnight from 12.8 down to 10.4V
-            v_batt = 13.8 if is_day else max(10.4, 13.5 - (0.40 * (h if h < 6 else (h - 18))))
-
-            telemetry.append({
-                "datetime": ts,
-                "pm2_5": 35.0 + (h % 5),
-                "pm2_5_sensor_2": 34.5 + (h % 5),
-                "battery_voltage": v_batt,
-                "solar_voltage": v_solar,
-                "solar_current": i_solar,
-                "temperature": 22.0 + (h % 6),
-            })
-
-        result = self.evaluator.evaluate_telemetry(
-            device_id="aq_test_station_01",
-            telemetry_records=telemetry,
-            candidate_causes=self.candidate_causes,
-            context={"cloud_cover_percentage": 15.0, "is_raining": False},
-        )
-
-        self.assertEqual(result["device_id"], "aq_test_station_01")
-        self.assertLess(result["overall_health_score"], 80.0)
-        self.assertIn(result["lifecycle_state"], ["SUSPICIOUS", "LIKELY_FAILURE", "DEGRADING"])
-        self.assertTrue(len(result["top_diagnoses"]) > 0)
-        self.assertEqual(result["top_diagnoses"][0]["cause_code"], "CAUSE_BATTERY_DEGRADATION")
-
-    def test_scenario_b_cold_chain_vaccine_refrigerator_failure(self):
-        """Vaccine cold storage monitor with compressor motor failure."""
-        now = datetime.now(timezone.utc)
-        telemetry = []
-        # Temperature rising from -20C to -5C while compressor draws 0A
-        for h in range(12):
-            ts = (now - timedelta(hours=12 - h)).isoformat()
-            telemetry.append({
-                "datetime": ts,
-                "refrigerator_temp": -20.0 + (h * 1.5), # rising to -3.5C
-                "compressor_current": 0.0,             # compressor is dead
-                "door_open": 0,
-            })
-
-        result = self.evaluator.evaluate_telemetry(
-            device_id="cold_chain_freezer_04",
-            telemetry_records=telemetry,
-            candidate_causes=self.candidate_causes,
-            context={"target_max_temperature": -15.0},
-        )
-
-        self.assertEqual(result["device_id"], "cold_chain_freezer_04")
-        self.assertLess(result["overall_health_score"], 60.0)
-        self.assertIn(result["lifecycle_state"], ["SUSPICIOUS", "LIKELY_FAILURE"])
-        self.assertTrue(len(result["top_diagnoses"]) > 0)
-        self.assertEqual(result["top_diagnoses"][0]["cause_code"], "CAUSE_COMPRESSOR_RELAY_OR_POWER_FAILURE")
-
-    def test_scenario_c_healthy_system(self):
-        """Completely healthy IoT device with high correlation and solid power."""
-        now = datetime.now(timezone.utc)
-        telemetry = []
-        for h in range(24):
-            ts = (now - timedelta(hours=24 - h)).isoformat()
-            telemetry.append({
-                "datetime": ts,
-                "pm2_5": 22.0 + (h % 3),
-                "pm2_5_sensor_2": 22.1 + (h % 3),
-                "battery_voltage": 12.8,
-                "solar_voltage": 18.0 if 6 <= h <= 18 else 0.0,
-                "solar_current": 0.8 if 6 <= h <= 18 else 0.0,
-            })
-
-        result = self.evaluator.evaluate_telemetry(
-            device_id="healthy_dev_01",
-            telemetry_records=telemetry,
-            candidate_causes=self.candidate_causes,
-            context={"cloud_cover_percentage": 10.0, "is_raining": False},
-        )
-
-        self.assertGreaterEqual(result["overall_health_score"], 85.0)
+    def test_healthy_device(self):
+        result = self.evaluator.evaluate_telemetry("dev_ok", make_records(180), profile=lowcost_profile())
+        self.assertEqual(result["overall_health_score"], 100.0)
         self.assertEqual(result["lifecycle_state"], "HEALTHY")
-        self.assertEqual(len(result["top_diagnoses"]), 0)
+        self.assertEqual(result["top_diagnoses"], [])
+        self.assertEqual(
+            set(result["subsystem_scores"]), {"device_battery", "pm_sensor1", "pm_sensor2", "communication"}
+        )
 
-    def test_lifecycle_state_high_confidence_in_suspicious_range(self):
-        """
-        Verify that a diagnosis with confidence >= 85.0 results in LIKELY_FAILURE
-        even when the overall health score is in the suspicious range (50.0 - 70.0).
-        Also verifies that medium confidence (70.0 - 85.0) remains SUSPICIOUS.
-        """
-        with patch.object(self.evaluator.evidence_engine, "evaluate") as mock_ev, \
-             patch.object(self.evaluator.reasoner, "diagnose") as mock_diag:
-            mock_ev.return_value = [
-                EvidenceFact("EVID_COLD_CHAIN_TEMPERATURE_BREACH", "cooling", "temp high", 0.65, 5.0)
-            ]
+    def test_battery_fault_explains_downstream_data_gaps(self):
+        # Battery below minimum all along, and the device is silent for 4 of the 10 hours
+        records = make_records(36, interval_s=600, battery=lambda i: 2.8, gap_after=17, gap_hours=4)
+        result = self.evaluator.evaluate_telemetry("dev_batt", records, profile=lowcost_profile())
+        top = result["top_diagnoses"][0]
+        self.assertEqual(top["cause_code"], "COMPONENT_FAULT:device_battery")
+        self.assertIn("communication", top["affected_components"])
+        self.assertNotIn("COMPONENT_FAULT:communication", [d["cause_code"] for d in result["top_diagnoses"]])
+        self.assertLess(result["subsystem_scores"]["device_battery"], 100.0)
 
-            # 1. High confidence >= 85.0 with score in suspicious range -> LIKELY_FAILURE
-            mock_diag.return_value = [{"cause_code": "CAUSE_COOLING_FAIL", "confidence_percentage": 90.0}]
-            res1 = self.evaluator.evaluate_telemetry(
-                "dev1", [{"refrigerator_temp": 5.0}], [], subsystem_weights={"cooling": 1.0, "connectivity": 0.0}
-            )
-            self.assertGreaterEqual(res1["overall_health_score"], 50.0)
-            self.assertLess(res1["overall_health_score"], 70.0)
-            self.assertEqual(res1["lifecycle_state"], "LIKELY_FAILURE")
+    def test_disagreement_is_attributed_to_the_faulty_sensor(self):
+        records = make_records(60, pm1=lambda i: 12.0)
+        result = self.evaluator.evaluate_telemetry("dev_pm", records, profile=lowcost_profile())
+        codes = [d["cause_code"] for d in result["top_diagnoses"]]
+        self.assertEqual(codes[0], "COMPONENT_FAULT:pm_sensor1")
+        self.assertFalse(any(c.startswith("SENSOR_") for c in codes))
+        # stuck value + disagreement + error margin all count toward the faulty sensor
+        self.assertEqual(len(result["top_diagnoses"][0]["supporting_evidence"]), 3)
 
-            # 2. Medium confidence (>= 70.0, < 85.0) with score in suspicious range -> SUSPICIOUS
-            mock_diag.return_value = [{"cause_code": "CAUSE_COOLING_FAIL", "confidence_percentage": 75.0}]
-            res2 = self.evaluator.evaluate_telemetry(
-                "dev1", [{"refrigerator_temp": 5.0}], [], subsystem_weights={"cooling": 1.0, "connectivity": 0.0}
-            )
-            self.assertEqual(res2["lifecycle_state"], "SUSPICIOUS")
+    def test_unresolved_disagreement_is_reported_once_per_pair(self):
+        records = make_records(60, pm2=lambda i: 80.0 - healthy_pm(i))
+        result = self.evaluator.evaluate_telemetry("dev_pm2", records, profile=lowcost_profile())
+        pair_checks = {e["check"] for e in result["active_evidences"] if e["check"].startswith("SENSOR_")}
+        self.assertEqual(pair_checks, {"SENSOR_DISAGREEMENT", "SENSOR_ERROR_MARGIN"})
+        self.assertEqual(len(result["top_diagnoses"]), 1)
+        top = result["top_diagnoses"][0]
+        self.assertEqual(top["cause_code"], "SENSOR_PAIR:pm_sensor1~pm_sensor2")
+        self.assertEqual(top["affected_components"], ["pm_sensor2"])
+        self.assertEqual(len(top["supporting_evidence"]), 2)
 
-            # 3. No diagnoses with score in suspicious range -> SUSPICIOUS
-            mock_diag.return_value = []
-            res3 = self.evaluator.evaluate_telemetry(
-                "dev1", [{"refrigerator_temp": 5.0}], [], subsystem_weights={"cooling": 1.0, "connectivity": 0.0}
-            )
-            self.assertEqual(res3["lifecycle_state"], "SUSPICIOUS")
+    def test_result_carries_indicators(self):
+        records = make_records(180)
+        result = self.evaluator.evaluate_telemetry("dev_ind", records, profile=lowcost_profile())
+        self.assertIn("charge_cycle", result["indicators"]["device_battery"])
+        self.assertIn("coverage", result["indicators"]["communication"])
+        self.assertIn("agreement:pm_sensor2", result["indicators"]["pm_sensor1"])
+        self.assertGreaterEqual(result["indicators"]["pm_sensor1"]["agreement:pm_sensor2"]["within_tolerance_rate"], 0.99)
+
+    def test_unmonitored_upstream_component_is_suspected(self):
+        profile = lowcost_profile()
+        profile["components"][0]["metrics"] = []
+        records = make_records(36, interval_s=600, pm1=lambda i: 12.0, pm2=lambda i: 15.0, gap_after=17, gap_hours=4)
+        result = self.evaluator.evaluate_telemetry("dev_hidden", records, profile=profile)
+        codes = [d["cause_code"] for d in result["top_diagnoses"]]
+        self.assertEqual(codes[0], "COMPONENT_SUSPECTED:device_battery")
+
+    def test_device_config_interval_overrides_profile_default(self):
+        records = make_records(36, interval_s=600)
+        default = self.evaluator.evaluate_telemetry("dev_cfg", records, profile=lowcost_profile())
+        configured = self.evaluator.evaluate_telemetry(
+            "dev_cfg", records, profile=lowcost_profile(), device_config={"config1": "600"}
+        )
+        # The interval shapes the completeness figures, but continuous data is never a gap
+        self.assertGreater(default["data_completeness"]["missing_rate"], 0.7)
+        self.assertEqual(configured["data_completeness"]["missing_rate"], 0.0)
+        self.assertEqual(configured["data_completeness"]["expected_interval_seconds"], 600.0)
+        for result in (default, configured):
+            self.assertFalse(any(e["check"] == "DATA_GAPS" for e in result["active_evidences"]))
+            self.assertEqual(result["subsystem_scores"]["communication"], 100.0)
+
+    def test_missing_or_incomplete_profile_raises(self):
+        with self.assertRaises(ProfileNotDiagnosableError):
+            self.evaluator.evaluate_telemetry("dev", make_records(10), profile=None)
+        profile = lowcost_profile()
+        profile["components"], profile["relationships"] = [], []
+        with self.assertRaises(ProfileNotDiagnosableError):
+            self.evaluator.evaluate_telemetry("dev", make_records(10), profile=profile)
+
+    def test_lifecycle_state_bands(self):
+        bands = build_model(lowcost_profile()).policy["lifecycle"]
+        high = [{"confidence_percentage": 90.0}]
+        medium = [{"confidence_percentage": 75.0}]
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(90.0, [], bands), "HEALTHY")
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(75.0, [], bands), "DEGRADING")
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(60.0, high, bands), "LIKELY_FAILURE")
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(60.0, medium, bands), "SUSPICIOUS")
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(60.0, [], bands), "SUSPICIOUS")
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(30.0, [], bands), "LIKELY_FAILURE")
+        self.assertEqual(DiagnosticEvaluator.lifecycle_state(10.0, [], bands), "FAILED")
 
 
 class TestDiagnosticsAPI(unittest.TestCase):
@@ -403,7 +729,7 @@ class TestDiagnosticsAPI(unittest.TestCase):
 
         app.dependency_overrides.pop(get_db, None)
 
-    def test_evaluate_payload_api(self):
+    def test_evaluate_payload_without_profile_is_rejected(self):
         payload = {
             "device_id": "api_test_device",
             "telemetry_window": [
@@ -416,23 +742,17 @@ class TestDiagnosticsAPI(unittest.TestCase):
             "window_hours": 4.0,
         }
         response = self.client.post("/api/v1/diagnostics/evaluate-payload", json=payload)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["device_id"], "api_test_device")
-        self.assertIn("overall_health_score", data)
-        self.assertIn("top_diagnoses", data)
+        self.assertEqual(response.status_code, 422)
+        detail = response.json()["detail"]
+        self.assertTrue(any("profile" in error for error in detail["errors"]))
 
     def test_evaluate_payload_resolves_profile_from_test_db(self):
         from app.models.device_schema import DeviceProfile
 
         db = self.Session()
-        profile = DeviceProfile(
-            name="AirQo-v5-Test",
-            category="air_quality",
-            telemetry_mappings={"field8": {"key": "solar_voltage", "label": "Solar Voltage"}},
-            config_mappings={},
-            metadata_mappings={},
-        )
+        profile_dict = lowcost_profile()
+        profile_dict["name"] = "AirQo-v5-Test"
+        profile = profile_orm(profile_dict)
         db.add(profile)
         db.commit()
         db.refresh(profile)
@@ -442,13 +762,21 @@ class TestDiagnosticsAPI(unittest.TestCase):
                 "device_id": "api_test_device_with_profile",
                 "profile_id": "airqo_v5_test",
                 "telemetry_window": [
-                    {"field8": 18.0, "datetime": "2026-08-23T10:00:00Z"},
+                    {"field1": 20.0 + i, "field3": 20.5 + i, "field7": 4.0 + 0.01 * (i % 3),
+                     "datetime": f"2026-08-23T10:{i * 2:02d}:00Z"}
+                    for i in range(10)
                 ],
             }
             response = self.client.post("/api/v1/diagnostics/evaluate-payload", json=payload)
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["device_id"], "api_test_device_with_profile")
+            self.assertEqual(data["profile_name"], "AirQo-v5-Test")
+            self.assertIn("device_battery", data["subsystem_scores"])
+
+            readiness = self.client.get(f"/api/v1/diagnostics/profiles/{profile.id}/diagnostic-readiness")
+            self.assertEqual(readiness.status_code, 200)
+            self.assertTrue(readiness.json()["diagnosable"])
         finally:
             db.delete(profile)
             db.commit()
@@ -610,7 +938,7 @@ class TestDynamicFieldMappings(unittest.TestCase):
     def test_evaluate_thejson_payload_end_to_end(self):
         import json
         import os
-        from app.api.v1.diagnostics import _prepare_telemetry_for_evaluation, get_default_candidate_causes
+        from app.api.v1.diagnostics import _prepare_telemetry_for_evaluation
         from app.services.diagnostics.evaluator import DiagnosticEvaluator
 
         json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "thejson.json")
@@ -634,15 +962,15 @@ class TestDynamicFieldMappings(unittest.TestCase):
         result = evaluator.evaluate_telemetry(
             device_id=data.get("device_id", "AQ_DRIFT_BENCH_02"),
             telemetry_records=prepared,
-            candidate_causes=get_default_candidate_causes(),
+            profile=lowcost_profile(),
             context=data.get("context"),
             window_hours=data.get("window_hours", 24.0),
         )
 
         self.assertIn("overall_health_score", result)
         self.assertIn("subsystem_scores", result)
-        self.assertIn("sensors", result["subsystem_scores"])
-        self.assertIn("power", result["subsystem_scores"])
+        self.assertIn("pm_sensor1", result["subsystem_scores"])
+        self.assertIn("device_battery", result["subsystem_scores"])
         self.assertIn("active_evidences", result)
         self.assertIn("top_diagnoses", result)
 

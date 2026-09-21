@@ -1070,6 +1070,40 @@ const siteController = {
       );
     }
   },
+  findRouteDirections: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const result = await siteUtil.findRouteDirections(req, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        return res.status(result.status || httpStatus.OK).json(result);
+      } else {
+        return res
+          .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+          .json(result);
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   findNearestLocations: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

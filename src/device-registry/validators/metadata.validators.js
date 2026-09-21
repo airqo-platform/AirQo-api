@@ -229,6 +229,50 @@ const metadataValidations = {
       next();
     },
   ],
+  findRouteDirections: [
+    ...commonValidations.tenant,
+    body("origin_latitude")
+      .exists()
+      .withMessage("origin_latitude is required")
+      .bail()
+      .isFloat({ min: -90, max: 90 })
+      .withMessage("Invalid origin_latitude value")
+      .toFloat(),
+    body("origin_longitude")
+      .exists()
+      .withMessage("origin_longitude is required")
+      .bail()
+      .isFloat({ min: -180, max: 180 })
+      .withMessage("Invalid origin_longitude value")
+      .toFloat(),
+    body("destination_latitude")
+      .exists()
+      .withMessage("destination_latitude is required")
+      .bail()
+      .isFloat({ min: -90, max: 90 })
+      .withMessage("Invalid destination_latitude value")
+      .toFloat(),
+    body("destination_longitude")
+      .exists()
+      .withMessage("destination_longitude is required")
+      .bail()
+      .isFloat({ min: -180, max: 180 })
+      .withMessage("Invalid destination_longitude value")
+      .toFloat(),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped(),
+          ),
+        );
+      }
+      next();
+    },
+  ],
   findNearestLocations: [
     ...commonValidations.tenant,
     body("polyline")

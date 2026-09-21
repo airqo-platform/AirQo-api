@@ -204,48 +204,57 @@ const stopEmailQueue = () => {
 
 // Cache for application email configs — keyed by tenant, 5-minute TTL.
 // Avoids a DB round-trip on every email send while staying reasonably fresh.
+// A tenant can hold multiple config documents (see ApplicationEmailConfiguration
+// model), so the full list is cached and searched, not a single "the" config.
 const _appEmailConfigCache = new Map();
 const _APP_EMAIL_CONFIG_TTL_MS = 5 * 60 * 1000;
 
-const _getApplicationEmailConfig = async (tenant) => {
+const _getApplicationEmailConfigs = async (tenant) => {
   const normalizedTenant = (tenant || "").toLowerCase();
   const cached = _appEmailConfigCache.get(normalizedTenant);
   if (cached && Date.now() - cached.fetchedAt < _APP_EMAIL_CONFIG_TTL_MS) {
     return cached.data;
   }
   try {
-    const config = await ApplicationEmailConfigurationModel(normalizedTenant)
-      .findOne({})
-      .sort({ createdAt: 1 })
+    // Sorted so that, if the same application email is ever listed in more
+    // than one config, the match below is deterministic (oldest wins) rather
+    // than depending on MongoDB's unspecified natural order.
+    const configs = await ApplicationEmailConfigurationModel(normalizedTenant)
+      .find({})
+      .sort({ createdAt: 1, _id: 1 })
       .lean();
-    _appEmailConfigCache.set(normalizedTenant, { data: config, fetchedAt: Date.now() });
-    return config;
+    _appEmailConfigCache.set(normalizedTenant, { data: configs, fetchedAt: Date.now() });
+    return configs;
   } catch (error) {
     logger.warn(
-      `Failed to fetch application email config for tenant ${normalizedTenant}: ${error.message}`
+      `Failed to fetch application email configs for tenant ${normalizedTenant}: ${error.message}`
     );
-    return null;
+    return [];
   }
 };
 
+// Drops the cached config list for a tenant so the next lookup re-fetches
+// from the DB. Called after any create/update/delete of an application email
+// configuration so callers don't have to wait out the TTL to see the change.
+const invalidateApplicationEmailConfigCache = (tenant) => {
+  _appEmailConfigCache.delete((tenant || "").toLowerCase());
+};
+
 // Returns the adminCCEmails string if `email` is a registered application
-// email address, otherwise returns null.
+// email address in any of the tenant's configs, otherwise returns null.
 const _resolveAdminCCForApplicationEmail = async (email, tenant) => {
   try {
-    const config = await _getApplicationEmailConfig(tenant);
-    if (
-      !config ||
-      !config.adminCCEmails ||
-      !Array.isArray(config.applicationEmails) ||
-      config.applicationEmails.length === 0
-    ) {
-      return null;
-    }
+    const configs = await _getApplicationEmailConfigs(tenant);
     const normalized = email.toLowerCase().trim();
-    const isAppEmail = config.applicationEmails.some(
-      (e) => e.toLowerCase().trim() === normalized
+    const match = configs.find(
+      (config) =>
+        config.adminCCEmails &&
+        Array.isArray(config.applicationEmails) &&
+        config.applicationEmails.some(
+          (e) => e.toLowerCase().trim() === normalized
+        )
     );
-    return isAppEmail ? config.adminCCEmails : null;
+    return match ? match.adminCCEmails : null;
   } catch (error) {
     logger.warn(
       `Failed to resolve admin CC for ${email}: ${error.message}`
@@ -831,7 +840,7 @@ const getEmailSubject = (functionName, params) => {
     sendPasswordResetEmail: `Password Reset Code: ${params.token || ""}`,
     updateForgottenPassword: "Your AirQo Account Password Reset Successful",
     updateKnownPassword: "Your AirQo Account Password Update Successful",
-    signInWithEmailLink: "Verify your email address!",
+    signInWithEmailLink: "Your secure sign-in link for AirQo",
     deleteMobileAccountEmail: "Confirm Account Deletion - AirQo",
     authenticateEmail: "Changes to your AirQo email",
     compromisedToken:
@@ -1860,7 +1869,8 @@ const mailer = {
   signInWithEmailLink: createMailerFunction(
     "signInWithEmailLink", //
     "CORE_CRITICAL",
-    (params) => msgs.join_by_email(params.email, params.token),
+    (params) =>
+      msgs.signInLinkEmail({ email: params.email, link: params.link }),
   ),
   deleteMobileAccountEmail: createMailerFunction(
     "deleteMobileAccountEmail", //
@@ -3007,4 +3017,5 @@ const mailer = {
 
 mailer.startEmailQueue = startEmailQueue;
 mailer.stopEmailQueue = stopEmailQueue;
+mailer.invalidateApplicationEmailConfigCache = invalidateApplicationEmailConfigCache;
 module.exports = mailer;

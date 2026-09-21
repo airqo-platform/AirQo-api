@@ -22,6 +22,7 @@ const {
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
 const analyticsMiddleware = require("@middleware/analytics");
+const { trackApiUsage } = require("@middleware/usage-tracker.middleware");
 
 const {
   requirePermissions,
@@ -356,6 +357,12 @@ router.post(
   userController.emailAuth,
 );
 
+router.post(
+  "/completeEmailLogin",
+  userValidations.completeEmailLogin,
+  userController.completeEmailLogin,
+);
+
 router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 
 // ================================
@@ -564,7 +571,7 @@ router.post(
   userController.verifyFirebaseCustomToken,
 );
 
-router.post("/verify", enhancedJWTAuth, userController.verify);
+router.post("/verify", enhancedJWTAuth, trackApiUsage, userController.verify);
 
 router.get(
   "/combined",
@@ -743,6 +750,15 @@ router.get(
   enhancedJWTAuth,
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.getStatsBreakdown,
+);
+
+router.get(
+  "/stats/export",
+  userValidations.statsExport,
+  validate,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userController.exportStatsSegment,
 );
 
 router.get(

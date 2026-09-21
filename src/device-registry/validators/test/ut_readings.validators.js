@@ -119,6 +119,84 @@ describe("readingsValidations.rankingsHistory", () => {
   });
 });
 
+// Generic runner for any query-based validator (rankings / rankingsHistory /
+// rankingsCountries), same settle-on-next-or-res.json shape as runValidation.
+const runValidatorFor = (validatorName) => (query) =>
+  new Promise((resolve) => {
+    const req = mockRequest(query);
+    const res = {};
+    let settled = false;
+    const settle = (result) => {
+      if (!settled) {
+        settled = true;
+        resolve(result);
+      }
+    };
+    res.status = (code) => {
+      res.statusCode = code;
+      return res;
+    };
+    res.json = (body) => {
+      res.body = body;
+      settle({ req, res, passed: false });
+      return res;
+    };
+    const next = () => settle({ req, res, passed: true });
+
+    readingsValidations[validatorName](req, res, next);
+  });
+
+// The `country` param (ISO 3166-1 alpha-2) is shared across rankings and
+// rankingsHistory via commonValidations.country — exercise it on both.
+describe("readingsValidations country param (rankings, rankingsHistory)", () => {
+  const runRankings = runValidatorFor("rankings");
+  const runRankingsHistory = (query) =>
+    runValidatorFor("rankingsHistory")({
+      start_year: "2024",
+      end_year: "2025",
+      ...query,
+    });
+
+  it("accepts a well-formed alpha-2 country code on rankings", async () => {
+    const { passed } = await runRankings({ country: "ug" });
+    expect(passed).to.equal(true);
+  });
+
+  it("accepts an uppercase alpha-2 code and normalizes it to lowercase on rankings", async () => {
+    const { req, passed } = await runRankings({ country: "UG" });
+    expect(passed).to.equal(true);
+    expect(req.query.country).to.equal("ug");
+  });
+
+  it("rejects a malformed country code on rankings", async () => {
+    const { passed, res } = await runRankings({ country: "uganda" });
+    expect(passed).to.equal(false);
+    expect(res.statusCode).to.equal(400);
+  });
+
+  it("rejects a numeric country code on rankings", async () => {
+    const { passed, res } = await runRankings({ country: "12" });
+    expect(passed).to.equal(false);
+    expect(res.statusCode).to.equal(400);
+  });
+
+  it("accepts the request when country is omitted on rankings", async () => {
+    const { passed } = await runRankings({});
+    expect(passed).to.equal(true);
+  });
+
+  it("accepts a well-formed alpha-2 country code on rankingsHistory", async () => {
+    const { passed } = await runRankingsHistory({ country: "ke" });
+    expect(passed).to.equal(true);
+  });
+
+  it("rejects a malformed country code on rankingsHistory", async () => {
+    const { passed, res } = await runRankingsHistory({ country: "k" });
+    expect(passed).to.equal(false);
+    expect(res.statusCode).to.equal(400);
+  });
+});
+
 // POST /recent's body-based alternative to comma-separated ?site_id=. Confirms
 // the array is required/non-empty/all-valid-ObjectId, and that on success it's
 // copied onto req.query.site_id so generateFilter.telemetry (query/params only)

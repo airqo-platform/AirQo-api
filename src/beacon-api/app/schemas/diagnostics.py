@@ -1,7 +1,7 @@
 import json
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.schemas.device_schema import DeviceProfileUpdateSchema, DeviceProfileUpdate
 
@@ -97,10 +97,16 @@ class DiagnosticTemplateResponse(DiagnosticTemplateBase):
 
 class EvidenceFactSchema(BaseModel):
     code: str
+    check: Optional[str] = None
     component_name: str
+    component_type: Optional[str] = None
+    metric: Optional[str] = None
+    title: Optional[str] = None
     description: str
+    severity: Optional[str] = None
     confidence: float
     value: Any
+    related_components: List[str] = []
 
 
 class EvidenceContributionSchema(BaseModel):
@@ -111,30 +117,60 @@ class EvidenceContributionSchema(BaseModel):
 class DiagnosisResultSchema(BaseModel):
     cause_code: str
     title: str
+    component_name: Optional[str] = None
+    affected_components: List[str] = []
     confidence_percentage: float
     supporting_evidence: List[EvidenceContributionSchema] = []
     refuting_evidence: List[EvidenceContributionSchema] = []
     recommended_action: str
 
 
+class DataCompletenessSchema(BaseModel):
+    records: int
+    expected_records: Optional[int] = None
+    missing_rate: Optional[float] = None
+    expected_interval_seconds: Optional[float] = None
+
+
 class EvaluationRequest(BaseModel):
     device_id: Optional[str] = None
-    profile_id: Optional[str] = None                        # Optional device profile ID or name
+    profile_id: Optional[str] = None                        # Device profile ID or name; defaults to the device's profile
     telemetry_window: Optional[List[Dict[str, Any]]] = None # Optional custom telemetry records
-    context: Optional[Dict[str, Any]] = None                # Weather, ambient irradiance, ambient temp
+    context: Optional[Dict[str, Any]] = None                # expected_interval_seconds, policy overrides
     window_hours: float = 24.0
 
 
 class EvaluationResultResponse(BaseModel):
     device_id: str
+    profile_id: Optional[str] = None
+    profile_name: Optional[str] = None
     overall_health_score: float
     lifecycle_state: str
-    subsystem_scores: Dict[str, float]
+    subsystem_scores: Dict[str, float]                      # Keyed by profile component name
     active_evidences: List[EvidenceFactSchema]
     detected_symptoms: List[str]
     top_diagnoses: List[DiagnosisResultSchema]
+    indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}   # component -> indicator group -> values
+    headline: Optional[str] = None
+    summary: Optional[str] = None                           # plain-language description of the window
+    data_completeness: Optional[DataCompletenessSchema] = None
+    profile_warnings: List[str] = []
     evaluated_window_hours: float
     timestamp: datetime
+
+
+class ProfileDiagnosticReadinessResponse(BaseModel):
+    profile_id: Optional[str] = None
+    profile_name: Optional[str] = None
+    diagnosable: bool
+    errors: List[str] = []
+    warnings: List[str] = []
+    evaluated_metrics: List[str] = []
+    transmission_components: List[str] = []
+    dependencies: Dict[str, List[str]] = {}
+    redundant_pairs: List[str] = []
+    metric_roles: Dict[str, str] = {}
+    effective_policy: Dict[str, Any] = {}
 
 
 class DeviceHealthSnapshotResponse(BaseModel):
@@ -177,3 +213,158 @@ class DiagnosticFeedbackResponse(DiagnosticFeedbackCreate):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Daily Diagnostics ─────────────────────────────────────────────────────────
+
+class DailyIssueResponse(BaseModel):
+    issue_code: str
+    check_type: str
+    component_name: Optional[str] = None
+    metric_key: Optional[str] = None
+    title: str
+    subsystem: str
+    severity: str
+    confidence: Optional[float] = None
+    description: Optional[str] = None
+    value: Optional[Any] = None
+    is_new: bool
+    streak_days: int
+    streak_start_date: date
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FleetIssueResponse(DailyIssueResponse):
+    device_id: str
+    device_name: Optional[str] = None
+    diagnosis_date: date
+
+
+class DeviceDailyDiagnosticSummaryResponse(BaseModel):
+    id: UUID
+    device_id: str
+    channel_id: Optional[str] = None
+    diagnosis_date: date
+    record_count: int
+    hours_with_data: int
+    overall_health_score: float
+    lifecycle_state: str
+    headline: Optional[str] = None
+    subsystem_scores: Dict[str, float] = {}
+    top_cause_code: Optional[str] = None
+    issue_count: int
+    max_severity: Optional[str] = None
+    resolved_issue_codes: Optional[List[str]] = None
+    engine_version: Optional[str] = None
+    evaluated_at: Optional[datetime] = None
+    issues: List[DailyIssueResponse] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DeviceDailyDiagnosticResponse(DeviceDailyDiagnosticSummaryResponse):
+    profile_id: Optional[UUID] = None
+    first_record_at: Optional[datetime] = None
+    last_record_at: Optional[datetime] = None
+    active_evidences: Optional[List[Dict[str, Any]]] = None
+    detected_symptoms: Optional[List[str]] = None
+    top_diagnoses: Optional[List[Dict[str, Any]]] = None
+    metrics_summary: Optional[Dict[str, Dict[str, Any]]] = None
+    indicators: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None
+    trends: Optional[List[Dict[str, Any]]] = None
+    summary: Optional[str] = None
+
+
+class DeviceTrendsResponse(BaseModel):
+    device_id: str
+    as_of: Optional[date] = None        # the diagnosed day the trends end on
+    window_days: int
+    min_days: int
+    degrading_count: int
+    improving_count: int
+    trends: List[Dict[str, Any]] = []   # degrading first, then improving, then stable
+
+
+class DeviceIndicatorSeriesResponse(BaseModel):
+    device_id: str
+    start_date: date
+    end_date: date
+    days_diagnosed: int
+    components: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}   # component -> group -> one point per day
+
+
+class DeviceIssueHistoryItem(BaseModel):
+    issue_code: str
+    title: str
+    subsystem: str
+    severity: str
+    days_observed: int
+    first_seen: date
+    last_seen: date
+    is_active: bool
+    current_streak_days: int
+
+
+class HealthTrendPoint(BaseModel):
+    diagnosis_date: date
+    overall_health_score: float
+    lifecycle_state: str
+    issue_count: int
+
+
+class DeviceIssueSummaryResponse(BaseModel):
+    device_id: str
+    start_date: date
+    end_date: date
+    days_diagnosed: int
+    average_health_score: Optional[float] = None
+    latest_diagnosis_date: Optional[date] = None
+    latest_lifecycle_state: Optional[str] = None
+    latest_headline: Optional[str] = None
+    issues: List[DeviceIssueHistoryItem] = []
+    health_trend: List[HealthTrendPoint] = []
+
+
+class FleetTopIssue(BaseModel):
+    issue_code: str
+    check_type: str
+    component_name: Optional[str] = None
+    title: str
+    subsystem: str
+    severity: str
+    device_count: int
+    new_device_count: int
+
+
+class FleetDeviceHealth(BaseModel):
+    device_id: str
+    device_name: Optional[str] = None
+    overall_health_score: float
+    lifecycle_state: str
+    issue_count: int
+    max_severity: Optional[str] = None
+    top_cause_code: Optional[str] = None
+    headline: Optional[str] = None
+
+
+class FleetDailySummaryResponse(BaseModel):
+    diagnosis_date: Optional[date] = None
+    devices_diagnosed: int
+    devices_with_issues: int
+    average_health_score: Optional[float] = None
+    lifecycle_state_counts: Dict[str, int] = {}
+    max_severity_counts: Dict[str, int] = {}
+    new_issue_count: int
+    resolved_issue_count: int
+    top_issues: List[FleetTopIssue] = []
+    worst_devices: List[FleetDeviceHealth] = []
+
+
+class DailyDiagnosticsRunResponse(BaseModel):
+    success: bool
+    message: str
+    start_date: date
+    end_date: date
+    device_ids: Optional[List[str]] = None
+    force: bool

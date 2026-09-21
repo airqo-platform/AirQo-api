@@ -61,6 +61,7 @@ describe("UserSchema static methods", () => {
         match: sandbox.stub().returnsThis(),
         sort: sandbox.stub().returnsThis(),
         lookup: sandbox.stub().returnsThis(),
+        addFields: sandbox.stub().returnsThis(),
         group: sandbox.stub().returnsThis(),
         project: sandbox.stub().returnsThis(),
         allowDiskUse: sandbox.stub().resolves([mockStats]),

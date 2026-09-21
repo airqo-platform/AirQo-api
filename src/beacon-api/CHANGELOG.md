@@ -4,6 +4,197 @@
 
 ---
 
+## Version 2.5.0
+**Released:** September 19, 2026
+
+### Feature: Multi-Day Trends & Plain-Language Daily Summaries
+
+A device can pass every daily check while sliding towards failure. Trends fit the last days of each stored indicator and flag the slide; every diagnosis now also carries a headline and a plain-language summary built from the stored numbers.
+
+<details>
+<summary><strong>Trends (`app/services/diagnostics/trends.py`)</strong></summary>
+
+- Least-squares fit over the last `window_days` (7) of stored indicators, needing `min_days` (5) diagnosed days. A trend is **degrading**, **improving** or **stable**; it counts only when the fitted change is at least 15% of the indicator's scale and the days follow the line (`r² ≥ 0.5`).
+- Tracked: battery daily minimum and average (judged against the metric's `expected_min`–`expected_max` range), hours at low charge, hours without data, offline hours, sensor-pair error and bias **relative to the measured level**, pair correlation, share within tolerance, and the health score.
+- Where the indicator has a limit, the days until it is reached are projected (battery minimum → `expected_min`), only within `projection_horizon_days` (14).
+- Degrading trends are stored as `DEGRADING_TREND:<component>.<group>.<field>` issues with streaks like any other issue, and a day that is `HEALTHY` on its own is reported as `DEGRADING` (`trend.degrade_lifecycle`, on by default). The day's health score is not changed.
+- All thresholds live under the `trend` policy section and can be overridden per profile or component; `DEGRADING_TREND` can be listed in `disabled_checks`.
+
+</details>
+
+<details>
+<summary><strong>Summaries (`app/services/diagnostics/narrative.py`)</strong></summary>
+
+- Deterministic templates, no LLM: the same inputs always give the same text, and every number is a stored value.
+- `headline`, e.g. `Degrading (92/100): communication (connectivity) fault (47%)`.
+- `summary` covers the battery's day, data coverage and outages with their power/link attribution, sensor agreement, new / persisting (with day count) / resolved issues, trends with projections, and the recommended action.
+- Returned by the evaluate endpoints, stored on each daily diagnosis, shown in daily lists (`headline`), daily detail (`summary`, `trends`), the device issue summary (`latest_headline`) and fleet worst devices.
+
+</details>
+
+**Endpoint:** `GET /diagnostics/devices/{device_id}/trends?window_days=&as_of=` — degrading first, then improving, then stable. Fleet-wide: `GET /diagnostics/fleet/issues?check_type=DEGRADING_TREND`.
+
+**Database migration:** `d0e1f2a3b4c5` — adds `trends`, `headline` and `summary` to `device_daily_diagnostics`.
+
+**Change: data gaps are hours without any data.** `DATA_GAPS` no longer compares the number of readings with the reporting interval (a wrong interval flagged 96% of devices). A gap is a clock hour with no readings; the issue is raised when more than `completeness.max_empty_hour_fraction` (0.10, i.e. 3+ of 24 hours) of the window is empty, and its confidence is the share of empty hours, so severity grows with the silence. Replaces `completeness.max_missing_rate`; the readings-missing rate is still stored as an indicator. The matching trend follows `hours_empty`.
+
+**Device names:** `GET /fleet/issues` items and `worst_devices` in `GET /fleet/daily-summary` include `device_name`.
+
+**Also:** sensor-pair indicators gain `mean_level` and `relative_bias`; charge-cycle indicators carry the metric's `expected_min`/`expected_max` so stored days are self-describing; boolean policy settings are validated.
+
+**Files changed:**
+- `app/services/diagnostics/trends.py`, `narrative.py` — New
+- `app/services/diagnostics/daily.py`, `evaluator.py`, `indicators.py`, `policy.py` — Trend issues, lifecycle adjustment, summaries, new policy section
+- `app/models/health.py`, `app/schemas/diagnostics.py`, `app/api/v1/diagnostics.py` — New fields and trends endpoint
+- `alembic/versions/d0e1f2a3b4c5_add_daily_diagnostic_trends_and_summary.py`
+- `tests/test_diagnostics_trends.py` (new), `tests/test_daily_diagnostics.py`
+
+---
+
+## Version 2.4.0
+**Released:** September 17, 2026
+
+### Feature: Diagnostic Indicators — Charge Cycles, Outage Attribution & Sensor Error Margin
+
+The engine now measures how each component behaved every day, not only whether a threshold broke. Indicators are stored with each daily diagnosis and exposed as time series.
+
+<details>
+<summary><strong>Indicators (`app/services/diagnostics/indicators.py`)</strong></summary>
+
+- **`charge_cycle`** for metrics with role `charge_level`: daily min/max and when they happened, swing, hours charging / discharging / flat, longest continuous charge and discharge, charge and discharge rates, max discharge rate, cycle count, hours below `expected_min` and hours in the low-charge band.
+- **`coverage`** for each connectivity component (or the device): hours with data / complete / empty, records per hour, outage list with start, end and duration, offline hours, longest outage, and whether each outage followed a low charge level on the battery that `POWERS` the link. Also partial-payload rate and records without a timestamp.
+- **`agreement:<other>`** for each `MEASURES_SAME_AS` pair: correlation, mean and p95 absolute error, signed bias (which sensor reads high), relative error, and the share of paired readings within the relationship's tolerance.
+- **`generation`** for metrics with role `charge_source`: peak and when, mean, hours active.
+- `metrics_summary` now also records `std` and when the min/max occurred.
+
+**Profile additions (migration `c9d0e1f2a3b4`):**
+- `metric_definitions.role` — `charge_level`, `charge_source` or `signal_strength`. Existing battery voltage metrics (battery component, unit `V`) are backfilled as `charge_level`.
+- `component_relationships.metadata` — e.g. `{"tolerance": {"absolute": 10, "relative": 0.2}}` on `MEASURES_SAME_AS`; readings agree when `|a − b| ≤ max(absolute, relative × mean)`.
+- `device_daily_diagnostics.indicators`.
+
+**New checks:**
+- `SENSOR_ERROR_MARGIN` — too few paired readings within the pair's tolerance (needs relationship tolerance).
+- `LOW_CHARGE_OUTAGE` — evidence against the battery when outages on the link it powers began after the charge level fell into the low band (`expected_min + 0.3 × range`).
+- `METRIC_RATE_EXCEEDED` on a `charge_level` metric now limits the **discharge** rate only, so solar charging no longer trips it.
+- Pair evidence without a faulty side is reported once per pair as `SENSOR_PAIR:<a>~<b>`.
+
+**Endpoint:** `GET /diagnostics/devices/{device_id}/indicators?days=30&component=&indicator=` — one point per diagnosed day per indicator group, for charting. `indicators` is also included in daily detail and evaluate responses; readiness reports `metric_roles` and warns when a battery has no `charge_level` metric or a pair has no tolerance.
+
+**Fix:** naive datetimes and naive ISO strings in telemetry are now treated as UTC instead of the host time zone.
+
+**Validation:** relationship `meta_data` must be a JSON object (invalid JSON is rejected instead of silently dropped), and fraction-valued policy settings must be between 0 and 1.
+
+</details>
+
+**Files changed:**
+- `app/services/diagnostics/indicators.py` — Indicator computation (new)
+- `app/services/diagnostics/evidence.py`, `root_cause.py`, `evaluator.py`, `features.py`, `policy.py`, `profile_model.py`, `daily.py` — New checks, roles, tolerance, indicator storage
+- `app/models/device_schema.py`, `app/models/health.py`, `app/schemas/device_schema.py`, `app/schemas/diagnostics.py`, `app/crud/crud_diagnostics.py` — `role`, relationship `meta_data`, `indicators`
+- `app/api/v1/diagnostics.py` — Indicator series endpoint
+- `alembic/versions/c9d0e1f2a3b4_add_metric_roles_relationship_metadata_and_indicators.py` — New columns and role backfill
+
+---
+
+## Version 2.3.0
+**Released:** September 13, 2026
+
+### Feature: Profile-Driven Diagnostic Engine
+
+The diagnostic engine no longer contains device-specific rules (12 V battery thresholds, solar and PM key names, a fixed 2-minute reporting interval, fixed subsystems and causes). Everything device-specific now comes from the device profile.
+
+<details>
+<summary><strong>How a profile drives the analysis</strong></summary>
+
+- **Component metrics** (`expected_min`, `expected_max`, `max_rate_of_change` per hour): generic checks `METRIC_BELOW_MIN`, `METRIC_ABOVE_MAX`, `METRIC_RATE_EXCEEDED`, `METRIC_STUCK`, `METRIC_MISSING` for every telemetry-mapped metric.
+- **Component criticality**: weights each component's score in the overall health score and sets issue severity (criticality × confidence).
+- **Relationships**: `POWERS` / `COOLS` / `COMMUNICATES_VIA` build a dependency graph — a faulty upstream component is reported as the root cause of its dependents' issues, and an unmonitored component whose dependents all fail is reported as suspected. `MEASURES_SAME_AS` pairs sensors for an agreement check; disagreement is attributed to whichever side has its own fault.
+- **Config mappings**: `reporting_interval` (device's synced config value, falling back to the profile default) drives the `DATA_GAPS` check, attributed to `connectivity` components.
+- **Policy** (`app/services/diagnostics/policy.py`): generic tuning (violation rates, check impacts, lifecycle bands) overridable via `profile.meta_data.diagnostics` and `component.meta_data.diagnostics` (including `disabled_checks`). Invalid overrides are reported as readiness errors and unknown settings as warnings.
+- Devices without a usable profile are rejected (`422` on evaluate endpoints, `skipped_no_profile` in daily runs) instead of being scored with guessed rules.
+- New `GET /diagnostics/profiles/{profile_id}/diagnostic-readiness` lists what a profile is missing (unmapped metrics, missing limits, unsupported relationships, missing reporting interval, unmonitored telemetry).
+- `subsystem_scores` are now keyed by profile component name; evidence and diagnoses include component, metric and affected components.
+
+**Files:** `app/services/diagnostics/profile_model.py`, `policy.py`, `root_cause.py` (new); `evidence.py`, `features.py`, `evaluator.py`, `issues.py` (rewritten); `tests/diagnostics_fixtures.py` (new).
+
+</details>
+
+### Feature: Daily Device Diagnostics, Issue Streaks & Fleet Health Endpoints
+
+After the nightly ThingSpeak sync, every device with data for a completed UTC day is now run through the diagnostic engine and the result is stored per device per day. Detected issues are tracked across days (new vs. persisting vs. resolved), and new endpoints expose device history, recurring issues and a fleet-wide daily overview.
+
+<details>
+<summary><strong>Daily Evaluation Pipeline</strong></summary>
+
+- **Service (`app/services/diagnostics/daily.py`)**:
+  - `run_daily_diagnostics` evaluates each completed device-day (`sync_daily_device_data.complete = true`, `record_count > 0`) from the stored raw readings, resolving the device's profile for field mapping.
+  - Idempotent and self-healing: each run catches up on undiagnosed days in the lookback window (default 3 days, max 14 = raw data retention). `force=True` re-evaluates and replaces existing days.
+  - Commits per device-day so one bad day does not roll back others; failures are counted in the run summary.
+  - Scheduled, manual and forced runs share a PostgreSQL advisory lock; a run that starts while another is in progress exits without processing.
+  - Runs in a worker thread (`run_daily_diagnostics_async`) because evaluation is CPU-bound (~0.2 s per device-day).
+- **Issues (`app/services/diagnostics/issues.py`)**: each profile-driven finding is stored with its check type, component, metric, component type (`subsystem`) and severity, e.g. `METRIC_BELOW_MIN:device_battery.battery_voltage`.
+- **Streaks**: each issue stores `is_new`, `streak_days` and `streak_start_date`; a gap of up to 3 days (e.g. device offline) does not reset a streak. Each day also stores `resolved_issue_codes`.
+- **Scheduler (`app/services/scheduler_service.py`)**: chained after the daily ThingSpeak sync, followed by a 365-day retention cleanup. Toggle with `DAILY_DIAGNOSTICS_ENABLED`.
+
+</details>
+
+<details>
+<summary><strong>New Endpoints (`/api/v1/diagnostics`)</strong></summary>
+
+- `GET /devices/{device_id}/daily` — day-by-day diagnosis history with issues (filters: `start_date`, `end_date`, `lifecycle_state`, `limit`).
+- `GET /devices/{device_id}/daily/{diagnosis_date}` — full diagnosis for one day: evidence, ranked causes, issues and per-metric mean/min/max.
+- `GET /devices/{device_id}/issues?days=30` — recurring/active issues with days observed, current streak and a health score trend.
+- `GET /fleet/daily-summary` — lifecycle state and severity counts, top issues (with new-device counts), resolved issues and worst devices for a day (defaults to latest).
+- `GET /fleet/issues` — cross-fleet issue search (`issue_code`, `check_type`, `component_name`, `severity`, `subsystem`, `min_streak_days`, `only_new`, date filters).
+- `POST /daily/run` — background run/backfill (`start_date`, `end_date`, repeatable `device_id`, `force`, `lookback_days`).
+
+</details>
+
+**Database migration:** `b8c9d0e1f2a3` — adds `device_daily_diagnostics` (unique per device + date) and `device_daily_issues` (unique per device + date + issue code).
+
+**Files changed:**
+- `app/models/health.py` — Added `DeviceDailyDiagnostic` and `DeviceDailyIssue`
+- `app/services/diagnostics/daily.py` — Daily evaluation pipeline and read-side summaries
+- `app/services/diagnostics/issues.py` — Issue catalog and classification
+- `app/crud/crud_diagnostics.py` — Daily diagnosis and issue queries, retention cleanup
+- `app/schemas/diagnostics.py` — Daily diagnosis, issue summary and fleet response schemas
+- `app/api/v1/diagnostics.py` — Daily diagnostics endpoints
+- `app/services/scheduler_service.py` — Run daily diagnostics after the scheduled sync
+- `app/core/config.py` — `DAILY_DIAGNOSTICS_ENABLED` setting
+- `alembic/versions/b8c9d0e1f2a3_add_daily_device_diagnostics_tables.py` — New tables
+- `tests/test_daily_diagnostics.py` — Pipeline, streak, idempotency and API tests
+
+---
+
+## Version 2.2.1
+**Released:** September 9, 2026
+
+### Fix: Maintenance Map View Query Optimization & PostgreSQL Connection Resilience
+
+Resolved PostgreSQL connection terminations and `OperationalError: server closed the connection unexpectedly` on `/api/v1/maintenance/map-view/synced` and `/api/v1/maintenance/map-view` by pushing performance metric aggregations down to the database and batching telemetry channel queries.
+
+<details>
+<summary><strong>SQL-Level Metric Aggregation & Query Batching</strong></summary>
+
+- **Lightweight Grouped Aggregation (`app/crud/crud_sync_device_data.py`)**:
+  - Implemented `get_device_metrics_for_map_view` performing SQL-level `GROUP BY channel_id` calculations for `uptime` (bucket count), `data_completeness`, and `error_margin` (`AVG(field1_avg)` vs `AVG(field3_avg)`).
+  - Reduced query payload from ~226,000+ full hourly records across 20+ columns down to a single summary row per channel (~675 rows total).
+  - Added query batching in chunks of 200 channels to remain safely within database parameter limits.
+- **Batching Safeguards in CRUD Helpers**:
+  - Updated `get_device_data_for_devices` and `get_latest_raw_timestamps` in `app/crud/crud_sync_device_data.py` to chunk channel IDs in batches of 200.
+- **Map View Service Streamlining (`app/services/maintenance_service.py`)**:
+  - Updated `get_synced_map_view` and `get_map_view` to query device metrics directly via `get_device_metrics_for_map_view`, bypassing the heavy row-by-row `apply_local_performance` pipeline.
+- **Automated Test Coverage (`tests/test_maintenance_synced.py`)**:
+  - Added unit test cases verifying database metric aggregations and end-to-end synced map view response generation.
+
+</details>
+
+**Files changed:**
+- `app/crud/crud_sync_device_data.py` — Added `get_device_metrics_for_map_view` and batched channel queries
+- `app/services/maintenance_service.py` — Streamlined `get_synced_map_view` and `get_map_view` to use SQL-level metrics
+- `tests/test_maintenance_synced.py` — Added test coverage for metric aggregations and performance data
+
+---
+
 ## Version 2.2.0
 **Released:** September 6, 2026
 

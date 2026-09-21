@@ -1,8 +1,10 @@
 import uuid
+from datetime import date, timedelta
 from typing import List, Optional, Dict, Any, Union
 from uuid import UUID
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func
+from sqlalchemy.orm import Session, selectinload
 from app.models.device_schema import (
     DeviceProfile,
     ComponentDefinition,
@@ -17,7 +19,8 @@ from app.models.diagnostics import (
     DiagnosticHypothesisRule,
     ProfileDiagnosticTemplate,
 )
-from app.models.health import DeviceHealthSnapshot, DiagnosticFeedback
+from app.models.health import DeviceHealthSnapshot, DiagnosticFeedback, DeviceDailyDiagnostic, DeviceDailyIssue
+from app.models.sync import SyncDevice
 from app.schemas.device_schema import (
     DeviceProfileCreate,
     DeviceProfileUpdateSchema,
@@ -103,6 +106,7 @@ class CRUDDiagnostics:
                             expected_max=m_in.expected_max,
                             max_rate_of_change=m_in.max_rate_of_change,
                             is_telemetry_field=m_in.is_telemetry_field,
+                            role=m_in.role,
                         )
                         db.add(m_obj)
 
@@ -227,6 +231,7 @@ class CRUDDiagnostics:
                                 expected_max=m_data.get("expected_max"),
                                 max_rate_of_change=m_data.get("max_rate_of_change"),
                                 is_telemetry_field=m_data.get("is_telemetry_field", True),
+                                role=m_data.get("role"),
                             )
                             matched.metrics.append(m_obj)
                     retained_components.append(matched)
@@ -269,6 +274,7 @@ class CRUDDiagnostics:
                                 expected_max=m_data.get("expected_max"),
                                 max_rate_of_change=m_data.get("max_rate_of_change"),
                                 is_telemetry_field=m_data.get("is_telemetry_field", True),
+                                role=m_data.get("role"),
                             )
                             new_comp.metrics.append(m_obj)
                     retained_components.append(new_comp)
@@ -326,6 +332,11 @@ class CRUDDiagnostics:
                         source_component_id=src_id,
                         target_component_id=tgt_id,
                         relationship_type=rel_type,
+                        meta_data=(
+                            _to_dict(r_data.get("meta_data") or r_data.get("metadata"))
+                            if (r_data.get("meta_data") or r_data.get("metadata")) is not None
+                            else None
+                        ),
                     )
                     db_obj.relationships.append(rel_obj)
 
@@ -428,6 +439,7 @@ class CRUDDiagnostics:
                     expected_max=m_in.expected_max,
                     max_rate_of_change=m_in.max_rate_of_change,
                     is_telemetry_field=m_in.is_telemetry_field,
+                    role=m_in.role,
                 )
                 db.add(m_obj)
 
@@ -472,6 +484,7 @@ class CRUDDiagnostics:
                     expected_max=m_in.expected_max,
                     max_rate_of_change=m_in.max_rate_of_change,
                     is_telemetry_field=m_in.is_telemetry_field,
+                    role=m_in.role,
                 )
                 db_obj.metrics.append(m_obj)
 
@@ -574,6 +587,127 @@ class CRUDDiagnostics:
         db.commit()
         db.refresh(db_obj)
         return db_obj
+
+    # ── Daily Diagnostics ─────────────────────────────────────────────────
+    def list_daily_diagnostics(
+        self,
+        db: Session,
+        device_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        lifecycle_state: Optional[str] = None,
+        limit: int = 30,
+    ) -> List[DeviceDailyDiagnostic]:
+        q = (
+            db.query(DeviceDailyDiagnostic)
+            .options(selectinload(DeviceDailyDiagnostic.issues))
+            .filter(DeviceDailyDiagnostic.device_id == device_id)
+        )
+        if start_date:
+            q = q.filter(DeviceDailyDiagnostic.diagnosis_date >= start_date)
+        if end_date:
+            q = q.filter(DeviceDailyDiagnostic.diagnosis_date <= end_date)
+        if lifecycle_state:
+            q = q.filter(DeviceDailyDiagnostic.lifecycle_state == lifecycle_state)
+        return q.order_by(DeviceDailyDiagnostic.diagnosis_date.desc()).limit(limit).all()
+
+    def get_daily_diagnostic(
+        self, db: Session, device_id: str, diagnosis_date: date
+    ) -> Optional[DeviceDailyDiagnostic]:
+        return (
+            db.query(DeviceDailyDiagnostic)
+            .options(selectinload(DeviceDailyDiagnostic.issues))
+            .filter(
+                DeviceDailyDiagnostic.device_id == device_id,
+                DeviceDailyDiagnostic.diagnosis_date == diagnosis_date,
+            )
+            .first()
+        )
+
+    def get_latest_diagnosis_date(self, db: Session) -> Optional[date]:
+        return db.query(func.max(DeviceDailyDiagnostic.diagnosis_date)).scalar()
+
+    def list_daily_issues(
+        self,
+        db: Session,
+        diagnosis_date: Optional[date] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        device_id: Optional[str] = None,
+        issue_code: Optional[str] = None,
+        severity: Optional[str] = None,
+        subsystem: Optional[str] = None,
+        min_streak_days: Optional[int] = None,
+        only_new: bool = False,
+        skip: int = 0,
+        limit: int = 100,
+        component_name: Optional[str] = None,
+        check_type: Optional[str] = None,
+    ) -> List[DeviceDailyIssue]:
+        q = db.query(DeviceDailyIssue, SyncDevice.device_name).outerjoin(
+            SyncDevice, SyncDevice.device_id == DeviceDailyIssue.device_id
+        )
+        if diagnosis_date:
+            q = q.filter(DeviceDailyIssue.diagnosis_date == diagnosis_date)
+        if start_date:
+            q = q.filter(DeviceDailyIssue.diagnosis_date >= start_date)
+        if end_date:
+            q = q.filter(DeviceDailyIssue.diagnosis_date <= end_date)
+        if device_id:
+            q = q.filter(DeviceDailyIssue.device_id == device_id)
+        if issue_code:
+            q = q.filter(DeviceDailyIssue.issue_code == issue_code)
+        if severity:
+            q = q.filter(DeviceDailyIssue.severity == severity.upper())
+        if subsystem:
+            q = q.filter(DeviceDailyIssue.subsystem == subsystem)
+        if component_name:
+            q = q.filter(DeviceDailyIssue.component_name == component_name)
+        if check_type:
+            q = q.filter(DeviceDailyIssue.check_type == check_type.upper())
+        if min_streak_days:
+            q = q.filter(DeviceDailyIssue.streak_days >= min_streak_days)
+        if only_new:
+            q = q.filter(DeviceDailyIssue.is_new == True)  # noqa: E712
+
+        severity_rank = case(
+            {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1},
+            value=DeviceDailyIssue.severity,
+            else_=0,
+        )
+        rows = (
+            q.order_by(
+                DeviceDailyIssue.diagnosis_date.desc(),
+                severity_rank.desc(),
+                DeviceDailyIssue.streak_days.desc(),
+                DeviceDailyIssue.device_id,
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        issues = []
+        for issue, device_name in rows:
+            issue.device_name = device_name   # display name for the response; not a column on the issue
+            issues.append(issue)
+        return issues
+
+    def get_device_names(self, db: Session, device_ids: List[str]) -> Dict[str, Optional[str]]:
+        if not device_ids:
+            return {}
+        rows = db.query(SyncDevice.device_id, SyncDevice.device_name).filter(SyncDevice.device_id.in_(device_ids)).all()
+        return {device_id: name for device_id, name in rows}
+
+    def cleanup_daily_diagnostics(self, db: Session, retention_days: int = 365) -> int:
+        cutoff = date.today() - timedelta(days=retention_days)
+        db.query(DeviceDailyIssue).filter(DeviceDailyIssue.diagnosis_date < cutoff).delete(synchronize_session=False)
+        deleted = (
+            db.query(DeviceDailyDiagnostic)
+            .filter(DeviceDailyDiagnostic.diagnosis_date < cutoff)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        return deleted
 
 
 crud_diagnostics = CRUDDiagnostics()

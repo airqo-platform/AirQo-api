@@ -107,6 +107,9 @@ function sendRankingResponse(res, result) {
       success: true,
       message: result.message,
       data: result.data,
+      // Additive — only live rankings computes it today (see R7 in the
+      // Nexus country-filter requirements doc).
+      ...(result.meta ? { meta: result.meta } : {}),
     });
   } else {
     res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -311,11 +314,22 @@ const processGridIds = async (grid_ids, request) => {
       logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
 
       if (responseFromGetSitesOfGrid.success === false) {
-        logger.error(
-          `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfGrid,
-          )}`,
-        );
+        if (
+          responseFromGetSitesOfGrid.status >=
+          httpStatus.INTERNAL_SERVER_ERROR
+        ) {
+          logger.error(
+            `🐛🐛 Internal Server Error --- ${JSON.stringify(
+              responseFromGetSitesOfGrid,
+            )}`,
+          );
+        } else {
+          logger.warn(
+            `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(
+              responseFromGetSitesOfGrid,
+            )}`,
+          );
+        }
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.warn(
@@ -569,6 +583,32 @@ const createEvent = {
         return;
       }
       const result = await createEventUtil.getAirQualityRankingsHistory(
+        req,
+        next,
+      );
+      sendRankingResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getAirQualityRankingsCountries: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankingsCountries(
         req,
         next,
       );

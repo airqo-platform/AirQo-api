@@ -122,14 +122,19 @@ describe("updateRawOnlineStatusJob", () => {
       });
 
       // Default call for the cursor
+      const setOptionsStub = sinon.stub().returns({ cursor: () => cursor });
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: setOptionsStub }),
+          }),
         }),
       });
 
       await updateRawOnlineStatus();
 
+      expect(setOptionsStub.calledOnceWith({ noCursorTimeout: true })).to.be
+        .true;
       expect(deviceModelStub.calledOnce).to.be.true;
       const bulkWriteArgs = deviceModelStub.firstCall.args[0];
       const updateOperation = bulkWriteArgs[0].updateOne.update;
@@ -157,7 +162,9 @@ describe("updateRawOnlineStatusJob", () => {
       // Default call for the cursor
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 
@@ -191,7 +198,9 @@ describe("updateRawOnlineStatusJob", () => {
       // Default call for the cursor
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 
@@ -221,7 +230,9 @@ describe("updateRawOnlineStatusJob", () => {
       });
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 
@@ -262,7 +273,9 @@ describe("updateRawOnlineStatusJob", () => {
       });
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 
@@ -300,7 +313,9 @@ describe("updateRawOnlineStatusJob", () => {
       });
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 

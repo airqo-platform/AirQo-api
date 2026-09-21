@@ -154,6 +154,14 @@ const siteSchema = new Schema(
       required: [true, "approximate_longitude is required!"],
       immutable: true,
     },
+    // GeoJSON mirror of latitude/longitude, kept in sync by the pre-save hook
+    // below. Exists solely so a 2dsphere index can back $geoNear queries
+    // (e.g. nearest-site search) — Mongo can't geo-index plain lat/lng
+    // number fields.
+    location: {
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number], default: undefined },
+    },
     approximate_distance_in_km: {
       type: Number,
       required: [true, "approximate_distance_in_km is required!"],
@@ -499,6 +507,53 @@ const checkDuplicates = (arr, fieldName) => {
   return null;
 };
 
+// Shared by listAirQoActive and findNearestSites: both pipelines look up the
+// same latest_deployment_activity/latest_maintenance_activity/activities
+// arrays and need them flattened/summarized the same way.
+const attachActivityMetadata = (response) => {
+  if (isEmpty(response)) {
+    return response;
+  }
+  response.forEach((site) => {
+    site.latest_deployment_activity =
+      site.latest_deployment_activity &&
+      site.latest_deployment_activity.length > 0
+        ? site.latest_deployment_activity[0]
+        : null;
+
+    site.latest_maintenance_activity =
+      site.latest_maintenance_activity &&
+      site.latest_maintenance_activity.length > 0
+        ? site.latest_maintenance_activity[0]
+        : null;
+
+    if (site.activities && site.activities.length > 0) {
+      const activitiesByType = {};
+      const latestActivitiesByType = {};
+
+      site.activities.forEach((activity) => {
+        const type = activity.activityType || "unknown";
+        activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+        if (
+          !latestActivitiesByType[type] ||
+          new Date(activity.createdAt) >
+            new Date(latestActivitiesByType[type].createdAt)
+        ) {
+          latestActivitiesByType[type] = activity;
+        }
+      });
+
+      site.activities_by_type = activitiesByType;
+      site.latest_activities_by_type = latestActivitiesByType;
+    } else {
+      site.activities_by_type = {};
+      site.latest_activities_by_type = {};
+    }
+  });
+  return response;
+};
+
 siteSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
   function(next) {
@@ -563,6 +618,15 @@ siteSchema.pre(
     }
 
     if (this.isNew) {
+      // latitude/longitude are immutable (rejected above on update), so this
+      // only ever needs to run once at creation time.
+      if (typeof this.latitude === "number" && typeof this.longitude === "number") {
+        this.location = {
+          type: "Point",
+          coordinates: [this.longitude, this.latitude],
+        };
+      }
+
       // Prepare site_codes array
       this.site_codes = [
         this._id,
@@ -600,6 +664,9 @@ siteSchema.pre(
 
 siteSchema.index({ lat_long: 1 }, { unique: true });
 siteSchema.index({ generated_name: 1 }, { unique: true });
+// Backs $geoNear radius/sort queries (nearest-site search) so Mongo can use
+// the index instead of scanning + JS-side Haversine filtering.
+siteSchema.index({ location: "2dsphere" });
 siteSchema.index({ createdAt: -1 });
 // Index for stale entity checks
 siteSchema.index({ "onlineStatusAccuracy.lastCheck": 1 });
@@ -1069,7 +1136,7 @@ siteSchema.statics = {
       }
 
       const pipeline = await this.aggregate()
-        .match({ ...filter, network: "airqo" })
+        .match({ ...filter })
         .lookup({
           from: "devices",
           localField: "_id",
@@ -1156,45 +1223,7 @@ siteSchema.statics = {
 
       // Process activities in JavaScript for consistency
       if (!isEmpty(response)) {
-        response.forEach((site) => {
-          // Process latest activities to extract single objects
-          site.latest_deployment_activity =
-            site.latest_deployment_activity &&
-            site.latest_deployment_activity.length > 0
-              ? site.latest_deployment_activity[0]
-              : null;
-
-          site.latest_maintenance_activity =
-            site.latest_maintenance_activity &&
-            site.latest_maintenance_activity.length > 0
-              ? site.latest_maintenance_activity[0]
-              : null;
-
-          // Create activities by type mapping
-          if (site.activities && site.activities.length > 0) {
-            const activitiesByType = {};
-            const latestActivitiesByType = {};
-
-            site.activities.forEach((activity) => {
-              const type = activity.activityType || "unknown";
-              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
-
-              if (
-                !latestActivitiesByType[type] ||
-                new Date(activity.createdAt) >
-                  new Date(latestActivitiesByType[type].createdAt)
-              ) {
-                latestActivitiesByType[type] = activity;
-              }
-            });
-
-            site.activities_by_type = activitiesByType;
-            site.latest_activities_by_type = latestActivitiesByType;
-          } else {
-            site.activities_by_type = {};
-            site.latest_activities_by_type = {};
-          }
-        });
+        attachActivityMetadata(response);
 
         return {
           success: true,
@@ -1210,6 +1239,135 @@ siteSchema.statics = {
           status: httpStatus.OK,
         };
       }
+    } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  // Radius search backing GET /sites/nearest. Uses the `location` 2dsphere
+  // index via $geoNear so Mongo does the radius filtering and distance sort,
+  // instead of fetching up to 1000 sites and Haversine-filtering them in JS.
+  async findNearestSites(
+    { longitude, latitude, radius, filter = {}, limit = 20 } = {},
+    next,
+  ) {
+    try {
+      const inclusionProjection = {
+        ...constants.SITES_INCLUSION_PROJECTION,
+        distance_km: 1,
+      };
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION("none");
+      const maxResults = Math.min(Number(limit) || 20, 100);
+
+      const pipeline = await this.aggregate()
+        .near({
+          near: {
+            type: "Point",
+            coordinates: [Number(longitude), Number(latitude)],
+          },
+          distanceField: "distance_km",
+          distanceMultiplier: 0.001, // meters -> km
+          maxDistance: Number(radius) * 1000, // km -> meters
+          spherical: true,
+          query: { ...filter, lat_long: { $ne: "4_4" } },
+        })
+        .lookup({
+          from: "devices",
+          localField: "_id",
+          foreignField: "site_id",
+          as: "devices",
+        })
+        .unwind("$devices")
+        .match({ devices: { $exists: true, $ne: [] } })
+        .lookup({
+          from: "grids",
+          localField: "grids",
+          foreignField: "_id",
+          as: "grids",
+        })
+        .lookup({
+          from: "airqlouds",
+          localField: "airqlouds",
+          foreignField: "_id",
+          as: "airqlouds",
+        })
+        .lookup({
+          from: "activities",
+          localField: "_id",
+          foreignField: "site_id",
+          as: "activities",
+        })
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "deployment"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_deployment_activity",
+        })
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "maintenance"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_maintenance_activity",
+        })
+        .addFields({
+          total_activities: {
+            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+          },
+        })
+        // $geoNear already sorted nearest-first; cap here rather than after
+        // the JS loop the old implementation used.
+        .limit(maxResults)
+        .project(inclusionProjection)
+        .project(exclusionProjection)
+        .allowDiskUse(true);
+
+      const response = await pipeline;
+
+      if (!isEmpty(response)) {
+        attachActivityMetadata(response);
+      }
+
+      return {
+        success: true,
+        message: "successfully retrieved the nearest sites",
+        data: response,
+        status: httpStatus.OK,
+      };
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
@@ -1384,3 +1542,8 @@ const SiteModel = (tenant) => {
 };
 
 module.exports = SiteModel;
+// Exposed so tests can call a static directly (e.g.
+// SiteModel.statics.listAirQoActive.call(fakeModel, args, next)) against a
+// plain mocked `this` — no mongoose model compilation or DB connection
+// needed, unlike SiteModel(tenant) which requires one via getModelByTenant.
+module.exports.statics = siteSchema.statics;

@@ -42,8 +42,12 @@ class TestVendorAndProfileFirmwareIntegration(unittest.TestCase):
         self.db = self.Session()
 
     def tearDown(self):
+        from main import app
+        app.dependency_overrides.clear()
         self.db.rollback()
         self.db.close()
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
 
     def test_vendor_crud_operations(self):
         # 1. Create vendor

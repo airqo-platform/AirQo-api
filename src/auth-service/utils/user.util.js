@@ -55,6 +55,9 @@ const {
   extractIp,
 } = require("@utils/common/device.util");
 
+const EXPORT_STATS_DEFAULT_LIMIT = 500;
+const EXPORT_STATS_MAX_LIMIT = 1000;
+
 function generateNumericToken(length) {
   const charset = "0123456789";
   let token = "";
@@ -790,7 +793,7 @@ const createUserModule = {
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics =
-        await UserModel(tenant).listStatistics(tenant);
+        await UserModel(tenant).listStatistics(next);
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1128,6 +1131,139 @@ const createUserModule = {
     } catch (error) {
       logger.error(
         `🐛🐛 Internal Server Error in getStatsBreakdown: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  // Lightweight, unpaginated contact list behind each User Statistics card
+  // (total / active / verified / api). Segments mirror the card definitions.
+  // Each row carries `unsubscribed` (email notifications switched off in the
+  // local subscriptions collection, the same flag the mailer enforces).
+  // Newsletter unsubscribes live only in Mailchimp and are not visible here.
+  exportStatsSegment: async (request, next) => {
+    try {
+      const {
+        tenant,
+        segment,
+        exclude_unsubscribed,
+        skip: rawSkip,
+        limit: rawLimit,
+      } = request.query;
+      const skip = Number.isFinite(Number(rawSkip))
+        ? Math.max(0, parseInt(rawSkip, 10))
+        : 0;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.min(
+            EXPORT_STATS_MAX_LIMIT,
+            Math.max(1, parseInt(rawLimit, 10)),
+          )
+        : EXPORT_STATS_DEFAULT_LIMIT;
+
+      const pipeline = [
+        { $match: { email: { $nin: [null, ""] } } },
+      ];
+
+      if (segment === "active") {
+        pipeline.push({ $match: { isActive: true } });
+      } else if (segment === "verified") {
+        pipeline.push({ $match: { verified: true } });
+      } else if (segment === "api") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "clients",
+              localField: "_id",
+              foreignField: "user_id",
+              as: "clients",
+            },
+          },
+          { $match: { "clients.0": { $exists: true } } },
+        );
+      }
+
+      pipeline.push(
+        {
+          $lookup: {
+            from: "subscriptions",
+            localField: "email",
+            foreignField: "email",
+            as: "subscription",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            email: 1,
+            firstName: 1,
+            lastName: 1,
+            userName: 1,
+            organization: 1,
+            country: 1,
+            isActive: { $ifNull: ["$isActive", false] },
+            verified: { $ifNull: ["$verified", false] },
+            loginCount: { $ifNull: ["$loginCount", 0] },
+            lastLogin: 1,
+            createdAt: 1,
+            unsubscribed: {
+              $eq: [
+                { $arrayElemAt: ["$subscription.notifications.email", 0] },
+                false,
+              ],
+            },
+          },
+        },
+      );
+
+      const excludeUnsubscribed = exclude_unsubscribed === true;
+      pipeline.push({
+        $facet: {
+          users: [
+            ...(excludeUnsubscribed
+              ? [{ $match: { unsubscribed: false } }]
+              : []),
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          counts: [{ $group: { _id: "$unsubscribed", count: { $sum: 1 } } }],
+        },
+      });
+
+      const [facets = {}] = await UserModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const users = facets.users || [];
+      const countFor = (flag) =>
+        ((facets.counts || []).find((c) => c._id === flag) || {}).count || 0;
+      const unsubscribedTotal = countFor(true);
+      const total = excludeUnsubscribed
+        ? countFor(false)
+        : countFor(false) + unsubscribedTotal;
+
+      return {
+        success: true,
+        message: `Successfully retrieved the ${segment} users`,
+        data: {
+          segment,
+          total,
+          unsubscribed_total: unsubscribedTotal,
+          skip,
+          limit,
+          has_more: skip + users.length < total,
+          users,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in exportStatsSegment: ${error.message}`,
       );
       next(
         new HttpError(
@@ -2377,16 +2513,40 @@ const createUserModule = {
       const { body, query } = request;
       const { email } = body;
       const { purpose } = query;
+      const tenant = (query && query.tenant) || "airqo";
 
-      const link = await firebaseAuth.getAuth().generateSignInWithEmailLink(
-        email,
-        constants.ACTION_CODE_SETTINGS,
+      const userExists = await UserModel(tenant).exists({ email });
+      if (!userExists) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Sorry, the provided email does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
+          }),
+        );
+      }
+
+      const responseFromGenerateToken = createUserModule.generateResetToken();
+      if (responseFromGenerateToken.success !== true) {
+        return responseFromGenerateToken;
+      }
+      const signInToken = responseFromGenerateToken.data;
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { email },
+          update: {
+            signInToken,
+            signInTokenExpires: Date.now() + 15 * 60 * 1000,
+          },
+        },
+        next,
       );
+      if (!responseFromModifyUser || responseFromModifyUser.success !== true) {
+        return responseFromModifyUser;
+      }
 
-      let linkSegments = link.split("%").filter((segment) => segment);
-      const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
-      const indexOfCode = indexBeforeCode + 1;
-      let emailLinkCode = linkSegments[indexOfCode].substring(2);
+      const link = `${constants.SIGN_IN_LINK}?token=${signInToken}&email=${encodeURIComponent(email)}`;
+      const emailLinkCode = signInToken;
 
       let responseFromSendEmail = {};
       let token = 10000;
@@ -2410,7 +2570,7 @@ const createUserModule = {
       }
       if (purpose === "login") {
         responseFromSendEmail = await mailer.signInWithEmailLink(
-          { email, token },
+          { email, token, link },
           next,
         );
       }
@@ -2444,6 +2604,52 @@ const createUserModule = {
           ),
         );
       }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  completeSignInWithEmailLink: async (request, next) => {
+    try {
+      const { email, token } = request.body;
+      const tenant = (request.query && request.query.tenant) || "airqo";
+
+      const user = await UserModel(tenant).findOneAndUpdate(
+        {
+          email,
+          signInToken: token,
+          signInTokenExpires: { $gt: new Date() },
+        },
+        {
+          $set: {
+            signInToken: null,
+            signInTokenExpires: null,
+          },
+        },
+        { new: true, context: "query" },
+      );
+
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "This sign-in link is invalid or has expired.",
+          }),
+        );
+      }
+
+      const loginResult = await createUserModule.loginWithEnhancedTokens(
+        { body: { email }, query: request.query, headers: request.headers },
+        next,
+        { skipPasswordCheck: true },
+      );
+
+      return loginResult;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       return next(
@@ -6806,8 +7012,9 @@ const createUserModule = {
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
-  loginWithEnhancedTokens: async (request, next) => {
+  loginWithEnhancedTokens: async (request, next, options = {}) => {
     try {
+      const { skipPasswordCheck = false } = options;
       const body = request.body || {};
       const query = request.query || {};
       const { email, password, preferredStrategy, includeDebugInfo } = body;
@@ -6821,14 +7028,17 @@ const createUserModule = {
       });
 
       // Input validation
-      if (!email || !password) {
+      if (!email || (!skipPasswordCheck && !password)) {
         return {
           success: false,
           message: "Email and password are required",
           status: httpStatus.BAD_REQUEST,
           errors: {
             email: !email ? "Email is required" : undefined,
-            password: !password ? "Password is required" : undefined,
+            password:
+              !skipPasswordCheck && !password
+                ? "Password is required"
+                : undefined,
           },
         };
       }
@@ -6849,17 +7059,20 @@ const createUserModule = {
         };
       }
 
-      // Verify password
-      const isPasswordValid = await user.authenticateUser(password);
-      if (!isPasswordValid) {
-        return {
-          success: false,
-          message: "Invalid login credentials provided",
-          status: httpStatus.UNAUTHORIZED,
-          errors: {
-            credentials: "The email or password you entered is incorrect.",
-          },
-        };
+      // Verify password (skipped when the caller already established identity
+      // through another verified channel, e.g. a one-time sign-in link token)
+      if (!skipPasswordCheck) {
+        const isPasswordValid = await user.authenticateUser(password);
+        if (!isPasswordValid) {
+          return {
+            success: false,
+            message: "Invalid login credentials provided",
+            status: httpStatus.UNAUTHORIZED,
+            errors: {
+              credentials: "The email or password you entered is incorrect.",
+            },
+          };
+        }
       }
 
       // Centralized verification check
@@ -6897,7 +7110,7 @@ const createUserModule = {
         const userConsented = user?.consent?.analytics === true;
         if (!dnt && userConsented) {
           analyticsService.track(user._id.toString(), "user_logged_in", {
-            method: "email_password",
+            method: skipPasswordCheck ? "email_link" : "email_password",
           });
         }
       } catch (analyticsError) {
@@ -7013,7 +7226,10 @@ const createUserModule = {
           const updatePayload = createUserModule._constructLoginUpdate(
             user,
             strategy,
-            { autoVerify: shouldAutoVerify, stampHasSetPassword: true },
+            {
+              autoVerify: shouldAutoVerify,
+              stampHasSetPassword: !skipPasswordCheck,
+            },
           );
           const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
@@ -7135,9 +7351,10 @@ const createUserModule = {
 
         authMethods: {
           ...buildAuthMethods(user),
-          // Always true here — we verified the password above to reach this point.
-          // Also covers legacy accounts whose hasSetPassword was never stamped.
-          password: true,
+          // Only override to true when we actually just verified the password
+          // above; a skipped check (e.g. sign-in link) tells us nothing new
+          // about whether this account has a working password.
+          ...(!skipPasswordCheck ? { password: true } : {}),
         },
 
         // --- REMOVED FOR SCALABILITY ---

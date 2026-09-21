@@ -117,6 +117,7 @@ const jobs = [
   "@bin/jobs/transaction-amount-fix-job",
   "@bin/jobs/selfie-cleanup-job",
   "@bin/jobs/username-email-sync-job",
+  "@bin/jobs/usage-rollup-job",
 ];
 
 // Initialize log4js with SAFE configuration
@@ -525,6 +526,14 @@ const createServer = () => {
         console.log("✅ Email queue processor stopped.");
       } catch (error) {
         console.error("❌ Error stopping email queue:", error.message);
+      }
+
+      // Persist the in-memory usage counters before the process exits.
+      try {
+        await require("@utils/usage-recorder.util").shutdown();
+        console.log("✅ Usage recorder flushed.");
+      } catch (error) {
+        console.error("❌ Error flushing usage recorder:", error.message);
       }
 
       // Enhanced cron job shutdown handling
