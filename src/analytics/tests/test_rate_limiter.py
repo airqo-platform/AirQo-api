@@ -293,7 +293,22 @@ class TestCacheUnavailable:
 
     @pytest.mark.asyncio
     async def test_degraded_state_is_logged_but_not_per_request(self, caplog):
-        """Redis being down must be visible, without one line per request."""
+        """Redis being down must be visible, without one line per request.
+
+        This test passes on Linux, which is the deployment target, and fails on
+        macOS.  ``_log_degraded`` holds the time of the last warning in
+        ``_degraded_logged_at``, which starts at ``0.0``, and logs once
+        ``time.monotonic() - _degraded_logged_at`` reaches
+        ``_DEGRADED_LOG_INTERVAL``.  Linux counts ``time.monotonic()`` from
+        boot, so the first call clears that interval and emits the warning.
+        macOS counts it from process start, so the first call sits inside the
+        interval and the warning waits for the interval to pass.
+
+        A red result here on a Mac reports the clock epoch, so read it as a
+        property of the platform rather than as a fault in the change under
+        test.  Changing the sentinel to ``None`` makes the first warning
+        unconditional on both platforms.
+        """
         import logging
 
         middleware = RateLimiterMiddleware(
