@@ -437,15 +437,26 @@ class TestDashboardAggregationRequests:
 
 class TestDataSummaryRequest:
     _WINDOW = {
-        "startDateTime": "2024-01-01T00:00:00",
-        "endDateTime": "2024-01-05T00:00:00",
+        "start_time": "2024-01-01T00:00:00",
+        "end_time": "2024-01-05T00:00:00",
     }
 
     def test_valid_with_grid(self):
         from api.schemas.requests import DataSummaryRequest
 
-        req = DataSummaryRequest(**self._WINDOW, grid="g1")
+        req = DataSummaryRequest(**self._WINDOW, grid_id="g1")
         assert req.entity() == ("grid", "g1")
+
+    def test_entity_drops_the_id_suffix(self):
+        """entity() returns the bare kind, not the field name: the query
+        builder validates against SUMMARY_FILTER_KINDS ("grid"/"cohort") and
+        get_summary interpolates it into the no-data message."""
+        from api.schemas.requests import DataSummaryRequest
+
+        assert DataSummaryRequest(**self._WINDOW, cohort_id="c1").entity() == (
+            "cohort",
+            "c1",
+        )
 
     def test_no_entity_rejected(self):
         """Flask 500'd (UnboundLocalError) when all three were empty —
@@ -459,14 +470,25 @@ class TestDataSummaryRequest:
         from api.schemas.requests import DataSummaryRequest
 
         with pytest.raises(ValidationError, match="exactly one"):
-            DataSummaryRequest(**self._WINDOW, grid="g1", cohort="c1")
+            DataSummaryRequest(**self._WINDOW, grid_id="g1", cohort_id="c1")
 
     def test_whitespace_entity_treated_as_absent(self):
         """Flask treated '' as absent via .strip() — preserve."""
         from api.schemas.requests import DataSummaryRequest
 
-        req = DataSummaryRequest(**self._WINDOW, grid="  ", cohort="c1")
+        req = DataSummaryRequest(**self._WINDOW, grid_id="  ", cohort_id="c1")
         assert req.entity() == ("cohort", "c1")
+
+    def test_body_matches_the_report_request(self):
+        """/summary and /report take the same window and entity keys."""
+        from api.schemas.requests import (
+            AirQualityReportRequest,
+            DataSummaryRequest,
+        )
+
+        shared = {"start_time", "end_time", "grid_id", "cohort_id"}
+        assert shared <= set(DataSummaryRequest.model_fields)
+        assert shared <= set(AirQualityReportRequest.model_fields)
 
 
 class TestScheduledExportRequest:
@@ -514,8 +536,8 @@ class TestScheduledExportRequest:
 
 
 class TestAirQualityReportEntitySelection:
-    """The entity moved from the URL into the body when /grid/report and
-    /cohort/report merged into /data/report, matching DataSummaryRequest."""
+    """/report picks its entity in the body, not the path — the same way
+    DataSummaryRequest does."""
 
     _WINDOW = {
         "start_time": "2024-01-01T00:00:00",

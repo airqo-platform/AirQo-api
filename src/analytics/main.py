@@ -8,6 +8,8 @@ error envelope, and the liveness/readiness endpoints.
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 import logging
+import time
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -88,20 +90,37 @@ def _configure_middleware(app: FastAPI) -> None:
     ALLOWED_HOSTS env vars, comma-separated).  Auth is handled upstream by the
     API gateway; this service only restricts the HTTP surface.
 
+    Registration order is the reverse of execution order: starlette inserts
+    each new middleware at the front of the list, so the LAST one registered
+    here is the OUTERMOST at runtime.  The resulting stack is::
+
+        ServerErrorMiddleware          (starlette's own, always outermost)
+          CORSMiddleware
+            request_context            (request id, access log, 500 envelope)
+              RateLimiterMiddleware
+                TrustedHostMiddleware
+                  ExceptionMiddleware  (starlette's own, holds the 4xx handlers)
+                    router
+
+    CORS is registered last deliberately.  Every response that never reaches
+    the router — the rate limiter's 429, a rejected Host header, an unhandled
+    exception — is produced inside CORSMiddleware and so still carries
+    Access-Control-Allow-Origin.  Registered first (as it was) CORS ends up
+    innermost, and a browser sees those responses as opaque network failures:
+    the body is sent, but fetch() rejects before JavaScript can read the status
+    or the JSON.
+
+    The one thing this ordering gives up: a CORS preflight (OPTIONS with an
+    Origin header) is answered by CORSMiddleware itself and never travels
+    further in, so it is not checked against ALLOWED_HOSTS, not access-logged,
+    and carries no X-Request-ID.  That is accepted.  A preflight reaches nothing
+    protected, the real request that follows it is still host-checked, and the
+    alternative — TrustedHost outside CORS — would put a rejected Host header
+    back among the opaque failures above.
+
     Args:
         app: FastAPI application instance
     """
-    cors_origins = settings.cors_origins_list()
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        # allow_credentials must be False with a wildcard origin — browsers
-        # reject the combination and starlette would silently misbehave.
-        allow_credentials="*" not in cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=settings.allowed_hosts_list(),
@@ -112,19 +131,43 @@ def _configure_middleware(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):
-        """Attach a request ID and log method/path/status/latency per request.
+        """Attach a request ID, log the request, and own the 500 envelope.
 
         Honours an inbound X-Request-ID (set by the API gateway) so log lines
         here can be correlated with gateway logs; generates one otherwise.
-        """
-        import time
-        import uuid
 
+        Unhandled exceptions are turned into the error envelope here rather
+        than by the ``Exception`` handler registered on the app.  Starlette
+        routes a handler keyed on ``Exception`` (or 500) to
+        ServerErrorMiddleware, which wraps *everything* including CORS, so a
+        response built there carries neither CORS headers nor this request ID.
+        Catching at this depth keeps the 500 inside CORSMiddleware, which is
+        the difference between a browser client reading the error and seeing an
+        opaque failure.  The app-level handler stays registered as a backstop
+        for anything raised outside this middleware.
+        """
         request_id = request.headers.get("x-request-id") or uuid.uuid4().hex[:16]
         request.state.request_id = request_id
 
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(
+                "Unhandled error: request_id=%s method=%s path=%s",
+                request_id,
+                request.method,
+                request.url.path,
+            )
+            response = JSONResponse(
+                status_code=500,
+                content={
+                    "message": "Internal server error",
+                    "status": "error",
+                    "data": None,
+                    "metadata": None,
+                },
+            )
         duration_ms = (time.perf_counter() - start) * 1000
 
         response.headers["X-Request-ID"] = request_id
@@ -137,6 +180,28 @@ def _configure_middleware(app: FastAPI) -> None:
             duration_ms,
         )
         return response
+
+    # Registered last, so it is the outermost user middleware — see above.
+    cors_origins = settings.cors_origins_list()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        # allow_credentials must be False with a wildcard origin — browsers
+        # reject the combination and starlette would silently misbehave.
+        allow_credentials="*" not in cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        # A browser reads only the six CORS-safelisted response headers unless
+        # the server names the others here.  The CSV download path carries its
+        # pagination state and its filename in these, so a browser client needs
+        # them exposed to page through a CSV export.
+        expose_headers=[
+            "Content-Disposition",
+            "X-Total-Count",
+            "X-Has-More",
+            "X-Next-Cursor",
+        ],
+    )
 
 
 def _configure_routers(app: FastAPI) -> None:
@@ -210,7 +275,14 @@ def _configure_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
-        """Handle general exceptions."""
+        """Backstop for exceptions raised outside the request_context middleware.
+
+        Starlette hands this handler to ServerErrorMiddleware, the outermost
+        layer, so a response built here reaches the client without CORS or
+        X-Request-ID headers.  request_context catches everything raised at or
+        below the router for exactly that reason; this only fires if CORS or
+        request_context itself blows up, which should not happen.
+        """
         logger.error(f"Unexpected error: {str(exc)}", exc_info=True)
         return JSONResponse(
             status_code=500,

@@ -200,6 +200,15 @@ class BaseConfig(BaseSettings):
     max_query_days: int = Field(default=365, validation_alias="MAX_QUERY_DAYS")
     max_filter_values: int = Field(default=1000, validation_alias="MAX_FILTER_VALUES")
 
+    # The public /report and /summary get a shorter ceiling than MAX_QUERY_DAYS.
+    # A report is one unpaginated scan plus fifteen pandas aggregations, and at
+    # the default 1 GiB bytes-billed budget roughly three months is where it
+    # starts being refused anyway.  Capping in the schema turns that into a
+    # clean 422 naming the limit, instead of a 400 about bytes scanned.
+    max_public_report_days: int = Field(
+        default=92, validation_alias="MAX_PUBLIC_REPORT_DAYS"
+    )
+
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 

@@ -104,20 +104,21 @@ to apply.
 These either stop the service or change behaviour in ways that are hard to
 diagnose from the symptom. The rest have sane defaults.
 
-| Variable                    | Default                | What goes wrong                                                                                                                                                                                                                                                                                                                                                          |
-| --------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                                                                                                                                                                                                                        |
-| `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                                                                                                                                                                                                                             |
-| `BIGQUERY_MAX_BYTES_BILLED` | 1 GiB                  | Deliberately tight. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 saying how much to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 1 GiB is only a couple of weeks across a few thousand devices — raise it once the logs show the real distribution. |
-| `MAX_QUERY_DAYS`            | `365`                  | Requests with a wider window are rejected with 422. Applies to downloads, charts and the grid/cohort reports alike.                                                                                                                                                                                                                                                      |
-| `BIGQUERY_*` table names    | bare names             | Validated at startup — a malformed value (`bad name`, four dotted parts, a backtick) **stops the app** rather than failing as a syntax error on the first request that touches the table.                                                                                                                                                                                |
-| `MAX_FILTER_VALUES`         | `1000`                 | Requests with more sites/devices are rejected with 422.                                                                                                                                                                                                                                                                                                                  |
-| `TRUSTED_PROXIES`           | RFC1918                | `X-Forwarded-For` is honoured only from these peers. Set it empty and every caller shares one rate-limit bucket, because the peer is always the ingress pod.                                                                                                                                                                                                             |
-| `REQUIRE_GATEWAY_IDENTITY`  | `false`                | **Leave off.** Turning it on today is an auth bypass — see [Identity](#identity-not-yet-active).                                                                                                                                                                                                                                                                         |
-| `EXPOSE_API_DOCS`           | unset                  | `/docs`, `/redoc` and `/openapi.json` return 404 in production unless this is `true`.                                                                                                                                                                                                                                                                                    |
-| `DATA_EXPORT_LOCATION`      | `EU`                   | Must match the BigQuery dataset's region, or export jobs fail.                                                                                                                                                                                                                                                                                                           |
-| `AIRQO_API_TIMEOUT`         | `10.0`                 | Without a timeout urllib3 waits forever and parks a shared worker thread.                                                                                                                                                                                                                                                                                                |
-| `CACHE_KEY_PREFIX`          | `Analytics-production` | Namespaces Redis keys. Two environments sharing a Redis without distinct prefixes will share rate-limit counters.                                                                                                                                                                                                                                                        |
+| Variable                    | Default                | What goes wrong                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                                                                                                                                                                                                                                     |
+| `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                                                                                                                                                                                                                                          |
+| `BIGQUERY_MAX_BYTES_BILLED` | 1 GiB                  | Deliberately tight. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 saying how much to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 1 GiB is only a couple of weeks across a few thousand devices — raise it once the logs show the real distribution.              |
+| `MAX_QUERY_DAYS`            | `365`                  | Requests with a wider window are rejected with 422. Applies to downloads, charts and the grid/cohort reports alike.                                                                                                                                                                                                                                                                   |
+| `MAX_PUBLIC_REPORT_DAYS`    | `92`                   | Replaces `MAX_QUERY_DAYS` for the v3 copies of `/report` and `/summary`, and is clamped to it, so it can only tighten. A report is one unpaginated scan plus fifteen aggregations, and at the default bytes-billed budget roughly three months is where it starts being refused anyway — capping it here turns that into a 422 naming the limit instead of a 400 about bytes scanned. |
+| `BIGQUERY_*` table names    | bare names             | Validated at startup — a malformed value (`bad name`, four dotted parts, a backtick) **stops the app** rather than failing as a syntax error on the first request that touches the table.                                                                                                                                                                                             |
+| `MAX_FILTER_VALUES`         | `1000`                 | Requests with more sites/devices are rejected with 422.                                                                                                                                                                                                                                                                                                                               |
+| `TRUSTED_PROXIES`           | RFC1918                | `X-Forwarded-For` is honoured only from these peers. Set it empty and every caller shares one rate-limit bucket, because the peer is always the ingress pod.                                                                                                                                                                                                                          |
+| `REQUIRE_GATEWAY_IDENTITY`  | `false`                | **Leave off.** Turning it on today is an auth bypass — see [Identity](#identity-not-yet-active).                                                                                                                                                                                                                                                                                      |
+| `EXPOSE_API_DOCS`           | unset                  | `/docs`, `/redoc` and `/openapi.json` return 404 in production unless this is `true`.                                                                                                                                                                                                                                                                                                 |
+| `DATA_EXPORT_LOCATION`      | `EU`                   | Must match the BigQuery dataset's region, or export jobs fail.                                                                                                                                                                                                                                                                                                                        |
+| `AIRQO_API_TIMEOUT`         | `10.0`                 | Without a timeout urllib3 waits forever and parks a shared worker thread.                                                                                                                                                                                                                                                                                                             |
+| `CACHE_KEY_PREFIX`          | `Analytics-production` | Namespaces Redis keys. Two environments sharing a Redis without distinct prefixes will share rate-limit counters.                                                                                                                                                                                                                                                                     |
 
 ## API endpoints
 
@@ -126,18 +127,25 @@ diagnose from the symptom. The rest have sane defaults.
 | Method             | Path                                                                                   |
 | ------------------ | -------------------------------------------------------------------------------------- |
 | POST               | `/data-download`, `/raw-data`                                                          |
-| POST               | `/data/summary`                                                                        |
+| POST               | `/summary`                                                                             |
 | POST               | `/dashboard/chart/data`, `/dashboard/chart/d3/data`                                    |
 | GET                | `/dashboard/sites`                                                                     |
 | POST               | `/dashboard/historical/daily-averages`, `/dashboard/historical/daily-averages-devices` |
 | POST               | `/dashboard/exceedances`, `/dashboard/exceedances-devices`                             |
-| POST               | `/data/report`                                                                         |
+| POST               | `/report`                                                                              |
 | POST / GET / PATCH | `/data-export` (scheduled exports)                                                     |
 
 ### v3 — `/api/v3/public/analytics`
 
-`POST /data-download`, `POST /raw-data`, `POST /forecast-data`. Each carries a
-stricter per-route limit (10/min) on top of the global 100/min middleware.
+`POST /data-download`, `POST /raw-data`, `POST /forecast-data`, `POST /report`,
+`POST /summary`. Each carries a stricter per-route limit of 10 requests per
+minute on top of the global 100 requests per minute middleware.
+
+`report` and `summary` are the same endpoints as their v2 counterparts, with
+the public surface's constraints: a `MAX_PUBLIC_REPORT_DAYS` window ceiling
+instead of `MAX_QUERY_DAYS`, and, on `report` only, private sites and devices
+dropped from the grid or cohort before the query runs. `forecast-data` has no
+v2 counterpart.
 
 ### Conventions
 
@@ -146,9 +154,10 @@ stricter per-route limit (10/min) on top of the global 100/min middleware.
 - Exactly one filter per request: `sites`, `device_ids`, `device_names`,
   `grid_ids` or `cohort_ids`. `grid_ids` and `cohort_ids` are each currently
   capped at one ID.
-- `/data/summary` takes exactly one of `grid` or `cohort`.
-- `/data/report` takes exactly one of `grid_id` or `cohort_id`; membership
-  resolves from BigQuery (`grids_sites` / `cohorts_devices`), not an external API.
+- `/report` and `/summary` take the same body: `start_time`, `end_time`, and
+  exactly one of `grid_id` or `cohort_id`. `/report` returns PM aggregates,
+  `/summary` returns record counts. For `/report`, membership resolves from
+  BigQuery (`grids_sites` / `cohorts_devices`), not an external API.
 - `?network=` replaced the deprecated `?tenant=`.
 - Success and error responses share one envelope (`status`, `message`, `data`,
   `metadata`); a query matching nothing is a 200 with empty `data`, not an

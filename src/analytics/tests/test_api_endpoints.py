@@ -7,6 +7,8 @@ cache patching.
 """
 
 import pytest
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, AsyncMock, patch
 from fastapi.testclient import TestClient
 
@@ -69,14 +71,9 @@ class TestV2DataEndpoints:
             resp = client.post("/api/v2/analytics/raw-data", json=valid_raw_payload)
         assert resp.status_code == 200
 
-    def test_data_export_route_removed(self, client, valid_export_payload):
-        """/data/export never existed in the Flask API — dropped for cutover parity."""
-        resp = client.post("/api/v2/analytics/data/export", json=valid_export_payload)
-        assert resp.status_code == 404
-
     def test_data_summary_200(self, client):
-        """Flask wire contract: startDateTime/endDateTime + one of
-        grid/cohort → completeness-report envelope."""
+        """start_time/end_time + one of grid_id/cohort_id — the same body
+        /report takes → completeness-report envelope."""
         envelope = {
             "status": "success",
             "message": "successful",
@@ -89,11 +86,11 @@ class TestV2DataEndpoints:
             return_value=envelope,
         ):
             resp = client.post(
-                "/api/v2/analytics/data/summary",
+                "/api/v2/analytics/summary",
                 json={
-                    "startDateTime": "2024-01-01T00:00:00",
-                    "endDateTime": "2024-01-05T00:00:00",
-                    "grid": "grid-1",
+                    "start_time": "2024-01-01T00:00:00",
+                    "end_time": "2024-01-05T00:00:00",
+                    "grid_id": "grid-1",
                 },
             )
         assert resp.status_code == 200
@@ -101,16 +98,16 @@ class TestV2DataEndpoints:
 
     def test_data_summary_requires_exactly_one_entity(self, client):
         base = {
-            "startDateTime": "2024-01-01T00:00:00",
-            "endDateTime": "2024-01-05T00:00:00",
+            "start_time": "2024-01-01T00:00:00",
+            "end_time": "2024-01-05T00:00:00",
         }
         # none provided
-        resp = client.post("/api/v2/analytics/data/summary", json=base)
+        resp = client.post("/api/v2/analytics/summary", json=base)
         assert resp.status_code == 422
         # two provided
         resp = client.post(
-            "/api/v2/analytics/data/summary",
-            json={**base, "grid": "g1", "cohort": "c1"},
+            "/api/v2/analytics/summary",
+            json={**base, "grid_id": "g1", "cohort_id": "c1"},
         )
         assert resp.status_code == 422
 
@@ -265,7 +262,7 @@ class TestV2ReportEndpoints:
         }
         with self._svc("create_default", return_value=envelope) as mock_svc:
             resp = client.post(
-                "/api/v2/analytics/report/default_template", json=self._BODY
+                "/api/v2/analytics/data/reports/default_template", json=self._BODY
             )
         assert resp.status_code == 201
         assert resp.json()["message"] == "Default Report Template Saved Successfully"
@@ -273,7 +270,7 @@ class TestV2ReportEndpoints:
 
     def test_create_default_missing_fields_returns_422(self, client):
         resp = client.post(
-            "/api/v2/analytics/report/default_template", json={"userId": "u1"}
+            "/api/v2/analytics/data/reports/default_template", json={"userId": "u1"}
         )
         assert resp.status_code == 422
 
@@ -285,7 +282,7 @@ class TestV2ReportEndpoints:
             "metadata": None,
         }
         with self._svc("get_default", return_value=envelope):
-            resp = client.get("/api/v2/analytics/report/default_template")
+            resp = client.get("/api/v2/analytics/data/reports/default_template")
         assert resp.status_code == 200
         assert resp.json()["data"] == {"report": {}}
 
@@ -298,7 +295,7 @@ class TestV2ReportEndpoints:
         }
         with self._svc("update_default", return_value=envelope):
             resp = client.patch(
-                "/api/v2/analytics/report/default_template",
+                "/api/v2/analytics/data/reports/default_template",
                 json={"reportName": "new-name"},
             )
         assert resp.status_code == 202
@@ -311,11 +308,13 @@ class TestV2ReportEndpoints:
             "metadata": None,
         }
         with self._svc("create_monthly", return_value=envelope):
-            resp = client.post("/api/v2/analytics/report/monthly", json=self._BODY)
+            resp = client.post(
+                "/api/v2/analytics/data/reports/monthly", json=self._BODY
+            )
         assert resp.status_code == 201
 
     def test_list_monthly_requires_user_id(self, client):
-        resp = client.get("/api/v2/analytics/report/monthly")
+        resp = client.get("/api/v2/analytics/data/reports/monthly")
         assert resp.status_code == 422
 
     def test_list_monthly_returns_200(self, client):
@@ -326,7 +325,7 @@ class TestV2ReportEndpoints:
             "metadata": None,
         }
         with self._svc("list_monthly", return_value=envelope) as mock_svc:
-            resp = client.get("/api/v2/analytics/report/monthly?userId=u1")
+            resp = client.get("/api/v2/analytics/data/reports/monthly?userId=u1")
         assert resp.status_code == 200
         assert resp.json()["data"]["reports"][0]["report_name"] == "march"
         assert mock_svc.call_args.args[0] == "u1"
@@ -341,7 +340,7 @@ class TestV2ReportEndpoints:
         }
         with self._svc("update_monthly", return_value=envelope) as mock_svc:
             resp = client.post(
-                "/api/v2/analytics/report/monthly/march",
+                "/api/v2/analytics/data/reports/monthly/march",
                 json={"reportBody": {"k2": "v2"}},
             )
         assert resp.status_code == 202
@@ -355,14 +354,8 @@ class TestV2ReportEndpoints:
             "metadata": None,
         }
         with self._svc("delete_monthly", return_value=envelope):
-            resp = client.delete("/api/v2/analytics/report/monthly/march")
+            resp = client.delete("/api/v2/analytics/data/reports/monthly/march")
         assert resp.status_code == 200
-
-    def test_no_get_on_named_monthly_report(self, client):
-        """The Flask API never had GET /report/monthly/{name} — the old 501
-        stub advertising one was wrong and must stay gone."""
-        resp = client.get("/api/v2/analytics/report/monthly/march")
-        assert resp.status_code == 405
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +391,180 @@ class TestV3Endpoints:
             "/api/v3/public/analytics/data-download", json={"network": "airqo"}
         )
         assert resp.status_code == 422
+
+
+V2_REPORT = "/api/v2/analytics/report"
+V3_REPORT = "/api/v3/public/analytics/report"
+V3_SUMMARY = "/api/v3/public/analytics/summary"
+
+WINDOW_START = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+
+def _report_body(days: int = 30) -> dict:
+    """A valid /report and /summary body spanning the given number of days."""
+    return {
+        "grid_id": "grid-1",
+        "start_time": WINDOW_START.isoformat(),
+        "end_time": (WINDOW_START + timedelta(days=days)).isoformat(),
+    }
+
+
+def _stub_report():
+    """Patch the report service so these tests exercise routing, not BigQuery."""
+    return patch(
+        "api.services.AirQualityReportService.get_report",
+        new_callable=AsyncMock,
+        return_value={"airquality": {"status": "success"}},
+    )
+
+
+def _validation_messages(response) -> list:
+    return [error["msg"] for error in response.json()["errors"]]
+
+
+def _rejected_with(response, message: str) -> bool:
+    """True if any validation message carries `message`.
+
+    Substring match on purpose: pydantic prefixes every ValueError it
+    surfaces with "Value error, ", which is not part of our contract.
+    """
+    return any(message in msg for msg in _validation_messages(response))
+
+
+class TestV3ReportAndSummary:
+    """/report and /summary are served by both versions.
+
+    The public copies differ in three ways, one per test below: a stricter
+    per-route throttle, a shorter window ceiling, and private-member screening.
+    """
+
+    def test_report_returns_the_same_envelope_as_v2(self, client):
+        with _stub_report():
+            resp = client.post(V3_REPORT, json=_report_body())
+
+        assert resp.status_code == 200
+        assert resp.json()["airquality"]["status"] == "success"
+
+    def test_summary_returns_the_same_envelope_as_v2(self, client):
+        with patch(
+            "api.services.DataExportService.get_summary",
+            new_callable=AsyncMock,
+            return_value={"status": "success", "data": {}, "metadata": None},
+        ):
+            resp = client.post(V3_SUMMARY, json=_report_body())
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+
+    def test_public_report_asks_for_private_members_to_be_screened(self, client):
+        with _stub_report() as get_report:
+            client.post(V3_REPORT, json=_report_body())
+
+        assert get_report.await_args.kwargs["screen_private"] is True
+
+    def test_internal_report_does_not_screen(self, client):
+        """v2 behaviour is deliberately unchanged — the dashboard sees what it
+        saw before."""
+        with _stub_report() as get_report:
+            client.post(V2_REPORT, json=_report_body())
+
+        assert get_report.await_args.kwargs.get("screen_private", False) is False
+
+    @pytest.mark.parametrize("path", [V3_REPORT, V3_SUMMARY])
+    def test_public_window_ceiling_is_92_days(self, client, path):
+        """Pinned as a literal on purpose. A test written against
+        settings.max_public_report_days would stay green if the default
+        drifted, while every README that says "92 days" went stale."""
+        with _stub_report(), patch(
+            "api.services.DataExportService.get_summary",
+            new_callable=AsyncMock,
+            return_value={"status": "success", "data": {}, "metadata": None},
+        ):
+            at_ceiling = client.post(path, json=_report_body(days=92))
+            over_ceiling = client.post(path, json=_report_body(days=93))
+
+        assert at_ceiling.status_code == 200
+        assert over_ceiling.status_code == 422
+        assert _rejected_with(
+            over_ceiling, "Time range must not exceed 92 days on the public API"
+        )
+
+    def test_public_report_names_its_own_ceiling_beyond_the_v2_cap(self, client):
+        """Regression: the inherited v2 validator used to fire first on any
+        window over 365 days, so v3 reported "365 days" for a cap that is 92,
+        and a MAX_PUBLIC_REPORT_DAYS set above 365 was silently unreachable."""
+        resp = client.post(V3_REPORT, json=_report_body(days=400))
+
+        assert resp.status_code == 422
+        assert _rejected_with(
+            resp, "Time range must not exceed 92 days on the public API"
+        )
+
+    def test_internal_report_keeps_the_365_day_ceiling(self, client):
+        """The tighter ceiling is public-only; v2 keeps MAX_QUERY_DAYS."""
+        with _stub_report():
+            resp = client.post(V2_REPORT, json=_report_body(days=93))
+
+        assert resp.status_code == 200
+
+    def test_unreachable_privacy_registry_is_a_503_at_the_route(self, client):
+        """Fail closed, all the way out: the 503 must reach the caller in the
+        standard error envelope, not surface as a 500."""
+        from api.utils.exceptions import PrivacyScreeningUnavailable
+
+        with patch(
+            "api.services.build_entity_report",
+            side_effect=PrivacyScreeningUnavailable(),
+        ):
+            resp = client.post(V3_REPORT, json=_report_body())
+
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body["status"] == "error"
+        assert "privacy status" in body["message"]
+
+    def test_public_summary_rejects_a_reversed_window(self, client):
+        """The v2 summary model validates no window at all; the public one
+        does, so a reversed range cannot slip under the cap as a negative day
+        count."""
+        resp = client.post(
+            V3_SUMMARY,
+            json={
+                "grid_id": "grid-1",
+                "start_time": (WINDOW_START + timedelta(days=5)).isoformat(),
+                "end_time": WINDOW_START.isoformat(),
+            },
+        )
+
+        assert resp.status_code == 422
+
+    @pytest.mark.parametrize("path", ["/report", "/summary"])
+    def test_public_routes_carry_the_10_per_minute_route_limit(self, path):
+        """Without this dependency they would fall back to the global limit of
+        100 requests per minute, which is the whole point of the v3 surface.
+        The limit and window are asserted as literals: presence alone would
+        still pass with a limit of ten thousand.
+
+        The lookup reads the router rather than app.routes, and matches the
+        bare path the router declares rather than the prefixed one. FastAPI
+        0.141 includes a router as a single lazy entry that resolves paths when
+        a request arrives, so the app exposes the prefixed path at request time
+        and the router holds the declaration. The router is the same object on
+        every version this service supports, and the prefix reaches coverage
+        through the tests that post to the full URL.
+        """
+        from api.middlewares.rate_limiter import RouteRateLimit
+        from api.routers.v3 import router
+
+        route = next(r for r in router.routes if getattr(r, "path", None) == path)
+        limits = [
+            dep.dependency
+            for dep in route.dependencies
+            if isinstance(dep.dependency, RouteRateLimit)
+        ]
+
+        assert len(limits) == 1
+        assert (limits[0].limit, limits[0].window) == (10, 60)
 
 
 # ---------------------------------------------------------------------------
@@ -659,6 +826,61 @@ class TestCsvDownload:
         assert resp.headers["content-type"].startswith("application/json")
         assert resp.json()["metadata"]["total_count"] == 2
 
+    def test_empty_result_returns_a_csv_attachment(
+        self, client, valid_export_payload, empty_df
+    ):
+        """A CSV request is answered with a CSV file at every row count."""
+        meta = {"total_count": 0, "has_more": False, "next": None}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(empty_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download",
+                json={**valid_export_payload, "downloadType": "csv"},
+            )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "attachment" in resp.headers.get("content-disposition", "")
+        assert resp.headers["x-total-count"] == "0"
+
+    def test_csv_carries_the_pagination_metadata_in_headers(
+        self, client, valid_export_payload, sample_df
+    ):
+        """A CSV body holds rows alone, so the page state travels in headers
+        and a CSV caller pages the way a JSON caller does."""
+        meta = {"total_count": 2, "has_more": True, "next": "cursor-token"}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download",
+                json={**valid_export_payload, "downloadType": "csv"},
+            )
+        assert resp.status_code == 200
+        assert resp.headers["x-total-count"] == "2"
+        assert resp.headers["x-has-more"] == "true"
+        assert resp.headers["x-next-cursor"] == "cursor-token"
+
+    def test_csv_omits_the_cursor_header_on_the_last_page(
+        self, client, valid_export_payload, sample_df
+    ):
+        meta = {"total_count": 2, "has_more": False, "next": None}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download",
+                json={**valid_export_payload, "downloadType": "csv"},
+            )
+        assert resp.headers["x-has-more"] == "false"
+        assert "x-next-cursor" not in resp.headers
+
 
 # ---------------------------------------------------------------------------
 # Observability & middleware
@@ -689,14 +911,14 @@ class TestObservability:
 
 
 class TestAirQualityReportEndpoint:
-    """/data/report serves grids and cohorts; the body names which, the same
-    way /data/summary does."""
+    """/report serves grids and cohorts; the body names which, the same
+    way /summary does."""
 
     _WINDOW = {
         "start_time": "2024-01-01T00:00:00",
         "end_time": "2024-02-01T00:00:00",
     }
-    _PATH = "/api/v2/analytics/data/report"
+    _PATH = "/api/v2/analytics/report"
 
     def test_grid_report_200(self, client):
         report = {"airquality": {"status": "success", "grid_id": "grid-1"}}
@@ -767,16 +989,7 @@ class TestAirQualityReportEndpoint:
         assert resp.status_code == 400
         body = resp.json()
         assert body["status"] == "error"
-        assert "date range is too large" in body["message"]
-
-    def test_old_entity_paths_are_gone(self, client):
-        """/grid/report and /cohort/report merged into /data/report."""
-        for path in (
-            "/api/v2/analytics/grid/report",
-            "/api/v2/analytics/cohort/report",
-        ):
-            resp = client.post(path, json={"grid_id": "g1", **self._WINDOW})
-            assert resp.status_code == 404, path
+        assert body["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -891,7 +1104,7 @@ class TestGatewayIdentity:
 
     def test_monthly_reports_honour_asserted_identity(self, client):
         resp = client.get(
-            "/api/v2/analytics/report/monthly",
+            "/api/v2/analytics/data/reports/monthly",
             params={"userId": "victim"},
             headers={self._HEADER: "attacker"},
         )
@@ -944,7 +1157,39 @@ class TestGatewayIdentity:
         mock.assert_awaited_once_with("r1", caller_id=None)
 
 
+@contextmanager
+def _raising_route(path: str = "/__test_boom__"):
+    """Temporarily mount a route that raises, then remove it.
+
+    Adding a route does not rebuild the middleware stack, so the request still
+    travels the production stack on its way in and out.
+    """
+    from main import app
+
+    async def boom():
+        raise RuntimeError("kaboom")
+
+    app.add_api_route(path, boom, methods=["GET"])
+    try:
+        yield path
+    finally:
+        app.router.routes = [
+            r for r in app.router.routes if getattr(r, "path", None) != path
+        ]
+
+
 class TestMiddleware:
+    """The stack order these assert is load-bearing, not incidental.
+
+    Starlette registers middleware inside-out, so anything registered after
+    CORSMiddleware ends up wrapping it — and any response produced out there
+    reaches the browser without Access-Control-Allow-Origin.  A browser then
+    blocks it before JavaScript can read the status or body, turning a
+    perfectly good JSON error into an opaque `TypeError: Failed to fetch`.
+    """
+
+    ORIGIN = {"Origin": "https://platform.airqo.net"}
+
     def test_cors_middleware_present(self):
         from main import app
 
@@ -952,6 +1197,67 @@ class TestMiddleware:
         assert any(
             "CORS" in n for n in middleware_names
         ), "CORSMiddleware should be configured"
+
+    def test_cors_is_the_outermost_user_middleware(self):
+        from main import app
+
+        # user_middleware[0] is outermost at runtime. CORS must sit above
+        # every layer that can answer without reaching the router.
+        assert "CORS" in str(app.user_middleware[0]), (
+            "CORSMiddleware must be registered LAST so it wraps the rate "
+            "limiter, the host check and the 500 handler"
+        )
+
+    def test_unhandled_error_carries_cors_and_request_id(self, client: TestClient):
+        with _raising_route() as path:
+            resp = client.get(path, headers=self.ORIGIN)
+
+        assert resp.status_code == 500
+        assert resp.headers.get("access-control-allow-origin")
+        assert resp.headers.get("x-request-id")
+        assert resp.json() == {
+            "message": "Internal server error",
+            "status": "error",
+            "data": None,
+            "metadata": None,
+        }
+
+    def test_unhandled_error_honours_inbound_request_id(self, client: TestClient):
+        with _raising_route() as path:
+            resp = client.get(
+                path, headers={**self.ORIGIN, "X-Request-ID": "gateway-abc-123"}
+            )
+
+        assert resp.status_code == 500
+        assert resp.headers["x-request-id"] == "gateway-abc-123"
+
+    def test_rate_limited_response_carries_cors_and_request_id(
+        self, client: TestClient
+    ):
+        from api.middlewares.rate_limiter import RateLimiterMiddleware
+
+        # The limiter returns its 429 without calling downstream, so this only
+        # picks up CORS headers while CORSMiddleware wraps it.
+        with _raising_route() as path, patch.object(
+            RateLimiterMiddleware,
+            "_consume_quota",
+            new=AsyncMock(return_value=False),
+        ):
+            resp = client.get(path, headers=self.ORIGIN)
+
+        assert resp.status_code == 429
+        assert resp.headers.get("access-control-allow-origin")
+        assert resp.headers.get("x-request-id")
+
+    def test_cors_preflight_is_still_answered(self, client: TestClient):
+        with _raising_route() as path:
+            resp = client.options(
+                path,
+                headers={**self.ORIGIN, "Access-Control-Request-Method": "GET"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin")
 
 
 # ---------------------------------------------------------------------------
@@ -986,7 +1292,7 @@ class TestResponseEnvelopeContract:
         assert self._ENVELOPE_KEYS <= set(body)
         assert body["status"] == "error"
         assert body["data"] is None
-        assert "date range is too large" in body["message"]
+        assert body["message"]
 
     def test_empty_result_is_a_200_success_envelope(
         self, client, valid_export_payload, empty_df

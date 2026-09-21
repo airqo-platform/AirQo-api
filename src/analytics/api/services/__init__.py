@@ -74,7 +74,12 @@ from api.utils.messages import FILTER_MSG, no_data_message
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
-from api.utils.exceptions import ExportRequestNotFound, QueryTooLarge, format_bytes
+from api.utils.exceptions import (
+    ExportRequestNotFound,
+    PrivacyScreeningUnavailable,
+    QueryTooLarge,
+    format_bytes,
+)
 from config import settings
 from constants import (
     DataExportFormat,
@@ -83,6 +88,10 @@ from constants import (
     DeviceCategory,
     Frequency,
 )
+
+# Module-level logger for the helpers below.  Each service holds its own
+# logger, named for the class, on self.logger.
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +161,7 @@ async def _strip_private(filter_type: str, filter_value: List[str]) -> List[str]
 
 
 async def _filter_from_request(
-    data: Dict[str, Any], *, privacy: bool = True
+    data: Dict[str, Any], *, privacy: bool = False
 ) -> Tuple[str, List[str]]:
     """
     Extract filter_type and filter_value from a request dict, optionally
@@ -183,21 +192,33 @@ def _too_large_error(
     Turn a refused-for-size query into a 400 the requester can act on.
 
     Bytes are billed per partition scanned, so the window is the lever that
-    moves the figure — say so, and say by how much, rather than returning the
-    raw BigQuery text.
+    moves the figure.  The response names that lever and, at the frequencies
+    below daily, offers the second lever as well.  The byte figures go to the
+    log for tracking.
     """
     for_frequency = f" for {frequency.value} data" if frequency else ""
-    factor = exc.reduction_factor
-    by_how_much = f" by about {factor}x" if factor else ""
+
+    required, limit = exc.required_bytes, exc.limit_bytes
+    factor = (
+        f", about {max(2, math.ceil(required / limit))}x over"
+        if required and limit
+        else ""
+    )
+    logger.warning(
+        "Query refused for size%s: %s of %s%s",
+        for_frequency,
+        format_bytes(required),
+        format_bytes(limit),
+        factor,
+    )
+
     detail = (
-        f"The requested date range is too large{for_frequency}: it would scan "
-        f"{format_bytes(exc.required_bytes)} of data, above the "
-        f"{format_bytes(exc.limit_bytes)} limit for a single request. "
-        f"Shorten the date range{by_how_much}"
+        f"The requested date range is too wide{for_frequency}. "
+        f"Shorten the date range"
     )
     if frequency in (Frequency.RAW, Frequency.HOURLY):
-        detail += ", or request a coarser frequency such as daily"
-    return HTTPException(status_code=400, detail=detail + ", then try again.")
+        detail += " or request a coarser frequency such as daily"
+    return HTTPException(status_code=400, detail=detail + ".")
 
 
 def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -210,14 +231,66 @@ def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return df.to_dict("records")
 
 
-def _csv_response(records: List[Dict[str, Any]], file_name: str) -> StreamingResponse:
-    """Render records as a downloadable CSV attachment."""
+#: Pagination metadata keys, and the response header each one travels in on the
+#: CSV path.  A CSV body carries rows alone, so a CSV caller reads the page
+#: state from these headers.  ``main._configure_middleware`` lists them in
+#: ``Access-Control-Expose-Headers`` so a browser client can read them too.
+_CSV_METADATA_HEADERS = {
+    "total_count": "X-Total-Count",
+    "has_more": "X-Has-More",
+    "next": "X-Next-Cursor",
+}
+
+
+def _csv_metadata_headers(metadata: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Render the pagination metadata as CSV response headers.
+
+    Header values are strings, so a boolean becomes "true" or "false" and a
+    missing cursor is omitted rather than sent as the word "None".
+    """
+    headers: Dict[str, str] = {}
+    for key, header in _CSV_METADATA_HEADERS.items():
+        value = metadata.get(key)
+        if value is None:
+            continue
+        headers[header] = str(value).lower() if isinstance(value, bool) else str(value)
+    return headers
+
+
+def _csv_response(
+    records: List[Dict[str, Any]],
+    file_name: str,
+    *,
+    columns: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> StreamingResponse:
+    """
+    Render records as a downloadable CSV attachment.
+
+    A result holding no rows still produces a CSV file.  ``columns`` supplies
+    the header row in that case, so a caller receives the media type it asked
+    for and a parsable file with zero data rows.
+
+    ``metadata`` travels in the response headers described by
+    ``_CSV_METADATA_HEADERS``, which lets a CSV caller page the same way a JSON
+    caller does.
+    """
+    frame = pd.DataFrame(records)
+    if frame.empty and columns:
+        frame = pd.DataFrame(columns=columns)
+
     buffer = io.StringIO()
-    pd.DataFrame(records).to_csv(buffer, index=False)
+    frame.to_csv(buffer, index=False)
+
+    headers = {"Content-Disposition": f'attachment; filename="{file_name}.csv"'}
+    if metadata:
+        headers.update(_csv_metadata_headers(metadata))
+
     return StreamingResponse(
         iter([buffer.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{file_name}.csv"'},
+        headers=headers,
     )
 
 
@@ -317,13 +390,13 @@ class DataExportService(BaseService):
 
     async def get_summary(self, request: DataSummaryRequest) -> Dict[str, Any]:
         """
-        Data-completeness report over the devices-summary table (Flask
-        /data/summary): hourly/calibrated/uncalibrated record counts and
-        percentages per device and per site, for one grid/cohort.
+        Data-completeness report over the devices-summary table (/summary,
+        formerly Flask /data/summary): hourly/calibrated/uncalibrated record
+        counts and percentages per device and per site, for one grid/cohort.
         """
         filter_kind, filter_id = request.entity()
-        start = self._summary_hour(request.start_date_time)
-        end = self._summary_hour(request.end_date_time)
+        start = self._summary_hour(request.start_time)
+        end = self._summary_hour(request.end_time)
         start_str = start.strftime("%Y-%m-%dT%H:00:00Z")
         end_str = end.strftime("%Y-%m-%dT%H:00:00Z")
 
@@ -357,8 +430,8 @@ class DataExportService(BaseService):
                 # Flask interpolated the (possibly empty) grid value here —
                 # use the requested entity id for a more useful message.
                 "message": no_data_message(
-                    request.start_date_time,
-                    request.end_date_time,
+                    request.start_time,
+                    request.end_time,
                     entity=f"{filter_kind} {filter_id}",
                 ),
                 "data": {},
@@ -380,6 +453,10 @@ class DataExportService(BaseService):
 
         Schema validation guarantees at least one of country/city is present;
         country takes precedence when both are supplied.
+
+        The response carries the same pagination metadata as the other download
+        endpoints, and the cursor it returns is accepted back on this endpoint,
+        so a caller pages a forecast export the way it pages a data download.
         """
         filter_type = "country" if request.country else "city"
         filter_value = request.country or request.city
@@ -403,6 +480,7 @@ class DataExportService(BaseService):
                 where_fields={filter_type: filter_value},
                 dynamic_query=False,
                 use_cache=True,
+                cursor_token=request.cursor,
             )
         except QueryTooLarge as exc:
             raise _too_large_error(exc, Frequency.HOURLY) from exc
@@ -505,29 +583,39 @@ class DataExportService(BaseService):
                 status_code=500, detail="Failed to process data"
             ) from exc
 
-        if df.empty:
-            return DataExportResponse(
-                status="success",
-                message=no_data_message(request.start_date_time, request.end_date_time),
-                data=[],
-                metadata={**metadata, "total_count": 0},
-            )
+        records = _safe_records(df) if not df.empty else []
 
-        records = _safe_records(df)
+        # total_count must describe the records actually returned; the value
+        # the query layer set is the pre-cleaning page size.
+        metadata["total_count"] = len(records)
 
+        # The requested media type decides the response, so a result holding no
+        # rows returns an empty CSV file to a CSV caller and the JSON envelope
+        # to a JSON caller.
         if getattr(request, "download_type", "json") == "csv":
             output_format = getattr(request, "output_format", "airqo-standard")
-            if output_format == "aqcsv":
+            if records and output_format == "aqcsv":
                 records = format_to_aqcsv(
                     data=records,
                     pollutants=list(request.pollutants),
                     frequency=frequency,
                 )
-            return _csv_response(records, f"{frequency.value}-air-quality-data")
+                metadata["total_count"] = len(records)
+            return _csv_response(
+                records,
+                f"{frequency.value}-air-quality-data",
+                columns=list(df.columns),
+                metadata=metadata,
+            )
 
-        # total_count must describe the records actually returned; the value
-        # the query layer set is the pre-cleaning page size.
-        metadata["total_count"] = len(records)
+        if not records:
+            return DataExportResponse(
+                status="success",
+                message=no_data_message(request.start_date_time, request.end_date_time),
+                data=[],
+                metadata=metadata,
+            )
+
         return DataExportResponse(
             status="success",
             message="Data retrieved successfully.",
@@ -1024,12 +1112,23 @@ class AirQualityReportService(BaseService):
     to HTTP status codes and keeps the blocking work off the event loop.
     """
 
-    async def get_report(self, request: AirQualityReportRequest) -> Dict[str, Any]:
+    async def get_report(
+        self,
+        request: AirQualityReportRequest,
+        *,
+        screen_private: bool = False,
+    ) -> Dict[str, Any]:
         """
         PM aggregates for one grid or cohort: daily/monthly/annual plus
         site/city/country/region breakdowns.
 
         The two kinds share a pipeline; the request names which one.
+
+        Args:
+            request: The validated report body.
+            screen_private: Drop members marked private before querying. The
+                v3 public route passes True; v2 leaves it off, preserving what
+                the internal dashboard sees today.
         """
         kind, entity_id = request.entity()
         try:
@@ -1039,9 +1138,17 @@ class AirQualityReportService(BaseService):
                 entity_id,
                 request.start_time,
                 request.end_time,
+                screen_private,
             )
         except QueryTooLarge as exc:
             raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except PrivacyScreeningUnavailable as exc:
+            # Fail closed: the same 503 the download paths give when the
+            # registry is unreachable, rather than serving unscreened members.
+            raise HTTPException(
+                status_code=503,
+                detail=f"{exc.message} Please try again later.",
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except LookupError as exc:

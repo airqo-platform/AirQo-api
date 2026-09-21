@@ -29,6 +29,7 @@ from api.schemas.responses import (
     DailyAveragesResponse,
     DataExportResponse,
     DashboardChartResponse,
+    DOWNLOAD_RESPONSES,
     ExceedancesResponse,
     MonitoringSiteResponse,
 )
@@ -49,7 +50,11 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-@router.post("/data-download", response_model=DataExportResponse)
+@router.post(
+    "/data-download",
+    response_model=DataExportResponse,
+    responses=DOWNLOAD_RESPONSES,
+)
 async def data_download(
     request: DataExportRequest,
     service: DataExportService = Depends(),
@@ -58,7 +63,11 @@ async def data_download(
     return await service.export_data(request)
 
 
-@router.post("/raw-data", response_model=DataExportResponse)
+@router.post(
+    "/raw-data",
+    response_model=DataExportResponse,
+    responses=DOWNLOAD_RESPONSES,
+)
 async def raw_data_export(
     request: RawDataExportRequest,
     service: DataExportService = Depends(),
@@ -67,14 +76,19 @@ async def raw_data_export(
     return await service.export_raw_data(request)
 
 
-@router.post("/data/summary")
+@router.post("/summary")
 async def data_summary(
     request: DataSummaryRequest,
     service: DataExportService = Depends(),
 ) -> Dict[str, Any]:
     """Data-completeness report for one grid/cohort: hourly,
     calibrated, and uncalibrated record counts and percentages per site
-    and device over the requested window."""
+    and device over the requested window.
+
+    Takes the same body as /report — exactly one of "grid_id"/"cohort_id",
+    plus "start_time" and "end_time" — but answers a different question:
+    how much data exists, rather than what it says.
+    """
     return await service.get_summary(request)
 
 
@@ -158,7 +172,7 @@ async def exceedances_devices(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/data/report")
+@router.post("/report")
 async def air_quality_report(
     request: AirQualityReportRequest,
     service: AirQualityReportService = Depends(),
@@ -169,8 +183,8 @@ async def air_quality_report(
     hour-of-day pattern.
 
     Body: exactly one of {"grid_id": "..."} or {"cohort_id": "..."}, plus
-    "start_time" and "end_time" (ISO). Mirrors /data/summary, which selects
-    its entity the same way.
+    "start_time" and "end_time" (ISO) — the same body /summary takes, since
+    both endpoints describe one grid or cohort over one window.
     """
     return await service.get_report(request)
 
@@ -221,12 +235,12 @@ async def retry_export_request(
 
 # ---------------------------------------------------------------------------
 # Report templates (MongoDB-backed CRUD; Flask wire contract).
-# Note: POST on /report/monthly/{report_name} is an UPDATE — the original
+# Note: POST on /data/reports/monthly/{report_name} is an UPDATE — the original
 # Flask API bound the update to POST, so the verb is preserved.
 # ---------------------------------------------------------------------------
 
 
-@router.post("/report/default_template", status_code=201)
+@router.post("/data/reports/default_template", status_code=201)
 async def create_default_report_template(
     request: ReportRequest,
     network: str = Query("airqo"),
@@ -236,7 +250,7 @@ async def create_default_report_template(
     return await service.create_default(request, network)
 
 
-@router.get("/report/default_template")
+@router.get("/data/reports/default_template")
 async def get_default_report_template(
     network: str = Query("airqo"),
     service: ReportTemplateService = Depends(),
@@ -245,7 +259,7 @@ async def get_default_report_template(
     return await service.get_default(network)
 
 
-@router.patch("/report/default_template", status_code=202)
+@router.patch("/data/reports/default_template", status_code=202)
 async def update_default_report_template(
     request: ReportUpdateRequest,
     network: str = Query("airqo"),
@@ -255,7 +269,7 @@ async def update_default_report_template(
     return await service.update_default(request, network)
 
 
-@router.post("/report/monthly", status_code=201)
+@router.post("/data/reports/monthly", status_code=201)
 async def create_monthly_report(
     request: ReportRequest,
     network: str = Query("airqo"),
@@ -265,7 +279,7 @@ async def create_monthly_report(
     return await service.create_monthly(request, network)
 
 
-@router.get("/report/monthly")
+@router.get("/data/reports/monthly")
 async def get_monthly_reports(
     user_id: str = Depends(resolve_user_id),
     network: str = Query("airqo"),
@@ -275,7 +289,7 @@ async def get_monthly_reports(
     return await service.list_monthly(user_id, network)
 
 
-@router.post("/report/monthly/{report_name}", status_code=202)
+@router.post("/data/reports/monthly/{report_name}", status_code=202)
 async def update_monthly_report(
     report_name: str,
     request: ReportUpdateRequest,
@@ -286,7 +300,7 @@ async def update_monthly_report(
     return await service.update_monthly(report_name, request, network)
 
 
-@router.delete("/report/monthly/{report_name}")
+@router.delete("/data/reports/monthly/{report_name}")
 async def delete_monthly_report(
     report_name: str,
     network: str = Query("airqo"),

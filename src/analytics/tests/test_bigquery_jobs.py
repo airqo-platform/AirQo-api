@@ -77,8 +77,8 @@ class TestCostRejectionLogging:
         assert "bigquery cost limit exceeded" in caplog.text
 
     def test_parses_the_limit_and_required_figures(self):
-        """BigQuery states both numbers in the message; they drive the
-        "shorten by about Nx" advice the caller renders."""
+        """BigQuery states both numbers in the message; the service layer
+        renders them for the operator log."""
         message = (
             "Query exceeded limit for bytes billed: 1073741824. "
             "5557452800 or higher required."
@@ -91,8 +91,6 @@ class TestCostRejectionLogging:
 
         assert exc.value.limit_bytes == 1073741824
         assert exc.value.required_bytes == 5557452800
-        # 5557452800 / 1073741824 = 5.17… → round up
-        assert exc.value.reduction_factor == 6
 
     def test_falls_back_to_the_configured_limit_when_unparseable(self):
         with pytest.raises(QueryTooLarge) as exc:
@@ -101,7 +99,6 @@ class TestCostRejectionLogging:
 
         assert exc.value.limit_bytes == settings.bigquery_max_bytes_billed
         assert exc.value.required_bytes is None
-        assert exc.value.reduction_factor is None
 
     def test_original_forbidden_is_kept_as_the_cause(self):
         """The BigQuery text stays available for the logs even though the

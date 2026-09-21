@@ -52,6 +52,46 @@ class DataExportResponse(BaseResponse):
     )
 
 
+#: OpenAPI description of the two media types a download route answers with.
+#: ``downloadType: "csv"`` returns a CSV attachment whose pagination state
+#: travels in response headers, so the schema names both the CSV content type
+#: and those headers alongside the JSON envelope ``response_model`` supplies.
+DOWNLOAD_RESPONSES: Dict[int, Dict[str, Any]] = {
+    200: {
+        "description": (
+            "The JSON envelope, or a CSV attachment when the request sets "
+            '"downloadType": "csv".'
+        ),
+        "content": {
+            "text/csv": {
+                "schema": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "One header row and up to one page of data rows.",
+                }
+            }
+        },
+        "headers": {
+            "X-Total-Count": {
+                "description": "Records in the CSV body for this page.",
+                "schema": {"type": "integer"},
+            },
+            "X-Has-More": {
+                "description": "Whether another page exists.",
+                "schema": {"type": "string", "enum": ["true", "false"]},
+            },
+            "X-Next-Cursor": {
+                "description": (
+                    "Token to send as cursor on the following request. Present "
+                    "while another page exists."
+                ),
+                "schema": {"type": "string"},
+            },
+        },
+    }
+}
+
+
 # ---------------------------------------------------------------------------
 # Dashboard chart
 # ---------------------------------------------------------------------------
@@ -128,7 +168,13 @@ class SiteInfo(BaseModel):
 
 
 class MonitoringSiteResponse(BaseResponse):
-    """Response for monitoring site listing."""
+    """
+    Response for monitoring site listing.
+
+    This envelope names its payload `sites` and its count `total_sites`, where
+    the export and chart endpoints use `data` and a `metadata` block.  The
+    listing returns every site in one pass, so `metadata` stays null here.
+    """
 
     sites: List[SiteInfo] = Field(default_factory=list)
     total_sites: int = 0

@@ -218,6 +218,36 @@ class TestDataExportService:
         assert kwargs["where_fields"] == {"country": "uganda"}
 
     @pytest.mark.asyncio
+    async def test_export_forecast_data_accepts_its_own_cursor(self, sample_df):
+        """The cursor this endpoint returns is accepted back on it, so a
+        caller reaches the pages behind metadata.next."""
+        from datetime import datetime, timedelta, timezone
+        from api.schemas.requests import ForecastDataExportRequest
+
+        req = ForecastDataExportRequest(
+            startDateTime=(
+                datetime.now(tz=timezone.utc) - timedelta(days=2)
+            ).isoformat(),
+            endDateTime=datetime.now(tz=timezone.utc).isoformat(),
+            country="uganda",
+            cursor="cursor-token",
+        )
+        svc = DataExportService()
+        meta = {"total_count": 2, "has_more": True, "next": "next-token"}
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ) as mock_bq:
+            resp = await svc.export_forecast_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "cursor-token"
+        assert resp.metadata["next"] == "next-token"
+        assert resp.metadata["has_more"] is True
+
+    @pytest.mark.asyncio
     async def test_export_data_csv_returns_streaming_response(self, sample_df):
         from datetime import datetime, timedelta, timezone
         from fastapi.responses import StreamingResponse
@@ -250,15 +280,15 @@ class TestDataExportService:
 
     @pytest.mark.asyncio
     async def test_get_summary_returns_completeness_report(self):
-        """/data/summary is a data-completeness report (Flask parity):
+        """/summary is a data-completeness report (Flask parity):
         record counts/percentages per device+site, envelope message
         'successful', hour-truncated dates bound as parameters."""
         from api.schemas.requests import DataSummaryRequest
 
         request = DataSummaryRequest(
-            startDateTime="2024-01-01T10:45:00",
-            endDateTime="2024-01-05T00:30:00",
-            grid="grid-1",
+            start_time="2024-01-01T10:45:00",
+            end_time="2024-01-05T00:30:00",
+            grid_id="grid-1",
         )
         summary_df = pd.DataFrame(
             {
@@ -316,9 +346,9 @@ class TestDataExportService:
         assert {p.name for p in params} == {"filter_id", "start_date", "end_date"}
 
         request = DataSummaryRequest(
-            startDateTime="2024-01-01T00:00:00",
-            endDateTime="2024-01-05T00:00:00",
-            cohort="c1",
+            start_time="2024-01-01T00:00:00",
+            end_time="2024-01-05T00:00:00",
+            cohort_id="c1",
         )
         cohort_df = pd.DataFrame(
             {
@@ -351,9 +381,9 @@ class TestDataExportService:
         from api.schemas.requests import DataSummaryRequest
 
         request = DataSummaryRequest(
-            startDateTime="2024-01-01T00:00:00",
-            endDateTime="2024-01-05T00:00:00",
-            grid="grid-1",
+            start_time="2024-01-01T00:00:00",
+            end_time="2024-01-05T00:00:00",
+            grid_id="grid-1",
         )
         svc = DataExportService()
         with patch(
@@ -595,8 +625,6 @@ class TestAirQualityReportService:
                 await self._svc().get_report(_report_request(grid_id="grid-1"))
 
         assert exc.value.status_code == 400
-        assert "date range is too large" in exc.value.detail
-        assert "6x" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_unexpected_error_maps_to_sanitized_500(self):
@@ -609,6 +637,34 @@ class TestAirQualityReportService:
 
         assert exc.value.status_code == 500
         assert "secret detail" not in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_unreachable_privacy_registry_maps_to_503(self):
+        """Matches how the download paths answer when the registry is down:
+        a retryable 503, never an unscreened result."""
+        from api.utils.exceptions import PrivacyScreeningUnavailable
+
+        with patch(
+            "api.services.build_entity_report",
+            side_effect=PrivacyScreeningUnavailable(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await self._svc().get_report(_report_request(grid_id="grid-1"))
+
+        assert exc.value.status_code == 503
+        assert "privacy status" in exc.value.detail
+        assert "try again later" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_screen_private_is_forwarded_to_the_builder(self):
+        """The flag is what separates the public route from the internal one,
+        so it must survive the hop through asyncio.to_thread."""
+        with patch("api.services.build_entity_report", return_value={}) as mock_build:
+            await self._svc().get_report(
+                _report_request(grid_id="grid-1"), screen_private=True
+            )
+
+        assert mock_build.call_args.args[4] is True
 
 
 # ---------------------------------------------------------------------------
@@ -1517,25 +1573,7 @@ class TestOversizedQueryHandling:
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_message_names_the_window_and_the_sizes(self, export_request):
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=self._too_large(),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        detail = exc.value.detail
-        assert "date range is too large" in detail
-        assert "5.2 GB" in detail and "1.0 GB" in detail
-        # 5557452800 / 1073741824 rounds up to 6
-        assert "6x" in detail
-        assert "daily" in detail  # export_request is daily → frequency named
-
-    @pytest.mark.asyncio
-    async def test_fine_frequencies_are_offered_a_coarser_one(self, valid_raw_payload):
-        """Suggesting "use daily instead" only helps below daily."""
+    async def test_raw_frequency_returns_400(self, valid_raw_payload):
         from api.schemas.requests import RawDataExportRequest
 
         with patch(
@@ -1548,7 +1586,7 @@ class TestOversizedQueryHandling:
                     RawDataExportRequest(**valid_raw_payload)
                 )
 
-        assert "coarser frequency" in exc.value.detail
+        assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_chart_data_returns_400(self, dashboard_request):
@@ -1561,14 +1599,32 @@ class TestOversizedQueryHandling:
                 await DashboardService().get_chart_data(dashboard_request)
 
         assert exc.value.status_code == 400
-        assert "date range is too large" in exc.value.detail
 
     @pytest.mark.asyncio
-    async def test_unparseable_rejection_still_gives_actionable_advice(
-        self, export_request
+    async def test_byte_figures_reach_the_log_and_not_the_response(
+        self, export_request, caplog
     ):
-        """Without the byte figures there is no "Nx" to quote, but the
-        instruction to shorten the range still stands."""
+        """An operator reads how tight the ceiling is running; a requester
+        reads the two levers they control."""
+        import logging
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=self._too_large(),
+        ):
+            with caplog.at_level(logging.WARNING, logger="api.services"):
+                with pytest.raises(HTTPException) as exc:
+                    await DataExportService().export_data(export_request)
+
+        assert "5.2 GB" in caplog.text
+        assert "1.0 GB" in caplog.text
+        assert "GB" not in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_missing_byte_figures_still_map_to_400(self, export_request):
+        """BigQuery states the byte figures in most rejections, and the
+        handler answers with a 400 whether or not they parse out."""
         from api.utils.exceptions import QueryTooLarge
 
         with patch(
@@ -1580,8 +1636,6 @@ class TestOversizedQueryHandling:
                 await DataExportService().export_data(export_request)
 
         assert exc.value.status_code == 400
-        assert "Shorten the date range" in exc.value.detail
-        assert "x," not in exc.value.detail  # no bogus "by about Nx"
 
     @pytest.mark.asyncio
     async def test_other_query_failures_are_still_500(self, export_request):
@@ -1736,6 +1790,138 @@ class TestReportEntityPipeline:
         air = resp["airquality"]
         for key in _AGGREGATE_KEYS:
             assert air[key] == [], key
+
+    # -- Private-member screening (public v3 path only) ---------------------
+
+    def _screened(self, survivors):
+        """Patch the registry call to return `survivors` as non-private."""
+        return patch(
+            "api.models.base.data_processing.filter_non_private_sites_devices",
+            return_value={"status": "success", "data": survivors},
+        )
+
+    def test_screening_is_off_by_default(self):
+        """The internal path must not call the registry at all."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ), self._screened(
+            ["s1"]
+        ) as registry:
+            build_entity_report(
+                "grid", "grid-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        registry.assert_not_called()
+
+    def test_screening_drops_private_members_before_querying(self):
+        """Private sites must not reach the query, nor the echoed membership."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ) as mock_query, self._screened(
+            ["s1"]
+        ) as registry:
+            resp = build_entity_report(
+                "grid",
+                "grid-1",
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                screen_private=True,
+            )
+
+        registry.assert_called_once_with("sites", ["s1", "s2"])
+        assert mock_query.call_args.args[0] == ["s1"]
+        assert resp["airquality"]["sites"]["site_ids"] == ["s1"]
+        assert resp["airquality"]["sites"]["number_of_sites"] == 1
+
+    def test_cohort_screening_asks_the_registry_for_devices(self):
+        """A cohort resolves to device IDs, so it needs the device endpoint."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_cohort_devices",
+            return_value=["d1", "d2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ), self._screened(
+            ["d2"]
+        ) as registry:
+            build_entity_report(
+                "cohort",
+                "cohort-1",
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                screen_private=True,
+            )
+
+        registry.assert_called_once_with("device_ids", ["d1", "d2"])
+
+    def test_all_members_private_is_a_success_not_a_lookuperror(self):
+        """The entity resolved; every member is simply withheld. That is the
+        same answer as a window holding no measurements — a 200 with empty
+        aggregates — not the 404 an unknown grid gets."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery"
+        ) as mock_query, self._screened(
+            []
+        ):
+            resp = build_entity_report(
+                "grid",
+                "grid-1",
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                screen_private=True,
+            )
+
+        # Nothing to query for, so BigQuery is never touched.
+        mock_query.assert_not_called()
+        air = resp["airquality"]
+        assert air["status"] == "success"
+        assert air["daily_mean_pm"] == []
+        assert "No data available for grid grid-1" in air["message"]
+
+    def test_unreachable_registry_fails_closed(self):
+        """Serving an unscreened report because the registry was down would
+        publish exactly what screening exists to withhold."""
+        from api.models.base.data_processing import build_entity_report
+        from api.utils.exceptions import PrivacyScreeningUnavailable
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1"],
+        ), patch(
+            "api.models.base.data_processing.filter_non_private_sites_devices",
+            return_value=None,
+        ), patch(
+            "api.models.base.data_processing.query_bigquery"
+        ) as mock_query:
+            with pytest.raises(PrivacyScreeningUnavailable):
+                build_entity_report(
+                    "grid",
+                    "grid-1",
+                    datetime(2024, 1, 1),
+                    datetime(2024, 2, 1),
+                    screen_private=True,
+                )
+
+        mock_query.assert_not_called()
 
     def test_mixed_offset_timestamps_do_not_break_the_frame(self):
         """Reproduces the reported failure: "Tz-aware datetime.datetime cannot
