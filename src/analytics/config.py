@@ -187,11 +187,12 @@ class BaseConfig(BaseSettings):
     airqo_api_timeout: float = Field(default=10.0, validation_alias="AIRQO_API_TIMEOUT")
 
     # BigQuery cost/time ceilings, enforced server-side by BigQuery itself.
-    # Starting deliberately tight at 1 GiB per job: rejections are logged
-    # (see api/utils/bigquery_jobs.py) so the real distribution of query
-    # sizes becomes visible before the cap is tuned upward.
+    # The byte ceiling is 100 MB (100,000,000 bytes) per job.  It keeps each
+    # request cheap, and the refusal message tells callers to request a long
+    # period in shorter parts.  Rejections are logged (see
+    # api/utils/bigquery_jobs.py) with the bytes each refused query required.
     bigquery_max_bytes_billed: int = Field(
-        default=1 * 1024**3, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
+        default=100_000_000, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
     )
     bigquery_job_timeout_ms: int = Field(
         default=600_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"

@@ -693,7 +693,7 @@ Validation failures add an `errors` array describing each offending field:
 | 503     | A required dependency is unavailable                                                              |
 
 **400 when the date range scans too much data.** Every query runs under a
-per-request byte ceiling (`BIGQUERY_MAX_BYTES_BILLED`, **1 GiB** by default).
+per-request byte ceiling (`BIGQUERY_MAX_BYTES_BILLED`, **100 MB** by default).
 BigQuery checks it while planning the job, so an over-budget request is refused
 before anything is scanned — the query never runs and costs nothing. The
 response names the two levers that bring a request under the ceiling:

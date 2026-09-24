@@ -22,6 +22,10 @@ class Config:
     MONTHS_OF_DATA = os.getenv("MONTHS_OF_DATA", 3)
     EXPECTED_DAYS = os.getenv("EXPECTED_DAYS")
     BIGQUERY_SITES = os.getenv("BIGQUERY_SITES_SITES")
+    # BigQuery refuses a query that would bill more than this number of bytes
+    # while it plans the query, and charges nothing for the refused query.
+    # The default is 100 MB (100,000,000 bytes).
+    BIGQUERY_MAX_BYTES_BILLED = int(os.getenv("BIGQUERY_MAX_BYTES_BILLED", 100_000_000))
 
 
 class ProductionConfig(Config):

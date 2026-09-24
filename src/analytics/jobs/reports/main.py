@@ -850,6 +850,7 @@ def from_bigquery(
 
     job_config = bigquery.QueryJobConfig()
     job_config.use_query_cache = True
+    job_config.maximum_bytes_billed = configuration.BIGQUERY_MAX_BYTES_BILLED
 
     dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
     dataframe.sort_values(["site", "datetime", "device"], ascending=True, inplace=True)

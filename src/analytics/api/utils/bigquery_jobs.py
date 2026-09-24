@@ -124,9 +124,7 @@ def query_job_config(**kwargs: Any) -> bigquery.QueryJobConfig:
     if config.maximum_bytes_billed is None:
         config.maximum_bytes_billed = settings.bigquery_max_bytes_billed
 
-    # Dry runs are metadata-only and finish immediately; a deadline on them
-    # would only add a way to fail.
-    if not config.dry_run and getattr(config, "job_timeout_ms", None) is None:
+    if getattr(config, "job_timeout_ms", None) is None:
         config.job_timeout_ms = settings.bigquery_job_timeout_ms
 
     return config

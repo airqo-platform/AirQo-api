@@ -450,11 +450,8 @@ class BigQueryApi:
         job_config.use_query_cache = use_cache
 
         if cursor_token:
-            # Applied unconditionally. This used to be gated on an
-            # estimate_query_rows() dry-run, which cost two extra BigQuery
-            # round trips and — when the estimate said "no pagination needed" —
-            # silently ignored the caller's cursor and re-served page 1, so a
-            # client following metadata.next looped forever.
+            # Every request that carries a cursor resumes after that cursor,
+            # so a client that follows metadata.next receives each page once.
             query, cursor_parameters = self._apply_pagination_cursor(
                 query, cursor_field, cursor_token, filter_type
             )
@@ -945,46 +942,3 @@ class BigQueryApi:
             )
 
         return pollutant_columns
-
-    def estimate_query_rows(
-        self,
-        query: str,
-        table: str,
-        query_parameters: Optional[List] = None,
-        row_threshold: int = Config.data_export_limit,
-    ) -> Tuple[int, int, float, bool]:
-        """
-        Estimate number of rows a query could return, using dry run + table metadata.
-
-        Args:
-            query(str): SQL query string.
-            table(str): Fully qualified table id i.e `project.dataset.table`.
-            query_parameters(List, optional): Bind parameters referenced by the
-                query (e.g. ``@filter_value``). These MUST be supplied for the
-                dry run, otherwise BigQuery rejects the parameterized query with
-                "Query parameter not found".
-            row_threshold(int): Row count threshold to decide if pagination is needed.
-
-        Returns:
-            Tuple[estimated_rows(int), bytes_scanned(int), avg_row_size(float), paginate(bool)]
-        """
-        job_config = query_job_config(
-            dry_run=True,
-            use_query_cache=False,
-            query_parameters=query_parameters or [],
-        )
-        query_job = self.client.query(query, job_config=job_config)
-        bytes_scanned = query_job.total_bytes_processed
-
-        # Get table metadata (row + size stats)
-        table = self.client.get_table(table)
-        if table.num_rows > 0:
-            avg_row_size = table.num_bytes / table.num_rows
-        else:
-            avg_row_size = 0
-
-        estimated_rows = int(bytes_scanned / avg_row_size) if avg_row_size > 0 else 0
-
-        paginate = estimated_rows > int(row_threshold)
-
-        return estimated_rows, bytes_scanned, avg_row_size, paginate
