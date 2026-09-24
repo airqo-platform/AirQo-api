@@ -320,9 +320,7 @@ async def readiness_check():
     Readiness check — verifies the Redis cache dependency responds.
 
     Returns 503 when a dependency is down so the load balancer stops
-    routing traffic to this instance.  BigQuery is intentionally not
-    probed here: a dry-run query per probe is costly and BigQuery
-    outages surface as request-level 500s with their own alerting.
+    routing traffic to this instance.
     """
     from api.utils.cache import cache_get, cache_set
 
