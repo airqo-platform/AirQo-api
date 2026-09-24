@@ -23,6 +23,7 @@ const httpStatus = require("http-status");
 
 const transactions = require("@utils/transaction.util");
 const paddleConfig  = require("@config/paddle");
+const constants = require("@config/constants");
 
 // ── Scope / rate-limit constants mirrored from transaction.util.js ────────────
 const FREE_SCOPES = [
@@ -801,7 +802,7 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     shouldAlertStub.reset();
   });
 
-  it("logs TRANSACTION_COMPLETION_FAILED with message and transactionId via opsLogger", async () => {
+  it("logs TRANSACTION_COMPLETION_FAILED with environment, message and transactionId via opsLogger", async () => {
     shouldAlertStub.resolves(true);
     const error = new Error("Payment gateway timeout");
     const eventData = { id: "txn_abc123", customer_id: "cust_xyz" };
@@ -812,9 +813,27 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     const [errorType, payload] = opsLoggerErrorStub.firstCall.args;
     expect(errorType).to.equal("TRANSACTION_COMPLETION_FAILED");
     expect(payload).to.deep.equal({
+      environment: constants.ENVIRONMENT,
       message: "Payment gateway timeout",
       transactionId: "txn_abc123",
     });
+  });
+
+  it("logs under the given alert type when one is passed", async () => {
+    shouldAlertStub.resolves(true);
+    const eventData = { id: "txn_declined", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Payment failed for transaction txn_declined"),
+      eventData,
+      "airqo",
+      "TRANSACTION_PAYMENT_FAILED",
+    );
+
+    sinon.assert.calledOnce(opsLoggerErrorStub);
+    const [errorType, payload] = opsLoggerErrorStub.firstCall.args;
+    expect(errorType).to.equal("TRANSACTION_PAYMENT_FAILED");
+    expect(payload.environment).to.equal(constants.ENVIRONMENT);
   });
 
   it("uses undefined transactionId when eventData is absent", async () => {
