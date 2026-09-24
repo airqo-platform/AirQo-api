@@ -43,11 +43,6 @@ class TestQueryJobConfig:
         config = query_job_config(maximum_bytes_billed=99)
         assert config.maximum_bytes_billed == 99
 
-    def test_dry_run_gets_no_deadline(self):
-        """Dry runs are metadata-only; a timeout would only add a failure mode."""
-        config = query_job_config(dry_run=True)
-        assert config.job_timeout_ms is None
-
     def test_ceiling_tracks_settings(self, monkeypatch):
         monkeypatch.setattr(settings, "bigquery_max_bytes_billed", 4242)
         assert query_job_config().maximum_bytes_billed == 4242

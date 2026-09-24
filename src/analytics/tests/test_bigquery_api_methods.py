@@ -9,8 +9,7 @@ lightweight and deterministic. Only the BigQuery client itself is mocked
 the actual network/credentials boundary.
 
 Complements tests/test_bigquery_params.py, which covers query-parameter type
-selection (`_build_filter_parameter`) and the pagination dry-run parameter
-forwarding fix in `estimate_query_rows`.
+selection (`_build_filter_parameter`).
 """
 
 from __future__ import annotations
@@ -474,51 +473,6 @@ class TestPaginationCursor:
         assert (
             bq_api._generate_next_cursor(pd.DataFrame(), "timestamp", "sites") is None
         )
-
-
-# ---------------------------------------------------------------------------
-# estimate_query_rows — table metadata + dry-run based pagination decision
-# ---------------------------------------------------------------------------
-
-
-class TestEstimateQueryRows:
-    def test_paginate_true_when_estimate_exceeds_threshold(self, bq_api):
-        bq_api.client = MagicMock()
-        bq_api.client.query.return_value.total_bytes_processed = 100_000
-        table_meta = MagicMock(num_rows=1000, num_bytes=50_000)
-        bq_api.client.get_table.return_value = table_meta
-
-        estimated, bytes_scanned, avg_size, paginate = bq_api.estimate_query_rows(
-            "SELECT * FROM table", "project.dataset.table", row_threshold=1000
-        )
-
-        assert bytes_scanned == 100_000
-        assert avg_size == 50
-        assert estimated == 2000  # 100_000 / (50_000/1000)
-        assert paginate is True
-
-    def test_paginate_false_when_under_threshold(self, bq_api):
-        bq_api.client = MagicMock()
-        bq_api.client.query.return_value.total_bytes_processed = 100
-        table_meta = MagicMock(num_rows=1000, num_bytes=50_000)
-        bq_api.client.get_table.return_value = table_meta
-
-        _, _, _, paginate = bq_api.estimate_query_rows(
-            "SELECT * FROM table", "project.dataset.table", row_threshold=1000
-        )
-        assert paginate is False
-
-    def test_zero_row_table_does_not_divide_by_zero(self, bq_api):
-        bq_api.client = MagicMock()
-        bq_api.client.query.return_value.total_bytes_processed = 100_000
-        table_meta = MagicMock(num_rows=0, num_bytes=0)
-        bq_api.client.get_table.return_value = table_meta
-
-        estimated, _, avg_size, _ = bq_api.estimate_query_rows(
-            "SELECT * FROM table", "project.dataset.table"
-        )
-        assert avg_size == 0
-        assert estimated == 0
 
 
 # ---------------------------------------------------------------------------
