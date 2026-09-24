@@ -591,9 +591,11 @@ const transactions = {
     // check to short-circuit on, so Paddle's ~20-25min webhook redelivery
     // would otherwise re-fire this alert unchanged for hours. Cool down
     // repeat alerts for the same transaction instead of paging on every retry.
+    // Key on alertType too, so a declined payment's cooldown can't silence a
+    // later completion failure for the same transaction.
     const shouldAlert = transactionId
       ? await opsAlertDeduplicator.shouldAlert(
-          `transaction-error:${transactionId}`,
+          `transaction-error:${alertType}:${transactionId}`,
           { tenant },
         )
       : true;

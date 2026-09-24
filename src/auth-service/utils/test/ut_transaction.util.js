@@ -853,7 +853,68 @@ describe("transactions.notifyAdminOfTransactionError", () => {
 
     await localTransactions.notifyAdminOfTransactionError(error, eventData);
 
-    sinon.assert.calledWith(shouldAlertStub, "transaction-error:txn_repeat");
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_COMPLETION_FAILED:txn_repeat",
+    );
     sinon.assert.notCalled(opsLoggerErrorStub);
+  });
+
+  it("keys the cooldown on alert type so different alerts for one transaction are not suppressed", async () => {
+    shouldAlertStub.resolves(true);
+    const eventData = { id: "txn_both", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Payment failed for transaction txn_both"),
+      eventData,
+      "airqo",
+      "TRANSACTION_PAYMENT_FAILED",
+    );
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Registration failed"),
+      eventData,
+      "airqo",
+    );
+
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_PAYMENT_FAILED:txn_both",
+    );
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_COMPLETION_FAILED:txn_both",
+    );
+  });
+});
+
+describe("transactions.handleFailedTransaction", () => {
+  let notifyStub;
+
+  beforeEach(() => {
+    notifyStub = sinon
+      .stub(transactions, "notifyAdminOfTransactionError")
+      .resolves();
+  });
+
+  afterEach(() => {
+    notifyStub.restore();
+  });
+
+  it("raises a TRANSACTION_PAYMENT_FAILED alert for a declined payment", async () => {
+    const eventData = {
+      id: "txn_declined",
+      customer_id: "ctm_123",
+      total: 50,
+      currency: "USD",
+    };
+
+    await transactions.handleFailedTransaction(eventData, "airqo");
+
+    sinon.assert.calledOnce(notifyStub);
+    const [error, passedEventData, tenant, alertType] = notifyStub.firstCall.args;
+    expect(error.message).to.equal("Payment failed for transaction txn_declined");
+    expect(passedEventData).to.equal(eventData);
+    expect(tenant).to.equal("airqo");
+    expect(alertType).to.equal("TRANSACTION_PAYMENT_FAILED");
   });
 });
