@@ -69,7 +69,7 @@ jobs:
       - name: Testing
         run: |
           cd src/view/
-          mvn --batch-mode -Dmaven.test.failure.ignore=true test
+          mvn --batch-mode test
 
       - name: Reporting test results
         uses: dorny/test-reporter@v1.6.0
