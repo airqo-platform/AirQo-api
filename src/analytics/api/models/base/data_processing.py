@@ -25,16 +25,21 @@ different outcomes and answer differently: the first is a 404, the second is a
 every other endpoint answers an empty result.
 
 Raises:
-    ValueError: invalid date range (equal start/end, or span > MAX_QUERY_DAYS).
+    ValueError: invalid date range (equal start/end, or span over the
+        MAX_HOURLY_QUERY_DAYS limit).
     LookupError: no members found for the entity — mapped to HTTP 404 by the
         service layer.
     QueryTooLarge: window too wide to scan within the byte ceiling — mapped to
         HTTP 400 by the service layer.
+    QueryTimedOut: query stopped at the job timeout — mapped to HTTP 400 by
+        the service layer.
+    QueryCancelled: query cancelled before it finished — mapped to HTTP 503 by
+        the service layer.
     PrivacyScreeningUnavailable: screening was requested and device-registry
         could not be reached — mapped to HTTP 503 by the service layer.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -62,16 +67,16 @@ def validate_dates(start: datetime, end: datetime) -> None:
 
     Rules:
     - Start time cannot equal end time.
-    - The range must not exceed MAX_QUERY_DAYS, the same ceiling the download
-      and chart paths enforce. The original contract hardcoded 12 months.
+    - The full span must not exceed MAX_HOURLY_QUERY_DAYS whole days, the
+      limit every request that reads hourly rows carries.
 
     Raises:
         ValueError: When either rule is violated.
     """
     if start == end:
         raise ValueError("Start time and end time cannot be the same.")
-    max_days = settings.max_query_days
-    if (end - start).days > max_days:
+    max_days = settings.hourly_query_days()
+    if end - start > timedelta(days=max_days):
         raise ValueError(f"Time range must not exceed {max_days} days.")
 
 
@@ -257,6 +262,8 @@ def build_entity_report(
         ValueError: Invalid date range.
         LookupError: No members for the entity.
         QueryTooLarge: Window too wide to scan within the byte ceiling.
+        QueryTimedOut: Query stopped at the job timeout.
+        QueryCancelled: Query cancelled before it finished.
         PrivacyScreeningUnavailable: Screening was requested and the registry
             could not be reached.
     """

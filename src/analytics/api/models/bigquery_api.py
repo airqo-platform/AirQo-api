@@ -13,7 +13,7 @@ from api.utils.utils import Utils
 import pandas as pd
 from google.cloud import bigquery
 from api.utils.bigquery_jobs import (
-    log_cost_rejections,
+    translate_incomplete_queries,
     query_job_config,
     shared_bigquery_client,
 )
@@ -467,7 +467,7 @@ class BigQueryApi:
         adjusted_limit = limits + 1
 
         # Execute the query with ordering and adjusted limit
-        with log_cost_rejections(f"query_data table={table}"):
+        with translate_incomplete_queries(f"query_data table={table}"):
             measurements = (
                 self.client.query(
                     query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",

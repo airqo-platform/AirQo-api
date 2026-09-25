@@ -1,11 +1,11 @@
 import pandas as pd
 from google.cloud import bigquery
 from api.utils.bigquery_jobs import (
-    log_cost_rejections,
+    translate_incomplete_queries,
     query_job_config,
     shared_bigquery_client,
 )
-from api.utils.exceptions import QueryTooLarge
+from api.utils.exceptions import QueryNotCompleted
 import numpy as np
 
 from api.utils.utils import Utils
@@ -73,23 +73,27 @@ def _fetch_membership(query, parameter, column: str, context: str) -> list:
 
     These scan two narrow ID columns of a metadata table — a few megabytes at
     most, under BigQuery's 10 MB minimum billing — so in practice they sit far
-    below the ceiling. They are still subject to it (query_job_config applies
-    maximum_bytes_billed to every job), so the rejection is surfaced rather
-    than swallowed: reporting "no members found" for a query that was refused
-    on cost would send the caller looking for a membership problem that does
-    not exist. Every other failure degrades to an empty list, which the report
-    builders turn into a 404.
+    below the ceiling. They are still subject to it and to the job timeout
+    (query_job_config applies both to every job), so a query that BigQuery
+    refuses, stops or cancels is raised to the service, which answers it with
+    the response for its cause. Every other failure degrades to an empty list,
+    which the report builders turn into a 404.
     """
     job_config = query_job_config(query_parameters=[parameter])
     try:
-        with log_cost_rejections(f"membership lookup for {context}"):
+        # The lookup reads only the grid or cohort identifier, so
+        # depends_on_request=False marks it, and a timeout here gets the
+        # response that asks the caller to try again.
+        with translate_incomplete_queries(
+            f"membership lookup for {context}", depends_on_request=False
+        ):
             data = (
                 shared_bigquery_client()
                 .query(query, job_config=job_config)
                 .to_dataframe()
             )
         return data[column].tolist()
-    except QueryTooLarge:
+    except QueryNotCompleted:
         raise
     except Exception:
         logger.exception(f"Error fetching membership for {context}")
@@ -121,6 +125,8 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
 
     Raises:
         QueryTooLarge: If the query exceeds the bytes-billed ceiling.
+        QueryTimedOut: If BigQuery stops the query at the job timeout.
+        QueryCancelled: If the query is cancelled before it finishes.
     """
     if id_column not in _REPORT_FILTER_COLUMNS:
         raise ValueError(f"Invalid report filter column: {id_column}")
@@ -143,7 +149,7 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
     )
 
     try:
-        with log_cost_rejections("grid/cohort report data"):
+        with translate_incomplete_queries("grid/cohort report data"):
             data = (
                 shared_bigquery_client()
                 .query(query, job_config=job_config)
@@ -165,9 +171,10 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
             return None
 
         return data
-    except QueryTooLarge:
-        # A window too wide to scan is the caller's to fix; swallowing it here
-        # would report "no data" for a query that was never run.
+    except QueryNotCompleted:
+        # A query refused for size, stopped at the job timeout or cancelled is
+        # raised to the service, which answers it with the response for its
+        # cause.
         raise
     except Exception:
         logger.exception("Error querying BigQuery for report data")

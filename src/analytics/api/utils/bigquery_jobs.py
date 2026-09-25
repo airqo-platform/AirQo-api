@@ -21,10 +21,10 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any
 
-from google.api_core.exceptions import Forbidden
+from google.api_core.exceptions import GoogleAPICallError
 from google.cloud import bigquery, storage
 
-from api.utils.exceptions import QueryTooLarge
+from api.utils.exceptions import QueryCancelled, QueryTimedOut, QueryTooLarge
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -50,8 +50,10 @@ def shared_storage_client() -> storage.Client:
     return storage.Client()
 
 
-# BigQuery signals "this job would exceed maximum_bytes_billed" as a 403 whose
-# reason is bytesBilledLimitExceeded.
+# BigQuery signals "this job would exceed maximum_bytes_billed" with the reason
+# bytesBilledLimitExceeded.  A real refusal arrived as
+# google.api_core.exceptions.InternalServerError (HTTP 500).  The translation
+# identifies the refusal by its reason and its message.
 _BYTES_LIMIT_REASONS = {"bytesBilledLimitExceeded", "billingTierLimitExceeded"}
 
 # "Query exceeded limit for bytes billed: 1073741824. 5557452800 or higher
@@ -61,7 +63,7 @@ _BYTES_BILLED_RE = re.compile(
 )
 
 
-def _is_bytes_limit_error(exc: Forbidden) -> bool:
+def _is_bytes_limit_error(exc: GoogleAPICallError) -> bool:
     return (
         any(
             getattr(error, "get", lambda _k: None)("reason") in _BYTES_LIMIT_REASONS
@@ -80,35 +82,76 @@ def _parse_byte_figures(message: str) -> tuple[int | None, int | None]:
     return int(match.group(1)), int(match.group(2))
 
 
+# BigQuery reports a job stopped at `job_timeout_ms` and a job cancelled
+# through jobs.cancel with the same reason, "stopped".  Both arrived as
+# google.api_core.exceptions.Cancelled (HTTP 499) from real jobs.  The
+# translation identifies a stopped job by its reason, and the message tells
+# the two apart.  Observed:
+#   "Job execution was cancelled: Job timed out after 2 sec"
+#   "Job execution was cancelled: User requested cancellation"
+_STOPPED_REASON = "stopped"
+_TIMED_OUT_TEXT = "job timed out"
+
+
+def _stop_message(exc: GoogleAPICallError) -> str | None:
+    """The message of a stopped job, or None for any other error."""
+    for error in exc.errors or []:
+        get = getattr(error, "get", lambda _k: None)
+        if get("reason") == _STOPPED_REASON:
+            return get("message") or str(exc)
+    return None
+
+
 @contextmanager
-def log_cost_rejections(context: str):
+def translate_incomplete_queries(context: str, *, depends_on_request: bool = True):
     """
-    Translate queries rejected for exceeding the byte ceiling into
-    QueryTooLarge, which callers render as a 400 telling the requester to
-    narrow the window.  Everything else propagates untouched.
+    Translate a query that BigQuery did not complete into the matching
+    QueryNotCompleted subclass, which callers render as the response that
+    tells the requester what to do.  Everything else propagates untouched.
 
-    BigQuery applies `maximum_bytes_billed` while planning the job, so a
-    rejection here means nothing was scanned and nothing was billed.
+    A query over the byte ceiling becomes QueryTooLarge.  BigQuery applies
+    `maximum_bytes_billed` while planning the job, so that refusal means
+    nothing was scanned and nothing was billed.  Search the logs for
+    "bigquery cost limit" to find them.
 
-    The cap starts deliberately tight, so these log lines are the signal for
-    where to set it: each one names the query that was refused and the limit
-    it hit. Search the logs for "bigquery cost limit" to find them.
+    A query stopped at `job_timeout_ms` becomes QueryTimedOut.  BigQuery
+    might attempt to stop the job, and a stopped job can still incur costs
+    depending on the stage at which it was stopped, up to the byte ceiling.
+    ``depends_on_request`` is carried on the exception: False marks a query
+    the service builds from fixed values, such as a membership lookup.  Search the logs for
+    "bigquery job timed out" to find them.
+
+    A query cancelled for any other reason, such as a cancel request from the
+    console or the bq tool, becomes QueryCancelled.  Search the logs for
+    "bigquery job cancelled" to find them.
     """
     try:
         yield
-    except Forbidden as exc:
-        if not _is_bytes_limit_error(exc):
+    except GoogleAPICallError as exc:
+        if _is_bytes_limit_error(exc):
+            limit, required = _parse_byte_figures(str(exc))
+            limit = limit or settings.bigquery_max_bytes_billed
+            logger.warning(
+                "bigquery cost limit exceeded (%s): limit=%s bytes, required=%s "
+                "bytes — raise BIGQUERY_MAX_BYTES_BILLED if this query is legitimate",
+                context,
+                limit,
+                required,
+            )
+            raise QueryTooLarge(limit_bytes=limit, required_bytes=required) from exc
+        message = _stop_message(exc)
+        if message is None:
             raise
-        limit, required = _parse_byte_figures(str(exc))
-        limit = limit or settings.bigquery_max_bytes_billed
-        logger.warning(
-            "bigquery cost limit exceeded (%s): limit=%s bytes, required=%s bytes — "
-            "raise BIGQUERY_MAX_BYTES_BILLED if this query is legitimate",
-            context,
-            limit,
-            required,
-        )
-        raise QueryTooLarge(limit_bytes=limit, required_bytes=required) from exc
+        if _TIMED_OUT_TEXT in message.lower():
+            timeout_ms = settings.bigquery_job_timeout_ms
+            logger.warning(
+                "bigquery job timed out (%s): limit=%s ms", context, timeout_ms
+            )
+            raise QueryTimedOut(
+                timeout_ms=timeout_ms, depends_on_request=depends_on_request
+            ) from exc
+        logger.warning("bigquery job cancelled (%s): %s", context, message)
+        raise QueryCancelled(message=message) from exc
 
 
 def query_job_config(**kwargs: Any) -> bigquery.QueryJobConfig:

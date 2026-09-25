@@ -22,11 +22,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from google.cloud import bigquery
 from api.utils.bigquery_jobs import (
-    log_cost_rejections,
+    translate_incomplete_queries,
     query_job_config,
     shared_bigquery_client,
 )
 
+from api.utils.exceptions import QueryNotCompleted
 from api.utils.utils import Utils
 from config import settings
 from constants import DeviceCategory, DeviceNetwork, Frequency
@@ -92,6 +93,9 @@ class AsyncBigQueryApi:
                 use_cache=use_cache,
                 cursor_token=cursor_token,
             )
+        except QueryNotCompleted:
+            # Already logged where it was translated; the service answers it.
+            raise
         except Exception as e:
             logger.error(f"Async BigQuery query failed: {str(e)}")
             raise
@@ -151,6 +155,9 @@ class AsyncBigQueryApi:
         """
         try:
             return await asyncio.to_thread(self._execute_query_sync, query, job_config)
+        except QueryNotCompleted:
+            # Already logged where it was translated; the service answers it.
+            raise
         except Exception as e:
             logger.error(f"Async query execution failed: {str(e)}")
             raise
@@ -159,7 +166,7 @@ class AsyncBigQueryApi:
         self, query: str, job_config: Optional[bigquery.QueryJobConfig] = None
     ) -> pd.DataFrame:
         """Synchronous half of execute_query_async."""
-        with log_cost_rejections("execute_query_async"):
+        with translate_incomplete_queries("execute_query_async"):
             query_job = self.client.query(query, job_config=job_config)
             return query_job.result().to_dataframe()
 

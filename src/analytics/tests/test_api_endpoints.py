@@ -418,24 +418,14 @@ def _stub_report():
     )
 
 
-def _validation_messages(response) -> list:
-    return [error["msg"] for error in response.json()["errors"]]
+V2_SUMMARY = "/api/v2/analytics/summary"
 
 
-def _rejected_with(response, message: str) -> bool:
-    """True if any validation message carries `message`.
-
-    Substring match on purpose: pydantic prefixes every ValueError it
-    surfaces with "Value error, ", which is not part of our contract.
-    """
-    return any(message in msg for msg in _validation_messages(response))
-
-
-class TestV3ReportAndSummary:
+class TestReportAndSummary:
     """/report and /summary are served by both versions.
 
-    The public copies differ in three ways, one per test below: a stricter
-    per-route throttle, a shorter window ceiling, and private-member screening.
+    Both versions carry the same window limit; the public report differs in
+    one way, private-member screening.
     """
 
     def test_report_returns_the_same_envelope_as_v2(self, client):
@@ -470,42 +460,21 @@ class TestV3ReportAndSummary:
 
         assert get_report.await_args.kwargs.get("screen_private", False) is False
 
-    @pytest.mark.parametrize("path", [V3_REPORT, V3_SUMMARY])
-    def test_public_window_ceiling_is_92_days(self, client, path):
+    @pytest.mark.parametrize("path", [V2_REPORT, V3_REPORT, V2_SUMMARY, V3_SUMMARY])
+    def test_window_limit_is_31_days_on_both_versions(self, client, path):
         """Pinned as a literal on purpose. A test written against
-        settings.max_public_report_days would stay green if the default
-        drifted, while every README that says "92 days" went stale."""
+        settings.hourly_query_days() would stay green if the default drifted,
+        while every README that says "31 days" went stale."""
         with _stub_report(), patch(
             "api.services.DataExportService.get_summary",
             new_callable=AsyncMock,
             return_value={"status": "success", "data": {}, "metadata": None},
         ):
-            at_ceiling = client.post(path, json=_report_body(days=92))
-            over_ceiling = client.post(path, json=_report_body(days=93))
+            at_limit = client.post(path, json=_report_body(days=31))
+            over_limit = client.post(path, json=_report_body(days=32))
 
-        assert at_ceiling.status_code == 200
-        assert over_ceiling.status_code == 422
-        assert _rejected_with(
-            over_ceiling, "Time range must not exceed 92 days on the public API"
-        )
-
-    def test_public_report_names_its_own_ceiling_beyond_the_v2_cap(self, client):
-        """Regression: the inherited v2 validator used to fire first on any
-        window over 365 days, so v3 reported "365 days" for a cap that is 92,
-        and a MAX_PUBLIC_REPORT_DAYS set above 365 was silently unreachable."""
-        resp = client.post(V3_REPORT, json=_report_body(days=400))
-
-        assert resp.status_code == 422
-        assert _rejected_with(
-            resp, "Time range must not exceed 92 days on the public API"
-        )
-
-    def test_internal_report_keeps_the_365_day_ceiling(self, client):
-        """The tighter ceiling is public-only; v2 keeps MAX_QUERY_DAYS."""
-        with _stub_report():
-            resp = client.post(V2_REPORT, json=_report_body(days=93))
-
-        assert resp.status_code == 200
+        assert at_limit.status_code == 200
+        assert over_limit.status_code == 422
 
     def test_unreachable_privacy_registry_is_a_503_at_the_route(self, client):
         """Fail closed, all the way out: the 503 must reach the caller in the
@@ -523,12 +492,12 @@ class TestV3ReportAndSummary:
         assert body["status"] == "error"
         assert "privacy status" in body["message"]
 
-    def test_public_summary_rejects_a_reversed_window(self, client):
-        """The v2 summary model validates no window at all; the public one
-        does, so a reversed range cannot slip under the cap as a negative day
-        count."""
+    @pytest.mark.parametrize("path", [V2_SUMMARY, V3_SUMMARY])
+    def test_summary_rejects_a_reversed_window(self, client, path):
+        """A reversed range cannot slip under the limit as a negative day
+        count on either version."""
         resp = client.post(
-            V3_SUMMARY,
+            path,
             json={
                 "grid_id": "grid-1",
                 "start_time": (WINDOW_START + timedelta(days=5)).isoformat(),
@@ -538,33 +507,40 @@ class TestV3ReportAndSummary:
 
         assert resp.status_code == 422
 
-    @pytest.mark.parametrize("path", ["/report", "/summary"])
-    def test_public_routes_carry_the_10_per_minute_route_limit(self, path):
-        """Without this dependency they would fall back to the global limit of
-        100 requests per minute, which is the whole point of the v3 surface.
-        The limit and window are asserted as literals: presence alone would
-        still pass with a limit of ten thousand.
 
-        The lookup reads the router rather than app.routes, and matches the
-        bare path the router declares rather than the prefixed one. FastAPI
-        0.141 includes a router as a single lazy entry that resolves paths when
-        a request arrives, so the app exposes the prefixed path at request time
+class TestRouteRateLimitWiring:
+    """Every route on both routers carries the shared per-route limit."""
+
+    @pytest.mark.parametrize("version", ["v2", "v3"])
+    def test_every_route_carries_the_10_per_minute_route_limit(self, version):
+        """Each route on both routers carries exactly one RouteRateLimit. The
+        limit and window are asserted as literals: presence alone would still
+        pass with a limit of ten thousand. Exactly one instance is asserted
+        because a second, separate instance on a route takes a second unit
+        from the same counter and halves the limit.
+
+        The lookup reads the router rather than app.routes. FastAPI 0.141
+        includes a router as a single lazy entry that resolves paths when a
+        request arrives, so the app exposes the prefixed path at request time
         and the router holds the declaration. The router is the same object on
         every version this service supports, and the prefix reaches coverage
         through the tests that post to the full URL.
         """
+        import importlib
         from api.middlewares.rate_limiter import RouteRateLimit
-        from api.routers.v3 import router
 
-        route = next(r for r in router.routes if getattr(r, "path", None) == path)
-        limits = [
-            dep.dependency
-            for dep in route.dependencies
-            if isinstance(dep.dependency, RouteRateLimit)
-        ]
+        router = importlib.import_module(f"api.routers.{version}").router
+        routes = [r for r in router.routes if hasattr(r, "dependencies")]
 
-        assert len(limits) == 1
-        assert (limits[0].limit, limits[0].window) == (10, 60)
+        assert routes
+        for route in routes:
+            limits = [
+                dep.dependency
+                for dep in route.dependencies
+                if isinstance(dep.dependency, RouteRateLimit)
+            ]
+            assert len(limits) == 1, route.path
+            assert (limits[0].limit, limits[0].window) == (10, 60), route.path
 
 
 # ---------------------------------------------------------------------------

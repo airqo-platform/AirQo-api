@@ -42,7 +42,17 @@ def format_bytes(num_bytes: Optional[int]) -> str:
     return f"{value:.1f} {units[idx]}"
 
 
-class QueryTooLarge(Exception):
+class QueryNotCompleted(Exception):
+    """
+    BigQuery did not complete a query.
+
+    api/utils/bigquery_jobs.translate_incomplete_queries raises one subclass
+    for each cause, and the service layer (api.services._query_error) answers
+    each one with the response that tells the requester what to do.
+    """
+
+
+class QueryTooLarge(QueryNotCompleted):
     """
     BigQuery refused a query for exceeding the bytes-billed ceiling.
 
@@ -63,3 +73,40 @@ class QueryTooLarge(Exception):
         self.limit_bytes = limit_bytes
         self.required_bytes = required_bytes
         super().__init__()
+
+
+class QueryTimedOut(QueryNotCompleted):
+    """
+    BigQuery stopped a query that ran longer than the job timeout.
+
+    The timeout (settings.bigquery_job_timeout_ms, applied by
+    api/utils/bigquery_jobs.query_job_config) is applied by BigQuery while
+    the job runs.  BigQuery might attempt to stop the job, and a stopped job
+    can still incur costs depending on the stage at which it was stopped, up
+    to the byte ceiling.
+
+    This class carries the timeout in milliseconds and whether the request
+    shapes the query: a query built from the request's date range, filters or
+    frequency (``depends_on_request=True``) gets a response that names those
+    fields, and a query fixed by the service, such as a membership lookup,
+    gets a response that asks the caller to try again.
+    """
+
+    def __init__(self, timeout_ms: int, depends_on_request: bool = True) -> None:
+        self.timeout_ms = timeout_ms
+        self.depends_on_request = depends_on_request
+        super().__init__()
+
+
+class QueryCancelled(QueryNotCompleted):
+    """
+    A query was cancelled before it finished, for a reason other than the
+    job timeout, such as a cancel request from the console or the bq tool.
+
+    The request itself was valid, so the same request can succeed when it is
+    sent again.  This class carries the message BigQuery gave for the stop.
+    """
+
+    def __init__(self, message: str = "") -> None:
+        self.message = message
+        super().__init__(message)
