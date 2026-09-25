@@ -13,11 +13,16 @@ from __future__ import annotations
 import logging
 
 import pytest
-from google.api_core.exceptions import Forbidden
+from google.api_core.exceptions import Cancelled, Forbidden, InternalServerError
 from google.cloud import bigquery
 
-from api.utils.bigquery_jobs import log_cost_rejections, query_job_config
-from api.utils.exceptions import QueryTooLarge, format_bytes
+from api.utils.bigquery_jobs import translate_incomplete_queries, query_job_config
+from api.utils.exceptions import (
+    QueryCancelled,
+    QueryTimedOut,
+    QueryTooLarge,
+    format_bytes,
+)
 from config import settings
 
 
@@ -48,80 +53,93 @@ class TestQueryJobConfig:
         assert query_job_config().maximum_bytes_billed == 4242
 
 
-class TestCostRejectionLogging:
-    def _forbidden(self, reason: str) -> Forbidden:
-        return Forbidden("quota exceeded", errors=[{"reason": reason}])
+def byte_limit_refusal():
+    """The error BigQuery returned for a query over maximum_bytes_billed, as
+    captured from a real job with a limit of 1000 bytes."""
+    message = (
+        "Query exceeded limit for bytes billed: 1000. 10485760 or higher required."
+    )
+    return InternalServerError(
+        message, errors=[{"reason": "bytesBilledLimitExceeded", "message": message}]
+    )
 
-    def test_logs_and_translates_byte_limit_rejection(self, caplog):
+
+class TestByteLimitTranslation:
+    def test_refusal_becomes_query_too_large(self, caplog):
         """Raised as QueryTooLarge so callers can answer with a 400 telling
-        the requester to narrow the window, instead of a bare 500."""
+        the requester to narrow the window, instead of a bare 500. The figures
+        come from the BigQuery message, and the original error stays available
+        for the logs."""
+        original = byte_limit_refusal()
         with caplog.at_level(logging.WARNING):
-            with pytest.raises(QueryTooLarge):
-                with log_cost_rejections("unit-test"):
-                    raise self._forbidden("bytesBilledLimitExceeded")
+            with pytest.raises(QueryTooLarge) as exc:
+                with translate_incomplete_queries("unit-test"):
+                    raise original
 
+        assert exc.value.limit_bytes == 1000
+        assert exc.value.required_bytes == 10485760
+        assert exc.value.__cause__ is original
         assert "bigquery cost limit exceeded" in caplog.text
         assert "unit-test" in caplog.text
 
-    def test_recognises_message_without_structured_reason(self, caplog):
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(QueryTooLarge):
-                with log_cost_rejections("unit-test"):
-                    raise Forbidden("Query exceeded limit for maximum bytes billed")
-
-        assert "bigquery cost limit exceeded" in caplog.text
-
-    def test_parses_the_limit_and_required_figures(self):
-        """BigQuery states both numbers in the message; the service layer
-        renders them for the operator log."""
-        message = (
-            "Query exceeded limit for bytes billed: 1073741824. "
-            "5557452800 or higher required."
-        )
-        with pytest.raises(QueryTooLarge) as exc:
-            with log_cost_rejections("unit-test"):
-                raise Forbidden(
-                    message, errors=[{"reason": "bytesBilledLimitExceeded"}]
-                )
-
-        assert exc.value.limit_bytes == 1073741824
-        assert exc.value.required_bytes == 5557452800
-
-    def test_falls_back_to_the_configured_limit_when_unparseable(self):
-        with pytest.raises(QueryTooLarge) as exc:
-            with log_cost_rejections("unit-test"):
-                raise self._forbidden("bytesBilledLimitExceeded")
-
-        assert exc.value.limit_bytes == settings.bigquery_max_bytes_billed
-        assert exc.value.required_bytes is None
-
-    def test_original_forbidden_is_kept_as_the_cause(self):
-        """The BigQuery text stays available for the logs even though the
-        client sees the friendly message."""
-        original = self._forbidden("bytesBilledLimitExceeded")
-        with pytest.raises(QueryTooLarge) as exc:
-            with log_cost_rejections("unit-test"):
-                raise original
-
-        assert exc.value.__cause__ is original
-
-    def test_unrelated_forbidden_is_not_logged_as_cost(self, caplog):
+    def test_unrelated_api_error_passes_through(self, caplog):
         with caplog.at_level(logging.WARNING):
             with pytest.raises(Forbidden):
-                with log_cost_rejections("unit-test"):
-                    raise self._forbidden("accessDenied")
+                with translate_incomplete_queries("unit-test"):
+                    raise Forbidden(
+                        "Access Denied", errors=[{"reason": "accessDenied"}]
+                    )
 
         assert "bigquery cost limit exceeded" not in caplog.text
 
     def test_other_exceptions_pass_through_untouched(self):
         with pytest.raises(ValueError):
-            with log_cost_rejections("unit-test"):
+            with translate_incomplete_queries("unit-test"):
                 raise ValueError("unrelated")
 
     def test_success_path_is_transparent(self):
-        with log_cost_rejections("unit-test"):
+        with translate_incomplete_queries("unit-test"):
             result = 1 + 1
         assert result == 2
+
+
+def _stopped(message: str) -> Cancelled:
+    """The error BigQuery returns for a stopped job, as captured from real jobs.
+
+    A job stopped at job_timeout_ms and a job cancelled through jobs.cancel
+    both arrived as Cancelled (HTTP 499) with the reason "stopped"; only the
+    message differs.
+    """
+    return Cancelled(
+        message, errors=[{"message": message, "domain": "global", "reason": "stopped"}]
+    )
+
+
+class TestStoppedJobTranslation:
+    """A stopped job becomes QueryTimedOut when BigQuery stopped it at the job
+    timeout, and QueryCancelled when it was cancelled for any other reason."""
+
+    def test_job_stopped_at_the_timeout_becomes_query_timed_out(self, caplog):
+        stopped = _stopped("Job execution was cancelled: Job timed out after 2 sec")
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(QueryTimedOut) as exc:
+                with translate_incomplete_queries("unit-test"):
+                    raise stopped
+
+        assert exc.value.timeout_ms == settings.bigquery_job_timeout_ms
+        assert exc.value.depends_on_request is True
+        assert exc.value.__cause__ is stopped
+        assert "bigquery job timed out" in caplog.text
+
+    def test_cancel_request_becomes_query_cancelled(self, caplog):
+        stopped = _stopped("Job execution was cancelled: User requested cancellation")
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(QueryCancelled) as exc:
+                with translate_incomplete_queries("unit-test"):
+                    raise stopped
+
+        assert exc.value.__cause__ is stopped
+        assert "bigquery job cancelled" in caplog.text
 
 
 class TestByteFormatting:

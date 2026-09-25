@@ -195,20 +195,23 @@ class BaseConfig(BaseSettings):
         default=100_000_000, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
     )
     bigquery_job_timeout_ms: int = Field(
-        default=600_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
+        default=30_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
     )
 
+    # Longest date range of one request.  MAX_QUERY_DAYS applies to daily,
+    # weekly, monthly and yearly data.  MAX_HOURLY_QUERY_DAYS applies to raw
+    # and hourly data, and to the report, summary, forecast and dashboard
+    # aggregation requests.  The default of 31 days lets one request cover a
+    # full calendar month.
     max_query_days: int = Field(default=365, validation_alias="MAX_QUERY_DAYS")
-    max_filter_values: int = Field(default=1000, validation_alias="MAX_FILTER_VALUES")
-
-    # The public /report and /summary get a shorter ceiling than MAX_QUERY_DAYS.
-    # A report is one unpaginated scan plus fifteen pandas aggregations, and at
-    # the default 1 GiB bytes-billed budget roughly three months is where it
-    # starts being refused anyway.  Capping in the schema turns that into a
-    # clean 422 naming the limit, instead of a 400 about bytes scanned.
-    max_public_report_days: int = Field(
-        default=92, validation_alias="MAX_PUBLIC_REPORT_DAYS"
+    max_hourly_query_days: int = Field(
+        default=31, validation_alias="MAX_HOURLY_QUERY_DAYS"
     )
+    max_filter_values: int = Field(default=150, validation_alias="MAX_FILTER_VALUES")
+
+    def hourly_query_days(self) -> int:
+        """The date limit for raw and hourly data, at most MAX_QUERY_DAYS."""
+        return min(self.max_hourly_query_days, self.max_query_days)
 
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
@@ -252,7 +255,7 @@ class BaseConfig(BaseSettings):
     data_export_decimal_places: int = Field(
         default=2, validation_alias="DATA_EXPORT_DECIMAL_PLACES"
     )
-    data_export_limit: int = Field(default=10000, validation_alias="DATA_EXPORT_LIMIT")
+    data_export_limit: int = Field(default=5000, validation_alias="DATA_EXPORT_LIMIT")
     data_summary_days_interval: int = Field(
         default=2, validation_alias="DATA_SUMMARY_DAYS_INTERVAL"
     )

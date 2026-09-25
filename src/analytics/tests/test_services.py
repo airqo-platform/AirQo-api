@@ -601,7 +601,7 @@ class TestAirQualityReportService:
     async def test_invalid_dates_map_to_400(self):
         with patch(
             "api.services.build_entity_report",
-            side_effect=ValueError("Time range must not exceed 365 days."),
+            side_effect=ValueError("Time range must not exceed 31 days."),
         ):
             with pytest.raises(HTTPException) as exc:
                 await self._svc().get_report(_report_request(grid_id="grid-1"))
@@ -1550,11 +1550,6 @@ class TestReportTemplateService:
 
 
 class TestOversizedQueryHandling:
-    _REJECTION = (
-        "Query exceeded limit for bytes billed: 1073741824. "
-        "5557452800 or higher required."
-    )
-
     def _too_large(self):
         from api.utils.exceptions import QueryTooLarge
 
@@ -1622,24 +1617,9 @@ class TestOversizedQueryHandling:
         assert "GB" not in exc.value.detail
 
     @pytest.mark.asyncio
-    async def test_missing_byte_figures_still_map_to_400(self, export_request):
-        """BigQuery states the byte figures in most rejections, and the
-        handler answers with a 400 whether or not they parse out."""
-        from api.utils.exceptions import QueryTooLarge
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=QueryTooLarge(limit_bytes=1073741824),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        assert exc.value.status_code == 400
-
-    @pytest.mark.asyncio
     async def test_other_query_failures_are_still_500(self, export_request):
-        """Only the size rejection is the caller's to fix."""
+        """A query BigQuery did not complete gets its own response; any
+        other failure is a 500."""
         with patch(
             "api.services.AsyncBigQueryApi.query_data_async",
             new_callable=AsyncMock,
@@ -1649,6 +1629,188 @@ class TestOversizedQueryHandling:
                 await DataExportService().export_data(export_request)
 
         assert exc.value.status_code == 500
+
+
+def _timed_out():
+    from api.utils.exceptions import QueryTimedOut
+
+    return QueryTimedOut(timeout_ms=30_000)
+
+
+def _cancelled():
+    from api.utils.exceptions import QueryCancelled
+
+    return QueryCancelled(
+        message="Job execution was cancelled: User requested cancellation"
+    )
+
+
+class TestStoppedQueryHandling:
+    """A query stopped at the job timeout is the caller's to fix and gets a
+    400. A query cancelled for any other reason was a valid request and gets
+    a 503 that tells the caller to try again."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error,status", [(_timed_out, 400), (_cancelled, 503)])
+    async def test_data_download(self, export_request, error, status):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=error(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        assert exc.value.status_code == status
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error,status", [(_timed_out, 400), (_cancelled, 503)])
+    async def test_report(self, error, status):
+        from api.services import AirQualityReportService
+
+        with patch("api.services.build_entity_report", side_effect=error()):
+            with pytest.raises(HTTPException) as exc:
+                await AirQualityReportService().get_report(
+                    _report_request(grid_id="grid-1")
+                )
+
+        assert exc.value.status_code == status
+
+    def test_each_outcome_has_its_own_message(self):
+        """A caller must be able to tell the three outcomes apart, so each
+        response carries a different message."""
+        from api.services import QueryLevers, _query_error
+        from api.utils.exceptions import QueryTooLarge
+        from constants import Frequency
+
+        levers = QueryLevers(window=True, filters=True, frequency=Frequency.HOURLY)
+        details = {
+            _query_error(error, levers).detail
+            for error in (QueryTooLarge(limit_bytes=1), _timed_out(), _cancelled())
+        }
+
+        assert len(details) == 3
+
+    def test_timeout_names_only_the_fields_the_request_offers(self):
+        """The download body offers three fields, the report body one, and a
+        request that offers none gets a 503."""
+        from api.services import QueryLevers, _query_error
+        from api.utils.exceptions import QueryTimedOut
+        from constants import Frequency
+
+        download = _query_error(
+            _timed_out(),
+            QueryLevers(
+                window=True,
+                filters=True,
+                frequency=Frequency.HOURLY,
+                coarser_frequency=True,
+            ),
+        )
+        report = _query_error(_timed_out(), QueryLevers(window=True))
+        no_levers = _query_error(_timed_out(), QueryLevers())
+        fixed_query = _query_error(
+            QueryTimedOut(timeout_ms=30_000, depends_on_request=False),
+            QueryLevers(window=True),
+        )
+
+        assert download.status_code == 400
+        assert report.status_code == 400
+        assert no_levers.status_code == 503
+        assert fixed_query.status_code == 503
+
+    def test_coarser_frequency_is_offered_only_when_the_body_accepts_one(self):
+        """The raw-data body and a mobile download accept the raw frequency
+        only, so their levers carry no coarser-frequency option."""
+        from api.services import QueryLevers
+        from constants import Frequency
+
+        raw_data = QueryLevers(
+            window=True, filters=True, frequency=Frequency.RAW, coarser_frequency=False
+        )
+        hourly_download = QueryLevers(
+            window=True,
+            filters=True,
+            frequency=Frequency.HOURLY,
+            coarser_frequency=True,
+        )
+
+        assert raw_data.coarser_frequency_lever is None
+        assert hourly_download.coarser_frequency_lever is not None
+
+    @pytest.mark.asyncio
+    async def test_site_lookup_in_daily_averages_gets_the_timeout_response(self):
+        """The site-name lookup runs with the job timeout, so its timeout
+        gets the 400 like the averages query, not a 500."""
+        from api.schemas.requests import DailyAveragesRequest
+
+        request = DailyAveragesRequest(pollutant="pm2_5", sites=["s1"], **_AGG_WINDOW)
+        with patch(
+            "api.services.AsyncBigQueryApi.execute_query_async",
+            new_callable=AsyncMock,
+            return_value=pd.DataFrame({"value": [1.0], "site_id": ["s1"]}),
+        ), patch(
+            "api.services.AsyncBigQueryApi.get_sites_async",
+            new_callable=AsyncMock,
+            side_effect=_timed_out(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DashboardService().get_daily_averages(request)
+
+        assert exc.value.status_code == 400
+
+    def test_membership_lookup_timeout_is_marked_as_fixed(self):
+        """The membership lookup filters on the grid identifier alone, so its
+        timeout is marked as one the request cannot shape."""
+        from google.api_core.exceptions import Cancelled
+        from unittest.mock import MagicMock
+        from api.utils.exceptions import QueryTimedOut
+        from api.utils.pollutants.report import fetch_grid_sites
+
+        message = "Job execution was cancelled: Job timed out after 2 sec"
+        client = MagicMock()
+        client.query.return_value.to_dataframe.side_effect = Cancelled(
+            message, errors=[{"message": message, "reason": "stopped"}]
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(QueryTimedOut) as exc:
+                fetch_grid_sites("grid-1")
+
+        assert exc.value.depends_on_request is False
+
+    @pytest.mark.parametrize(
+        "message,raised",
+        [
+            (
+                "Job execution was cancelled: Job timed out after 2 sec",
+                "QueryTimedOut",
+            ),
+            (
+                "Job execution was cancelled: User requested cancellation",
+                "QueryCancelled",
+            ),
+        ],
+    )
+    def test_report_query_raises_instead_of_reporting_no_data(self, message, raised):
+        """query_bigquery returns None for a failed query, and the report
+        builder turns None into a no-data success body. A stopped query is
+        raised instead, so the caller gets the response for its cause."""
+        from google.api_core.exceptions import Cancelled
+        from unittest.mock import MagicMock
+        import api.utils.exceptions as exceptions
+        from api.utils.pollutants.report import query_bigquery
+
+        client = MagicMock()
+        client.query.return_value.to_dataframe.side_effect = Cancelled(
+            message, errors=[{"message": message, "reason": "stopped"}]
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(getattr(exceptions, raised)):
+                query_bigquery(["s1"], datetime(2024, 1, 1), datetime(2024, 1, 2))
 
 
 # ---------------------------------------------------------------------------
@@ -1942,12 +2104,12 @@ class TestReportEntityPipeline:
         assert df["hour"].tolist() == [0, 0]
         assert df["day"].tolist() == ["Monday", "Monday"]
 
-    def test_window_cap_follows_max_query_days(self):
+    def test_window_cap_follows_hourly_query_days(self):
         from api.models.base.data_processing import validate_dates
         from config import settings
 
         over = datetime(2024, 1, 1), datetime(2024, 1, 1) + timedelta(
-            days=settings.max_query_days + 1
+            days=settings.hourly_query_days() + 1
         )
         with pytest.raises(ValueError, match="must not exceed"):
             validate_dates(*over)
@@ -1992,17 +2154,13 @@ class TestReportEntityPipeline:
     def test_membership_cost_rejection_is_not_a_missing_entity(self):
         """A lookup refused on cost must not read as "this grid has no sites" —
         it reaches the caller as the 400, like the measurement query."""
-        from google.api_core.exceptions import Forbidden
         from api.utils.exceptions import QueryTooLarge
         from api.utils.pollutants.report import fetch_grid_sites
+        from tests.test_bigquery_jobs import byte_limit_refusal
         from unittest.mock import MagicMock
 
         client = MagicMock()
-        client.query.side_effect = Forbidden(
-            "Query exceeded limit for bytes billed: 1073741824. "
-            "5557452800 or higher required.",
-            errors=[{"reason": "bytesBilledLimitExceeded"}],
-        )
+        client.query.return_value.to_dataframe.side_effect = byte_limit_refusal()
         with patch(
             "api.utils.pollutants.report.shared_bigquery_client", return_value=client
         ):

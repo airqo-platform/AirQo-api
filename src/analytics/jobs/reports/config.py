@@ -26,6 +26,9 @@ class Config:
     # while it plans the query, and charges nothing for the refused query.
     # The default is 100 MB (100,000,000 bytes).
     BIGQUERY_MAX_BYTES_BILLED = int(os.getenv("BIGQUERY_MAX_BYTES_BILLED", 100_000_000))
+    # The job waits this number of milliseconds for its query and then cancels
+    # it.  The default is 30 seconds.
+    BIGQUERY_JOB_TIMEOUT_MS = int(os.getenv("BIGQUERY_JOB_TIMEOUT_MS", 30_000))
 
 
 class ProductionConfig(Config):

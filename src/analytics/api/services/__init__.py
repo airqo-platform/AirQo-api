@@ -19,6 +19,7 @@ import io
 import logging
 import math
 from abc import ABC
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -77,6 +78,8 @@ from api.utils.utils import Utils
 from api.utils.exceptions import (
     ExportRequestNotFound,
     PrivacyScreeningUnavailable,
+    QueryNotCompleted,
+    QueryTimedOut,
     QueryTooLarge,
     format_bytes,
 )
@@ -185,19 +188,56 @@ async def _filter_from_request(
     return filter_type, filter_value
 
 
-def _too_large_error(
-    exc: QueryTooLarge, frequency: Optional[Frequency] = None
-) -> HTTPException:
+@dataclass(frozen=True)
+class QueryLevers:
     """
-    Turn a refused-for-size query into a 400 the requester can act on.
+    The fields of a request that shape its BigQuery query.
 
-    Bytes are billed per partition scanned, so the window is the lever that
-    moves the figure.  The response names that lever and, at the frequencies
-    below daily, offers the second lever as well.  The byte figures go to the
-    log for tracking.
+    A response for a query that BigQuery did not complete names only the
+    fields the request offers:
+
+    - ``window``: the request has a date range.
+    - ``filters``: the request has a site or device list.
+    - ``frequency``: the frequency of the data the query reads; it labels the
+      message.
+    - ``coarser_frequency``: the request accepts a coarser frequency than the
+      one it sent.
     """
-    for_frequency = f" for {frequency.value} data" if frequency else ""
 
+    window: bool = False
+    filters: bool = False
+    frequency: Optional[Frequency] = None
+    coarser_frequency: bool = False
+
+    @property
+    def for_frequency(self) -> str:
+        return f" for {self.frequency.value} data" if self.frequency else ""
+
+    @property
+    def coarser_frequency_lever(self) -> Optional[str]:
+        if self.coarser_frequency:
+            return "request a coarser frequency such as daily"
+        return None
+
+
+def _join_levers(levers: List[str]) -> str:
+    """Render the levers as one sentence: "A, B or C." with a capital start."""
+    if len(levers) == 1:
+        sentence = levers[0]
+    else:
+        sentence = ", ".join(levers[:-1]) + " or " + levers[-1]
+    return sentence[0].upper() + sentence[1:] + "."
+
+
+def _too_large_error(exc: QueryTooLarge, levers: QueryLevers) -> HTTPException:
+    """
+    Turn a refused-for-size query into the response the requester can act on.
+
+    Bytes are billed per partition scanned, so the date range is the lever
+    that moves the figure, and a coarser frequency the second one.  A query
+    whose request has no date range gets a 503.  The byte figures go to the
+    log.
+    """
     required, limit = exc.required_bytes, exc.limit_bytes
     factor = (
         f", about {max(2, math.ceil(required / limit))}x over"
@@ -206,19 +246,96 @@ def _too_large_error(
     )
     logger.warning(
         "Query refused for size%s: %s of %s%s",
-        for_frequency,
+        levers.for_frequency,
         format_bytes(required),
         format_bytes(limit),
         factor,
     )
 
+    options = []
+    if levers.window:
+        options.append("shorten the date range")
+    if levers.window and levers.coarser_frequency_lever:
+        options.append(levers.coarser_frequency_lever)
+    if not options:
+        return HTTPException(
+            status_code=503,
+            detail="The query reads more data than the service allows for this request.",
+        )
     detail = (
-        f"The requested date range is too wide{for_frequency}. "
-        f"Shorten the date range"
+        f"The requested date range is too wide{levers.for_frequency}. "
+        f"{_join_levers(options)}"
     )
-    if frequency in (Frequency.RAW, Frequency.HOURLY):
-        detail += " or request a coarser frequency such as daily"
-    return HTTPException(status_code=400, detail=detail + ".")
+    return HTTPException(status_code=400, detail=detail)
+
+
+def _timed_out_error(exc: QueryTimedOut, levers: QueryLevers) -> HTTPException:
+    """
+    Turn a query that BigQuery stopped at the job timeout into its response.
+
+    A query shaped by the request gets a 400 that names the fields the
+    request offers: the site or device list, the date range and, at the
+    frequencies below daily, the coarser frequency.  A query the request
+    cannot shape gets a 503 that asks the requester to try again.
+    """
+    seconds = exc.timeout_ms / 1000
+    logger.warning(
+        "Query stopped at the job timeout%s: %g seconds",
+        levers.for_frequency,
+        seconds,
+    )
+
+    options = []
+    if exc.depends_on_request:
+        if levers.filters:
+            options.append("request fewer sites or devices")
+        if levers.window:
+            options.append("shorten the date range")
+        if levers.coarser_frequency_lever:
+            options.append(levers.coarser_frequency_lever)
+    if not options:
+        return HTTPException(
+            status_code=503,
+            detail=(
+                f"The query did not finish within {seconds:g} seconds. "
+                f"Please try again."
+            ),
+        )
+    detail = (
+        f"The query{levers.for_frequency} ran longer than {seconds:g} seconds. "
+        f"{_join_levers(options)}"
+    )
+    return HTTPException(status_code=400, detail=detail)
+
+
+def _cancelled_error() -> HTTPException:
+    """
+    Turn a query cancelled before it finished into a 503.
+
+    The cancellation came from outside the request, and the request itself was
+    valid, so the response tells the requester to send it again.
+    """
+    return HTTPException(
+        status_code=503,
+        detail="The query was cancelled before it finished. Please try again.",
+    )
+
+
+def _query_error(exc: QueryNotCompleted, levers: QueryLevers) -> HTTPException:
+    """
+    Map a query that BigQuery did not complete to its response.
+
+    ``levers`` describes the fields of the request that shape the query, so
+    the response names only what the requester can change.  A query over the
+    byte ceiling and a query stopped at the job timeout each get a 400 with
+    their own message when the request offers a lever, and a 503 otherwise.
+    A cancelled query gets a 503 that tells the requester to try again.
+    """
+    if isinstance(exc, QueryTooLarge):
+        return _too_large_error(exc, levers)
+    if isinstance(exc, QueryTimedOut):
+        return _timed_out_error(exc, levers)
+    return _cancelled_error()
 
 
 def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -406,8 +523,8 @@ class DataExportService(BaseService):
             df = await bq.execute_query_async(
                 query, query_job_config(query_parameters=params)
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True)) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during data summary")
             raise HTTPException(
@@ -482,8 +599,8 @@ class DataExportService(BaseService):
                 use_cache=True,
                 cursor_token=request.cursor,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True)) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during forecast data export")
             raise HTTPException(
@@ -559,8 +676,16 @@ class DataExportService(BaseService):
                 use_cache=True,
                 cursor_token=request.cursor,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, frequency) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(
+                exc,
+                QueryLevers(
+                    window=True,
+                    filters=True,
+                    frequency=frequency,
+                    coarser_frequency=request.offers_coarser_frequency(),
+                ),
+            ) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during data export")
             raise HTTPException(
@@ -661,8 +786,16 @@ class DashboardService(BaseService):
                 dynamic_query=True,
                 use_cache=True,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency(request.frequency)) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(
+                exc,
+                QueryLevers(
+                    window=True,
+                    filters=True,
+                    frequency=Frequency(request.frequency),
+                    coarser_frequency=request.offers_coarser_frequency(),
+                ),
+            ) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during get_chart_data")
             raise HTTPException(
@@ -778,6 +911,8 @@ class DashboardService(BaseService):
             sites_df = (
                 await bq.get_sites_async(site_ids=sites) if sites else pd.DataFrame()
             )
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(filters=True)) from exc
         except Exception as exc:
             self.logger.exception("Site lookup failed during daily averages")
             raise HTTPException(
@@ -865,8 +1000,8 @@ class DashboardService(BaseService):
         bq = AsyncBigQueryApi()
         try:
             return await bq.execute_query_async(query, job_config)
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True, filters=True)) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during daily averages")
             raise HTTPException(
@@ -1009,8 +1144,8 @@ class DashboardService(BaseService):
         bq = AsyncBigQueryApi()
         try:
             df = await bq.execute_query_async(query, job_config)
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True, filters=True)) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during device exceedances")
             raise HTTPException(
@@ -1049,8 +1184,8 @@ class MonitoringService(BaseService):
         try:
             site_ids = request.site_ids if request else None
             df = await bq.get_sites_async(site_ids=site_ids)
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers()) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during get_sites")
             raise HTTPException(
@@ -1140,8 +1275,8 @@ class AirQualityReportService(BaseService):
                 request.end_time,
                 screen_private,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True)) from exc
         except PrivacyScreeningUnavailable as exc:
             # Fail closed: the same 503 the download paths give when the
             # registry is unreachable, rather than serving unscreened members.

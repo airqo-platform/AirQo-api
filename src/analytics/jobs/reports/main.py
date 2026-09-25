@@ -1,3 +1,5 @@
+import concurrent.futures
+
 from google.cloud import bigquery
 import pandas as pd
 import seaborn as sns
@@ -852,7 +854,16 @@ def from_bigquery(
     job_config.use_query_cache = True
     job_config.maximum_bytes_billed = configuration.BIGQUERY_MAX_BYTES_BILLED
 
-    dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
+    # The job waits BIGQUERY_JOB_TIMEOUT_MS for the query and then cancels it.
+    # The wait runs on the client, so it works with every version of the
+    # BigQuery library the job runs with.
+    query_job = bigquery.Client().query(QUERY, job_config)
+    try:
+        rows = query_job.result(timeout=configuration.BIGQUERY_JOB_TIMEOUT_MS / 1000)
+    except concurrent.futures.TimeoutError:
+        query_job.cancel()
+        raise
+    dataframe = rows.to_dataframe()
     dataframe.sort_values(["site", "datetime", "device"], ascending=True, inplace=True)
 
     return dataframe

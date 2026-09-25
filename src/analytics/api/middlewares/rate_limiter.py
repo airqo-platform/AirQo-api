@@ -280,13 +280,10 @@ class RouteRateLimit:
     Applies a stricter per-route limit on top of the global middleware,
     keyed by route path + client IP so different routes have independent windows.
 
-    Usage::
+    Each router declares the shared ``route_rate_limit`` instance below as a
+    router dependency, so every route it holds carries the limit once::
 
-        v3_limit = RouteRateLimit(limit=10, window=60)
-
-        @router.post("/data-download", dependencies=[Depends(v3_limit)])
-        async def export_data(...):
-            ...
+        router = APIRouter(dependencies=[Depends(route_rate_limit)])
     """
 
     def __init__(self, limit: int = 10, window: int = 60):
@@ -305,3 +302,9 @@ class RouteRateLimit:
                 detail="Rate limit exceeded",
                 headers={"Retry-After": str(self.window)},
             )
+
+
+#: The limit that every router applies to each of its routes: 10 requests in
+#: 60 seconds for each route path and client IP.  The global
+#: RateLimiterMiddleware limit applies to the same requests as well.
+route_rate_limit = RouteRateLimit(limit=10, window=60)

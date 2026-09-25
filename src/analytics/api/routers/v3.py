@@ -1,9 +1,10 @@
 """
 FastAPI Router for API v3 (Public)
 
-Public-facing API.  In addition to the global RateLimiterMiddleware (100/min),
-each endpoint applies a stricter per-route limit via RouteRateLimit (10/min),
-matching the original Flask-based v3 behaviour.
+Public-facing API.  Every route carries the per-route limit of 10 requests
+per minute per IP (route_rate_limit) in addition to the global
+RateLimiterMiddleware (100 req/min per IP), the same pair of limits the v2
+routes carry.
 """
 
 from fastapi import APIRouter, Depends
@@ -18,19 +19,15 @@ from api.schemas.requests import (
 )
 from api.schemas.responses import DataExportResponse, DOWNLOAD_RESPONSES
 from api.services import AirQualityReportService, DataExportService
-from api.middlewares.rate_limiter import RouteRateLimit
+from api.middlewares.rate_limiter import route_rate_limit
 
-router = APIRouter()
-
-# Stricter per-route limit applied to every public endpoint
-_v3_rate_limit = RouteRateLimit(limit=10, window=60)
+router = APIRouter(dependencies=[Depends(route_rate_limit)])
 
 
 @router.post(
     "/data-download",
     response_model=DataExportResponse,
     responses=DOWNLOAD_RESPONSES,
-    dependencies=[Depends(_v3_rate_limit)],
 )
 async def export_data(
     request: DataExportRequest,
@@ -49,7 +46,6 @@ async def export_data(
     "/raw-data",
     response_model=DataExportResponse,
     responses=DOWNLOAD_RESPONSES,
-    dependencies=[Depends(_v3_rate_limit)],
 )
 async def raw_data_export(
     request: RawDataExportRequest,
@@ -66,7 +62,6 @@ async def raw_data_export(
 @router.post(
     "/forecast-data",
     response_model=DataExportResponse,
-    dependencies=[Depends(_v3_rate_limit)],
 )
 async def forecast_data_export(
     request: ForecastDataExportRequest,
@@ -81,7 +76,7 @@ async def forecast_data_export(
     return await service.export_forecast_data(request)
 
 
-@router.post("/report", dependencies=[Depends(_v3_rate_limit)])
+@router.post("/report")
 async def air_quality_report(
     request: PublicAirQualityReportRequest,
     service: AirQualityReportService = Depends(),
@@ -89,10 +84,10 @@ async def air_quality_report(
     """
     Air-quality report for one grid or cohort (Public API v3).
 
-    Takes the same body and returns the same response as the v2 route, with
-    two differences that follow from being public: the window is capped at
-    MAX_PUBLIC_REPORT_DAYS rather than MAX_QUERY_DAYS, and members marked
-    private in the device registry are dropped before the query runs.
+    Takes the same body, applies the same window ceiling and returns the same
+    response as the v2 route.  The one difference that follows from being
+    public: members marked private in the device registry are dropped before
+    the query runs.
 
     That screening is not yet user-aware — it withholds every private member,
     including ones belonging to the caller.  See _screen_private_members in
@@ -105,7 +100,7 @@ async def air_quality_report(
     return await service.get_report(request, screen_private=True)
 
 
-@router.post("/summary", dependencies=[Depends(_v3_rate_limit)])
+@router.post("/summary")
 async def data_summary(
     request: PublicDataSummaryRequest,
     service: DataExportService = Depends(),
@@ -113,8 +108,8 @@ async def data_summary(
     """
     Data-completeness counts for one grid or cohort (Public API v3).
 
-    Takes the same body and returns the same response as the v2 route, capped
-    at MAX_PUBLIC_REPORT_DAYS.
+    Takes the same body, applies the same window ceiling and returns the same
+    response as the v2 route.
 
     Unlike /report, this is not screened for private members.  The summary
     resolves membership inside its SQL, as a join through the grid and cohort
