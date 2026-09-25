@@ -1,6 +1,6 @@
 """
 Tests for rate limiting — both the global middleware and the per-route
-RouteRateLimit dependency used by v3.
+RouteRateLimit dependency that every v2 and v3 route carries.
 
 The in-memory cache from conftest.py (autouse) replaces Redis, so no real
 network calls are made.
@@ -390,7 +390,7 @@ class TestRateLimitExceeded:
 
 
 class TestRouteRateLimit:
-    """Per-route RouteRateLimit dependency (v3 public endpoints)."""
+    """Per-route RouteRateLimit dependency, which every v2 and v3 route carries."""
 
     @pytest.mark.asyncio
     async def test_allows_requests_within_limit(self):

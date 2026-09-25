@@ -1,7 +1,8 @@
 """
 FastAPI Router for API v2
 
-Internal analytics API.  All routes are protected by the global
+Internal analytics API.  Every route carries the per-route limit of 10
+requests per minute per IP (route_rate_limit) in addition to the global
 RateLimiterMiddleware (100 req/min per IP).  Error handling is done via
 global exception handlers in main.py — services raise HTTPException
 directly, so route handlers stay thin.
@@ -11,6 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Dict, Any, Optional
 
 from api.dependencies import optional_caller_id, resolve_user_id
+from api.middlewares.rate_limiter import route_rate_limit
 from api.schemas.requests import (
     DailyAveragesRequest,
     DataExportRequest,
@@ -42,7 +44,7 @@ from api.services import (
     ReportTemplateService,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(route_rate_limit)])
 
 
 # ---------------------------------------------------------------------------
