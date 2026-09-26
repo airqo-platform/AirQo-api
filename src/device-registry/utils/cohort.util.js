@@ -528,6 +528,15 @@ const createCohort = {
         filter.visibility = true;
       }
 
+      // Lightweight summary path (/cohorts/summary?include_devices=false):
+      // cohort details without the devices $lookup, for callers that only
+      // need to label cohorts (e.g. a cohort selector). No visibility filter,
+      // unlike the public metadata path.
+      const isLightweightSummary =
+        detailLevel === "summary" &&
+        (request.query.include_devices === false ||
+          request.query.include_devices === "false");
+
       const pipeline = isPublicMetadata
         ? [
             { $match: filter },
@@ -538,6 +547,31 @@ const createCohort = {
                   { $skip: _skip },
                   { $limit: _limit },
                   { $project: { _id: 1, name: 1 } },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ]
+        : isLightweightSummary
+        ? [
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      network: 1,
+                      visibility: 1,
+                      cohort_tags: 1,
+                      groups: 1,
+                      createdAt: 1,
+                    },
+                  },
                 ],
                 totalCount: [{ $count: "count" }],
               },
