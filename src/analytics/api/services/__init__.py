@@ -19,6 +19,7 @@ import io
 import logging
 import math
 from abc import ABC
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -74,7 +75,14 @@ from api.utils.messages import FILTER_MSG, no_data_message
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
-from api.utils.exceptions import ExportRequestNotFound, QueryTooLarge, format_bytes
+from api.utils.exceptions import (
+    ExportRequestNotFound,
+    PrivacyScreeningUnavailable,
+    QueryNotCompleted,
+    QueryTimedOut,
+    QueryTooLarge,
+    format_bytes,
+)
 from config import settings
 from constants import (
     DataExportFormat,
@@ -83,6 +91,10 @@ from constants import (
     DeviceCategory,
     Frequency,
 )
+
+# Module-level logger for the helpers below.  Each service holds its own
+# logger, named for the class, on self.logger.
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +164,7 @@ async def _strip_private(filter_type: str, filter_value: List[str]) -> List[str]
 
 
 async def _filter_from_request(
-    data: Dict[str, Any], *, privacy: bool = True
+    data: Dict[str, Any], *, privacy: bool = False
 ) -> Tuple[str, List[str]]:
     """
     Extract filter_type and filter_value from a request dict, optionally
@@ -176,28 +188,154 @@ async def _filter_from_request(
     return filter_type, filter_value
 
 
-def _too_large_error(
-    exc: QueryTooLarge, frequency: Optional[Frequency] = None
-) -> HTTPException:
+@dataclass(frozen=True)
+class QueryLevers:
     """
-    Turn a refused-for-size query into a 400 the requester can act on.
+    The fields of a request that shape its BigQuery query.
 
-    Bytes are billed per partition scanned, so the window is the lever that
-    moves the figure — say so, and say by how much, rather than returning the
-    raw BigQuery text.
+    A response for a query that BigQuery did not complete names only the
+    fields the request offers:
+
+    - ``window``: the request has a date range.
+    - ``filters``: the request has a site or device list.
+    - ``frequency``: the frequency of the data the query reads; it labels the
+      message.
+    - ``coarser_frequency``: the request accepts a coarser frequency than the
+      one it sent.
     """
-    for_frequency = f" for {frequency.value} data" if frequency else ""
-    factor = exc.reduction_factor
-    by_how_much = f" by about {factor}x" if factor else ""
-    detail = (
-        f"The requested date range is too large{for_frequency}: it would scan "
-        f"{format_bytes(exc.required_bytes)} of data, above the "
-        f"{format_bytes(exc.limit_bytes)} limit for a single request. "
-        f"Shorten the date range{by_how_much}"
+
+    window: bool = False
+    filters: bool = False
+    frequency: Optional[Frequency] = None
+    coarser_frequency: bool = False
+
+    @property
+    def for_frequency(self) -> str:
+        return f" for {self.frequency.value} data" if self.frequency else ""
+
+    @property
+    def coarser_frequency_lever(self) -> Optional[str]:
+        if self.coarser_frequency:
+            return "request a coarser frequency such as daily"
+        return None
+
+
+def _join_levers(levers: List[str]) -> str:
+    """Render the levers as one sentence: "A, B or C." with a capital start."""
+    if len(levers) == 1:
+        sentence = levers[0]
+    else:
+        sentence = ", ".join(levers[:-1]) + " or " + levers[-1]
+    return sentence[0].upper() + sentence[1:] + "."
+
+
+def _too_large_error(exc: QueryTooLarge, levers: QueryLevers) -> HTTPException:
+    """
+    Turn a refused-for-size query into the response the requester can act on.
+
+    Bytes are billed per partition scanned, so the date range is the lever
+    that moves the figure, and a coarser frequency the second one.  A query
+    whose request has no date range gets a 503.  The byte figures go to the
+    log.
+    """
+    required, limit = exc.required_bytes, exc.limit_bytes
+    factor = (
+        f", about {max(2, math.ceil(required / limit))}x over"
+        if required and limit
+        else ""
     )
-    if frequency in (Frequency.RAW, Frequency.HOURLY):
-        detail += ", or request a coarser frequency such as daily"
-    return HTTPException(status_code=400, detail=detail + ", then try again.")
+    logger.warning(
+        "Query refused for size%s: %s of %s%s",
+        levers.for_frequency,
+        format_bytes(required),
+        format_bytes(limit),
+        factor,
+    )
+
+    options = []
+    if levers.window:
+        options.append("shorten the date range")
+    if levers.window and levers.coarser_frequency_lever:
+        options.append(levers.coarser_frequency_lever)
+    if not options:
+        return HTTPException(
+            status_code=503,
+            detail="The query reads more data than the service allows for this request.",
+        )
+    detail = (
+        f"The requested date range is too wide{levers.for_frequency}. "
+        f"{_join_levers(options)}"
+    )
+    return HTTPException(status_code=400, detail=detail)
+
+
+def _timed_out_error(exc: QueryTimedOut, levers: QueryLevers) -> HTTPException:
+    """
+    Turn a query that BigQuery stopped at the job timeout into its response.
+
+    A query shaped by the request gets a 400 that names the fields the
+    request offers: the site or device list, the date range and, at the
+    frequencies below daily, the coarser frequency.  A query the request
+    cannot shape gets a 503 that asks the requester to try again.
+    """
+    seconds = exc.timeout_ms / 1000
+    logger.warning(
+        "Query stopped at the job timeout%s: %g seconds",
+        levers.for_frequency,
+        seconds,
+    )
+
+    options = []
+    if exc.depends_on_request:
+        if levers.filters:
+            options.append("request fewer sites or devices")
+        if levers.window:
+            options.append("shorten the date range")
+        if levers.coarser_frequency_lever:
+            options.append(levers.coarser_frequency_lever)
+    if not options:
+        return HTTPException(
+            status_code=503,
+            detail=(
+                f"The query did not finish within {seconds:g} seconds. "
+                f"Please try again."
+            ),
+        )
+    detail = (
+        f"The query{levers.for_frequency} ran longer than {seconds:g} seconds. "
+        f"{_join_levers(options)}"
+    )
+    return HTTPException(status_code=400, detail=detail)
+
+
+def _cancelled_error() -> HTTPException:
+    """
+    Turn a query cancelled before it finished into a 503.
+
+    The cancellation came from outside the request, and the request itself was
+    valid, so the response tells the requester to send it again.
+    """
+    return HTTPException(
+        status_code=503,
+        detail="The query was cancelled before it finished. Please try again.",
+    )
+
+
+def _query_error(exc: QueryNotCompleted, levers: QueryLevers) -> HTTPException:
+    """
+    Map a query that BigQuery did not complete to its response.
+
+    ``levers`` describes the fields of the request that shape the query, so
+    the response names only what the requester can change.  A query over the
+    byte ceiling and a query stopped at the job timeout each get a 400 with
+    their own message when the request offers a lever, and a 503 otherwise.
+    A cancelled query gets a 503 that tells the requester to try again.
+    """
+    if isinstance(exc, QueryTooLarge):
+        return _too_large_error(exc, levers)
+    if isinstance(exc, QueryTimedOut):
+        return _timed_out_error(exc, levers)
+    return _cancelled_error()
 
 
 def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -210,14 +348,66 @@ def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return df.to_dict("records")
 
 
-def _csv_response(records: List[Dict[str, Any]], file_name: str) -> StreamingResponse:
-    """Render records as a downloadable CSV attachment."""
+#: Pagination metadata keys, and the response header each one travels in on the
+#: CSV path.  A CSV body carries rows alone, so a CSV caller reads the page
+#: state from these headers.  ``main._configure_middleware`` lists them in
+#: ``Access-Control-Expose-Headers`` so a browser client can read them too.
+_CSV_METADATA_HEADERS = {
+    "total_count": "X-Total-Count",
+    "has_more": "X-Has-More",
+    "next": "X-Next-Cursor",
+}
+
+
+def _csv_metadata_headers(metadata: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Render the pagination metadata as CSV response headers.
+
+    Header values are strings, so a boolean becomes "true" or "false" and a
+    missing cursor is omitted rather than sent as the word "None".
+    """
+    headers: Dict[str, str] = {}
+    for key, header in _CSV_METADATA_HEADERS.items():
+        value = metadata.get(key)
+        if value is None:
+            continue
+        headers[header] = str(value).lower() if isinstance(value, bool) else str(value)
+    return headers
+
+
+def _csv_response(
+    records: List[Dict[str, Any]],
+    file_name: str,
+    *,
+    columns: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> StreamingResponse:
+    """
+    Render records as a downloadable CSV attachment.
+
+    A result holding no rows still produces a CSV file.  ``columns`` supplies
+    the header row in that case, so a caller receives the media type it asked
+    for and a parsable file with zero data rows.
+
+    ``metadata`` travels in the response headers described by
+    ``_CSV_METADATA_HEADERS``, which lets a CSV caller page the same way a JSON
+    caller does.
+    """
+    frame = pd.DataFrame(records)
+    if frame.empty and columns:
+        frame = pd.DataFrame(columns=columns)
+
     buffer = io.StringIO()
-    pd.DataFrame(records).to_csv(buffer, index=False)
+    frame.to_csv(buffer, index=False)
+
+    headers = {"Content-Disposition": f'attachment; filename="{file_name}.csv"'}
+    if metadata:
+        headers.update(_csv_metadata_headers(metadata))
+
     return StreamingResponse(
         iter([buffer.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{file_name}.csv"'},
+        headers=headers,
     )
 
 
@@ -317,13 +507,13 @@ class DataExportService(BaseService):
 
     async def get_summary(self, request: DataSummaryRequest) -> Dict[str, Any]:
         """
-        Data-completeness report over the devices-summary table (Flask
-        /data/summary): hourly/calibrated/uncalibrated record counts and
-        percentages per device and per site, for one grid/cohort.
+        Data-completeness report over the devices-summary table (/summary,
+        formerly Flask /data/summary): hourly/calibrated/uncalibrated record
+        counts and percentages per device and per site, for one grid/cohort.
         """
         filter_kind, filter_id = request.entity()
-        start = self._summary_hour(request.start_date_time)
-        end = self._summary_hour(request.end_date_time)
+        start = self._summary_hour(request.start_time)
+        end = self._summary_hour(request.end_time)
         start_str = start.strftime("%Y-%m-%dT%H:00:00Z")
         end_str = end.strftime("%Y-%m-%dT%H:00:00Z")
 
@@ -333,8 +523,8 @@ class DataExportService(BaseService):
             df = await bq.execute_query_async(
                 query, query_job_config(query_parameters=params)
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True)) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during data summary")
             raise HTTPException(
@@ -357,8 +547,8 @@ class DataExportService(BaseService):
                 # Flask interpolated the (possibly empty) grid value here —
                 # use the requested entity id for a more useful message.
                 "message": no_data_message(
-                    request.start_date_time,
-                    request.end_date_time,
+                    request.start_time,
+                    request.end_time,
                     entity=f"{filter_kind} {filter_id}",
                 ),
                 "data": {},
@@ -380,6 +570,10 @@ class DataExportService(BaseService):
 
         Schema validation guarantees at least one of country/city is present;
         country takes precedence when both are supplied.
+
+        The response carries the same pagination metadata as the other download
+        endpoints, and the cursor it returns is accepted back on this endpoint,
+        so a caller pages a forecast export the way it pages a data download.
         """
         filter_type = "country" if request.country else "city"
         filter_value = request.country or request.city
@@ -403,9 +597,10 @@ class DataExportService(BaseService):
                 where_fields={filter_type: filter_value},
                 dynamic_query=False,
                 use_cache=True,
+                cursor_token=request.cursor,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True)) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during forecast data export")
             raise HTTPException(
@@ -481,8 +676,16 @@ class DataExportService(BaseService):
                 use_cache=True,
                 cursor_token=request.cursor,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, frequency) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(
+                exc,
+                QueryLevers(
+                    window=True,
+                    filters=True,
+                    frequency=frequency,
+                    coarser_frequency=request.offers_coarser_frequency(),
+                ),
+            ) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during data export")
             raise HTTPException(
@@ -505,29 +708,39 @@ class DataExportService(BaseService):
                 status_code=500, detail="Failed to process data"
             ) from exc
 
-        if df.empty:
-            return DataExportResponse(
-                status="success",
-                message=no_data_message(request.start_date_time, request.end_date_time),
-                data=[],
-                metadata={**metadata, "total_count": 0},
-            )
+        records = _safe_records(df) if not df.empty else []
 
-        records = _safe_records(df)
+        # total_count must describe the records actually returned; the value
+        # the query layer set is the pre-cleaning page size.
+        metadata["total_count"] = len(records)
 
+        # The requested media type decides the response, so a result holding no
+        # rows returns an empty CSV file to a CSV caller and the JSON envelope
+        # to a JSON caller.
         if getattr(request, "download_type", "json") == "csv":
             output_format = getattr(request, "output_format", "airqo-standard")
-            if output_format == "aqcsv":
+            if records and output_format == "aqcsv":
                 records = format_to_aqcsv(
                     data=records,
                     pollutants=list(request.pollutants),
                     frequency=frequency,
                 )
-            return _csv_response(records, f"{frequency.value}-air-quality-data")
+                metadata["total_count"] = len(records)
+            return _csv_response(
+                records,
+                f"{frequency.value}-air-quality-data",
+                columns=list(df.columns),
+                metadata=metadata,
+            )
 
-        # total_count must describe the records actually returned; the value
-        # the query layer set is the pre-cleaning page size.
-        metadata["total_count"] = len(records)
+        if not records:
+            return DataExportResponse(
+                status="success",
+                message=no_data_message(request.start_date_time, request.end_date_time),
+                data=[],
+                metadata=metadata,
+            )
+
         return DataExportResponse(
             status="success",
             message="Data retrieved successfully.",
@@ -573,8 +786,16 @@ class DashboardService(BaseService):
                 dynamic_query=True,
                 use_cache=True,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency(request.frequency)) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(
+                exc,
+                QueryLevers(
+                    window=True,
+                    filters=True,
+                    frequency=Frequency(request.frequency),
+                    coarser_frequency=request.offers_coarser_frequency(),
+                ),
+            ) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during get_chart_data")
             raise HTTPException(
@@ -690,6 +911,8 @@ class DashboardService(BaseService):
             sites_df = (
                 await bq.get_sites_async(site_ids=sites) if sites else pd.DataFrame()
             )
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(filters=True)) from exc
         except Exception as exc:
             self.logger.exception("Site lookup failed during daily averages")
             raise HTTPException(
@@ -777,8 +1000,8 @@ class DashboardService(BaseService):
         bq = AsyncBigQueryApi()
         try:
             return await bq.execute_query_async(query, job_config)
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True, filters=True)) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during daily averages")
             raise HTTPException(
@@ -921,8 +1144,8 @@ class DashboardService(BaseService):
         bq = AsyncBigQueryApi()
         try:
             df = await bq.execute_query_async(query, job_config)
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True, filters=True)) from exc
         except Exception as exc:
             self.logger.exception("BigQuery query failed during device exceedances")
             raise HTTPException(
@@ -961,8 +1184,8 @@ class MonitoringService(BaseService):
         try:
             site_ids = request.site_ids if request else None
             df = await bq.get_sites_async(site_ids=site_ids)
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers()) from exc
         except RuntimeError as exc:
             self.logger.error("BigQuery query failed during get_sites")
             raise HTTPException(
@@ -1024,12 +1247,23 @@ class AirQualityReportService(BaseService):
     to HTTP status codes and keeps the blocking work off the event loop.
     """
 
-    async def get_report(self, request: AirQualityReportRequest) -> Dict[str, Any]:
+    async def get_report(
+        self,
+        request: AirQualityReportRequest,
+        *,
+        screen_private: bool = False,
+    ) -> Dict[str, Any]:
         """
         PM aggregates for one grid or cohort: daily/monthly/annual plus
         site/city/country/region breakdowns.
 
         The two kinds share a pipeline; the request names which one.
+
+        Args:
+            request: The validated report body.
+            screen_private: Drop members marked private before querying. The
+                v3 public route passes True; v2 leaves it off, preserving what
+                the internal dashboard sees today.
         """
         kind, entity_id = request.entity()
         try:
@@ -1039,9 +1273,17 @@ class AirQualityReportService(BaseService):
                 entity_id,
                 request.start_time,
                 request.end_time,
+                screen_private,
             )
-        except QueryTooLarge as exc:
-            raise _too_large_error(exc, Frequency.HOURLY) from exc
+        except QueryNotCompleted as exc:
+            raise _query_error(exc, QueryLevers(window=True)) from exc
+        except PrivacyScreeningUnavailable as exc:
+            # Fail closed: the same 503 the download paths give when the
+            # registry is unreachable, rather than serving unscreened members.
+            raise HTTPException(
+                status_code=503,
+                detail=f"{exc.message} Please try again later.",
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except LookupError as exc:

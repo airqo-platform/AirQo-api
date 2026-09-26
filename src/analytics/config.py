@@ -187,18 +187,31 @@ class BaseConfig(BaseSettings):
     airqo_api_timeout: float = Field(default=10.0, validation_alias="AIRQO_API_TIMEOUT")
 
     # BigQuery cost/time ceilings, enforced server-side by BigQuery itself.
-    # Starting deliberately tight at 1 GiB per job: rejections are logged
-    # (see api/utils/bigquery_jobs.py) so the real distribution of query
-    # sizes becomes visible before the cap is tuned upward.
+    # The byte ceiling is 100 MB (100,000,000 bytes) per job.  It keeps each
+    # request cheap, and the refusal message tells callers to request a long
+    # period in shorter parts.  Rejections are logged (see
+    # api/utils/bigquery_jobs.py) with the bytes each refused query required.
     bigquery_max_bytes_billed: int = Field(
-        default=1 * 1024**3, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
+        default=100_000_000, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
     )
     bigquery_job_timeout_ms: int = Field(
-        default=600_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
+        default=30_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
     )
 
+    # Longest date range of one request.  MAX_QUERY_DAYS applies to daily,
+    # weekly, monthly and yearly data.  MAX_HOURLY_QUERY_DAYS applies to raw
+    # and hourly data, and to the report, summary, forecast and dashboard
+    # aggregation requests.  The default of 31 days lets one request cover a
+    # full calendar month.
     max_query_days: int = Field(default=365, validation_alias="MAX_QUERY_DAYS")
-    max_filter_values: int = Field(default=1000, validation_alias="MAX_FILTER_VALUES")
+    max_hourly_query_days: int = Field(
+        default=31, validation_alias="MAX_HOURLY_QUERY_DAYS"
+    )
+    max_filter_values: int = Field(default=150, validation_alias="MAX_FILTER_VALUES")
+
+    def hourly_query_days(self) -> int:
+        """The date limit for raw and hourly data, at most MAX_QUERY_DAYS."""
+        return min(self.max_hourly_query_days, self.max_query_days)
 
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
@@ -242,7 +255,7 @@ class BaseConfig(BaseSettings):
     data_export_decimal_places: int = Field(
         default=2, validation_alias="DATA_EXPORT_DECIMAL_PLACES"
     )
-    data_export_limit: int = Field(default=10000, validation_alias="DATA_EXPORT_LIMIT")
+    data_export_limit: int = Field(default=5000, validation_alias="DATA_EXPORT_LIMIT")
     data_summary_days_interval: int = Field(
         default=2, validation_alias="DATA_SUMMARY_DAYS_INTERVAL"
     )

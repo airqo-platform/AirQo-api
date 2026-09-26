@@ -218,6 +218,36 @@ class TestDataExportService:
         assert kwargs["where_fields"] == {"country": "uganda"}
 
     @pytest.mark.asyncio
+    async def test_export_forecast_data_accepts_its_own_cursor(self, sample_df):
+        """The cursor this endpoint returns is accepted back on it, so a
+        caller reaches the pages behind metadata.next."""
+        from datetime import datetime, timedelta, timezone
+        from api.schemas.requests import ForecastDataExportRequest
+
+        req = ForecastDataExportRequest(
+            startDateTime=(
+                datetime.now(tz=timezone.utc) - timedelta(days=2)
+            ).isoformat(),
+            endDateTime=datetime.now(tz=timezone.utc).isoformat(),
+            country="uganda",
+            cursor="cursor-token",
+        )
+        svc = DataExportService()
+        meta = {"total_count": 2, "has_more": True, "next": "next-token"}
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ) as mock_bq:
+            resp = await svc.export_forecast_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "cursor-token"
+        assert resp.metadata["next"] == "next-token"
+        assert resp.metadata["has_more"] is True
+
+    @pytest.mark.asyncio
     async def test_export_data_csv_returns_streaming_response(self, sample_df):
         from datetime import datetime, timedelta, timezone
         from fastapi.responses import StreamingResponse
@@ -250,15 +280,15 @@ class TestDataExportService:
 
     @pytest.mark.asyncio
     async def test_get_summary_returns_completeness_report(self):
-        """/data/summary is a data-completeness report (Flask parity):
+        """/summary is a data-completeness report (Flask parity):
         record counts/percentages per device+site, envelope message
         'successful', hour-truncated dates bound as parameters."""
         from api.schemas.requests import DataSummaryRequest
 
         request = DataSummaryRequest(
-            startDateTime="2024-01-01T10:45:00",
-            endDateTime="2024-01-05T00:30:00",
-            grid="grid-1",
+            start_time="2024-01-01T10:45:00",
+            end_time="2024-01-05T00:30:00",
+            grid_id="grid-1",
         )
         summary_df = pd.DataFrame(
             {
@@ -316,9 +346,9 @@ class TestDataExportService:
         assert {p.name for p in params} == {"filter_id", "start_date", "end_date"}
 
         request = DataSummaryRequest(
-            startDateTime="2024-01-01T00:00:00",
-            endDateTime="2024-01-05T00:00:00",
-            cohort="c1",
+            start_time="2024-01-01T00:00:00",
+            end_time="2024-01-05T00:00:00",
+            cohort_id="c1",
         )
         cohort_df = pd.DataFrame(
             {
@@ -351,9 +381,9 @@ class TestDataExportService:
         from api.schemas.requests import DataSummaryRequest
 
         request = DataSummaryRequest(
-            startDateTime="2024-01-01T00:00:00",
-            endDateTime="2024-01-05T00:00:00",
-            grid="grid-1",
+            start_time="2024-01-01T00:00:00",
+            end_time="2024-01-05T00:00:00",
+            grid_id="grid-1",
         )
         svc = DataExportService()
         with patch(
@@ -571,7 +601,7 @@ class TestAirQualityReportService:
     async def test_invalid_dates_map_to_400(self):
         with patch(
             "api.services.build_entity_report",
-            side_effect=ValueError("Time range must not exceed 365 days."),
+            side_effect=ValueError("Time range must not exceed 31 days."),
         ):
             with pytest.raises(HTTPException) as exc:
                 await self._svc().get_report(_report_request(grid_id="grid-1"))
@@ -595,8 +625,6 @@ class TestAirQualityReportService:
                 await self._svc().get_report(_report_request(grid_id="grid-1"))
 
         assert exc.value.status_code == 400
-        assert "date range is too large" in exc.value.detail
-        assert "6x" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_unexpected_error_maps_to_sanitized_500(self):
@@ -609,6 +637,34 @@ class TestAirQualityReportService:
 
         assert exc.value.status_code == 500
         assert "secret detail" not in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_unreachable_privacy_registry_maps_to_503(self):
+        """Matches how the download paths answer when the registry is down:
+        a retryable 503, never an unscreened result."""
+        from api.utils.exceptions import PrivacyScreeningUnavailable
+
+        with patch(
+            "api.services.build_entity_report",
+            side_effect=PrivacyScreeningUnavailable(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await self._svc().get_report(_report_request(grid_id="grid-1"))
+
+        assert exc.value.status_code == 503
+        assert "privacy status" in exc.value.detail
+        assert "try again later" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_screen_private_is_forwarded_to_the_builder(self):
+        """The flag is what separates the public route from the internal one,
+        so it must survive the hop through asyncio.to_thread."""
+        with patch("api.services.build_entity_report", return_value={}) as mock_build:
+            await self._svc().get_report(
+                _report_request(grid_id="grid-1"), screen_private=True
+            )
+
+        assert mock_build.call_args.args[4] is True
 
 
 # ---------------------------------------------------------------------------
@@ -1494,11 +1550,6 @@ class TestReportTemplateService:
 
 
 class TestOversizedQueryHandling:
-    _REJECTION = (
-        "Query exceeded limit for bytes billed: 1073741824. "
-        "5557452800 or higher required."
-    )
-
     def _too_large(self):
         from api.utils.exceptions import QueryTooLarge
 
@@ -1517,25 +1568,7 @@ class TestOversizedQueryHandling:
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_message_names_the_window_and_the_sizes(self, export_request):
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=self._too_large(),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        detail = exc.value.detail
-        assert "date range is too large" in detail
-        assert "5.2 GB" in detail and "1.0 GB" in detail
-        # 5557452800 / 1073741824 rounds up to 6
-        assert "6x" in detail
-        assert "daily" in detail  # export_request is daily → frequency named
-
-    @pytest.mark.asyncio
-    async def test_fine_frequencies_are_offered_a_coarser_one(self, valid_raw_payload):
-        """Suggesting "use daily instead" only helps below daily."""
+    async def test_raw_frequency_returns_400(self, valid_raw_payload):
         from api.schemas.requests import RawDataExportRequest
 
         with patch(
@@ -1548,7 +1581,7 @@ class TestOversizedQueryHandling:
                     RawDataExportRequest(**valid_raw_payload)
                 )
 
-        assert "coarser frequency" in exc.value.detail
+        assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_chart_data_returns_400(self, dashboard_request):
@@ -1561,31 +1594,32 @@ class TestOversizedQueryHandling:
                 await DashboardService().get_chart_data(dashboard_request)
 
         assert exc.value.status_code == 400
-        assert "date range is too large" in exc.value.detail
 
     @pytest.mark.asyncio
-    async def test_unparseable_rejection_still_gives_actionable_advice(
-        self, export_request
+    async def test_byte_figures_reach_the_log_and_not_the_response(
+        self, export_request, caplog
     ):
-        """Without the byte figures there is no "Nx" to quote, but the
-        instruction to shorten the range still stands."""
-        from api.utils.exceptions import QueryTooLarge
+        """An operator reads how tight the ceiling is running; a requester
+        reads the two levers they control."""
+        import logging
 
         with patch(
             "api.services.AsyncBigQueryApi.query_data_async",
             new_callable=AsyncMock,
-            side_effect=QueryTooLarge(limit_bytes=1073741824),
+            side_effect=self._too_large(),
         ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
+            with caplog.at_level(logging.WARNING, logger="api.services"):
+                with pytest.raises(HTTPException) as exc:
+                    await DataExportService().export_data(export_request)
 
-        assert exc.value.status_code == 400
-        assert "Shorten the date range" in exc.value.detail
-        assert "x," not in exc.value.detail  # no bogus "by about Nx"
+        assert "5.2 GB" in caplog.text
+        assert "1.0 GB" in caplog.text
+        assert "GB" not in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_other_query_failures_are_still_500(self, export_request):
-        """Only the size rejection is the caller's to fix."""
+        """A query BigQuery did not complete gets its own response; any
+        other failure is a 500."""
         with patch(
             "api.services.AsyncBigQueryApi.query_data_async",
             new_callable=AsyncMock,
@@ -1595,6 +1629,188 @@ class TestOversizedQueryHandling:
                 await DataExportService().export_data(export_request)
 
         assert exc.value.status_code == 500
+
+
+def _timed_out():
+    from api.utils.exceptions import QueryTimedOut
+
+    return QueryTimedOut(timeout_ms=30_000)
+
+
+def _cancelled():
+    from api.utils.exceptions import QueryCancelled
+
+    return QueryCancelled(
+        message="Job execution was cancelled: User requested cancellation"
+    )
+
+
+class TestStoppedQueryHandling:
+    """A query stopped at the job timeout is the caller's to fix and gets a
+    400. A query cancelled for any other reason was a valid request and gets
+    a 503 that tells the caller to try again."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error,status", [(_timed_out, 400), (_cancelled, 503)])
+    async def test_data_download(self, export_request, error, status):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=error(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        assert exc.value.status_code == status
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error,status", [(_timed_out, 400), (_cancelled, 503)])
+    async def test_report(self, error, status):
+        from api.services import AirQualityReportService
+
+        with patch("api.services.build_entity_report", side_effect=error()):
+            with pytest.raises(HTTPException) as exc:
+                await AirQualityReportService().get_report(
+                    _report_request(grid_id="grid-1")
+                )
+
+        assert exc.value.status_code == status
+
+    def test_each_outcome_has_its_own_message(self):
+        """A caller must be able to tell the three outcomes apart, so each
+        response carries a different message."""
+        from api.services import QueryLevers, _query_error
+        from api.utils.exceptions import QueryTooLarge
+        from constants import Frequency
+
+        levers = QueryLevers(window=True, filters=True, frequency=Frequency.HOURLY)
+        details = {
+            _query_error(error, levers).detail
+            for error in (QueryTooLarge(limit_bytes=1), _timed_out(), _cancelled())
+        }
+
+        assert len(details) == 3
+
+    def test_timeout_names_only_the_fields_the_request_offers(self):
+        """The download body offers three fields, the report body one, and a
+        request that offers none gets a 503."""
+        from api.services import QueryLevers, _query_error
+        from api.utils.exceptions import QueryTimedOut
+        from constants import Frequency
+
+        download = _query_error(
+            _timed_out(),
+            QueryLevers(
+                window=True,
+                filters=True,
+                frequency=Frequency.HOURLY,
+                coarser_frequency=True,
+            ),
+        )
+        report = _query_error(_timed_out(), QueryLevers(window=True))
+        no_levers = _query_error(_timed_out(), QueryLevers())
+        fixed_query = _query_error(
+            QueryTimedOut(timeout_ms=30_000, depends_on_request=False),
+            QueryLevers(window=True),
+        )
+
+        assert download.status_code == 400
+        assert report.status_code == 400
+        assert no_levers.status_code == 503
+        assert fixed_query.status_code == 503
+
+    def test_coarser_frequency_is_offered_only_when_the_body_accepts_one(self):
+        """The raw-data body and a mobile download accept the raw frequency
+        only, so their levers carry no coarser-frequency option."""
+        from api.services import QueryLevers
+        from constants import Frequency
+
+        raw_data = QueryLevers(
+            window=True, filters=True, frequency=Frequency.RAW, coarser_frequency=False
+        )
+        hourly_download = QueryLevers(
+            window=True,
+            filters=True,
+            frequency=Frequency.HOURLY,
+            coarser_frequency=True,
+        )
+
+        assert raw_data.coarser_frequency_lever is None
+        assert hourly_download.coarser_frequency_lever is not None
+
+    @pytest.mark.asyncio
+    async def test_site_lookup_in_daily_averages_gets_the_timeout_response(self):
+        """The site-name lookup runs with the job timeout, so its timeout
+        gets the 400 like the averages query, not a 500."""
+        from api.schemas.requests import DailyAveragesRequest
+
+        request = DailyAveragesRequest(pollutant="pm2_5", sites=["s1"], **_AGG_WINDOW)
+        with patch(
+            "api.services.AsyncBigQueryApi.execute_query_async",
+            new_callable=AsyncMock,
+            return_value=pd.DataFrame({"value": [1.0], "site_id": ["s1"]}),
+        ), patch(
+            "api.services.AsyncBigQueryApi.get_sites_async",
+            new_callable=AsyncMock,
+            side_effect=_timed_out(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DashboardService().get_daily_averages(request)
+
+        assert exc.value.status_code == 400
+
+    def test_membership_lookup_timeout_is_marked_as_fixed(self):
+        """The membership lookup filters on the grid identifier alone, so its
+        timeout is marked as one the request cannot shape."""
+        from google.api_core.exceptions import Cancelled
+        from unittest.mock import MagicMock
+        from api.utils.exceptions import QueryTimedOut
+        from api.utils.pollutants.report import fetch_grid_sites
+
+        message = "Job execution was cancelled: Job timed out after 2 sec"
+        client = MagicMock()
+        client.query.return_value.to_dataframe.side_effect = Cancelled(
+            message, errors=[{"message": message, "reason": "stopped"}]
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(QueryTimedOut) as exc:
+                fetch_grid_sites("grid-1")
+
+        assert exc.value.depends_on_request is False
+
+    @pytest.mark.parametrize(
+        "message,raised",
+        [
+            (
+                "Job execution was cancelled: Job timed out after 2 sec",
+                "QueryTimedOut",
+            ),
+            (
+                "Job execution was cancelled: User requested cancellation",
+                "QueryCancelled",
+            ),
+        ],
+    )
+    def test_report_query_raises_instead_of_reporting_no_data(self, message, raised):
+        """query_bigquery returns None for a failed query, and the report
+        builder turns None into a no-data success body. A stopped query is
+        raised instead, so the caller gets the response for its cause."""
+        from google.api_core.exceptions import Cancelled
+        from unittest.mock import MagicMock
+        import api.utils.exceptions as exceptions
+        from api.utils.pollutants.report import query_bigquery
+
+        client = MagicMock()
+        client.query.return_value.to_dataframe.side_effect = Cancelled(
+            message, errors=[{"message": message, "reason": "stopped"}]
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(getattr(exceptions, raised)):
+                query_bigquery(["s1"], datetime(2024, 1, 1), datetime(2024, 1, 2))
 
 
 # ---------------------------------------------------------------------------
@@ -1737,6 +1953,138 @@ class TestReportEntityPipeline:
         for key in _AGGREGATE_KEYS:
             assert air[key] == [], key
 
+    # -- Private-member screening (public v3 path only) ---------------------
+
+    def _screened(self, survivors):
+        """Patch the registry call to return `survivors` as non-private."""
+        return patch(
+            "api.models.base.data_processing.filter_non_private_sites_devices",
+            return_value={"status": "success", "data": survivors},
+        )
+
+    def test_screening_is_off_by_default(self):
+        """The internal path must not call the registry at all."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ), self._screened(
+            ["s1"]
+        ) as registry:
+            build_entity_report(
+                "grid", "grid-1", datetime(2024, 1, 1), datetime(2024, 2, 1)
+            )
+
+        registry.assert_not_called()
+
+    def test_screening_drops_private_members_before_querying(self):
+        """Private sites must not reach the query, nor the echoed membership."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ) as mock_query, self._screened(
+            ["s1"]
+        ) as registry:
+            resp = build_entity_report(
+                "grid",
+                "grid-1",
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                screen_private=True,
+            )
+
+        registry.assert_called_once_with("sites", ["s1", "s2"])
+        assert mock_query.call_args.args[0] == ["s1"]
+        assert resp["airquality"]["sites"]["site_ids"] == ["s1"]
+        assert resp["airquality"]["sites"]["number_of_sites"] == 1
+
+    def test_cohort_screening_asks_the_registry_for_devices(self):
+        """A cohort resolves to device IDs, so it needs the device endpoint."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_cohort_devices",
+            return_value=["d1", "d2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery",
+            return_value=self._frame(),
+        ), self._screened(
+            ["d2"]
+        ) as registry:
+            build_entity_report(
+                "cohort",
+                "cohort-1",
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                screen_private=True,
+            )
+
+        registry.assert_called_once_with("device_ids", ["d1", "d2"])
+
+    def test_all_members_private_is_a_success_not_a_lookuperror(self):
+        """The entity resolved; every member is simply withheld. That is the
+        same answer as a window holding no measurements — a 200 with empty
+        aggregates — not the 404 an unknown grid gets."""
+        from api.models.base.data_processing import build_entity_report
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1", "s2"],
+        ), patch(
+            "api.models.base.data_processing.query_bigquery"
+        ) as mock_query, self._screened(
+            []
+        ):
+            resp = build_entity_report(
+                "grid",
+                "grid-1",
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                screen_private=True,
+            )
+
+        # Nothing to query for, so BigQuery is never touched.
+        mock_query.assert_not_called()
+        air = resp["airquality"]
+        assert air["status"] == "success"
+        assert air["daily_mean_pm"] == []
+        assert "No data available for grid grid-1" in air["message"]
+
+    def test_unreachable_registry_fails_closed(self):
+        """Serving an unscreened report because the registry was down would
+        publish exactly what screening exists to withhold."""
+        from api.models.base.data_processing import build_entity_report
+        from api.utils.exceptions import PrivacyScreeningUnavailable
+
+        with patch(
+            "api.models.base.data_processing.fetch_grid_sites",
+            return_value=["s1"],
+        ), patch(
+            "api.models.base.data_processing.filter_non_private_sites_devices",
+            return_value=None,
+        ), patch(
+            "api.models.base.data_processing.query_bigquery"
+        ) as mock_query:
+            with pytest.raises(PrivacyScreeningUnavailable):
+                build_entity_report(
+                    "grid",
+                    "grid-1",
+                    datetime(2024, 1, 1),
+                    datetime(2024, 2, 1),
+                    screen_private=True,
+                )
+
+        mock_query.assert_not_called()
+
     def test_mixed_offset_timestamps_do_not_break_the_frame(self):
         """Reproduces the reported failure: "Tz-aware datetime.datetime cannot
         be converted to datetime64 unless utc=True". Rows carried per-site
@@ -1756,12 +2104,12 @@ class TestReportEntityPipeline:
         assert df["hour"].tolist() == [0, 0]
         assert df["day"].tolist() == ["Monday", "Monday"]
 
-    def test_window_cap_follows_max_query_days(self):
+    def test_window_cap_follows_hourly_query_days(self):
         from api.models.base.data_processing import validate_dates
         from config import settings
 
         over = datetime(2024, 1, 1), datetime(2024, 1, 1) + timedelta(
-            days=settings.max_query_days + 1
+            days=settings.hourly_query_days() + 1
         )
         with pytest.raises(ValueError, match="must not exceed"):
             validate_dates(*over)
@@ -1806,17 +2154,13 @@ class TestReportEntityPipeline:
     def test_membership_cost_rejection_is_not_a_missing_entity(self):
         """A lookup refused on cost must not read as "this grid has no sites" —
         it reaches the caller as the 400, like the measurement query."""
-        from google.api_core.exceptions import Forbidden
         from api.utils.exceptions import QueryTooLarge
         from api.utils.pollutants.report import fetch_grid_sites
+        from tests.test_bigquery_jobs import byte_limit_refusal
         from unittest.mock import MagicMock
 
         client = MagicMock()
-        client.query.side_effect = Forbidden(
-            "Query exceeded limit for bytes billed: 1073741824. "
-            "5557452800 or higher required.",
-            errors=[{"reason": "bytesBilledLimitExceeded"}],
-        )
+        client.query.return_value.to_dataframe.side_effect = byte_limit_refusal()
         with patch(
             "api.utils.pollutants.report.shared_bigquery_client", return_value=client
         ):

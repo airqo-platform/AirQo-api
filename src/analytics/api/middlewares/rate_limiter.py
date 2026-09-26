@@ -1,7 +1,7 @@
 import ipaddress
 import logging
 import time
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -199,7 +199,12 @@ class RateLimitExceeded(HTTPException):
 
 _local_counters: Dict[str, Tuple[int, float]] = {}
 _local_prune_due = 0.0
-_degraded_logged_at = 0.0
+# None marks that no warning has been emitted yet.  time.monotonic() counts
+# from machine boot on Linux and from process start on macOS, so a numeric
+# starting value reads as "logged moments ago" whenever the clock is still
+# below _DEGRADED_LOG_INTERVAL, which holds the first warning back through the
+# first minute after boot.
+_degraded_logged_at: Optional[float] = None
 
 _PRUNE_INTERVAL = 60.0
 # Redis being down would otherwise log once per request.
@@ -233,10 +238,16 @@ def _consume_locally(cache_key: str, limit: int, window_seconds: int) -> bool:
 
 
 def _log_degraded() -> None:
-    """Warn that limiting is degraded, at most once a minute."""
+    """Warn that limiting is degraded, at most once a minute.
+
+    The first call always warns, whatever the monotonic clock reads.
+    """
     global _degraded_logged_at
     now = time.monotonic()
-    if now - _degraded_logged_at >= _DEGRADED_LOG_INTERVAL:
+    if (
+        _degraded_logged_at is None
+        or now - _degraded_logged_at >= _DEGRADED_LOG_INTERVAL
+    ):
         _degraded_logged_at = now
         logger.warning(
             "Redis unavailable — rate limiting has fallen back to per-process "
@@ -269,13 +280,10 @@ class RouteRateLimit:
     Applies a stricter per-route limit on top of the global middleware,
     keyed by route path + client IP so different routes have independent windows.
 
-    Usage::
+    Each router declares the shared ``route_rate_limit`` instance below as a
+    router dependency, so every route it holds carries the limit once::
 
-        v3_limit = RouteRateLimit(limit=10, window=60)
-
-        @router.post("/data-download", dependencies=[Depends(v3_limit)])
-        async def export_data(...):
-            ...
+        router = APIRouter(dependencies=[Depends(route_rate_limit)])
     """
 
     def __init__(self, limit: int = 10, window: int = 60):
@@ -294,3 +302,9 @@ class RouteRateLimit:
                 detail="Rate limit exceeded",
                 headers={"Retry-After": str(self.window)},
             )
+
+
+#: The limit that every router applies to each of its routes: 10 requests in
+#: 60 seconds for each route path and client IP.  The global
+#: RateLimiterMiddleware limit applies to the same requests as well.
+route_rate_limit = RouteRateLimit(limit=10, window=60)

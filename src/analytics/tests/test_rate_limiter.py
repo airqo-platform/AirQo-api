@@ -1,6 +1,6 @@
 """
 Tests for rate limiting — both the global middleware and the per-route
-RouteRateLimit dependency used by v3.
+RouteRateLimit dependency that every v2 and v3 route carries.
 
 The in-memory cache from conftest.py (autouse) replaces Redis, so no real
 network calls are made.
@@ -235,7 +235,7 @@ class TestCacheUnavailable:
 
         rl._local_counters.clear()
         rl._local_prune_due = 0.0
-        rl._degraded_logged_at = 0.0
+        rl._degraded_logged_at = None
         yield
         rl._local_counters.clear()
 
@@ -293,7 +293,15 @@ class TestCacheUnavailable:
 
     @pytest.mark.asyncio
     async def test_degraded_state_is_logged_but_not_per_request(self, caplog):
-        """Redis being down must be visible, without one line per request."""
+        """Redis being down must be visible, without one line per request.
+
+        The first call warns whatever ``time.monotonic()`` reads, which keeps
+        this result independent of how long the machine or the process has been
+        running.  ``time.monotonic()`` counts from boot on Linux and from
+        process start on macOS, so a throttle that measures against a numeric
+        starting value reports differently on a long-running host, a freshly
+        booted continuous integration runner, and a developer laptop.
+        """
         import logging
 
         middleware = RateLimiterMiddleware(
@@ -302,6 +310,26 @@ class TestCacheUnavailable:
 
         with self._redis_down(), caplog.at_level(logging.WARNING):
             for _ in range(10):
+                await middleware._consume_quota("client_1")
+
+        degraded = [r for r in caplog.records if "Redis unavailable" in r.message]
+        assert len(degraded) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("uptime", [5.0, 120.0, 500000.0])
+    async def test_first_warning_is_independent_of_the_clock(self, caplog, uptime):
+        """A machine that booted seconds ago reports the outage as readily as
+        one that has been up for days."""
+        import logging
+
+        middleware = RateLimiterMiddleware(
+            MagicMock(), rate_limit=50, window_seconds=60
+        )
+
+        with self._redis_down(), patch(
+            "api.middlewares.rate_limiter.time.monotonic", return_value=uptime
+        ), caplog.at_level(logging.WARNING):
+            for _ in range(5):
                 await middleware._consume_quota("client_1")
 
         degraded = [r for r in caplog.records if "Redis unavailable" in r.message]
@@ -362,7 +390,7 @@ class TestRateLimitExceeded:
 
 
 class TestRouteRateLimit:
-    """Per-route RouteRateLimit dependency (v3 public endpoints)."""
+    """Per-route RouteRateLimit dependency, which every v2 and v3 route carries."""
 
     @pytest.mark.asyncio
     async def test_allows_requests_within_limit(self):
