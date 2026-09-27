@@ -535,6 +535,12 @@ const createServer = () => {
       } catch (error) {
         console.error("❌ Error flushing usage recorder:", error.message);
       }
+      try {
+        await require("@utils/api-key-usage-recorder.util").shutdown();
+        console.log("✅ API-key usage recorder flushed.");
+      } catch (error) {
+        console.error("❌ Error flushing API-key usage recorder:", error.message);
+      }
 
       // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {

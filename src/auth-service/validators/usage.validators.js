@@ -99,6 +99,63 @@ const retention = [
   query("months").optional().isInt({ min: 1, max: 12 }).withMessage("months must be between 1 and 12"),
 ];
 
+// ── API-key usage (admin) ────────────────────────────────────────────────────
+const apiKeyService = query("service")
+  .optional()
+  .trim()
+  .toLowerCase()
+  .matches(/^[a-z0-9_-]{1,40}$/)
+  .withMessage("service must be a service name such as analytics or devices");
+
+const apiKeyUserId = query("user_id")
+  .optional()
+  .isMongoId()
+  .withMessage("user_id must be a valid ObjectId");
+
+const apiKeys = [
+  tenant,
+  date("from"),
+  date("to"),
+  apiKeyService,
+  apiKeyUserId,
+  query("sort")
+    .optional()
+    .isIn(["calls", "active_days", "peak_day_calls", "last_used"])
+    .withMessage("sort must be one of calls, active_days, peak_day_calls, last_used"),
+  query("order").optional().isIn(["asc", "desc"]).withMessage("order must be asc or desc"),
+  query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer").toInt(),
+  limit,
+  query("format").optional().isIn(["json", "csv"]).withMessage("format must be json or csv"),
+];
+
+const apiKeysTimeseries = [
+  tenant,
+  date("from"),
+  date("to"),
+  apiKeyService,
+  apiKeyUserId,
+  query("interval").optional().isIn(["day", "hour"]).withMessage("interval must be day or hour"),
+  query("top")
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage("top must be between 1 and 10")
+    .toInt(),
+  query("client_id")
+    .optional()
+    .custom((value) => {
+      const ids = String(value).split(",").map((s) => s.trim());
+      return ids.length >= 1 && ids.length <= 10 && ids.every((id) => /^[0-9a-f]{24}$/i.test(id));
+    })
+    .withMessage("client_id must be 1-10 comma-separated ObjectIds"),
+];
+
+const apiKeyDetail = [
+  tenant,
+  param("clientId").isMongoId().withMessage("clientId must be a valid ObjectId"),
+  date("from"),
+  date("to"),
+];
+
 const MAX_EVENTS_PER_BATCH = 50;
 const events = [
   tenant,
@@ -132,5 +189,8 @@ module.exports = {
   users,
   retention,
   events,
+  apiKeys,
+  apiKeysTimeseries,
+  apiKeyDetail,
   MAX_EVENTS_PER_BATCH,
 };

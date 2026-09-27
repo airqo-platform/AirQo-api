@@ -1,4 +1,5 @@
 const ApiUsageCounterModel = require("@models/ApiUsageCounter");
+const apiKeyUsageRecorder = require("@utils/api-key-usage-recorder.util");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const BlacklistedIPPrefixModel = require("@models/BlacklistedIPPrefix");
 const IPPrefixModel = require("@models/IPPrefix");
@@ -1916,6 +1917,16 @@ const token = {
           if (client.user_id) {
             _incrementUsageCounters(client.user_id);
           }
+
+          // Per-key usage (route, service, hour, IP) for the admin API-key
+          // usage views. In-memory counter bump only; flushed in batches.
+          apiKeyUsageRecorder.recordKeyCall({
+            clientId: accessToken.client_id,
+            userId: client.user_id,
+            uri: endpoint,
+            method: request.headers["x-original-method"],
+            ip,
+          });
 
           // Fire-and-forget: record API token usage as user activity so that
           // API-only users are not incorrectly flagged as inactive. Throttled
