@@ -2,6 +2,7 @@ const httpStatus = require("http-status");
 const moment = require("moment-timezone");
 const constants = require("@config/constants");
 const usageUtil = require("@utils/usage.util");
+const apiKeyUsageUtil = require("@utils/api-key-usage.util");
 const usageRecorder = require("@utils/usage-recorder.util");
 const { HttpError, extractErrorsFromRequest } = require("@utils/shared");
 const log4js = require("log4js");
@@ -76,6 +77,9 @@ const usage = {
   pages: handler(usageUtil.usagePages, { needsMonth: true }),
   users: handler(usageUtil.usageUsers, { needsMonth: true }),
   retention: handler(usageUtil.usageRetention),
+  apiKeys: handler(apiKeyUsageUtil.listApiKeys),
+  apiKeysTimeseries: handler(apiKeyUsageUtil.apiKeysTimeseries),
+  apiKeyDetail: handler(apiKeyUsageUtil.apiKeyDetail),
 
   /**
    * Page-event beacon. Acknowledges immediately; the events only touch the
