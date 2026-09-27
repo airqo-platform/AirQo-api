@@ -6,6 +6,7 @@ const ApiKeyUsageDailyModel = require("@models/ApiKeyUsageDaily");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
 const UserModel = require("@models/User");
+const GroupModel = require("@models/Group");
 const { addDays, eachDate, daySpan, csvCell } = require("@utils/usage.util");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- api-key-usage-util`);
@@ -121,12 +122,40 @@ const resolveIdentities = async (tenant, clientIds) => {
   const users = userIds.length
     ? await UserModel(tenant)
         .find({ _id: { $in: userIds.map(toObjectId) } })
-        .select("email firstName lastName")
+        .select("email firstName lastName group_roles")
         .lean()
     : [];
+  const groupIds = [
+    ...new Set(
+      users
+        .flatMap((u) => (u.group_roles || []).map((gr) => gr && gr.group))
+        .filter(Boolean)
+        .map(String),
+    ),
+  ];
+  const groups = groupIds.length
+    ? await GroupModel(tenant)
+        .find({ _id: { $in: groupIds.map(toObjectId) } })
+        .select("grp_title")
+        .lean()
+    : [];
+  const groupById = new Map(groups.map((g) => [String(g._id), g]));
   const clientById = new Map(clients.map((c) => [String(c._id), c]));
   const tokenByClient = new Map(tokens.map((t) => [String(t.client_id), t]));
   const userById = new Map(users.map((u) => [String(u._id), u]));
+
+  // Every user belongs to the default "airqo" group, so list the owner's
+  // other organisations first; they are what identifies an external team.
+  const organisationsOf = (user) =>
+    [...new Set((user.group_roles || []).map((gr) => gr && gr.group && String(gr.group)))]
+      .map((id) => groupById.get(id))
+      .filter((g) => g && g.grp_title)
+      .map((g) => ({ group_id: String(g._id), title: g.grp_title }))
+      .sort(
+        (a, b) =>
+          (a.title.toLowerCase() === "airqo") - (b.title.toLowerCase() === "airqo") ||
+          a.title.localeCompare(b.title),
+      );
 
   const identities = new Map();
   for (const clientId of clientIds) {
@@ -147,6 +176,7 @@ const resolveIdentities = async (tenant, clientIds) => {
             user_id: String(user._id),
             email: user.email || null,
             name: [user.firstName, user.lastName].filter(Boolean).join(" ") || null,
+            organisations: organisationsOf(user),
           }
         : null,
     });
@@ -255,7 +285,7 @@ const listApiKeys = async (request) => {
 
     if (isCsv) {
       const header = [
-        "rank", "client_id", "key_name", "tier", "owner_email", "owner_name",
+        "rank", "client_id", "key_name", "tier", "owner_email", "owner_name", "owner_organisations",
         "calls", "share_pct", "active_days", "avg_calls_per_active_day",
         "peak_day_calls", "top_service", "last_seen", "last_ip",
       ];
@@ -266,6 +296,7 @@ const listApiKeys = async (request) => {
           [
             k.rank, k.client_id, k.key_name, k.tier,
             k.owner && k.owner.email, k.owner && k.owner.name,
+            k.owner ? k.owner.organisations.map((o) => o.title).join("; ") : "",
             k.calls, k.share_pct, k.active_days, k.avg_calls_per_active_day,
             k.peak_day_calls, topService ? topService.service : "",
             k.last_seen ? new Date(k.last_seen).toISOString() : "", k.last_ip,
@@ -396,6 +427,7 @@ const apiKeysTimeseries = async (request) => {
           identity.client_name ||
           (identity.owner && identity.owner.email) ||
           id,
+        owner_name: identity.owner ? identity.owner.name : null,
         owner_email: identity.owner ? identity.owner.email : null,
         total: data.reduce((a, b) => a + b, 0),
         data,
