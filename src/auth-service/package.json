@@ -115,6 +115,7 @@
     "passport-microsoft": "^2.1.0",
     "passport-oauth2": "^1.8.0",
     "passport-twitter": "^1.0.4",
+    "pdfkit": "^0.20.2",
     "posthog-node": "^5.11.2",
     "rate-limit-redis": "^4.2.1",
     "redis": "^5.11.0",

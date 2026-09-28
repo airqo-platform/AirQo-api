@@ -239,6 +239,12 @@ const authRoutes = [
     description: "Department management",
   },
   {
+    path: "/billing",
+    route: "@routes/v2/billing.routes",
+    name: "billing",
+    description: "Invoices, pro forma invoices, payments and receipts",
+  },
+  {
     path: "/transactions",
     route: "@routes/v2/transactions.routes",
     name: "transactions",
@@ -418,7 +424,8 @@ function getCategoryForRoute(routeName) {
       "surveys",
     ],
     notifications: ["notification-preferences", "campaigns"],
-    misc: ["checklist", "transactions", "guests", "selfies"],
+    billing: ["billing", "transactions"],
+    misc: ["checklist", "guests", "selfies"],
   };
 
   for (const [category, routes] of Object.entries(categories)) {
