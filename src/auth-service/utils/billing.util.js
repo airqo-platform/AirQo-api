@@ -187,6 +187,11 @@ const pdfAttachment = (filename, buffer) => {
   };
 };
 
+// The mailer suppresses an identical email sent within its dedup window and
+// reports it as a success flagged `duplicate`; that is not a new delivery.
+const isDuplicateEmail = (result) => !!(result && result.data && result.data.duplicate);
+const DUPLICATE_EMAIL = "an identical email was sent moments ago; try again in a few minutes";
+
 const safeFilename = (value) =>
   String(value || "document").replace(/[^A-Za-z0-9._-]+/g, "_");
 
@@ -639,6 +644,7 @@ const emailInvoice = async (
   );
   const isProforma = invoice.kind === "proforma";
   const documentTitle = isProforma ? "Pro Forma Invoice" : "Invoice";
+  let result;
   try {
     const pdf = pdfAttachment(
       `${safeFilename(invoice.invoice_number)}.pdf`,
@@ -656,9 +662,9 @@ const emailInvoice = async (
       due_date: formatDate(invoice.due_date),
     };
     if (reminder) {
-      await mailer.invoiceReminder({ ...common, ...reminder });
+      result = await mailer.invoiceReminder({ ...common, ...reminder });
     } else {
-      await mailer.invoiceIssued({
+      result = await mailer.invoiceIssued({
         ...common,
         document_title: documentTitle,
         document_label: documentTitle.toLowerCase(),
@@ -673,6 +679,9 @@ const emailInvoice = async (
       `billing email for ${invoice.invoice_number} failed: ${error.message}`,
     );
     return { sent: false, reason: "email could not be queued", to: recipients };
+  }
+  if (isDuplicateEmail(result)) {
+    return { sent: false, duplicate: true, reason: DUPLICATE_EMAIL, to: recipients };
   }
   const event = reminder ? "reminder_sent" : "sent";
   await InvoiceModel(tenant).updateOne(
@@ -969,12 +978,13 @@ const emailReceipt = async (tenant, payment, invoice, { to, cc, actor = {} } = {
   const copy = uniqueEmails([...(settings.billing_cc_emails || []), ...(cc || [])]).filter(
     (email) => !recipients.includes(email),
   );
+  let result;
   try {
     const pdf = pdfAttachment(
       `${safeFilename(payment.receipt_number)}.pdf`,
       await renderReceiptPdf({ payment, invoice }),
     );
-    await mailer.paymentReceipt({
+    result = await mailer.paymentReceipt({
       email: recipients[0],
       recipients,
       cc: copy,
@@ -992,6 +1002,9 @@ const emailReceipt = async (tenant, payment, invoice, { to, cc, actor = {} } = {
   } catch (error) {
     logger.error(`receipt email for ${payment.receipt_number} failed: ${error.message}`);
     return { sent: false, reason: "email could not be queued", to: recipients };
+  }
+  if (isDuplicateEmail(result)) {
+    return { sent: false, duplicate: true, reason: DUPLICATE_EMAIL, to: recipients };
   }
   await Promise.all([
     PaymentModel(tenant).updateOne(
@@ -1122,7 +1135,12 @@ const recordPayment = async (request) => {
     ).toObject();
   } catch (createError) {
     // Undo the invoice change so the balance matches the recorded payments.
-    await shiftAmountPaid(tenant, updated, -amountMinor, null);
+    const reverted = await shiftAmountPaid(tenant, updated, -amountMinor, null);
+    if (!reverted) {
+      logger.error(
+        `rollback failed: invoice ${invoice._id} still includes ${amount} ${currency} from unsaved receipt ${receiptNumber}`,
+      );
+    }
     if (isDuplicateKey(createError)) {
       return fail(httpStatus.CONFLICT, `receipt number ${receiptNumber} is already in use`);
     }
@@ -1186,7 +1204,12 @@ const voidPayment = async (request) => {
     )
     .lean();
   if (!voided) {
-    await shiftAmountPaid(tenant, updated, amountMinor, null);
+    const restored = await shiftAmountPaid(tenant, updated, amountMinor, null);
+    if (!restored) {
+      logger.error(
+        `rollback failed: invoice ${invoice._id} is missing ${payment.amount} ${payment.currency} from receipt ${payment.receipt_number}, which was not voided`,
+      );
+    }
     return fail(httpStatus.CONFLICT, "payment changed while voiding; retry");
   }
   return ok(`receipt ${payment.receipt_number} voided`, {
@@ -1472,7 +1495,7 @@ const runInvoiceReminders = async (tenant) => {
     const email = await emailInvoice(tenant, invoice, {
       reminder: reminderContent(invoice, reminder.key),
     });
-    if (email.sent) {
+    if (email.sent || email.duplicate) {
       result.sent += 1;
     } else {
       result.failed += 1;

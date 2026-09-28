@@ -381,7 +381,14 @@ const summary = [tenant, date(query, "from"), date(query, "to")];
 const grpId = mongoId(param, "grp_id");
 const groupInvoices = [tenant, grpId, ...listInvoices.slice(1)];
 const groupInvoice = [tenant, grpId, invoiceId];
-const groupPayments = [tenant, grpId, ...pageQuery];
+const groupPayments = [
+  tenant,
+  grpId,
+  ...pageQuery,
+  query("method").optional().isIn(PAYMENT_METHODS),
+  optionalMongoId(query, "invoice_id"),
+  optionalMongoId(query, "customer_id"),
+];
 const groupReceipt = [tenant, grpId, paymentId];
 
 module.exports = {

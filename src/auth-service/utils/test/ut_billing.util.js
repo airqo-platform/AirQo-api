@@ -288,6 +288,17 @@ describe("billing.util", function () {
     expect(list.data.items[0]).to.not.have.property("created_by");
   });
 
+  it("does not report a deduplicated email as sent", async () => {
+    const invoice = await draft();
+    await billing.finalizeInvoice(req({ params: { invoiceId: invoice._id } }));
+    mailer.invoiceIssued.resolves({ success: true, data: { duplicate: true } });
+    const result = await billing.sendInvoice(req({ params: { invoiceId: invoice._id } }));
+    expect(result.status).to.equal(422);
+    const stored = await InvoiceModel(TENANT).findById(invoice._id).lean();
+    expect(stored.sent_count).to.equal(0);
+    expect(stored.history.map((h) => h.event)).to.not.include("sent");
+  });
+
   describe("reminders", () => {
     const settings = { reminder_days_before_due: [3], reminder_days_after_due: [1, 7, 14, 30] };
     const today = moment.utc().startOf("day");
