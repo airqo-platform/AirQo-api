@@ -1270,6 +1270,30 @@ class TestResponseEnvelopeContract:
         assert body["data"] is None
         assert body["message"]
 
+    def test_forbidden_query_is_a_503_error_envelope(
+        self, client, valid_export_payload
+    ):
+        """The BigQuery message of a refusal goes to the log, not to the
+        requester."""
+        from api.utils.exceptions import QueryForbidden
+
+        bigquery_message = "Access Denied: Table measurements: Permission denied"
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=QueryForbidden(reason="accessDenied", message=bigquery_message),
+        ):
+            resp = client.post(
+                "/api/v2/analytics/data-download", json=valid_export_payload
+            )
+
+        assert resp.status_code == 503
+        body = resp.json()
+        assert self._ENVELOPE_KEYS <= set(body)
+        assert body["status"] == "error"
+        assert body["data"] is None
+        assert bigquery_message not in body["message"]
+
     def test_empty_result_is_a_200_success_envelope(
         self, client, valid_export_payload, empty_df
     ):

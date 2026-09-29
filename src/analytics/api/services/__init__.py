@@ -78,6 +78,7 @@ from api.utils.utils import Utils
 from api.utils.exceptions import (
     ExportRequestNotFound,
     PrivacyScreeningUnavailable,
+    QueryForbidden,
     QueryNotCompleted,
     QueryTimedOut,
     QueryTooLarge,
@@ -321,16 +322,33 @@ def _cancelled_error() -> HTTPException:
     )
 
 
+def _forbidden_error() -> HTTPException:
+    """
+    Turn a request that BigQuery refused with HTTP 403 into a 503.
+
+    Every reason gets the same fixed message.  The reason and the BigQuery
+    message go to the log only: translate_incomplete_queries writes them
+    where the request ran.
+    """
+    return HTTPException(
+        status_code=503,
+        detail="The service cannot read the data at this time. Please try again later.",
+    )
+
+
 def _query_error(exc: QueryNotCompleted, levers: QueryLevers) -> HTTPException:
     """
-    Map a query that BigQuery did not complete to its response.
+    Map a request that BigQuery refused or did not complete to its response.
 
     ``levers`` describes the fields of the request that shape the query, so
     the response names only what the requester can change.  A query over the
     byte ceiling and a query stopped at the job timeout each get a 400 with
     their own message when the request offers a lever, and a 503 otherwise.
-    A cancelled query gets a 503 that tells the requester to try again.
+    A request refused with HTTP 403 gets a 503 with a fixed message.  A
+    cancelled query gets a 503 that tells the requester to try again.
     """
+    if isinstance(exc, QueryForbidden):
+        return _forbidden_error()
     if isinstance(exc, QueryTooLarge):
         return _too_large_error(exc, levers)
     if isinstance(exc, QueryTimedOut):

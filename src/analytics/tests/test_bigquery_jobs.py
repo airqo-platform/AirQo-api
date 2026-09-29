@@ -13,12 +13,22 @@ from __future__ import annotations
 import logging
 
 import pytest
-from google.api_core.exceptions import Cancelled, Forbidden, InternalServerError
+from google.api_core.exceptions import (
+    BadRequest,
+    Cancelled,
+    Forbidden,
+    InternalServerError,
+    PermissionDenied,
+    RetryError,
+    from_http_status,
+)
 from google.cloud import bigquery
+from google.rpc import error_details_pb2
 
 from api.utils.bigquery_jobs import translate_incomplete_queries, query_job_config
 from api.utils.exceptions import (
     QueryCancelled,
+    QueryForbidden,
     QueryTimedOut,
     QueryTooLarge,
     format_bytes,
@@ -82,15 +92,13 @@ class TestByteLimitTranslation:
         assert "bigquery cost limit exceeded" in caplog.text
         assert "unit-test" in caplog.text
 
-    def test_unrelated_api_error_passes_through(self, caplog):
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(Forbidden):
-                with translate_incomplete_queries("unit-test"):
-                    raise Forbidden(
-                        "Access Denied", errors=[{"reason": "accessDenied"}]
-                    )
+    def test_unrelated_api_error_passes_through(self):
+        original = BadRequest("Syntax error", errors=[{"reason": "invalidQuery"}])
+        with pytest.raises(BadRequest) as exc:
+            with translate_incomplete_queries("unit-test"):
+                raise original
 
-        assert "bigquery cost limit exceeded" not in caplog.text
+        assert exc.value is original
 
     def test_other_exceptions_pass_through_untouched(self):
         with pytest.raises(ValueError):
@@ -140,6 +148,84 @@ class TestStoppedJobTranslation:
 
         assert exc.value.__cause__ is stopped
         assert "bigquery job cancelled" in caplog.text
+
+
+def _forbidden_records(caplog):
+    return [r for r in caplog.records if r.name == "api.utils.bigquery_jobs"]
+
+
+class TestForbiddenTranslation:
+    """Every form of a 403 becomes QueryForbidden and writes one ERROR record
+    that carries the reason. The requester receives none of it."""
+
+    @pytest.mark.parametrize(
+        "reason,transient",
+        [
+            ("accessDenied", False),
+            ("billingNotEnabled", False),
+            ("blocked", False),
+            ("quotaExceeded", True),
+            ("rateLimitExceeded", True),
+            ("responseTooLarge", False),
+        ],
+    )
+    def test_forbidden_becomes_query_forbidden(self, caplog, reason, transient):
+        # from_http_status builds the error the way the library does for a
+        # refused request and for a failed job.
+        original = from_http_status(
+            403, "refused", errors=[{"reason": reason, "message": "refused"}]
+        )
+        with caplog.at_level(logging.ERROR, logger="api.utils.bigquery_jobs"):
+            with pytest.raises(QueryForbidden) as exc:
+                with translate_incomplete_queries("unit-test"):
+                    raise original
+
+        assert exc.value.reason == reason
+        assert exc.value.transient is transient
+        assert exc.value.__cause__ is original
+        records = _forbidden_records(caplog)
+        assert [r.levelno for r in records] == [logging.ERROR]
+        assert reason in records[0].args
+
+    def test_forbidden_inside_nested_retry_errors(self, caplog):
+        """The retry of a query insert wraps the RetryError of the request
+        retry, so a rate refusal arrives two levels deep."""
+        forbidden = Forbidden("rate", errors=[{"reason": "rateLimitExceeded"}])
+        wrapped = RetryError("insert retry", RetryError("request retry", forbidden))
+        with caplog.at_level(logging.ERROR, logger="api.utils.bigquery_jobs"):
+            with pytest.raises(QueryForbidden) as exc:
+                with translate_incomplete_queries("unit-test"):
+                    raise wrapped
+
+        assert exc.value.reason == "rateLimitExceeded"
+        assert exc.value.__cause__ is wrapped
+        assert len(_forbidden_records(caplog)) == 1
+
+    def test_retry_error_without_a_forbidden_passes_through(self):
+        wrapped = RetryError("request retry", InternalServerError("backend"))
+        with pytest.raises(RetryError) as exc:
+            with translate_incomplete_queries("unit-test"):
+                raise wrapped
+
+        assert exc.value is wrapped
+
+    def test_permission_denied_carries_its_grpc_reason(self):
+        """The read session of a row download raises PermissionDenied, whose
+        reason comes from the gRPC error details."""
+        info = error_details_pb2.ErrorInfo(reason="IAM_PERMISSION_DENIED")
+        with pytest.raises(QueryForbidden) as exc:
+            with translate_incomplete_queries("unit-test"):
+                raise PermissionDenied("denied", error_info=info)
+
+        assert exc.value.reason == "IAM_PERMISSION_DENIED"
+
+    def test_forbidden_without_a_reason(self):
+        with pytest.raises(QueryForbidden) as exc:
+            with translate_incomplete_queries("unit-test"):
+                raise PermissionDenied("denied")
+
+        assert exc.value.reason == "unknown"
+        assert exc.value.transient is False
 
 
 class TestByteFormatting:

@@ -1645,6 +1645,99 @@ def _cancelled():
     )
 
 
+#: The BigQuery message of the refusal, which goes to the log only.
+_FORBIDDEN_MESSAGE = "Quota exceeded: Your project exceeded quota for QueryUsagePerDay"
+
+
+def _forbidden(reason: str = "quotaExceeded"):
+    from api.utils.exceptions import QueryForbidden
+
+    return QueryForbidden(reason=reason, message=_FORBIDDEN_MESSAGE)
+
+
+class TestForbiddenHandling:
+    """A request that BigQuery refused with HTTP 403 gets a 503 for every
+    reason. The BigQuery message goes to the log, not to the requester."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "reason", ["accessDenied", "quotaExceeded", "rateLimitExceeded"]
+    )
+    async def test_data_download(self, export_request, reason):
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=_forbidden(reason),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        assert exc.value.status_code == 503
+        assert _FORBIDDEN_MESSAGE not in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_report(self):
+        from api.services import AirQualityReportService
+
+        with patch("api.services.build_entity_report", side_effect=_forbidden()):
+            with pytest.raises(HTTPException) as exc:
+                await AirQualityReportService().get_report(
+                    _report_request(grid_id="grid-1")
+                )
+
+        assert exc.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_sites(self):
+        """The sites lookup catches only QueryNotCompleted and RuntimeError,
+        and a translated Forbidden reaches the first of the two."""
+        with patch(
+            "api.services.AsyncBigQueryApi.get_sites_async",
+            new_callable=AsyncMock,
+            side_effect=_forbidden(),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await MonitoringService().get_sites()
+
+        assert exc.value.status_code == 503
+
+    def test_membership_lookup_raises_instead_of_reporting_no_members(self):
+        """A refused membership lookup reaches the caller as the 503, not as
+        the 404 for a grid with no sites."""
+        from google.api_core.exceptions import Forbidden
+        from unittest.mock import MagicMock
+        from api.utils.exceptions import QueryForbidden
+        from api.utils.pollutants.report import fetch_grid_sites
+
+        client = MagicMock()
+        client.query.return_value.to_dataframe.side_effect = Forbidden(
+            _FORBIDDEN_MESSAGE, errors=[{"reason": "quotaExceeded"}]
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(QueryForbidden):
+                fetch_grid_sites("grid-1")
+
+    def test_report_query_raises_instead_of_reporting_no_data(self):
+        """A refused report query reaches the caller as the 503, not as the
+        200 that states that the period holds no data."""
+        from google.api_core.exceptions import Forbidden
+        from unittest.mock import MagicMock
+        from api.utils.exceptions import QueryForbidden
+        from api.utils.pollutants.report import query_bigquery
+
+        client = MagicMock()
+        client.query.return_value.to_dataframe.side_effect = Forbidden(
+            _FORBIDDEN_MESSAGE, errors=[{"reason": "accessDenied"}]
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(QueryForbidden):
+                query_bigquery(["s1"], datetime(2026, 1, 1), datetime(2026, 1, 2))
+
+
 class TestStoppedQueryHandling:
     """A query stopped at the job timeout is the caller's to fix and gets a
     400. A query cancelled for any other reason was a valid request and gets
@@ -1677,7 +1770,7 @@ class TestStoppedQueryHandling:
         assert exc.value.status_code == status
 
     def test_each_outcome_has_its_own_message(self):
-        """A caller must be able to tell the three outcomes apart, so each
+        """A caller must be able to tell the four outcomes apart, so each
         response carries a different message."""
         from api.services import QueryLevers, _query_error
         from api.utils.exceptions import QueryTooLarge
@@ -1686,10 +1779,15 @@ class TestStoppedQueryHandling:
         levers = QueryLevers(window=True, filters=True, frequency=Frequency.HOURLY)
         details = {
             _query_error(error, levers).detail
-            for error in (QueryTooLarge(limit_bytes=1), _timed_out(), _cancelled())
+            for error in (
+                QueryTooLarge(limit_bytes=1),
+                _timed_out(),
+                _cancelled(),
+                _forbidden(),
+            )
         }
 
-        assert len(details) == 3
+        assert len(details) == 4
 
     def test_timeout_names_only_the_fields_the_request_offers(self):
         """The download body offers three fields, the report body one, and a
