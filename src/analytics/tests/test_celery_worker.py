@@ -1,14 +1,16 @@
 """
 Tests for the scheduled-export Celery worker chain.
 
-Covers the defects fixed during the Flask→FastAPI modernisation:
-  - doc_to_data_export_request constructed the dataclass with devices=/sites=
-    kwargs that don't exist, so every request errored and was silently
-    skipped — new docs use filter_type/filter_value, legacy docs are shimmed;
-  - the retry filter queried a misspelled "retires" field, so failed
-    requests never retried;
-  - data_export_query received a string frequency but called .value on it,
-    crashing every export — it now accepts the enum (or a string).
+Covers:
+  - doc_to_data_export_request maps documents that carry
+    filter_type/filter_value, and documents that carry separate devices and
+    sites lists;
+  - the retry filter selects failed requests that have retries left;
+  - data_export_query accepts the frequency as the enum or as a string;
+  - the worker marks a request that BigQuery refuses with HTTP 403 as
+    failed, and keeps a retry only for a quota or rate refusal;
+  - the export and devices-summary helpers translate a 403 into
+    QueryForbidden.
 
 No Mongo/BigQuery/Redis needed: models are constructed without __init__ or
 exercised as pure functions.
@@ -16,15 +18,19 @@ exercised as pure functions.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 from bson import ObjectId
+from google.api_core.exceptions import Forbidden
 
 from api.models.data_export import DataExportModel
 from api.models.export_queries import data_export_query
-from constants import Frequency
+from api.utils.exceptions import QueryForbidden
+from constants import DataExportStatus, Frequency
 
 
 def _base_doc(**overrides):
@@ -56,7 +62,7 @@ class TestDocToDataExportRequest:
         assert request.frequency == Frequency.HOURLY
 
     def test_legacy_doc_devices_shimmed(self):
-        """Pre-migration docs stored separate devices/sites lists."""
+        """A document can store separate devices/sites lists."""
         doc = _base_doc(devices=["d1"], sites=[])
         request = DataExportModel.doc_to_data_export_request(doc)
         assert request.filter_type == "devices"
@@ -71,8 +77,8 @@ class TestDocToDataExportRequest:
 
 class TestScheduledAndFailedFilter:
     def test_retry_filter_uses_correctly_spelled_retries(self):
-        """Regression: the filter said "retires", so failed requests with
-        retries remaining were never picked up again."""
+        """The filter selects failed requests on the "retries" field, so a
+        failed request with retries left is picked up again."""
         model = DataExportModel.__new__(DataExportModel)
         model.collection = MagicMock()
         model.collection.find.return_value = []
@@ -93,7 +99,7 @@ class TestDataExportQuery:
     }
 
     def test_accepts_frequency_enum(self):
-        """Regression: the old chain passed a str into code calling .value."""
+        """The query builder accepts the frequency as the enum."""
         query = data_export_query(
             filter_type="devices",
             filter_value=["d1"],
@@ -130,8 +136,7 @@ class TestDataExportQuery:
             )
 
     def test_hourly_devices_includes_bam_union(self):
-        """Regression: the original compared the enum against the string
-        'hourly' (always False), so BAM data was never unioned in."""
+        """An hourly device export unions in the BAM data."""
         query = data_export_query(
             filter_type="devices",
             filter_value=["d1"],
@@ -164,10 +169,9 @@ class TestDataExportQuery:
         return [c for c in columns if c]
 
     def test_bam_union_legs_have_matching_columns(self):
-        """Regression: the original BAM leg emitted two raw/calibrated
-        columns per pollutant vs one on the main leg — mismatched UNION ALL
-        column counts are invalid SQL, so every hourly device export failed.
-        Both legs must now produce identical alias lists, positionally."""
+        """Both legs of the BAM union produce identical alias lists,
+        positionally, because a UNION ALL with mismatched column counts is
+        invalid SQL."""
         query = data_export_query(
             filter_type="devices",
             filter_value=["d1"],
@@ -237,12 +241,199 @@ class TestDataExportQuery:
 
 
 class TestWorkerImports:
-    def test_celery_app_imports_without_flask(self):
-        """The worker image installs requirements.txt only (no Flask) — the
-        module must import cleanly on config alone."""
+    def test_celery_app_imports_on_config_alone(self):
+        """The worker image installs requirements.txt only, so the module
+        imports on config alone."""
         import celery_app
 
         assert celery_app.celery.conf.task_default_queue == "analytics"
 
     def test_devices_summary_imports(self):
         import devices_summary  # noqa: F401
+
+
+def _refused(reason: str = "accessDenied") -> Forbidden:
+    return Forbidden("refused", errors=[{"reason": reason, "message": "refused"}])
+
+
+def _export_request():
+    return DataExportModel.doc_to_data_export_request(
+        _base_doc(
+            filter_type="sites",
+            filter_value=["s1"],
+            start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            end_date=datetime(2026, 2, 1, tzinfo=timezone.utc),
+            request_date=datetime(2026, 2, 2, tzinfo=timezone.utc),
+        )
+    )
+
+
+class TestWorkerForbidden:
+    """A request that BigQuery refuses with HTTP 403 is marked failed. It keeps
+    a retry only when the reason clears on its own."""
+
+    def _run(self, monkeypatch, error):
+        import celery_app
+
+        request = _export_request()
+        model = MagicMock()
+        model.get_scheduled_and_failed_requests.return_value = [request]
+        model.update_request_status_and_retries.return_value = True
+        model.has_data.side_effect = error
+        monkeypatch.setattr(celery_app, "DataExportModel", lambda: model)
+        monkeypatch.setattr(celery_app, "data_export_query", lambda **_: "select 1")
+
+        celery_app.data_export_task()
+        return request, model
+
+    @pytest.mark.parametrize(
+        "reason,retries",
+        [("accessDenied", 0), ("quotaExceeded", 2), ("rateLimitExceeded", 2)],
+    )
+    def test_refused_request_is_failed(self, monkeypatch, caplog, reason, retries):
+        with caplog.at_level(logging.WARNING, logger="celery_app"):
+            request, model = self._run(
+                monkeypatch, QueryForbidden(reason=reason, message="refused")
+            )
+
+        assert request.status == DataExportStatus.FAILED
+        assert request.retries == retries
+        model.export_query_results_to_table.assert_not_called()
+        records = [r for r in caplog.records if r.name == "celery_app"]
+        assert [r.levelno for r in records] == [logging.WARNING]
+        assert reason in records[0].args
+        assert "data check" in records[0].args
+
+    def test_other_failure_is_logged_with_its_stage(self, monkeypatch, caplog):
+        with caplog.at_level(logging.WARNING, logger="celery_app"):
+            request, _ = self._run(monkeypatch, RuntimeError("mongo down"))
+
+        assert request.status == DataExportStatus.FAILED
+        assert request.retries == 2
+        records = [r for r in caplog.records if r.name == "celery_app"]
+        assert [r.levelno for r in records] == [logging.ERROR]
+        assert records[0].exc_info is not None
+        assert "data check" in records[0].args
+
+
+class TestExportModelForbidden:
+    """Each BigQuery and Cloud Storage request of an export step translates
+    a 403 into QueryForbidden."""
+
+    def _model(self):
+        model = DataExportModel.__new__(DataExportModel)
+        model.bigquery_client = MagicMock()
+        model.bucket = MagicMock()
+        model.bucket.name = "exports"
+        model.dataset = "dataset"
+        model.project = "project"
+        return model
+
+    def _request(self):
+        return _export_request()
+
+    def test_constructor_sends_no_storage_request(self, monkeypatch):
+        monkeypatch.setattr(
+            "api.models.base.mongo_base.FastAPIPyMongoModel.__init__",
+            lambda self, **_: None,
+        )
+        model = DataExportModel()
+
+        model.cloud_storage_client.get_bucket.assert_not_called()
+        model.cloud_storage_client.bucket.assert_called_once()
+
+    def test_data_check(self):
+        client = MagicMock()
+        client.query.return_value.result.side_effect = _refused()
+        with patch(
+            "api.models.data_export.shared_bigquery_client", return_value=client
+        ):
+            with pytest.raises(QueryForbidden):
+                self._model().has_data("select 1")
+
+    def test_table_export(self):
+        model = self._model()
+        model.bigquery_client.query.side_effect = _refused("quotaExceeded")
+        with pytest.raises(QueryForbidden) as exc:
+            model.export_query_results_to_table("select 1", self._request())
+
+        assert exc.value.transient is True
+
+    def test_refused_extract_keeps_the_files_of_the_previous_run(self):
+        model = self._model()
+        old_file = MagicMock()
+        old_file.name = "u1/r1/20260101T000000/download_000000000000.csv"
+        model.bucket.list_blobs.return_value = [old_file]
+        model.bigquery_client.extract_table.return_value.result.side_effect = _refused()
+
+        with pytest.raises(QueryForbidden):
+            model.export_table_to_gcs(self._request())
+
+        old_file.delete.assert_not_called()
+
+    def test_extract_then_delete_only_the_files_of_earlier_runs(self):
+        model = self._model()
+        request = self._request()
+        old_file = MagicMock()
+        old_file.name = f"{request.gcs_folder()}20260101T000000/download_0.csv"
+
+        def list_blobs(prefix):
+            destination = model.bigquery_client.extract_table.call_args.args[1]
+            new_file = MagicMock()
+            new_file.name = destination.split(f"/{model.bucket.name}/", 1)[1]
+            list_blobs.new_file = new_file
+            return [old_file, new_file]
+
+        model.bucket.list_blobs.side_effect = list_blobs
+        model.export_table_to_gcs(request)
+
+        old_file.delete.assert_called_once()
+        list_blobs.new_file.delete.assert_not_called()
+
+    def test_link_listing(self):
+        model = self._model()
+        model.bucket.list_blobs.side_effect = _refused()
+        with pytest.raises(QueryForbidden):
+            model.get_data_links(self._request())
+
+
+class TestDevicesSummaryForbidden:
+    """The devices-summary job translates a 403 and exits with status 1."""
+
+    def test_hourly_data_query(self):
+        from api.models.device_summary_queries import get_devices_hourly_data
+
+        client = MagicMock()
+        client.query.side_effect = _refused()
+        with patch(
+            "api.models.device_summary_queries.shared_bigquery_client",
+            return_value=client,
+        ):
+            with pytest.raises(QueryForbidden):
+                get_devices_hourly_data(datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    def test_save(self):
+        from api.models.device_summary_queries import save_devices_summary_data
+
+        client = MagicMock()
+        client.load_table_from_dataframe.return_value.result.side_effect = _refused()
+        with patch(
+            "api.models.device_summary_queries.shared_bigquery_client",
+            return_value=client,
+        ):
+            with pytest.raises(QueryForbidden):
+                save_devices_summary_data(pd.DataFrame())
+
+    def test_job_exits_with_status_1(self, monkeypatch):
+        import devices_summary
+
+        monkeypatch.setattr(
+            type(devices_summary.settings), "init_logging", lambda *_: None
+        )
+        monkeypatch.setattr(
+            devices_summary,
+            "get_devices_hourly_data",
+            MagicMock(side_effect=QueryForbidden(reason="accessDenied")),
+        )
+
+        assert devices_summary.main() == 1

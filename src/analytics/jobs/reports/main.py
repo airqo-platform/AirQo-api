@@ -1,5 +1,7 @@
 import concurrent.futures
+import logging
 
+from google.api_core.exceptions import Forbidden, RetryError
 from google.cloud import bigquery
 import pandas as pd
 import seaborn as sns
@@ -24,6 +26,8 @@ from email import encoders
 import warnings
 
 warnings.filterwarnings("ignore")
+
+logger = logging.getLogger(__name__)
 
 
 BIGQUERY_SITES = configuration.BIGQUERY_SITES
@@ -857,16 +861,51 @@ def from_bigquery(
     # The job waits BIGQUERY_JOB_TIMEOUT_MS for the query and then cancels it.
     # The wait runs on the client, so it works with every version of the
     # BigQuery library the job runs with.
-    query_job = bigquery.Client().query(QUERY, job_config)
+    query_job = None
     try:
+        query_job = bigquery.Client().query(QUERY, job_config)
         rows = query_job.result(timeout=configuration.BIGQUERY_JOB_TIMEOUT_MS / 1000)
+        dataframe = rows.to_dataframe()
     except concurrent.futures.TimeoutError:
         query_job.cancel()
         raise
-    dataframe = rows.to_dataframe()
+    except (Forbidden, RetryError) as exc:
+        forbidden = _forbidden_cause(exc)
+        if forbidden is not None:
+            logger.error(
+                "bigquery request forbidden (quarterly report data): reason=%s: %s",
+                _error_reason(forbidden),
+                forbidden.message,
+            )
+        raise
     dataframe.sort_values(["site", "datetime", "device"], ascending=True, inplace=True)
 
     return dataframe
+
+
+# The job image holds only the files of jobs/reports, so these two helpers
+# repeat the ones in the service's api/utils/bigquery_jobs.py.  A 403 arrives
+# as Forbidden, or as its subclass PermissionDenied from a row download.  A
+# 403 the library retried until its deadline arrives wrapped in one or more
+# RetryError objects.
+def _forbidden_cause(exc):
+    """The Forbidden that an error carries, or None for any other error."""
+    while isinstance(exc, RetryError):
+        exc = exc.cause
+    return exc if isinstance(exc, Forbidden) else None
+
+
+def _error_reason(exc):
+    """The reason code of the error, or "unknown" when it carries none."""
+    for error in exc.errors or []:
+        reason = getattr(error, "get", lambda _k: None)("reason")
+        if reason:
+            return str(reason)
+    try:
+        reason = exc.reason
+    except AttributeError:
+        reason = None
+    return str(reason) if reason else "unknown"
 
 
 def get_quarterly_data(tenant="airqo"):
@@ -932,6 +971,10 @@ def send_email():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
     quarterly_data = get_quarterly_data()
     print(quarterly_data.shape)
     write_report_template()

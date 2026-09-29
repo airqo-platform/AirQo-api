@@ -8,13 +8,17 @@ extracts it to GCS, and writes the download links back onto the Mongo
 document (status READY).  There is no email step — consumers poll
 ``GET /data-export?userId=``.
 
-Runs entirely on config (no Flask).  Redis is the broker/result
-backend only.  Note: the 5s beat has no distributed lock — the
-SCHEDULED→PROCESSING status flip is the only double-processing guard.
+Runs entirely on config.  Redis is the broker/result backend only.
+Note: the 5s beat has no distributed lock — the SCHEDULED→PROCESSING
+status flip is the only double-processing guard.
+
+A request that BigQuery or Cloud Storage refuses with HTTP 403 is marked
+failed.  It keeps a retry only when the reason clears on its own (a quota or
+a rate limit).  translate_incomplete_queries logs the reason and the
+BigQuery message; the worker logs the request and the stage.
 """
 
 import logging
-import traceback
 from datetime import timedelta
 from typing import List
 
@@ -23,6 +27,7 @@ from celery.utils.log import get_task_logger
 
 from api.models.data_export import DataExportModel, DataExportRequest
 from api.models.export_queries import data_export_query
+from api.utils.exceptions import QueryForbidden
 from config import settings
 from constants import DataExportStatus
 
@@ -74,10 +79,10 @@ def data_export_task():
             requests_for_processing.append(request)
 
     for request in requests_for_processing:
+        stage = "query build"
         try:
-            # frequency is passed as the enum — data_export_query resolves
-            # .value itself (the old worker passed a string into code that
-            # called .value again, crashing every request).
+            # frequency is passed as the enum; data_export_query resolves
+            # .value itself.
             query = data_export_query(
                 filter_type=request.filter_type,
                 filter_value=request.filter_value,
@@ -87,6 +92,7 @@ def data_export_task():
                 pollutants=request.pollutants,
             )
 
+            stage = "data check"
             has_data = data_export_model.has_data(query)
 
             if not has_data:
@@ -94,10 +100,13 @@ def data_export_task():
                 data_export_model.update_request_status_and_retries(request)
                 continue
 
+            stage = "table export"
             data_export_model.export_query_results_to_table(
                 query=query, export_request=request
             )
+            stage = "file extract"
             data_export_model.export_table_to_gcs(export_request=request)
+            stage = "link listing"
             data_links: List[str] = data_export_model.get_data_links(
                 export_request=request
             )
@@ -105,14 +114,31 @@ def data_export_task():
             request.data_links = data_links
             request.status = DataExportStatus.READY
 
+            stage = "status update"
             success = data_export_model.update_request_status_and_data_links(request)
 
             if not success:
                 raise Exception("Update failed")
 
-        except Exception as ex:
-            _logger.error(f"Export request {request.request_id} failed: {ex}")
-            traceback.print_exc()
+        except QueryForbidden as ex:
+            # A quota or rate refusal clears on its own, so the request keeps
+            # a retry for those reasons.  Every other refusal ends its retries.
+            request.status = DataExportStatus.FAILED
+            request.retries = request.retries - 1 if ex.transient else 0
+            _logger.warning(
+                "Export request %s refused with HTTP 403 at the %s stage: "
+                "reason=%s, retries left=%s",
+                request.request_id,
+                stage,
+                ex.reason,
+                request.retries,
+            )
+            data_export_model.update_request_status_and_retries(request)
+
+        except Exception:
+            _logger.exception(
+                "Export request %s failed at the %s stage", request.request_id, stage
+            )
             request.status = DataExportStatus.FAILED
             request.retries = request.retries - 1
             data_export_model.update_request_status_and_retries(request)

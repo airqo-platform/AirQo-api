@@ -7,6 +7,7 @@ from api.models.device_summary_queries import (
 )
 from api.utils.data_formatters import compute_devices_summary
 from api.utils.dates import str_to_date
+from api.utils.exceptions import QueryNotCompleted
 from config import settings
 
 
@@ -31,10 +32,25 @@ def compute_historical_summary():
         save_devices_summary_data(copy.deepcopy(date_summary))
 
 
+def main() -> int:
+    """
+    Summarise one day of hourly data and save the summary.
+
+    Returns 1 when BigQuery refuses or does not complete a request, after
+    translate_incomplete_queries has logged the cause, and 0 otherwise.
+    """
+    settings.init_logging()
+    try:
+        data = get_devices_hourly_data(
+            day=datetime.now(timezone.utc)
+            - timedelta(days=int(settings.data_summary_days_interval))
+        )
+        summary = compute_devices_summary(copy.deepcopy(data))
+        save_devices_summary_data(copy.deepcopy(summary))
+    except QueryNotCompleted:
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    data = get_devices_hourly_data(
-        day=datetime.now(timezone.utc)
-        - timedelta(days=int(settings.data_summary_days_interval))
-    )
-    summary = compute_devices_summary(copy.deepcopy(data))
-    save_devices_summary_data(copy.deepcopy(summary))
+    raise SystemExit(main())
