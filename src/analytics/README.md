@@ -70,7 +70,7 @@ you need that guarantee.
 The load-bearing ones: `fastapi` + `pydantic` v2 (routing and validation),
 `google-cloud-bigquery[pandas]` (synchronous SDK — every query is pushed to a
 worker thread), `pymongo` 4.x (also synchronous), `celery` with a Redis
-broker, and `aioredis` for the async cache client.
+broker, and `redis` (its `redis.asyncio` client) for the async cache client.
 
 ### Background workers
 

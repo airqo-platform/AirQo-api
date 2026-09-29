@@ -5,9 +5,10 @@ Tests the async Redis cache operations including initialization,
 get, set, and delete operations.
 """
 
+import logging
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-import aioredis
 
 from api.utils.cache import (
     init_cache,
@@ -15,6 +16,7 @@ from api.utils.cache import (
     close_cache,
     cache_get,
     cache_incr,
+    cache_ping,
     cache_set,
     cache_delete,
 )
@@ -27,7 +29,7 @@ class TestCacheInitialization:
     async def test_init_cache_success(self):
         """Test successful cache initialization."""
         with patch("api.utils.cache.settings") as mock_settings, patch(
-            "aioredis.from_url"
+            "redis.asyncio.from_url"
         ) as mock_from_url:
             mock_settings.cache_redis_url = "redis://localhost:6379"
             mock_redis = AsyncMock()
@@ -43,7 +45,7 @@ class TestCacheInitialization:
     async def test_init_cache_failure(self):
         """Test cache initialization failure."""
         with patch("api.utils.cache.settings") as mock_settings, patch(
-            "aioredis.from_url"
+            "redis.asyncio.from_url"
         ) as mock_from_url:
             mock_settings.cache_redis_url = "redis://localhost:6379"
             mock_from_url.side_effect = Exception("Connection failed")
@@ -57,7 +59,7 @@ class TestCacheInitialization:
     @pytest.mark.asyncio
     async def test_get_cache_when_initialized(self):
         """Test getting cache instance when initialized."""
-        with patch("aioredis.from_url") as mock_from_url:
+        with patch("redis.asyncio.from_url") as mock_from_url:
             mock_redis = AsyncMock()
             mock_from_url.return_value = mock_redis
 
@@ -98,7 +100,7 @@ class TestCacheInitialization:
 
         await close_cache()
 
-        mock_redis.close.assert_called_once()
+        mock_redis.aclose.assert_called_once()
         assert api.utils.cache._cache is None
 
 
@@ -305,7 +307,7 @@ class TestRedisRecovery:
         mock_redis = AsyncMock()
         mock_redis.ping.side_effect = Exception("Connection refused")
 
-        with patch("aioredis.from_url", return_value=mock_redis):
+        with patch("redis.asyncio.from_url", return_value=mock_redis):
             await init_cache()
 
         # Retained, not discarded — otherwise every helper short-circuits
@@ -321,7 +323,7 @@ class TestRedisRecovery:
         mock_redis = AsyncMock()
         mock_redis.ping.side_effect = Exception("Connection refused")
 
-        with patch("aioredis.from_url", return_value=mock_redis):
+        with patch("redis.asyncio.from_url", return_value=mock_redis):
             await init_cache()
 
         # Redis comes back: the pipeline now works.
@@ -338,7 +340,7 @@ class TestRedisRecovery:
         import api.utils.cache
 
         api.utils.cache._cache = None
-        with patch("aioredis.from_url") as from_url:
+        with patch("redis.asyncio.from_url") as from_url:
             from_url.return_value = AsyncMock()
             await init_cache()
 
@@ -354,7 +356,88 @@ class TestRedisRecovery:
         import api.utils.cache
 
         api.utils.cache._cache = None
-        with patch("aioredis.from_url", side_effect=Exception("bad url")):
+        with patch("redis.asyncio.from_url", side_effect=Exception("bad url")):
             await init_cache()
 
         assert api.utils.cache._cache is None
+
+
+class TestCachePing:
+    """The readiness probe sends one PING through cache_ping."""
+
+    def setup_method(self):
+        import api.utils.cache
+
+        self.mock_redis = AsyncMock()
+        api.utils.cache._cache = self.mock_redis
+        api.utils.cache._unavailable = False
+
+    def teardown_method(self):
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        api.utils.cache._unavailable = False
+
+    @pytest.mark.asyncio
+    async def test_true_when_redis_answers(self):
+        assert await cache_ping() is True
+        self.mock_redis.ping.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_false_when_redis_fails(self):
+        self.mock_redis.ping.side_effect = ConnectionError("refused")
+        assert await cache_ping() is False
+
+    @pytest.mark.asyncio
+    async def test_false_when_cache_missing(self):
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        assert await cache_ping() is False
+
+
+class TestOutageLogging:
+    """An outage writes one WARNING record, and the first success after it
+    writes one INFO record."""
+
+    def setup_method(self):
+        import api.utils.cache
+
+        self.mock_redis = AsyncMock()
+        api.utils.cache._cache = self.mock_redis
+        api.utils.cache._unavailable = False
+
+    def teardown_method(self):
+        import api.utils.cache
+
+        api.utils.cache._cache = None
+        api.utils.cache._unavailable = False
+
+    def _levels(self, caplog):
+        return [r.levelno for r in caplog.records if r.name == "api.utils.cache"]
+
+    @pytest.mark.asyncio
+    async def test_one_warning_for_each_outage(self, caplog):
+        self.mock_redis.get.side_effect = ConnectionError("refused")
+        self.mock_redis.set.side_effect = ConnectionError("refused")
+
+        with caplog.at_level(logging.DEBUG, logger="api.utils.cache"):
+            await cache_get("k")
+            await cache_set("k", "v")
+            await cache_get("k")
+
+        assert self._levels(caplog) == [logging.WARNING, logging.DEBUG, logging.DEBUG]
+
+    @pytest.mark.asyncio
+    async def test_recovery_is_logged_and_the_next_outage_warns_again(self, caplog):
+        with caplog.at_level(logging.DEBUG, logger="api.utils.cache"):
+            self.mock_redis.get.side_effect = ConnectionError("refused")
+            await cache_get("k")
+            self.mock_redis.get.side_effect = None
+            self.mock_redis.get.return_value = "v"
+            await cache_get("k")
+            await cache_get("k")
+            self.mock_redis.get.side_effect = ConnectionError("refused")
+            await cache_get("k")
+
+        assert self._levels(caplog) == [logging.WARNING, logging.INFO, logging.WARNING]

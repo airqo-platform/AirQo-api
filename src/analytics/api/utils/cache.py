@@ -2,26 +2,62 @@
 Async Redis client used for rate limiting and the readiness probe.
 
 When Redis is unreachable the helpers degrade instead of raising: `cache_get`
-returns None, `cache_set` returns False and `cache_incr` returns None, each
-attempt bounded by the socket timeout below. `cache_incr` returning None means
-"unknown", not "zero" — it is the signal the rate limiter uses to fall back
-to per-process counters. The client itself is None only when the Redis URL
-is malformed.
+returns None, `cache_set` returns False, `cache_incr` returns None and
+`cache_ping` returns False, each attempt bounded by the socket timeout below.
+`cache_incr` returning None means "unknown", not "zero" — it is the signal the
+rate limiter uses to fall back to per-process counters. The client itself is
+None only when the Redis URL is malformed.
+
+The first failed call of an outage writes a WARNING record, and each later
+failed call writes a DEBUG record. The first successful call after the
+outage writes an INFO record.
 """
 
 import logging
 from typing import Optional
-import aioredis
+
+import redis.asyncio as redis_asyncio
+
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 # Global cache instance
-_cache: Optional[aioredis.Redis] = None
+_cache: Optional[redis_asyncio.Redis] = None
+
+# True from the first failed call of an outage to the next successful call.
+_unavailable = False
 
 # Bounds how long a request can stall on an unreachable Redis. Every call
 # retries the connection, so this is the per-request cost of a Redis outage.
 _SOCKET_TIMEOUT_SECONDS = 1.0
+
+
+def _record_failure(operation: str, key: Optional[str], exc: Exception) -> None:
+    """Log a failed call: WARNING for the first of an outage, DEBUG after it."""
+    global _unavailable
+
+    target = f" for key {key}" if key is not None else ""
+    if _unavailable:
+        logger.debug("Cache %s failed%s: %s", operation, target, exc)
+        return
+    _unavailable = True
+    logger.warning(
+        "Redis unavailable: cache %s failed%s: %s. Later failures log at DEBUG "
+        "level until Redis answers.",
+        operation,
+        target,
+        exc,
+    )
+
+
+def _record_success() -> None:
+    """Log the first successful call after an outage."""
+    global _unavailable
+
+    if _unavailable:
+        _unavailable = False
+        logger.info("Redis available again")
 
 
 async def init_cache() -> None:
@@ -40,7 +76,7 @@ async def init_cache() -> None:
     global _cache
 
     try:
-        _cache = aioredis.from_url(
+        _cache = redis_asyncio.from_url(
             settings.cache_redis_url,
             encoding="utf-8",
             decode_responses=True,
@@ -65,7 +101,7 @@ async def init_cache() -> None:
         )
 
 
-async def get_cache() -> Optional[aioredis.Redis]:
+async def get_cache() -> Optional[redis_asyncio.Redis]:
     """
     Get the cache instance.
 
@@ -84,9 +120,28 @@ async def close_cache() -> None:
     global _cache
 
     if _cache:
-        await _cache.close()
+        await _cache.aclose()
         _cache = None
         logger.info("Redis cache connection closed")
+
+
+async def cache_ping() -> bool:
+    """
+    Send one PING to Redis.
+
+    Returns:
+        True when Redis answers, False otherwise
+    """
+    if not _cache:
+        return False
+
+    try:
+        await _cache.ping()
+    except Exception as e:
+        _record_failure("ping", None, e)
+        return False
+    _record_success()
+    return True
 
 
 async def cache_get(key: str) -> Optional[str]:
@@ -103,13 +158,15 @@ async def cache_get(key: str) -> Optional[str]:
         return None
 
     try:
-        return await _cache.get(key)
+        value = await _cache.get(key)
     except Exception as e:
-        logger.warning(f"Cache get failed for key {key}: {str(e)}")
+        _record_failure("get", key, e)
         return None
+    _record_success()
+    return value
 
 
-async def cache_set(key: str, value: str, expire: int = None) -> bool:
+async def cache_set(key: str, value: str, expire: Optional[int] = None) -> bool:
     """
     Set a value in cache.
 
@@ -125,10 +182,12 @@ async def cache_set(key: str, value: str, expire: int = None) -> bool:
         return False
 
     try:
-        return await _cache.set(key, value, ex=expire)
+        result = await _cache.set(key, value, ex=expire)
     except Exception as e:
-        logger.warning(f"Cache set failed for key {key}: {str(e)}")
+        _record_failure("set", key, e)
         return False
+    _record_success()
+    return result
 
 
 async def cache_incr(key: str, expire: int) -> Optional[int]:
@@ -157,11 +216,11 @@ async def cache_incr(key: str, expire: int) -> Optional[int]:
         # window has no deadline yet, so give it one.
         if int(count) == 1 or int(ttl) < 0:
             await _cache.expire(key, expire)
-
-        return int(count)
     except Exception as e:
-        logger.warning(f"Cache incr failed for key {key}: {str(e)}")
+        _record_failure("incr", key, e)
         return None
+    _record_success()
+    return int(count)
 
 
 async def cache_delete(key: str) -> bool:
@@ -178,7 +237,9 @@ async def cache_delete(key: str) -> bool:
         return False
 
     try:
-        return bool(await _cache.delete(key))
+        deleted = bool(await _cache.delete(key))
     except Exception as e:
-        logger.warning(f"Cache delete failed for key {key}: {str(e)}")
+        _record_failure("delete", key, e)
         return False
+    _record_success()
+    return deleted
