@@ -117,14 +117,23 @@ def mock_privacy_filter(monkeypatch):
     """Approve every site/device by default so no test hits device-registry.
 
     Mirrors the helper's success envelope, echoing the input list back.
-    Tests exercising the privacy behaviour itself re-patch
-    api.services.filter_non_private_sites_devices explicitly.
+    Tests exercising the privacy behaviour itself re-patch the relevant
+    binding explicitly.
+
+    Patched at every module that imports the name, not just where it was
+    first used: the report builder binds its own reference, and a patch on
+    api.services alone left that path free to open a real connection to
+    device-registry.
     """
 
     def _passthrough(filter_type, filter_value):
         return {"status": "success", "message": "ok", "data": list(filter_value)}
 
     monkeypatch.setattr("api.services.filter_non_private_sites_devices", _passthrough)
+    monkeypatch.setattr(
+        "api.models.base.data_processing.filter_non_private_sites_devices",
+        _passthrough,
+    )
 
 
 @pytest.fixture

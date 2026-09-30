@@ -12,10 +12,8 @@ Confidence combines evidence with a noisy-OR: 1 − Π(1 − confidence × impac
 """
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from app.services.diagnostics.evidence import DEVICE_COMPONENT, EvidenceFact
+from app.services.diagnostics.evidence import DEVICE_COMPONENT, PAIR_CHECKS, EvidenceFact
 from app.services.diagnostics.profile_model import DiagnosticModel
-
-_DISAGREEMENT = "SENSOR_DISAGREEMENT"
 
 
 class RootCauseAnalyzer:
@@ -26,7 +24,7 @@ class RootCauseAnalyzer:
         own: Dict[str, List[EvidenceFact]] = {}
         disagreements: List[EvidenceFact] = []
         for ev in evidences:
-            if ev.check == _DISAGREEMENT:
+            if ev.check in PAIR_CHECKS:
                 disagreements.append(ev)
             else:
                 own.setdefault(ev.component_name, []).append(ev)
@@ -94,14 +92,17 @@ class RootCauseAnalyzer:
                 ),
             ))
 
+        # Pair evidence with no faulty side: one diagnosis per pair, however many checks fired.
+        by_pair: Dict[Tuple[str, ...], List[EvidenceFact]] = {}
         for ev in standalone:
-            sides = [ev.component_name] + ev.related_components
+            by_pair.setdefault(tuple([ev.component_name] + ev.related_components), []).append(ev)
+        for sides, facts in by_pair.items():
             diagnoses.append(self._diagnosis(
-                code=ev.code,
-                title=ev.title,
-                component_name=ev.component_name,
-                affected=ev.related_components,
-                contributions=[(ev, 1.0)],
+                code=f"SENSOR_PAIR:{'~'.join(sides)}",
+                title=f"{' and '.join(sides)} disagree",
+                component_name=sides[0],
+                affected=list(sides[1:]),
+                contributions=[(ev, 1.0) for ev in facts],
                 model=model,
                 action=(
                     f"Compare {' and '.join(sides)} against a reference; one of them is likely drifting, "

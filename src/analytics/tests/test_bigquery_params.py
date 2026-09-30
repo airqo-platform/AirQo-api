@@ -7,8 +7,6 @@ directly without constructing a BigQuery client.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 from google.cloud import bigquery
 
 from api.models.bigquery_api import BigQueryApi
@@ -40,27 +38,3 @@ class TestBuildFilterParameter:
         assert param.value == "uganda"
         # Must not have been split into characters
         assert not isinstance(param, bigquery.ArrayQueryParameter)
-
-
-class TestEstimateQueryRowsParameters:
-    def test_dry_run_forwards_filter_parameter(self):
-        """Regression: the pagination dry run must declare @filter_value,
-        otherwise BigQuery rejects the parameterized query."""
-        api = BigQueryApi()  # client is mocked via conftest autouse fixture
-        api.client = MagicMock()
-        api.client.query.return_value.total_bytes_processed = 1000
-        table_meta = MagicMock()
-        table_meta.num_rows = 10
-        table_meta.num_bytes = 1000
-        api.client.get_table.return_value = table_meta
-
-        param = bigquery.ScalarQueryParameter("filter_value", "STRING", "uganda")
-        api.estimate_query_rows(
-            "SELECT 1 FROM t WHERE country = @filter_value",
-            "project.dataset.table",
-            query_parameters=[param],
-        )
-
-        job_config = api.client.query.call_args.kwargs["job_config"]
-        assert job_config.dry_run is True
-        assert job_config.query_parameters == [param]

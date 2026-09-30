@@ -25,12 +25,36 @@ DEFAULT_POLICY: Dict[str, Any] = {
     },
     "completeness": {
         "interval_config_key": "reporting_interval",  # config_mappings key holding the reporting interval
-        "max_missing_rate": 0.40,
+        # A data gap is an hour with no readings at all. Flag when more than this share of the window's
+        # hours are empty (0.10 = 3 or more of 24). Independent of the reporting interval.
+        "max_empty_hour_fraction": 0.10,
     },
     "agreement": {
         "min_pairs": 10,
         "min_correlation": 0.65,
         "max_divergence_ratio": 0.35,
+        "min_within_tolerance_rate": 0.70,     # share of paired readings inside the relationship's tolerance
+    },
+    "coverage": {
+        "outage_min_minutes": 30,              # a gap shorter than this is never an outage
+        "outage_interval_multiple": 3,         # ...and it must also exceed this many reporting intervals
+        "hour_complete_fraction": 0.5,         # an hour counts as covered with this share of its expected readings
+        "low_charge_fraction": 0.3,            # charge below min + fraction × (max − min) before an outage = power-related
+        "readings_before_outage": 3,
+    },
+    "cycle": {
+        "smoothing_minutes": 60,               # moving-average window before classifying charge/discharge
+        "flat_rate_fraction_per_hour": 0.02,   # |rate| below this share of the metric's range per hour = flat
+    },
+    # Multi-day trends over stored daily indicators
+    "trend": {
+        "window_days": 7,
+        "min_days": 5,                          # diagnosed days needed inside the window (fewer fits chance too easily)
+        "projection_horizon_days": 14,          # only forecast reaching a limit this far ahead
+        "min_change_fraction": 0.15,            # fitted change over the window, as a share of the indicator's scale
+        "full_confidence_change_fraction": 0.40,
+        "min_r_squared": 0.5,                   # how consistently the days follow the fitted line
+        "degrade_lifecycle": True,              # a HEALTHY day with a degrading trend is reported as DEGRADING
     },
     # Penalty applied to a component's score (and weight in root-cause confidence) per check type.
     "impact": {
@@ -40,7 +64,9 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "METRIC_STUCK": 0.7,
         "METRIC_MISSING": 0.8,
         "SENSOR_DISAGREEMENT": 0.5,
+        "SENSOR_ERROR_MARGIN": 0.5,
         "DATA_GAPS": 0.5,
+        "LOW_CHARGE_OUTAGE": 0.7,
     },
     "disabled_checks": [],
     # Evidence on a dependent component counts this much toward its upstream component's fault.
@@ -67,7 +93,37 @@ _POSITIVE_SETTINGS = {
     "rate.min_samples_per_window",
     "stuck.min_samples",
     "agreement.min_pairs",
+    "coverage.outage_min_minutes",
+    "coverage.outage_interval_multiple",
+    "coverage.hour_complete_fraction",
+    "coverage.readings_before_outage",
+    "cycle.smoothing_minutes",
+    "cycle.flat_rate_fraction_per_hour",
+    "trend.window_days",
+    "trend.min_days",
+    "trend.projection_horizon_days",
+    "trend.min_change_fraction",
+    "trend.full_confidence_change_fraction",
 }
+
+# Shares, rates and weights: a value above 1 would make the check unreachable or always true.
+_FRACTION_SETTINGS = {
+    "range.min_violation_rate",
+    "range.full_confidence_violation_rate",
+    "completeness.max_empty_hour_fraction",
+    "agreement.min_correlation",
+    "agreement.min_within_tolerance_rate",
+    "coverage.hour_complete_fraction",
+    "coverage.low_charge_fraction",
+    "cycle.flat_rate_fraction_per_hour",
+    "trend.min_r_squared",
+    "downstream_evidence_factor",
+}
+_FRACTION_SECTIONS = ("impact.", "severity_thresholds.")
+
+
+def _is_fraction(relative: str) -> bool:
+    return relative in _FRACTION_SETTINGS or relative.startswith(_FRACTION_SECTIONS)
 
 
 def validate_policy_override(
@@ -99,6 +155,9 @@ def validate_policy_override(
         elif isinstance(expected, list):
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 errors.append(f"'{where}' must be a list of strings.")
+        elif isinstance(expected, bool):
+            if not isinstance(value, bool):
+                errors.append(f"'{where}' must be true or false.")
         elif isinstance(expected, (int, float)):
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 errors.append(f"'{where}' must be a number, got {type(value).__name__}.")
@@ -106,6 +165,8 @@ def validate_policy_override(
                 errors.append(f"'{where}' must be greater than 0.")
             elif value < 0:
                 errors.append(f"'{where}' must not be negative.")
+            elif _is_fraction(relative) and value > 1:
+                errors.append(f"'{where}' must be between 0 and 1.")
         elif isinstance(expected, str):
             if not isinstance(value, str) or not value:
                 errors.append(f"'{where}' must be a non-empty string.")

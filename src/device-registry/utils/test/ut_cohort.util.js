@@ -215,6 +215,59 @@ describe("createCohort", () => {
     });
   });
 
+  describe("_list summary include_devices", () => {
+    const stubAggregate = () => {
+      const aggregate = sandbox.stub().returns({
+        option: sandbox.stub().returns({
+          allowDiskUse: sandbox.stub().resolves([
+            {
+              paginatedResults: [{ _id: "c1", name: "Kampala" }],
+              totalCount: [{ count: 1 }],
+            },
+          ]),
+        }),
+      });
+      sandbox.stub(mongoose, "model").withArgs("cohorts").returns({ aggregate });
+      return aggregate;
+    };
+    const hasDevicesLookup = (pipeline) =>
+      pipeline.some((stage) => stage.$lookup && stage.$lookup.from === "devices");
+
+    it("should skip the devices lookup when include_devices is false", async () => {
+      const aggregate = stubAggregate();
+      const result = await createCohort._list(
+        { query: { tenant: "airqo", detailLevel: "summary", include_devices: false } },
+        { _id: { $in: [] } },
+        sandbox.stub(),
+      );
+      const pipeline = aggregate.firstCall.args[0];
+      expect(hasDevicesLookup(pipeline)).to.be.false;
+      expect(pipeline[0].$match).to.not.have.property("visibility");
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([{ _id: "c1", name: "Kampala" }]);
+    });
+
+    it("should keep the devices lookup by default", async () => {
+      const aggregate = stubAggregate();
+      await createCohort._list(
+        { query: { tenant: "airqo", detailLevel: "summary" } },
+        {},
+        sandbox.stub(),
+      );
+      expect(hasDevicesLookup(aggregate.firstCall.args[0])).to.be.true;
+    });
+
+    it("should ignore include_devices outside the summary endpoint", async () => {
+      const aggregate = stubAggregate();
+      await createCohort._list(
+        { query: { tenant: "airqo", detailLevel: "full", include_devices: false } },
+        {},
+        sandbox.stub(),
+      );
+      expect(hasDevicesLookup(aggregate.firstCall.args[0])).to.be.true;
+    });
+  });
+
   describe("listAssignedDevices", () => {
     it("should list assigned devices successfully", async () => {
       const ms = sandbox.stub(mongoose, "model");

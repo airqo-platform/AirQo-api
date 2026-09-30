@@ -591,6 +591,11 @@ const cohortValidations = {
         }),
       commonValidations.name,
     ]),
+    query("include_devices")
+      .optional()
+      .isBoolean()
+      .withMessage("include_devices must be a boolean")
+      .toBoolean(),
     handleValidationErrors,
   ],
 

@@ -578,7 +578,12 @@ const transactions = {
   sendTransactionCompletionNotification: async (_transactionMetadata) => {
     // Email notification not yet implemented.
   },
-  notifyAdminOfTransactionError: async (error, eventData, tenant) => {
+  notifyAdminOfTransactionError: async (
+    error,
+    eventData,
+    tenant,
+    alertType = "TRANSACTION_COMPLETION_FAILED",
+  ) => {
     const transactionId = eventData?.id;
 
     // A transaction that keeps failing to register (for a reason other than
@@ -586,15 +591,20 @@ const transactions = {
     // check to short-circuit on, so Paddle's ~20-25min webhook redelivery
     // would otherwise re-fire this alert unchanged for hours. Cool down
     // repeat alerts for the same transaction instead of paging on every retry.
+    // Key on alertType too, so a declined payment's cooldown can't silence a
+    // later completion failure for the same transaction.
     const shouldAlert = transactionId
       ? await opsAlertDeduplicator.shouldAlert(
-          `transaction-error:${transactionId}`,
+          `transaction-error:${alertType}:${transactionId}`,
           { tenant },
         )
       : true;
     if (!shouldAlert) return;
 
-    opsLogger.error("TRANSACTION_COMPLETION_FAILED", {
+    // Staging (Paddle sandbox) and production alert into the same Slack
+    // channel, so tag the environment to tell them apart.
+    opsLogger.error(alertType, {
+      environment: constants.ENVIRONMENT,
       message: error.message,
       transactionId,
     });
@@ -620,6 +630,7 @@ const transactions = {
         new Error(`Payment failed for transaction ${eventData.id}`),
         eventData,
         tenant,
+        "TRANSACTION_PAYMENT_FAILED",
       );
     } catch (error) {
       logger.error("Failed transaction processing error", {
@@ -827,6 +838,7 @@ const transactions = {
       );
     } catch (error) {
       opsLogger.warn("webhook-debug", {
+        environment: constants.ENVIRONMENT,
         bodyType: Buffer.isBuffer(request.body) ? "Buffer" : typeof request.body,
         bodyLength: Buffer.isBuffer(request.body)
           ? request.body.length

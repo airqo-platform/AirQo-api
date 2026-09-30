@@ -20,6 +20,7 @@ from app.models.diagnostics import (
     ProfileDiagnosticTemplate,
 )
 from app.models.health import DeviceHealthSnapshot, DiagnosticFeedback, DeviceDailyDiagnostic, DeviceDailyIssue
+from app.models.sync import SyncDevice
 from app.schemas.device_schema import (
     DeviceProfileCreate,
     DeviceProfileUpdateSchema,
@@ -105,6 +106,7 @@ class CRUDDiagnostics:
                             expected_max=m_in.expected_max,
                             max_rate_of_change=m_in.max_rate_of_change,
                             is_telemetry_field=m_in.is_telemetry_field,
+                            role=m_in.role,
                         )
                         db.add(m_obj)
 
@@ -229,6 +231,7 @@ class CRUDDiagnostics:
                                 expected_max=m_data.get("expected_max"),
                                 max_rate_of_change=m_data.get("max_rate_of_change"),
                                 is_telemetry_field=m_data.get("is_telemetry_field", True),
+                                role=m_data.get("role"),
                             )
                             matched.metrics.append(m_obj)
                     retained_components.append(matched)
@@ -271,6 +274,7 @@ class CRUDDiagnostics:
                                 expected_max=m_data.get("expected_max"),
                                 max_rate_of_change=m_data.get("max_rate_of_change"),
                                 is_telemetry_field=m_data.get("is_telemetry_field", True),
+                                role=m_data.get("role"),
                             )
                             new_comp.metrics.append(m_obj)
                     retained_components.append(new_comp)
@@ -328,6 +332,11 @@ class CRUDDiagnostics:
                         source_component_id=src_id,
                         target_component_id=tgt_id,
                         relationship_type=rel_type,
+                        meta_data=(
+                            _to_dict(r_data.get("meta_data") or r_data.get("metadata"))
+                            if (r_data.get("meta_data") or r_data.get("metadata")) is not None
+                            else None
+                        ),
                     )
                     db_obj.relationships.append(rel_obj)
 
@@ -430,6 +439,7 @@ class CRUDDiagnostics:
                     expected_max=m_in.expected_max,
                     max_rate_of_change=m_in.max_rate_of_change,
                     is_telemetry_field=m_in.is_telemetry_field,
+                    role=m_in.role,
                 )
                 db.add(m_obj)
 
@@ -474,6 +484,7 @@ class CRUDDiagnostics:
                     expected_max=m_in.expected_max,
                     max_rate_of_change=m_in.max_rate_of_change,
                     is_telemetry_field=m_in.is_telemetry_field,
+                    role=m_in.role,
                 )
                 db_obj.metrics.append(m_obj)
 
@@ -633,7 +644,9 @@ class CRUDDiagnostics:
         component_name: Optional[str] = None,
         check_type: Optional[str] = None,
     ) -> List[DeviceDailyIssue]:
-        q = db.query(DeviceDailyIssue)
+        q = db.query(DeviceDailyIssue, SyncDevice.device_name).outerjoin(
+            SyncDevice, SyncDevice.device_id == DeviceDailyIssue.device_id
+        )
         if diagnosis_date:
             q = q.filter(DeviceDailyIssue.diagnosis_date == diagnosis_date)
         if start_date:
@@ -662,7 +675,7 @@ class CRUDDiagnostics:
             value=DeviceDailyIssue.severity,
             else_=0,
         )
-        return (
+        rows = (
             q.order_by(
                 DeviceDailyIssue.diagnosis_date.desc(),
                 severity_rank.desc(),
@@ -673,6 +686,17 @@ class CRUDDiagnostics:
             .limit(limit)
             .all()
         )
+        issues = []
+        for issue, device_name in rows:
+            issue.device_name = device_name   # display name for the response; not a column on the issue
+            issues.append(issue)
+        return issues
+
+    def get_device_names(self, db: Session, device_ids: List[str]) -> Dict[str, Optional[str]]:
+        if not device_ids:
+            return {}
+        rows = db.query(SyncDevice.device_id, SyncDevice.device_name).filter(SyncDevice.device_id.in_(device_ids)).all()
+        return {device_id: name for device_id, name in rows}
 
     def cleanup_daily_diagnostics(self, db: Session, retention_days: int = 365) -> int:
         cutoff = date.today() - timedelta(days=retention_days)

@@ -6,8 +6,9 @@ needs: components with their telemetry-mapped metrics and limits, dependency and
 redundancy relationships, config defaults and the effective policy. It also reports
 what a profile is missing for a complete analysis.
 
-The only vocabulary the engine understands is the relationship types below and the
-`connectivity` component type (the component responsible for delivering data).
+The only vocabulary the engine understands is the relationship types below, the
+`connectivity` component type (the component responsible for delivering data) and the
+metric roles (`charge_level`, `charge_source`, `signal_strength`).
 """
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,6 +21,10 @@ from app.utils.field_mappings import ensure_dict
 DEPENDENCY_RELATIONSHIPS = {"POWERS": "source", "COOLS": "source", "COMMUNICATES_VIA": "target"}
 REDUNDANCY_RELATIONSHIPS = {"MEASURES_SAME_AS"}
 TRANSMISSION_COMPONENT_TYPE = "connectivity"
+CHARGE_LEVEL_ROLE = "charge_level"
+CHARGE_SOURCE_ROLE = "charge_source"
+SIGNAL_STRENGTH_ROLE = "signal_strength"
+METRIC_ROLES = {CHARGE_LEVEL_ROLE, CHARGE_SOURCE_ROLE, SIGNAL_STRENGTH_ROLE}
 
 _TIME_UNIT_SECONDS = {"ms": 0.001, "s": 1.0, "sec": 1.0, "second": 1.0, "seconds": 1.0,
                       "min": 60.0, "minute": 60.0, "minutes": 60.0, "h": 3600.0, "hour": 3600.0, "hours": 3600.0,
@@ -46,6 +51,13 @@ class MetricSpec:
     expected_max: Optional[float]
     max_rate_of_change: Optional[float]
     mapped: bool
+    role: Optional[str] = None
+
+    @property
+    def range(self) -> Optional[float]:
+        if self.expected_min is None or self.expected_max is None or self.expected_max <= self.expected_min:
+            return None
+        return self.expected_max - self.expected_min
 
 
 @dataclass
@@ -61,6 +73,9 @@ class ComponentSpec:
     def mapped_metrics(self) -> List[MetricSpec]:
         return [m for m in self.metrics if m.mapped]
 
+    def metrics_with_role(self, role: str) -> List[MetricSpec]:
+        return [m for m in self.mapped_metrics if m.role == role]
+
 
 @dataclass
 class RedundantPair:
@@ -68,6 +83,18 @@ class RedundantPair:
     metric_a: str
     component_b: str
     metric_b: str
+    tolerance_abs: Optional[float] = None   # readings agree when |a − b| ≤ max(tolerance_abs, tolerance_rel × mean)
+    tolerance_rel: Optional[float] = None
+
+    @property
+    def has_tolerance(self) -> bool:
+        return self.tolerance_abs is not None or self.tolerance_rel is not None
+
+    def within_tolerance(self, a: float, b: float) -> bool:
+        allowed = self.tolerance_abs or 0.0
+        if self.tolerance_rel is not None:
+            allowed = max(allowed, self.tolerance_rel * abs((a + b) / 2.0))
+        return abs(a - b) <= allowed
 
 
 @dataclass
@@ -90,6 +117,34 @@ class DiagnosticModel:
     def downstream(self, component_name: str) -> List[str]:
         return [name for name, ups in self.upstream.items() if component_name in ups]
 
+    def ancestors(self, component_name: str) -> List[str]:
+        """Every component this one depends on, nearest first."""
+        found: List[str] = []
+        frontier = list(self.upstream.get(component_name, []))
+        while frontier:
+            current = frontier.pop(0)
+            if current in found or current == component_name:
+                continue
+            found.append(current)
+            frontier.extend(self.upstream.get(current, []))
+        return found
+
+    def metrics_with_role(self, role: str) -> List[Tuple[ComponentSpec, MetricSpec]]:
+        return [(c, m) for c in self.components.values() for m in c.metrics_with_role(role)]
+
+    def charge_level_feeding(self, component_name: Optional[str]) -> Optional[Tuple[ComponentSpec, MetricSpec]]:
+        """
+        The charge-level metric of the power source behind `component_name` (via dependency
+        relationships). Falls back to the device's only charge-level metric when there is exactly one.
+        """
+        if component_name in self.components:
+            for ancestor in self.ancestors(component_name):
+                found = self.components[ancestor].metrics_with_role(CHARGE_LEVEL_ROLE)
+                if found:
+                    return self.components[ancestor], found[0]
+        all_levels = self.metrics_with_role(CHARGE_LEVEL_ROLE)
+        return all_levels[0] if len(all_levels) == 1 else None
+
     def readiness(self) -> Dict[str, Any]:
         return {
             "profile_id": self.profile_id,
@@ -105,6 +160,9 @@ class DiagnosticModel:
             "redundant_pairs": [
                 f"{p.component_a}.{p.metric_a} ~ {p.component_b}.{p.metric_b}" for p in self.redundant_pairs
             ],
+            "metric_roles": {
+                f"{c.name}.{m.key}": m.role for c in self.components.values() for m in c.mapped_metrics if m.role
+            },
         }
 
 
@@ -135,6 +193,31 @@ def _pair_metrics(a: ComponentSpec, b: ComponentSpec) -> Optional[Tuple[str, str
     if len(common) == 1 and len(by_unit_a) == len(ma) and len(by_unit_b) == len(mb):
         return by_unit_a[common[0]].key, by_unit_b[common[0]].key
     return None
+
+
+def _pair_tolerance(rel_meta: Dict[str, Any], label: str, errors: List[str]) -> Tuple[Optional[float], Optional[float]]:
+    """Read {"tolerance": {"absolute": x, "relative": y}} from a MEASURES_SAME_AS relationship."""
+    tolerance = rel_meta.get("tolerance")
+    if tolerance is None:
+        return None, None
+    if not isinstance(tolerance, dict):
+        errors.append(f"{label}: 'tolerance' must be an object with 'absolute' and/or 'relative'.")
+        return None, None
+    values: List[Optional[float]] = []
+    invalid = False   # errors is shared across the whole model, so track what this relationship added
+    for key in ("absolute", "relative"):
+        raw = tolerance.get(key)
+        if raw is None:
+            values.append(None)
+        elif isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw < 0:
+            errors.append(f"{label}: 'tolerance.{key}' must be a number ≥ 0.")
+            invalid = True
+            values.append(None)
+        else:
+            values.append(float(raw))
+    if values == [None, None] and not invalid:
+        errors.append(f"{label}: 'tolerance' needs 'absolute' and/or 'relative'.")
+    return values[0], values[1]
 
 
 def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) -> DiagnosticModel:
@@ -171,6 +254,13 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
                 continue
             key = _get(metric, "key")
             mapping = telemetry.get(key)
+            role = _get(metric, "role")
+            role = str(role).strip().lower() if role else None
+            if role and role not in METRIC_ROLES:
+                warnings.append(
+                    f"Metric '{name}.{key}' has unknown role '{role}'; ignored. Known roles: {', '.join(sorted(METRIC_ROLES))}."
+                )
+                role = None
             metrics.append(MetricSpec(
                 key=key,
                 label=(mapping or {}).get("label") or key,
@@ -179,6 +269,7 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
                 expected_max=_get(metric, "expected_max"),
                 max_rate_of_change=_get(metric, "max_rate_of_change"),
                 mapped=mapping is not None,
+                role=role,
             ))
         criticality = _get(comp, "criticality")
         spec = ComponentSpec(
@@ -214,7 +305,14 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
         elif rel_type in REDUNDANCY_RELATIONSHIPS:
             pair = _pair_metrics(components[source], components[target])
             if pair:
-                redundant.append(RedundantPair(source, pair[0], target, pair[1]))
+                rel_meta = ensure_dict(_get(rel, "meta_data")) or {}
+                tol_abs, tol_rel = _pair_tolerance(rel_meta, f"{rel_type} '{source}' ~ '{target}'", errors)
+                redundant.append(RedundantPair(source, pair[0], target, pair[1], tol_abs, tol_rel))
+                if tol_abs is None and tol_rel is None:
+                    warnings.append(
+                        f"{rel_type} '{source}' ~ '{target}' has no tolerance in its metadata "
+                        f"({{\"tolerance\": {{\"absolute\": ..., \"relative\": ...}}}}); error margin check skipped."
+                    )
             else:
                 warnings.append(
                     f"{rel_type} between '{source}' and '{target}': could not match metrics (each side needs one "
@@ -249,6 +347,11 @@ def build_model(profile: Any, policy_override: Optional[Dict[str, Any]] = None) 
                 warnings.append(f"Metric {ref} has no expected_min/expected_max; range check skipped.")
             if metric.max_rate_of_change is None:
                 warnings.append(f"Metric {ref} has no max_rate_of_change; rate check skipped.")
+        if comp.component_type.lower() == "battery" and not comp.metrics_with_role(CHARGE_LEVEL_ROLE):
+            warnings.append(
+                f"Component '{comp.name}' (battery) has no telemetry-mapped metric with role '{CHARGE_LEVEL_ROLE}'; "
+                f"charge/discharge cycle analysis and power-related outage attribution are skipped."
+            )
         if not comp.metrics and comp.name not in transmission:
             if model_has_dependents(upstream, comp.name):
                 warnings.append(

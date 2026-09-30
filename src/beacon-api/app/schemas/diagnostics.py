@@ -150,6 +150,9 @@ class EvaluationResultResponse(BaseModel):
     active_evidences: List[EvidenceFactSchema]
     detected_symptoms: List[str]
     top_diagnoses: List[DiagnosisResultSchema]
+    indicators: Dict[str, Dict[str, Dict[str, Any]]] = {}   # component -> indicator group -> values
+    headline: Optional[str] = None
+    summary: Optional[str] = None                           # plain-language description of the window
     data_completeness: Optional[DataCompletenessSchema] = None
     profile_warnings: List[str] = []
     evaluated_window_hours: float
@@ -166,6 +169,7 @@ class ProfileDiagnosticReadinessResponse(BaseModel):
     transmission_components: List[str] = []
     dependencies: Dict[str, List[str]] = {}
     redundant_pairs: List[str] = []
+    metric_roles: Dict[str, str] = {}
     effective_policy: Dict[str, Any] = {}
 
 
@@ -233,6 +237,7 @@ class DailyIssueResponse(BaseModel):
 
 class FleetIssueResponse(DailyIssueResponse):
     device_id: str
+    device_name: Optional[str] = None
     diagnosis_date: date
 
 
@@ -245,6 +250,7 @@ class DeviceDailyDiagnosticSummaryResponse(BaseModel):
     hours_with_data: int
     overall_health_score: float
     lifecycle_state: str
+    headline: Optional[str] = None
     subsystem_scores: Dict[str, float] = {}
     top_cause_code: Optional[str] = None
     issue_count: int
@@ -264,7 +270,28 @@ class DeviceDailyDiagnosticResponse(DeviceDailyDiagnosticSummaryResponse):
     active_evidences: Optional[List[Dict[str, Any]]] = None
     detected_symptoms: Optional[List[str]] = None
     top_diagnoses: Optional[List[Dict[str, Any]]] = None
-    metrics_summary: Optional[Dict[str, Dict[str, float]]] = None
+    metrics_summary: Optional[Dict[str, Dict[str, Any]]] = None
+    indicators: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None
+    trends: Optional[List[Dict[str, Any]]] = None
+    summary: Optional[str] = None
+
+
+class DeviceTrendsResponse(BaseModel):
+    device_id: str
+    as_of: Optional[date] = None        # the diagnosed day the trends end on
+    window_days: int
+    min_days: int
+    degrading_count: int
+    improving_count: int
+    trends: List[Dict[str, Any]] = []   # degrading first, then improving, then stable
+
+
+class DeviceIndicatorSeriesResponse(BaseModel):
+    device_id: str
+    start_date: date
+    end_date: date
+    days_diagnosed: int
+    components: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}   # component -> group -> one point per day
 
 
 class DeviceIssueHistoryItem(BaseModel):
@@ -294,6 +321,7 @@ class DeviceIssueSummaryResponse(BaseModel):
     average_health_score: Optional[float] = None
     latest_diagnosis_date: Optional[date] = None
     latest_lifecycle_state: Optional[str] = None
+    latest_headline: Optional[str] = None
     issues: List[DeviceIssueHistoryItem] = []
     health_trend: List[HealthTrendPoint] = []
 
@@ -311,11 +339,13 @@ class FleetTopIssue(BaseModel):
 
 class FleetDeviceHealth(BaseModel):
     device_id: str
+    device_name: Optional[str] = None
     overall_health_score: float
     lifecycle_state: str
     issue_count: int
     max_severity: Optional[str] = None
     top_cause_code: Optional[str] = None
+    headline: Optional[str] = None
 
 
 class FleetDailySummaryResponse(BaseModel):

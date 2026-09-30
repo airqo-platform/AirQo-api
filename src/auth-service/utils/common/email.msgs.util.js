@@ -2158,4 +2158,105 @@ module.exports = {
     // correctly rather than leaving the address blank.
     return constants.EMAIL_BODY({ email: constants.SUPPORT_EMAIL || "", content, name: "AirQo Support Team" });
   },
+
+  // ===== BILLING =====
+  // Amounts and dates arrive pre-formatted from the billing util.
+  invoiceIssued: ({
+    email = "",
+    customer_name,
+    document_label,
+    invoice_number,
+    total,
+    amount_due,
+    due_date,
+    due_label,
+    subject,
+    message,
+  }) => {
+    const row = (label, value) =>
+      value
+        ? `<tr><td style="padding:6px 12px 6px 0;color:#667085;font-size:14px;">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;color:#101828;">${escapeHtml(value)}</td></tr>`
+        : "";
+    const personal = message
+      ? `<p style="white-space:pre-line;">${escapeHtml(message)}</p>`
+      : "";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Please find attached ${escapeHtml(document_label)} <strong>${escapeHtml(invoice_number)}</strong> for your records.</p>
+        ${personal}
+        <table style="border-collapse:collapse;margin:12px 0 16px;">
+          ${row("Bill to", customer_name)}
+          ${row(document_label === "pro forma invoice" ? "Pro forma" : "Invoice", invoice_number)}
+          ${row("Subject", subject)}
+          ${row("Total", total)}
+          ${row("Amount due", amount_due)}
+          ${row(due_label, due_date)}
+        </table>
+        <p>Payment details are included in the attached document. If you have any questions, reply to this email or contact us at ${escapeHtml(constants.SUPPORT_EMAIL || "support@airqo.net")}.</p>
+        <p>Thanks,<br/>The AirQo Team</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  paymentReceipt: ({
+    email = "",
+    customer_name,
+    receipt_number,
+    invoice_number,
+    amount,
+    paid_at,
+    method,
+    reference,
+    balance,
+  }) => {
+    const row = (label, value) =>
+      value
+        ? `<tr><td style="padding:6px 12px 6px 0;color:#667085;font-size:14px;">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;color:#101828;">${escapeHtml(value)}</td></tr>`
+        : "";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We received your payment. Thanks for your business!</p>
+        <table style="border-collapse:collapse;margin:12px 0 16px;">
+          ${row("Received from", customer_name)}
+          ${row("Amount paid", amount)}
+          ${row("Invoice", invoice_number)}
+          ${row("Receipt number", receipt_number)}
+          ${row("Payment method", method)}
+          ${row("Transaction reference", reference)}
+          ${row("Date", paid_at)}
+          ${row("Balance remaining", balance)}
+        </table>
+        <p>Your receipt is attached. If you have any questions, contact us at ${escapeHtml(constants.SUPPORT_EMAIL || "support@airqo.net")}.</p>
+        <p>Thanks,<br/>The AirQo Team</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  invoiceReminder: ({
+    email = "",
+    customer_name,
+    invoice_number,
+    amount_due,
+    due_date,
+    days,
+    overdue,
+  }) => {
+    const when = overdue
+      ? `was due on <strong>${escapeHtml(due_date)}</strong> and is now ${days} day${days === 1 ? "" : "s"} overdue`
+      : `is due on <strong>${escapeHtml(due_date)}</strong> (in ${days} day${days === 1 ? "" : "s"})`;
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>This is a friendly reminder that invoice <strong>${escapeHtml(invoice_number)}</strong> for ${escapeHtml(customer_name || "your organisation")} ${when}.</p>
+        <p>Amount due: <strong>${escapeHtml(amount_due)}</strong></p>
+        <p>The invoice is attached again for convenience, with payment details. If you have already paid, please disregard this message or reply with your payment reference so we can match it.</p>
+        <p>Thanks,<br/>The AirQo Team</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
 };

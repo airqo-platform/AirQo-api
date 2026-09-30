@@ -10,7 +10,7 @@ Ground-truth validation rules are derived from analytics/schemas/datadownload.py
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -85,6 +85,56 @@ _VALID_META_FIELDS = {"latitude", "longitude", "site_id"}
 _VALID_WEATHER_FIELDS = {"temperature", "humidity"}
 _FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids", "cohort_ids")
 
+# Frequencies whose rows are raw or hourly measurements.  A filter request at
+# one of these frequencies is limited to MAX_HOURLY_QUERY_DAYS.
+_HOURLY_FREQUENCIES = {Frequency.RAW, Frequency.HOURLY}
+
+
+def _is_hourly_frequency(frequency: Any) -> bool:
+    """
+    True for the raw and hourly frequencies.
+
+    ``frequency`` is a ``Frequency`` member when it comes from a field default
+    and a string when it comes from the request body (``use_enum_values``) or
+    from a ``Literal`` field.  A string is compared with the member values.
+    """
+    if isinstance(frequency, str) and not isinstance(frequency, Frequency):
+        return frequency in {member.value for member in _HOURLY_FREQUENCIES}
+    return frequency in _HOURLY_FREQUENCIES
+
+
+def _window_limit_days(frequency: Any) -> int:
+    """The longest date range, in days, for a request at ``frequency``."""
+    if _is_hourly_frequency(frequency):
+        return settings.hourly_query_days()
+    return settings.max_query_days
+
+
+def _normalise_window(start: datetime, end: datetime) -> tuple:
+    """Give a naive datetime the UTC zone when the other one carries a zone."""
+    if (start.tzinfo is None) != (end.tzinfo is None):
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        else:
+            end = end.replace(tzinfo=timezone.utc)
+    return start, end
+
+
+def _check_window_limit(
+    start: datetime, end: datetime, max_days: int, label: str = ""
+) -> None:
+    """
+    Reject a window longer than ``max_days`` whole days.
+
+    The comparison uses the full span, so a window of ``max_days`` days plus
+    any part of a day is rejected.
+    """
+    span = end - start
+    if span > timedelta(days=max_days):
+        raise ValueError(
+            f"Date range must not exceed {max_days} days{label}; requested {span}"
+        )
+
 
 class BaseFilterRequest(BaseRequest):
     """
@@ -93,7 +143,8 @@ class BaseFilterRequest(BaseRequest):
       - exactly one of sites / device_ids / device_names / grid_ids / cohort_ids
       - grid_ids currently capped at one ID per request
       - filter lists capped at MAX_FILTER_VALUES entries
-      - end_date_time > start_date_time, within MAX_QUERY_DAYS
+      - end_date_time > start_date_time, within MAX_HOURLY_QUERY_DAYS for raw
+        and hourly data and within MAX_QUERY_DAYS for daily and coarser data
       - start_date_time not in the future
     """
 
@@ -151,26 +202,33 @@ class BaseFilterRequest(BaseRequest):
             raise ValueError("startDateTime must not be in the future")
         return v
 
+    def validate_frequency(self) -> None:
+        """
+        Check the frequency against the rules of the request.
+
+        Runs first in the cross-field validation, so a request with an invalid
+        frequency reports that error before any error about its window.
+        BaseFilterRequest accepts every frequency; a subclass with rules of its
+        own overrides this method.
+        """
+
     @model_validator(mode="after")
     def end_after_start_and_one_filter(self) -> "BaseFilterRequest":
         """Cross-field validation that runs after all fields are set."""
+        self.validate_frequency()
+
         # Date range check
-        start = self.start_date_time
-        end = self.end_date_time
+        start, end = _normalise_window(self.start_date_time, self.end_date_time)
         if start and end and end <= start:
             raise ValueError("endDateTime must be after startDateTime")
 
-        # Window cap. BigQuery prunes by the timestamp partition, so an
-        # unbounded window is a full-table scan — billable, and reachable
-        # unauthenticated on v3. The report request has always capped its own
-        # window; this applies the same discipline to every filter request.
+        # Window cap. BigQuery prunes by the timestamp partition, so the date
+        # range decides how much each request scans. Raw and hourly data get
+        # the shorter limit; daily and coarser data get MAX_QUERY_DAYS.
         if start and end:
-            max_days = settings.max_query_days
-            if (end - start).days > max_days:
-                raise ValueError(
-                    f"Date range must not exceed {max_days} days; "
-                    f"requested {(end - start).days}"
-                )
+            frequency = getattr(self, "frequency", None)
+            label = f" for {getattr(frequency, 'value', frequency)} data"
+            _check_window_limit(start, end, _window_limit_days(frequency), label)
 
         # Filter exclusivity check
         provided = {
@@ -239,8 +297,7 @@ class DataExportRequest(BaseFilterRequest):
         False, description="Return minimal column set (excludes metadata/weather)"
     )
 
-    @model_validator(mode="after")
-    def validate_datatype_frequency_category(self) -> "DataExportRequest":
+    def validate_frequency(self) -> None:
         if self.datatype == DataType.CALIBRATED and self.frequency == Frequency.RAW:
             raise ValueError(
                 "Calibrated data is not available at 'raw' frequency; "
@@ -251,7 +308,17 @@ class DataExportRequest(BaseFilterRequest):
             and self.frequency != Frequency.RAW
         ):
             raise ValueError("Mobile devices only support frequency='raw'")
-        return self
+
+    def offers_coarser_frequency(self) -> bool:
+        """
+        True when the same body is valid at a coarser frequency than the one
+        it sent: the frequency is raw or hourly, and the device category
+        accepts frequencies other than raw.
+        """
+        return (
+            _is_hourly_frequency(self.frequency)
+            and self.device_category != DeviceCategory.MOBILE
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +337,11 @@ class RawDataExportRequest(BaseFilterRequest):
         "raw", description="Must be 'raw' for this endpoint"
     )
     datatype: Literal["raw"] = Field("raw", description="Always raw data")
+
+    def offers_coarser_frequency(self) -> bool:
+        """False: this body accepts the raw frequency only."""
+        return False
+
     download_type: Literal["json", "csv"] = Field(
         "json", alias="downloadType", description="Response format"
     )
@@ -287,22 +359,22 @@ class ForecastDataExportRequest(BaseRequest):
     """
     Request model for forecast data downloads.
 
-    Filtered by country or city (not device/site IDs).
+    Filtered by country or city (not device/site IDs), and paged by the same
+    cursor token the other download endpoints use.
     """
 
     start_date_time: datetime = Field(..., alias="startDateTime")
     end_date_time: datetime = Field(..., alias="endDateTime")
     country: Optional[str] = Field(None, description="Country filter")
     city: Optional[str] = Field(None, description="City filter")
+    cursor: Optional[str] = Field(None, description="Pagination cursor token")
 
     @model_validator(mode="after")
     def validate_dates_and_filter(self) -> "ForecastDataExportRequest":
-        if (
-            self.start_date_time
-            and self.end_date_time
-            and self.end_date_time <= self.start_date_time
-        ):
+        start, end = _normalise_window(self.start_date_time, self.end_date_time)
+        if end <= start:
             raise ValueError("endDateTime must be after startDateTime")
+        _check_window_limit(start, end, settings.hourly_query_days())
         if not self.country and not self.city:
             raise ValueError("At least one of 'country' or 'city' must be provided")
         return self
@@ -330,6 +402,10 @@ class DashboardChartRequest(BaseFilterRequest):
         None, alias="organisationName", description="Organisation name filter"
     )
 
+    def offers_coarser_frequency(self) -> bool:
+        """True when the frequency is raw or hourly."""
+        return _is_hourly_frequency(self.frequency)
+
 
 # ---------------------------------------------------------------------------
 # Dashboard historical aggregations (daily averages / exceedances)
@@ -345,31 +421,42 @@ class DashboardChartRequest(BaseFilterRequest):
 _DashboardPollutant = Literal["pm2_5", "pm10", "no2", "pm1"]
 
 
-class DailyAveragesRequest(BaseRequest):
+class _DashboardWindowRequest(BaseRequest):
+    """
+    startDate / endDate pair of the dashboard aggregation requests.
+
+    Each aggregation request is limited to MAX_HOURLY_QUERY_DAYS.
+    """
+
+    start_date: datetime = Field(..., alias="startDate")
+    end_date: datetime = Field(..., alias="endDate")
+
+    @model_validator(mode="after")
+    def within_window_limit(self) -> "_DashboardWindowRequest":
+        start, end = _normalise_window(self.start_date, self.end_date)
+        _check_window_limit(start, end, settings.hourly_query_days())
+        return self
+
+
+class DailyAveragesRequest(_DashboardWindowRequest):
     """POST /dashboard/historical/daily-averages — per-site averages."""
 
     pollutant: _DashboardPollutant
-    start_date: datetime = Field(..., alias="startDate")
-    end_date: datetime = Field(..., alias="endDate")
     sites: List[str] = Field(..., min_length=1)
 
 
-class DeviceDailyAveragesRequest(BaseRequest):
+class DeviceDailyAveragesRequest(_DashboardWindowRequest):
     """POST /dashboard/historical/daily-averages-devices — per-device averages."""
 
     pollutant: _DashboardPollutant
-    start_date: datetime = Field(..., alias="startDate")
-    end_date: datetime = Field(..., alias="endDate")
     devices: List[str] = Field(..., min_length=1)
 
 
-class _ExceedancesBase(BaseRequest):
+class _ExceedancesBase(_DashboardWindowRequest):
     # STANDARDS_MAPPING only defines pm2_5/pm10 — narrowing here turns the
     # Flask KeyError-500 on other pollutants into a 422.
     pollutant: Literal["pm2_5", "pm10"]
     standard: Literal["aqi", "who"]
-    start_date: datetime = Field(..., alias="startDate")
-    end_date: datetime = Field(..., alias="endDate")
 
     @field_validator("standard", mode="before")
     @classmethod
@@ -394,17 +481,38 @@ class DeviceExceedancesRequest(_ExceedancesBase):
 # ---------------------------------------------------------------------------
 
 
+def _validate_report_window(start: datetime, end: datetime) -> None:
+    """
+    Check the start_time / end_time window of a report or summary request.
+
+    The report and the summary read hourly rows, so the window is limited to
+    MAX_HOURLY_QUERY_DAYS on both API versions.
+
+    Raises:
+        ValueError: window reversed, zero-length, or wider than the limit.
+    """
+    start, end = _normalise_window(start, end)
+
+    if start == end:
+        raise ValueError("start_time and end_time cannot be the same")
+    # The order check runs before the cap, because a reversed window gives a
+    # negative span, which is always below the cap.
+    if end < start:
+        raise ValueError("end_time must be after start_time")
+
+    _check_window_limit(start, end, settings.hourly_query_days())
+
+
 class AirQualityReportRequest(BaseRequest):
     """
-    POST /data/report — PM aggregates for ONE grid or cohort.
+    POST /report — PM aggregates for ONE grid or cohort.
 
-    Wire contract carries over from the original Flask grid report: snake_case
-    ``start_time`` / ``end_time`` (ISO datetimes), window non-zero and within
-    MAX_QUERY_DAYS — the same ceiling the download and chart paths enforce,
-    rather than the hardcoded 12 months the original used.
+    Body: snake_case ``start_time`` / ``end_time`` (ISO datetimes), window
+    non-zero and within MAX_HOURLY_QUERY_DAYS, the limit every request that
+    reads hourly rows carries.
 
-    The entity is chosen in the body rather than by path, matching
-    DataSummaryRequest: grids and cohorts differ only in how membership
+    The entity is chosen in the body rather than by path, and DataSummaryRequest
+    takes the identical body: grids and cohorts differ only in how membership
     resolves, so one endpoint serves both.
     """
 
@@ -423,24 +531,12 @@ class AirQualityReportRequest(BaseRequest):
         if len(provided) != 1:
             raise ValueError("Provide exactly one of: grid_id, cohort_id")
 
-        # Normalise mixed naive/aware datetimes so the subtraction below (and
-        # all downstream comparisons) can't raise TypeError.
-        if (self.start_time.tzinfo is None) != (self.end_time.tzinfo is None):
-            if self.start_time.tzinfo is None:
-                self.start_time = self.start_time.replace(tzinfo=timezone.utc)
-            else:
-                self.end_time = self.end_time.replace(tzinfo=timezone.utc)
-
-        if self.start_time == self.end_time:
-            raise ValueError("start_time and end_time cannot be the same")
-        # Mirrors BaseFilterRequest's end <= start rule. Without it a reversed
-        # window made the day count below negative, slipping past the cap and
-        # returning a 404 "no data" rather than a 422.
-        if self.end_time < self.start_time:
-            raise ValueError("end_time must be after start_time")
-        max_days = settings.max_query_days
-        if (self.end_time - self.start_time).days > max_days:
-            raise ValueError(f"Time range must not exceed {max_days} days")
+        # The stored datetimes are normalised as well, so every downstream
+        # comparison sees the same pair the window check saw.
+        self.start_time, self.end_time = _normalise_window(
+            self.start_time, self.end_time
+        )
+        _validate_report_window(self.start_time, self.end_time)
         return self
 
     def entity(self) -> tuple:
@@ -457,34 +553,72 @@ class AirQualityReportRequest(BaseRequest):
 # ---------------------------------------------------------------------------
 
 
+# Request field -> the filter kind the query builder and messages expect.
+# devices_summary_query validates against SUMMARY_FILTER_KINDS ("grid",
+# "cohort") and get_summary interpolates the bare kind into its no-data
+# message, so the *_id suffix is dropped here rather than carried through.
+# Module-level rather than a class attribute: pydantic v2 turns a leading
+# underscore on a model class into a private attribute.
+_SUMMARY_ENTITY_FIELDS = (("grid_id", "grid"), ("cohort_id", "cohort"))
+
+
 class DataSummaryRequest(BaseRequest):
     """
-    POST /data/summary — Flask wire contract: startDateTime/endDateTime plus
-    ONE of grid / cohort.  (Flask marked them optional and crashed with a 500
-    when none was given — requiring exactly one turns that into a clean 422.)
+    POST /summary — data-completeness counts for ONE grid or cohort.
+
+    Body matches AirQualityReportRequest exactly: snake_case ``start_time`` /
+    ``end_time`` plus one of ``grid_id`` / ``cohort_id``.  The two endpoints
+    describe the same subject over the same window and differ only in what they
+    report, so they no longer differ in how they are asked.
+
+    This departs from the Flask wire contract, which used camelCase
+    startDateTime/endDateTime and bare grid/cohort keys.  Flask also marked the
+    entity optional and crashed with a 500 when none was given; requiring
+    exactly one turns that into a clean 422.
     """
 
-    start_date_time: datetime = Field(..., alias="startDateTime")
-    end_date_time: datetime = Field(..., alias="endDateTime")
-    grid: Optional[str] = None
-    cohort: Optional[str] = None
+    start_time: datetime = Field(..., description="Start of the summary window")
+    end_time: datetime = Field(..., description="End of the summary window")
+    grid_id: Optional[str] = Field(None, description="Grid identifier")
+    cohort_id: Optional[str] = Field(None, description="Cohort identifier")
 
     @model_validator(mode="after")
     def exactly_one_entity(self) -> "DataSummaryRequest":
         provided = [
-            kind for kind in ("grid", "cohort") if (getattr(self, kind) or "").strip()
+            field
+            for field, _ in _SUMMARY_ENTITY_FIELDS
+            if (getattr(self, field) or "").strip()
         ]
         if len(provided) != 1:
-            raise ValueError("Provide exactly one of: grid, cohort")
+            raise ValueError("Provide exactly one of: grid_id, cohort_id")
+        return self
+
+    @model_validator(mode="after")
+    def within_window_limit(self) -> "DataSummaryRequest":
+        _validate_report_window(self.start_time, self.end_time)
         return self
 
     def entity(self) -> tuple:
         """(filter_kind, filter_id) for the summary query builder."""
-        for kind in ("grid", "cohort"):
-            value = (getattr(self, kind) or "").strip()
+        for field, kind in _SUMMARY_ENTITY_FIELDS:
+            value = (getattr(self, field) or "").strip()
             if value:
                 return kind, value
         raise ValueError("No summary entity provided")  # unreachable post-validation
+
+
+# ---------------------------------------------------------------------------
+# Public (v3) variants.  Each carries the body and the validation of its v2
+# counterpart, and the v3 routes declare these classes as their bodies.
+# ---------------------------------------------------------------------------
+
+
+class PublicAirQualityReportRequest(AirQualityReportRequest):
+    """v3 /report body: the v2 body with the same window limit."""
+
+
+class PublicDataSummaryRequest(DataSummaryRequest):
+    """v3 /summary body: the v2 body with the same window limit."""
 
 
 # ---------------------------------------------------------------------------

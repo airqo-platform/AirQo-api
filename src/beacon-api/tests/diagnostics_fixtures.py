@@ -26,7 +26,7 @@ _LOWCOST_PROFILE: Dict[str, Any] = {
         {
             "id": BATTERY_ID, "name": "device_battery", "component_type": "battery", "criticality": 0.7,
             "metrics": [{"key": "battery_voltage", "unit": "V", "expected_min": 3.0, "expected_max": 4.3,
-                         "max_rate_of_change": 0.3}],
+                         "max_rate_of_change": 0.3, "role": "charge_level"}],
         },
         {
             "id": PM1_ID, "name": "pm_sensor1", "component_type": "sensor", "criticality": 0.5,
@@ -42,7 +42,8 @@ _LOWCOST_PROFILE: Dict[str, Any] = {
         {"source_component_id": BATTERY_ID, "target_component_id": COMM_ID, "relationship_type": "POWERS"},
         {"source_component_id": BATTERY_ID, "target_component_id": PM1_ID, "relationship_type": "POWERS"},
         {"source_component_id": BATTERY_ID, "target_component_id": PM2_ID, "relationship_type": "POWERS"},
-        {"source_component_id": PM1_ID, "target_component_id": PM2_ID, "relationship_type": "MEASURES_SAME_AS"},
+        {"source_component_id": PM1_ID, "target_component_id": PM2_ID, "relationship_type": "MEASURES_SAME_AS",
+         "meta_data": {"tolerance": {"absolute": 5.0, "relative": 0.2}}},
     ],
 }
 
@@ -66,11 +67,17 @@ def make_records(
     battery: Optional[Callable[[int], Optional[float]]] = healthy_battery,
     pm1: Optional[Callable[[int], Optional[float]]] = healthy_pm,
     pm2: Optional[Callable[[int], Optional[float]]] = lambda i: healthy_pm(i) + 0.5,
+    gap_after: Optional[int] = None,
+    gap_hours: float = 0.0,
 ) -> List[Dict[str, Any]]:
-    """Telemetry already mapped to the profile's semantic keys."""
+    """
+    Telemetry already mapped to the profile's semantic keys. `gap_after`/`gap_hours` make the
+    device silent for that many hours after the given reading.
+    """
     records = []
     for i in range(count):
-        record: Dict[str, Any] = {"datetime": start_ts + i * interval_s}
+        silent = gap_hours * 3600 if gap_after is not None and i > gap_after else 0
+        record: Dict[str, Any] = {"datetime": start_ts + i * interval_s + silent}
         for key, fn in (("battery_voltage", battery), ("pm2_5_sensor1", pm1), ("pm2_5_sensor2", pm2)):
             value = fn(i) if fn else None
             if value is not None:
@@ -108,5 +115,6 @@ def profile_orm(profile: Optional[Dict[str, Any]] = None):
             source_component_id=uuid.UUID(rel["source_component_id"]),
             target_component_id=uuid.UUID(rel["target_component_id"]),
             relationship_type=rel["relationship_type"],
+            meta_data=rel.get("meta_data"),
         ))
     return orm

@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 _TIMESTAMP_KEYS = ("created_at_ts", "datetime", "timestamp", "time")
 _NON_METRIC_KEYS = set(_TIMESTAMP_KEYS) | {"device_id", "channel_id", "id", "entry_id"}
@@ -20,13 +20,14 @@ class FeatureExtractor:
         ts = next((record[k] for k in _TIMESTAMP_KEYS if record.get(k) is not None), None)
         if isinstance(ts, (int, float)) and not isinstance(ts, bool):
             return None if math.isnan(ts) or math.isinf(ts) else float(ts)
-        if isinstance(ts, datetime):
-            return ts.timestamp()
         if isinstance(ts, str):
             try:
-                return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+                ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except ValueError:
                 return None
+        if isinstance(ts, datetime):
+            # Naive values are UTC (the sync stores UTC); never interpret them in the host's zone.
+            return (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)).timestamp()
         return None
 
     @staticmethod
@@ -96,16 +97,16 @@ class FeatureExtractor:
         return round(float(slope), 4)
 
     @staticmethod
-    def calculate_max_rate_per_hour(
+    def calculate_max_rates_per_hour(
         values: List[float],
         timestamps: List[float],
         window_seconds: float = 3600.0,
         min_samples: int = 3,
     ) -> Tuple[float, float]:
         """
-        Largest absolute rate of change (units / hour) found in consecutive time windows,
-        using a linear fit per window so single noisy samples do not dominate.
-        Returns (max_abs_rate, signed_rate_of_that_window).
+        Steepest rise and steepest fall (units / hour, both as positive magnitudes) found in
+        consecutive time windows, using a linear fit per window so single noisy samples do not
+        dominate. Returns (max_rise, max_fall).
         """
         if len(values) < min_samples or len(values) != len(timestamps):
             return 0.0, 0.0
@@ -115,7 +116,7 @@ class FeatureExtractor:
         for v, ts in zip(values, timestamps):
             buckets.setdefault(int((ts - start) // window_seconds), []).append((ts, v))
 
-        best_abs, best_signed = 0.0, 0.0
+        max_rise, max_fall = 0.0, 0.0
         for points in buckets.values():
             if len(points) < min_samples:
                 continue
@@ -124,9 +125,23 @@ class FeatureExtractor:
                 continue
             ys = np.array([p[1] for p in points], dtype=float)
             slope, _ = np.polyfit((xs - xs[0]) / 3600.0, ys, 1)
-            if abs(slope) > best_abs:
-                best_abs, best_signed = abs(float(slope)), float(slope)
-        return round(best_abs, 4), round(best_signed, 4)
+            if slope > max_rise:
+                max_rise = float(slope)
+            elif -slope > max_fall:
+                max_fall = float(-slope)
+        return round(max_rise, 4), round(max_fall, 4)
+
+    @classmethod
+    def calculate_max_rate_per_hour(
+        cls,
+        values: List[float],
+        timestamps: List[float],
+        window_seconds: float = 3600.0,
+        min_samples: int = 3,
+    ) -> Tuple[float, float]:
+        """Largest absolute rate of change and its sign: (max_abs_rate, signed_rate)."""
+        rise, fall = cls.calculate_max_rates_per_hour(values, timestamps, window_seconds, min_samples)
+        return (rise, rise) if rise >= fall else (fall, -fall)
 
     @staticmethod
     def calculate_missing_rate(
@@ -261,16 +276,19 @@ class FeatureExtractor:
         for key, pairs in series_by_key.items():
             vals = [p[0] for p in pairs]
             ts_list = [p[1] for p in pairs]
-            max_rate, signed_rate = cls.calculate_max_rate_per_hour(
+            max_rise, max_fall = cls.calculate_max_rates_per_hour(
                 vals, ts_list, window_seconds=rate_window_seconds, min_samples=rate_min_samples
             )
             feature_map["metrics"][key] = {
                 **cls.calculate_variance_and_spikes(vals),
                 "gradient_per_hour": cls.calculate_discharge_gradient(vals, ts_list),
-                "max_rate_per_hour": max_rate,
-                "max_rate_signed": signed_rate,
+                "max_rise_per_hour": max_rise,
+                "max_fall_per_hour": max_fall,
+                "max_rate_per_hour": max(max_rise, max_fall),
+                "max_rate_signed": max_rise if max_rise >= max_fall else -max_fall,
                 "count": len(vals),
                 "values": vals,
+                "timestamps": ts_list,
             }
 
         return feature_map

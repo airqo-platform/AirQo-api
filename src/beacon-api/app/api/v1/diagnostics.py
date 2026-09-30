@@ -25,7 +25,9 @@ from app.schemas.diagnostics import (
     DailyDiagnosticsRunResponse,
     DeviceDailyDiagnosticResponse,
     DeviceDailyDiagnosticSummaryResponse,
+    DeviceIndicatorSeriesResponse,
     DeviceIssueSummaryResponse,
+    DeviceTrendsResponse,
     FleetDailySummaryResponse,
     FleetIssueResponse,
     ProfileDiagnosticReadinessResponse,
@@ -33,7 +35,9 @@ from app.schemas.diagnostics import (
 from app.services.diagnostics.daily import (
     DEFAULT_LOOKBACK_DAYS,
     RAW_RETENTION_DAYS,
+    build_device_indicator_series,
     build_device_issue_summary,
+    build_device_trends,
     build_fleet_daily_summary,
     resolve_window,
     run_daily_diagnostics,
@@ -444,6 +448,37 @@ def get_device_issue_summary(
 ) -> Any:
     """Recurring and active issues for a device over a period, with its daily health trend."""
     return build_device_issue_summary(db, device_id=device_id, days=days)
+
+
+@router.get("/devices/{device_id}/indicators", response_model=DeviceIndicatorSeriesResponse)
+def get_device_indicator_series(
+    device_id: str,
+    days: int = Query(default=30, ge=1, le=365, description="Look back this many days"),
+    component: Optional[str] = Query(default=None, description="Only this profile component, e.g. device_battery"),
+    indicator: Optional[str] = Query(default=None, description="Only this indicator group: charge_cycle, generation, coverage, or agreement:<name of the other component in the pair>"),
+    db: Session = Depends(get_db),
+) -> Any:
+    """
+    Daily indicator time series per component: charge cycle (swing, hours charging/discharging, min and when),
+    coverage (hours with data, outages and whether they followed a low charge) and sensor agreement
+    (correlation, error, bias, share within tolerance).
+    """
+    return build_device_indicator_series(db, device_id=device_id, days=days, component=component, indicator=indicator)
+
+
+@router.get("/devices/{device_id}/trends", response_model=DeviceTrendsResponse)
+def get_device_trends(
+    device_id: str,
+    window_days: Optional[int] = Query(default=None, ge=3, le=90, description="Days to fit the trend over; defaults to the profile's trend window (7)"),
+    as_of: Optional[date] = Query(default=None, description="Last day of the window; defaults to the device's latest diagnosed day"),
+    db: Session = Depends(get_db),
+) -> Any:
+    """
+    Multi-day trends of the device's indicators: daily battery minimum, time at low charge, offline hours,
+    data gaps, sensor error and bias, health score. Each is degrading, improving or stable, with the fitted
+    change per day and, where the indicator has a limit, the days until it is reached.
+    """
+    return build_device_trends(db, device_id=device_id, window_days=window_days, as_of=as_of)
 
 
 @router.get("/fleet/daily-summary", response_model=FleetDailySummaryResponse)

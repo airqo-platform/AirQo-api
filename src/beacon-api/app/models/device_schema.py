@@ -71,8 +71,9 @@ class MetricDefinition(Base):
     # Expected operating baseline envelope
     expected_min = Column(Float, nullable=True)
     expected_max = Column(Float, nullable=True)
-    max_rate_of_change = Column(Float, nullable=True)    # Max rate of change per hour
+    max_rate_of_change = Column(Float, nullable=True)    # Max rate of change per hour (for charge_level: max discharge rate)
     is_telemetry_field = Column(Boolean, default=True)
+    role = Column(String(50), nullable=True)             # "charge_level", "charge_source", "signal_strength"
 
     # Relationships
     component = relationship("ComponentDefinition", back_populates="metrics")
@@ -90,6 +91,7 @@ class ComponentRelationship(Base):
     source_component_id = Column(UUID(as_uuid=True), ForeignKey("component_definitions.id", ondelete="CASCADE"), nullable=False)
     target_component_id = Column(UUID(as_uuid=True), ForeignKey("component_definitions.id", ondelete="CASCADE"), nullable=False)
     relationship_type = Column(String(50), nullable=False) # "POWERS", "COMMUNICATES_VIA", "MEASURES_SAME_AS", "COOLS"
+    meta_data = Column("metadata", JSONB, nullable=True)   # e.g. {"tolerance": {"absolute": 10, "relative": 0.2}}
 
     # Relationships
     profile = relationship("DeviceProfile", back_populates="relationships")

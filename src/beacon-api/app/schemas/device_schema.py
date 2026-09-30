@@ -13,6 +13,10 @@ class MetricDefinitionBase(BaseModel):
     expected_max: Optional[float] = None
     max_rate_of_change: Optional[float] = None
     is_telemetry_field: bool = True
+    role: Optional[str] = Field(
+        default=None,
+        description="What the metric represents to the diagnostic engine: charge_level, charge_source or signal_strength",
+    )
 
 
 class MetricDefinitionCreate(MetricDefinitionBase):
@@ -143,6 +147,23 @@ class ComponentRelationshipBase(BaseModel):
     source_component_id: UUID
     target_component_id: UUID
     relationship_type: str  # POWERS, COMMUNICATES_VIA, MEASURES_SAME_AS, COOLS
+    meta_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description='Relationship settings, e.g. {"tolerance": {"absolute": 10, "relative": 0.2}} for MEASURES_SAME_AS',
+    )
+
+    @field_validator("meta_data", mode="before")
+    @classmethod
+    def parse_relationship_meta(cls, v: Any) -> Any:
+        # Silently dropping bad metadata would disable the pair's tolerance check without anyone noticing.
+        if isinstance(v, str):
+            try:
+                v = json.loads(v)
+            except json.JSONDecodeError as exc:
+                raise ValueError("meta_data must be valid JSON") from exc
+        if v is not None and not isinstance(v, dict):
+            raise ValueError("meta_data must be a JSON object")
+        return v
 
 
 class ComponentRelationshipCreate(ComponentRelationshipBase):
