@@ -613,15 +613,18 @@ const userController = {
       handleError(error, next);
     }
   },
-  sendFeedback: async (req, res, next) => {
-    try {
-      const request = handleRequest(req, next);
-      if (!request) return;
-      const result = await userUtil.sendFeedback(request, next);
-      sendResponse(res, result);
-    } catch (error) {
-      handleError(error, next);
-    }
+  // Decommissioned: it emailed a confirmation for every submission with no
+  // category or contact-consent checks. Clients use POST /feedback/submit.
+  sendFeedback: (req, res) => {
+    res.status(httpStatus.GONE).json({
+      success: false,
+      message:
+        "This endpoint has been decommissioned. Use POST /api/v2/users/feedback/submit instead.",
+      errors: {
+        message: "POST /feedback is no longer available",
+        replacement: "/api/v2/users/feedback/submit",
+      },
+    });
   },
   forgot: async (req, res, next) => {
     logger.info("...........................................");

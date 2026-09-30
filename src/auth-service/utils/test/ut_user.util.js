@@ -21,7 +21,6 @@ const {
   lookUpFirebaseUser,
   generateSignInWithEmailLink,
   delete: deleteUser,
-  sendFeedback,
   create,
   register,
   forgotPassword,
@@ -1392,121 +1391,6 @@ describe("create-user-util", function () {
       expect(result.message).to.equal("Internal Server Error");
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(result.errors.message).to.equal("Role update error");
-    });
-  });
-  describe("sendFeedback()", () => {
-    afterEach(() => {
-      sinon.restore(); // Restore any stubs after each test
-    });
-
-    it("should send feedback email successfully", async () => {
-      // Mock the request object with the required body data
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      // Stub the mailer.feedback function to return a successful response
-      sinon.stub(mailer, "feedback").resolves({
-        success: true,
-        message: "Email sent successfully",
-      });
-      sinon
-        .stub(mailer, "feedbackConfirmation")
-        .resolves({ success: true, message: "Confirmation sent" });
-
-      // Call the sendFeedback function with the mocked request
-      const response = await sendFeedback(request);
-
-      // Assert the response from the function
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        status: httpStatus.OK,
-      });
-      expect(mailer.feedbackConfirmation.calledOnce).to.be.true;
-    });
-
-    it("should still return success when confirmation email fails", async () => {
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      sinon.stub(mailer, "feedback").resolves({
-        success: true,
-        message: "Email sent successfully",
-      });
-      sinon
-        .stub(mailer, "feedbackConfirmation")
-        .rejects(new Error("SMTP error"));
-
-      const response = await sendFeedback(request);
-
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        status: httpStatus.OK,
-      });
-    });
-
-    it("should handle email sending error", async () => {
-      // Mock the request object with the required body data
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      // Stub the mailer.feedback function to return an error response
-      sinon.stub(mailer, "feedback").resolves({
-        success: false,
-        message: "Error sending email",
-        // Any other data you want to include in the response
-      });
-
-      // Call the sendFeedback function with the mocked request
-      const response = await sendFeedback(request);
-
-      // Assert the response from the function
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Error sending email",
-        // Any other data you expect in the response
-      });
-    });
-
-    it("should handle internal server error", async () => {
-      // Mock the request object with the required body data
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      // Stub the mailer.feedback function to throw an error
-      sinon.stub(mailer, "feedback").throws(new Error("Internal server error"));
-      const next = sinon.stub();
-
-      // Call the sendFeedback function with the mocked request
-      await sendFeedback(request, next);
-
-      // Assert that next was called with the expected HttpError
-      sinon.assert.calledOnce(next);
-      const err = next.firstCall.args[0];
-      expect(err).to.be.instanceOf(Error);
-      expect(err.message).to.equal("Internal Server Error");
-      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
   describe("submitFeedback()", () => {

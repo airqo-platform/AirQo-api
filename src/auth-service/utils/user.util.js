@@ -3127,59 +3127,6 @@ const createUserModule = {
     }
   },
 
-  sendFeedback: async (request, next) => {
-    try {
-      const { body } = request;
-      const { email, message, subject } = body;
-      const responseFromSendEmail = await mailer.feedback(
-        {
-          email,
-          message,
-          subject,
-        },
-        next,
-      );
-
-      logObject("responseFromSendEmail ....", responseFromSendEmail);
-
-      if (responseFromSendEmail && responseFromSendEmail.success === true) {
-        // Send confirmation email to the feedback submitter (best-effort)
-        try {
-          const confirmResult = await mailer.feedbackConfirmation({
-            email,
-            subject,
-          });
-          if (!confirmResult || confirmResult.success === false) {
-            logger.warn(
-              `Support email sent but confirmation email failed: ${confirmResult && confirmResult.message}`,
-            );
-          }
-        } catch (confirmationError) {
-          logger.warn(
-            `Support email sent but confirmation email failed: ${confirmationError.message}`,
-          );
-        }
-
-        return {
-          success: true,
-          message: "email successfully sent",
-          status: httpStatus.OK,
-        };
-      } else {
-        return responseFromSendEmail;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-    }
-  },
-
   registerMobileUser: async (request, next) => {
     try {
       const { tenant, email, firstName, lastName, password } = {
