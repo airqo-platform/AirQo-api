@@ -1657,6 +1657,12 @@ const submitFeedback = [
     .bail()
     .isLength({ max: 100 })
     .withMessage("app cannot exceed 100 characters"),
+  body("contact_consent")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("contact_consent must be a boolean if provided")
+    .bail()
+    .toBoolean(),
   body("screenshot_url")
     .optional()
     .trim()

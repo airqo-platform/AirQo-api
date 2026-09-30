@@ -1604,6 +1604,87 @@ describe("create-user-util", function () {
       expect(response.success).to.equal(true);
     });
 
+    it("should skip the confirmation email for short, highly rated general notes", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "Nexus feedback - General",
+          message: "Love the new dashboard",
+          rating: 5,
+          category: "general",
+        },
+        query: {},
+        user: null,
+      };
+
+      const response = await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(response.success).to.equal(true);
+      expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(false);
+      expect(confirmStub.called).to.be.false;
+    });
+
+    it("should skip the confirmation email when the submitter declines contact", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "App bug",
+          message: "The map crashes on load",
+          category: "bug",
+          contact_consent: false,
+        },
+        query: {},
+        user: null,
+      };
+
+      await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(feedbackRegisterStub.firstCall.args[0].contact_consent).to.equal(
+        false,
+      );
+      expect(confirmStub.called).to.be.false;
+    });
+
+    it("should keep low-rated general notes actionable", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "Nexus feedback - General",
+          message: "Hard to find exports",
+          rating: 2,
+          category: "general",
+        },
+        query: {},
+        user: null,
+      };
+
+      await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(true);
+      expect(confirmStub.calledOnce).to.be.true;
+    });
+
     describe("page_satisfaction", () => {
       let recordStub;
       let origPageSatisfactionModel;
@@ -1687,6 +1768,44 @@ describe("create-user-util", function () {
         expect(response.success).to.equal(false);
         expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
         expect(feedbackStub.called).to.be.false;
+      });
+
+      it("should only record counters for a bare click with no written detail", async () => {
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+        const integrationsStub = sinon.stub().resolves();
+        const origDispatchIntegrations = rewireCreateUser.__get__(
+          "dispatchIntegrations",
+        );
+        rewireCreateUser.__set__("dispatchIntegrations", integrationsStub);
+
+        try {
+          const response = await rewireCreateUser.submitFeedback(
+            {
+              ...request,
+              body: {
+                ...request.body,
+                subject: "Login Experience",
+                message: "Positive",
+                app: "vertex",
+              },
+            },
+            (err) => {
+              throw err;
+            },
+          );
+
+          expect(response.success).to.equal(true);
+          expect(feedbackStub.called).to.be.false;
+          expect(integrationsStub.called).to.be.false;
+          expect(recordStub.firstCall.args[0].hasMessage).to.equal(false);
+        } finally {
+          rewireCreateUser.__set__(
+            "dispatchIntegrations",
+            origDispatchIntegrations,
+          );
+        }
       });
 
       it("should still succeed when the support email throws", async () => {
@@ -1799,7 +1918,7 @@ describe("create-user-util", function () {
   describe("updateFeedbackStatus()", () => {
     let origFeedbackModel;
 
-    const stubFeedback = (category) => {
+    const stubFeedback = (category, extra = {}) => {
       rewireCreateUser.__set__("FeedbackModel", () => ({
         findSingle: sinon.stub().resolves({
           success: true,
@@ -1810,6 +1929,7 @@ describe("create-user-util", function () {
             status: "reviewed",
             category,
             watchers: [],
+            ...extra,
           },
         }),
         modify: sinon.stub().resolves({ success: true, data: {} }),
@@ -1846,6 +1966,79 @@ describe("create-user-util", function () {
 
       expect(response.success).to.equal(true);
       expect(statusStub.called).to.be.false;
+    });
+
+    it("should not email the submitter when an item is archived", async () => {
+      stubFeedback("bug");
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(
+        { ...request, body: { status: "archived" } },
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should not email the submitter for non-actionable items", async () => {
+      stubFeedback("general", { actionable: false });
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(request, (err) => {
+        throw err;
+      });
+
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should not email the submitter when they declined contact", async () => {
+      stubFeedback("bug", { contact_consent: false });
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(request, (err) => {
+        throw err;
+      });
+
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should refuse to reply when the submitter declined contact", async () => {
+      const addReplyStub = sinon.stub().resolves({ success: true });
+      rewireCreateUser.__set__("FeedbackModel", () => ({
+        findSingle: sinon.stub().resolves({
+          success: true,
+          data: { _id: "fb1", email: "user@example.com", contact_consent: false },
+        }),
+        addReply: addReplyStub,
+      }));
+      const replyStub = sinon
+        .stub(mailer, "feedbackAdminReply")
+        .resolves({ success: true });
+
+      const response = await rewireCreateUser.replyToFeedback(
+        {
+          body: { message: "Thanks" },
+          query: {},
+          params: { feedback_id: "fb1" },
+          user: {},
+        },
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.CONFLICT);
+      expect(addReplyStub.called).to.be.false;
+      expect(replyStub.called).to.be.false;
     });
 
     it("should email the submitter for other categories", async () => {
