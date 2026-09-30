@@ -370,6 +370,7 @@ router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 // GET    /feedback/upload-url                               – public
 // POST   /feedback/submit                                   – public
 // GET    /feedback/staff                                    – admin; list assignable staff members
+// GET    /feedback/stats                                    – admin; dashboard card counts + page-satisfaction rollups
 // GET    /feedback/submissions                              – admin; list with filtering
 // PATCH  /feedback/submissions/bulk-status                 – admin; bulk status update
 // GET    /feedback/submissions/:feedback_id                – admin; single submission
@@ -405,6 +406,15 @@ router.get(
   enhancedJWTAuth,
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listFeedbackStaff,
+);
+
+router.get(
+  "/feedback/stats",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.getFeedbackStats,
+  validate,
+  userController.getFeedbackStats,
 );
 
 router.get(
