@@ -107,6 +107,12 @@ const FeedbackSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Whether the submitter agreed to be contacted about this item. When false,
+    // no confirmation, status-update or reply emails are sent to them.
+    contact_consent: {
+      type: Boolean,
+      default: true,
+    },
     // Internal notes visible only to admins — never exposed to the submitter.
     adminNotes: {
       type: String,
@@ -515,6 +521,8 @@ FeedbackSchema.statics = {
             email: existing.email,
             subject: existing.subject,
             category: existing.category,
+            actionable: existing.actionable,
+            contact_consent: existing.contact_consent,
             watchers: existing.watchers || [],
           });
         } catch (err) {
@@ -544,6 +552,7 @@ FeedbackSchema.methods = {
       tenant: this.tenant,
       metadata: this.metadata,
       actionable: this.actionable,
+      contact_consent: this.contact_consent,
       adminNotes: this.adminNotes,
       reminderSentAt: this.reminderSentAt,
       reminderCount: this.reminderCount,

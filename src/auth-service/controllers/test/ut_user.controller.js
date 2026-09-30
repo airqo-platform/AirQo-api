@@ -356,43 +356,23 @@ describe("createUserController", () => {
   });
 
   describe("sendFeedback", () => {
-    it("should send feedback successfully", async () => {
-      sinon.stub(createUserUtil, "sendFeedback").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Feedback sent successfully",
-        data: { sent: true },
-      });
+    it("should respond 410 Gone and point to the replacement endpoint", async () => {
+      const utilSpy = sinon.spy(createUserUtil, "submitFeedback");
 
       await createUser.sendFeedback(req, res, next);
 
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledWithMatch({ success: true })).to.be.true;
-    });
-
-    it("should handle bad request errors", async () => {
-      createUser.__set__("extractErrorsFromRequest", mockBadRequest);
-      await createUser.sendFeedback(req, res, next);
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle util failure", async () => {
-      sinon.stub(createUserUtil, "sendFeedback").resolves({
+      expect(res.status.calledWith(httpStatus.GONE)).to.be.true;
+      expect(res.json.calledOnce).to.be.true;
+      expect(res.json.firstCall.args[0]).to.deep.equal({
         success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Failed to send feedback",
-        errors: { message: "Error" },
+        message:
+          "This endpoint has been decommissioned. Use POST /api/v2/users/feedback/submit instead.",
+        errors: {
+          message: "POST /feedback is no longer available",
+          replacement: "/api/v2/users/feedback/submit",
+        },
       });
-      await createUser.sendFeedback(req, res, next);
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
-    });
-
-    it("should handle unexpected errors", async () => {
-      sinon.stub(createUserUtil, "sendFeedback").rejects(new Error("Email error"));
-      await createUser.sendFeedback(req, res, next);
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(utilSpy.called).to.be.false;
     });
   });
 

@@ -3127,59 +3127,6 @@ const createUserModule = {
     }
   },
 
-  sendFeedback: async (request, next) => {
-    try {
-      const { body } = request;
-      const { email, message, subject } = body;
-      const responseFromSendEmail = await mailer.feedback(
-        {
-          email,
-          message,
-          subject,
-        },
-        next,
-      );
-
-      logObject("responseFromSendEmail ....", responseFromSendEmail);
-
-      if (responseFromSendEmail && responseFromSendEmail.success === true) {
-        // Send confirmation email to the feedback submitter (best-effort)
-        try {
-          const confirmResult = await mailer.feedbackConfirmation({
-            email,
-            subject,
-          });
-          if (!confirmResult || confirmResult.success === false) {
-            logger.warn(
-              `Support email sent but confirmation email failed: ${confirmResult && confirmResult.message}`,
-            );
-          }
-        } catch (confirmationError) {
-          logger.warn(
-            `Support email sent but confirmation email failed: ${confirmationError.message}`,
-          );
-        }
-
-        return {
-          success: true,
-          message: "email successfully sent",
-          status: httpStatus.OK,
-        };
-      } else {
-        return responseFromSendEmail;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-    }
-  },
-
   registerMobileUser: async (request, next) => {
     try {
       const { tenant, email, firstName, lastName, password } = {
@@ -8322,16 +8269,30 @@ const resolveFeedbackTenant = (query) =>
 
 // Classifies whether a feedback item needs team action.
 // Bugs, feature requests, and performance issues are always actionable.
-// Pure ratings (page_satisfaction with a short message) are not.
-const classifyFeedback = ({ category, message }) => {
+// Short, highly rated notes in other categories ("love it", 5 stars) are
+// appreciation, not requests: they get no confirmation or status emails.
+const classifyFeedback = ({ category, message, rating }) => {
   const ALWAYS_ACTIONABLE = ["bug", "feature_request", "performance"];
   if (ALWAYS_ACTIONABLE.includes(category)) return true;
-  if (category === "page_satisfaction") {
-    const len = (message || "").trim().length;
-    if (len < 50) return false;
-  }
+  const len = (message || "").trim().length;
+  if (Number(rating) >= 4 && len < 50) return false;
   return true;
 };
+
+// Satisfaction widgets send the bare label ("Positive" / "Negative") when the
+// user only clicked a button, so that is not treated as written detail.
+const hasWrittenDetail = (message) => {
+  const trimmed = (message || "").trim();
+  return trimmed.length > 0 && !/^(positive|negative)$/i.test(trimmed);
+};
+
+// Submitters are only emailed about progress on items that need action, and
+// archiving is silent: it is an internal clean-up, not an outcome.
+const shouldEmailSubmitterOnStatusChange = (item, newStatus) =>
+  item.category !== "page_satisfaction" &&
+  item.actionable !== false &&
+  item.contact_consent !== false &&
+  newStatus !== "archived";
 
 const submitPageSatisfaction = async ({
   tenant,
@@ -8346,6 +8307,7 @@ const submitPageSatisfaction = async ({
 }) => {
   const page = PageSatisfactionDailyModel.pageFromSubject(subject);
   const trimmedMessage = (message || "").trim();
+  const hasDetail = hasWrittenDetail(trimmedMessage);
 
   // Counters first: if they cannot be written, fail before emailing support so
   // a client retry does not produce a duplicate support email.
@@ -8355,7 +8317,7 @@ const submitPageSatisfaction = async ({
     app,
     platform,
     rating,
-    hasMessage: trimmedMessage.length > 0,
+    hasMessage: hasDetail,
     hasScreenshot: !isEmpty(screenshot_url),
   });
   if (!recordResult || !recordResult.success) {
@@ -8372,27 +8334,31 @@ const submitPageSatisfaction = async ({
     };
   }
 
-  // The email is the only place the submitter and message text are kept.
-  try {
-    const details = [
-      `Page: ${page}`,
-      rating ? `Rating: ${rating}/5` : null,
-      app ? `App: ${app}` : null,
-      `Platform: ${platform || "web"}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-    await mailer.feedback(
-      {
-        email,
-        subject,
-        message: `${trimmedMessage}\n\n${details}`,
-        screenshot_url,
-      },
-      next,
-    );
-  } catch (emailError) {
-    logger.warn(`Page satisfaction support email failed: ${emailError.message}`);
+  // A bare click is fully captured by the counters. Only ratings with written
+  // detail reach support and Slack; the email is the only place the submitter
+  // and message text are kept.
+  if (hasDetail) {
+    try {
+      const details = [
+        `Page: ${page}`,
+        rating ? `Rating: ${rating}/5` : null,
+        app ? `App: ${app}` : null,
+        `Platform: ${platform || "web"}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      await mailer.feedback(
+        {
+          email,
+          subject,
+          message: `${trimmedMessage}\n\n${details}`,
+          screenshot_url,
+        },
+        next,
+      );
+    } catch (emailError) {
+      logger.warn(`Page satisfaction support email failed: ${emailError.message}`);
+    }
   }
 
   // Webhooks/integrations still see the rating, but there is no feedbackId
@@ -8409,7 +8375,9 @@ const submitPageSatisfaction = async ({
     createdAt: new Date(),
   };
   dispatchWebhooks(tenant, "feedback.submitted", submittedPayload).catch(() => {});
-  dispatchIntegrations({ ...submittedPayload, message }).catch(() => {});
+  if (hasDetail) {
+    dispatchIntegrations({ ...submittedPayload, message }).catch(() => {});
+  }
 
   return {
     success: true,
@@ -8451,6 +8419,7 @@ const feedbackUtil = {
         app: rawApp,
         screenshot_url,
         metadata,
+        contact_consent,
       } = body;
       const app =
         typeof rawApp === "string" && rawApp.trim()
@@ -8487,7 +8456,7 @@ const feedbackUtil = {
         });
       }
 
-      const actionable = classifyFeedback({ category, message });
+      const actionable = classifyFeedback({ category, message, rating });
 
       // Persist to database
       const createResult = await FeedbackModel(tenant).register({
@@ -8502,6 +8471,7 @@ const feedbackUtil = {
         metadata,
         tenant,
         actionable,
+        contact_consent: contact_consent !== false,
         userId: request.user ? request.user._id : undefined,
       });
 
@@ -8521,21 +8491,25 @@ const feedbackUtil = {
         );
       }
 
-      // Send confirmation email to the feedback submitter (best-effort)
-      try {
-        const confirmResult = await mailer.feedbackConfirmation({
-          email: normalizedEmail,
-          subject,
-        });
-        if (!confirmResult || confirmResult.success === false) {
+      // Confirm receipt to the submitter (best-effort) only when the team will
+      // act on it and they agreed to be contacted — appreciation notes do not
+      // warrant a system email.
+      if (actionable && contact_consent !== false) {
+        try {
+          const confirmResult = await mailer.feedbackConfirmation({
+            email: normalizedEmail,
+            subject,
+          });
+          if (!confirmResult || confirmResult.success === false) {
+            logger.warn(
+              `Feedback saved to DB but confirmation email failed: ${confirmResult && confirmResult.message}`,
+            );
+          }
+        } catch (confirmationError) {
           logger.warn(
-            `Feedback saved to DB but confirmation email failed: ${confirmResult && confirmResult.message}`,
+            `Feedback saved to DB but confirmation email failed: ${confirmationError.message}`,
           );
         }
-      } catch (confirmationError) {
-        logger.warn(
-          `Feedback saved to DB but confirmation email failed: ${confirmationError.message}`,
-        );
       }
 
       // Fire webhooks — whitelist public fields only; never forward adminNotes,
@@ -8806,9 +8780,8 @@ const feedbackUtil = {
         const fb = existing.data;
         const statusDetail = `Status changed from "${currentStatus}" to "${requestedStatus}".`;
 
-        // Notify submitter (best-effort). Page-satisfaction ratings were never
-        // an issue or inquiry, so a status update means nothing to them.
-        if (fb.category !== "page_satisfaction") {
+        // Notify submitter (best-effort).
+        if (shouldEmailSubmitterOnStatusChange(fb, requestedStatus)) {
           try {
             await mailer.feedbackStatusUpdate({
               email: fb.email,
@@ -8877,7 +8850,7 @@ const feedbackUtil = {
 
       // Notify submitters and watchers for each succeeded item (best-effort)
       for (const item of succeeded) {
-        if (item.category !== "page_satisfaction") {
+        if (shouldEmailSubmitterOnStatusChange(item, requestedStatus)) {
           mailer.feedbackStatusUpdate({
             email: item.email,
             subject: item.subject,
@@ -9079,6 +9052,18 @@ const feedbackUtil = {
         tenant,
       });
       if (!existing || !existing.success) return existing;
+
+      if (existing.data.contact_consent === false) {
+        return {
+          success: false,
+          message: "The submitter asked not to be contacted about this feedback",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message:
+              "Replies cannot be sent for feedback submitted without contact consent",
+          },
+        };
+      }
 
       const admin = request.user || {};
       const reply = {
