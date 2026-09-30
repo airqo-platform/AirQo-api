@@ -363,7 +363,8 @@ router.post(
   userController.completeEmailLogin,
 );
 
-router.post("/feedback", userValidations.feedback, userController.sendFeedback);
+// Decommissioned — responds 410 Gone. Use POST /feedback/submit.
+router.post("/feedback", userController.sendFeedback);
 
 // ================================
 // PERSISTENT FEEDBACK / RATING ROUTES

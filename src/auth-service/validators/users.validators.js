@@ -305,32 +305,6 @@ const completeEmailLogin = [
   ],
 ];
 
-const feedback = oneOf([
-  [
-    body("email")
-      .exists()
-      .withMessage("the email must be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the email must not be empty if provided")
-      .bail()
-      .isEmail()
-      .withMessage("this is not a valid email address"),
-    body("subject")
-      .exists()
-      .withMessage("the subject must be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the subject must not be empty if provided"),
-    body("message")
-      .exists()
-      .withMessage("the message must be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the message must not be empty if provided"),
-  ],
-]);
-
 const firebaseLookup = oneOf([
   body("email")
     .exists()
@@ -2161,7 +2135,6 @@ module.exports = {
   emailLogin,
   emailAuth,
   completeEmailLogin,
-  feedback,
   firebaseLookup,
   firebaseCreate,
   firebaseLogin,
