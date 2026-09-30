@@ -362,12 +362,16 @@ describe("createUserController", () => {
       await createUser.sendFeedback(req, res, next);
 
       expect(res.status.calledWith(httpStatus.GONE)).to.be.true;
-      expect(
-        res.json.calledWithMatch({
-          success: false,
-          errors: { replacement: "/api/v2/users/feedback/submit" },
-        }),
-      ).to.be.true;
+      expect(res.json.calledOnce).to.be.true;
+      expect(res.json.firstCall.args[0]).to.deep.equal({
+        success: false,
+        message:
+          "This endpoint has been decommissioned. Use POST /api/v2/users/feedback/submit instead.",
+        errors: {
+          message: "POST /feedback is no longer available",
+          replacement: "/api/v2/users/feedback/submit",
+        },
+      });
       expect(utilSpy.called).to.be.false;
     });
   });
