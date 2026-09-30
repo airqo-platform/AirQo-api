@@ -1671,6 +1671,24 @@ describe("create-user-util", function () {
         expect(recorded).to.not.have.property("email");
       });
 
+      it("should fail without emailing support when the counters cannot be written", async () => {
+        recordStub.resolves({ success: false, message: "write conflict" });
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(false);
+        expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(feedbackStub.called).to.be.false;
+      });
+
       it("should still succeed when the support email throws", async () => {
         sinon.stub(mailer, "feedback").rejects(new Error("SMTP timeout"));
 

@@ -8347,6 +8347,31 @@ const submitPageSatisfaction = async ({
   const page = PageSatisfactionDailyModel.pageFromSubject(subject);
   const trimmedMessage = (message || "").trim();
 
+  // Counters first: if they cannot be written, fail before emailing support so
+  // a client retry does not produce a duplicate support email.
+  const recordResult = await PageSatisfactionDailyModel(tenant).record({
+    tenant,
+    page,
+    app,
+    platform,
+    rating,
+    hasMessage: trimmedMessage.length > 0,
+    hasScreenshot: !isEmpty(screenshot_url),
+  });
+  if (!recordResult || !recordResult.success) {
+    logger.error(
+      `Page satisfaction counters not updated: ${recordResult && recordResult.message}`,
+    );
+    return {
+      success: false,
+      message: "Unable to record page satisfaction feedback",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: {
+        message: (recordResult && recordResult.message) || "Counter update failed",
+      },
+    };
+  }
+
   // The email is the only place the submitter and message text are kept.
   try {
     const details = [
@@ -8368,19 +8393,6 @@ const submitPageSatisfaction = async ({
     );
   } catch (emailError) {
     logger.warn(`Page satisfaction support email failed: ${emailError.message}`);
-  }
-
-  const recordResult = await PageSatisfactionDailyModel(tenant).record({
-    tenant,
-    page,
-    app,
-    platform,
-    rating,
-    hasMessage: trimmedMessage.length > 0,
-    hasScreenshot: !isEmpty(screenshot_url),
-  });
-  if (!recordResult.success) {
-    logger.warn(`Page satisfaction counters not updated: ${recordResult.message}`);
   }
 
   // Webhooks/integrations still see the rating, but there is no feedbackId

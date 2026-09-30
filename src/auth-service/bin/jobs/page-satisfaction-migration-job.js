@@ -19,7 +19,22 @@ const jobName = "page-satisfaction-migration-job";
 //    deleting never double-counts on the next run;
 //  - an item is deleted only after its count is confirmed.
 // Once no legacy items remain, every run is a single countDocuments no-op.
-const LEGACY_FILTER = { tenant: TENANT, category: "page_satisfaction" };
+//
+// Items an admin has worked on (reply, internal note, assignee or watcher) are
+// left in place untouched so that work is not lost; admins can archive them.
+// A status change alone is not protected — clearing resolved/archived ratings
+// out of the feedback list is the point of this migration.
+const NO_ADMIN_CONTENT = {
+  "replies.0": { $exists: false },
+  "watchers.0": { $exists: false },
+  assignedTo: null,
+  adminNotes: { $in: [null, ""] },
+};
+const LEGACY_FILTER = {
+  tenant: TENANT,
+  category: "page_satisfaction",
+  ...NO_ADMIN_CONTENT,
+};
 
 let isJobRunning = false;
 
@@ -90,9 +105,11 @@ const migratePageSatisfactionFeedback = async () => {
       }
 
       if (countedIds.length > 0) {
+        // Re-apply the admin-content guard so an item an admin replied to or
+        // annotated after this batch was read is kept rather than deleted.
         const deleted = await FeedbackModel(TENANT).deleteMany({
           _id: { $in: countedIds },
-          category: "page_satisfaction",
+          ...LEGACY_FILTER,
         });
         migrated += deleted.deletedCount || 0;
       }
