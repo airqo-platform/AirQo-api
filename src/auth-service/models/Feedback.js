@@ -313,6 +313,101 @@ FeedbackSchema.statics = {
     }
   },
 
+  // Card counts for the admin feedback dashboard. One round-trip via $facet.
+  // staleBefore marks pending actionable items old enough for the weekly digest.
+  async getStats({ match = {}, staleBefore = new Date(), recentSince = new Date() } = {}) {
+    const [result] = await this.aggregate([
+      { $match: match },
+      {
+        $facet: {
+          overall: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                actionable: { $sum: { $cond: ["$actionable", 1, 0] } },
+                open: {
+                  $sum: { $cond: [{ $in: ["$status", ["pending", "reviewed"]] }, 1, 0] },
+                },
+                open_actionable: {
+                  $sum: {
+                    $cond: [
+                      { $and: ["$actionable", { $in: ["$status", ["pending", "reviewed"]] }] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                unassigned_open: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $in: ["$status", ["pending", "reviewed"]] },
+                          { $not: ["$assignedTo"] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                stale_actionable: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          "$actionable",
+                          { $eq: ["$status", "pending"] },
+                          { $lt: ["$createdAt", staleBefore] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                replied: {
+                  $sum: { $cond: [{ $gt: [{ $size: { $ifNull: ["$replies", []] } }, 0] }, 1, 0] },
+                },
+                with_screenshot: {
+                  $sum: {
+                    $cond: [{ $gt: [{ $strLenCP: { $ifNull: ["$screenshot_url", ""] } }, 0] }, 1, 0],
+                  },
+                },
+                recent: { $sum: { $cond: [{ $gte: ["$createdAt", recentSince] }, 1, 0] } },
+                rated_count: { $sum: { $cond: [{ $gt: [{ $ifNull: ["$rating", 0] }, 0] }, 1, 0] } },
+                average_rating: { $avg: "$rating" },
+                oldest_pending_at: {
+                  $min: { $cond: [{ $eq: ["$status", "pending"] }, "$createdAt", null] },
+                },
+                latest_at: { $max: "$createdAt" },
+              },
+            },
+          ],
+          by_status: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+          by_category: [
+            { $group: { _id: "$category", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ],
+          by_app: [
+            { $group: { _id: { $ifNull: ["$app", "unknown"] }, count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ],
+          by_platform: [
+            { $group: { _id: "$platform", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ],
+          by_rating: [
+            { $match: { rating: { $gte: 1 } } },
+            { $group: { _id: "$rating", count: { $sum: 1 } } },
+          ],
+        },
+      },
+    ]).exec();
+    return result;
+  },
+
   // Used by the weekly reminder job to bump counters on batches of documents.
   async bulkUpdateReminderState(ids = [], sentAt = new Date()) {
     try {
@@ -419,6 +514,7 @@ FeedbackSchema.statics = {
             previousStatus: existing.status,
             email: existing.email,
             subject: existing.subject,
+            category: existing.category,
             watchers: existing.watchers || [],
           });
         } catch (err) {

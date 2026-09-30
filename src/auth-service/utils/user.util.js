@@ -8308,6 +8308,7 @@ const createUserModule = {
 // Separated from createUserModule to keep concerns clear; exported individually.
 // ─────────────────────────────────────────────────────────────────────────────
 const FeedbackModel = require("@models/Feedback");
+const PageSatisfactionDailyModel = require("@models/PageSatisfactionDaily");
 const { FeedbackWebhookModel } = require("@models/FeedbackWebhook");
 const { dispatchWebhooks } = require("@utils/feedback-webhook.util");
 const { dispatchIntegrations } = require("@utils/feedback-integrations.util");
@@ -8330,6 +8331,97 @@ const classifyFeedback = ({ category, message }) => {
     if (len < 50) return false;
   }
   return true;
+};
+
+const submitPageSatisfaction = async ({
+  tenant,
+  email,
+  subject,
+  message,
+  rating,
+  platform,
+  app,
+  screenshot_url,
+  next,
+}) => {
+  const page = PageSatisfactionDailyModel.pageFromSubject(subject);
+  const trimmedMessage = (message || "").trim();
+
+  // Counters first: if they cannot be written, fail before emailing support so
+  // a client retry does not produce a duplicate support email.
+  const recordResult = await PageSatisfactionDailyModel(tenant).record({
+    tenant,
+    page,
+    app,
+    platform,
+    rating,
+    hasMessage: trimmedMessage.length > 0,
+    hasScreenshot: !isEmpty(screenshot_url),
+  });
+  if (!recordResult || !recordResult.success) {
+    logger.error(
+      `Page satisfaction counters not updated: ${recordResult && recordResult.message}`,
+    );
+    return {
+      success: false,
+      message: "Unable to record page satisfaction feedback",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: {
+        message: (recordResult && recordResult.message) || "Counter update failed",
+      },
+    };
+  }
+
+  // The email is the only place the submitter and message text are kept.
+  try {
+    const details = [
+      `Page: ${page}`,
+      rating ? `Rating: ${rating}/5` : null,
+      app ? `App: ${app}` : null,
+      `Platform: ${platform || "web"}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    await mailer.feedback(
+      {
+        email,
+        subject,
+        message: `${trimmedMessage}\n\n${details}`,
+        screenshot_url,
+      },
+      next,
+    );
+  } catch (emailError) {
+    logger.warn(`Page satisfaction support email failed: ${emailError.message}`);
+  }
+
+  // Webhooks/integrations still see the rating, but there is no feedbackId
+  // because nothing is persisted as an individual item.
+  const submittedPayload = {
+    feedbackId: null,
+    email,
+    subject,
+    category: "page_satisfaction",
+    platform: platform || "web",
+    app,
+    rating,
+    actionable: false,
+    createdAt: new Date(),
+  };
+  dispatchWebhooks(tenant, "feedback.submitted", submittedPayload).catch(() => {});
+  dispatchIntegrations({ ...submittedPayload, message }).catch(() => {});
+
+  return {
+    success: true,
+    message: "Feedback submitted successfully",
+    status: httpStatus.CREATED,
+    data: {
+      category: "page_satisfaction",
+      page,
+      rating,
+      stored: false,
+    },
+  };
 };
 
 // U3: allowed status transitions — enforced before every modify call.
@@ -8377,6 +8469,23 @@ const feedbackUtil = {
         };
       }
       const normalizedEmail = email.toLowerCase().trim();
+
+      // Page-satisfaction ratings are not issues or inquiries, so they are not
+      // persisted as Feedback items (no status workflow, no follow-up emails).
+      // Support gets the email; only anonymous daily counters are stored.
+      if (category === "page_satisfaction") {
+        return await submitPageSatisfaction({
+          tenant,
+          email: normalizedEmail,
+          subject,
+          message,
+          rating,
+          platform,
+          app,
+          screenshot_url,
+          next,
+        });
+      }
 
       const actionable = classifyFeedback({ category, message });
 
@@ -8504,6 +8613,137 @@ const feedbackUtil = {
     }
   },
 
+  // Powers the top cards on the admin feedback page. Feedback items and the
+  // page-satisfaction daily counters share the same app/platform/date filters.
+  getFeedbackStats: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const now = new Date();
+
+      const feedbackMatch = { tenant };
+      const pageMatch = { tenant };
+      if (typeof query.app === "string" && query.app.trim()) {
+        feedbackMatch.app = query.app.trim();
+        pageMatch.app = query.app.trim();
+      }
+      if (query.platform) {
+        feedbackMatch.platform = query.platform;
+        pageMatch.platform = query.platform;
+      }
+      if (query.startDate || query.endDate) {
+        feedbackMatch.createdAt = {};
+        pageMatch.day = {};
+        if (query.startDate) {
+          const start = new Date(query.startDate);
+          feedbackMatch.createdAt.$gte = start;
+          pageMatch.day.$gte = start.toISOString().slice(0, 10);
+        }
+        if (query.endDate) {
+          const end = new Date(query.endDate);
+          // A date-only endDate ("2026-09-30") covers that whole UTC day.
+          if (/^\d{4}-\d{2}-\d{2}$/.test(String(query.endDate))) {
+            end.setUTCHours(23, 59, 59, 999);
+          }
+          feedbackMatch.createdAt.$lte = end;
+          pageMatch.day.$lte = end.toISOString().slice(0, 10);
+        }
+      }
+
+      const staleBefore = new Date(now);
+      staleBefore.setDate(
+        staleBefore.getDate() - constants.FEEDBACK_REMINDER_THRESHOLD_DAYS,
+      );
+      const recentSince = new Date(now);
+      recentSince.setDate(recentSince.getDate() - 7);
+
+      const [feedbackStats, pageSatisfaction] = await Promise.all([
+        FeedbackModel(tenant).getStats({
+          match: feedbackMatch,
+          staleBefore,
+          recentSince,
+        }),
+        PageSatisfactionDailyModel(tenant).summarize({ match: pageMatch }),
+      ]);
+
+      const overall = (feedbackStats.overall || [])[0] || {};
+      const byStatus = Object.fromEntries(
+        constants.FEEDBACK_STATUSES.map((status) => [status, 0]),
+      );
+      for (const row of feedbackStats.by_status || []) {
+        byStatus[row._id] = row.count;
+      }
+      const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      for (const row of feedbackStats.by_rating || []) {
+        ratingDistribution[row._id] = row.count;
+      }
+      const total = overall.total || 0;
+      const closed = (byStatus.resolved || 0) + (byStatus.archived || 0);
+      const toList = (rows, key) =>
+        (rows || []).map((row) => ({ [key]: row._id, count: row.count }));
+
+      return {
+        success: true,
+        message: "successfully retrieved feedback stats",
+        status: httpStatus.OK,
+        data: {
+          feedback: {
+            total,
+            actionable: overall.actionable || 0,
+            ...byStatus,
+            open: overall.open || 0,
+            open_actionable: overall.open_actionable || 0,
+            unassigned_open: overall.unassigned_open || 0,
+            stale_actionable: overall.stale_actionable || 0,
+            stale_threshold_days: constants.FEEDBACK_REMINDER_THRESHOLD_DAYS,
+            new_last_7_days: overall.recent || 0,
+            replied: overall.replied || 0,
+            with_screenshot: overall.with_screenshot || 0,
+            resolution_rate: total
+              ? Number(((byStatus.resolved / total) * 100).toFixed(1))
+              : null,
+            closure_rate: total
+              ? Number(((closed / total) * 100).toFixed(1))
+              : null,
+            reply_rate: total
+              ? Number((((overall.replied || 0) / total) * 100).toFixed(1))
+              : null,
+            oldest_pending_at: overall.oldest_pending_at || null,
+            latest_at: overall.latest_at || null,
+            rating: {
+              rated_count: overall.rated_count || 0,
+              average_rating:
+                typeof overall.average_rating === "number"
+                  ? Number(overall.average_rating.toFixed(2))
+                  : null,
+              distribution: ratingDistribution,
+            },
+            by_category: toList(feedbackStats.by_category, "category"),
+            by_app: toList(feedbackStats.by_app, "app"),
+            by_platform: toList(feedbackStats.by_platform, "platform"),
+          },
+          page_satisfaction: pageSatisfaction,
+          filters: {
+            app: feedbackMatch.app || null,
+            platform: feedbackMatch.platform || null,
+            startDate: query.startDate || null,
+            endDate: query.endDate || null,
+          },
+          generated_at: now,
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   getFeedbackSubmission: async (request, next) => {
     try {
       const { query, params } = request;
@@ -8566,16 +8806,19 @@ const feedbackUtil = {
         const fb = existing.data;
         const statusDetail = `Status changed from "${currentStatus}" to "${requestedStatus}".`;
 
-        // Notify submitter (best-effort)
-        try {
-          await mailer.feedbackStatusUpdate({
-            email: fb.email,
-            subject: fb.subject,
-            oldStatus: currentStatus,
-            newStatus: requestedStatus,
-          });
-        } catch (emailError) {
-          logger.warn(`Status updated but submitter email failed: ${emailError.message}`);
+        // Notify submitter (best-effort). Page-satisfaction ratings were never
+        // an issue or inquiry, so a status update means nothing to them.
+        if (fb.category !== "page_satisfaction") {
+          try {
+            await mailer.feedbackStatusUpdate({
+              email: fb.email,
+              subject: fb.subject,
+              oldStatus: currentStatus,
+              newStatus: requestedStatus,
+            });
+          } catch (emailError) {
+            logger.warn(`Status updated but submitter email failed: ${emailError.message}`);
+          }
         }
 
         // Notify watchers (best-effort)
@@ -8634,12 +8877,14 @@ const feedbackUtil = {
 
       // Notify submitters and watchers for each succeeded item (best-effort)
       for (const item of succeeded) {
-        mailer.feedbackStatusUpdate({
-          email: item.email,
-          subject: item.subject,
-          oldStatus: item.previousStatus,
-          newStatus: requestedStatus,
-        }).catch(() => {});
+        if (item.category !== "page_satisfaction") {
+          mailer.feedbackStatusUpdate({
+            email: item.email,
+            subject: item.subject,
+            oldStatus: item.previousStatus,
+            newStatus: requestedStatus,
+          }).catch(() => {});
+        }
 
         if (item.watchers && item.watchers.length > 0) {
           const statusDetail = `Status changed from "${item.previousStatus}" to "${requestedStatus}".`;

@@ -115,6 +115,7 @@ const jobs = [
   "@bin/jobs/feedback-screenshot-cleanup-job",
   "@bin/jobs/feedback-reminder-job",
   "@bin/jobs/transaction-amount-fix-job",
+  "@bin/jobs/page-satisfaction-migration-job",
   "@bin/jobs/selfie-cleanup-job",
   "@bin/jobs/username-email-sync-job",
   "@bin/jobs/usage-rollup-job",

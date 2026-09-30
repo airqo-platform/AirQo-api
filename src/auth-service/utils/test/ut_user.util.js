@@ -1603,6 +1603,263 @@ describe("create-user-util", function () {
 
       expect(response.success).to.equal(true);
     });
+
+    describe("page_satisfaction", () => {
+      let recordStub;
+      let origPageSatisfactionModel;
+
+      beforeEach(() => {
+        recordStub = sinon.stub().resolves({ success: true });
+        origPageSatisfactionModel = rewireCreateUser.__get__(
+          "PageSatisfactionDailyModel",
+        );
+        const fakeModel = () => ({ record: recordStub });
+        fakeModel.pageFromSubject = origPageSatisfactionModel.pageFromSubject;
+        rewireCreateUser.__set__("PageSatisfactionDailyModel", fakeModel);
+      });
+
+      afterEach(() => {
+        rewireCreateUser.__set__(
+          "PageSatisfactionDailyModel",
+          origPageSatisfactionModel,
+        );
+      });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "Page Satisfaction: CSIR International Convention Center",
+          message: "Loved it",
+          rating: 5,
+          category: "page_satisfaction",
+          app: "website",
+        },
+        query: {},
+        user: null,
+      };
+
+      it("should email support and record counters without storing a Feedback item", async () => {
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+        const confirmStub = sinon
+          .stub(mailer, "feedbackConfirmation")
+          .resolves({ success: true });
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(true);
+        expect(response.status).to.equal(httpStatus.CREATED);
+        expect(response.data.stored).to.equal(false);
+        expect(feedbackRegisterStub.called).to.be.false;
+        expect(confirmStub.called).to.be.false;
+        expect(feedbackStub.calledOnce).to.be.true;
+        expect(feedbackStub.firstCall.args[0].message).to.include("Rating: 5/5");
+        expect(recordStub.calledOnce).to.be.true;
+        const recorded = recordStub.firstCall.args[0];
+        expect(recorded).to.deep.include({
+          page: "CSIR International Convention Center",
+          app: "website",
+          rating: 5,
+          hasMessage: true,
+        });
+        expect(recorded).to.not.have.property("email");
+      });
+
+      it("should fail without emailing support when the counters cannot be written", async () => {
+        recordStub.resolves({ success: false, message: "write conflict" });
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(false);
+        expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(feedbackStub.called).to.be.false;
+      });
+
+      it("should still succeed when the support email throws", async () => {
+        sinon.stub(mailer, "feedback").rejects(new Error("SMTP timeout"));
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(true);
+        expect(recordStub.calledOnce).to.be.true;
+      });
+    });
+  });
+
+  describe("getFeedbackStats()", () => {
+    let origFeedbackModel;
+    let origPageSatisfactionModel;
+    let getStatsStub;
+    let summarizeStub;
+
+    beforeEach(() => {
+      origFeedbackModel = rewireCreateUser.__get__("FeedbackModel");
+      origPageSatisfactionModel = rewireCreateUser.__get__(
+        "PageSatisfactionDailyModel",
+      );
+      getStatsStub = sinon.stub().resolves({
+        overall: [{ total: 4, actionable: 3, replied: 1, open: 3 }],
+        by_status: [
+          { _id: "pending", count: 2 },
+          { _id: "reviewed", count: 1 },
+          { _id: "resolved", count: 1 },
+        ],
+        by_category: [{ _id: "bug", count: 4 }],
+        by_app: [],
+        by_platform: [],
+        by_rating: [{ _id: 5, count: 2 }],
+      });
+      summarizeStub = sinon.stub().resolves({ submissions: 10 });
+      rewireCreateUser.__set__("FeedbackModel", () => ({ getStats: getStatsStub }));
+      rewireCreateUser.__set__("PageSatisfactionDailyModel", () => ({
+        summarize: summarizeStub,
+      }));
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("FeedbackModel", origFeedbackModel);
+      rewireCreateUser.__set__(
+        "PageSatisfactionDailyModel",
+        origPageSatisfactionModel,
+      );
+      sinon.restore();
+    });
+
+    it("should return card counts with every status present", async () => {
+      const response = await rewireCreateUser.getFeedbackStats(
+        { query: {} },
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(response.success).to.equal(true);
+      const { feedback, page_satisfaction } = response.data;
+      expect(feedback).to.deep.include({
+        total: 4,
+        actionable: 3,
+        pending: 2,
+        reviewed: 1,
+        resolved: 1,
+        archived: 0,
+        resolution_rate: 25,
+        reply_rate: 25,
+      });
+      expect(feedback.rating.distribution[5]).to.equal(2);
+      expect(feedback.by_category).to.deep.equal([{ category: "bug", count: 4 }]);
+      expect(page_satisfaction.submissions).to.equal(10);
+    });
+
+    it("should apply shared filters and treat a date-only endDate as the whole day", async () => {
+      await rewireCreateUser.getFeedbackStats(
+        {
+          query: {
+            app: "website",
+            platform: "web",
+            startDate: "2026-06-01",
+            endDate: "2026-06-30",
+          },
+        },
+        (err) => {
+          throw err;
+        },
+      );
+
+      const { match } = getStatsStub.firstCall.args[0];
+      expect(match).to.deep.include({ app: "website", platform: "web" });
+      expect(match.createdAt.$lte.toISOString()).to.equal(
+        "2026-06-30T23:59:59.999Z",
+      );
+      expect(summarizeStub.firstCall.args[0].match.day).to.deep.equal({
+        $gte: "2026-06-01",
+        $lte: "2026-06-30",
+      });
+    });
+  });
+
+  describe("updateFeedbackStatus()", () => {
+    let origFeedbackModel;
+
+    const stubFeedback = (category) => {
+      rewireCreateUser.__set__("FeedbackModel", () => ({
+        findSingle: sinon.stub().resolves({
+          success: true,
+          data: {
+            _id: "fb1",
+            email: "user@example.com",
+            subject: "Some subject",
+            status: "reviewed",
+            category,
+            watchers: [],
+          },
+        }),
+        modify: sinon.stub().resolves({ success: true, data: {} }),
+      }));
+    };
+
+    beforeEach(() => {
+      origFeedbackModel = rewireCreateUser.__get__("FeedbackModel");
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("FeedbackModel", origFeedbackModel);
+      sinon.restore();
+    });
+
+    const request = {
+      body: { status: "resolved" },
+      query: {},
+      params: { feedback_id: "fb1" },
+    };
+
+    it("should not email the submitter for page_satisfaction items", async () => {
+      stubFeedback("page_satisfaction");
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      const response = await rewireCreateUser.updateFeedbackStatus(
+        request,
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(response.success).to.equal(true);
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should email the submitter for other categories", async () => {
+      stubFeedback("bug");
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(request, (err) => {
+        throw err;
+      });
+
+      expect(statusStub.calledOnce).to.be.true;
+    });
   });
 
   describe("create()", function () {
