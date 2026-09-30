@@ -92,7 +92,8 @@ class DataExportModel(FastAPIPyMongoModel):
     @staticmethod
     def doc_to_data_export_request(doc) -> DataExportRequest:
         # A document stores filter_type/filter_value, or separate devices and
-        # sites lists.  The pair is derived from whichever list is populated.
+        # sites lists.  The method derives the pair from whichever list holds
+        # values.
         if "filter_type" in doc:
             filter_type = doc["filter_type"]
             filter_value = doc.get("filter_value") or []

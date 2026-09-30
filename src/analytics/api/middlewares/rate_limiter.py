@@ -284,19 +284,41 @@ class RouteRateLimit:
     router dependency, so every route it holds carries the limit once::
 
         router = APIRouter(dependencies=[Depends(route_rate_limit)])
+
+    ``path_limits`` maps a path suffix to its own limit.  A route whose path
+    ends with the suffix takes that limit, and every other route takes
+    ``limit``.  One instance serves both, so each request takes one unit
+    from one counter.
     """
 
-    def __init__(self, limit: int = 10, window: int = 60):
+    def __init__(
+        self,
+        limit: int = 10,
+        window: int = 60,
+        path_limits: Optional[Dict[str, int]] = None,
+    ):
         self.limit = limit
         self.window = window
+        self.path_limits = dict(path_limits or {})
+
+    def limit_for(self, path: str) -> int:
+        """
+        Return the limit of the first suffix that ``path`` ends with, and
+        ``limit`` for every other path.
+        """
+        for suffix, limit in self.path_limits.items():
+            if path.endswith(suffix):
+                return limit
+        return self.limit
 
     async def __call__(self, request: Request) -> None:
+        path = request.url.path
         cache_key = (
             f"{settings.cache_key_prefix}:route_ratelimit:"
-            f"{request.url.path}:{get_client_ip(request)}"
+            f"{path}:{get_client_ip(request)}"
         )
 
-        if not await _consume(cache_key, self.limit, self.window):
+        if not await _consume(cache_key, self.limit_for(path), self.window):
             raise HTTPException(
                 status_code=429,
                 detail="Rate limit exceeded",
@@ -305,6 +327,7 @@ class RouteRateLimit:
 
 
 #: The limit that every router applies to each of its routes: 10 requests in
-#: 60 seconds for each route path and client IP.  The global
-#: RateLimiterMiddleware limit applies to the same requests as well.
-route_rate_limit = RouteRateLimit(limit=10, window=60)
+#: 60 seconds for each route path and client IP, and 5 for the raw-data route
+#: of v2 and v3.  The global RateLimiterMiddleware limit applies to the same
+#: requests as well.
+route_rate_limit = RouteRateLimit(limit=10, window=60, path_limits={"/raw-data": 5})

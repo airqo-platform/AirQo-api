@@ -108,7 +108,7 @@ diagnose from the symptom. The rest have sane defaults.
 | --------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                                                                                                                                                                                                                                                                                                      |
 | `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                                                                                                                                                                                                                                                                                                           |
-| `BIGQUERY_MAX_BYTES_BILLED` | 100 MB                 | Deliberately tight, so that callers request a long period in shorter parts. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 that says to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 100 MB is about one to two days across a few thousand devices.                                                                                 |
+| `BIGQUERY_MAX_BYTES_BILLED` | 100 MB                 | Deliberately tight, so that callers request a long period in shorter parts. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 that says to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 100 MB is about one to two days across a few thousand devices. The `/report` data query uses `BIGQUERY_REPORT_MAX_BYTES_BILLED` (200 MB).      |
 | `BIGQUERY_JOB_TIMEOUT_MS`   | `30000`                | BigQuery might attempt to stop a job that runs longer than this, and a stopped job can still incur costs depending on the stage at which it was stopped, up to `BIGQUERY_MAX_BYTES_BILLED`. The caller gets a 400 that names the request fields that shape the query (site or device list, date range, frequency), or a 503 when the request has none, logged as `bigquery job timed out`.                                                             |
 | `MAX_QUERY_DAYS`            | `365`                  | Longest date range of a request for daily, weekly, monthly or yearly data. A wider window is rejected with 422.                                                                                                                                                                                                                                                                                                                                        |
 | `MAX_HOURLY_QUERY_DAYS`     | `31`                   | Longest date range of a request for raw or hourly data, and of every `/report`, `/summary`, `/forecast-data`, `/dashboard/historical/daily-averages`, `/dashboard/historical/daily-averages-devices`, `/dashboard/exceedances` and `/dashboard/exceedances-devices` request. Clamped to `MAX_QUERY_DAYS`, so it can only tighten. The default lets one request cover a full calendar month; to cover a longer period, send one request for each month. |
@@ -142,8 +142,9 @@ diagnose from the symptom. The rest have sane defaults.
 `POST /summary`.
 
 Every route on both versions carries a per-route limit of 10 requests per
-minute for each client IP on top of the global 100 requests per minute
-middleware, and both versions apply the same date-range limits.
+minute for each client IP, and `raw-data` carries 5, on top of the global 100
+requests per minute middleware. Both versions apply the same date-range
+limits.
 
 `report` and `summary` are the same endpoints as their v2 counterparts. On
 `report` only, private sites and devices are dropped from the grid or cohort
@@ -165,7 +166,10 @@ before the query runs. `forecast-data` has no v2 counterpart.
   `metadata`); a query matching nothing is a 200 with empty `data`, not an
   error. A window that would scan past `BIGQUERY_MAX_BYTES_BILLED`, or a
   query that runs past `BIGQUERY_JOB_TIMEOUT_MS`, gets a 400 that says what to
-  reduce, and a query cancelled before it finished gets a 503 — see
+  reduce, and a query cancelled before it finished gets a 503. A request that
+  BigQuery refuses with HTTP 403 or for rate gets a 503 with a fixed message,
+  and its reason goes to the log as `bigquery request forbidden` or
+  `bigquery request rate limited` — see
   [the API docs](api/routers/README.md#error-handling).
 
 ## Testing

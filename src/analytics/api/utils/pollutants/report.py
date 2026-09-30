@@ -70,14 +70,6 @@ def fetch_cohort_devices(cohort_id) -> list:
 def _fetch_membership(query, parameter, column: str, context: str) -> list:
     """
     Run a membership lookup and return one column as a list.
-
-    These scan two narrow ID columns of a metadata table — a few megabytes at
-    most, under BigQuery's 10 MB minimum billing — so in practice they sit far
-    below the ceiling. They are still subject to it and to the job timeout
-    (query_job_config applies both to every job), so a query that BigQuery
-    refuses, stops or cancels is raised to the service, which answers it with
-    the response for its cause. Every other failure degrades to an empty list,
-    which the report builders turn into a 404.
     """
     job_config = query_job_config(query_parameters=[parameter])
     try:
@@ -123,10 +115,15 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
     Returns:
         pd.DataFrame of UTC-timestamped rows, or None when no data.
 
+    The query runs under settings.bigquery_report_max_bytes_billed, the byte
+    ceiling of the /report data query.
+
     Raises:
         QueryTooLarge: If the query exceeds the bytes-billed ceiling.
         QueryTimedOut: If BigQuery stops the query at the job timeout.
         QueryCancelled: If the query is cancelled before it finishes.
+        QueryForbidden: If BigQuery refuses the query with HTTP 403.
+        QueryRateLimited: If BigQuery refuses the query for rate.
     """
     if id_column not in _REPORT_FILTER_COLUMNS:
         raise ValueError(f"Invalid report filter column: {id_column}")
@@ -145,7 +142,8 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
             bigquery.ArrayQueryParameter("entity_ids", "STRING", list(entity_ids)),
             bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
             bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
-        ]
+        ],
+        maximum_bytes_billed=settings.bigquery_report_max_bytes_billed,
     )
 
     try:
@@ -172,9 +170,9 @@ def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id")
 
         return data
     except QueryNotCompleted:
-        # A query refused for size, stopped at the job timeout or cancelled is
-        # raised to the service, which answers it with the response for its
-        # cause.
+        # The function raises a query that BigQuery refused for size, refused
+        # with HTTP 403, refused for rate, stopped at the job timeout or
+        # cancelled.  The service answers it with the response for its cause.
         raise
     except Exception:
         logger.exception("Error querying BigQuery for report data")

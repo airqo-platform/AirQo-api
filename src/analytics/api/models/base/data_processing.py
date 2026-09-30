@@ -35,6 +35,10 @@ Raises:
         the service layer.
     QueryCancelled: query cancelled before it finished — mapped to HTTP 503 by
         the service layer.
+    QueryForbidden: BigQuery refused the query with HTTP 403 — the service
+        layer answers it with HTTP 503 and a fixed message.
+    QueryRateLimited: BigQuery refused the query for rate — the service layer
+        answers it with HTTP 503 and the same fixed message.
     PrivacyScreeningUnavailable: screening was requested and device-registry
         could not be reached — mapped to HTTP 503 by the service layer.
 """
@@ -264,6 +268,8 @@ def build_entity_report(
         QueryTooLarge: Window too wide to scan within the byte ceiling.
         QueryTimedOut: Query stopped at the job timeout.
         QueryCancelled: Query cancelled before it finished.
+        QueryForbidden: BigQuery refused the query with HTTP 403.
+        QueryRateLimited: BigQuery refused the query for rate.
         PrivacyScreeningUnavailable: Screening was requested and the registry
             could not be reached.
     """

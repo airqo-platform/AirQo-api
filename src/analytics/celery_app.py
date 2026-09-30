@@ -12,9 +12,9 @@ Runs entirely on config.  Redis is the broker/result backend only.
 Note: the 5s beat has no distributed lock — the SCHEDULED→PROCESSING
 status flip is the only double-processing guard.
 
-A request that BigQuery or Cloud Storage refuses with HTTP 403 is marked
-failed.  It keeps a retry only when the reason clears on its own (a quota or
-a rate limit).  translate_incomplete_queries logs the reason and the
+A request that BigQuery or Cloud Storage refuses, with HTTP 403 or for rate,
+is marked failed.  It keeps a retry only when the reason clears on its own (a
+quota or a rate limit).  translate_incomplete_queries logs the reason and the
 BigQuery message; the worker logs the request and the stage.
 """
 
@@ -27,7 +27,7 @@ from celery.utils.log import get_task_logger
 
 from api.models.data_export import DataExportModel, DataExportRequest
 from api.models.export_queries import data_export_query
-from api.utils.exceptions import QueryForbidden
+from api.utils.exceptions import QueryForbidden, QueryRateLimited
 from config import settings
 from constants import DataExportStatus
 
@@ -120,13 +120,13 @@ def data_export_task():
             if not success:
                 raise Exception("Update failed")
 
-        except QueryForbidden as ex:
+        except (QueryForbidden, QueryRateLimited) as ex:
             # A quota or rate refusal clears on its own, so the request keeps
             # a retry for those reasons.  Every other refusal ends its retries.
             request.status = DataExportStatus.FAILED
             request.retries = request.retries - 1 if ex.transient else 0
             _logger.warning(
-                "Export request %s refused with HTTP 403 at the %s stage: "
+                "Export request %s refused by BigQuery at the %s stage: "
                 "reason=%s, retries left=%s",
                 request.request_id,
                 stage,

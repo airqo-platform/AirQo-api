@@ -20,12 +20,18 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, Optional
 
-from google.api_core.exceptions import Forbidden, GoogleAPICallError, RetryError
+from google.api_core.exceptions import (
+    Forbidden,
+    GoogleAPICallError,
+    RetryError,
+    TooManyRequests,
+)
 from google.cloud import bigquery, storage
 
 from api.utils.exceptions import (
     QueryCancelled,
     QueryForbidden,
+    QueryRateLimited,
     QueryTimedOut,
     QueryTooLarge,
 )
@@ -95,6 +101,17 @@ def _parse_byte_figures(message: str) -> tuple[int | None, int | None]:
 _STOPPED_REASON = "stopped"
 _TIMED_OUT_TEXT = "job timed out"
 
+# The BigQuery error reference also lists the reason "timeout" (HTTP 400) for
+# a job whose execution exceeded its timeout.  The reason table of the library
+# has no entry for it, so a job error with this reason arrives as
+# InternalServerError, and a REST error with it arrives as BadRequest.
+_TIMEOUT_REASON = "timeout"
+
+# The reasons of a rate refusal.  The library raises TooManyRequests for a job
+# that failed with rateLimitExceeded, and restarts a job that failed with
+# either reason until its job retry ends.
+_RATE_LIMIT_REASONS = frozenset({"rateLimitExceeded", "jobRateLimitExceeded"})
+
 
 def _stop_message(exc: GoogleAPICallError) -> str | None:
     """The message of a stopped job, or None for any other error."""
@@ -103,6 +120,14 @@ def _stop_message(exc: GoogleAPICallError) -> str | None:
         if get("reason") == _STOPPED_REASON:
             return get("message") or str(exc)
     return None
+
+
+def _has_reason(exc: GoogleAPICallError, reason: str) -> bool:
+    """True when a dictionary in exc.errors carries the reason."""
+    return any(
+        getattr(error, "get", lambda _k: None)("reason") == reason
+        for error in exc.errors or []
+    )
 
 
 # A 403 arrives as Forbidden from a REST request and from a job error, and as
@@ -118,17 +143,52 @@ def _forbidden_cause(exc: Exception) -> Optional[Forbidden]:
     return exc if isinstance(exc, Forbidden) else None
 
 
+def _rate_limit_cause(exc: Exception) -> Optional[GoogleAPICallError]:
+    """The rate refusal that an error carries, or None for any other error."""
+    while isinstance(exc, RetryError):
+        exc = exc.cause
+    if isinstance(exc, TooManyRequests):
+        return exc
+    if isinstance(exc, GoogleAPICallError) and any(
+        _has_reason(exc, reason) for reason in _RATE_LIMIT_REASONS
+    ):
+        return exc
+    return None
+
+
 # The reason of a job error and of a REST error is the "reason" key of a
-# dictionary in exc.errors.  A gRPC error, such as the PermissionDenied of a
-# read session, carries the call object in exc.errors and its reason in
-# exc.reason.  exc.reason raises AttributeError when the library stored the
-# error details of a REST response as a plain dictionary.
-def _error_reason(exc: GoogleAPICallError) -> str:
-    """The reason code of the error, or "unknown" when it carries none."""
-    for error in exc.errors or []:
-        reason = getattr(error, "get", lambda _k: None)("reason")
-        if reason:
-            return str(reason)
+# dictionary in exc.errors.  A REST error can also carry its reason in an
+# ErrorInfo dictionary in exc.details.  A gRPC error, such as the
+# PermissionDenied of a read session, carries the call object in exc.errors
+# and its reason in exc.reason.  exc.reason raises AttributeError when the
+# library stored the error details of a REST response as a plain dictionary.
+_ERROR_INFO_TYPE = "type.googleapis.com/google.rpc.ErrorInfo"
+
+
+def _error_reason(exc: GoogleAPICallError, preferred=frozenset()) -> str:
+    """
+    The reason code of the error, or "unknown" when it carries none.
+
+    A reason in ``preferred`` comes before the other reasons of the error,
+    so the record names the reason that selected the translation.
+    """
+    reasons = [
+        str(reason)
+        for reason in (
+            getattr(error, "get", lambda _k: None)("reason")
+            for error in exc.errors or []
+        )
+        if reason
+    ]
+    for reason in reasons:
+        if reason in preferred:
+            return reason
+    if reasons:
+        return reasons[0]
+    for detail in exc.details or []:
+        get = getattr(detail, "get", lambda _k: None)
+        if get("@type") == _ERROR_INFO_TYPE and get("reason"):
+            return str(get("reason"))
     try:
         reason = exc.reason
     except AttributeError:
@@ -146,15 +206,22 @@ def translate_incomplete_queries(context: str, *, depends_on_request: bool = Tru
     A request refused with HTTP 403 becomes QueryForbidden, which carries the
     reason code of the refusal.  The record names the reason and the
     BigQuery message, so an operator can tell a permission or billing
-    refusal from a quota or rate refusal.  The requester receives neither.
-    Search the logs for "bigquery request forbidden" to find them.
+    refusal from a quota or rate refusal.  The requester receives a fixed
+    message from the service layer.  Search the logs for "bigquery request
+    forbidden" to find them.
+
+    A request refused for rate with any other error, such as the
+    TooManyRequests of a job that failed with rateLimitExceeded, becomes
+    QueryRateLimited, which carries the reason code.  Search the logs for
+    "bigquery request rate limited" to find them.
 
     A query over the byte ceiling becomes QueryTooLarge.  BigQuery applies
     `maximum_bytes_billed` while planning the job, so that refusal means
     nothing was scanned and nothing was billed.  Search the logs for
     "bigquery cost limit" to find them.
 
-    A query stopped at `job_timeout_ms` becomes QueryTimedOut.  BigQuery
+    A query stopped at `job_timeout_ms`, and a job that failed with the
+    reason "timeout", become QueryTimedOut.  BigQuery
     might attempt to stop the job, and a stopped job can still incur costs
     depending on the stage at which it was stopped, up to the byte ceiling.
     ``depends_on_request`` is carried on the exception: False marks a query
@@ -178,6 +245,16 @@ def translate_incomplete_queries(context: str, *, depends_on_request: bool = Tru
                 forbidden.message,
             )
             raise QueryForbidden(reason=reason, message=forbidden.message) from exc
+        rate_limited = _rate_limit_cause(exc)
+        if rate_limited is not None:
+            reason = _error_reason(rate_limited, _RATE_LIMIT_REASONS)
+            logger.error(
+                "bigquery request rate limited (%s): reason=%s: %s",
+                context,
+                reason,
+                rate_limited.message,
+            )
+            raise QueryRateLimited(reason=reason, message=rate_limited.message) from exc
         if isinstance(exc, RetryError):
             raise
         if _is_bytes_limit_error(exc):
@@ -192,9 +269,9 @@ def translate_incomplete_queries(context: str, *, depends_on_request: bool = Tru
             )
             raise QueryTooLarge(limit_bytes=limit, required_bytes=required) from exc
         message = _stop_message(exc)
-        if message is None:
-            raise
-        if _TIMED_OUT_TEXT in message.lower():
+        if _has_reason(exc, _TIMEOUT_REASON) or (
+            message is not None and _TIMED_OUT_TEXT in message.lower()
+        ):
             timeout_ms = settings.bigquery_job_timeout_ms
             logger.warning(
                 "bigquery job timed out (%s): limit=%s ms", context, timeout_ms
@@ -202,6 +279,8 @@ def translate_incomplete_queries(context: str, *, depends_on_request: bool = Tru
             raise QueryTimedOut(
                 timeout_ms=timeout_ms, depends_on_request=depends_on_request
             ) from exc
+        if message is None:
+            raise
         logger.warning("bigquery job cancelled (%s): %s", context, message)
         raise QueryCancelled(message=message) from exc
 

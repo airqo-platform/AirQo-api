@@ -80,6 +80,7 @@ from api.utils.exceptions import (
     PrivacyScreeningUnavailable,
     QueryForbidden,
     QueryNotCompleted,
+    QueryRateLimited,
     QueryTimedOut,
     QueryTooLarge,
     format_bytes,
@@ -324,7 +325,8 @@ def _cancelled_error() -> HTTPException:
 
 def _forbidden_error() -> HTTPException:
     """
-    Turn a request that BigQuery refused with HTTP 403 into a 503.
+    Turn a request that BigQuery refused, with HTTP 403 or for rate, into a
+    503.
 
     Every reason gets the same fixed message.  The reason and the BigQuery
     message go to the log only: translate_incomplete_queries writes them
@@ -344,10 +346,11 @@ def _query_error(exc: QueryNotCompleted, levers: QueryLevers) -> HTTPException:
     the response names only what the requester can change.  A query over the
     byte ceiling and a query stopped at the job timeout each get a 400 with
     their own message when the request offers a lever, and a 503 otherwise.
-    A request refused with HTTP 403 gets a 503 with a fixed message.  A
-    cancelled query gets a 503 that tells the requester to try again.
+    A request refused with HTTP 403 or for rate gets a 503 with a fixed
+    message.  A cancelled query gets a 503 that tells the requester to try
+    again.
     """
-    if isinstance(exc, QueryForbidden):
+    if isinstance(exc, (QueryForbidden, QueryRateLimited)):
         return _forbidden_error()
     if isinstance(exc, QueryTooLarge):
         return _too_large_error(exc, levers)
@@ -516,7 +519,7 @@ class DataExportService(BaseService):
 
     @staticmethod
     def _summary_hour(dt: datetime) -> datetime:
-        """Truncate to the hour in UTC (Flask formatted "%Y-%m-%dT%H:00:00Z")."""
+        """Truncate to the hour in UTC, the precision of the summary strings."""
         if dt.tzinfo is not None:
             dt = dt.astimezone(timezone.utc)
         else:
@@ -525,9 +528,9 @@ class DataExportService(BaseService):
 
     async def get_summary(self, request: DataSummaryRequest) -> Dict[str, Any]:
         """
-        Data-completeness report over the devices-summary table (/summary,
-        formerly Flask /data/summary): hourly/calibrated/uncalibrated record
-        counts and percentages per device and per site, for one grid/cohort.
+        Data-completeness report over the devices-summary table (/summary):
+        hourly/calibrated/uncalibrated record counts and percentages per
+        device and per site, for one grid/cohort.
         """
         filter_kind, filter_id = request.entity()
         start = self._summary_hour(request.start_time)
@@ -562,8 +565,7 @@ class DataExportService(BaseService):
         if not summary:
             return {
                 "status": "success",
-                # Flask interpolated the (possibly empty) grid value here —
-                # use the requested entity id for a more useful message.
+                # The message names the requested entity.
                 "message": no_data_message(
                     request.start_time,
                     request.end_time,
@@ -910,12 +912,12 @@ class DashboardService(BaseService):
         self, request: DailyAveragesRequest, network: str = "airqo"
     ) -> DailyAveragesResponse:
         """
-        Per-site averages over the window (Flask /dashboard/historical/daily-averages).
+        Per-site averages over the window (/dashboard/historical/daily-averages).
 
-        Queries the hourly table (as the original did, despite the name) and
-        returns three positionally-aligned arrays. `network` only routed Mongo
-        lookups in Flask; site labels now come from the BigQuery sites table,
-        so it is accepted for wire parity and unused.
+        Queries the hourly table and returns three positionally-aligned
+        arrays. Site labels come from the BigQuery sites table. The route
+        accepts `network` as a query parameter, and the result is the same
+        for every value.
         """
         # Not privacy-filtered — dashboard endpoint (user decision).
         sites = list(request.sites)
@@ -962,10 +964,10 @@ class DashboardService(BaseService):
         self, request: DeviceDailyAveragesRequest, network: str = "airqo"
     ) -> DailyAveragesResponse:
         """
-        Per-device averages (Flask /dashboard/historical/daily-averages-devices).
+        Per-device averages (/dashboard/historical/daily-averages-devices).
 
-        Labels are the raw device IDs — the original did no metadata lookup.
-        `network` is accepted for wire parity and unused.
+        Labels are the raw device IDs. The route accepts `network` as a query
+        parameter, and the result is the same for every value.
         """
         # Not privacy-filtered — dashboard endpoint (user decision).
         devices = list(request.devices)
@@ -1033,9 +1035,9 @@ class DashboardService(BaseService):
         labels_by_id: Optional[Dict[str, str]],
     ) -> Tuple[List[float], List[str], List[Optional[str]]]:
         """
-        Build the three parallel arrays, preserving Flask's skip rules:
-        falsy id, falsy value (0.0 averages are dropped), NaN value, and —
-        when a label map is supplied — ids absent from it.
+        Build the three parallel arrays. The method skips a row when its id
+        is falsy, its value is falsy (it drops 0.0 averages) or NaN, or —
+        when the caller supplies a label map — its id is absent from the map.
         """
         values: List[float] = []
         labels: List[str] = []
@@ -1059,7 +1061,7 @@ class DashboardService(BaseService):
                 label = entity_id
             values.append(float(value))
             labels.append(label)
-            # PM2.5 colour scale applied regardless of pollutant — Flask parity
+            # The PM2.5 colour scale applies to every pollutant.
             colors.append(set_pm25_category_background(float(value)))
 
         return values, labels, colors
@@ -1089,8 +1091,8 @@ class DashboardService(BaseService):
     ) -> ExceedancesResponse:
         """
         Per-site exceedance averages from the precomputed MongoDB collection
-        (Flask /dashboard/exceedances).  `network` selects the Mongo database.
-        Data key is `exceedance` — singular — per the Flask wire contract.
+        (/dashboard/exceedances).  `network` selects the Mongo database.  The
+        data key is `exceedance`, singular, as the response contract states.
         """
         # Not privacy-filtered — dashboard endpoint (user decision).  The
         # schema requires a non-empty sites list; ExceedanceRepository treats
@@ -1129,9 +1131,10 @@ class DashboardService(BaseService):
     ) -> ExceedancesResponse:
         """
         Per-device exceedance day-counts computed from BigQuery hourly data
-        (Flask /dashboard/exceedances-devices).  Data key is `exceedances` —
-        plural — per the Flask wire contract (asymmetric with the site
-        variant; do not "fix").  `network` is wire parity only.
+        (/dashboard/exceedances-devices).  The data key is `exceedances`,
+        plural, as the response contract states; the site variant keeps the
+        singular key.  The route accepts `network` as a query parameter, and
+        the result is the same for every value.
         """
         # Not privacy-filtered — dashboard endpoint (user decision).
         devices = list(request.devices)
@@ -1436,11 +1439,10 @@ class ExportRequestService(BaseService):
 
 class ReportTemplateService(BaseService):
     """
-    MongoDB-backed CRUD for report templates (Flask /report/* rebuild).
+    MongoDB-backed CRUD for report templates (/report/*).
 
-    Responses use the Flask create_response envelope:
-    {"status", "message", "data"?, "metadata": None}; business errors raise
-    HTTPException (400/404) with the original Flask messages.  pymongo is
+    Responses use the envelope {"status", "message", "data"?, "metadata":
+    None}; business errors raise HTTPException (400/404).  pymongo is
     synchronous, so all model calls run via asyncio.to_thread.
     """
 

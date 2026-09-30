@@ -141,3 +141,27 @@ class QueryForbidden(QueryNotCompleted):
         self.message = message
         self.transient = reason in TRANSIENT_FORBIDDEN_REASONS
         super().__init__(message)
+
+
+class QueryRateLimited(QueryNotCompleted):
+    """
+    BigQuery refused a request for rate.
+
+    api/utils/bigquery_jobs.translate_incomplete_queries raises it for a
+    ``TooManyRequests`` (HTTP 429), and for any other error with the reason
+    ``rateLimitExceeded`` or ``jobRateLimitExceeded``, at any depth of
+    ``RetryError``.  The library raises ``TooManyRequests`` for a job that
+    failed with ``rateLimitExceeded``, and it restarts such a job until its
+    job retry ends.  A 403 with the reason ``rateLimitExceeded`` stays a
+    QueryForbidden.
+
+    A rate refusal clears on its own, so ``transient`` is always True.  The
+    reason and the message are for the log.  The service layer answers it
+    with the fixed response of a QueryForbidden.
+    """
+
+    def __init__(self, reason: str, message: str = "") -> None:
+        self.reason = reason
+        self.message = message
+        self.transient = True
+        super().__init__(message)

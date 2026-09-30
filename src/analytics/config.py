@@ -194,6 +194,13 @@ class BaseConfig(BaseSettings):
     bigquery_max_bytes_billed: int = Field(
         default=100_000_000, validation_alias="BIGQUERY_MAX_BYTES_BILLED"
     )
+    # The /report data query (v2 and v3) reads the hourly consolidated table
+    # for every member of a grid or cohort over the whole window, so it takes
+    # a ceiling of 200 MB (200,000,000 bytes).  Every other query keeps
+    # bigquery_max_bytes_billed.
+    bigquery_report_max_bytes_billed: int = Field(
+        default=200_000_000, validation_alias="BIGQUERY_REPORT_MAX_BYTES_BILLED"
+    )
     bigquery_job_timeout_ms: int = Field(
         default=30_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
     )

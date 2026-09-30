@@ -1655,9 +1655,18 @@ def _forbidden(reason: str = "quotaExceeded"):
     return QueryForbidden(reason=reason, message=_FORBIDDEN_MESSAGE)
 
 
+def _assert_refusal_response(exc) -> None:
+    """The response is the 503 of a refusal, which differs from the 503 of a
+    cancelled query."""
+    from api.services import _cancelled_error
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail != _cancelled_error().detail
+
+
 class TestForbiddenHandling:
     """A request that BigQuery refused with HTTP 403 gets a 503 for every
-    reason. The BigQuery message goes to the log, not to the requester."""
+    reason. The BigQuery message goes to the log only."""
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -1672,20 +1681,46 @@ class TestForbiddenHandling:
             with pytest.raises(HTTPException) as exc:
                 await DataExportService().export_data(export_request)
 
-        assert exc.value.status_code == 503
+        _assert_refusal_response(exc)
         assert _FORBIDDEN_MESSAGE not in exc.value.detail
 
     @pytest.mark.asyncio
+    async def test_rate_limited_job_gets_the_same_response(self, export_request):
+        """A job refused for rate arrives as QueryRateLimited and gets the
+        response of a Forbidden."""
+        from api.services import QueryLevers, _query_error
+        from api.utils.exceptions import QueryRateLimited
+
+        rate_limited = QueryRateLimited(
+            reason="rateLimitExceeded", message=_FORBIDDEN_MESSAGE
+        )
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            side_effect=rate_limited,
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await DataExportService().export_data(export_request)
+
+        forbidden_detail = _query_error(_forbidden(), QueryLevers()).detail
+        assert exc.value.status_code == 503
+        assert exc.value.detail == forbidden_detail
+
+    @pytest.mark.asyncio
     async def test_report(self):
+        from api.schemas.requests import AirQualityReportRequest
         from api.services import AirQualityReportService
 
+        request = AirQualityReportRequest(
+            start_time="2026-01-01T00:00:00",
+            end_time="2026-02-01T00:00:00",
+            grid_id="grid-1",
+        )
         with patch("api.services.build_entity_report", side_effect=_forbidden()):
             with pytest.raises(HTTPException) as exc:
-                await AirQualityReportService().get_report(
-                    _report_request(grid_id="grid-1")
-                )
+                await AirQualityReportService().get_report(request)
 
-        assert exc.value.status_code == 503
+        _assert_refusal_response(exc)
 
     @pytest.mark.asyncio
     async def test_sites(self):
@@ -1699,11 +1734,11 @@ class TestForbiddenHandling:
             with pytest.raises(HTTPException) as exc:
                 await MonitoringService().get_sites()
 
-        assert exc.value.status_code == 503
+        _assert_refusal_response(exc)
 
-    def test_membership_lookup_raises_instead_of_reporting_no_members(self):
-        """A refused membership lookup reaches the caller as the 503, not as
-        the 404 for a grid with no sites."""
+    def test_membership_lookup_raises_query_forbidden(self):
+        """The membership lookup raises a refused query to the service as
+        QueryForbidden."""
         from google.api_core.exceptions import Forbidden
         from unittest.mock import MagicMock
         from api.utils.exceptions import QueryForbidden
@@ -1719,9 +1754,9 @@ class TestForbiddenHandling:
             with pytest.raises(QueryForbidden):
                 fetch_grid_sites("grid-1")
 
-    def test_report_query_raises_instead_of_reporting_no_data(self):
-        """A refused report query reaches the caller as the 503, not as the
-        200 that states that the period holds no data."""
+    def test_report_query_raises_query_forbidden(self):
+        """The report query raises a refused query to the service as
+        QueryForbidden."""
         from google.api_core.exceptions import Forbidden
         from unittest.mock import MagicMock
         from api.utils.exceptions import QueryForbidden
@@ -2275,3 +2310,24 @@ class TestReportEntityPipeline:
             "api.utils.pollutants.report.shared_bigquery_client", return_value=client
         ):
             assert fetch_cohort_devices("cohort-1") == []
+
+    def test_report_query_takes_the_report_byte_ceiling(self):
+        """The /report data query runs under a ceiling of 200 MB, and the
+        membership lookup keeps the default ceiling of 100 MB."""
+        from api.utils.pollutants.report import fetch_grid_sites, query_bigquery
+        from unittest.mock import MagicMock
+
+        client = MagicMock()
+        client.query.return_value.to_dataframe.return_value = pd.DataFrame(
+            {"site_id": [], "site_latitude": [], "site_longitude": []}
+        )
+        with patch(
+            "api.utils.pollutants.report.shared_bigquery_client", return_value=client
+        ):
+            query_bigquery(["s1"], datetime(2026, 1, 1), datetime(2026, 1, 2))
+            report_config = client.query.call_args.kwargs["job_config"]
+            fetch_grid_sites("grid-1")
+            membership_config = client.query.call_args.kwargs["job_config"]
+
+        assert report_config.maximum_bytes_billed == 200_000_000
+        assert membership_config.maximum_bytes_billed == 100_000_000

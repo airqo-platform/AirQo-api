@@ -10,6 +10,7 @@ import logging
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
+import api.utils.cache
 from api.utils.cache import (
     init_cache,
     get_cache,
@@ -20,6 +21,21 @@ from api.utils.cache import (
     cache_set,
     cache_delete,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_cache_state():
+    """Start and end each test with no client and no outage state."""
+
+    def reset():
+        api.utils.cache._cache = None
+        api.utils.cache._unavailable = False
+        api.utils.cache._warned = False
+        api.utils.cache._last_warning_at = None
+
+    reset()
+    yield
+    reset()
 
 
 class TestCacheInitialization:
@@ -351,6 +367,15 @@ class TestRedisRecovery:
         assert kwargs["socket_timeout"] == api.utils.cache._SOCKET_TIMEOUT_SECONDS
 
     @pytest.mark.asyncio
+    async def test_client_speaks_resp2(self):
+        """RESP2 works with every Redis server version."""
+        with patch("redis.asyncio.from_url") as from_url:
+            from_url.return_value = AsyncMock()
+            await init_cache()
+
+        assert from_url.call_args.kwargs["protocol"] == 2
+
+    @pytest.mark.asyncio
     async def test_malformed_url_still_yields_no_client(self):
         """A URL that cannot build a client is not retryable — stay None."""
         import api.utils.cache
@@ -396,48 +421,123 @@ class TestCachePing:
         assert await cache_ping() is False
 
 
+class _Clock:
+    """A monotonic clock that the test moves forward."""
+
+    def __init__(self):
+        self.now = 1000.0
+
+    def monotonic(self):
+        return self.now
+
+
+def _pipeline_client(fails: bool):
+    """A client whose incr pipeline fails or returns a count of 1."""
+    client = AsyncMock()
+    pipeline = MagicMock()
+    if fails:
+        pipeline.execute = AsyncMock(side_effect=ConnectionError("refused"))
+    else:
+        pipeline.execute = AsyncMock(return_value=[1, 60])
+    client.pipeline = MagicMock(return_value=pipeline)
+    return client
+
+
 class TestOutageLogging:
     """An outage writes one WARNING record, and the first success after it
-    writes one INFO record."""
+    writes one INFO record.  A WARNING comes at most once a minute."""
 
-    def setup_method(self):
-        import api.utils.cache
-
-        self.mock_redis = AsyncMock()
-        api.utils.cache._cache = self.mock_redis
-        api.utils.cache._unavailable = False
-
-    def teardown_method(self):
-        import api.utils.cache
-
-        api.utils.cache._cache = None
-        api.utils.cache._unavailable = False
+    @pytest.fixture(autouse=True)
+    def clock(self, monkeypatch):
+        clock = _Clock()
+        monkeypatch.setattr(api.utils.cache, "time", clock)
+        return clock
 
     def _levels(self, caplog):
         return [r.levelno for r in caplog.records if r.name == "api.utils.cache"]
 
+    def _redis(self, fails: bool):
+        client = _pipeline_client(fails)
+        error = ConnectionError("refused") if fails else None
+        client.get.side_effect = error
+        client.set.side_effect = error
+        client.delete.side_effect = error
+        client.ping.side_effect = error
+        client.get.return_value = "v"
+        client.set.return_value = True
+        client.delete.return_value = 1
+        api.utils.cache._cache = client
+
     @pytest.mark.asyncio
-    async def test_one_warning_for_each_outage(self, caplog):
-        self.mock_redis.get.side_effect = ConnectionError("refused")
-        self.mock_redis.set.side_effect = ConnectionError("refused")
-
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: cache_get("k"),
+            lambda: cache_set("k", "v"),
+            lambda: cache_incr("k", 60),
+            lambda: cache_delete("k"),
+            lambda: cache_ping(),
+        ],
+        ids=["get", "set", "incr", "delete", "ping"],
+    )
+    async def test_each_helper_logs_the_outage_and_the_recovery(self, caplog, call):
         with caplog.at_level(logging.DEBUG, logger="api.utils.cache"):
-            await cache_get("k")
-            await cache_set("k", "v")
-            await cache_get("k")
+            self._redis(fails=True)
+            await call()
+            await call()
+            self._redis(fails=False)
+            await call()
 
-        assert self._levels(caplog) == [logging.WARNING, logging.DEBUG, logging.DEBUG]
+        assert self._levels(caplog) == [logging.WARNING, logging.DEBUG, logging.INFO]
 
     @pytest.mark.asyncio
-    async def test_recovery_is_logged_and_the_next_outage_warns_again(self, caplog):
+    async def test_a_fault_that_switches_writes_one_pair_a_minute(self, caplog, clock):
         with caplog.at_level(logging.DEBUG, logger="api.utils.cache"):
-            self.mock_redis.get.side_effect = ConnectionError("refused")
+            for _ in range(3):
+                self._redis(fails=True)
+                await cache_get("k")
+                self._redis(fails=False)
+                await cache_get("k")
+                clock.now += 10
+
+        assert self._levels(caplog) == [
+            logging.WARNING,
+            logging.INFO,
+            logging.DEBUG,
+            logging.DEBUG,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_an_outage_a_minute_after_the_last_warning_warns_again(
+        self, caplog, clock
+    ):
+        with caplog.at_level(logging.DEBUG, logger="api.utils.cache"):
+            self._redis(fails=True)
             await cache_get("k")
-            self.mock_redis.get.side_effect = None
-            self.mock_redis.get.return_value = "v"
+            self._redis(fails=False)
             await cache_get("k")
-            await cache_get("k")
-            self.mock_redis.get.side_effect = ConnectionError("refused")
+            clock.now += 60
+            self._redis(fails=True)
             await cache_get("k")
 
-        assert self._levels(caplog) == [logging.WARNING, logging.INFO, logging.WARNING]
+        assert self._levels(caplog) == [
+            logging.WARNING,
+            logging.INFO,
+            logging.WARNING,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_failed_startup_ping_marks_the_outage(self, caplog):
+        """The startup ERROR stands for the outage, so the first failed call
+        writes a DEBUG record, and the first successful call an INFO record."""
+        failing = AsyncMock()
+        failing.ping.side_effect = ConnectionError("refused")
+        with caplog.at_level(logging.DEBUG, logger="api.utils.cache"):
+            with patch("redis.asyncio.from_url", return_value=failing):
+                await init_cache()
+            self._redis(fails=True)
+            await cache_get("k")
+            self._redis(fails=False)
+            await cache_get("k")
+
+        assert self._levels(caplog) == [logging.ERROR, logging.DEBUG, logging.INFO]

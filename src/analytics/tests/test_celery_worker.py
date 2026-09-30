@@ -29,7 +29,7 @@ from google.api_core.exceptions import Forbidden
 
 from api.models.data_export import DataExportModel
 from api.models.export_queries import data_export_query
-from api.utils.exceptions import QueryForbidden
+from api.utils.exceptions import QueryForbidden, QueryRateLimited
 from constants import DataExportStatus, Frequency
 
 
@@ -303,6 +303,15 @@ class TestWorkerForbidden:
         assert [r.levelno for r in records] == [logging.WARNING]
         assert reason in records[0].args
         assert "data check" in records[0].args
+
+    def test_rate_limited_request_keeps_a_retry(self, monkeypatch):
+        request, _ = self._run(
+            monkeypatch,
+            QueryRateLimited(reason="rateLimitExceeded", message="refused"),
+        )
+
+        assert request.status == DataExportStatus.FAILED
+        assert request.retries == 2
 
     def test_other_failure_is_logged_with_its_stage(self, monkeypatch, caplog):
         with caplog.at_level(logging.WARNING, logger="celery_app"):

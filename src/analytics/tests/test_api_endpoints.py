@@ -239,7 +239,7 @@ class TestV2DashboardEndpoints:
 
 
 # ---------------------------------------------------------------------------
-# V2 report template endpoints (MongoDB-backed CRUD, Flask wire contract)
+# V2 report template endpoints (MongoDB-backed CRUD)
 # ---------------------------------------------------------------------------
 
 
@@ -331,7 +331,7 @@ class TestV2ReportEndpoints:
         assert mock_svc.call_args.args[0] == "u1"
 
     def test_update_monthly_by_name_uses_post(self, client):
-        """The original Flask API bound updates to POST — verb preserved."""
+        """The route binds a monthly-report update to POST."""
         envelope = {
             "status": "success",
             "message": "report updated successfully",
@@ -512,9 +512,10 @@ class TestRouteRateLimitWiring:
     """Every route on both routers carries the shared per-route limit."""
 
     @pytest.mark.parametrize("version", ["v2", "v3"])
-    def test_every_route_carries_the_10_per_minute_route_limit(self, version):
+    def test_every_route_carries_the_shared_route_limit(self, version):
         """Each route on both routers carries exactly one RouteRateLimit. The
-        limit and window are asserted as literals: presence alone would still
+        limit of each route is asserted as a literal: 5 requests a minute for
+        raw-data and 10 for every other route. Presence alone would still
         pass with a limit of ten thousand. Exactly one instance is asserted
         because a second, separate instance on a route takes a second unit
         from the same counter and halves the limit.
@@ -540,11 +541,35 @@ class TestRouteRateLimitWiring:
                 if isinstance(dep.dependency, RouteRateLimit)
             ]
             assert len(limits) == 1, route.path
-            assert (limits[0].limit, limits[0].window) == (10, 60), route.path
+            expected = 5 if route.path == "/raw-data" else 10
+            assert limits[0].limit_for(route.path) == expected, route.path
+            assert limits[0].window == 60, route.path
+
+    @pytest.mark.parametrize(
+        "path", ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"]
+    )
+    def test_raw_data_route_allows_5_requests_a_minute(
+        self, client, valid_raw_payload, path
+    ):
+        export = DataExportResponse(
+            status="success",
+            message="Data exported successfully",
+            data=[{"datetime": "2026-01-01T12:00:00Z", "pm2_5": 15.5, "site_id": "s1"}],
+        )
+        with patch(
+            "api.services.DataExportService.export_raw_data",
+            new_callable=AsyncMock,
+            return_value=export,
+        ):
+            statuses = [
+                client.post(path, json=valid_raw_payload).status_code for _ in range(6)
+            ]
+
+        assert statuses == [200] * 5 + [429]
 
 
 # ---------------------------------------------------------------------------
-# Dashboard historical aggregations (Flask wire shapes)
+# Dashboard historical aggregations
 # ---------------------------------------------------------------------------
 
 
@@ -575,7 +600,7 @@ class TestDashboardAggregationEndpoints:
         )
 
     def test_daily_averages_envelope_includes_null_metadata(self, client):
-        """Flask's create_response always emits "metadata": null — preserve."""
+        """The response envelope carries "metadata": null."""
         with patch(
             "api.services.DashboardService.get_daily_averages",
             new_callable=AsyncMock,
@@ -880,6 +905,18 @@ class TestObservability:
         assert body["status"] == "ready"
         assert body["checks"]["redis"] is True
 
+    def test_readiness_returns_503_when_the_ping_fails(self, client, monkeypatch):
+        async def failed_ping() -> bool:
+            return False
+
+        monkeypatch.setattr("api.utils.cache.cache_ping", failed_ping)
+        resp = client.get("/health/ready")
+
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body["status"] == "not_ready"
+        assert body["checks"]["redis"] is False
+
 
 # ---------------------------------------------------------------------------
 # Grid report endpoints
@@ -1050,9 +1087,11 @@ class TestScheduledExportEndpoints:
 
 
 class TestGatewayIdentity:
-    """Identity used to come straight from ?userId=, so any caller could read
-    another user's export records and download links. See api/dependencies.py
-    for the staged rollout this pins."""
+    """The gateway identity header decides the caller when it is present, and
+    a ?userId= that disagrees with it gets a 403. When the header is absent,
+    ?userId= decides the caller while REQUIRE_GATEWAY_IDENTITY is off, and the
+    request gets a 401 when it is on. See api/dependencies.py for the staged
+    rollout this pins."""
 
     _HEADER = "X-User-Id"
 
@@ -1273,8 +1312,9 @@ class TestResponseEnvelopeContract:
     def test_forbidden_query_is_a_503_error_envelope(
         self, client, valid_export_payload
     ):
-        """The BigQuery message of a refusal goes to the log, not to the
-        requester."""
+        """The 503 envelope of a refusal carries the fixed message of the
+        service, which differs from the message of a cancelled query."""
+        from api.services import _cancelled_error
         from api.utils.exceptions import QueryForbidden
 
         bigquery_message = "Access Denied: Table measurements: Permission denied"
@@ -1293,6 +1333,7 @@ class TestResponseEnvelopeContract:
         assert body["status"] == "error"
         assert body["data"] is None
         assert bigquery_message not in body["message"]
+        assert body["message"] != _cancelled_error().detail
 
     def test_empty_result_is_a_200_success_envelope(
         self, client, valid_export_payload, empty_df
