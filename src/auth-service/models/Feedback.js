@@ -552,6 +552,7 @@ FeedbackSchema.methods = {
       tenant: this.tenant,
       metadata: this.metadata,
       actionable: this.actionable,
+      contact_consent: this.contact_consent,
       adminNotes: this.adminNotes,
       reminderSentAt: this.reminderSentAt,
       reminderCount: this.reminderCount,
