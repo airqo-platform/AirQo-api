@@ -1,4 +1,4 @@
-# Authentication Service
+# Authentication Service.
 
 [![Code Coverage](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/codecov.yml)
 [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/staging/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)
@@ -46,10 +46,10 @@ src/auth-service/
 
 ## API Versions
 
-| Version | Base Path  | Status |
-|---------|------------|--------|
-| v2      | `/api/v2`  | Active |
-| v3      | `/api/v3/users`  | Active (users, groups, networks, org-requests) |
+| Version | Base Path       | Status                                         |
+| ------- | --------------- | ---------------------------------------------- |
+| v2      | `/api/v2`       | Active                                         |
+| v3      | `/api/v3/users` | Active (users, groups, networks, org-requests) |
 
 Both versions expose a `/health` endpoint and a `/routes` introspection endpoint.
 
@@ -111,11 +111,11 @@ Tests use Mocha + nyc (Istanbul). Coverage reports are uploaded to Codecov on ev
 
 **Last recorded test run (historical; run `npm test` for current results):**
 
-| Result | Count | Percentage |
-|---|---|---|
-| ✅ Passing | 1286 | 99.4% |
-| ❌ Failing | 8 | 0.6% |
-| ⏭ Pending | 88 | — |
+| Result     | Count | Percentage |
+| ---------- | ----- | ---------- |
+| ✅ Passing | 1286  | 99.4%      |
+| ❌ Failing | 8     | 0.6%       |
+| ⏭ Pending | 88    | —          |
 
 ## Contributing
 
