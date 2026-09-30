@@ -2040,6 +2040,17 @@ const userController = {
     }
   },
 
+  getFeedbackStats: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getFeedbackStats(request, next);
+      sendResponse(res, result, "feedback_stats");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   getFeedbackSubmission: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);

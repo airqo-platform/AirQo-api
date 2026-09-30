@@ -67,6 +67,10 @@ async def _fake_init_cache() -> None:
     pass
 
 
+async def _fake_cache_ping() -> bool:
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -184,6 +188,7 @@ def patch_cache(monkeypatch):
     monkeypatch.setattr("api.utils.cache.cache_set", _fake_cache_set)
     monkeypatch.setattr("api.utils.cache.cache_incr", _fake_cache_incr)
     monkeypatch.setattr("api.utils.cache.init_cache", _fake_init_cache)
+    monkeypatch.setattr("api.utils.cache.cache_ping", _fake_cache_ping)
     # Also patch where middlewares import them directly
     monkeypatch.setattr("api.middlewares.rate_limiter.cache_incr", _fake_cache_incr)
 

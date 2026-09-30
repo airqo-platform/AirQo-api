@@ -1,10 +1,10 @@
 """
 FastAPI Router for API v3 (Public)
 
-Public-facing API.  Every route carries the per-route limit of 10 requests
-per minute per IP (route_rate_limit) in addition to the global
-RateLimiterMiddleware (100 req/min per IP), the same pair of limits the v2
-routes carry.
+Public-facing API.  Every route carries the per-route limit
+(route_rate_limit): 5 requests per minute per IP on raw-data and 10 on every
+other route.  The global RateLimiterMiddleware applies 100 requests per
+minute per IP on top, the same pair of limits the v2 routes carry.
 """
 
 from fastapi import APIRouter, Depends
@@ -54,7 +54,7 @@ async def raw_data_export(
     """
     Export raw air quality data (Public API v3).
 
-    Rate-limited to 10 requests per minute per IP.
+    The route allows 5 requests per minute for each client IP.
     """
     return await service.export_raw_data(request)
 

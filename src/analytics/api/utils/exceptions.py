@@ -110,3 +110,58 @@ class QueryCancelled(QueryNotCompleted):
     def __init__(self, message: str = "") -> None:
         self.message = message
         super().__init__(message)
+
+
+#: The 403 reasons that clear on their own: a quota resets and a rate limit
+#: opens again.  Every other reason needs an operator.
+TRANSIENT_FORBIDDEN_REASONS = frozenset({"quotaExceeded", "rateLimitExceeded"})
+
+
+class QueryForbidden(QueryNotCompleted):
+    """
+    BigQuery or Cloud Storage refused a request with HTTP 403.
+
+    api/utils/bigquery_jobs.translate_incomplete_queries raises it for a
+    ``Forbidden`` from any request, for the ``PermissionDenied`` that the
+    Storage Read API raises on a row download, and for a ``RetryError`` whose
+    last error is one of them.  ``reason`` is the reason code of the error.
+    The BigQuery error reference lists six reasons with HTTP 403:
+    ``accessDenied``, ``billingNotEnabled``, ``blocked``, ``quotaExceeded``,
+    ``rateLimitExceeded`` and ``responseTooLarge``.  ``reason`` is
+    ``unknown`` when the error carries no reason.
+
+    ``transient`` is True for a reason that clears on its own, so the same
+    request can succeed when it is sent again later.  The reason and the
+    message are for the log.  The service layer answers every
+    QueryForbidden with one fixed response.
+    """
+
+    def __init__(self, reason: str, message: str = "") -> None:
+        self.reason = reason
+        self.message = message
+        self.transient = reason in TRANSIENT_FORBIDDEN_REASONS
+        super().__init__(message)
+
+
+class QueryRateLimited(QueryNotCompleted):
+    """
+    BigQuery refused a request for rate.
+
+    api/utils/bigquery_jobs.translate_incomplete_queries raises it for a
+    ``TooManyRequests`` (HTTP 429), and for any other error with the reason
+    ``rateLimitExceeded`` or ``jobRateLimitExceeded``, at any depth of
+    ``RetryError``.  The library raises ``TooManyRequests`` for a job that
+    failed with ``rateLimitExceeded``, and it restarts such a job until its
+    job retry ends.  A 403 with the reason ``rateLimitExceeded`` stays a
+    QueryForbidden.
+
+    A rate refusal clears on its own, so ``transient`` is always True.  The
+    reason and the message are for the log.  The service layer answers it
+    with the fixed response of a QueryForbidden.
+    """
+
+    def __init__(self, reason: str, message: str = "") -> None:
+        self.reason = reason
+        self.message = message
+        self.transient = True
+        super().__init__(message)

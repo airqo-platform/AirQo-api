@@ -322,15 +322,9 @@ async def readiness_check():
     Returns 503 when a dependency is down so the load balancer stops
     routing traffic to this instance.
     """
-    from api.utils.cache import cache_get, cache_set
+    from api.utils.cache import cache_ping
 
-    checks = {}
-    try:
-        await cache_set("readiness:probe", "ok", expire=10)
-        checks["redis"] = (await cache_get("readiness:probe")) is not None
-    except Exception:
-        logger.exception("Readiness probe failed for Redis")
-        checks["redis"] = False
+    checks = {"redis": await cache_ping()}
 
     ready = all(checks.values())
     return JSONResponse(

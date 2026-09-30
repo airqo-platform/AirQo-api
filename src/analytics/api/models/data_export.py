@@ -1,17 +1,16 @@
-import json
 import traceback
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 
-import pandas as pd
 import pymongo
 from bson import ObjectId
 from bson.errors import InvalidId
-from google.cloud import bigquery, storage
+from google.cloud import bigquery
 from api.utils.bigquery_jobs import (
     query_job_config,
     shared_bigquery_client,
     shared_storage_client,
+    translate_incomplete_queries,
 )
 
 from api.models.base.mongo_base import FastAPIPyMongoModel
@@ -86,16 +85,15 @@ class DataExportModel(FastAPIPyMongoModel):
         self.cloud_storage_client = shared_storage_client()
         self.dataset = settings.data_export_dataset
         self.project = settings.data_export_gcp_project
-        self.bucket = self.cloud_storage_client.get_bucket(settings.data_export_bucket)
+        # bucket() builds the Bucket object locally.  The export steps send
+        # the requests to Cloud Storage, inside translate_incomplete_queries.
+        self.bucket = self.cloud_storage_client.bucket(settings.data_export_bucket)
 
     @staticmethod
     def doc_to_data_export_request(doc) -> DataExportRequest:
-        # New documents store filter_type/filter_value (written by the
-        # FastAPI /data-export service).  Legacy documents stored separate
-        # devices/sites lists — derive the pair from whichever is
-        # populated so pre-migration requests still process.  (The old code
-        # constructed the dataclass with devices=/sites= kwargs that don't
-        # exist, so every request raised and was silently skipped.)
+        # A document stores filter_type/filter_value, or separate devices and
+        # sites lists.  The method derives the pair from whichever list holds
+        # values.
         if "filter_type" in doc:
             filter_type = doc["filter_type"]
             filter_value = doc.get("filter_value") or []
@@ -145,7 +143,6 @@ class DataExportModel(FastAPIPyMongoModel):
                 {
                     "$and": [
                         {"status": {"$eq": DataExportStatus.FAILED.value}},
-                        # was "retires" — the typo meant failed requests never retried
                         {"retries": {"$gt": 0}},
                     ]
                 },
@@ -202,11 +199,19 @@ class DataExportModel(FastAPIPyMongoModel):
         return self.doc_to_data_export_request(doc)
 
     def export_table_to_gcs(self, export_request: DataExportRequest):
-        blobs = self.bucket.list_blobs(prefix=export_request.gcs_folder())
-        for blob in blobs:
-            blob.delete()
+        """
+        Extract the table of the request into a folder for this run, and then
+        delete the files of earlier runs.
 
-        destination_uri = f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.gcs_folder()}{export_request.gcs_file()}"
+        The delete runs only after the extract succeeds, so a failed extract
+        leaves the files of the previous run, and the links stored on the
+        request, in place.
+        """
+        run_folder = (
+            f"{export_request.gcs_folder()}"
+            f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}/"
+        )
+        destination_uri = f"https://storage.cloud.google.com/{self.bucket.name}/{run_folder}{export_request.gcs_file()}"
         extract_job_config = bigquery.job.ExtractJobConfig()
         if export_request.export_format == DataExportFormat.CSV:
             extract_job_config.destination_format = bigquery.DestinationFormat.CSV
@@ -216,17 +221,29 @@ class DataExportModel(FastAPIPyMongoModel):
             )
 
         extract_job_config.print_header = True
-        extract_job = self.bigquery_client.extract_table(
-            f"{self.dataset}.{export_request.bigquery_table()}",
-            destination_uri,
-            job_config=extract_job_config,
-            location=settings.data_export_location,
-        )
+        with translate_incomplete_queries(
+            f"export extract request={export_request.request_id}"
+        ):
+            extract_job = self.bigquery_client.extract_table(
+                f"{self.dataset}.{export_request.bigquery_table()}",
+                destination_uri,
+                job_config=extract_job_config,
+                location=settings.data_export_location,
+            )
+            extract_job.result()
 
-        extract_job.result()
+        with translate_incomplete_queries(
+            f"export cleanup request={export_request.request_id}"
+        ):
+            for blob in self.bucket.list_blobs(prefix=export_request.gcs_folder()):
+                if not blob.name.startswith(run_folder):
+                    blob.delete()
 
     def get_data_links(self, export_request: DataExportRequest) -> [str]:
-        blobs = self.bucket.list_blobs(prefix=export_request.gcs_folder())
+        with translate_incomplete_queries(
+            f"export links request={export_request.request_id}"
+        ):
+            blobs = list(self.bucket.list_blobs(prefix=export_request.gcs_folder()))
         return [
             f"https://storage.cloud.google.com/{self.bucket.name}/{blob.name}"
             for blob in blobs
@@ -247,12 +264,13 @@ class DataExportModel(FastAPIPyMongoModel):
         """
         job_config = query_job_config()
         job_config.use_query_cache = True
-        total_rows = (
-            shared_bigquery_client()
-            .query(f"select * from ({query}) limit 1", job_config)
-            .result()
-            .total_rows
-        )
+        with translate_incomplete_queries("export data check"):
+            total_rows = (
+                shared_bigquery_client()
+                .query(f"select * from ({query}) limit 1", job_config)
+                .result()
+                .total_rows
+            )
         return total_rows > 0
 
     def export_query_results_to_table(self, query, export_request: DataExportRequest):
@@ -260,55 +278,8 @@ class DataExportModel(FastAPIPyMongoModel):
             destination=f"{self.project}.{self.dataset}.{export_request.bigquery_table()}"
         )
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
-        job = self.bigquery_client.query(query, job_config=job_config)
-        job.result()
-
-    def upload_file_to_gcs(
-        self, contents: pd.DataFrame, export_request: DataExportRequest
-    ) -> str:
-        blob = self.bucket.blob(export_request.destination_file())
-
-        contents.reset_index(drop=True, inplace=True)
-        if export_request.export_format == DataExportFormat.CSV:
-            blob.upload_from_string(
-                data=contents.to_csv(index=False),
-                content_type="text/csv",
-                timeout=300,
-                num_retries=2,
-            )
-        elif export_request.export_format == DataExportFormat.JSON:
-            data = contents.to_dict("records")
-            blob.upload_from_string(
-                data=json.dumps(data),
-                content_type="application/json",
-                timeout=300,
-                num_retries=2,
-            )
-
-        return f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.destination_file()}"
-
-    def export_query_results_to_gcs(self, query, export_request: DataExportRequest):
-        destination_uri = f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.destination_file()}.gz"
-
-        job_config = query_job_config()
-        extract_job_config = bigquery.job.ExtractJobConfig()
-        extract_job_config.destination_format = bigquery.DestinationFormat.CSV
-        extract_job_config.compression = bigquery.Compression.GZIP
-        extract_job_config.print_header = True
-
-        job = self.bigquery_client.query(query, job_config=job_config)
-        job.result()
-
-        destination_table = job.destination
-
-        extract_job = self.bigquery_client.extract_table(
-            destination_table,
-            destination_uri,
-            job_config=extract_job_config,
-            location=settings.data_export_location,
-        )
-
-        extract_job.result()
-
-        print(f"Query results exported to {destination_uri}")
-        return destination_uri
+        with translate_incomplete_queries(
+            f"export table request={export_request.request_id}"
+        ):
+            job = self.bigquery_client.query(query, job_config=job_config)
+            job.result()

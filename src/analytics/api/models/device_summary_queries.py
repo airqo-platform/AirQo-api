@@ -1,10 +1,9 @@
 """
 Framework-free BigQuery helpers for the devices-summary job.
 
-Ported from the Flask-coupled EventsModel classmethods
-(get_devices_hourly_data / save_devices_summary_data), reading table names
-from config.settings.  Used by devices_summary.py (the Dockerfile
-``devices-summary-job`` target).
+The helpers read the hourly data of one day and save its summary, reading
+table names from config.settings.  Used by devices_summary.py (the
+Dockerfile ``devices-summary-job`` target).
 """
 
 from __future__ import annotations
@@ -13,7 +12,11 @@ from datetime import datetime
 
 import pandas as pd
 from google.cloud import bigquery
-from api.utils.bigquery_jobs import query_job_config, shared_bigquery_client
+from api.utils.bigquery_jobs import (
+    query_job_config,
+    shared_bigquery_client,
+    translate_incomplete_queries,
+)
 
 from api.utils.utils import Utils
 from config import settings
@@ -36,12 +39,15 @@ def get_devices_hourly_data(day: datetime) -> pd.DataFrame:
     job_config = query_job_config()
     job_config.use_query_cache = True
 
-    return (
-        shared_bigquery_client()
-        .query(f"select distinct * from ({query})", job_config)
-        .result()
-        .to_dataframe()
-    )
+    with translate_incomplete_queries(
+        f"devices summary hourly data day={day.strftime('%Y-%m-%d')}"
+    ):
+        return (
+            shared_bigquery_client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
 
 
 def save_devices_summary_data(data: pd.DataFrame) -> None:
@@ -57,9 +63,10 @@ def save_devices_summary_data(data: pd.DataFrame) -> None:
     ]
 
     job_config = bigquery.LoadJobConfig(schema=schema)
-    job = shared_bigquery_client().load_table_from_dataframe(
-        dataframe=data,
-        destination=settings.devices_summary_table,
-        job_config=job_config,
-    )
-    job.result()
+    with translate_incomplete_queries("devices summary save"):
+        job = shared_bigquery_client().load_table_from_dataframe(
+            dataframe=data,
+            destination=settings.devices_summary_table,
+            job_config=job_config,
+        )
+        job.result()

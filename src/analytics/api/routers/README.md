@@ -69,14 +69,16 @@ None of the endpoints documented here require a user identity.
 
 ## Rate Limits
 
-Two independent limits apply, both keyed on the client IP (taken from
-`X-Forwarded-For`, but only when the immediate peer is a configured trusted
-proxy):
+Two limits apply to each request, the global limit and the per-route limit,
+both keyed on the client IP (taken from `X-Forwarded-For`, but only when the
+immediate peer is a configured trusted proxy). The per-route limit is 5 on
+`raw-data` and 10 on every other route:
 
-| Scope                                     | Limit               |
-| ----------------------------------------- | ------------------- |
-| Global middleware, every route            | 100 requests / 60 s |
-| Additional per-route limit on every route | 10 requests / 60 s  |
+| Scope                                   | Limit               |
+| --------------------------------------- | ------------------- |
+| Global middleware, every route          | 100 requests / 60 s |
+| Per-route limit, `raw-data` (v2 and v3) | 5 requests / 60 s   |
+| Per-route limit, every other route      | 10 requests / 60 s  |
 
 The per-route limit counts the requests to one route path from one client IP,
 on v2 and v3 alike. Exceeding either limit returns **429** with the standard
@@ -691,10 +693,12 @@ Validation failures add an `errors` array describing each offending field:
 | **422** | Request validation failed — **this is the common one**, not 400                                                                   |
 | 429     | Rate limit exceeded                                                                                                               |
 | 500     | Unhandled server error                                                                                                            |
-| 503     | A required dependency is unavailable, or the query was cancelled before it finished                                               |
+| 503     | A required dependency is unavailable, BigQuery refused the request, or the query was cancelled before it finished                 |
 
 **400 when the date range scans too much data.** Every query runs under a
 per-request byte ceiling (`BIGQUERY_MAX_BYTES_BILLED`, **100 MB** by default).
+The data query of `report` runs under its own ceiling
+(`BIGQUERY_REPORT_MAX_BYTES_BILLED`, **200 MB** by default).
 BigQuery checks it while planning the job, so an over-budget request is refused
 before anything is scanned — the query never runs and costs nothing. The
 response names the two levers that bring a request under the ceiling:
@@ -752,6 +756,21 @@ again:
 {
   "status": "error",
   "message": "The query was cancelled before it finished. Please try again.",
+  "data": null,
+  "metadata": null
+}
+```
+
+**503 when BigQuery refuses the request.** BigQuery refuses a request with
+HTTP 403 when, for example, the query quota of the service is used up or its
+access to a table is denied, and it refuses a job for rate when too many jobs
+run at once. The request itself was valid, so the response carries one fixed
+message for every cause, and the cause goes to the service log:
+
+```json
+{
+  "status": "error",
+  "message": "The service cannot read the data at this time. Please try again later.",
   "data": null,
   "metadata": null
 }

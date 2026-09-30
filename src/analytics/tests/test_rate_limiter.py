@@ -435,6 +435,35 @@ class TestRouteRateLimit:
         await limiter(r2)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "path", ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"]
+    )
+    async def test_path_limit_applies_to_a_matching_route(self, path):
+        from api.middlewares.rate_limiter import RouteRateLimit
+
+        limiter = RouteRateLimit(limit=10, window=60, path_limits={"/raw-data": 5})
+        request = _request(path=path, peer="10.0.0.7")
+
+        for _ in range(5):
+            await limiter(request)
+        with pytest.raises(HTTPException) as exc:
+            await limiter(request)
+
+        assert exc.value.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_other_routes_keep_the_default_limit(self):
+        from api.middlewares.rate_limiter import RouteRateLimit
+
+        limiter = RouteRateLimit(limit=10, window=60, path_limits={"/raw-data": 5})
+        request = _request(path="/api/v2/analytics/data-download", peer="10.0.0.8")
+
+        for _ in range(10):
+            await limiter(request)
+        with pytest.raises(HTTPException):
+            await limiter(request)
+
+    @pytest.mark.asyncio
     async def test_falls_back_to_local_counter_when_cache_unavailable(self):
         """The per-route limiter degrades the same way as the middleware:
         it keeps serving, but still enforces the ceiling locally."""

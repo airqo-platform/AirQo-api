@@ -1740,6 +1740,42 @@ const listEmailQueue = [
     .withMessage("limit must be between 1 and 500"),
 ];
 
+const getFeedbackStats = [
+  validateTenant,
+  query("platform")
+    .optional()
+    .notEmpty()
+    .withMessage("platform must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_PLATFORMS)
+    .withMessage(
+      `platform must be one of: ${FEEDBACK_PLATFORMS.join(", ")}`,
+    ),
+  query("app")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("app must not be empty if provided")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("app cannot exceed 100 characters"),
+  query("startDate")
+    .optional()
+    .isISO8601()
+    .withMessage("startDate must be a valid ISO 8601 date"),
+  query("endDate")
+    .optional()
+    .isISO8601()
+    .withMessage("endDate must be a valid ISO 8601 date")
+    .bail()
+    .custom((value, { req }) => {
+      if (req.query.startDate && new Date(value) < new Date(req.query.startDate)) {
+        throw new Error("endDate must be on or after startDate");
+      }
+      return true;
+    }),
+];
+
 const listFeedbackSubmissions = [
   validateTenant,
   query("status")
@@ -2169,6 +2205,7 @@ module.exports = {
   submitFeedback,
   getFeedbackUploadUrl,
   listFeedbackSubmissions,
+  getFeedbackStats,
   getFeedbackById,
   updateFeedbackStatus,
   bulkUpdateFeedbackStatus,

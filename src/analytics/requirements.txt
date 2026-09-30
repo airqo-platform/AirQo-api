@@ -10,7 +10,6 @@ pydantic-settings >= 2.0.0
 
 # Async and HTTP clients
 httpx >= 0.24.0
-aioredis >= 2.0.0
 requests
 urllib3
 
@@ -21,7 +20,8 @@ pymongo~=4.5.0
 google-cloud-bigquery[pandas]
 google-cloud-storage
 google-cloud-bigquery-storage==2.27.0
-redis
+# redis.asyncio is the async cache client; aclose() needs 5.0.1 or later.
+redis >= 5.0.1
 celery
 
 # Utilities
