@@ -154,6 +154,11 @@ function envConfig(env) {
     FORGOT_PAGE: nexusBaseUrl ? `${nexusBaseUrl}/forgot` : undefined,
     SIGN_IN_LINK: nexusBaseUrl ? `${nexusBaseUrl}/user/emailLogin` : undefined,
     PLATFORM_BASE_URL: nexusBaseUrl,
+    // Public troubleshooting guide for blocked/rejected API token requests.
+    // Linked from verify error responses and the daily security alert email.
+    API_ACCESS_TROUBLESHOOTING_URL:
+      process.env.API_ACCESS_TROUBLESHOOTING_URL ||
+      "https://platform.airqo.net/docs/api/reference/blocked-requests/",
 
     // ── Per-environment defaults ──────────────────────────────────────────────
     ENVIRONMENT:
