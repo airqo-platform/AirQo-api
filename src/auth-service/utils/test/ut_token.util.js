@@ -1124,4 +1124,72 @@ describe("token util", () => {
       });
     });
   });
+
+  describe("analyzeIPRequestPatterns() - client allowlist", () => {
+    let origIPRequestLogModel, registerStub;
+
+    // 12 requests exactly 30 minutes apart: a clear scheduled-job pattern.
+    const periodicRequests = () =>
+      Array.from({ length: 12 }, (_, i) => ({
+        timestamp: new Date(Date.UTC(2026, 9, 1, 0, 30 * i)),
+      }));
+
+    const stubAnalysisDeps = ({ clientIps }) => {
+      rewireToken.__set__("WhitelistedIPModel", () => ({
+        exists: sinon.stub().resolves(null),
+      }));
+      registerStub = sinon.stub().resolves({ success: true, inserted: false });
+      rewireToken.__set__("BlacklistedIPModel", () => ({
+        exists: sinon.stub().resolves(null),
+        register: registerStub,
+      }));
+      rewireToken.__set__("IPRequestLogModel", () => ({
+        getRequestsForEndpoint: sinon.stub().resolves(periodicRequests()),
+        markAsBot: sinon.stub().resolves(),
+        getBotLogsByPrefix: sinon.stub().resolves([]),
+      }));
+      rewireToken.__set__("AccessTokenModel", () => ({
+        findOne: () => ({
+          select: () => ({ lean: sinon.stub().resolves({ client_id: "c1" }) }),
+        }),
+      }));
+      rewireToken.__set__("ClientModel", () => ({
+        findById: () => ({
+          select: () => ({
+            lean: sinon
+              .stub()
+              .resolves({ isActive: true, ip_addresses: clientIps }),
+          }),
+        }),
+      }));
+    };
+
+    beforeEach(() => {
+      origIPRequestLogModel = rewireToken.__get__("IPRequestLogModel");
+    });
+
+    afterEach(() => {
+      rewireToken.__set__("IPRequestLogModel", origIPRequestLogModel);
+    });
+
+    it("does not blacklist a bot-like IP that is on the token's client allowlist", async () => {
+      stubAnalysisDeps({ clientIps: ["99.80.25.45"] });
+      await rewireToken.analyzeIPRequestPatterns({
+        ip: "99.80.25.45",
+        endpoint: "/api/v2/devices/readings",
+        token: "raw-token-123",
+      });
+      expect(registerStub.called).to.equal(false);
+    });
+
+    it("still blacklists a bot-like IP that is not on the client allowlist", async () => {
+      stubAnalysisDeps({ clientIps: ["203.0.113.10"] });
+      await rewireToken.analyzeIPRequestPatterns({
+        ip: "99.80.25.45",
+        endpoint: "/api/v2/devices/readings",
+        token: "raw-token-123",
+      });
+      expect(registerStub.calledOnce).to.equal(true);
+    });
+  });
 });

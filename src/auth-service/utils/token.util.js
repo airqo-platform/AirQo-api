@@ -3383,28 +3383,6 @@ const token = {
         return;
       }
 
-      // Scheduled jobs (e.g. a nightly download) from an IP the token's own
-      // client has allowlisted are expected to look periodic — don't let the
-      // bot detector blacklist the IP (or its /16 prefix) out from under them.
-      if (token) {
-        const accessToken = await AccessTokenModel("airqo")
-          .findOne({ token })
-          .select("client_id")
-          .lean();
-        if (accessToken && accessToken.client_id) {
-          const client = await ClientModel("airqo")
-            .findById(accessToken.client_id)
-            .select("isActive ip_address ip_addresses")
-            .lean();
-          if (_clientAllowsIp(client, ip)) {
-            logger.info(
-              `IP ${ip} is on the token's client allowlist. Skipping bot pattern analysis.`,
-            );
-            return;
-          }
-        }
-      }
-
       // An already-blacklisted IP was flagged (and alerted on) earlier. Its request
       // history still shows the same pattern, so without this exit every later
       // request would re-blacklist it and re-send the admin alert email.
@@ -3468,6 +3446,30 @@ const token = {
 
       if (maxCount < MIN_PATTERN_OCCURRENCES) {
         return; // No significant pattern found
+      }
+
+      // Checked only once a pattern is found (rare), so the two lookups stay
+      // off the hot path that runs on every token verify.
+      // Scheduled jobs (e.g. a nightly download) from an IP the token's own
+      // client has allowlisted are expected to look periodic — don't let the
+      // bot detector blacklist the IP (or its /16 prefix) out from under them.
+      if (token) {
+        const accessToken = await AccessTokenModel("airqo")
+          .findOne({ token })
+          .select("client_id")
+          .lean();
+        if (accessToken && accessToken.client_id) {
+          const client = await ClientModel("airqo")
+            .findById(accessToken.client_id)
+            .select("isActive ip_address ip_addresses")
+            .lean();
+          if (_clientAllowsIp(client, ip)) {
+            logger.info(
+              `IP ${ip} is on the token's client allowlist. Not blacklisting despite bot-like pattern.`,
+            );
+            return;
+          }
+        }
       }
 
       // Pattern detected!
