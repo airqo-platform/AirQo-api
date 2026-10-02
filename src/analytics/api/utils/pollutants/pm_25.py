@@ -87,6 +87,12 @@ COMMON_POLLUTANT_MAPPING_v2 = {
             "pm10": ["pm10", "s1_pm10", "s2_pm10"],
         }
     },
+    "satellite": {
+        "raw": {
+            "pm2_5": ["pm2_5"],
+            "pm10": ["pm10"],
+        }
+    },
     "no2_calibrated": ["no2_calibrated_value"],
     "no2_raw": ["no2_raw_value"],
 }
