@@ -120,9 +120,10 @@ class TestGoogleCredentialsExport:
 
 
 class TestSecretKeyGuard:
-    """SECRET_KEY signs pagination cursors, whose contents reach a BigQuery
-    WHERE clause. A predictable key means forgeable cursors, so deployed
-    environments must not fall back to the shipped default."""
+    """SECRET_KEY signs pagination cursors. A cursor names the BigQuery job
+    whose stored result the service reads, so a predictable key would let a
+    caller forge a cursor for another job. Deployed environments must set
+    their own key."""
 
     def test_default_secret_rejected_in_production(self):
         import pytest

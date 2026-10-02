@@ -8,6 +8,10 @@ FILTER_MSG = "Specify exactly one of 'sites', 'device_ids', 'device_names', or '
 
 RATE_LIMIT_ERROR = "You have exceeded your rate limit. Please wait before retrying."
 
+#: The service answers every rejected pagination cursor with this message.
+#: The reason of the rejection goes to the log only.
+CURSOR_REJECTED_MSG = "Invalid or expired cursor token"
+
 
 def no_data_message(
     start: datetime, end: datetime, entity: Optional[str] = None

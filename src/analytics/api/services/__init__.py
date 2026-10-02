@@ -64,6 +64,7 @@ from api.schemas.responses import (
     MonitoringSiteResponse,
     SiteInfo,
 )
+from api.utils.cursor_utils import CursorUtils
 from api.utils.data_cleaning import CleaningContext, build_download_pipeline
 from api.utils.data_formatters import (
     compute_entity_summary,
@@ -71,11 +72,12 @@ from api.utils.data_formatters import (
     format_to_aqcsv,
     get_validated_filter,
 )
-from api.utils.messages import FILTER_MSG, no_data_message
+from api.utils.messages import CURSOR_REJECTED_MSG, FILTER_MSG, no_data_message
 from api.utils.pollutants import set_pm25_category_background
 from api.utils.pollutants.exceedances import count_standard_categories
 from api.utils.utils import Utils
 from api.utils.exceptions import (
+    CursorRejected,
     ExportRequestNotFound,
     PrivacyScreeningUnavailable,
     QueryForbidden,
@@ -359,6 +361,30 @@ def _query_error(exc: QueryNotCompleted, levers: QueryLevers) -> HTTPException:
     return _cancelled_error()
 
 
+def _cursor_binding(operation: str, request: Any) -> str:
+    """
+    Compute the hash that ties a cursor to the request that produced it.
+
+    The hash covers the operation name and every field of the request body
+    except the cursor, so the service accepts a cursor only with the body that
+    produced it.  Pydantic serialises the datetimes and the enum values in one
+    form, so one body gives one hash in every process.
+    """
+    body = request.model_dump(mode="json", exclude={"cursor"})
+    return CursorUtils.fingerprint({"operation": operation, "body": body})
+
+
+def _cursor_error(exc: CursorRejected) -> HTTPException:
+    """
+    Build the HTTP 400 response for a rejected cursor.
+
+    The reason goes to the log at INFO, because a rejected cursor is a client
+    error.
+    """
+    logger.info("pagination cursor rejected: %s", exc.reason)
+    return HTTPException(status_code=400, detail=CURSOR_REJECTED_MSG)
+
+
 def _safe_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """Convert a DataFrame to JSON-serialisable records (casts non-native types)."""
     serializable = ["int64", "float64", "bool", "object"]
@@ -504,6 +530,7 @@ class DataExportService(BaseService):
             datatype=request.datatype,
             frequency=Frequency(request.frequency),
             dynamic_query=True,
+            operation="data-download",
         )
 
     async def export_raw_data(
@@ -515,6 +542,7 @@ class DataExportService(BaseService):
             datatype="raw",
             frequency=Frequency.RAW,
             dynamic_query=False,
+            operation="raw-data",
         )
 
     @staticmethod
@@ -592,8 +620,10 @@ class DataExportService(BaseService):
         country takes precedence when both are supplied.
 
         The response carries the same pagination metadata as the other download
-        endpoints, and the cursor it returns is accepted back on this endpoint,
-        so a caller pages a forecast export the way it pages a data download.
+        endpoints.  A request without a cursor runs the query and returns the
+        first page.  A request that carries ``metadata.next`` reads the next
+        page from the stored result of that query.  A rejected cursor gets
+        HTTP 400.
         """
         filter_type = "country" if request.country else "city"
         filter_value = request.country or request.city
@@ -618,7 +648,10 @@ class DataExportService(BaseService):
                 dynamic_query=False,
                 use_cache=True,
                 cursor_token=request.cursor,
+                cursor_binding=_cursor_binding("forecast-data", request),
             )
+        except CursorRejected as exc:
+            raise _cursor_error(exc) from exc
         except QueryNotCompleted as exc:
             raise _query_error(exc, QueryLevers(window=True)) from exc
         except RuntimeError as exc:
@@ -667,8 +700,15 @@ class DataExportService(BaseService):
         datatype: str,
         frequency: Frequency,
         dynamic_query: bool,
+        operation: str,
     ) -> Union[DataExportResponse, StreamingResponse]:
-        """Shared export pipeline: filter → table → query → format response."""
+        """
+        Run the shared export pipeline: resolve the filter and the table, run
+        the query, and format the response.
+
+        ``operation`` names the export for the hash that ties a cursor to the
+        request that produced it.
+        """
         req_dict = request.model_dump(by_alias=False)
         filter_type, filter_value = await _filter_from_request(req_dict, privacy=False)
 
@@ -695,7 +735,10 @@ class DataExportService(BaseService):
                 dynamic_query=dynamic_query,
                 use_cache=True,
                 cursor_token=request.cursor,
+                cursor_binding=_cursor_binding(operation, request),
             )
+        except CursorRejected as exc:
+            raise _cursor_error(exc) from exc
         except QueryNotCompleted as exc:
             raise _query_error(
                 exc,
@@ -780,7 +823,14 @@ class DashboardService(BaseService):
     async def get_chart_data(
         self, request: DashboardChartRequest
     ) -> DashboardChartResponse:
-        """Fetch time-series data and format it for the requested chart type."""
+        """
+        Fetch time-series data and format it for the requested chart type.
+
+        A line or bar chart pages through the result with ``request.cursor``,
+        the way the download endpoints do.  A pie chart reads every row of
+        the stored result, so its metadata carries ``has_more`` false and
+        ``next`` null.  A rejected cursor gets HTTP 400.
+        """
         req_dict = request.model_dump(by_alias=False)
         # Dashboard/chart endpoints are not privacy-filtered (user decision;
         # revisit before public cutover).
@@ -805,7 +855,12 @@ class DashboardService(BaseService):
                 where_fields={filter_type: filter_value},
                 dynamic_query=True,
                 use_cache=True,
+                cursor_token=request.cursor,
+                cursor_binding=_cursor_binding("chart", request),
+                whole_result=request.chart_type == "pie",
             )
+        except CursorRejected as exc:
+            raise _cursor_error(exc) from exc
         except QueryNotCompleted as exc:
             raise _query_error(
                 exc,
@@ -848,9 +903,12 @@ class DashboardService(BaseService):
                 metadata={**metadata, "total_count": 0},
             )
 
-        records = _safe_records(df)
-        chart_data = self._format_for_chart(
-            records, request.chart_type, request.pollutants
+        # A pie chart holds every row of the window, so the conversion to
+        # records and the per-site means run off the event loop.
+        chart_data = await asyncio.to_thread(
+            lambda: self._format_for_chart(
+                _safe_records(df), request.chart_type, request.pollutants
+            )
         )
 
         # total_count must describe the points actually returned: the value
