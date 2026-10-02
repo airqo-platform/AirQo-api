@@ -54,7 +54,7 @@ const analyzeIP = async (req, res, next) => {
             .recordRequest({ ip, endpoint, token })
             .catch((err) => logObject("Error in background IP recording", err)),
           tokenUtil
-            .analyzeIPRequestPatterns({ ip, tenant, endpoint })
+            .analyzeIPRequestPatterns({ ip, tenant, endpoint, token })
             .catch((err) => logObject("Error in background IP analysis", err)),
         ]).finally(() => {
           _pendingAnalysis--;
