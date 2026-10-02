@@ -10,6 +10,7 @@ data:
     auth_request /auth;
     auth_request_set $auth_user_id $upstream_http_x_auth_user_id;
     auth_request_set $auth_user_groups $upstream_http_x_auth_user_groups;
+    auth_request_set $auth_error_code $upstream_http_x_auth_error_code;
     proxy_set_header X-Auth-User-Id $auth_user_id;
     proxy_set_header X-Auth-User-Groups $auth_user_groups;
     error_page 500 = @custom_internal_server_error;
@@ -52,7 +53,17 @@ data:
       </html>';
     }
 
+    location = /__airqo_api_auth_error_403 {
+      internal;
+      default_type application/json;
+      add_header X-Auth-Error-Code $auth_error_code always;
+      return 403 '{\"success\":false,\"message\":\"Access denied\",\"errors\":{\"code\":\"$auth_error_code\",\"message\":\"This API token request was rejected ($auth_error_code). Follow the docs link to fix it.\",\"ip\":\"$remote_addr\",\"docs\":\"https://platform.airqo.net/docs/api/reference/blocked-requests/\"}}';
+    }
+
     location @custom_access_denied {
+      # API-token rejections carry a reason code from auth-service; answer
+      # those with JSON (code + docs link) instead of the HTML page.
+      if ($auth_error_code) { rewrite ^ /__airqo_api_auth_error_403 last; }
       return 403 '
       <!DOCTYPE html>
       <html>
@@ -82,7 +93,17 @@ data:
       </html>';
     }
 
+    location = /__airqo_api_auth_error_401 {
+      internal;
+      default_type application/json;
+      add_header X-Auth-Error-Code $auth_error_code always;
+      return 401 '{\"success\":false,\"message\":\"Unauthorized\",\"errors\":{\"code\":\"$auth_error_code\",\"message\":\"This API token request was rejected ($auth_error_code). Follow the docs link to fix it.\",\"ip\":\"$remote_addr\",\"docs\":\"https://platform.airqo.net/docs/api/reference/blocked-requests/\"}}';
+    }
+
     location @custom_unauthorized {
+      # API-token rejections carry a reason code from auth-service; answer
+      # those with JSON (code + docs link) instead of the HTML page.
+      if ($auth_error_code) { rewrite ^ /__airqo_api_auth_error_401 last; }
       return 401 '
       <!DOCTYPE html>
       <html>
