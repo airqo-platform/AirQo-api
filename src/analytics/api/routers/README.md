@@ -22,6 +22,7 @@ For running the service locally, configuration and deployment, see the
 - [Validation Rules](#validation-rules)
 - [Data Download](#data-download)
 - [Raw Data](#raw-data)
+- [Forecast Data](#forecast-data)
 - [Dashboard Charts](#dashboard-charts)
 - [Air-Quality Report](#air-quality-report)
 - [Response Format](#response-format)
@@ -37,6 +38,7 @@ sensors. The endpoints documented here let callers:
 
 - Download processed data at several frequencies (hourly, daily and up)
 - Query raw sensor measurements
+- Download satellite forecasts for a country or a city
 - Retrieve chart-ready aggregations for dashboards
 - Generate PM aggregate reports for a grid or a cohort
 
@@ -90,18 +92,19 @@ configured value until Redis returns.
 
 ## Endpoints Covered
 
-| Method | Path                                        | Notes                                         |
-| ------ | ------------------------------------------- | --------------------------------------------- |
-| POST   | `/api/v2/analytics/data-download`           | Processed data, JSON or CSV                   |
-| POST   | `/api/v3/public/analytics/data-download`    | Same body                                     |
-| POST   | `/api/v2/analytics/raw-data`                | Raw measurements, JSON or CSV                 |
-| POST   | `/api/v3/public/analytics/raw-data`         | Same body                                     |
-| POST   | `/api/v2/analytics/dashboard/chart/data`    | Chart-ready series                            |
-| POST   | `/api/v2/analytics/dashboard/chart/d3/data` | D3-shaped series                              |
-| POST   | `/api/v2/analytics/report`                  | PM aggregates for a grid or cohort            |
-| POST   | `/api/v3/public/analytics/report`           | Same body, private members screened           |
-| POST   | `/api/v2/analytics/summary`                 | Data-completeness counts for a grid or cohort |
-| POST   | `/api/v3/public/analytics/summary`          | Same body                                     |
+| Method | Path                                        | Notes                                              |
+| ------ | ------------------------------------------- | -------------------------------------------------- |
+| POST   | `/api/v2/analytics/data-download`           | Processed data, JSON or CSV, paged                 |
+| POST   | `/api/v3/public/analytics/data-download`    | Same body                                          |
+| POST   | `/api/v2/analytics/raw-data`                | Raw measurements, JSON or CSV, paged               |
+| POST   | `/api/v3/public/analytics/raw-data`         | Same body                                          |
+| POST   | `/api/v3/public/analytics/forecast-data`    | Satellite forecasts for a country or a city, paged |
+| POST   | `/api/v2/analytics/dashboard/chart/data`    | Chart-ready series; `line` and `bar` are paged     |
+| POST   | `/api/v2/analytics/dashboard/chart/d3/data` | D3-shaped series; `line` and `bar` are paged       |
+| POST   | `/api/v2/analytics/report`                  | PM aggregates for a grid or cohort, one response   |
+| POST   | `/api/v3/public/analytics/report`           | Same body, private members screened                |
+| POST   | `/api/v2/analytics/summary`                 | Data-completeness counts for a grid or cohort      |
+| POST   | `/api/v3/public/analytics/summary`          | Same body                                          |
 
 ## Shared Request Fields
 
@@ -124,7 +127,7 @@ see [Air-Quality Report](#air-quality-report).
 | `pollutants`      | string[]          | no                  | `[]`      | Only `pm2_5` and `pm10`                                   |
 | `metaDataFields`  | string[]          | no                  | —         | Only `latitude`, `longitude`, `site_id`                   |
 | `weatherFields`   | string[]          | no                  | —         | Only `temperature`, `humidity`                            |
-| `cursor`          | string            | no                  | —         | Pagination token                                          |
+| `cursor`          | string            | no                  | —         | Token from `metadata.next`, see [Pagination](#pagination) |
 
 `device_names` and `device_ids` both resolve to the same underlying `device_id`
 column, so `device_names` will **not** match a human-readable device name —
@@ -226,10 +229,13 @@ headers instead:
 | `X-Next-Cursor` | `metadata.next`        | `<cursor token>` |
 
 `X-Next-Cursor` is present while another page exists and is absent on the last
-page. Send its value back as the `cursor` field of the request body, exactly as
-on the JSON path — the request format is the same for both. **A single CSV
-response holds one page**, so a caller that ignores these headers receives the
-first page and no indication that the rest exists.
+page. To fetch the next page, send the same request body with `cursor` set to
+the value of `X-Next-Cursor`. The rules in [Pagination](#pagination) apply to a
+CSV export as they do to a JSON export: the cursor expires 6 minutes after the
+response that carried it, it works only with the request body that produced
+it, and every page counts against the rate limit. **A single CSV response holds
+one page**, so a caller that ignores these headers receives the first page and
+no indication that the rest exists.
 
 Browser clients read these headers because the service lists them in
 `Access-Control-Expose-Headers`, alongside `Content-Disposition`.
@@ -240,7 +246,9 @@ Browser clients read these headers because the service lists them in
 `POST /api/v3/public/analytics/raw-data`
 
 Unprocessed sensor measurements. Takes the shared fields and returns the same
-envelope as data-download. It **does** support `"downloadType": "csv"`.
+envelope as data-download. It **does** support `"downloadType": "csv"`. The
+route allows 5 requests a minute for each client, so pause at least 12 seconds
+between the pages of a large export.
 
 ```json
 {
@@ -251,6 +259,33 @@ envelope as data-download. It **does** support `"downloadType": "csv"`.
   "device_category": "lowcost"
 }
 ```
+
+## Forecast Data
+
+`POST /api/v3/public/analytics/forecast-data`
+
+This endpoint returns satellite forecasts for one country or one city. It
+exists on v3 only and returns JSON only. The body carries the date range and
+the location:
+
+| JSON field      | Type              | Required              | Notes                                                 |
+| --------------- | ----------------- | --------------------- | ----------------------------------------------------- |
+| `startDateTime` | ISO 8601 datetime | **yes**               | —                                                     |
+| `endDateTime`   | ISO 8601 datetime | **yes**               | After `startDateTime`, within `MAX_HOURLY_QUERY_DAYS` |
+| `country`       | string            | one location required | Used when both locations are present                  |
+| `city`          | string            | one location required | —                                                     |
+| `cursor`        | string            | no                    | Token from `metadata.next`                            |
+
+```json
+{
+  "startDateTime": "2026-01-01T00:00:00Z",
+  "endDateTime": "2026-01-02T00:00:00Z",
+  "country": "Uganda"
+}
+```
+
+The response is the envelope that `data-download` returns, and it pages the
+same way.
 
 ## Dashboard Charts
 
@@ -292,6 +327,11 @@ Response — note the additional `chart_type` key:
   "metadata": { "total_count": 1, "has_more": false, "next": null }
 }
 ```
+
+A `line` or `bar` chart pages like a download: the response carries `has_more`
+and `next`, and the next request sends `next` as `cursor` with the same body.
+A `pie` chart is computed from every row of the result and returns in one
+response, with `has_more: false` and `next: null`.
 
 For pie charts `metadata.total_count` counts the aggregated chart points (one
 per site), not the underlying rows.
@@ -596,10 +636,12 @@ Successful data responses use this envelope:
 The chart endpoints add a `chart_type` key.
 
 `metadata` carries the pagination block on the endpoints that page:
-`data-download`, `raw-data`, `forecast-data` and the chart endpoints. `report`
-and `summary` compute a whole window in one pass and return `"metadata": null`.
-Read the block as present-and-populated or `null`, and branch on that rather
-than on the endpoint.
+`data-download`, `raw-data`, `forecast-data`, and the chart endpoints for
+`line` and `bar` charts. A `pie` chart returns its whole result in one
+response with `has_more: false` and `next: null`. `report` and `summary`
+compute a whole window in one pass and return `"metadata": null`. Read the
+block as present-and-populated or `null`, and branch on that rather than on
+the endpoint.
 
 All response keys are snake_case.
 
@@ -622,36 +664,76 @@ the window:
 Every endpoint uses that same wording, so "no data" can be detected once rather
 than per endpoint. Check `data` for emptiness — do not treat it as a failure.
 
-An empty `data` can arrive with `has_more: true` and a `next` cursor. The
-cleaning pipeline drops rows the query returned, so a page can empty while
-later pages still hold measurements. Treat `has_more` as the signal to keep
-paging and `data` as the payload of the page in hand — page until `has_more` is
-`false`, rather than until `data` is empty.
+An empty `data` array comes only from a request without a cursor whose window
+holds no measurements, and it carries `has_more: false` and `next: null`. A
+request that carries a cursor always returns at least one record, because the
+service issues a cursor only while rows remain in the stored result. A page can
+hold fewer than `DATA_EXPORT_LIMIT` records when more pages follow, because the
+service removes duplicate records (two records for the same device, or for the
+same city on `forecast-data`, at the same time) within each page. Page until
+`has_more` is `false`, rather than until a page is short or empty.
 
 ## Pagination
 
-`data-download` and `raw-data` return a cursor when more data is available. A
-page holds up to `DATA_EXPORT_LIMIT` rows — **5000** by default — and a result
-with more rows carries `has_more: true` and a `next` cursor. **The metadata
-keys are snake_case.**
+`data-download` and `raw-data` on both versions, `forecast-data` on v3, and
+the chart endpoints for `line` and `bar` charts return a cursor when more data
+is available. A page holds up to `DATA_EXPORT_LIMIT` records — **5000** by
+default — and a result with more rows carries `has_more: true` and a `next`
+cursor. **The metadata keys are snake_case.**
 
 ```json
-"metadata": { "total_count": 1000, "has_more": true, "next": "<cursor token>" }
+"metadata": { "total_count": 5000, "has_more": true, "next": "<cursor token>" }
 ```
 
 - `total_count` — the number of records in `data` for this page. It is **not**
   a grand total of all matching records.
 - `has_more` — whether another page exists.
-- `next` — the token to send as `cursor` on the following request.
+- `next` — the token to send as `cursor` on the following request. It is
+  `null` on the last page.
 
-To page: issue the first request with no `cursor`, then repeat with
-`cursor: <metadata.next>` while `metadata.has_more` is `true`.
+To page: send the first request without `cursor`. While `metadata.has_more` is
+`true`, send the same request body again with `cursor` set to `metadata.next`.
 
-**Cursors expire after 6 minutes.** They are HMAC-SHA256 signed, so a tampered,
-expired or unsigned token is rejected with `Invalid or expired cursor token`.
-Fetch each page within 6 minutes of the previous response, and note that tokens
-do not survive a `SECRET_KEY` rotation. Cursors are stateless and keep working
-during a Redis outage.
+### How the service pages
+
+The first request runs one BigQuery query over the whole window, sorted in a
+fixed order, and returns the first page. BigQuery keeps the result of that
+query for up to 24 hours. A request that carries a cursor reads the next rows
+of that stored result by position and runs no query.
+
+- The pages together hold every row of the stored result once. Within a page,
+  the service sorts the records by device (by city on `forecast-data`) and
+  then by time, and it removes duplicate records within that page.
+- The byte ceiling and the job timeout described under
+  [Error Handling](#error-handling) apply only to the first request.
+- The pages hold the data as it stood at the first request. Measurements that
+  arrive later appear in an export started again without a cursor.
+- Sending the same cursor again returns the same page, so a page refused with
+  429 or 503 can be requested again with that cursor.
+
+### Cursor rules
+
+- A cursor expires 6 minutes after the response that carried it.
+- A cursor works only with the request body that produced it. A change to any
+  field of the body, such as the filter, the window, the frequency or the
+  output type, gets it rejected.
+- Cursors are signed with HMAC-SHA256 under `SECRET_KEY`, and a key rotation
+  invalidates every cursor in flight.
+- The service answers a changed, unsigned, undecodable, expired or mismatched
+  cursor, and a cursor whose stored result BigQuery has dropped, with **400**
+  and the message `Invalid or expired cursor token`. After that, start the
+  export again without a cursor.
+- The body schema accepts any string as `cursor`, so a bad cursor is a 400
+  from the service rather than a 422 from validation.
+- Paging keeps its state in the cursor and in the stored result, so it
+  continues while Redis is unavailable.
+
+### Pacing
+
+Every page counts against the per-route limit: `raw-data` allows 5 requests a
+minute and the other routes 10. Pause at least 12 seconds between the pages of
+`raw-data` and 6 seconds elsewhere. Both pauses stay far inside the 6-minute
+cursor lifetime.
 
 ## Error Handling
 
@@ -684,16 +766,16 @@ Validation failures add an `errors` array describing each offending field:
 }
 ```
 
-| Status  | Meaning                                                                                                                           |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 200     | Success — including "no data", see [Response Format](#response-format)                                                            |
-| **400** | Business-rule failure: the date range scans too much data or the query runs too long (both below), or an unresolvable data source |
-| 404     | Unknown route                                                                                                                     |
-| 405     | Method not allowed                                                                                                                |
-| **422** | Request validation failed — **this is the common one**, not 400                                                                   |
-| 429     | Rate limit exceeded                                                                                                               |
-| 500     | Unhandled server error                                                                                                            |
-| 503     | A required dependency is unavailable, BigQuery refused the request, or the query was cancelled before it finished                 |
+| Status  | Meaning                                                                                                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200     | Success — including "no data", see [Response Format](#response-format)                                                                                                      |
+| **400** | Business-rule failure: the date range scans too much data, the query runs too long or the service rejects the pagination cursor (all below), or an unresolvable data source |
+| 404     | Unknown route                                                                                                                                                               |
+| 405     | Method not allowed                                                                                                                                                          |
+| **422** | Request validation failed — **this is the common one**, not 400                                                                                                             |
+| 429     | Rate limit exceeded                                                                                                                                                         |
+| 500     | Unhandled server error                                                                                                                                                      |
+| 503     | A required dependency is unavailable, BigQuery refused the request, the query was cancelled before it finished, or a page read from a stored result was refused             |
 
 **400 when the date range scans too much data.** Every query runs under a
 per-request byte ceiling (`BIGQUERY_MAX_BYTES_BILLED`, **100 MB** by default).
@@ -745,6 +827,25 @@ chart bodies offer all three: the site or device list, the date range and, at
 only, so their messages name the site or device list and the date range. The
 `report`, `summary` and `forecast-data` bodies offer the date range alone.
 
+A request that carries a cursor reads a stored result and runs no query, so
+the two responses above come only from the first request of a paged export.
+
+**400 when the cursor is rejected.** The service rejects a cursor that is
+changed, unsigned, undecodable, expired or issued for another request body,
+and a cursor whose stored result BigQuery has dropped. The response is the
+same for every cause, and the cause goes to the service log:
+
+```json
+{
+  "status": "error",
+  "message": "Invalid or expired cursor token",
+  "data": null,
+  "metadata": null
+}
+```
+
+Start the export again with a request that carries no cursor.
+
 **503 when the query is cancelled or cannot be shaped.** A query cancelled
 before it finished for any reason other than the timeout — for example from
 the BigQuery console — returns a 503. So does a query that the request cannot
@@ -776,56 +877,121 @@ message for every cause, and the cause goes to the service log:
 }
 ```
 
+A page read from a stored result can receive the same 503. Send the same
+request again with the same cursor while the cursor is valid.
+
 ## Examples
 
+Both examples check the status of every page, send a refused page again with
+the same cursor, and pause between pages to stay inside the per-route limit.
+
 ```python
+import time
+
 import requests
 
 BASE = "https://<host>/api/v3/public/analytics"
 
-def fetch_all(params):
-    """Page through a result set. Each page must be fetched within 6 minutes."""
-    all_data, cursor = [], None
+# These are the pauses between pages, in seconds. raw-data allows 5 requests a
+# minute for each client and the other routes allow 10, so the pauses keep a
+# loop inside the limit and far inside the 6-minute lifetime of a cursor.
+PAUSE_SECONDS = {"raw-data": 12, "data-download": 6, "forecast-data": 6}
+RETRY_STATUSES = {429, 503}
+MAX_ATTEMPTS = 4
 
+
+def post_page(path, body):
+    """Send one page request and return its envelope.
+
+    A 429 or a 503 is sent again with the same cursor, after the wait that
+    Retry-After names or after a growing delay. Any other error stops the
+    export.
+    """
+    for attempt in range(MAX_ATTEMPTS):
+        response = requests.post(f"{BASE}/{path}", json=body, timeout=120)
+        if response.status_code in RETRY_STATUSES:
+            time.sleep(int(response.headers.get("Retry-After", 5 * 2**attempt)))
+            continue
+        envelope = response.json()
+        if response.status_code != 200 or envelope.get("status") != "success":
+            raise RuntimeError(f"HTTP {response.status_code}: {envelope.get('message')}")
+        return envelope
+    raise RuntimeError(f"{path} was refused {MAX_ATTEMPTS} times in a row")
+
+
+def fetch_all(path, params):
+    """Collect every page of one export. Every page sends the same body."""
+    records, body = [], dict(params)
     while True:
-        if cursor:
-            params["cursor"] = cursor
-
-        body = requests.post(f"{BASE}/raw-data", json=params, timeout=60).json()
-
-        if body.get("status") != "success":
-            raise RuntimeError(body.get("message", "request failed"))
-
-        all_data.extend(body["data"])
-
-        meta = body.get("metadata") or {}
-        if not meta.get("has_more"):
-            return all_data
-        cursor = meta["next"]
+        envelope = post_page(path, body)
+        records.extend(envelope["data"])
+        metadata = envelope.get("metadata") or {}
+        if not metadata.get("has_more"):
+            return records
+        body["cursor"] = metadata["next"]
+        time.sleep(PAUSE_SECONDS[path])
 
 
-records = fetch_all({
-    "startDateTime": "2026-01-01T00:00:00Z",
-    "endDateTime": "2026-01-02T00:00:00Z",
-    "device_ids": ["device1", "device2"],
-    "pollutants": ["pm2_5", "pm10"],
-    "device_category": "lowcost",
-})
+records = fetch_all(
+    "raw-data",
+    {
+        "startDateTime": "2026-01-01T00:00:00Z",
+        "endDateTime": "2026-01-02T00:00:00Z",
+        "device_ids": ["device1", "device2"],
+        "pollutants": ["pm2_5", "pm10"],
+        "device_category": "lowcost",
+    },
+)
 print(f"Retrieved {len(records)} measurements")
 ```
 
 ```javascript
-let allData = [];
-let cursor = null;
+const BASE = "https://<host>/api/v3/public/analytics";
+// These are the pauses between pages, in milliseconds. raw-data allows 5
+// requests a minute for each client and the other routes allow 10.
+const PAUSE_MS = {
+  "raw-data": 12000,
+  "data-download": 6000,
+  "forecast-data": 6000,
+};
+const MAX_ATTEMPTS = 4;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-while (true) {
-  const res = await fetchData({ ...params, cursor });
-  const body = await res.json();
+async function postPage(path, body) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const response = await fetch(`${BASE}/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (response.status === 429 || response.status === 503) {
+      // A browser reads Retry-After only when the server exposes it, so a 429
+      // falls back to one rate-limit window and a 503 to a growing delay.
+      const fallback = response.status === 429 ? 60 : 5 * 2 ** attempt;
+      await sleep(
+        (Number(response.headers.get("Retry-After")) || fallback) * 1000
+      );
+      continue;
+    }
+    const envelope = await response.json();
+    if (!response.ok || envelope.status !== "success") {
+      throw new Error(`HTTP ${response.status}: ${envelope.message}`);
+    }
+    return envelope;
+  }
+  throw new Error(`${path} was refused ${MAX_ATTEMPTS} times in a row`);
+}
 
-  allData = allData.concat(body.data);
-
-  if (!body.metadata?.has_more) break;
-  cursor = body.metadata.next;
+async function fetchAll(path, params) {
+  let records = [];
+  const body = { ...params };
+  for (;;) {
+    const envelope = await postPage(path, body);
+    records = records.concat(envelope.data);
+    if (!envelope.metadata?.has_more) return records;
+    body.cursor = envelope.metadata.next;
+    await sleep(PAUSE_MS[path]);
+  }
 }
 ```
 
@@ -838,11 +1004,15 @@ while (true) {
    monthly parts.
 2. **Filter deliberately.** One filter family per request; keep lists well
    under the 150-entry cap.
-3. **Page promptly.** Cursors expire after 6 minutes.
+3. **Page promptly and at a steady pace.** A cursor expires 6 minutes after
+   the response that carried it. Pause at least 12 seconds between the pages
+   of `raw-data` and 6 seconds elsewhere, so a loop stays inside the per-route
+   limit.
 4. **Request only what you need.** Fewer pollutants and metadata fields means
    less data scanned.
 5. **Handle 429 and 503.** Both are expected under load or during a dependency
-   outage; retry with backoff.
+   outage. Wait as long as `Retry-After` asks, or back off, and send the same
+   request again with the same cursor.
 6. **Treat an empty `data` as a normal result.** It arrives as a 200 with a
    `message` explaining that the period holds no measurements.
 
