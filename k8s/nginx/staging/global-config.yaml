@@ -65,8 +65,6 @@ data:
     }
 
     location @custom_access_denied {
-      # API-token rejections carry a reason code from auth-service; answer
-      # those with JSON (code + docs link) instead of the HTML page.
       if ($auth_error_code) { rewrite ^ /__airqo_api_auth_error_403 last; }
       return 403 '
       <!DOCTYPE html>
@@ -105,8 +103,6 @@ data:
     }
 
     location @custom_unauthorized {
-      # API-token rejections carry a reason code from auth-service; answer
-      # those with JSON (code + docs link) instead of the HTML page.
       if ($auth_error_code) { rewrite ^ /__airqo_api_auth_error_401 last; }
       return 401 '
       <!DOCTYPE html>
