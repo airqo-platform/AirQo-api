@@ -938,4 +938,190 @@ describe("token util", () => {
       expect(result.data.permissions).to.deep.equal([]);
     });
   });
+
+  describe("client IP allowlist and rejection reasons", () => {
+    const BLOCKED_IP = "99.80.25.45";
+    let origLoadAsn, origRedisGet, origPostProcessing, postProcessingStub;
+
+    const stubIpCheckDeps = ({ blacklisted = true } = {}) => {
+      rewireToken.__set__("generateFilter", {
+        ...origGenerateFilter,
+        tokens: sinon.stub().returns({ token: "raw-token-123" }),
+      });
+      rewireToken.__set__("AccessTokenModel", () => ({
+        findOne: () => ({
+          select: sinon.stub().resolves({
+            _doc: { token: "raw-token-123", name: "nightly", client_id: "c1" },
+          }),
+        }),
+      }));
+      rewireToken.__set__("BlacklistedIPModel", () => ({
+        findOne: sinon.stub().resolves(blacklisted ? { ip: BLOCKED_IP } : null),
+      }));
+      rewireToken.__set__("WhitelistedIPModel", () => ({
+        findOne: sinon.stub().resolves(null),
+      }));
+      // Cloud range is CIDR-blocked as well, so only an allowlist can let it in.
+      rewireToken.__set__(
+        "_loadBlockedAsnCidrs",
+        sinon.stub().resolves(["99.80.0.0/16"]),
+      );
+      rewireToken.__set__("redisGetAsync", sinon.stub().resolves("[]"));
+      postProcessingStub = sinon.stub().resolves();
+      rewireToken.__set__("postProcessing", postProcessingStub);
+    };
+
+    const ipRequest = (ip = BLOCKED_IP) => ({
+      headers: { "x-client-ip": ip, "x-original-uri": "/api/v2/devices" },
+      params: { token: "raw-token-123" },
+      query: {},
+    });
+
+    beforeEach(() => {
+      origLoadAsn = rewireToken.__get__("_loadBlockedAsnCidrs");
+      origRedisGet = rewireToken.__get__("redisGetAsync");
+      origPostProcessing = rewireToken.__get__("postProcessing");
+    });
+
+    afterEach(() => {
+      rewireToken.__set__("_loadBlockedAsnCidrs", origLoadAsn);
+      rewireToken.__set__("redisGetAsync", origRedisGet);
+      rewireToken.__set__("postProcessing", origPostProcessing);
+    });
+
+    describe("isIPBlacklisted()", () => {
+      it("allows an IP on the token's own active client allowlist, overriding blacklist and CIDR blocks", async () => {
+        stubIpCheckDeps();
+        const isIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+        const result = await isIPBlacklisted({
+          request: ipRequest(),
+          next,
+          client: { isActive: true, ip_addresses: [BLOCKED_IP] },
+        });
+        expect(result).to.equal(false);
+      });
+
+      it("matches IPv4-mapped IPv6 and the legacy single ip_address field", async () => {
+        stubIpCheckDeps();
+        const isIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+        const result = await isIPBlacklisted({
+          request: ipRequest(`::ffff:${BLOCKED_IP}`),
+          next,
+          client: { isActive: true, ip_address: BLOCKED_IP },
+        });
+        expect(result).to.equal(false);
+      });
+
+      it("returns IP_BLOCKED when the IP is not on the client's allowlist", async () => {
+        stubIpCheckDeps();
+        const isIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+        const result = await isIPBlacklisted({
+          request: ipRequest(),
+          next,
+          client: { isActive: true, ip_addresses: ["203.0.113.10"] },
+        });
+        expect(result).to.equal("IP_BLOCKED");
+      });
+
+      it("ignores the allowlist of an inactive (e.g. pending approval) client", async () => {
+        stubIpCheckDeps();
+        const isIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+        const result = await isIPBlacklisted({
+          request: ipRequest(),
+          next,
+          client: { isActive: false, ip_addresses: [BLOCKED_IP] },
+        });
+        expect(result).to.equal("IP_BLOCKED");
+      });
+
+      it("still blocks when called without a client (backwards compatible)", async () => {
+        stubIpCheckDeps();
+        const isIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+        const result = await isIPBlacklisted({ request: ipRequest(), next });
+        expect(result).to.equal("IP_BLOCKED");
+      });
+    });
+
+    describe("verifyToken()", () => {
+      let origIsIPBlacklisted;
+
+      const stubVerifyDeps = ({ client, tokenExtras = {} } = {}) => {
+        rewireToken.__set__("AccessTokenModel", () => ({
+          findOne: () => ({
+            select: sinon.stub().resolves({
+              client_id: "client-1",
+              token: "raw-token-123",
+              allowed_grids: [],
+              allowed_cohorts: [],
+              scopes: [],
+              ...tokenExtras,
+            }),
+          }),
+        }));
+        rewireToken.__set__("ClientModel", () => ({
+          findById: () => ({
+            select: sinon.stub().resolves(
+              client || { isActive: true, user_id: "user-1" },
+            ),
+          }),
+        }));
+      };
+
+      beforeEach(() => {
+        origIsIPBlacklisted = rewireToken.__get__("isIPBlacklisted");
+      });
+
+      afterEach(() => {
+        rewireToken.__set__("isIPBlacklisted", origIsIPBlacklisted);
+      });
+
+      it("returns CLIENT_INACTIVE with a docs link when the client is not approved", async () => {
+        stubVerifyDeps({ client: { isActive: false } });
+        const result = await rewireToken.verifyToken(ipRequest(), next);
+        expect(result.status).to.equal(httpStatus.UNAUTHORIZED);
+        expect(result.message).to.equal("Unauthorized");
+        expect(result.errors.code).to.equal("CLIENT_INACTIVE");
+        expect(result.errors.docs).to.be.a("string").and.not.be.empty;
+      });
+
+      it("returns TOKEN_SUSPENDED when the token is auto-suspended", async () => {
+        stubVerifyDeps({
+          tokenExtras: { request_pattern: { auto_suspended: true } },
+        });
+        const result = await rewireToken.verifyToken(ipRequest(), next);
+        expect(result.status).to.equal(httpStatus.UNAUTHORIZED);
+        expect(result.errors.code).to.equal("TOKEN_SUSPENDED");
+      });
+
+      it("returns IP_BLOCKED naming the caller's IP, and passes the client to the IP check", async () => {
+        stubVerifyDeps();
+        const ipCheck = sinon.stub().resolves("IP_BLOCKED");
+        rewireToken.__set__("isIPBlacklisted", ipCheck);
+        const result = await rewireToken.verifyToken(ipRequest(), next);
+        expect(result.status).to.equal(httpStatus.UNAUTHORIZED);
+        expect(result.errors.code).to.equal("IP_BLOCKED");
+        expect(result.errors.message).to.include(BLOCKED_IP);
+        expect(ipCheck.firstCall.args[0].client).to.have.property(
+          "isActive",
+          true,
+        );
+      });
+
+      it("keeps the generic body for unrecognised reasons (e.g. a legacy `true`)", async () => {
+        stubVerifyDeps();
+        rewireToken.__set__("isIPBlacklisted", sinon.stub().resolves(true));
+        const result = await rewireToken.verifyToken(ipRequest(), next);
+        expect(result.errors).to.deep.equal({ message: "Unauthorized" });
+      });
+
+      it("keeps the generic body for an unknown token", async () => {
+        rewireToken.__set__("AccessTokenModel", () => ({
+          findOne: () => ({ select: sinon.stub().resolves(null) }),
+        }));
+        const result = await rewireToken.verifyToken(ipRequest(), next);
+        expect(result.status).to.equal(httpStatus.UNAUTHORIZED);
+        expect(result.errors).to.deep.equal({ message: "Unauthorized" });
+      });
+    });
+  });
 });

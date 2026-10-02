@@ -1741,6 +1741,40 @@ module.exports = {
       })
       .join("");
 
+    // A token seen from several different IPs in one day almost always means
+    // the caller's outbound IP changes per run (serverless, autoscaling, no
+    // static IP), so allowlisting a single IP from this email won't stick.
+    const ipsPerToken = uniqueCompromises.reduce((acc, c) => {
+      const key = c.tokenSuffix || "XXXX";
+      if (!acc.has(key)) acc.set(key, new Set());
+      acc.get(key).add(c.ip);
+      return acc;
+    }, new Map());
+    const rotatingTokens = [...ipsPerToken.entries()].filter(
+      ([, ips]) => ips.size > 1,
+    );
+    const rotatingIpsHtml =
+      rotatingTokens.length > 0
+        ? `
+        <p style="background: #FFFAEB; border-left: 4px solid #F79009; padding: 12px;">
+          <strong>Your outbound IP address appears to change.</strong>
+          ${rotatingTokens
+            .map(
+              ([suffix, ips]) =>
+                `Token ending in <strong>...${escapeHtml(suffix)}</strong> was used from ${ips.size} different IP addresses.`,
+            )
+            .join(" ")}
+          Allowlisting one of these addresses will not cover the next run. Give your
+          server a static outbound IP (for example an Elastic IP or NAT gateway) and
+          allowlist that address instead.
+        </p>`
+        : "";
+
+    const troubleshootingUrl = escapeHtml(
+      constants.API_ACCESS_TROUBLESHOOTING_URL ||
+        "https://platform.airqo.net/docs/api/reference/blocked-requests/",
+    );
+
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -1749,14 +1783,16 @@ module.exports = {
           We detected <strong>${count}</strong> potential security event(s) involving your
           AirQo API token(s) in the last 24 hours. Below, we show
           <strong>${uniqueCompromises.length}</strong> unique token–IP combination(s) after
-          deduplicating repeated activity from the same token and IP. The IP addresses listed
-          below were automatically blacklisted by our security system.
+          deduplicating repeated activity from the same token and IP. Requests from the IP
+          addresses listed below are being blocked by our security system, unless you add
+          them to your API client's IP addresses.
         </p>
 
         <h4>Events Detected:</h4>
         <ul style="padding-left: 20px;">
           ${detailsHtml}
         </ul>
+        ${rotatingIpsHtml}
 
         <h4>Why am I seeing this?</h4>
         <p>
@@ -1770,10 +1806,12 @@ module.exports = {
         <h4>Recommended Actions:</h4>
         <ul style="padding-left: 20px;">
           <li style="margin-bottom: 8px;">
-            <strong>Whitelist your IP (recommended for static IPs):</strong> If your
-            infrastructure uses a fixed egress IP, add it to the allowlist in your
-            <em>API Client settings</em> on the AirQo platform. This prevents future alerts
-            from that IP.
+            <strong>Allowlist your IP (recommended for static IPs):</strong> If your
+            infrastructure uses a fixed outbound IP, open <em>Profile → API</em> on the AirQo
+            platform, edit the API client that owns this token, and add the exact public IP
+            under <em>IP Addresses</em>. Requests from that IP using this client's tokens
+            are then allowed and no longer trigger these alerts. To confirm the IP, run
+            <code>curl https://ifconfig.me</code> from the server that calls the API.
           </li>
           <li style="margin-bottom: 8px;">
             <strong>Use a fixed egress proxy (recommended for dynamic IPs):</strong> Route
@@ -1822,8 +1860,14 @@ module.exports = {
         </ul>
 
         <p>
-          If you have questions or need help configuring a whitelist, please contact our
-          support team — we're happy to assist.
+          <strong>Still blocked after allowlisting?</strong> Your token may have been
+          automatically suspended. Step-by-step instructions are in our guide:
+          <a href="${troubleshootingUrl}" style="color: #135DFF;">Troubleshooting blocked API requests</a>.
+        </p>
+
+        <p>
+          If you have questions or need help configuring your IP addresses, please contact
+          our support team — we're happy to assist.
         </p>
       </td>
     </tr>
