@@ -27,7 +27,7 @@ from api.utils.bigquery_jobs import (
     shared_bigquery_client,
 )
 
-from api.utils.exceptions import QueryNotCompleted
+from api.utils.exceptions import CursorRejected, QueryNotCompleted
 from api.utils.utils import Utils
 from config import settings
 from constants import DeviceCategory, DeviceNetwork, Frequency
@@ -64,6 +64,9 @@ class AsyncBigQueryApi:
         dynamic_query: Optional[bool] = False,
         use_cache: Optional[bool] = True,
         cursor_token: Optional[str] = None,
+        *,
+        cursor_binding: str,
+        whole_result: bool = False,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
         Asynchronously query measurement data from BigQuery.
@@ -71,7 +74,9 @@ class AsyncBigQueryApi:
         Thin async wrapper: parameters are passed 1:1 to
         ``BigQueryApi.query_data`` (see its docstring for full semantics,
         including ``where_fields`` filter types and pagination metadata),
-        executed in a worker thread.
+        executed in a worker thread.  ``cursor_binding`` is the hash of the
+        request body and the operation name.  ``whole_result`` reads every row
+        of the result in one frame.
 
         Returns:
             Tuple of (DataFrame, metadata) where metadata carries pagination
@@ -92,9 +97,12 @@ class AsyncBigQueryApi:
                 dynamic_query=dynamic_query,
                 use_cache=use_cache,
                 cursor_token=cursor_token,
+                cursor_binding=cursor_binding,
+                whole_result=whole_result,
             )
-        except QueryNotCompleted:
-            # Already logged where it was translated; the service answers it.
+        except (QueryNotCompleted, CursorRejected):
+            # translate_incomplete_queries logs each QueryNotCompleted where it
+            # arises, and the service answers both exceptions.
             raise
         except Exception as e:
             logger.error(f"Async BigQuery query failed: {str(e)}")
@@ -114,6 +122,9 @@ class AsyncBigQueryApi:
         dynamic_query: Optional[bool] = False,
         use_cache: Optional[bool] = True,
         cursor_token: Optional[str] = None,
+        *,
+        cursor_binding: str,
+        whole_result: bool = False,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
         Synchronous half of query_data_async.
@@ -137,6 +148,8 @@ class AsyncBigQueryApi:
             dynamic_query=dynamic_query,
             use_cache=use_cache,
             cursor_token=cursor_token,
+            cursor_binding=cursor_binding,
+            whole_result=whole_result,
         )
 
     async def execute_query_async(

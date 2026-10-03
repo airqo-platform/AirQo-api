@@ -1,57 +1,91 @@
+"""
+Signed pagination cursors.
+
+A cursor names the position of the next page inside the stored result of one
+BigQuery query job.  The service signs each cursor and accepts only a cursor
+that carries its own signature.
+"""
+
 import base64
 import hashlib
 import hmac
+import json
 import time
-from typing import Optional, Dict, Any
-import logging
+from dataclasses import dataclass
+from typing import Any, Mapping
 
+from api.utils.exceptions import CursorRejected
 from config import settings
 
-logger = logging.getLogger(__name__)
+#: The longest token that ``read_cursor`` decodes.  A token that the service
+#: issues is about 300 characters long.
+MAX_TOKEN_LENGTH = 2048
+
+_JSON_SEPARATORS = (",", ":")
 
 
 def _b64encode(raw: bytes) -> str:
-    """URL-safe base64 without padding (padding is restored on decode)."""
+    """Encode ``raw`` as URL-safe base64 without padding."""
     return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
 
 
 def _b64decode(value: str) -> bytes:
-    """Inverse of :func:`_b64encode`, restoring stripped padding."""
+    """Decode the URL-safe base64 of :func:`_b64encode` after restoring its padding."""
     padding = len(value) % 4
     if padding:
         value += "=" * (4 - padding)
     return base64.urlsafe_b64decode(value.encode())
 
 
-class StatelessCursorUtils:
+def _canonical_json(values: Any) -> str:
+    """Serialise ``values`` as JSON with sorted keys and compact separators."""
+    return json.dumps(values, sort_keys=True, separators=_JSON_SEPARATORS)
+
+
+@dataclass(frozen=True)
+class StoredResultCursor:
     """
-    Utility class for handling pagination cursors in the API using stateless tokens.
-    Provides methods for encoding, decoding, and extracting information from cursors.
+    StoredResultCursor names the position of the next page inside the stored
+    result of one query job.
 
-    Note: This implementation uses stateless tokens.
-
-    Tokens are **HMAC-signed**.  The payload is base64 for transport only,
-    which is not a security boundary — anyone can decode and re-encode it.
-    The cursor's contents end up in the WHERE clause of a BigQuery query, so
-    an unsigned token let a caller inject arbitrary values into the filter
-    (and, because the expiry lives inside the payload, extend its own
-    lifetime indefinitely).  The signature makes the token tamper-evident;
-    binding the parts as query parameters in
-    ``BigQueryApi._apply_pagination_cursor`` is the second, independent layer.
-
-    Token format: ``<b64(payload)>.<b64(hmac_sha256(b64(payload)))>``
+    Attributes:
+        job_id: The id of the BigQuery job whose result holds the pages.
+        location: The location of that job.
+        offset: The zero-based index of the first row of the next page.
+        fingerprint: The hash of the request that produced the cursor.
     """
 
-    CURSOR_EXPIRATION = int(0.1 * 60 * 60)  # Ensure this is an integer (6 minutes)
+    job_id: str
+    location: str
+    offset: int
+    fingerprint: str
+
+
+class CursorUtils:
+    """
+    CursorUtils creates and reads signed pagination cursors.
+
+    A cursor is a JSON object that holds the BigQuery job id, the job
+    location, the row offset of the next page, the hash of the request that
+    produced it, and an expiry time six minutes after issue.  The service
+    encodes the JSON as base64 for transport and signs it with HMAC-SHA256
+    under ``settings.secret_key``, so it accepts only a cursor that it issued.
+
+    Token format: ``<b64(json)>.<b64(hmac_sha256(b64(json)))>``.
+
+    ``read_cursor`` raises ``CursorRejected`` for a token that fails any
+    check.  The service layer answers it with HTTP 400.
+    """
+
+    CURSOR_EXPIRATION = 360  # six minutes
 
     @staticmethod
     def _signing_key() -> bytes:
         """
         Resolve the HMAC key at call time so tests can swap settings.
 
-        Accepts a plain str as well as SecretStr — the test config declares
-        `secret_key` as str, and a TypeError here would surface as a confusing
-        "invalid cursor" rather than a config error.
+        The method accepts a plain str as well as SecretStr, because the test
+        config declares ``secret_key`` as str.
         """
         key = settings.secret_key
         return (
@@ -61,152 +95,104 @@ class StatelessCursorUtils:
     @staticmethod
     def _sign(payload_b64: str) -> str:
         digest = hmac.new(
-            StatelessCursorUtils._signing_key(), payload_b64.encode(), hashlib.sha256
+            CursorUtils._signing_key(), payload_b64.encode(), hashlib.sha256
         ).digest()
         return _b64encode(digest)
 
     @staticmethod
-    def encode_cursor(cursor_str: str) -> str:
+    def fingerprint(values: Mapping[str, Any]) -> str:
         """
-        Encodes a cursor string into a signed stateless token with an embedded
-        expiration.
+        Compute the SHA-256 hex digest of ``values`` as canonical JSON.
+
+        The serialisation sorts the keys and uses compact separators, so one
+        mapping gives one digest in every process.
 
         Args:
-            cursor_str(str): The raw cursor string to store
+            values: A mapping of JSON-serialisable values.
 
         Returns:
-            str: Signed stateless cursor token for API response
-
-        Raises:
-            ValueError: If the cursor could not be encoded.  This deliberately
-                raises rather than returning a random fallback token — a token
-                that cannot be decoded later would surface as a confusing
-                "invalid cursor" on the *next* request instead of here.
+            str: The digest, 64 hexadecimal characters.
         """
-        try:
-            expiration = int(time.time()) + StatelessCursorUtils.CURSOR_EXPIRATION
-            payload_b64 = _b64encode(f"{cursor_str}|{expiration}".encode())
-            return f"{payload_b64}.{StatelessCursorUtils._sign(payload_b64)}"
-        except Exception as e:
-            logger.error(f"Failed to encode cursor: {e}")
-            raise ValueError("Failed to encode pagination cursor")
+        return hashlib.sha256(_canonical_json(values).encode("utf-8")).hexdigest()
 
     @staticmethod
-    def retrieve_cursor(token: str) -> str:
+    def create_cursor(job_id: str, location: str, offset: int, fingerprint: str) -> str:
         """
-        Verifies a stateless cursor token's signature and expiration, then
-        returns its payload.
+        Create the signed token for the page that starts at ``offset``.
 
         Args:
-            token(str): The cursor token received from a previous API response
+            job_id: The id of the BigQuery job whose stored result holds the pages.
+            location: The location of that job.
+            offset: The zero-based index of the first row of the next page.
+            fingerprint: The hash of the request that produced the cursor.
 
         Returns:
-            str: The retrieved cursor string containing pagination metadata
+            str: The token for ``metadata.next``.
+        """
+        payload = {
+            "expires": int(time.time()) + CursorUtils.CURSOR_EXPIRATION,
+            "fingerprint": fingerprint,
+            "job_id": job_id,
+            "location": location,
+            "offset": offset,
+        }
+        payload_b64 = _b64encode(_canonical_json(payload).encode("utf-8"))
+        return f"{payload_b64}.{CursorUtils._sign(payload_b64)}"
+
+    @staticmethod
+    def read_cursor(token: str, fingerprint: str) -> StoredResultCursor:
+        """
+        Verify a token and return the position that it names.
+
+        The checks run in this order: length, format, signature, decoding,
+        expiry, and the hash of the request.  Each check that fails raises
+        ``CursorRejected`` with a reason for the log.
+
+        Args:
+            token: The token that the request carries.
+            fingerprint: The hash of the request that carries the token.
+
+        Returns:
+            StoredResultCursor: The position of the next page.
 
         Raises:
-            ValueError: If the token is malformed, unsigned, tampered with,
-                or has expired.
+            CursorRejected: The token fails one of the checks.
         """
-        try:
-            payload_b64, _, signature = token.rpartition(".")
-            if not payload_b64 or not signature:
-                raise ValueError("Invalid or expired cursor token")
+        if not token or len(token) > MAX_TOKEN_LENGTH:
+            raise CursorRejected("the token is empty or longer than the limit")
 
-            # Constant-time comparison — a fast-fail compare would leak the
-            # signature a byte at a time.
+        payload_b64, _, signature = token.rpartition(".")
+        if not payload_b64 or not signature:
+            raise CursorRejected("the token has no signature")
+
+        try:
+            # The comparison runs in constant time on bytes.
+            expected = CursorUtils._sign(payload_b64)
             if not hmac.compare_digest(
-                signature, StatelessCursorUtils._sign(payload_b64)
+                signature.encode("utf-8"), expected.encode("ascii")
             ):
-                raise ValueError("Invalid or expired cursor token")
+                raise CursorRejected("the signature does not match the payload")
+            payload = json.loads(_b64decode(payload_b64).decode("utf-8"))
+            cursor = StoredResultCursor(
+                job_id=str(payload["job_id"]),
+                location=str(payload["location"]),
+                offset=int(payload["offset"]),
+                fingerprint=str(payload["fingerprint"]),
+            )
+            expires = int(payload["expires"])
+        except (KeyError, TypeError, ValueError) as exc:
+            # A lone surrogate in the token, a payload outside base64, UTF-8
+            # or JSON, and a payload without the five fields all arrive here.
+            raise CursorRejected("the token does not decode") from exc
 
-            decoded = _b64decode(payload_b64).decode("utf-8")
-            parts = decoded.rsplit("|", 1)
+        if int(time.time()) > expires:
+            raise CursorRejected("the token has expired")
 
-            if len(parts) != 2:
-                raise ValueError("Invalid cursor format")
-
-            cursor_raw, expiration_str = parts[0], parts[1]
-            if int(time.time()) > int(expiration_str):
-                raise ValueError("Cursor has expired")
-
-            return cursor_raw
-        except ValueError as e:
-            # Re-raise ValueErrors as they are already specific
-            raise e
-        except Exception as e:
-            logger.debug(f"Cursor retrieval failed: {e}")
-            raise ValueError("Invalid or expired cursor token")
-
-    @staticmethod
-    def parse_cursor(token: str) -> Dict[str, Any]:
-        """
-        Retrieves a cursor and parses it into its component parts.
-
-        Args:
-            token (str): The cursor token from the API
-
-        Returns:
-            Dict: Dictionary with extracted values from the cursor
-                - timestamp: The timestamp value
-                - filter_value: The filter value (e.g., site_id or device_id)
-                - device_id: The device_id if present (for site filtering)
-
-        Raises:
-            ValueError: If the cursor format is invalid or token is expired
-        """
-        cursor_str = StatelessCursorUtils.retrieve_cursor(token)
-
-        parts = cursor_str.split("|")
-        if len(parts) < 2:
-            raise ValueError(
-                "Invalid cursor format: expected at least timestamp and filter value"
+        if not hmac.compare_digest(
+            cursor.fingerprint.encode("utf-8"), fingerprint.encode("utf-8")
+        ):
+            raise CursorRejected(
+                "the request differs from the request that issued the token"
             )
 
-        result = {"timestamp": parts[0], "filter_value": parts[1]}
-
-        if len(parts) >= 3:
-            result["device_id"] = parts[2]
-
-        return result
-
-    @staticmethod
-    def create_cursor(
-        timestamp: str, filter_value: str, device_id: Optional[str] = None
-    ) -> str:
-        """
-        Creates a cursor string from its component parts and encodes it.
-
-        Args:
-            timestamp (str): The timestamp value
-            filter_value (str): The filter value (e.g., site_id or device_id)
-            device_id (str, optional): The device_id if needed (for site filtering)
-
-        Returns:
-            str: A token that can be used to retrieve the cursor
-        """
-        cursor = f"{timestamp}|{filter_value}"
-        if device_id:
-            cursor += f"|{device_id}"
-
-        return StatelessCursorUtils.encode_cursor(cursor)
-
-    @staticmethod
-    def validate_cursor(token: str) -> bool:
-        """
-        Validates if a cursor token is valid and not expired.
-
-        Args:
-            token (str): The cursor token to validate
-
-        Returns:
-            bool: True if the cursor is valid, False otherwise
-        """
-        try:
-            StatelessCursorUtils.retrieve_cursor(token)
-            return True
-        except ValueError:
-            return False
-
-
-# Default CursorUtils to use Stateless for production consistency
-CursorUtils = StatelessCursorUtils
+        return cursor

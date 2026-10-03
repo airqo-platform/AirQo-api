@@ -2,8 +2,9 @@
 Unit tests for the service layer.
 
 All external I/O (BigQuery, Redis) is mocked so these tests run without
-any real infrastructure.  The conftest.py autouse fixtures patch cache;
-BigQuery is patched per-test via unittest.mock.patch.
+any real infrastructure.  The conftest.py autouse fixtures patch cache.
+Each test patches BigQuery with unittest.mock.patch or installs the fake
+client of tests/paging_support.py through the ``fake_bigquery`` fixture.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from fastapi import HTTPException
 
 from api.services import DataExportService, DashboardService, MonitoringService
+from api.schemas.requests import DataExportRequest
 from api.schemas.responses import (
     DataExportResponse,
     DashboardChartResponse,
@@ -400,6 +402,201 @@ class TestDataExportService:
 
 
 # ---------------------------------------------------------------------------
+# Cursor hand-off and the request hash
+#
+# Each download service hands the request cursor and the hash of the request
+# body to the query layer, and answers a rejected cursor with HTTP 400.
+# ---------------------------------------------------------------------------
+
+
+class TestCursorHandOff:
+    def _patched_bq(self):
+        from tests.paging_support import device_frame
+
+        meta = {"total_count": 2, "has_more": True, "next": "next-2026"}
+        return patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(device_frame(2), meta),
+        )
+
+    @pytest.mark.asyncio
+    async def test_data_download_hands_over_the_cursor_and_the_hash(self):
+        from api.services import _cursor_binding
+        from tests.paging_support import DOWNLOAD
+
+        req = DataExportRequest(**{**DOWNLOAD, "cursor": "token-2026"})
+        with self._patched_bq() as mock_bq:
+            resp = await DataExportService().export_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "token-2026"
+        assert kwargs["cursor_binding"] == _cursor_binding("data-download", req)
+        assert resp.metadata["next"] == "next-2026"
+        assert resp.metadata["has_more"] is True
+
+    @pytest.mark.asyncio
+    async def test_raw_data_hands_over_the_cursor_and_the_hash(self):
+        from api.schemas.requests import RawDataExportRequest
+        from api.services import _cursor_binding
+        from tests.paging_support import RAW
+
+        req = RawDataExportRequest(**{**RAW, "cursor": "token-2026"})
+        with self._patched_bq() as mock_bq:
+            await DataExportService().export_raw_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "token-2026"
+        assert kwargs["cursor_binding"] == _cursor_binding("raw-data", req)
+
+    @pytest.mark.asyncio
+    async def test_forecast_data_hands_over_the_cursor_and_the_hash(self):
+        from api.schemas.requests import ForecastDataExportRequest
+        from api.services import _cursor_binding
+        from tests.paging_support import FORECAST
+
+        req = ForecastDataExportRequest(**{**FORECAST, "cursor": "token-2026"})
+        with self._patched_bq() as mock_bq:
+            await DataExportService().export_forecast_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "token-2026"
+        assert kwargs["cursor_binding"] == _cursor_binding("forecast-data", req)
+
+    @pytest.mark.asyncio
+    async def test_rejected_cursor_is_a_400_with_one_message(self):
+        from api.schemas.requests import (
+            ForecastDataExportRequest,
+            RawDataExportRequest,
+        )
+        from api.utils.exceptions import CursorRejected
+        from tests.paging_support import DOWNLOAD, FORECAST, RAW
+
+        service = DataExportService()
+        calls = [
+            (service.export_data, DataExportRequest(**{**DOWNLOAD, "cursor": "t"})),
+            (service.export_raw_data, RawDataExportRequest(**{**RAW, "cursor": "t"})),
+            (
+                service.export_forecast_data,
+                ForecastDataExportRequest(**{**FORECAST, "cursor": "t"}),
+            ),
+        ]
+        details = set()
+        for method, req in calls:
+            with patch(
+                "api.services.AsyncBigQueryApi.query_data_async",
+                new_callable=AsyncMock,
+                side_effect=CursorRejected("test"),
+            ):
+                with pytest.raises(HTTPException) as exc:
+                    await method(req)
+            assert exc.value.status_code == 400
+            details.add(exc.value.detail)
+        assert len(details) == 1
+
+
+class TestCursorBinding:
+    """These tests cover the hash that ties a cursor to the request body that produced it."""
+
+    def test_equal_bodies_give_equal_hashes(self):
+        from api.services import _cursor_binding
+        from tests.paging_support import DOWNLOAD
+
+        first = DataExportRequest(**DOWNLOAD)
+        second = DataExportRequest(
+            **{**DOWNLOAD, "startDateTime": "2026-03-01T00:00:00+00:00"}
+        )
+        assert _cursor_binding("data-download", first) == _cursor_binding(
+            "data-download", second
+        )
+
+    def test_the_cursor_field_stays_outside_the_hash(self):
+        from api.services import _cursor_binding
+        from tests.paging_support import DOWNLOAD
+
+        with_cursor = DataExportRequest(**{**DOWNLOAD, "cursor": "token-2026"})
+        without = DataExportRequest(**DOWNLOAD)
+        assert _cursor_binding("data-download", with_cursor) == _cursor_binding(
+            "data-download", without
+        )
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            {"device_ids": ["dev_c"]},
+            {"endDateTime": "2026-03-01T12:00:00Z"},
+            {"pollutants": ["pm10"]},
+            {"frequency": "daily"},
+            {"downloadType": "csv"},
+        ],
+    )
+    def test_a_changed_body_gives_another_hash(self, change):
+        from api.services import _cursor_binding
+        from tests.paging_support import DOWNLOAD
+
+        original = DataExportRequest(**DOWNLOAD)
+        changed = DataExportRequest(**{**DOWNLOAD, **change})
+        assert _cursor_binding("data-download", original) != _cursor_binding(
+            "data-download", changed
+        )
+
+    def test_another_operation_gives_another_hash(self):
+        from api.services import _cursor_binding
+        from tests.paging_support import DOWNLOAD
+
+        req = DataExportRequest(**DOWNLOAD)
+        assert _cursor_binding("data-download", req) != _cursor_binding("raw-data", req)
+
+    def test_hash_is_the_same_in_every_process(self):
+        """Two worker processes with different hash seeds compute the same
+        hash for one body, so every pod accepts a cursor from any other pod."""
+        import os
+        import subprocess
+        import sys
+        import textwrap
+        from pathlib import Path
+
+        script = textwrap.dedent(
+            """
+            import os, sys
+            sys.path.insert(0, os.getcwd())
+            from tests.test_config import test_settings
+            import config
+            config.settings = test_settings
+            from api.schemas.requests import DataExportRequest
+            from api.services import _cursor_binding
+            from tests.paging_support import DOWNLOAD
+            body = {
+                **DOWNLOAD,
+                "pollutants": ["pm2_5", "pm10"],
+                "metaDataFields": ["latitude", "longitude"],
+                "weatherFields": ["temperature", "humidity"],
+            }
+            print(_cursor_binding("data-download", DataExportRequest(**body)))
+            """
+        )
+        hashes = set()
+        for seed in ("1", "2"):
+            env = {
+                **os.environ,
+                "APP_ENV": "development",
+                "PYTHONHASHSEED": seed,
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+            run = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=Path(__file__).resolve().parents[1],
+                check=True,
+            )
+            hashes.add(run.stdout.strip())
+        assert len(hashes) == 1
+        assert len(next(iter(hashes))) == 64
+
+
+# ---------------------------------------------------------------------------
 # DashboardService
 # ---------------------------------------------------------------------------
 
@@ -486,6 +683,136 @@ class TestDashboardService:
 
         assert exc.value.status_code == 500
         assert "connection failed" not in exc.value.detail
+
+
+class TestChartPaging:
+    """A line or bar chart pages with the request cursor.  A pie chart reads every row."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("chart_type", ["line", "bar"])
+    async def test_line_and_bar_charts_hand_over_the_cursor_and_the_hash(
+        self, chart_type
+    ):
+        from api.schemas.requests import DashboardChartRequest
+        from api.services import _cursor_binding
+        from tests.paging_support import chart_body, device_frame
+
+        req = DashboardChartRequest(
+            **{**chart_body(chart_type), "cursor": "token-2026"}
+        )
+        meta = {"total_count": 2, "has_more": True, "next": "next-2026"}
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(device_frame(2), meta),
+        ) as mock_bq:
+            resp = await DashboardService().get_chart_data(req)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["cursor_token"] == "token-2026"
+        assert kwargs["cursor_binding"] == _cursor_binding("chart", req)
+        assert kwargs["whole_result"] is False
+        assert resp.metadata["has_more"] is True
+        assert resp.metadata["next"] == "next-2026"
+
+    @pytest.mark.asyncio
+    async def test_line_chart_pages_through_the_stored_result(
+        self, fake_bigquery, small_pages, cursor_clock
+    ):
+        from api.schemas.requests import DashboardChartRequest
+        from tests.paging_support import chart_body, device_frame
+
+        fake_bigquery.result_frame = device_frame(7)
+        body = chart_body("line")
+        svc = DashboardService()
+        pages = [await svc.get_chart_data(DashboardChartRequest(**body))]
+        for _ in range(20):
+            if not pages[-1].metadata["has_more"]:
+                break
+            cursor = pages[-1].metadata["next"]
+            pages.append(
+                await svc.get_chart_data(
+                    DashboardChartRequest(**{**body, "cursor": cursor})
+                )
+            )
+        else:
+            raise AssertionError("the walk did not end within the page cap")
+
+        keys = [
+            (point["datetime"], point["device_name"])
+            for page in pages
+            for point in page.data
+        ]
+        assert len(pages) == 3
+        assert len(keys) == 7
+        assert len(set(keys)) == 7
+        assert pages[-1].metadata["next"] is None
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.asyncio
+    async def test_pie_chart_reads_every_row_of_the_result(
+        self, fake_bigquery, small_pages, cursor_clock
+    ):
+        from api.schemas.requests import DashboardChartRequest
+        from tests.paging_support import chart_body, pie_frame
+
+        fake_bigquery.result_frame = pie_frame()
+        resp = await DashboardService().get_chart_data(
+            DashboardChartRequest(**chart_body("pie"))
+        )
+
+        assert {point["label"]: point["value"] for point in resp.data} == {
+            "Site One": 20.0,
+            "Site Two": 50.0,
+        }
+        assert resp.metadata == {"total_count": 2, "has_more": False, "next": None}
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.asyncio
+    async def test_pie_chart_with_a_cursor_is_a_400(
+        self, fake_bigquery, small_pages, cursor_clock
+    ):
+        from api.schemas.requests import DashboardChartRequest
+        from tests.paging_support import chart_body, device_frame
+
+        fake_bigquery.result_frame = device_frame(7)
+        svc = DashboardService()
+        first = await svc.get_chart_data(DashboardChartRequest(**chart_body("line")))
+        with pytest.raises(HTTPException) as exc:
+            await svc.get_chart_data(
+                DashboardChartRequest(
+                    **{**chart_body("pie"), "cursor": first.metadata["next"]}
+                )
+            )
+
+        assert exc.value.status_code == 400
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.asyncio
+    async def test_rejected_cursor_gets_the_same_400_as_a_download(self):
+        from api.schemas.requests import DashboardChartRequest
+        from api.utils.exceptions import CursorRejected
+        from tests.paging_support import DOWNLOAD, chart_body
+
+        details = set()
+        for call in (
+            (
+                DashboardService().get_chart_data,
+                DashboardChartRequest(**chart_body("line")),
+            ),
+            (DataExportService().export_data, DataExportRequest(**DOWNLOAD)),
+        ):
+            method, req = call
+            with patch(
+                "api.services.AsyncBigQueryApi.query_data_async",
+                new_callable=AsyncMock,
+                side_effect=CursorRejected("test"),
+            ):
+                with pytest.raises(HTTPException) as exc:
+                    await method(req)
+            assert exc.value.status_code == 400
+            details.add(exc.value.detail)
+        assert len(details) == 1
 
 
 # ---------------------------------------------------------------------------

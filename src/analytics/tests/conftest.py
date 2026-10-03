@@ -87,6 +87,14 @@ _CLIENT_FACTORY_IMPORT_SITES = (
 )
 
 
+def _install_bigquery_client(monkeypatch, client) -> None:
+    """Make the BigQuery client factory return ``client`` at every import site."""
+    for module in _CLIENT_FACTORY_IMPORT_SITES:
+        monkeypatch.setattr(
+            f"{module}.shared_bigquery_client", lambda c=client: c, raising=False
+        )
+
+
 @pytest.fixture(autouse=True)
 def mock_bigquery_client(monkeypatch):
     """Intercept cloud-client construction at the application's own seam.
@@ -98,22 +106,53 @@ def mock_bigquery_client(monkeypatch):
     so no cache_clear() bookkeeping is needed.
 
     Individual tests that need specific query results should additionally
-    patch query_data_async / get_sites_async etc.
+    patch query_data_async or get_sites_async, or request the
+    ``fake_bigquery`` fixture.
     """
-    bq_client = MagicMock(name="shared_bigquery_client")
     gcs_client = MagicMock(name="shared_storage_client")
 
+    _install_bigquery_client(monkeypatch, MagicMock(name="shared_bigquery_client"))
     for module in _CLIENT_FACTORY_IMPORT_SITES:
-        for attr, client in (
-            ("shared_bigquery_client", bq_client),
-            ("shared_storage_client", gcs_client),
-        ):
-            monkeypatch.setattr(f"{module}.{attr}", lambda c=client: c, raising=False)
+        monkeypatch.setattr(
+            f"{module}.shared_storage_client", lambda c=gcs_client: c, raising=False
+        )
 
     # Belt and braces: anything constructing a client directly still gets a mock
     # rather than reaching for real credentials.
     monkeypatch.setattr("google.cloud.bigquery.Client", MagicMock)
     monkeypatch.setattr("google.cloud.storage.Client", MagicMock)
+
+
+@pytest.fixture
+def fake_bigquery(monkeypatch):
+    """Install a BigQuery client that stores each query result and serves pages of it.
+
+    The fixture runs after ``mock_bigquery_client``, so the fake replaces the
+    MagicMock at every import site of the factory.
+    """
+    from tests.paging_support import FakeBigQueryClient
+
+    client = FakeBigQueryClient()
+    _install_bigquery_client(monkeypatch, client)
+    return client
+
+
+@pytest.fixture
+def small_pages(monkeypatch) -> int:
+    """Set the page size to three rows, so a few rows span several pages."""
+    monkeypatch.setattr(test_settings, "data_export_limit", 3)
+    return 3
+
+
+@pytest.fixture
+def cursor_clock(monkeypatch):
+    """Fix the clock of the cursor module at a 2026 time.  ``advance`` moves it."""
+    import api.utils.cursor_utils as cursor_utils
+    from tests.paging_support import CursorClock
+
+    clock = CursorClock()
+    monkeypatch.setattr(cursor_utils, "time", clock)
+    return clock
 
 
 @pytest.fixture(autouse=True)

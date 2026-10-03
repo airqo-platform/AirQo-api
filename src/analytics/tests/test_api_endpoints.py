@@ -884,6 +884,377 @@ class TestCsvDownload:
 
 
 # ---------------------------------------------------------------------------
+# Stored-result paging through the routes
+#
+# The fake BigQuery client stores each query result and serves pages of it by
+# row offset, so these tests walk every paged route end to end: request body,
+# service, query layer and response envelope.  Each walk stays within the
+# per-route rate limit.  The autouse fixture clears the cache store between
+# tests.
+# ---------------------------------------------------------------------------
+
+V2 = "/api/v2/analytics"
+V3 = "/api/v3/public/analytics"
+ENVELOPE_KEYS = {"message", "status", "data", "metadata"}
+
+
+def _paged_routes():
+    """List every paged route with its request body and the identity key of a record."""
+    from tests.paging_support import DOWNLOAD, FORECAST, RAW, chart_body
+
+    return [
+        (f"{V2}/data-download", DOWNLOAD, "device_name"),
+        (f"{V3}/data-download", DOWNLOAD, "device_name"),
+        (f"{V2}/raw-data", RAW, "device_name"),
+        (f"{V3}/raw-data", RAW, "device_name"),
+        (f"{V3}/forecast-data", FORECAST, "city"),
+        (f"{V2}/dashboard/chart/data", chart_body("line"), "device_name"),
+        (f"{V2}/dashboard/chart/d3/data", chart_body("bar"), "device_name"),
+    ]
+
+
+def _route_ids():
+    return [path.replace("/api/", "") for path, _, _ in _paged_routes()]
+
+
+def _seed(fake, identity: str, rows: int = 7):
+    """Store the result of the next query: satellite rows for a city key."""
+    from tests.paging_support import device_frame, forecast_frame
+
+    fake.result_frame = (
+        forecast_frame(rows) if identity == "city" else device_frame(rows)
+    )
+
+
+def _with_cursor(body: dict, cursor):
+    return {**body, "cursor": cursor} if cursor else dict(body)
+
+
+def _walk_json(client, path, body, max_pages=20):
+    """Follow metadata.next from the first page and return the envelopes."""
+    pages = []
+    cursor = None
+    for _ in range(max_pages):
+        resp = client.post(path, json=_with_cursor(body, cursor))
+        assert resp.status_code == 200, resp.text
+        envelope = resp.json()
+        pages.append(envelope)
+        if not envelope["metadata"]["has_more"]:
+            return pages
+        cursor = envelope["metadata"]["next"]
+    raise AssertionError("the walk did not end within the page cap")
+
+
+def _csv_rows(text: str):
+    import csv
+    import io
+
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+def _bad_cursors(cursor, cursor_clock):
+    """Build the rejected forms of a valid cursor, by name."""
+    from tests.paging_support import tampered, unsigned
+
+    def expired():
+        cursor_clock.advance(361)
+        return cursor
+
+    return {
+        "changed": lambda: tampered(cursor),
+        "unsigned": lambda: unsigned(cursor),
+        "malformed": lambda: "not-a-cursor",
+        "expired": expired,
+    }
+
+
+class TestStoredResultPagingRoutes:
+    @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
+    def test_walk_returns_every_record_once(
+        self, client, fake_bigquery, small_pages, cursor_clock, path, body, identity
+    ):
+        _seed(fake_bigquery, identity)
+        pages = _walk_json(client, path, body)
+
+        keys = [
+            (record["datetime"], record[identity])
+            for page in pages
+            for record in page["data"]
+        ]
+        assert len(pages) == 3
+        assert len(keys) == 7
+        assert len(set(keys)) == 7
+        for page in pages:
+            assert page["status"] == "success"
+            assert page["data"]
+            assert page["metadata"]["total_count"] == len(page["data"])
+        for page in pages[:-1]:
+            assert page["metadata"]["has_more"] is True
+            assert isinstance(page["metadata"]["next"], str)
+        assert pages[-1]["metadata"]["has_more"] is False
+        assert pages[-1]["metadata"]["next"] is None
+        assert len(fake_bigquery.queries) == 1
+
+    def test_result_of_one_page_has_no_cursor(
+        self, client, fake_bigquery, small_pages, cursor_clock
+    ):
+        from tests.paging_support import DOWNLOAD
+
+        _seed(fake_bigquery, "device_name", rows=3)
+        pages = _walk_json(client, f"{V2}/data-download", DOWNLOAD)
+        assert len(pages) == 1
+        assert pages[0]["metadata"] == {
+            "total_count": 3,
+            "has_more": False,
+            "next": None,
+        }
+
+    @pytest.mark.parametrize(
+        "path, body, identity",
+        [_paged_routes()[0], _paged_routes()[4]],
+        ids=["v2/analytics/data-download", "v3/public/analytics/forecast-data"],
+    )
+    def test_empty_window_is_a_success_without_a_cursor(
+        self, client, fake_bigquery, small_pages, cursor_clock, path, body, identity
+    ):
+        _seed(fake_bigquery, identity, rows=0)
+        resp = client.post(path, json=body)
+        assert resp.status_code == 200
+        envelope = resp.json()
+        assert envelope["status"] == "success"
+        assert envelope["data"] == []
+        assert envelope["metadata"]["has_more"] is False
+        assert envelope["metadata"]["next"] is None
+
+    @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
+    @pytest.mark.parametrize("cause", ["changed", "unsigned", "malformed", "expired"])
+    def test_rejected_cursor_is_a_400_error_envelope(
+        self,
+        client,
+        fake_bigquery,
+        small_pages,
+        cursor_clock,
+        path,
+        body,
+        identity,
+        cause,
+    ):
+        _seed(fake_bigquery, identity)
+        first = client.post(path, json=body).json()
+        bad = _bad_cursors(first["metadata"]["next"], cursor_clock)[cause]()
+
+        resp = client.post(path, json=_with_cursor(body, bad))
+
+        assert resp.status_code == 400
+        envelope = resp.json()
+        assert set(envelope) == ENVELOPE_KEYS
+        assert envelope["status"] == "error"
+        assert envelope["message"]
+        assert envelope["data"] is None
+        assert envelope["metadata"] is None
+        assert fake_bigquery.job_lookups == []
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
+    def test_cursor_of_another_body_is_a_400(
+        self, client, fake_bigquery, small_pages, cursor_clock, path, body, identity
+    ):
+        _seed(fake_bigquery, identity)
+        first = client.post(path, json=body).json()
+        change = (
+            {"country": "Kenya"} if identity == "city" else {"device_ids": ["dev_c"]}
+        )
+
+        resp = client.post(
+            path, json={**body, **change, "cursor": first["metadata"]["next"]}
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["status"] == "error"
+        assert len(fake_bigquery.queries) == 1
+
+    def test_cursor_of_another_route_is_a_400(
+        self, client, fake_bigquery, small_pages, cursor_clock
+    ):
+        from tests.paging_support import DOWNLOAD, RAW
+
+        _seed(fake_bigquery, "device_name")
+        first = client.post(f"{V2}/data-download", json=DOWNLOAD).json()
+
+        resp = client.post(
+            f"{V2}/raw-data", json={**RAW, "cursor": first["metadata"]["next"]}
+        )
+
+        assert resp.status_code == 400
+        assert len(fake_bigquery.queries) == 1
+
+    def test_the_same_body_pages_on_both_versions(
+        self, client, fake_bigquery, small_pages, cursor_clock
+    ):
+        """v2 and v3 call one service, so a cursor from one version pages on the other."""
+        from tests.paging_support import DOWNLOAD
+
+        _seed(fake_bigquery, "device_name")
+        first = client.post(f"{V2}/data-download", json=DOWNLOAD).json()
+        second = client.post(
+            f"{V3}/data-download",
+            json=_with_cursor(DOWNLOAD, first["metadata"]["next"]),
+        )
+        assert second.status_code == 200
+        assert second.json()["metadata"]["total_count"] == 3
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.parametrize("cursor", [None, ""])
+    def test_a_null_or_empty_cursor_starts_a_new_export(
+        self, client, fake_bigquery, small_pages, cursor_clock, cursor
+    ):
+        from tests.paging_support import DOWNLOAD
+
+        _seed(fake_bigquery, "device_name")
+        resp = client.post(f"{V2}/data-download", json={**DOWNLOAD, "cursor": cursor})
+        assert resp.status_code == 200
+        assert resp.json()["metadata"]["total_count"] == 3
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.parametrize(
+        "path, body, identity",
+        [_paged_routes()[0], _paged_routes()[4], _paged_routes()[5]],
+        ids=["data-download", "forecast-data", "chart"],
+    )
+    @pytest.mark.parametrize("vanish", ["expire_result", "forget_job"])
+    def test_vanished_stored_result_is_a_400(
+        self,
+        client,
+        fake_bigquery,
+        small_pages,
+        cursor_clock,
+        path,
+        body,
+        identity,
+        vanish,
+    ):
+        from tests.paging_support import payload_of
+
+        _seed(fake_bigquery, identity)
+        first = client.post(path, json=body).json()
+        cursor = first["metadata"]["next"]
+        getattr(fake_bigquery, vanish)(payload_of(cursor)["job_id"])
+
+        resp = client.post(path, json=_with_cursor(body, cursor))
+
+        assert resp.status_code == 400
+        assert resp.json()["status"] == "error"
+
+    def test_every_rejection_cause_gets_one_message(
+        self, client, fake_bigquery, small_pages, cursor_clock
+    ):
+        from tests.paging_support import DOWNLOAD, payload_of
+
+        _seed(fake_bigquery, "device_name")
+        first = client.post(f"{V2}/data-download", json=DOWNLOAD).json()
+        cursor = first["metadata"]["next"]
+        bad = _bad_cursors(cursor, cursor_clock)
+        messages = set()
+        for cause in ("changed", "unsigned", "malformed"):
+            resp = client.post(
+                f"{V2}/data-download", json=_with_cursor(DOWNLOAD, bad[cause]())
+            )
+            assert resp.status_code == 400
+            messages.add(resp.json()["message"])
+        fake_bigquery.forget_job(payload_of(cursor)["job_id"])
+        resp = client.post(f"{V2}/data-download", json=_with_cursor(DOWNLOAD, cursor))
+        assert resp.status_code == 400
+        messages.add(resp.json()["message"])
+        assert len(messages) == 1
+
+    def test_every_route_gets_the_same_message(
+        self, client, fake_bigquery, small_pages, cursor_clock
+    ):
+        messages = set()
+        for path, body, identity in _paged_routes():
+            resp = client.post(path, json=_with_cursor(body, "not-a-cursor"))
+            assert resp.status_code == 400
+            messages.add(resp.json()["message"])
+        assert len(messages) == 1
+        assert fake_bigquery.queries == []
+
+    def test_refused_page_read_is_a_503(
+        self, client, fake_bigquery, small_pages, cursor_clock
+    ):
+        from google.api_core.exceptions import Forbidden
+        from tests.paging_support import DOWNLOAD
+
+        _seed(fake_bigquery, "device_name")
+        first = client.post(f"{V2}/data-download", json=DOWNLOAD).json()
+        fake_bigquery.read_error = Forbidden(
+            "Access Denied", errors=[{"reason": "accessDenied"}]
+        )
+
+        resp = client.post(
+            f"{V2}/data-download",
+            json=_with_cursor(DOWNLOAD, first["metadata"]["next"]),
+        )
+
+        assert resp.status_code == 503
+        assert resp.json()["status"] == "error"
+
+    @pytest.mark.parametrize(
+        "path, body",
+        [(f"{V2}/data-download", "DOWNLOAD"), (f"{V3}/raw-data", "RAW")],
+        ids=["v2/data-download", "v3/raw-data"],
+    )
+    def test_csv_walk_returns_every_record_once_with_the_page_headers(
+        self, client, fake_bigquery, small_pages, cursor_clock, path, body
+    ):
+        from tests import paging_support
+
+        body = {**getattr(paging_support, body), "downloadType": "csv"}
+        _seed(fake_bigquery, "device_name")
+        keys = []
+        cursor = None
+        for _ in range(20):
+            resp = client.post(path, json=_with_cursor(body, cursor))
+            assert resp.status_code == 200
+            assert resp.headers["content-type"].startswith("text/csv")
+            rows = _csv_rows(resp.text)
+            assert resp.headers["x-total-count"] == str(len(rows))
+            keys.extend((row["datetime"], row["device_name"]) for row in rows)
+            if "x-next-cursor" in resp.headers:
+                assert resp.headers["x-has-more"] == "true"
+                cursor = resp.headers["x-next-cursor"]
+            else:
+                assert resp.headers["x-has-more"] == "false"
+                break
+        assert len(keys) == 7
+        assert len(set(keys)) == 7
+        assert len(fake_bigquery.queries) == 1
+
+    @pytest.mark.parametrize(
+        "path", [f"{V2}/dashboard/chart/data", f"{V2}/dashboard/chart/d3/data"]
+    )
+    def test_pie_chart_returns_its_whole_result(
+        self, client, fake_bigquery, small_pages, cursor_clock, path
+    ):
+        from tests.paging_support import chart_body, pie_frame
+
+        fake_bigquery.result_frame = pie_frame()
+        resp = client.post(path, json=chart_body("pie"))
+
+        assert resp.status_code == 200
+        envelope = resp.json()
+        assert {point["label"]: point["value"] for point in envelope["data"]} == {
+            "Site One": 20.0,
+            "Site Two": 50.0,
+        }
+        assert envelope["metadata"] == {
+            "total_count": 2,
+            "has_more": False,
+            "next": None,
+        }
+        assert len(fake_bigquery.queries) == 1
+
+
+# ---------------------------------------------------------------------------
 # Observability & middleware
 # ---------------------------------------------------------------------------
 

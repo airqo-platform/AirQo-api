@@ -46,8 +46,10 @@ until Redis returns.
 
 Redis is also the Celery broker (`redis://{REDIS_SERVER}:{REDIS_PORT}/0`),
 and that has no fallback — scheduled exports stop until it is back.
-Pagination is unaffected: cursors are stateless, signed tokens that need no
-server-side storage.
+Paging keeps its state in the cursor and in the BigQuery result that the
+cursor names, so it continues while Redis is unavailable. A cursor is a signed
+token that names the job whose stored result holds the remaining pages, and
+BigQuery keeps that result for up to 24 hours.
 
 Locally:
 
@@ -106,7 +108,7 @@ diagnose from the symptom. The rest have sane defaults.
 
 | Variable                    | Default                | What goes wrong                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors, so a predictable value would let callers forge them.                                                                                                                                                                                                                                                                                                                      |
+| `SECRET_KEY`                | —                      | **The app will not start** outside development. It signs pagination cursors. A cursor names the BigQuery job whose stored result the service reads for the next page, so a predictable value would let a caller forge a cursor that reads the stored result of another job.                                                                                                                                                                            |
 | `APP_ENV`                   | `production`           | Selects the Mongo URI and gates the API docs. A typo silently points you at the wrong database. `FLASK_ENV` is still accepted as a fallback.                                                                                                                                                                                                                                                                                                           |
 | `BIGQUERY_MAX_BYTES_BILLED` | 100 MB                 | Deliberately tight, so that callers request a long period in shorter parts. Over-budget queries are **rejected by BigQuery while planning**, so they scan nothing and cost nothing; the caller gets a 400 that says to shorten the window, logged as `bigquery cost limit exceeded`. At `raw` frequency 100 MB is about one to two days across a few thousand devices. The `/report` data query uses `BIGQUERY_REPORT_MAX_BYTES_BILLED` (200 MB).      |
 | `BIGQUERY_JOB_TIMEOUT_MS`   | `30000`                | BigQuery might attempt to stop a job that runs longer than this, and a stopped job can still incur costs depending on the stage at which it was stopped, up to `BIGQUERY_MAX_BYTES_BILLED`. The caller gets a 400 that names the request fields that shape the query (site or device list, date range, frequency), or a 503 when the request has none, logged as `bigquery job timed out`.                                                             |

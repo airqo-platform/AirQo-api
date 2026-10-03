@@ -683,9 +683,25 @@ const createFeed = {
       } else {
         logger.warn(logMsg);
       }
+      // A vendor 404 means the vendor no longer serves this device (removed,
+      // made private, or re-registered under a new ID) — surface that clearly
+      // instead of a raw Axios message so Vertex can tell users what to do.
+      if (error.response?.status === httpStatus.NOT_FOUND) {
+        return {
+          success: false,
+          message:
+            `Device "${deviceRef}" was not found on the ${device.network} API. ` +
+            `The location may have been removed, made private, or assigned a new ID ` +
+            `by the manufacturer — verify the device's serial number and api_code, ` +
+            `or recall the device if it is no longer active.`,
+          reason: "upstream_device_not_found",
+          status,
+        };
+      }
       return {
         success: false,
         message: `Upstream API error for network "${device.network}": ${error.message}`,
+        reason: "upstream_api_error",
         status,
       };
     }
@@ -829,6 +845,7 @@ const createFeed = {
           data: {
             success: false,
             message: externalResult.message,
+            ...(externalResult.reason && { reason: externalResult.reason }),
           },
         };
       }
