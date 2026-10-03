@@ -1,156 +1,123 @@
 """
-Tests for pagination cursor utilities (api/utils/cursor_utils.py).
+Tests for the signed pagination cursor (api/utils/cursor_utils.py).
 
-StatelessCursorUtils is the cursor implementation actually used by the
-FastAPI path (`CursorUtils = StatelessCursorUtils`) — it's self-contained
-(base64 + embedded expiry), so its tests need no mocking at all.
-
-The legacy Redis-backed cursor implementation was removed with the rest
-of the Flask-era code — stateless tokens are the only implementation.
+A cursor is signed JSON that names the BigQuery job whose stored result holds
+the pages, the row offset of the next page, the hash of the request that
+produced it, and an expiry.  ``read_cursor`` accepts the token that the
+service issued and rejects every other token that a client can send with
+``CursorRejected``.
 """
 
 from __future__ import annotations
 
-import base64
-import time
 import pytest
 
-from api.utils.cursor_utils import CursorUtils, StatelessCursorUtils
+from api.utils.cursor_utils import CursorUtils, StoredResultCursor
+from api.utils.exceptions import CursorRejected
+from tests.paging_support import (
+    LOCATION,
+    payload_of,
+    tampered,
+    unsigned,
+    with_changed_payload,
+)
+
+JOB_ID = "job_2026_1"
+REQUEST_HASH = "f" * 64
+OTHER_HASH = "0" * 64
+
+
+def _token() -> str:
+    """Issue the token that the service returns for the page at offset 3."""
+    return CursorUtils.create_cursor(JOB_ID, LOCATION, 3, REQUEST_HASH)
 
 
 # ---------------------------------------------------------------------------
-# StatelessCursorUtils — the live implementation (CursorUtils alias)
+# Round trip
 # ---------------------------------------------------------------------------
 
 
-class TestStatelessCursorUtils:
-    def test_create_and_retrieve_minimal(self):
-        cursor = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        assert isinstance(cursor, str)
-        assert len(cursor) > 0
-        assert (
-            StatelessCursorUtils.retrieve_cursor(cursor)
-            == "2025-01-01 00:00:00Z|device1"
+class TestCursorRoundTrip:
+    def test_read_returns_the_fields_create_was_given(self, cursor_clock):
+        assert CursorUtils.read_cursor(_token(), REQUEST_HASH) == StoredResultCursor(
+            job_id=JOB_ID, location=LOCATION, offset=3, fingerprint=REQUEST_HASH
         )
 
-    def test_create_and_retrieve_with_device_id(self):
-        cursor = StatelessCursorUtils.create_cursor(
-            "2025-01-01 00:00:00Z", "site1", "device1"
-        )
-        assert (
-            StatelessCursorUtils.retrieve_cursor(cursor)
-            == "2025-01-01 00:00:00Z|site1|device1"
-        )
-
-    def test_validate_cursor_valid(self):
-        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        assert StatelessCursorUtils.validate_cursor(token) is True
-
-    @staticmethod
-    def _sign_payload(payload: str) -> str:
-        """Build a correctly signed token from a raw payload, so expiry/format
-        tests exercise those paths rather than failing at the signature."""
-        payload_b64 = (
-            base64.urlsafe_b64encode(payload.encode()).decode("utf-8").rstrip("=")
-        )
-        return f"{payload_b64}.{StatelessCursorUtils._sign(payload_b64)}"
-
-    def test_validate_cursor_expired(self):
-        expired_time = int(time.time()) - 100
-        expired_token = self._sign_payload(
-            f"2025-01-01 00:00:00Z|device1|{expired_time}"
-        )
-
-        assert StatelessCursorUtils.validate_cursor(expired_token) is False
-        with pytest.raises(ValueError, match="expired"):
-            StatelessCursorUtils.retrieve_cursor(expired_token)
-
-    def test_parse_cursor_with_device_id(self):
-        token = StatelessCursorUtils.create_cursor(
-            "2025-01-01 00:00:00Z", "site1", "device1"
-        )
-        assert StatelessCursorUtils.parse_cursor(token) == {
-            "timestamp": "2025-01-01 00:00:00Z",
-            "filter_value": "site1",
-            "device_id": "device1",
-        }
-
-    def test_parse_cursor_without_device_id(self):
-        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        parsed = StatelessCursorUtils.parse_cursor(token)
-        assert parsed == {
-            "timestamp": "2025-01-01 00:00:00Z",
-            "filter_value": "device1",
-        }
-        assert "device_id" not in parsed
-
-    def test_retrieve_cursor_invalid_format_raises(self):
-        invalid_token = self._sign_payload("invalid_data")
-        with pytest.raises(ValueError, match="Invalid cursor format"):
-            StatelessCursorUtils.retrieve_cursor(invalid_token)
-
-    def test_retrieve_cursor_garbage_token_raises(self):
-        with pytest.raises(ValueError):
-            StatelessCursorUtils.retrieve_cursor("not-valid-base64!!!")
-
-
-# ---------------------------------------------------------------------------
-# Signature enforcement
-#
-# The cursor payload ends up in the WHERE clause of a BigQuery query, so an
-# unsigned token let a caller both inject filter values and — since the expiry
-# lives inside the payload — mint themselves a never-expiring cursor.
-# ---------------------------------------------------------------------------
-
-
-class TestCursorSignature:
-    def test_token_carries_a_signature(self):
-        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
+    def test_payload_is_signed_json(self, cursor_clock):
+        token = _token()
         payload_b64, sep, signature = token.rpartition(".")
         assert sep == "." and payload_b64 and signature
+        assert set(payload_of(token)) == {
+            "expires",
+            "fingerprint",
+            "job_id",
+            "location",
+            "offset",
+        }
 
-    def test_unsigned_legacy_token_is_rejected(self):
-        """The pre-HMAC token format (bare base64) must no longer verify."""
-        payload = f"2025-01-01 00:00:00Z|device1|{int(time.time()) + 300}"
-        legacy = base64.urlsafe_b64encode(payload.encode()).decode("utf-8").rstrip("=")
+    def test_fingerprint_is_the_same_for_equal_mappings(self):
+        first = CursorUtils.fingerprint({"b": 1, "a": [1, 2]})
+        second = CursorUtils.fingerprint({"a": [1, 2], "b": 1})
+        assert first == second
+        assert len(first) == 64
+        assert CursorUtils.fingerprint({"a": [2, 1], "b": 1}) != first
 
-        assert StatelessCursorUtils.validate_cursor(legacy) is False
-        with pytest.raises(ValueError, match="Invalid or expired cursor token"):
-            StatelessCursorUtils.retrieve_cursor(legacy)
 
-    def test_tampered_payload_is_rejected(self):
-        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        payload_b64, _, signature = token.rpartition(".")
-        forged = f"{payload_b64[:-4]}AAAA.{signature}"
+# ---------------------------------------------------------------------------
+# Lifetime
+# ---------------------------------------------------------------------------
 
-        assert StatelessCursorUtils.validate_cursor(forged) is False
 
-    def test_forged_signature_is_rejected(self):
-        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        payload_b64, _, _ = token.rpartition(".")
+class TestCursorLifetime:
+    def test_lifetime_is_six_minutes(self, cursor_clock):
+        assert CursorUtils.CURSOR_EXPIRATION == 360
+        assert payload_of(_token())["expires"] == int(cursor_clock.time()) + 360
 
-        assert StatelessCursorUtils.validate_cursor(f"{payload_b64}.deadbeef") is False
+    def test_token_is_valid_until_its_expiry(self, cursor_clock):
+        token = _token()
+        cursor_clock.advance(359)
+        CursorUtils.read_cursor(token, REQUEST_HASH)
+        cursor_clock.advance(2)
+        with pytest.raises(CursorRejected):
+            CursorUtils.read_cursor(token, REQUEST_HASH)
 
-    def test_expiry_cannot_be_extended_by_re_encoding(self):
-        """Re-encoding the payload with a distant expiry invalidates the
-        signature — the whole point of signing an embedded expiry."""
-        far_future = int(time.time()) + 10_000_000
-        payload = f"2025-01-01 00:00:00Z|device1|{far_future}"
-        forged = base64.urlsafe_b64encode(payload.encode()).decode("utf-8").rstrip("=")
-
-        assert StatelessCursorUtils.validate_cursor(forged) is False
-
-    def test_signature_is_key_dependent(self, monkeypatch):
-        """A token minted under a different SECRET_KEY must not verify."""
-        token = StatelessCursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        monkeypatch.setattr(
-            StatelessCursorUtils,
-            "_signing_key",
-            staticmethod(lambda: b"a-different-key"),
+    def test_expiry_cannot_be_extended_without_the_key(self, cursor_clock):
+        later = with_changed_payload(
+            _token(), expires=int(cursor_clock.time()) + 10_000
         )
-        assert StatelessCursorUtils.validate_cursor(token) is False
+        with pytest.raises(CursorRejected):
+            CursorUtils.read_cursor(later, REQUEST_HASH)
 
-    def test_cursor_utils_alias_is_stateless(self):
-        """CursorUtils must point at StatelessCursorUtils — the FastAPI path
-        (bigquery_api.py, async_bigquery_api.py) relies on this alias."""
-        assert CursorUtils is StatelessCursorUtils
+
+# ---------------------------------------------------------------------------
+# Rejected tokens: every form that a client can send apart from the issued one
+# ---------------------------------------------------------------------------
+
+REJECTED = {
+    "changed payload": tampered,
+    "forged signature": lambda token: f"{unsigned(token)}.deadbeef",
+    "no signature": unsigned,
+    "arbitrary text": lambda token: "not-a-cursor",
+    "signature outside ascii": lambda token: f"{unsigned(token)}.ñ",
+    "lone surrogate in the signature": lambda token: f"{unsigned(token)}.\ud800",
+    "lone surrogate in the payload": lambda token: "\ud800.x",
+}
+
+
+class TestRejectedTokens:
+    @pytest.mark.parametrize("make_token", REJECTED.values(), ids=REJECTED.keys())
+    def test_rejected_token_raises(self, cursor_clock, make_token):
+        with pytest.raises(CursorRejected):
+            CursorUtils.read_cursor(make_token(_token()), REQUEST_HASH)
+
+    def test_token_from_another_key_is_rejected(self, cursor_clock, monkeypatch):
+        token = _token()
+        monkeypatch.setattr(
+            CursorUtils, "_signing_key", staticmethod(lambda: b"another-key")
+        )
+        with pytest.raises(CursorRejected):
+            CursorUtils.read_cursor(token, REQUEST_HASH)
+
+    def test_token_of_another_request_is_rejected(self, cursor_clock):
+        with pytest.raises(CursorRejected):
+            CursorUtils.read_cursor(_token(), OTHER_HASH)

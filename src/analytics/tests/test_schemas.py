@@ -85,6 +85,18 @@ class TestDataExportRequestValid:
         req = DataExportRequest(**{**BASE, "cursor": "abc123"})
         assert req.cursor == "abc123"
 
+    def test_chart_and_forecast_requests_accept_a_cursor_token(self):
+        from api.schemas.requests import (
+            DashboardChartRequest,
+            ForecastDataExportRequest,
+        )
+        from tests.paging_support import FORECAST, chart_body
+
+        chart = DashboardChartRequest(**{**chart_body("line"), "cursor": "abc123"})
+        forecast = ForecastDataExportRequest(**{**FORECAST, "cursor": "abc123"})
+        assert chart.cursor == "abc123"
+        assert forecast.cursor == "abc123"
+
     def test_download_type_csv(self):
         req = DataExportRequest(**{**BASE, "downloadType": "csv"})
         assert req.download_type == "csv"

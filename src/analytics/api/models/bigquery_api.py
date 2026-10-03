@@ -20,7 +20,9 @@ from api.utils.bigquery_jobs import (
 from config import settings as Config
 from api.utils.pollutants.pm_25 import COMMON_POLLUTANT_MAPPING_v2
 
-from api.utils.cursor_utils import CursorUtils
+from api.utils.cursor_utils import CursorUtils, StoredResultCursor
+from api.utils.exceptions import CursorRejected
+from google.api_core.exceptions import NotFound
 
 import logging
 
@@ -384,42 +386,127 @@ class BigQueryApi:
         dynamic_query: Optional[bool] = False,
         use_cache: Optional[bool] = True,
         cursor_token: Optional[str] = None,
+        *,
+        cursor_binding: str,
+        whole_result: bool = False,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
-        Queries data from a specified BigQuery table based on the provided parameters with pagination support.
+        Queries one page of data from a specified BigQuery table, or every row of it.
+
+        A request without a cursor runs the query once, in the order that
+        ``_get_pagination_order_clause`` builds, and returns the first
+        ``DATA_EXPORT_LIMIT`` rows.  BigQuery writes the whole result to a
+        temporary table and keeps it for up to 24 hours.  A request with a
+        cursor reads the next ``DATA_EXPORT_LIMIT`` rows of that stored result
+        by row offset.  A request with ``whole_result`` runs the query and
+        returns every row in one frame.
 
         Args:
             table (str): The name of the table from which to retrieve the data.
             start_date_time (str): The start datetime for the data query in ISO format.
             end_date_time (str): The end datetime for the data query in ISO format.
-            device_category (DeviceCategory): Category of device data to query.
-            network (DeviceNetwork, optional): An Enum representing the site ownership.
-            frequency (Frequency, optional): The frequency of the data (raw, hourly, daily, etc.).
-            data_type (DataType, optional): Type of data (raw, calibrated, etc.).
-            columns (List[str], optional): A list of column names (pollutants) to include in the query.
-            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"grid_ids": ["grid1"]}, {"cohort_ids": ["cohort1"]}.
-            dynamic_query (bool, optional): Whether to use dynamic query generation. Defaults to False.
-            use_cache (bool, optional): Whether to use cached query results. Defaults to True.
-            cursor_token (str, optional): Token for cursor-based pagination from a previous query. Defaults to None.
+            device_category (DeviceCategory): The category of the devices to query.
+            frequency (Frequency): The frequency of the data, such as raw, hourly or daily.
+            network (DeviceNetwork, optional): The network that owns the sites.
+            data_type (DataType, optional): The type of the data, such as raw or calibrated.
+            columns (List[str], optional): The pollutant columns to include in the query.
+            where_fields (Dict[str, List[str]], optional): One filter type with its
+                values, such as {"devices": ["dev1", "dev2"]}, {"sites": ["site1"]},
+                {"grid_ids": ["grid1"]} or {"cohort_ids": ["cohort1"]}.
+            dynamic_query (bool, optional): True builds the query with the averaging
+                columns of the frequency, and False builds the raw-data query.
+                Defaults to False.
+            use_cache (bool, optional): True lets BigQuery serve the query from its
+                cache. Defaults to True.
+            cursor_token (str, optional): The token from ``metadata.next`` of the previous page.
+            cursor_binding (str): The hash of the request body and the operation name.
+                The service accepts a cursor only when it carries the same hash.
+            whole_result (bool): True returns every row of the result in one frame,
+                with ``has_more`` false.
 
         Returns:
-            Tuple[pd.DataFrame, Dict[str, Any]]: A pandas DataFrame containing the queried data and
-            a dictionary with metadata including pagination information:
-            {
-                "total_count": int,  # Rows in the current result set. The service
-                                     # layer overwrites this with the record count
-                                     # actually returned after cleaning/formatting.
-                "has_more": bool,    # Whether more data is available
-                "next": str or None  # Cursor token for the next page of results, or None if no more data
-            }
+            Tuple[pd.DataFrame, Dict[str, Any]]: The rows of the page and the
+            pagination metadata.  ``total_count`` is the number of rows in the
+            page, and the service layer replaces it with the number of records
+            that it returns after cleaning.  ``has_more`` is true while rows
+            remain after the page.  ``next`` is the cursor of the following
+            page, or None on the last page.
+
+        Raises:
+            CursorRejected: The cursor is malformed, unsigned, changed, expired
+                or issued for another request, BigQuery holds no stored result
+                for the job that it names, or a cursor arrived with
+                ``whole_result``.
         """
-        job_config = query_job_config()
-        limits = int(Config.data_export_limit)
+        limit = int(Config.data_export_limit)
+
+        if cursor_token:
+            if whole_result:
+                raise CursorRejected("a whole-result read carries no cursor")
+            cursor = CursorUtils.read_cursor(cursor_token, cursor_binding)
+            page, total_rows = self._read_stored_page(cursor, limit, table)
+            return page, self._page_metadata(
+                page,
+                cursor.offset,
+                total_rows,
+                limit,
+                cursor.job_id,
+                cursor.location,
+                cursor_binding,
+            )
+
+        query, job_config = self._result_query(
+            table=table,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=device_category,
+            frequency=frequency,
+            network=network,
+            data_type=data_type,
+            columns=columns,
+            where_fields=where_fields,
+            dynamic_query=dynamic_query,
+            use_cache=use_cache,
+        )
+
+        if whole_result:
+            frame = self._run_whole_result(query, job_config, table)
+            return frame, {"total_count": len(frame), "has_more": False, "next": None}
+
+        page, total_rows, job_id, location = self._run_first_page(
+            query, job_config, limit, table
+        )
+        return page, self._page_metadata(
+            page, 0, total_rows, limit, job_id, location, cursor_binding
+        )
+
+    def _result_query(
+        self,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+        network: Optional[DeviceNetwork],
+        data_type: Optional[str],
+        columns: Optional[List],
+        where_fields: Dict[str, Any],
+        dynamic_query: bool,
+        use_cache: bool,
+    ) -> Tuple[str, bigquery.QueryJobConfig]:
+        """
+        Build the ordered result query and its job configuration.
+
+        The query carries the ORDER BY of ``_get_pagination_order_clause``,
+        and BigQuery writes the whole result to a temporary table.  The job
+        configuration binds the filter values and carries the byte limit and
+        the job timeout of ``query_job_config``.
+
+        Returns:
+            Tuple[str, bigquery.QueryJobConfig]: The query text and its configuration.
+        """
         filter_type, filter_value = next(iter(where_fields.items()))
-        meta_data: Dict[str, Any] = {"total_count": 0, "has_more": False, "next": None}
         cursor_field = Config.cursor_field.get(frequency.value, "timestamp")
-        query_parameters: List = []
-        # Determine which query generation approach to use
         if not dynamic_query:
             # Raw data
             query = self.compose_query(
@@ -444,196 +531,136 @@ class BigQueryApi:
                 frequency=frequency,
                 device_category=device_category,
             )
-
-        query_parameters.append(self._build_filter_parameter(filter_value))
-
-        job_config.use_query_cache = use_cache
-
-        if cursor_token:
-            # Every request that carries a cursor resumes after that cursor,
-            # so a client that follows metadata.next receives each page once.
-            query, cursor_parameters = self._apply_pagination_cursor(
-                query, cursor_field, cursor_token, filter_type
-            )
-            query_parameters.extend(cursor_parameters)
-
-        job_config.query_parameters = query_parameters
-
         order_by_clause = self._get_pagination_order_clause(
             cursor_field, filter_type, table
         )
+        job_config = query_job_config()
+        job_config.query_parameters = [self._build_filter_parameter(filter_value)]
+        job_config.use_query_cache = use_cache
+        return (
+            f"select distinct * from ({query}) order by {order_by_clause}",
+            job_config,
+        )
 
-        # Adjust the limit to fetch one extra row
-        adjusted_limit = limits + 1
+    def _run_first_page(
+        self, query: str, job_config: bigquery.QueryJobConfig, limit: int, table: str
+    ) -> Tuple[pd.DataFrame, Optional[int], str, str]:
+        """
+        Run the query and read the first ``limit`` rows of its result.
 
-        # Execute the query with ordering and adjusted limit
+        ``max_results`` keeps the read on the REST path of the client, and the
+        rows of the first page arrive in the ``getQueryResults`` response that
+        ``result`` requests.  The code reads the job id and the location after
+        ``result`` returns, because the job retry of the client can replace the
+        job while it waits.  A job that reports no location gets
+        ``settings.bigquery_location``.
+
+        Returns:
+            Tuple[pd.DataFrame, Optional[int], str, str]: The page, the row count
+            of the whole result, the job id and the job location.
+        """
         with translate_incomplete_queries(f"query_data table={table}"):
-            measurements = (
-                self.client.query(
-                    query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",
-                    job_config=job_config,
-                )
-                .result()
-                .to_dataframe()
-            )
+            job = self.client.query(query=query, job_config=job_config)
+            rows = job.result(max_results=limit)
+            page = rows.to_dataframe()
+        location = job.location or Config.bigquery_location
+        return page, rows.total_rows, job.job_id, location
 
-        # Handle pagination logic
-        if not measurements.empty:
-            # Use only the first `Config.DATA_EXPORT_LIMIT` rows for the current page
-            current_page_data = measurements.iloc[:limits]
+    def _run_whole_result(
+        self, query: str, job_config: bigquery.QueryJobConfig, table: str
+    ) -> pd.DataFrame:
+        """Run the query and read every row of its result over the REST path."""
+        with translate_incomplete_queries(f"query_data table={table}"):
+            job = self.client.query(query=query, job_config=job_config)
+            return job.result().to_dataframe(create_bqstorage_client=False)
 
-            # Use the `(Config.DATA_EXPORT_LIMIT + 1)`th row to generate the next cursor
-            if len(measurements) > limits:
-                next_cursor_token = self._generate_next_cursor(
-                    measurements.iloc[limits:], cursor_field, filter_type
-                )
-            else:
-                next_cursor_token = None
-        else:
-            current_page_data = measurements
-            next_cursor_token = None
-
-        # Update metadata
-        count = current_page_data.shape[0]
-        meta_data["total_count"] = count
-        meta_data["has_more"] = next_cursor_token is not None
-        meta_data["next"] = next_cursor_token
-
-        return current_page_data, meta_data
-
-    def _apply_pagination_cursor(
-        self, query: str, cursor_field: str, cursor_token: str, filter_type: str
-    ) -> Tuple[str, List[bigquery.ScalarQueryParameter]]:
+    def _read_stored_page(
+        self, cursor: StoredResultCursor, limit: int, table: str
+    ) -> Tuple[pd.DataFrame, Optional[int]]:
         """
-        Applies pagination cursor logic to a query string, ensuring results continue precisely
-        from where the previous request left off, using appropriate operators for string fields.
+        Read the ``limit`` rows at ``cursor.offset`` of a stored result.
 
-        The decoded cursor parts are **bound as query parameters**, never
-        interpolated: they originate from a client-supplied token, so
-        interpolating them was a SQL injection into the WHERE clause. Only
-        `cursor_field` and `filter_type` are interpolated — both are column
-        names resolved from `Config.cursor_field` / `self.field_mappings`,
-        never from request data. Token authenticity is enforced separately by
-        the HMAC check in `CursorUtils.retrieve_cursor`.
-
-        Args:
-            query (str): The SQL query to modify.
-            cursor_field (str): The field used for pagination (typically timestamp).
-            cursor_token (str): The signed cursor token from a previous response.
-            filter_type (str): The type of filter being applied (e.g., 'site_id').
+        The read fetches the job that the cursor names and reads a slice of
+        its result with ``start_index``.  ``page_size`` travels with
+        ``start_index``, because the client sends the first request with the
+        page size and continues with the page token.  A 403 or a rate refusal
+        on the read gets the translation of ``translate_incomplete_queries``.
 
         Returns:
-            Tuple[str, List[bigquery.ScalarQueryParameter]]: The modified query
-            and the parameters its cursor placeholders bind to.
-        """
-        filter_type = self.field_mappings.get(filter_type, None)
+            Tuple[pd.DataFrame, Optional[int]]: The page and the row count of
+            the whole result.
 
-        # Decode the raw "timestamp|filter_value[|device_id]" cursor payload.
-        # CursorUtils is StatelessCursorUtils (self-contained base64 tokens,
-        # not Redis-backed) — retrieve_cursor is its raw-string accessor;
-        # parse_cursor would return an already-split dict, not this string.
+        Raises:
+            CursorRejected: BigQuery holds no job or no stored result for the
+                cursor, or the job is not a query job.
+        """
         try:
-            cursor_value = CursorUtils.retrieve_cursor(cursor_token)
-        except ValueError as e:
-            raise ValueError(f"Invalid pagination cursor: {str(e)}")
-
-        cursor_parts = cursor_value.split("|")
-
-        if len(cursor_parts) < 2:
-            raise ValueError("Invalid cursor format")
-
-        timestamp_part = cursor_parts[0]
-        filter_value_part = cursor_parts[1]
-
-        cursor_parameters = [
-            bigquery.ScalarQueryParameter("cursor_timestamp", "STRING", timestamp_part),
-            bigquery.ScalarQueryParameter(
-                "cursor_filter_value", "STRING", filter_value_part
-            ),
-        ]
-
-        if filter_type == "site_id" and len(cursor_parts) >= 3:
-            # Site ID case with device ID for multi-device sites
-            cursor_parameters.append(
-                bigquery.ScalarQueryParameter(
-                    "cursor_device_id", "STRING", cursor_parts[2]
+            with translate_incomplete_queries(f"query_data page table={table}"):
+                job = self.client.get_job(cursor.job_id, location=cursor.location)
+                if getattr(job, "job_type", None) != "query":
+                    raise CursorRejected("the token names a job that is not a query")
+                rows = job.result(
+                    start_index=cursor.offset, max_results=limit, page_size=limit
                 )
+                page = rows.to_dataframe()
+        except NotFound as exc:
+            logger.warning(
+                "bigquery stored result not found (job_id=%s location=%s): %s",
+                cursor.job_id,
+                cursor.location,
+                exc.message,
             )
-            query += f"""
-                AND (
-                    /* Records with later timestamps */
-                    {cursor_field} > @cursor_timestamp
+            raise CursorRejected(
+                "BigQuery holds no stored result for the token"
+            ) from exc
+        return page, rows.total_rows
 
-                    /* OR same timestamp, same site and same device_id */
-                    OR ({cursor_field} = @cursor_timestamp
-                        AND {filter_type} = @cursor_filter_value
-                        AND device_id = @cursor_device_id)
-                )
-            """
+    @staticmethod
+    def _page_metadata(
+        page: pd.DataFrame,
+        offset: int,
+        total_rows: Optional[int],
+        limit: int,
+        job_id: str,
+        location: str,
+        cursor_binding: str,
+    ) -> Dict[str, Any]:
+        """
+        Build the pagination metadata of one page.
+
+        ``has_more`` is true while rows remain after this page in the stored
+        result.  When the client reports no row count, ``has_more`` is true
+        for a full page.  ``next`` is the cursor for the row after this page.
+        """
+        count = len(page)
+        next_offset = offset + count
+        if total_rows is None:
+            has_more = count >= limit
         else:
-            # Simpler case (e.g., device_id or other filters)
-            query += f"""
-                AND (
-                    /* Records with later timestamps */
-                    {cursor_field} > @cursor_timestamp
-
-                    /* OR same timestamp and same filter value(device_id)*/
-                    OR ({cursor_field} = @cursor_timestamp
-                        AND {filter_type} IS NOT NULL
-                        AND {filter_type} = @cursor_filter_value)
-                )
-            """
-
-        return query, cursor_parameters
-
-    def _generate_next_cursor(
-        self, dataframe: pd.DataFrame, cursor_field: str, filter_type: str
-    ) -> Optional[str]:
-        """
-        Generates the next signed stateless cursor token from a dataframe of results.
-
-        Args:
-            dataframe (pd.DataFrame): The result dataframe.
-            cursor_field (str): Field used for pagination (typically timestamp).
-            filter_type (str): Type of filter being applied (e.g., 'site_id').
-
-        Returns:
-            Optional[str]: Self-contained signed cursor token, or None if no more data.
-        """
-        cursor_token = None
-        filter_type = self.field_mappings.get(filter_type, None)
-        if not dataframe.empty:
-            last_row = dataframe.iloc[-1]
-            max_timestamp = last_row[cursor_field]
-            last_filter_value = last_row[filter_type]
-
-            if filter_type == "site_id" and "device_id" in dataframe.columns:
-                # For site_id filtering, include device_id in the cursor
-                cursor_token = CursorUtils.create_cursor(
-                    timestamp=str(max_timestamp),
-                    filter_value=last_filter_value,
-                    device_id=last_row["device_id"],
-                )
-            else:
-                cursor_token = CursorUtils.create_cursor(
-                    timestamp=str(max_timestamp), filter_value=last_filter_value
-                )
-
-        return cursor_token
+            has_more = count > 0 and next_offset < int(total_rows)
+        next_token = (
+            CursorUtils.create_cursor(job_id, location, next_offset, cursor_binding)
+            if has_more
+            else None
+        )
+        return {"total_count": count, "has_more": has_more, "next": next_token}
 
     def _get_pagination_order_clause(
         self, cursor_field: str, filter_type: str, table: str
     ) -> str:
         """
-        Generates an ORDER BY clause for consistent pagination ordering.
+        Generates the ORDER BY clause of the result query.
+
+        The result query carries this clause, and each page reads the stored
+        result of that query by row offset.
 
         Args:
-            cursor_field (str): Field used for pagination (typically timestamp).
-            filter_type (str): Type of filter being applied.
+            cursor_field (str): The time column of the result (timestamp, week, month or year).
+            filter_type (str): The type of the filter.
             table (str): The table being queried.
 
         Returns:
-            str: SQL ORDER BY clause for consistent pagination.
+            str: The SQL ORDER BY clause.
         """
         filter_type = self.field_mappings.get(filter_type, None)
         order_by_clause = f"{cursor_field}, {filter_type}"

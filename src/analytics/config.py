@@ -81,10 +81,11 @@ class BaseConfig(BaseSettings):
         default="production",
         validation_alias=AliasChoices("APP_ENV", "FLASK_ENV"),
     )
-    # Signs pagination cursor tokens (api/utils/cursor_utils.py). A predictable
-    # key means forgeable cursors, and cursor contents reach a BigQuery WHERE
-    # clause — so deployed environments must set a real one. The default exists
-    # only so local dev and the test suite work out of the box.
+    # SECRET_KEY signs the pagination cursor tokens (api/utils/cursor_utils.py).
+    # A cursor names the BigQuery job whose stored result the service reads for
+    # the next page, so a predictable key would let a caller forge a cursor that
+    # reads the stored result of another job. Deployed environments must set a
+    # real key. The default exists only for local development and the test suite.
     DEFAULT_SECRET_KEY: ClassVar[str] = "default-secret-key"
     secret_key: SecretStr = Field(
         default=DEFAULT_SECRET_KEY, validation_alias="SECRET_KEY"
@@ -109,6 +110,9 @@ class BaseConfig(BaseSettings):
     google_application_credentials: Optional[str] = Field(
         default=None, validation_alias="GOOGLE_APPLICATION_CREDENTIALS"
     )
+    # A pagination cursor carries the location of the job whose stored result
+    # it reads. This value stands in for a job that reports no location.
+    bigquery_location: str = Field(default="EU", validation_alias="BIGQUERY_LOCATION")
 
     # Redis settings
     cache_key_prefix: str = Field(

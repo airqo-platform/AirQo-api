@@ -14,15 +14,18 @@ selection (`_build_filter_parameter`).
 
 from __future__ import annotations
 
-import time
+import math
+import re
 
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
+from google.api_core.exceptions import Forbidden
 
 from api.models.bigquery_api import BigQueryApi
-from api.utils.cursor_utils import CursorUtils
+from api.utils.exceptions import CursorRejected, QueryForbidden
 from constants import ColumnDataType, DataType, DeviceCategory, Frequency
+from tests.paging_support import LOCATION, device_frame, payload_of, tampered
+from tests.test_config import test_settings
 
 
 @pytest.fixture
@@ -373,106 +376,255 @@ class TestGetColumns:
 
 
 # ---------------------------------------------------------------------------
-# Pagination cursor helpers
+# Stored-result paging
+#
+# query_data runs one query for the first page and reads every later page
+# from the stored result of that job by row offset.  The fake client in
+# tests/paging_support.py stores each result and records every query, job
+# lookup and read, so these tests prove the walk against that client.
 # ---------------------------------------------------------------------------
 
+REQUEST_HASH = "a" * 64
+OTHER_HASH = "b" * 64
 
-class TestPaginationCursor:
-    @staticmethod
-    def _params(parameters):
-        return {p.name: p.value for p in parameters}
 
-    def test_apply_pagination_cursor_device_filter(self, bq_api):
-        token = CursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        query, parameters = bq_api._apply_pagination_cursor(
-            "SELECT * FROM table", "timestamp", token, "device_ids"
+def _request(**overrides) -> dict:
+    """Build the keyword arguments of one data-download request at hourly frequency."""
+    request = dict(
+        table=test_settings.bigquery_hourly_data,
+        start_date_time="2026-03-01T00:00:00+00:00",
+        end_date_time="2026-03-02T00:00:00+00:00",
+        device_category=DeviceCategory.LOWCOST,
+        frequency=Frequency.HOURLY,
+        data_type=DataType.CALIBRATED,
+        columns=["pm2_5"],
+        where_fields={"device_ids": ["dev_a", "dev_b"]},
+        dynamic_query=True,
+        cursor_binding=REQUEST_HASH,
+    )
+    request.update(overrides)
+    return request
+
+
+def _walk(api: BigQueryApi, request: dict, max_pages: int = 20):
+    """Follow metadata.next from the first page and return the pages with their metadata."""
+    pages, metas = [], []
+    cursor = None
+    for _ in range(max_pages):
+        page, meta = api.query_data(cursor_token=cursor, **request)
+        pages.append(page)
+        metas.append(meta)
+        if not meta["has_more"]:
+            return pages, metas
+        cursor = meta["next"]
+    raise AssertionError("the walk did not end within the page cap")
+
+
+def _follow(api: BigQueryApi, request: dict, meta: dict, max_pages: int = 20):
+    """Follow metadata.next from ``meta`` and return the later pages."""
+    pages = []
+    for _ in range(max_pages):
+        if not meta["has_more"]:
+            return pages
+        page, meta = api.query_data(cursor_token=meta["next"], **request)
+        pages.append(page)
+    raise AssertionError("the walk did not end within the page cap")
+
+
+@pytest.fixture
+def paging_api(fake_bigquery) -> BigQueryApi:
+    """Build a BigQueryApi after the fixture installs the fake client."""
+    return BigQueryApi()
+
+
+class TestStoredResultPaging:
+    @pytest.mark.parametrize("rows", [7, 4])
+    def test_walk_returns_every_row_once_in_order(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api, rows
+    ):
+        fake_bigquery.result_frame = device_frame(rows)
+        pages, _ = _walk(paging_api, _request())
+        pd.testing.assert_frame_equal(
+            pd.concat(pages, ignore_index=True), device_frame(rows)
         )
-        assert "timestamp > @cursor_timestamp" in query
-        assert "device_id = @cursor_filter_value" in query
-        assert self._params(parameters) == {
-            "cursor_timestamp": "2025-01-01 00:00:00Z",
-            "cursor_filter_value": "device1",
+        assert len(pages) == math.ceil(rows / small_pages)
+        assert all(len(page) <= small_pages for page in pages)
+
+    def test_later_pages_run_no_query(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        pages, _ = _walk(paging_api, _request())
+        assert len(pages) == 3
+        assert len(fake_bigquery.queries) == 1
+
+    def test_later_pages_read_the_stored_result_of_the_first_query(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        first_page, meta = paging_api.query_data(**_request())
+        job_id = payload_of(meta["next"])["job_id"]
+        # The rows of any new query differ from the stored rows.
+        fake_bigquery.result_frame = device_frame(2)
+        pages = [first_page] + _follow(paging_api, _request(), meta)
+        pd.testing.assert_frame_equal(
+            pd.concat(pages, ignore_index=True), device_frame(7)
+        )
+        assert [lookup.job_id for lookup in fake_bigquery.job_lookups] == [job_id] * 2
+        assert all(lookup.location == LOCATION for lookup in fake_bigquery.job_lookups)
+
+    def test_cursor_offsets_advance_by_the_page_size(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, metas = _walk(paging_api, _request())
+        assert [payload_of(meta["next"])["offset"] for meta in metas[:-1]] == [3, 6]
+        assert [read.start_index for read in fake_bigquery.reads] == [0, 3, 6]
+
+    def test_metadata_marks_the_last_page(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        pages, metas = _walk(paging_api, _request())
+        for meta in metas[:-1]:
+            assert meta["has_more"] is True
+            assert isinstance(meta["next"], str)
+        assert metas[-1] == {
+            "total_count": len(pages[-1]),
+            "has_more": False,
+            "next": None,
         }
+        assert [meta["total_count"] for meta in metas] == [len(p) for p in pages]
 
-    def test_apply_pagination_cursor_site_filter_includes_device_id(self, bq_api):
-        """Site-filtered pagination must also pin device_id for multi-device
-        sites, otherwise the cursor could skip/repeat rows within a site."""
-        token = CursorUtils.create_cursor("2025-01-01 00:00:00Z", "site1", "device1")
-        query, parameters = bq_api._apply_pagination_cursor(
-            "SELECT * FROM table", "timestamp", token, "sites"
+    def test_empty_result_is_one_page_without_a_cursor(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(0)
+        page, meta = paging_api.query_data(**_request())
+        assert page.empty
+        assert meta == {"total_count": 0, "has_more": False, "next": None}
+        assert len(fake_bigquery.queries) == 1
+        assert fake_bigquery.job_lookups == []
+
+    @pytest.mark.parametrize("rows, pages", [(3, 1), (6, 2)])
+    def test_result_of_whole_pages_ends_without_an_empty_page(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api, rows, pages
+    ):
+        fake_bigquery.result_frame = device_frame(rows)
+        walked, metas = _walk(paging_api, _request())
+        assert len(walked) == pages
+        assert metas[-1]["next"] is None
+        assert all(len(page) == small_pages for page in walked)
+
+    def test_first_query_keeps_its_order_and_has_no_limit(
+        self, fake_bigquery, cursor_clock, paging_api
+    ):
+        from google.cloud import bigquery
+
+        fake_bigquery.result_frame = device_frame(2)
+        paging_api.query_data(**_request())
+        sent = fake_bigquery.queries[0]
+        assert re.search(r"\border by\b", sent.sql, re.IGNORECASE)
+        assert re.search(r"\blimit\s+\d+", sent.sql, re.IGNORECASE) is None
+        (param,) = sent.job_config.query_parameters
+        assert isinstance(param, bigquery.ArrayQueryParameter)
+        assert param.values == ["dev_a", "dev_b"]
+
+    def test_each_read_stays_within_one_page(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _walk(paging_api, _request())
+        assert all(read.max_results == small_pages for read in fake_bigquery.reads)
+        assert all(read.rows <= small_pages for read in fake_bigquery.reads)
+
+    def test_the_same_cursor_returns_the_same_page(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, meta = paging_api.query_data(**_request())
+        first, _ = paging_api.query_data(cursor_token=meta["next"], **_request())
+        again, _ = paging_api.query_data(cursor_token=meta["next"], **_request())
+        pd.testing.assert_frame_equal(first, again)
+
+    def test_a_page_size_change_between_pages_keeps_every_row_once(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api, monkeypatch
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        first_page, meta = paging_api.query_data(**_request())
+        monkeypatch.setattr(test_settings, "data_export_limit", 2)
+        pages = [first_page] + _follow(paging_api, _request(), meta)
+        pd.testing.assert_frame_equal(
+            pd.concat(pages, ignore_index=True), device_frame(7)
         )
-        assert "site_id = @cursor_filter_value" in query
-        assert "device_id = @cursor_device_id" in query
-        assert self._params(parameters) == {
-            "cursor_timestamp": "2025-01-01 00:00:00Z",
-            "cursor_filter_value": "site1",
-            "cursor_device_id": "device1",
-        }
+        assert [len(page) for page in pages] == [3, 2, 2]
 
-    def test_apply_pagination_cursor_invalid_token_raises(self, bq_api):
-        with pytest.raises(ValueError, match="Invalid pagination cursor"):
-            bq_api._apply_pagination_cursor(
-                "SELECT * FROM table", "timestamp", "not-a-real-token!!", "device_ids"
+    def test_a_cursor_of_another_request_is_rejected_without_a_bigquery_call(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, meta = paging_api.query_data(**_request())
+        with pytest.raises(CursorRejected):
+            paging_api.query_data(
+                cursor_token=meta["next"], **_request(cursor_binding=OTHER_HASH)
             )
+        assert fake_bigquery.job_lookups == []
+        assert len(fake_bigquery.reads) == 1
 
-    def test_cursor_payload_never_reaches_sql_text(self, bq_api):
-        """A cursor is client-supplied. Even a correctly signed one carrying
-        SQL metacharacters must land in a bound parameter, never in the query
-        text — this is the second layer behind the HMAC check."""
-        payload = "2024-01-01' OR 1=1 OR '1'='1"
-        token = CursorUtils.create_cursor(payload, "device1")
+    def test_a_changed_or_expired_cursor_is_rejected_without_a_bigquery_call(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, meta = paging_api.query_data(**_request())
+        with pytest.raises(CursorRejected):
+            paging_api.query_data(cursor_token=tampered(meta["next"]), **_request())
+        cursor_clock.advance(361)
+        with pytest.raises(CursorRejected):
+            paging_api.query_data(cursor_token=meta["next"], **_request())
+        assert fake_bigquery.job_lookups == []
+        assert len(fake_bigquery.reads) == 1
 
-        query, parameters = bq_api._apply_pagination_cursor(
-            "SELECT * FROM table", "timestamp", token, "device_ids"
+    @pytest.mark.parametrize("vanish", ["expire_result", "forget_job"])
+    def test_a_vanished_stored_result_rejects_the_cursor(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api, vanish
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, meta = paging_api.query_data(**_request())
+        getattr(fake_bigquery, vanish)(payload_of(meta["next"])["job_id"])
+        with pytest.raises(CursorRejected):
+            paging_api.query_data(cursor_token=meta["next"], **_request())
+
+    def test_a_refused_page_read_is_a_forbidden_query(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, meta = paging_api.query_data(**_request())
+        fake_bigquery.read_error = Forbidden(
+            "Access Denied", errors=[{"reason": "accessDenied"}]
         )
+        with pytest.raises(QueryForbidden):
+            paging_api.query_data(cursor_token=meta["next"], **_request())
 
-        assert "OR 1=1" not in query
-        assert payload not in query
-        assert self._params(parameters)["cursor_timestamp"] == payload
+    def test_whole_result_returns_every_row_in_one_frame(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        frame, meta = paging_api.query_data(whole_result=True, **_request())
+        pd.testing.assert_frame_equal(frame, device_frame(7))
+        assert meta == {"total_count": 7, "has_more": False, "next": None}
+        assert len(fake_bigquery.queries) == 1
+        assert fake_bigquery.reads[0].bqstorage is False
 
-    def test_tampered_cursor_is_rejected(self, bq_api):
-        """Flipping a byte of the payload must invalidate the signature."""
-        token = CursorUtils.create_cursor("2025-01-01 00:00:00Z", "device1")
-        payload_b64, _, signature = token.rpartition(".")
-        forged = f"{payload_b64[:-4]}AAAA.{signature}"
-
-        with pytest.raises(ValueError, match="Invalid pagination cursor"):
-            bq_api._apply_pagination_cursor(
-                "SELECT * FROM table", "timestamp", forged, "device_ids"
+    def test_whole_result_with_a_cursor_is_rejected(
+        self, fake_bigquery, small_pages, cursor_clock, paging_api
+    ):
+        fake_bigquery.result_frame = device_frame(7)
+        _, meta = paging_api.query_data(**_request())
+        with pytest.raises(CursorRejected):
+            paging_api.query_data(
+                cursor_token=meta["next"], whole_result=True, **_request()
             )
-
-    def test_unsigned_cursor_is_rejected(self, bq_api):
-        """A hand-rolled base64 token (the pre-HMAC format) must not verify."""
-        import base64
-
-        payload = f"2025-01-01 00:00:00Z|device1|{int(time.time()) + 300}"
-        unsigned = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
-
-        with pytest.raises(ValueError, match="Invalid pagination cursor"):
-            bq_api._apply_pagination_cursor(
-                "SELECT * FROM table", "timestamp", unsigned, "device_ids"
-            )
-
-    def test_generate_next_cursor_from_dataframe(self, bq_api):
-        df = pd.DataFrame(
-            {
-                "timestamp": ["2025-01-04 00:00:00Z"],
-                "site_id": ["site3"],
-                "device_id": ["device3"],
-            }
-        )
-        token = bq_api._generate_next_cursor(df, "timestamp", "sites")
-
-        assert token is not None
-        parsed = CursorUtils.parse_cursor(token)
-        assert parsed["timestamp"] == "2025-01-04 00:00:00Z"
-        assert parsed["filter_value"] == "site3"
-        assert parsed["device_id"] == "device3"
-
-    def test_generate_next_cursor_empty_dataframe_returns_none(self, bq_api):
-        assert (
-            bq_api._generate_next_cursor(pd.DataFrame(), "timestamp", "sites") is None
-        )
+        assert len(fake_bigquery.queries) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -483,136 +635,75 @@ class TestPaginationCursor:
 
 class TestAsyncDelegationContract:
     @pytest.mark.asyncio
-    async def test_query_data_async_supports_grid_filter(self, monkeypatch):
+    async def test_query_data_async_supports_grid_filter(self, fake_bigquery):
         """Regression: grid filtering was added only in BigQueryApi; the async
         path must pick it up through _query_data_sync's 1:1 delegation. If
         query logic is ever forked into AsyncBigQueryApi, this test's premise
         (sync-side changes are automatically async-visible) breaks loudly."""
-        import pandas as pd
         from google.cloud import bigquery
-        from api.models import bigquery_api as bq_mod
         from api.models.async_bigquery_api import AsyncBigQueryApi
-        from constants import DataType
-
-        captured = {}
-        orig_init = bq_mod.BigQueryApi.__init__
-
-        def patched_init(inner_self):
-            orig_init(inner_self)
-            client = MagicMock()
-
-            def fake_query(query=None, job_config=None, **kw):
-                captured["sql"] = query
-                captured["params"] = job_config.query_parameters if job_config else None
-                res = MagicMock()
-                res.result.return_value.to_dataframe.return_value = pd.DataFrame()
-                return res
-
-            client.query.side_effect = fake_query
-            inner_self.client = client
-
-        monkeypatch.setattr(bq_mod.BigQueryApi, "__init__", patched_init)
 
         api = AsyncBigQueryApi()
         df, meta = await api.query_data_async(
             table="proj.ds.hourly",
-            start_date_time="2025-01-01",
-            end_date_time="2025-01-02",
+            start_date_time="2026-01-01",
+            end_date_time="2026-01-02",
             device_category=DeviceCategory.LOWCOST,
             frequency=Frequency.HOURLY,
             data_type=DataType.CALIBRATED,
             columns=["pm2_5"],
             where_fields={"grid_ids": ["grid1", "grid2"]},
             dynamic_query=True,
+            cursor_binding=REQUEST_HASH,
         )
 
-        assert "grids_sites" in captured["sql"]
-        assert "grid_id IN UNNEST(@filter_value)" in captured["sql"]
-        param = captured["params"][0]
+        sent = fake_bigquery.queries[0]
+        assert "grids_sites" in sent.sql
+        assert "grid_id IN UNNEST(@filter_value)" in sent.sql
+        param = sent.job_config.query_parameters[0]
         assert isinstance(param, bigquery.ArrayQueryParameter)
         assert param.values == ["grid1", "grid2"]
         assert df.empty
         assert meta["total_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_query_data_async_supports_cohort_filter(self, monkeypatch):
+    async def test_query_data_async_supports_cohort_filter(self, fake_bigquery):
         """Same contract as the grid test above, for the cohort filter: it is
         defined only in BigQueryApi.get_device_query and must reach the async
         path — every request the API serves goes through query_data_async."""
-        import pandas as pd
         from google.cloud import bigquery
-        from api.models import bigquery_api as bq_mod
         from api.models.async_bigquery_api import AsyncBigQueryApi
-        from constants import DataType
-
-        captured = {}
-        orig_init = bq_mod.BigQueryApi.__init__
-
-        def patched_init(inner_self):
-            orig_init(inner_self)
-            client = MagicMock()
-
-            def fake_query(query=None, job_config=None, **kw):
-                captured["sql"] = query
-                captured["params"] = job_config.query_parameters if job_config else None
-                res = MagicMock()
-                res.result.return_value.to_dataframe.return_value = pd.DataFrame()
-                return res
-
-            client.query.side_effect = fake_query
-            inner_self.client = client
-
-        monkeypatch.setattr(bq_mod.BigQueryApi, "__init__", patched_init)
 
         api = AsyncBigQueryApi()
         df, meta = await api.query_data_async(
             table="proj.ds.hourly",
-            start_date_time="2025-01-01",
-            end_date_time="2025-01-02",
+            start_date_time="2026-01-01",
+            end_date_time="2026-01-02",
             device_category=DeviceCategory.LOWCOST,
             frequency=Frequency.HOURLY,
             data_type=DataType.CALIBRATED,
             columns=["pm2_5"],
             where_fields={"cohort_ids": ["cohort1"]},
             dynamic_query=True,
+            cursor_binding=REQUEST_HASH,
         )
 
-        assert "cohorts_devices" in captured["sql"]
-        assert "cohort_id IN UNNEST(@filter_value)" in captured["sql"]
-        param = captured["params"][0]
+        sent = fake_bigquery.queries[0]
+        assert "cohorts_devices" in sent.sql
+        assert "cohort_id IN UNNEST(@filter_value)" in sent.sql
+        param = sent.job_config.query_parameters[0]
         assert isinstance(param, bigquery.ArrayQueryParameter)
         assert param.values == ["cohort1"]
         assert df.empty
         assert meta["total_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_pagination_orders_grid_and_cohort_by_device_id(self, monkeypatch):
-        """Grids and cohorts resolve to devices, so both must paginate on
-        device_id.  A filter type missing from FILTER_FIELD_MAPPING would
-        interpolate the literal "None" into the ORDER BY and fail at
-        BigQuery — after the query has already been billed."""
-        import pandas as pd
-        from api.models import bigquery_api as bq_mod
+    async def test_pagination_orders_grid_and_cohort_by_device_id(self, fake_bigquery):
+        """Grids and cohorts resolve to devices, so both order the stored
+        result by device_id.  A filter type missing from FILTER_FIELD_MAPPING
+        would interpolate the literal "None" into the ORDER BY, and BigQuery
+        would reject the query."""
         from api.models.async_bigquery_api import AsyncBigQueryApi
-        from constants import DataType
-
-        captured = {}
-        orig_init = bq_mod.BigQueryApi.__init__
-
-        def patched_init(inner_self):
-            orig_init(inner_self)
-            client = MagicMock()
-
-            def fake_query(query=None, job_config=None, **kw):
-                captured["sql"] = query
-                res = MagicMock()
-                res.result.return_value.to_dataframe.return_value = pd.DataFrame()
-                return res
-
-            client.query.side_effect = fake_query
-            inner_self.client = client
-
-        monkeypatch.setattr(bq_mod.BigQueryApi, "__init__", patched_init)
 
         for filter_type, filter_value in (
             ("grid_ids", ["g1"]),
@@ -621,17 +712,20 @@ class TestAsyncDelegationContract:
             api = AsyncBigQueryApi()
             await api.query_data_async(
                 table="proj.ds.hourly",
-                start_date_time="2025-01-01",
-                end_date_time="2025-01-02",
+                start_date_time="2026-01-01",
+                end_date_time="2026-01-02",
                 device_category=DeviceCategory.LOWCOST,
                 frequency=Frequency.HOURLY,
                 data_type=DataType.CALIBRATED,
                 columns=["pm2_5"],
                 where_fields={filter_type: filter_value},
                 dynamic_query=True,
+                cursor_binding=REQUEST_HASH,
             )
-            assert "order by timestamp, device_id" in captured["sql"], filter_type
-            assert "None" not in captured["sql"], filter_type
+            sql = fake_bigquery.queries[-1].sql
+            assert "order by timestamp, device_id" in sql, filter_type
+            assert "None" not in sql, filter_type
+            assert re.search(r"\blimit\s+\d+", sql, re.IGNORECASE) is None, filter_type
 
 
 # ---------------------------------------------------------------------------

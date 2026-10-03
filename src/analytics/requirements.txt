@@ -17,7 +17,9 @@ urllib3
 pandas
 numpy
 pymongo~=4.5.0
-google-cloud-bigquery[pandas]
+# A page of a stored query result is read with start_index and page_size
+# together, which the library serves correctly from 3.35.0 on.
+google-cloud-bigquery[pandas] >= 3.35.0
 google-cloud-storage
 google-cloud-bigquery-storage==2.27.0
 # redis.asyncio is the async cache client; aclose() needs 5.0.1 or later.

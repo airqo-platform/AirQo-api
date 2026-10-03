@@ -27,6 +27,25 @@ class ExportRequestNotFound(Exception):
         super().__init__(self.message)
 
 
+class CursorRejected(Exception):
+    """
+    The service rejected a pagination cursor.
+
+    api/utils/cursor_utils.CursorUtils.read_cursor raises it for a token that
+    is malformed, unsigned, changed, expired or issued for another request.
+    api/models/bigquery_api.BigQueryApi.query_data raises it when BigQuery
+    holds no stored result for the job that a token names, when that job is
+    a load, copy or extract job, and when a cursor arrives with a whole-result
+    read.  ``reason`` names the check that failed and goes to the log only.
+    The service layer answers every CursorRejected with HTTP 400 and one
+    fixed message.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
 def format_bytes(num_bytes: Optional[int]) -> str:
     """Render a byte count as a short human-readable size (e.g. "5.2 GB")."""
     if num_bytes is None or num_bytes < 0:
