@@ -193,13 +193,16 @@ def _configure_middleware(app: FastAPI) -> None:
         allow_headers=["*"],
         # A browser reads only the six CORS-safelisted response headers unless
         # the server names the others here.  The CSV download path carries its
-        # pagination state and its filename in these, so a browser client needs
-        # them exposed to page through a CSV export.
+        # pagination state and its filename in the four X- and Content- headers.
+        # A 429 answer carries the wait in Retry-After.  A browser client needs
+        # all of them exposed to page through a CSV export and to wait as long
+        # as the server asks.
         expose_headers=[
             "Content-Disposition",
             "X-Total-Count",
             "X-Has-More",
             "X-Next-Cursor",
+            "Retry-After",
         ],
     )
 

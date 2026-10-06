@@ -492,6 +492,50 @@ class TestRouteRateLimitWiring:
 
         assert statuses == [200] * 5 + [429]
 
+    @pytest.mark.parametrize(
+        "path", ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"]
+    )
+    def test_later_pages_pass_the_per_route_limit(
+        self, client, fake_bigquery, cursor_clock, monkeypatch, path
+    ):
+        """raw-data allows 5 exports a minute.  The seven pages of one export
+        count once.  The next exports carry an empty cursor, which starts a new
+        export, so each of them counts, and the fifth of them is the sixth
+        counted request and gets 429."""
+        from tests.paging_support import RAW, device_frame
+        from tests.test_config import test_settings
+
+        monkeypatch.setattr(test_settings, "data_export_limit", 1)
+        fake_bigquery.result_frame = device_frame(7)
+
+        statuses, cursor = [], None
+        for _ in range(7):
+            resp = client.post(path, json={**RAW, "cursor": cursor} if cursor else RAW)
+            statuses.append(resp.status_code)
+            if resp.status_code != 200:
+                break
+            cursor = resp.json()["metadata"]["next"]
+
+        assert statuses == [200] * 7
+        assert cursor is None
+        exports = [
+            client.post(path, json={**RAW, "cursor": ""}).status_code for _ in range(5)
+        ]
+        assert exports == [200] * 4 + [429]
+
+    def test_a_cursor_on_a_route_without_pages_counts(self, client, fake_bigquery):
+        """summary allows 10 requests a minute, whatever the body carries."""
+        body = {
+            "grid_id": "grid-1",
+            "start_time": "2026-03-01T00:00:00+00:00",
+            "end_time": "2026-03-08T00:00:00+00:00",
+            "cursor": "page-2",
+        }
+
+        statuses = [client.post(V2_SUMMARY, json=body).status_code for _ in range(11)]
+
+        assert statuses == [200] * 10 + [429]
+
 
 # ---------------------------------------------------------------------------
 # Dashboard historical aggregations
@@ -955,6 +999,31 @@ def _bad_cursors(cursor, cursor_clock):
 
 
 class TestStoredResultPagingRoutes:
+    @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
+    def test_later_pages_pass_the_per_route_limit_on_every_paged_route(
+        self,
+        client,
+        fake_bigquery,
+        small_pages,
+        cursor_clock,
+        monkeypatch,
+        path,
+        body,
+        identity,
+    ):
+        """The per-route limit allows 5 exports a minute on raw-data and 10
+        elsewhere.  A walk of 12 one-row pages passes on every paged route,
+        because only the first request of an export counts."""
+        from tests.test_config import test_settings
+
+        monkeypatch.setattr(test_settings, "data_export_limit", 1)
+        _seed(fake_bigquery, identity, rows=12)
+
+        pages = _walk_json(client, path, body)
+
+        assert len(pages) == 12
+        assert len(fake_bigquery.queries) == 1
+
     @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
     def test_walk_returns_every_record_once(
         self, client, fake_bigquery, small_pages, cursor_clock, path, body, identity
@@ -1566,6 +1635,23 @@ class TestMiddleware:
         assert resp.status_code == 429
         assert resp.headers.get("access-control-allow-origin")
         assert resp.headers.get("x-request-id")
+
+    def test_rate_limited_response_lets_a_browser_read_retry_after(
+        self, client: TestClient
+    ):
+        from api.middlewares.rate_limiter import RateLimiterMiddleware
+
+        with _raising_route() as path, patch.object(
+            RateLimiterMiddleware,
+            "_consume_quota",
+            new=AsyncMock(return_value=False),
+        ):
+            resp = client.get(path, headers=self.ORIGIN)
+
+        assert resp.status_code == 429
+        assert resp.headers.get("retry-after")
+        exposed = resp.headers.get("access-control-expose-headers", "")
+        assert "retry-after" in [name.strip().lower() for name in exposed.split(",")]
 
     def test_cors_preflight_is_still_answered(self, client: TestClient):
         with _raising_route() as path:

@@ -71,7 +71,7 @@ None of the endpoints documented here require a user identity.
 
 ## Rate Limits
 
-Two limits apply to each request, the global limit and the per-route limit,
+The service applies two limits, the global limit and the per-route limit,
 both keyed on the client IP (taken from `X-Forwarded-For`, but only when the
 immediate peer is a configured trusted proxy). The per-route limit is 5 on
 `raw-data` and 10 on every other route:
@@ -83,8 +83,13 @@ immediate peer is a configured trusted proxy). The per-route limit is 5 on
 | Per-route limit, every other route      | 10 requests / 60 s  |
 
 The per-route limit counts the requests to one route path from one client IP,
-on v2 and v3 alike. Exceeding either limit returns **429** with the standard
-error envelope. Both limits are constants in the code.
+on v2 and v3 alike. On the routes that page (`data-download`, `raw-data`,
+`forecast-data` and the chart routes), it counts the request that starts an
+export. A request that carries a cursor fetches a later page of that export
+and counts only against the global limit. Exceeding either limit returns
+**429** with the standard error envelope and a `Retry-After` header that names
+the seconds to wait. Browsers can read that header. Both limits are constants
+in the code.
 
 While Redis is unavailable the limiter falls back to per-process counters, so
 the effective ceiling becomes approximately `workers × replicas ×` the
@@ -239,9 +244,9 @@ page. To fetch the next page, send the same request body with `cursor` set to
 the value of `X-Next-Cursor`. The rules in [Pagination](#pagination) apply to a
 CSV export as they do to a JSON export: the cursor expires 6 minutes after the
 response that carried it, it works only with the request body that produced
-it, and every page counts against the rate limit. **A single CSV response holds
-one page**, so a caller that ignores these headers receives the first page and
-no indication that the rest exists.
+it, and every page counts against the global rate limit. **A single CSV
+response holds one page**, so a caller that ignores these headers receives the
+first page and no indication that the rest exists.
 
 Browser clients read these headers because the service lists them in
 `Access-Control-Expose-Headers`, alongside `Content-Disposition`.
@@ -253,8 +258,9 @@ Browser clients read these headers because the service lists them in
 
 Unprocessed sensor measurements. Takes the shared fields and returns the same
 envelope as data-download. It **does** support `"downloadType": "csv"`. The
-route allows 5 requests a minute for each client, so pause at least 12 seconds
-between the pages of a large export.
+route allows 5 exports a minute for each client. The requests for the later
+pages of an export count only against the global limit, as
+[Pagination](#pagination) describes.
 
 ```json
 {
@@ -736,10 +742,12 @@ of that stored result by position and runs no query.
 
 ### Pacing
 
-Every page counts against the per-route limit: `raw-data` allows 5 requests a
-minute and the other routes 10. Pause at least 12 seconds between the pages of
-`raw-data` and 6 seconds elsewhere. Both pauses stay far inside the 6-minute
-cursor lifetime.
+The per-route limit counts the request that starts an export: `raw-data`
+allows 5 exports a minute and the other routes 10. A request that carries a
+cursor counts only against the global limit of 100 requests a minute. Pause at
+least 1 second between pages. Pause at least 12 seconds between the exports of
+`raw-data` and 6 seconds between the exports of the other routes. Every pause
+stays far inside the 6-minute cursor lifetime.
 
 ## Error Handling
 
@@ -889,7 +897,8 @@ request again with the same cursor while the cursor is valid.
 ## Examples
 
 Both examples check the status of every page, send a refused page again with
-the same cursor, and pause between pages to stay inside the per-route limit.
+the same cursor, and pause 1 second between pages to stay inside the global
+limit.
 
 ```python
 import time
@@ -898,10 +907,11 @@ import requests
 
 BASE = "https://<host>/api/v3/public/analytics"
 
-# These are the pauses between pages, in seconds. raw-data allows 5 requests a
-# minute for each client and the other routes allow 10, so the pauses keep a
-# loop inside the limit and far inside the 6-minute lifetime of a cursor.
-PAUSE_SECONDS = {"raw-data": 12, "data-download": 6, "forecast-data": 6}
+# This is the pause between pages, in seconds. The requests for later pages
+# count only against the global limit of 100 requests a minute for each client,
+# so the pause keeps a loop inside that limit and far inside the 6-minute
+# lifetime of a cursor.
+PAUSE_SECONDS = 1
 RETRY_STATUSES = {429, 503}
 MAX_ATTEMPTS = 4
 
@@ -935,7 +945,7 @@ def fetch_all(path, params):
         if not metadata.get("has_more"):
             return records
         body["cursor"] = metadata["next"]
-        time.sleep(PAUSE_SECONDS[path])
+        time.sleep(PAUSE_SECONDS)
 
 
 records = fetch_all(
@@ -953,13 +963,9 @@ print(f"Retrieved {len(records)} measurements")
 
 ```javascript
 const BASE = "https://<host>/api/v3/public/analytics";
-// These are the pauses between pages, in milliseconds. raw-data allows 5
-// requests a minute for each client and the other routes allow 10.
-const PAUSE_MS = {
-  "raw-data": 12000,
-  "data-download": 6000,
-  "forecast-data": 6000,
-};
+// This is the pause between pages, in milliseconds. The requests for later
+// pages count only against the global limit of 100 requests a minute.
+const PAUSE_MS = 1000;
 const MAX_ATTEMPTS = 4;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -971,8 +977,8 @@ async function postPage(path, body) {
       body: JSON.stringify(body),
     });
     if (response.status === 429 || response.status === 503) {
-      // A browser reads Retry-After only when the server exposes it, so a 429
-      // falls back to one rate-limit window and a 503 to a growing delay.
+      // A 429 names its wait in Retry-After. Without that header, a 429 waits
+      // one rate-limit window and a 503 waits a growing delay.
       const fallback = response.status === 429 ? 60 : 5 * 2 ** attempt;
       await sleep(
         (Number(response.headers.get("Retry-After")) || fallback) * 1000
@@ -996,7 +1002,7 @@ async function fetchAll(path, params) {
     records = records.concat(envelope.data);
     if (!envelope.metadata?.has_more) return records;
     body.cursor = envelope.metadata.next;
-    await sleep(PAUSE_MS[path]);
+    await sleep(PAUSE_MS);
   }
 }
 ```
@@ -1011,9 +1017,9 @@ async function fetchAll(path, params) {
 2. **Filter deliberately.** One filter family per request; keep lists well
    under the 150-entry cap.
 3. **Page promptly and at a steady pace.** A cursor expires 6 minutes after
-   the response that carried it. Pause at least 12 seconds between the pages
-   of `raw-data` and 6 seconds elsewhere, so a loop stays inside the per-route
-   limit.
+   the response that carried it. Pause at least 1 second between pages. Pause
+   at least 12 seconds between the exports of `raw-data` and 6 seconds between
+   the exports of the other routes, so a loop stays inside both limits.
 4. **Request only what you need.** Fewer pollutants and metadata fields means
    less data scanned.
 5. **Handle 429 and 503.** Both are expected under load or during a dependency
