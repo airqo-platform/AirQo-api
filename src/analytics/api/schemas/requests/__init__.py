@@ -701,19 +701,3 @@ class ScheduledExportRequest(BaseFilterRequest):
                 "grid_ids and cohort_ids are not yet supported for scheduled exports"
             )
         return self
-
-
-# ---------------------------------------------------------------------------
-# Monitoring sites
-# ---------------------------------------------------------------------------
-
-
-class MonitoringSiteRequest(BaseRequest):
-    """Request model for monitoring site information."""
-
-    network: Optional[Network] = Field(None, description="Network filter")
-    site_ids: Optional[List[str]] = Field(
-        None, alias="siteIds", description="Specific site IDs"
-    )
-    include_device_info: bool = Field(True, alias="includeDeviceInfo")
-    include_location: bool = Field(True, alias="includeLocation")

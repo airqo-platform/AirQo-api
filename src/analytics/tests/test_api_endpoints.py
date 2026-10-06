@@ -146,6 +146,31 @@ class TestV2DashboardEndpoints:
         assert body["networks"] == ["airqo", "iqair"]
         assert len(fake_bigquery.queries) == 1
 
+    def test_monitoring_sites_leave_out_a_site_without_coordinates(
+        self, client, fake_bigquery
+    ):
+        import pandas as pd
+
+        fake_bigquery.result_frame = pd.DataFrame(
+            {
+                "id": ["s1", "s2", "s3"],
+                "name": ["Site A", "Site B", "Site C"],
+                "latitude": [0.3, None, -1.29],
+                "longitude": [32.5, 36.82, None],
+                "city": ["Kampala", "Nairobi", "Mombasa"],
+                "country": ["Uganda", "Kenya", "Kenya"],
+                "network": ["airqo", "iqair", "airqo"],
+            }
+        )
+
+        resp = client.get("/api/v2/analytics/dashboard/sites")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_sites"] == 1
+        assert [site["site_id"] for site in body["sites"]] == ["s1"]
+        assert body["networks"] == ["airqo"]
+
 
 # ---------------------------------------------------------------------------
 # V2 report template endpoints (MongoDB-backed CRUD)

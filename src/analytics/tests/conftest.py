@@ -36,7 +36,6 @@ from main import app  # noqa: E402  (must come after settings patch)
 from api.schemas.requests import (  # noqa: E402
     DataExportRequest,
     DashboardChartRequest,
-    MonitoringSiteRequest,
     RawDataExportRequest,
 )
 
