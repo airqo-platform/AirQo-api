@@ -67,6 +67,64 @@ class TestJoins:
         assert "data.site_id = " in result
 
 
+class TestQueryText:
+    def test_one_request_builds_one_query_text_in_every_process(self):
+        """Two worker processes with different hash seeds build the same SQL
+        for one request, so BigQuery serves the repeat from its cache and the
+        columns of a CSV export keep one order."""
+        import os
+        import subprocess
+        import sys
+        import textwrap
+        from pathlib import Path
+
+        script = textwrap.dedent(
+            """
+            import os, sys
+            from unittest.mock import MagicMock
+            sys.path.insert(0, os.getcwd())
+            import google.cloud.bigquery
+            google.cloud.bigquery.Client = MagicMock
+            from tests.test_config import test_settings
+            import config
+            config.settings = test_settings
+            from api.models.bigquery_api import BigQueryApi
+            from constants import DataType, DeviceCategory, Frequency
+            api = BigQueryApi()
+            start, end = "2026-03-01T00:00:00+00:00", "2026-03-02T00:00:00+00:00"
+            devices = {"device_ids": ["dev_a"]}
+            print(api.compose_query(
+                test_settings.bigquery_raw_data, start, end, ["pm2_5", "pm10"],
+                DataType.RAW, devices, DeviceCategory.LOWCOST,
+            ))
+            print(api.compose_dynamic_query(
+                test_settings.bigquery_hourly_data, start, end, ["pm2_5", "pm10"],
+                devices, DataType.CALIBRATED, Frequency.HOURLY,
+                DeviceCategory.LOWCOST,
+            ))
+            """
+        )
+        queries = set()
+        for seed in ("1", "2"):
+            env = {
+                **os.environ,
+                "APP_ENV": "development",
+                "PYTHONHASHSEED": seed,
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+            run = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=Path(__file__).resolve().parents[1],
+            )
+            assert run.returncode == 0, run.stderr
+            assert "pm2_5" in run.stdout and "temperature" in run.stdout
+            queries.add(run.stdout)
+        assert len(queries) == 1
+
+
 class TestTimeGrouping:
     @pytest.mark.parametrize(
         "frequency,expected",
